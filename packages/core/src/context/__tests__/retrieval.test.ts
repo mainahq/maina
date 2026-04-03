@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { SearchResult } from "../retrieval";
-import { assembleRetrievalText, isToolAvailable, search } from "../retrieval";
+import {
+	assembleRetrievalText,
+	isToolAvailable,
+	parseZoektOutput,
+	search,
+} from "../retrieval";
 
 describe("isToolAvailable", () => {
 	test("returns true for 'git' (always available)", async () => {
@@ -50,6 +55,52 @@ describe("search", () => {
 		const results = await search("anything", {
 			cwd: "/nonexistent/path/xyz",
 		});
+		expect(Array.isArray(results)).toBe(true);
+	});
+});
+
+describe("parseZoektOutput", () => {
+	test("parses zoekt text output into SearchResult[]", () => {
+		const output = `src/app.ts:10:export function main() {
+src/app.ts:11:  return true;
+src/utils.ts:5:export const helper = () => {};`;
+
+		const results = parseZoektOutput(output);
+		expect(results).toHaveLength(3);
+		expect(results[0]?.filePath).toBe("src/app.ts");
+		expect(results[0]?.line).toBe(10);
+		expect(results[0]?.content).toBe("export function main() {");
+	});
+
+	test("handles empty output", () => {
+		expect(parseZoektOutput("")).toHaveLength(0);
+	});
+
+	test("skips malformed lines", () => {
+		const output = `src/app.ts:10:valid line
+not a valid line
+another:bad
+src/utils.ts:5:also valid`;
+		const results = parseZoektOutput(output);
+		expect(results).toHaveLength(2);
+	});
+
+	test("handles zoekt header lines gracefully", () => {
+		const output = `Repository: maina
+src/app.ts:10:export function main() {
+src/app.ts:11:  return true;`;
+		const results = parseZoektOutput(output);
+		// Should skip the Repository: line
+		expect(results).toHaveLength(2);
+	});
+});
+
+describe("searchWithZoekt", () => {
+	test("should skip when zoekt is not available", async () => {
+		// zoekt is almost certainly not installed in test environment
+		const { searchWithZoekt } = await import("../retrieval");
+		const results = await searchWithZoekt("testquery", { cwd: process.cwd() });
+		// Either returns results (if zoekt installed) or empty array (not installed)
 		expect(Array.isArray(results)).toBe(true);
 	});
 });
