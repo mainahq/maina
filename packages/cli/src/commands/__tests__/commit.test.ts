@@ -79,6 +79,7 @@ mock.module("@maina/core", () => ({
 	) => {
 		recordedOutcomes.push({ mainaDir, promptHash, outcome });
 	},
+	recordSnapshot: () => ({ ok: true, value: undefined }),
 }));
 
 mock.module("@clack/prompts", () => ({
