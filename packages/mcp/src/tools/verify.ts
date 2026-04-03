@@ -60,8 +60,10 @@ export function registerVerifyTools(server: McpServer): void {
 		{ files: z.array(z.string()) },
 		async ({ files }) => {
 			try {
-				const { detectSlop } = await import("@maina/core");
-				const result = await detectSlop(files, { cwd: process.cwd() });
+				const { detectSlop, createCacheManager } = await import("@maina/core");
+				const cwd = process.cwd();
+				const cache = createCacheManager(join(cwd, ".maina"));
+				const result = await detectSlop(files, { cwd, cache });
 				return {
 					content: [
 						{ type: "text" as const, text: JSON.stringify(result, null, 2) },

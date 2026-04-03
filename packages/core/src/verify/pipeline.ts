@@ -44,6 +44,8 @@ export interface PipelineResult {
 	hiddenCount: number; // pre-existing findings hidden
 	detectedTools: DetectedTool[]; // what was found on PATH
 	duration: number; // total ms
+	cacheHits: number; // cache L1+L2 hits during this run
+	cacheMisses: number; // cache misses during this run
 }
 
 export interface PipelineOptions {
@@ -104,6 +106,8 @@ export async function runPipeline(
 			hiddenCount: 0,
 			detectedTools: [],
 			duration: Math.round(performance.now() - start),
+			cacheHits: 0,
+			cacheMisses: 0,
 		};
 	}
 
@@ -120,6 +124,8 @@ export async function runPipeline(
 			hiddenCount: 0,
 			detectedTools: [],
 			duration: Math.round(performance.now() - start),
+			cacheHits: 0,
+			cacheMisses: 0,
 		};
 	}
 
@@ -214,6 +220,7 @@ export async function runPipeline(
 	const passed = !shownFindings.some((f) => f.severity === "error");
 
 	// ── Step 8: Return unified result ─────────────────────────────────────
+	const cacheStats = slopCache.stats();
 	return {
 		passed,
 		syntaxPassed: true,
@@ -222,5 +229,7 @@ export async function runPipeline(
 		hiddenCount,
 		detectedTools,
 		duration: Math.round(performance.now() - start),
+		cacheHits: cacheStats.l1Hits + cacheStats.l2Hits,
+		cacheMisses: cacheStats.misses,
 	};
 }
