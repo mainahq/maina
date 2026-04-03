@@ -27,6 +27,17 @@ export interface InitActionDeps {
 
 const defaultDeps: InitActionDeps = { intro, outro, log };
 
+/** Install hints for missing verification tools. */
+const INSTALL_HINTS: Record<string, string> = {
+	biome: "bun add -d @biomejs/biome",
+	semgrep: "pip install semgrep",
+	trivy: "brew install trivy",
+	secretlint:
+		"bun add -d @secretlint/secretlint-rule-preset-recommend secretlint",
+	sonarqube: "https://docs.sonarsource.com/sonarqube-cloud/",
+	stryker: "bun add -d @stryker-mutator/core",
+};
+
 // ── Core Action (testable) ──────────────────────────────────────────────────
 
 /**
@@ -63,6 +74,27 @@ export async function initAction(
 	deps.log.message(`  Linter:     ${s.linter}`);
 	if (s.framework !== "none") {
 		deps.log.message(`  Framework:  ${s.framework}`);
+	}
+
+	// Show verification tool status
+	const available = report.detectedTools.filter((t) => t.available);
+	const missing = report.detectedTools.filter((t) => !t.available);
+
+	if (available.length > 0) {
+		deps.log.success(
+			`Verification tools: ${available.map((t) => `${t.name} (${t.version})`).join(", ")}`,
+		);
+	}
+
+	if (missing.length > 0) {
+		deps.log.warning(`Missing tools: ${missing.map((t) => t.name).join(", ")}`);
+		deps.log.message("  Install for deeper verification:");
+		for (const t of missing) {
+			const cmd = INSTALL_HINTS[t.name];
+			if (cmd) {
+				deps.log.message(`    ${t.name}: ${cmd}`);
+			}
+		}
 	}
 
 	// Display created files

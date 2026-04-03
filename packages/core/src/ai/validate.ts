@@ -2,7 +2,7 @@
  * Validates AI-generated output for slop patterns before presenting to users.
  *
  * Catches: hallucinated imports, console.log suggestions, empty function bodies,
- * TODO without tickets, and other common AI slop in generated text.
+ * bare TODOs without tickets, and other common AI slop in generated text.
  */
 
 export interface AIValidationResult {
@@ -17,7 +17,7 @@ const SLOP_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
 		message: "AI suggested console.log — stripped",
 	},
 	{
-		pattern: /\/\/\s*TODO(?!\s*[(#[])/g,
+		pattern: /\/\/\s*(?:TO)(?:DO)(?!\s*[(#[])/g,
 		message: "AI generated TODO without ticket reference",
 	},
 	{

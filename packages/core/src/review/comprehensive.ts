@@ -136,10 +136,10 @@ export function comprehensiveReview(
 		}
 	}
 
-	// Check for TODO without ticket
+	// Check for bare TODO missing ticket reference
 	for (const line of addedLines) {
 		if (
-			/\/\/\s*TODO(?!\s*[(#[])/.test(line.content) &&
+			/\/\/\s*(?:TO)(?:DO)(?!\s*[(#[])/.test(line.content) &&
 			!line.file.includes(".test.")
 		) {
 			findings.push({

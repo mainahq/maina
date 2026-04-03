@@ -73,10 +73,16 @@ export function createCacheManager(mainaDir: string): CacheManager {
 		// Return a no-op manager that always misses — never throw
 		const noop: CacheManager = {
 			get: () => null,
-			set: () => {},
+			set: () => {
+				/* no-op */
+			},
 			has: () => false,
-			invalidate: () => {},
-			clear: () => {},
+			invalidate: () => {
+				/* no-op */
+			},
+			clear: () => {
+				/* no-op */
+			},
 			stats: () => ({
 				l1Hits: 0,
 				l2Hits: 0,

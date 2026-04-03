@@ -211,4 +211,18 @@ describe("bootstrap", () => {
 			expect(result.value.directory).toBe(join(tmpDir, ".maina"));
 		}
 	});
+
+	test("detects available verification tools in report", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.detectedTools).toBeDefined();
+			expect(Array.isArray(result.value.detectedTools)).toBe(true);
+			// Each tool should have name and available flag
+			for (const tool of result.value.detectedTools) {
+				expect(typeof tool.name).toBe("string");
+				expect(typeof tool.available).toBe("boolean");
+			}
+		}
+	});
 });

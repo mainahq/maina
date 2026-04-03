@@ -391,4 +391,52 @@ describe("VerifyPipeline", () => {
 
 		expect(result.passed).toBe(true);
 	});
+
+	it("should emit warning finding when all external tools are skipped", async () => {
+		mockDetectedTools = [
+			makeDetectedTool("biome", true),
+			makeDetectedTool("semgrep", false),
+			makeDetectedTool("trivy", false),
+			makeDetectedTool("secretlint", false),
+		];
+
+		mockSemgrepResult = { findings: [], skipped: true };
+		mockTrivyResult = { findings: [], skipped: true };
+		mockSecretlintResult = { findings: [], skipped: true };
+
+		const result = await runPipeline({
+			files: ["src/app.ts"],
+			diffOnly: false,
+		});
+
+		// Should still pass (warning, not error) but include the warning
+		expect(result.passed).toBe(true);
+
+		const pipelineWarning = result.findings.find(
+			(f) => f.tool === "pipeline" && f.severity === "warning",
+		);
+		expect(pipelineWarning).toBeDefined();
+		expect(pipelineWarning?.message).toContain("external");
+	});
+
+	it("should not emit warning when at least one external tool ran", async () => {
+		mockDetectedTools = [
+			makeDetectedTool("biome", true),
+			makeDetectedTool("semgrep", true),
+			makeDetectedTool("trivy", false),
+			makeDetectedTool("secretlint", false),
+		];
+
+		mockSemgrepResult = { findings: [], skipped: false };
+		mockTrivyResult = { findings: [], skipped: true };
+		mockSecretlintResult = { findings: [], skipped: true };
+
+		const result = await runPipeline({
+			files: ["src/app.ts"],
+			diffOnly: false,
+		});
+
+		const pipelineWarning = result.findings.find((f) => f.tool === "pipeline");
+		expect(pipelineWarning).toBeUndefined();
+	});
 });

@@ -182,10 +182,26 @@ export async function runPipeline(
 
 	const toolReports = await Promise.all(toolPromises);
 
+	// ── Step 4b: Warn if all external tools were skipped ─────────────────
+	const externalTools = toolReports.filter((r) => r.tool !== "slop");
+	const allExternalSkipped =
+		externalTools.length > 0 && externalTools.every((r) => r.skipped);
+
 	// ── Step 5: Collect all findings ──────────────────────────────────────
 	const allFindings: Finding[] = [];
 	for (const report of toolReports) {
 		allFindings.push(...report.findings);
+	}
+
+	if (allExternalSkipped) {
+		const skippedNames = externalTools.map((r) => r.tool).join(", ");
+		allFindings.push({
+			tool: "pipeline",
+			file: "",
+			line: 0,
+			message: `No external verification tools ran (${skippedNames} skipped). Run \`maina doctor\` to check tool health or \`maina init\` to configure.`,
+			severity: "warning",
+		});
 	}
 
 	// ── Step 6: Apply diff-only filter ────────────────────────────────────

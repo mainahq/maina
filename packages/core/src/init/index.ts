@@ -9,6 +9,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Result } from "../db/index";
+import type { DetectedTool } from "../verify/detect";
+import { detectTools } from "../verify/detect";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,6 +23,7 @@ export interface InitReport {
 	skipped: string[];
 	directory: string;
 	detectedStack: DetectedStack;
+	detectedTools: DetectedTool[];
 }
 
 export interface DetectedStack {
@@ -314,6 +317,9 @@ export async function bootstrap(
 		// Detect project stack from package.json
 		const detectedStack = detectStack(repoRoot);
 
+		// Detect available verification tools on PATH
+		const detectedToolsList = await detectTools();
+
 		// Ensure .maina/ exists
 		mkdirSync(mainaDir, { recursive: true });
 
@@ -341,7 +347,13 @@ export async function bootstrap(
 
 		return {
 			ok: true,
-			value: { created, skipped, directory: mainaDir, detectedStack },
+			value: {
+				created,
+				skipped,
+				directory: mainaDir,
+				detectedStack,
+				detectedTools: detectedToolsList,
+			},
 		};
 	} catch (e) {
 		return {

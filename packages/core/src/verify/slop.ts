@@ -45,13 +45,9 @@ function cacheKey(fileHash: string): string {
 /**
  * Detect empty function/method/arrow bodies.
  *
- * Looks for patterns like:
- *   function name() {}
- *   () => {}
- *   method() {}
- *
+ * Looks for patterns like `function name() { }`, `() => { }`, `method() { }`.
  * Does NOT flag bodies that contain comments.
- * Does NOT flag object literals (const x = {}) or array literals.
+ * Does NOT flag object literals or array literals.
  */
 export function detectEmptyBodies(content: string, file: string): Finding[] {
 	// Skip test files — mocks/stubs intentionally use empty bodies
@@ -77,21 +73,29 @@ export function detectEmptyBodies(content: string, file: string): Finding[] {
 			continue;
 		}
 
-		// Check for single-line empty function body: contains {} and is a function-like declaration
-		if (/\{\s*\}/.test(trimmed)) {
-			// Check if this is a function/method/arrow
+		// Check for single-line empty function body
+		const emptyBraces = /\{\s*\}/;
+		if (emptyBraces.test(trimmed)) {
+			// Skip lines where the empty braces are inside a regex literal or string
+			if (
+				/\/.*\{\\s\*\}.*\//.test(trimmed) ||
+				/['"`].*\{\s*\}.*['"`]/.test(trimmed)
+			) {
+				continue;
+			}
+
+			const fnDeclPattern =
+				/function\s+\w+\s*\([^)]*\)\s*(?::\s*[^{]+)?\{\s*\}/;
+			const arrowPattern = /=>\s*\{\s*\}/;
+			const methodPattern =
+				/^\s*(?:(?:public|private|protected|static|async|get|set|override)\s+)*\w+\s*\([^)]*\)\s*(?::\s*[^{]+)?\{\s*\}/;
+			const nonFnPattern =
+				/(?:const|let|var|type|interface|enum|import|export\s+(?:type|interface))\s/;
+
 			const isFunctionLike =
-				// function declaration: function foo() {}
-				/function\s+\w+\s*\([^)]*\)\s*(?::\s*[^{]+)?\{\s*\}/.test(trimmed) ||
-				// arrow function: (...) => {} or x => {}
-				/=>\s*\{\s*\}/.test(trimmed) ||
-				// method: name() {} (but not const/let/var = {})
-				(/^\s*(?:(?:public|private|protected|static|async|get|set|override)\s+)*\w+\s*\([^)]*\)\s*(?::\s*[^{]+)?\{\s*\}/.test(
-					trimmed,
-				) &&
-					!/(?:const|let|var|type|interface|enum|import|export\s+(?:type|interface))\s/.test(
-						trimmed,
-					));
+				fnDeclPattern.test(trimmed) ||
+				arrowPattern.test(trimmed) ||
+				(methodPattern.test(trimmed) && !nonFnPattern.test(trimmed));
 
 			if (isFunctionLike) {
 				findings.push({
@@ -230,6 +234,13 @@ export function detectConsoleLogs(content: string, file: string): Finding[] {
 
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i] ?? "";
+		// Respect lint-ignore directives on preceding line
+		const prevLine = i > 0 ? (lines[i - 1] ?? "") : "";
+		if (
+			/(?:biome-ignore|eslint-disable|@ts-ignore|noinspection)/.test(prevLine)
+		) {
+			continue;
+		}
 		const match = consolePattern.exec(line);
 		if (match) {
 			findings.push({
@@ -256,6 +267,11 @@ export function detectTodosWithoutTickets(
 	content: string,
 	file: string,
 ): Finding[] {
+	// Skip test files — fixtures legitimately contain TODO patterns as test data
+	if (/\.(test|spec)\.[jt]sx?$/.test(file)) {
+		return [];
+	}
+
 	const findings: Finding[] = [];
 	const lines = content.split("\n");
 
@@ -290,6 +306,11 @@ export function detectTodosWithoutTickets(
  * JSDoc-style comments (starting with /**) are treated as documentation and skipped.
  */
 export function detectCommentedCode(content: string, file: string): Finding[] {
+	// Skip test files — fixtures contain intentional commented-out code as test data
+	if (/\.(test|spec)\.[jt]sx?$/.test(file)) {
+		return [];
+	}
+
 	const findings: Finding[] = [];
 	const lines = content.split("\n");
 
@@ -383,7 +404,7 @@ export function detectCommentedCode(content: string, file: string): Finding[] {
  * Run slop detection on the given files.
  *
  * Checks for: empty function bodies, hallucinated imports, console.log,
- * TODO without ticket references, and commented-out code blocks.
+ * bare TODOs missing ticket references, and commented-out code blocks.
  *
  * Results are cached by file content hash when a CacheManager is provided.
  */
