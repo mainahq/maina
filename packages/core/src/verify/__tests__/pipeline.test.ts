@@ -5,7 +5,7 @@
  * ordering (syntax first), parallel execution, diff filtering, pass/fail.
  */
 
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import type { DetectedTool } from "../detect";
 import type { DiffFilterResult, Finding } from "../diff-filter";
@@ -95,6 +95,10 @@ mock.module("../../git/index", () => ({
 		return mockStagedFiles;
 	},
 }));
+
+afterAll(() => {
+	mock.restore();
+});
 
 // Import AFTER mocking
 import { runPipeline } from "../pipeline";

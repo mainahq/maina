@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { Finding } from "../diff-filter";
 
 // ─── Mock setup ──────────────────────────────────────────────────────────
@@ -61,6 +61,10 @@ mock.module("../../prompts/engine", () => ({
 mock.module("../../cache/manager", () => ({
 	createCacheManager: mockCreateCacheManager,
 }));
+
+afterAll(() => {
+	mock.restore();
+});
 
 // Now import the module under test
 import {

@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import {
+	afterAll,
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	mock,
+} from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -16,6 +24,10 @@ mock.module(GIT_MODULE, () => ({
 	...realGit,
 	getCurrentBranch: mockGetCurrentBranch,
 }));
+
+afterAll(() => {
+	mock.restore();
+});
 
 // Import after mocking
 const {
