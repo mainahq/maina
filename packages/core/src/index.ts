@@ -52,6 +52,13 @@ export {
 	type ToolName,
 } from "./verify/detect";
 export {
+	type DiffFilterResult,
+	type Finding,
+	filterByDiff,
+	filterByDiffWithMap,
+	parseChangedLines,
+} from "./verify/diff-filter";
+export {
 	parseBiomeOutput,
 	type SyntaxDiagnostic,
 	type SyntaxGuardResult,
