@@ -86,6 +86,15 @@ export {
 	type TrendDirection,
 	type TrendsReport,
 } from "./stats/tracker";
+// Ticket
+export {
+	buildIssueBody,
+	createTicket,
+	detectModules,
+	type SpawnDeps,
+	type TicketOptions,
+	type TicketResult,
+} from "./ticket/index";
 export {
 	type DetectedTool,
 	detectTool,

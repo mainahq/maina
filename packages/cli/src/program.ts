@@ -10,6 +10,7 @@ import { planCommand } from "./commands/plan";
 import { promptCommand } from "./commands/prompt";
 import { specCommand } from "./commands/spec";
 import { statsCommand } from "./commands/stats";
+import { ticketCommand } from "./commands/ticket";
 import { verifyCommand } from "./commands/verify";
 
 export function createProgram(): Command {
@@ -28,6 +29,7 @@ export function createProgram(): Command {
 	program.addCommand(specCommand());
 	program.addCommand(statsCommand());
 	program.addCommand(verifyCommand());
+	program.addCommand(ticketCommand());
 	program.addCommand(doctorCommand());
 	return program;
 }
