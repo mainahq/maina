@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -174,6 +174,41 @@ describe("scaffoldAdr", () => {
 			const today = new Date().toISOString().split("T")[0];
 			expect(content).toContain(`Date: ${today}`);
 		}
+	});
+});
+
+describe("scaffoldAdr with HLD/LLD", () => {
+	const testDir = join(import.meta.dir, "__fixtures__/adr-hld");
+
+	it("should include HLD and LLD sections in scaffold", async () => {
+		if (existsSync(testDir)) rmSync(testDir, { recursive: true });
+		mkdirSync(testDir, { recursive: true });
+
+		const result = await scaffoldAdr(testDir, "0001", "Test Decision");
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+
+		const content = readFileSync(result.value, "utf-8");
+
+		// HLD sections
+		expect(content).toContain("## High-Level Design");
+		expect(content).toContain("### System Overview");
+		expect(content).toContain("### Component Boundaries");
+		expect(content).toContain("### Data Flow");
+		expect(content).toContain("### External Dependencies");
+
+		// LLD sections
+		expect(content).toContain("## Low-Level Design");
+		expect(content).toContain("### Interfaces & Types");
+		expect(content).toContain("### Function Signatures");
+		expect(content).toContain("### DB Schema Changes");
+		expect(content).toContain("### Sequence of Operations");
+		expect(content).toContain("### Error Handling");
+		expect(content).toContain("### Edge Cases");
+
+		// Cleanup
+		rmSync(testDir, { recursive: true });
 	});
 });
 

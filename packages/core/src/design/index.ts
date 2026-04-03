@@ -68,6 +68,50 @@ What becomes easier or more difficult to do because of this change?
 ### Neutral
 
 - [NEEDS CLARIFICATION]
+
+## High-Level Design
+
+### System Overview
+
+[NEEDS CLARIFICATION]
+
+### Component Boundaries
+
+[NEEDS CLARIFICATION]
+
+### Data Flow
+
+[NEEDS CLARIFICATION]
+
+### External Dependencies
+
+[NEEDS CLARIFICATION]
+
+## Low-Level Design
+
+### Interfaces & Types
+
+[NEEDS CLARIFICATION]
+
+### Function Signatures
+
+[NEEDS CLARIFICATION]
+
+### DB Schema Changes
+
+[NEEDS CLARIFICATION]
+
+### Sequence of Operations
+
+[NEEDS CLARIFICATION]
+
+### Error Handling
+
+[NEEDS CLARIFICATION]
+
+### Edge Cases
+
+[NEEDS CLARIFICATION]
 `;
 }
 
