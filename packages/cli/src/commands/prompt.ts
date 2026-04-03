@@ -65,7 +65,7 @@ export function promptCommand(): Command {
 			const s = spinner();
 			s.start("Loading prompt info…");
 
-			// TODO(#sprint-10): Wire getPromptStats(mainaDir) once feedback query is fixed
+			// TODO(#011): Wire getPromptStats(mainaDir) once feedback query is fixed
 			s.stop("Loaded.");
 
 			const header = `  ${"Task".padEnd(12)} ${"Usage".padStart(7)}  ${"Accept".padStart(8)}  Override`;
@@ -77,7 +77,7 @@ export function promptCommand(): Command {
 				const hasOverride = await Bun.file(overridePath).exists();
 
 				// Stats matching requires feedback table query by command, not prompt hash prefix
-				// TODO(#sprint-10): Fix stats display with proper feedback query
+				// TODO(#011): Fix stats display with proper feedback query
 				const usageStr = "\u2014";
 				const rateStr = "\u2014";
 				const overrideStr = hasOverride ? "yes" : "no";

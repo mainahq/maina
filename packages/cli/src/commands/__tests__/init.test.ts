@@ -115,6 +115,30 @@ describe("maina init CLI", () => {
 		}
 	});
 
+	test("shows detected verification tools", async () => {
+		makeGitRepo(tmpDir);
+		const messages: string[] = [];
+		const deps = makeDeps({
+			log: {
+				info: (msg: string) => messages.push(`info:${msg}`),
+				error: (msg: string) => messages.push(`error:${msg}`),
+				warning: (msg: string) => messages.push(`warning:${msg}`),
+				success: (msg: string) => messages.push(`success:${msg}`),
+				message: (msg: string) => messages.push(`message:${msg}`),
+				step: (msg: string) => messages.push(`step:${msg}`),
+			},
+		});
+
+		const result = await initAction({ cwd: tmpDir }, deps);
+
+		expect(result.ok).toBe(true);
+		// Should display either available tools or missing tools
+		const toolMessages = messages.filter(
+			(m) => m.includes("Verification tools") || m.includes("Missing tools"),
+		);
+		expect(toolMessages.length).toBeGreaterThan(0);
+	});
+
 	test("fails if not a git repo", async () => {
 		// tmpDir has no .git directory
 		const messages: string[] = [];

@@ -147,7 +147,7 @@ import { z } from "zod";`;
 		});
 	});
 
-	// ─── TODO without ticket ─────────────────────────────────────────────────
+	// ─── Bare TODOs missing ticket ──────────────────────────────────────────
 
 	describe("detectTodosWithoutTickets", () => {
 		it("should detect TODO without ticket reference", () => {

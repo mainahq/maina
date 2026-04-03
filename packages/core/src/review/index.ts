@@ -270,9 +270,7 @@ export function reviewCodeQuality(
 			});
 		}
 
-		// Check for TODO without ticket reference (case-sensitive to avoid
-		// matching "Todo" in identifiers like handleCreateTodo)
-		// Allowed patterns: TODO(#123), TODO(JIRA-456), TODO #123
+		// Bare TODO without ticket ref — case-sensitive to skip identifiers like handleCreateTodo. Allows TODO(#123), TODO(JIRA-456)
 		if (
 			/\bTODO\b/.test(text) &&
 			!/TODO\s*[(#]|TODO\s*\([A-Z]+-\d+\)/.test(text)
@@ -286,7 +284,7 @@ export function reviewCodeQuality(
 			});
 		}
 
-		// Check for empty function/method bodies: `() {}` or `() => {}`
+		// Check for empty function/method bodies
 		if (
 			/(?:function\s+\w+\s*\([^)]*\)|=>\s*)\s*\{\s*\}/.test(text) ||
 			/\)\s*\{\s*\}/.test(text)

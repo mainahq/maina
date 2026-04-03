@@ -39,7 +39,7 @@ export async function tryAIGenerate(
 			mainaDir,
 		});
 
-		if (result.text && result.text.startsWith("[HOST_DELEGATION]")) {
+		if (result.text?.startsWith("[HOST_DELEGATION]")) {
 			return {
 				text: result.text,
 				fromAI: false,
@@ -48,7 +48,7 @@ export async function tryAIGenerate(
 			};
 		}
 
-		if (result.text && !result.text.includes("API key")) {
+		if (result.text && !result.text?.includes("API key")) {
 			return {
 				text: result.text,
 				fromAI: true,
