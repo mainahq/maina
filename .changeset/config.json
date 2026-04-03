@@ -10,7 +10,7 @@
     ["@maina/cli", "@maina/core", "@maina/mcp", "@maina/skills"]
   ],
   "access": "public",
-  "baseBranch": "main",
+  "baseBranch": "master",
   "updateInternalDependencies": "patch",
   "ignore": []
 }
