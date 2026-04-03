@@ -1,0 +1,46 @@
+{
+	"story": "ms",
+	"tier": 2,
+	"timestamp": "2026-04-03T17:30:00.000Z",
+	"maina": {
+		"pipeline": "maina",
+		"tokens": 27862,
+		"toolCalls": 17,
+		"durationMs": 121098,
+		"testsTotal": 56,
+		"testsPassed": 56,
+		"testsFailed": 0,
+		"implLOC": 105,
+		"toolsUsed": ["getContext", "getConventions", "suggestTests", "verify", "checkSlop", "reviewCode"],
+		"verifyFindings": 0,
+		"slopFindings": 0,
+		"reviewPassed": true,
+		"attemptsToPass": 1,
+		"bugsIntroduced": 0
+	},
+	"speckit": {
+		"pipeline": "speckit",
+		"tokens": 27056,
+		"toolCalls": 20,
+		"durationMs": 161967,
+		"testsTotal": 45,
+		"testsPassed": 45,
+		"testsFailed": 0,
+		"implLOC": 105,
+		"toolsUsed": ["specify init", "constitution.md", "specs/ms.md", "plans/ms.md", "tasks/ms.md"],
+		"verifyFindings": null,
+		"slopFindings": null,
+		"reviewPassed": null,
+		"attemptsToPass": 1,
+		"bugsIntroduced": 0
+	},
+	"winner": "tie",
+	"learnings": [
+		"Both achieve 100% on medium complexity — need harder problems to differentiate",
+		"Maina 25% faster despite running verify+review+slop (3 extra safety checks)",
+		"Token usage roughly equal on tier 2 (gap narrowed from tier 1)",
+		"Spec Kit produces 4 structured artifacts (constitution, spec, plan, tasks) — more documentation",
+		"Verification is maina's unique value — Spec Kit has no equivalent quality gate",
+		"Tier 3 should have ambiguous requirements or multi-module architecture to force real bugs"
+	]
+}
