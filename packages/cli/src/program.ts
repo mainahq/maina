@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import pkg from "../package.json";
+import { analyzeCommand } from "./commands/analyze";
 import { cacheCommand } from "./commands/cache";
 import { commitCommand } from "./commands/commit";
 import { contextCommand } from "./commands/context";
@@ -16,6 +17,7 @@ export function createProgram(): Command {
 		.name("maina")
 		.description("Verification-first developer operating system")
 		.version(pkg.version);
+	program.addCommand(analyzeCommand());
 	program.addCommand(contextCommand());
 	program.addCommand(promptCommand());
 	program.addCommand(cacheCommand());
