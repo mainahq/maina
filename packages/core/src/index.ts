@@ -1,5 +1,7 @@
 export const VERSION = "0.1.0";
 
+// AI — commit message
+export { generateCommitMessage } from "./ai/commit-msg";
 // Cache
 export {
 	type CacheManager,
@@ -122,6 +124,7 @@ export {
 	type ReviewResult as PrReviewResult,
 	type ReviewStageResult,
 	reviewCodeQuality,
+	reviewCodeQualityWithAI,
 	reviewSpecCompliance,
 	runTwoStageReview,
 } from "./review/index";

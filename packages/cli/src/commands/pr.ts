@@ -39,7 +39,9 @@ export interface PrDeps {
 		cwd?: string,
 	) => Promise<Array<{ hash: string; message: string }>>;
 	getCurrentBranch: (cwd?: string) => Promise<string>;
-	runTwoStageReview: typeof coreRunTwoStageReview;
+	runTwoStageReview: (
+		...args: Parameters<typeof coreRunTwoStageReview>
+	) => ReturnType<typeof coreRunTwoStageReview>;
 }
 
 // ── Default createPr implementation ─────────────────────────────────────────
@@ -176,7 +178,7 @@ export async function prAction(
 	}
 
 	// ── Step 2: Run two-stage review ─────────────────────────────────────
-	const reviewResult = deps.runTwoStageReview({ diff });
+	const reviewResult = await deps.runTwoStageReview({ diff });
 
 	// Display review results
 	if (reviewResult.stage1.findings.length > 0) {

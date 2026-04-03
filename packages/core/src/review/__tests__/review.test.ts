@@ -201,7 +201,7 @@ ${longLine}`;
 // ── runTwoStageReview ───────────────────────────────────────────────────────
 
 describe("runTwoStageReview", () => {
-	test("both pass → passed", () => {
+	test("both pass → passed", async () => {
 		const diff = `diff --git a/src/auth.ts b/src/auth.ts
 --- a/src/auth.ts
 +++ b/src/auth.ts
@@ -211,7 +211,7 @@ describe("runTwoStageReview", () => {
 		const plan = `## Tasks
 - [ ] Add user authentication to auth.ts`;
 
-		const result = runTwoStageReview({
+		const result = await runTwoStageReview({
 			diff,
 			planContent: plan,
 		});
@@ -222,7 +222,7 @@ describe("runTwoStageReview", () => {
 		expect(result.stage2?.passed).toBe(true);
 	});
 
-	test("stage 1 fails → stage 2 is null", () => {
+	test("stage 1 fails → stage 2 is null", async () => {
 		const plan = `## Tasks
 - [ ] Add user authentication to auth.ts
 - [ ] Update database schema in db/schema.ts`;
@@ -234,7 +234,7 @@ describe("runTwoStageReview", () => {
 @@ -1,3 +1,5 @@
 +export function unrelated() { return true; }`;
 
-		const result = runTwoStageReview({
+		const result = await runTwoStageReview({
 			diff,
 			planContent: plan,
 		});
@@ -244,7 +244,7 @@ describe("runTwoStageReview", () => {
 		expect(result.stage2).toBeNull();
 	});
 
-	test("stage 1 passes but stage 2 fails → passed is false", () => {
+	test("stage 1 passes but stage 2 fails → passed is false", async () => {
 		const diff = `diff --git a/src/auth.ts b/src/auth.ts
 --- a/src/auth.ts
 +++ b/src/auth.ts
@@ -257,7 +257,7 @@ describe("runTwoStageReview", () => {
 		const plan = `## Tasks
 - [ ] Add user authentication to auth.ts`;
 
-		const result = runTwoStageReview({
+		const result = await runTwoStageReview({
 			diff,
 			planContent: plan,
 		});
@@ -268,7 +268,7 @@ describe("runTwoStageReview", () => {
 		expect(result.stage2?.passed).toBe(false);
 	});
 
-	test("no plan → stage 1 passes automatically", () => {
+	test("no plan → stage 1 passes automatically", async () => {
 		const diff = `diff --git a/src/index.ts b/src/index.ts
 --- a/src/index.ts
 +++ b/src/index.ts
@@ -277,7 +277,7 @@ describe("runTwoStageReview", () => {
 +  return name;
 +}`;
 
-		const result = runTwoStageReview({
+		const result = await runTwoStageReview({
 			diff,
 			planContent: null,
 		});
