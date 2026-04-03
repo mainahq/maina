@@ -1,0 +1,163 @@
+import { buildCacheKey, hashContent } from "../cache/keys";
+import { createCacheManager } from "../cache/manager";
+import { getTtl } from "../cache/ttl";
+import { getApiKey, loadConfig } from "../config/index";
+import { resolveModel } from "./tiers";
+
+export interface GenerateOptions {
+	task: string;
+	systemPrompt: string;
+	userPrompt: string;
+	files?: string[]; // for cache key
+	mainaDir?: string; // for cache storage
+}
+
+export interface GenerateResult {
+	text: string;
+	cached: boolean;
+	model: string;
+	tokens?: { input: number; output: number };
+}
+
+interface StoredResult {
+	text: string;
+	model: string;
+	tokens?: { input: number; output: number };
+}
+
+/**
+ * Performs the actual AI SDK call. Isolated here so tests never need to invoke it.
+ * Returns null on any error so callers can handle gracefully.
+ */
+export async function callModel(
+	modelId: string,
+	provider: string,
+	apiKey: string,
+	system: string,
+	user: string,
+): Promise<{
+	text: string;
+	tokens?: { input: number; output: number };
+} | null> {
+	try {
+		const { generateText } = await import("ai");
+		const { createOpenAI } = await import("@ai-sdk/openai");
+
+		// createOpenAI supports custom base URLs — we use it for OpenRouter too
+		const baseURL =
+			provider === "openrouter" ? "https://openrouter.ai/api/v1" : undefined;
+
+		const openai = createOpenAI({
+			apiKey,
+			baseURL,
+		});
+
+		const result = await generateText({
+			model: openai(modelId),
+			system,
+			prompt: user,
+		});
+
+		return {
+			text: result.text,
+			tokens:
+				result.usage != null
+					? {
+							input: result.usage.inputTokens ?? 0,
+							output: result.usage.outputTokens ?? 0,
+						}
+					: undefined,
+		};
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Main AI generation function with cache-first strategy.
+ *
+ * 1. Hash the prompts to build a stable cache key.
+ * 2. Return cached result if available.
+ * 3. If no API key, return a helpful error result (never throw).
+ * 4. Call the model, cache the result, and return it.
+ */
+export async function generate(
+	options: GenerateOptions,
+): Promise<GenerateResult> {
+	const { task, systemPrompt, userPrompt, files, mainaDir } = options;
+
+	const config = await loadConfig();
+	const { modelId, provider } = resolveModel(task, config);
+
+	// Build cache key
+	const promptHash = hashContent(systemPrompt + userPrompt);
+	const cacheKey = await buildCacheKey({
+		task,
+		files,
+		promptHash,
+		model: modelId,
+	});
+
+	// Set up cache (no-op manager if mainaDir not provided)
+	const effectiveMainaDir = mainaDir ?? ".maina";
+	const cache = createCacheManager(effectiveMainaDir);
+
+	// Cache hit
+	const cached = cache.get(cacheKey);
+	if (cached !== null) {
+		try {
+			const stored = JSON.parse(cached.value) as StoredResult;
+			return {
+				text: stored.text,
+				cached: true,
+				model: stored.model,
+				tokens: stored.tokens,
+			};
+		} catch {
+			// Corrupted cache entry — fall through to re-generate
+		}
+	}
+
+	// Check for API key
+	const apiKey = getApiKey();
+	if (apiKey === null) {
+		return {
+			text: "No API key found. Set MAINA_API_KEY or OPENROUTER_API_KEY environment variable to use AI features.",
+			cached: false,
+			model: "",
+		};
+	}
+
+	// Call the model
+	const aiResult = await callModel(
+		modelId,
+		provider,
+		apiKey,
+		systemPrompt,
+		userPrompt,
+	);
+
+	if (aiResult === null) {
+		return {
+			text: "AI call failed. Check your API key and network connection.",
+			cached: false,
+			model: modelId,
+		};
+	}
+
+	// Store in cache
+	const ttl = getTtl(task as Parameters<typeof getTtl>[0]);
+	const storedResult: StoredResult = {
+		text: aiResult.text,
+		model: modelId,
+		tokens: aiResult.tokens,
+	};
+	cache.set(cacheKey, JSON.stringify(storedResult), { ttl, model: modelId });
+
+	return {
+		text: aiResult.text,
+		cached: false,
+		model: modelId,
+		tokens: aiResult.tokens,
+	};
+}

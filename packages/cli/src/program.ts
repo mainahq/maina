@@ -1,6 +1,9 @@
 import { Command } from "commander";
 import pkg from "../package.json";
+import { cacheCommand } from "./commands/cache";
 import { contextCommand } from "./commands/context";
+import { learnCommand } from "./commands/learn";
+import { promptCommand } from "./commands/prompt";
 
 export function createProgram(): Command {
 	const program = new Command();
@@ -9,5 +12,8 @@ export function createProgram(): Command {
 		.description("Verification-first developer operating system")
 		.version(pkg.version);
 	program.addCommand(contextCommand());
+	program.addCommand(promptCommand());
+	program.addCommand(cacheCommand());
+	program.addCommand(learnCommand());
 	return program;
 }
