@@ -27,6 +27,7 @@ export interface ReviewOptions {
 	diff: string;
 	planContent?: string | null;
 	conventions?: string | null;
+	mainaDir?: string; // enables AI review when provided
 }
 
 export interface ReviewResult {
@@ -321,16 +322,76 @@ export function reviewCodeQuality(
 	};
 }
 
+// ── AI-Enhanced Code Quality Review ─────────────────────────────────────────
+
+/**
+ * Run code quality review with optional AI enhancement.
+ *
+ * Always runs deterministic checks first. If an API key is available and
+ * mainaDir is provided, also runs an AI-powered review and merges findings.
+ * AI failure never blocks the review — deterministic results are always returned.
+ */
+export async function reviewCodeQualityWithAI(
+	diff: string,
+	conventions: string | null,
+	mainaDir: string,
+): Promise<ReviewStageResult> {
+	// Always run deterministic checks first
+	const deterministicResult = reviewCodeQuality(diff, conventions);
+
+	// Try AI review if API key available
+	try {
+		const { getApiKey } = await import("../config/index");
+		const apiKey = getApiKey();
+		if (!apiKey) {
+			return deterministicResult;
+		}
+
+		const { buildSystemPrompt } = await import("../prompts/engine");
+		const { generate } = await import("../ai/index");
+
+		const builtPrompt = await buildSystemPrompt("review", mainaDir, {
+			diff,
+			conventions: conventions ?? "",
+			constitution: "", // loaded by buildSystemPrompt from .maina/constitution.md
+			language: "TypeScript",
+		});
+
+		const aiResult = await generate({
+			task: "review",
+			systemPrompt: builtPrompt.prompt,
+			userPrompt: `Review this diff:\n\n${diff}`,
+			mainaDir,
+		});
+
+		// Parse AI findings and merge with deterministic ones
+		// For now, add AI summary as an info finding
+		if (aiResult.cached || aiResult.text) {
+			deterministicResult.findings.push({
+				stage: "code-quality",
+				severity: "info",
+				message: `AI review: ${aiResult.text.slice(0, 200)}${aiResult.text.length > 200 ? "..." : ""}`,
+			});
+		}
+	} catch {
+		// AI failure should never block review
+	}
+
+	return deterministicResult;
+}
+
 // ── Two-Stage Review ────────────────────────────────────────────────────────
 
 /**
  * Run the two-stage PR review pipeline.
  *
  * Stage 1: Spec compliance. If it fails, return without running stage 2.
- * Stage 2: Code quality.
+ * Stage 2: Code quality. Uses AI-enhanced review when mainaDir is provided.
  * Returns combined result.
  */
-export function runTwoStageReview(options: ReviewOptions): ReviewResult {
+export async function runTwoStageReview(
+	options: ReviewOptions,
+): Promise<ReviewResult> {
 	const stage1 = reviewSpecCompliance(
 		options.diff,
 		options.planContent ?? null,
@@ -344,7 +405,13 @@ export function runTwoStageReview(options: ReviewOptions): ReviewResult {
 		};
 	}
 
-	const stage2 = reviewCodeQuality(options.diff, options.conventions ?? null);
+	const stage2 = options.mainaDir
+		? await reviewCodeQualityWithAI(
+				options.diff,
+				options.conventions ?? null,
+				options.mainaDir,
+			)
+		: reviewCodeQuality(options.diff, options.conventions ?? null);
 
 	return {
 		stage1,

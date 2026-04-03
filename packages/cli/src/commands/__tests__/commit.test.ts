@@ -70,8 +70,10 @@ let recordedOutcomes: Array<{
 mock.module("@maina/core", () => ({
 	getStagedFiles: async () => mockStagedFiles,
 	getCurrentBranch: async () => mockBranch,
+	getDiff: async () => "+ some diff content",
 	runPipeline: async () => mockPipelineResult,
 	runHooks: async () => mockHookResult,
+	generateCommitMessage: async () => null, // no AI in tests by default
 	recordOutcome: (
 		mainaDir: string,
 		promptHash: string,
@@ -124,6 +126,7 @@ mock.module("@clack/prompts", () => ({
 	}),
 	text: async () => "test commit message",
 	confirm: async () => true,
+	isCancel: (value: unknown) => typeof value === "symbol",
 }));
 
 afterAll(() => {

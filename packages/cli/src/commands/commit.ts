@@ -1,9 +1,10 @@
 import { join } from "node:path";
-import { intro, log, outro, text } from "@clack/prompts";
+import { confirm, intro, isCancel, log, outro, text } from "@clack/prompts";
 import {
 	addEpisodicEntry,
 	assembleContext,
 	getCurrentBranch,
+	getDiff,
 	getStagedFiles,
 	type PipelineResult,
 	recordOutcome,
@@ -218,6 +219,33 @@ export async function commitAction(
 
 	// ── Step 4: Resolve commit message ────────────────────────────────────
 	let message = options.message;
+
+	// Try AI-generated commit message before manual prompt
+	if (!message) {
+		try {
+			const { generateCommitMessage } = await import("@maina/core");
+			const diff = await getDiff(undefined, undefined, cwd);
+			const suggested = await generateCommitMessage(
+				diff,
+				stagedFiles,
+				mainaDir,
+			);
+			if (suggested) {
+				const accepted = await confirm({
+					message: `Suggested: "${suggested}" — use this?`,
+					initialValue: true,
+				});
+				if (isCancel(accepted)) {
+					return { committed: false, reason: "Cancelled by user" };
+				}
+				if (accepted) {
+					message = suggested;
+				}
+			}
+		} catch {
+			// AI suggestion failure — fall through to manual
+		}
+	}
 
 	if (!message) {
 		const userMessage = await text({

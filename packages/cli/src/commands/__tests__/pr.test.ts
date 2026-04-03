@@ -153,7 +153,7 @@ describe("prAction", () => {
 					value: { url: "https://github.com/owner/repo/pull/3" },
 				};
 			},
-			runTwoStageReview: (_options) => {
+			runTwoStageReview: async (_options) => {
 				// Review runs — mark that it happened
 				reviewRanBeforePr = !prCreated;
 				return {
