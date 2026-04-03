@@ -1,0 +1,78 @@
+---
+title: MCP Server
+description: Add Maina's verification, context, and review tools to any MCP-compatible IDE.
+---
+
+Maina includes an MCP (Model Context Protocol) server that exposes its engines to any MCP-compatible IDE -- Claude Code, Cursor, Windsurf, and others.
+
+## Setup
+
+Add one entry to your IDE's MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "maina": {
+      "command": "maina",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
+
+**For Claude Code**, add this to your `claude_desktop_config.json` or project `.mcp.json`.
+
+**For Cursor**, add this to your MCP settings.
+
+That's it. No plugins, no extensions, no separate server process.
+
+## Tools
+
+The MCP server exposes 8 tools, each delegating to the appropriate engine:
+
+| Tool | Description | Engine |
+|------|------------|--------|
+| `getContext` | Get focused codebase context for a command. Returns context assembled from the relevant layers with token budget applied. | Context |
+| `getConventions` | Get the project constitution and conventions. Returns `.maina/constitution.md` content. | Prompt |
+| `verify` | Run the verification pipeline on staged or specified files. Returns findings with severity and location. | Verify |
+| `checkSlop` | Check code for AI-generated slop patterns (filler words, hallucinated imports, dead code). | Verify |
+| `reviewCode` | Run two-stage review on a diff -- spec compliance first, then code quality. | Verify + Prompt |
+| `explainModule` | Get a Mermaid dependency diagram for a directory. Visualizes module structure and cross-file references. | Context |
+| `suggestTests` | Generate TDD test stubs from a plan.md file. Returns test code with red-green annotations. | Prompt + Context |
+| `analyzeFeature` | Check spec/plan/tasks consistency for a feature. Reports mismatches and orphaned artifacts. | Context |
+
+## How It Works
+
+```
+IDE (Claude Code, Cursor, etc.)
+  |
+  |  MCP protocol (JSON-RPC over stdio)
+  |
+  v
+maina --mcp
+  |
+  +-- getContext -------> Context Engine (4 layers, dynamic budget)
+  +-- getConventions ---> Prompt Engine (constitution + custom prompts)
+  +-- verify -----------> Verify Engine (full pipeline)
+  +-- checkSlop --------> Verify Engine (slop detector)
+  +-- reviewCode -------> Verify Engine (two-stage review)
+  +-- explainModule ----> Context Engine (semantic layer + tree-sitter)
+  +-- suggestTests -----> Prompt Engine + Context Engine
+  +-- analyzeFeature ---> Context Engine (cross-artifact analysis)
+  |
+  +-- Cache (all tools respect the 3-layer cache)
+```
+
+Every tool call goes through the same engines as the CLI commands. The cache ensures repeated queries return instantly.
+
+## Context in Your IDE
+
+With the MCP server running, your IDE's AI assistant gains:
+
+- **Codebase awareness** -- `getContext` provides the same 4-layer context the CLI uses, so the AI sees relevant code, not everything.
+- **Convention enforcement** -- `getConventions` injects your constitution into every interaction.
+- **Inline verification** -- `verify` and `checkSlop` catch issues as you write, not after you commit.
+- **Review on demand** -- `reviewCode` gives you the same two-stage review the CLI provides, inside your editor.
+- **Test suggestions** -- `suggestTests` generates TDD stubs from your plan files.
+
+The MCP server is the same three engines, accessible from any tool that speaks MCP.

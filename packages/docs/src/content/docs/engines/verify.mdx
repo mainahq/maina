@@ -1,0 +1,116 @@
+---
+title: Verify Engine
+description: Deterministic verification pipeline with syntax guard, parallel tools, diff-only filtering, and two-stage review.
+---
+
+The Verify Engine proves code is correct. Deterministic tools find issues. AI generates fixes. Humans review. Feedback improves everything.
+
+## The Problem
+
+AI-generated code ships with vulnerabilities, dead code, hallucinated imports, and copy-paste patterns that no single linter catches. Manual code review cannot keep pace with AI generation speed.
+
+The solution: a hybrid verification pipeline that runs deterministic tools first, filters to changed lines only, and uses AI only for fix generation and review.
+
+## Pipeline
+
+```
+Code change (diff)
+    |
+    v
+Syntax Guard (Biome) ---------- REJECT if invalid (< 500ms)
+    |                            Prevents bad states early
+    v
+Parallel Deterministic Analysis
+    |   Biome (423+ rules)
+    |   Semgrep (2,000+ SAST rules + custom)
+    |   SonarQube CE (quality gates)
+    |   Secretlint (secrets detection)
+    |   Trivy (dependency CVEs)
+    |   diff-cover (test coverage on changed code)
+    |   Stryker (mutation testing)
+    |   AI Slop Detector
+    |
+    v
+Diff-only Filter --------------- Only findings on changed lines
+    |                            No pre-existing noise
+    v
+AI Fix Layer ------------------- Context Engine provides surrounding code
+    |                            Prompt Engine provides team-tuned prompts
+    |                            Cache checks for identical findings
+    |                            Generates contextual fix as diff
+    |                            Validates fix compiles + tests pass
+    v
+Two-stage Review
+    |   Stage 1: Spec compliance (matches PLAN.md?)
+    |   Stage 2: Code quality (clean, tested, safe?)
+    v
+Feedback Loop ------------------ Accept/reject stored in feedback.db
+                                 Prompt Engine evolves from outcomes
+```
+
+## Key Principles
+
+### Syntax guard
+
+Biome runs first, in under 500ms. If the code does not parse, the entire pipeline is skipped. This prevents wasting time and tokens on syntactically invalid code. Inspired by SWE-agent's finding that preventing bad states beats recovering from them.
+
+### Diff-only filtering
+
+Only findings on changed lines are reported. If a file had 50 pre-existing warnings and you changed 3 lines, you see findings for those 3 lines only. This eliminates the noise that makes developers ignore tool output. Inspired by Reviewdog.
+
+### Auto-detection
+
+Tools are auto-detected at runtime. If Semgrep is installed, it runs. If it is not, it is skipped -- not an error. Maina works with zero external tools installed (Biome is built-in), and gets more powerful as you add tools.
+
+Check what is installed:
+
+```bash
+maina doctor
+```
+
+### Single LLM call
+
+Every command makes at most one AI call. All intelligence goes into what context enters that call. The exception: PR review gets two calls (spec compliance + code quality), because splitting catches more than combining.
+
+### Slop detection
+
+The AI Slop Detector catches patterns common in AI-generated code:
+- Filler phrases ("certainly", "as you can see", "it's worth noting")
+- Hallucinated imports (modules that do not exist)
+- Dead code (unused variables, unreachable branches)
+- Copy-paste patterns (duplicated blocks with minor variations)
+
+Slop detection runs as part of the parallel analysis phase and uses the mechanical model tier for cost efficiency.
+
+## Tools
+
+| Tool | What it checks | Required |
+|------|---------------|----------|
+| **Biome** | Lint (423+ rules) + formatting | Built-in (always available) |
+| **Semgrep** | 2,000+ SAST rules + custom rules | Optional |
+| **SonarQube CE** | Quality gates, code smells, complexity | Optional |
+| **Secretlint** | Hardcoded secrets, API keys, tokens | Optional |
+| **Trivy** | Dependency CVEs, container vulnerabilities | Optional |
+| **diff-cover** | Test coverage on changed lines only | Optional |
+| **Stryker** | Mutation testing -- are your tests actually testing? | Optional |
+| **AI Slop Detector** | AI-generated filler, hallucinations, dead code | Built-in |
+
+## Commands
+
+| Command | Description |
+|---------|------------|
+| `maina verify` | Run the full pipeline on your diff. Diff-only by default. |
+| `maina commit` | Syntax guard + parallel gates + git commit. The fast path. |
+| `maina review` | Two-stage code review: spec compliance then code quality. |
+| `maina pr` | Create a PR with two-stage review attached. |
+| `maina doctor` | Check which tools are installed and engine health. |
+
+## Two-Stage Review
+
+The review splits into two focused passes:
+
+**Stage 1 -- Spec compliance:** Does the code match the plan? Are the requirements in PLAN.md satisfied? Are there missing implementations or scope creep?
+
+**Stage 2 -- Code quality:** Is the code clean, tested, and safe? Does it follow the constitution? Are there performance, security, or maintainability concerns?
+
+Splitting the review into two stages catches more issues than a single combined review. Each stage has a focused prompt tuned for its specific concern.

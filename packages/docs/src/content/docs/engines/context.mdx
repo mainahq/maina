@@ -1,0 +1,89 @@
+---
+title: Context Engine
+description: Four-layer retrieval with dynamic token budget and PageRank scoring.
+---
+
+The Context Engine is the brain. It knows your codebase, your team's history, and what matters right now.
+
+## The Problem
+
+Stuffing everything into the context window degrades AI output at ~60% utilization. A 2,000-line file read wastes 15,000 tokens when you need 10 lines. A single-file memory approach fails within a week of growth.
+
+The solution is not "give the AI more context." It is "give the AI the right context."
+
+## Four Layers
+
+The Context Engine assembles context from four layers, each loaded only when the command needs it.
+
+| Layer | What it contains | Budget | Loaded when |
+|-------|-----------------|--------|-------------|
+| **Working** | Current branch, PLAN.md, touched files, last verification result | ~15% | Always |
+| **Episodic** | Compressed PR summaries, review feedback, session notes. Uses Ebbinghaus decay -- memories fade if not reinforced by access. | ~15% | Most commands |
+| **Semantic** | Module entities (tree-sitter AST), dependency graph (PageRank-scored), ADRs, conventions, constitution, custom context | ~20% | When AI needs codebase awareness |
+| **Retrieval** | Zoekt code search, on-demand only | ~10% | Only when explicitly needed |
+
+**40% headroom** is always reserved for AI reasoning and output. This space is never filled with context.
+
+## Dynamic Budget
+
+The token budget expands and contracts based on the task. Each command declares its context needs via a selector.
+
+| Mode | Budget | Used by |
+|------|--------|---------|
+| **Focused** | 40% context, 60% headroom | `maina commit` -- fast, minimal context |
+| **Default** | 60% context, 40% headroom | `maina verify`, `maina review` -- balanced |
+| **Explore** | 80% context, 20% headroom | `maina context` -- full codebase exploration |
+
+This prevents waste. A commit message does not need the full dependency graph. A code review does not need the retrieval layer. Each command gets exactly what it needs, nothing more.
+
+## PageRank for Relevance
+
+Not all files are equally important. The Context Engine uses PageRank to score relevance.
+
+### How it works
+
+1. **tree-sitter** parses your codebase and extracts cross-file references (imports, function calls, type usage)
+2. A **directed dependency graph** is built from these references
+3. **PageRank** runs on the graph with a personalization vector biased toward the current task
+
+### Edge weights
+
+| Condition | Weight |
+|-----------|--------|
+| Identifier appears in current ticket/plan | x10 |
+| File already in context (manually added) | x50 |
+| Private/internal names | x0.1 |
+
+The result: files that are central to the codebase and relevant to the current task score highest. Peripheral files with no connection to the task score lowest. The budget is spent on what matters.
+
+## Context Selectors
+
+Each command declares exactly which layers it needs:
+
+| Command | Layers | Why |
+|---------|--------|-----|
+| `maina commit` | Working only | Fast path -- just needs the diff and last verification |
+| `maina verify` | Working + Semantic | Needs codebase structure to understand the diff |
+| `maina verify --fix` | Working + Semantic + Episodic | Fix generation benefits from past review patterns |
+| `maina context` | All 4 layers | Full exploration mode |
+| `maina pr` | All 4 layers | Comprehensive review needs everything |
+| `maina explain` | Semantic | Dependency graph visualization |
+| `maina ticket` | Semantic | Module tagging |
+
+## Commands
+
+| Command | Description |
+|---------|------------|
+| `maina context` | Generate focused codebase context (exploration mode, 80% budget) |
+| `maina context add <file>` | Add a file to the semantic custom context layer |
+| `maina context show` | Show all context layers with token counts and budget utilization |
+
+### Example: `maina context show`
+
+Shows each layer, how many tokens it contains, and what percentage of the budget it uses. Useful for understanding what the AI sees when you run a command.
+
+## Ebbinghaus Decay
+
+The episodic layer uses Ebbinghaus-inspired decay. PR summaries and review feedback fade over time unless reinforced by access. Recent and frequently-accessed memories stay; old, unused memories are compressed or dropped.
+
+This prevents the episodic layer from growing unbounded while keeping genuinely useful history available.

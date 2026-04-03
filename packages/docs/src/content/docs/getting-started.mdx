@@ -1,0 +1,91 @@
+---
+title: Getting Started
+description: Install Maina and run your first verification in under a minute.
+---
+
+Maina is a CLI, MCP server, and skills package that proves AI-generated code is correct before it merges. This guide gets you running in under a minute.
+
+## Install
+
+```bash
+bun add -g maina
+```
+
+Or try without installing:
+
+```bash
+bunx maina init
+bunx maina commit
+```
+
+**Prerequisites:** [Git](https://git-scm.com/) and [Bun](https://bun.sh/) (v1.1+). That's it.
+
+## Quick Start
+
+### 1. Initialize
+
+```bash
+maina init
+```
+
+This creates the `.maina/` directory in your repo with:
+- `constitution.md` -- your project's non-negotiable rules
+- `prompts/` -- custom AI prompt templates
+- `hooks/` -- lifecycle scripts
+- `AGENTS.md` -- cross-tool agent instructions
+
+### 2. Make changes and commit
+
+```bash
+# Stage your changes
+git add .
+
+# Verify and commit in one step
+maina commit
+```
+
+`maina commit` runs the full verification pipeline -- syntax guard, parallel analysis, diff-only filtering -- then commits if everything passes.
+
+### 3. Run verification standalone
+
+```bash
+maina verify
+```
+
+Runs the Verify Engine pipeline on your staged or working changes without committing.
+
+### 4. Check your setup
+
+```bash
+maina doctor
+```
+
+Shows which tools are installed, which engines are healthy, and what optional tools you could add.
+
+## Zero-Friction Layers
+
+Maina works with zero config and scales up as you add capabilities.
+
+| Layer | What you add | What you get |
+|-------|-------------|-------------|
+| **L0 -- Git-native** | Nothing beyond Git + Bun | Core commands, deterministic verification, context engine |
+| **L1 -- Add AI** | `MAINA_API_KEY` or Ollama | AI-powered reviews, commit messages, explanations, fix generation |
+| **L2 -- Add tools** | Semgrep, Trivy, Secretlint, SonarQube | Deeper SAST, CVE scanning, secret detection, quality gates |
+| **L3 -- Add PM** | GitHub Issues | Sync to Huly, Linear, Plane, or any GitHub-syncing PM tool |
+
+No accounts. No Docker. No cloud. Everything runs locally in your terminal.
+
+## What happens during `maina commit`
+
+1. **Syntax guard** -- Biome checks your code compiles and parses (under 500ms). If it fails, the commit is rejected immediately.
+2. **Parallel analysis** -- All detected tools (Biome, Semgrep, Trivy, etc.) run in parallel on your diff.
+3. **Diff-only filter** -- Only findings on changed lines are reported. No pre-existing noise.
+4. **AI fix** (if AI is configured) -- Context-aware fix suggestions for any findings.
+5. **Git commit** -- If everything passes, your changes are committed with a conventional commit message.
+
+## Next Steps
+
+- [Commands](/maina/docs/commands) -- All 20 commands across Define, Build, Verify, and Meta phases
+- [Configuration](/maina/docs/configuration) -- Model tiers, constitution, custom prompts
+- [MCP Server](/maina/docs/mcp) -- Add Maina to your IDE
+- [Engines](/maina/docs/engines/context) -- How Context, Prompt, and Verify engines work

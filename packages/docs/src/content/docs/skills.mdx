@@ -1,0 +1,86 @@
+---
+title: Skills
+description: Cross-platform skills that teach any AI agent Maina's verification workflow.
+---
+
+Maina ships a skills package alongside the CLI. Skills are markdown files that teach AI agents your team's verification workflow -- without requiring the CLI to be installed.
+
+## What Are Skills?
+
+Skills are structured instruction files (`SKILL.md`) that any AI agent can read and follow. They work across platforms: Claude Code, Cursor, Codex, Gemini CLI.
+
+Each skill uses progressive disclosure:
+- **~100 tokens** when scanning (the agent reads the summary and decides if the skill is relevant)
+- **< 5,000 tokens** when activated (the agent reads the full instructions)
+
+Skills are the **knowledge layer**. The CLI is the **automation layer**. Both use the same three engines underneath.
+
+## Available Skills
+
+| Skill | Purpose | When it activates |
+|-------|---------|-------------------|
+| `verification-workflow` | End-to-end verification process. Guides the agent through syntax check, analysis, diff filtering, and review. | When the agent needs to verify code changes |
+| `context-generation` | Focused codebase context assembly. Teaches the agent to gather relevant context without stuffing the window. | When the agent needs to understand the codebase |
+| `plan-writing` | Structured feature planning. Guides creation of auto-numbered feature directories with spec/plan/tasks separation. | When the agent needs to plan a feature |
+| `code-review` | Two-stage review methodology. First checks spec compliance, then code quality. | When the agent needs to review code |
+| `tdd` | Test-driven development workflow. Red-green enforcement: stubs must fail before implementation, pass after. | When the agent needs to write tests |
+
+## Installation
+
+Skills live in the `packages/skills/` directory of the Maina repository:
+
+```
+packages/skills/
+  verification-workflow/SKILL.md
+  context-generation/SKILL.md
+  plan-writing/SKILL.md
+  code-review/SKILL.md
+  tdd/SKILL.md
+```
+
+**For Claude Code:** Skills are discovered automatically when Maina is installed. They appear as available slash commands.
+
+**For Cursor / Codex / Gemini CLI:** Point the agent at the skill files or include them in your project's agent instructions.
+
+**Without the CLI:** Copy the SKILL.md files into your project. An AI agent with just the skills follows the verification workflow -- no CLI needed.
+
+## How Skills Work
+
+Each skill follows the same structure:
+
+### 1. Trigger
+
+The skill declares when it should activate. For example, the `verification-workflow` skill triggers when the agent is about to commit or submit code for review.
+
+### 2. Context gathering
+
+The skill instructs the agent to gather relevant context:
+- Read the constitution (`.maina/constitution.md`)
+- Check the current plan (`.maina/features/*/plan.md`)
+- Look at the diff being verified
+
+### 3. Step-by-step execution
+
+The skill provides a sequence of steps. For the `verification-workflow` skill:
+1. Run syntax check (Biome)
+2. Run parallel analysis tools
+3. Filter to changed lines only
+4. Check for AI slop patterns
+5. Generate fixes if needed
+6. Review against spec, then against quality
+
+### 4. Verification
+
+Every skill ends with verification -- the agent confirms the output meets the project's standards before proceeding. This is the core Maina principle: verify before merge.
+
+## Skills vs CLI vs MCP
+
+| Capability | CLI | MCP | Skills |
+|-----------|-----|-----|--------|
+| Runs tools directly | Yes | Yes | No (guides the agent) |
+| Works without installation | No | No | Yes |
+| Cross-platform | Terminal only | MCP-compatible IDEs | Any AI agent |
+| Requires Bun | Yes | Yes | No |
+| Uses three engines | Directly | Via delegation | Via instructions |
+
+Skills are designed for the case where you want the verification workflow but cannot or do not want to install the CLI. The agent follows the same methodology, using whatever tools are available in its environment.
