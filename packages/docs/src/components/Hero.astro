@@ -1,0 +1,34 @@
+---
+const base = import.meta.env.BASE_URL;
+---
+
+<section class="hero">
+  <img src={`${base}favicon.svg`} alt="Maina" width="100" height="125" class="hero-logo" />
+  <h1>Prove AI code is correct before it merges.</h1>
+  <p class="hero-subtitle">
+    CLI + MCP server + skills package. Three engines that observe your codebase,
+    learn your conventions, and verify every change.
+  </p>
+  <div class="hero-actions">
+    <a href={`${base}docs/getting-started`} class="btn-primary">$ bunx maina init</a>
+    <a href={`${base}docs/getting-started`} class="btn-secondary">Read the docs</a>
+  </div>
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-value">802</div>
+      <div class="metric-label">tests passing</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value">8.8s</div>
+      <div class="metric-label">avg verify</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value">742</div>
+      <div class="metric-label">entities indexed</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value">20</div>
+      <div class="metric-label">CLI commands</div>
+    </div>
+  </div>
+</section>

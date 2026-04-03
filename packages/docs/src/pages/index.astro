@@ -1,0 +1,40 @@
+---
+import Hero from '../components/Hero.astro';
+import Engines from '../components/Engines.astro';
+import Terminal from '../components/Terminal.astro';
+import Features from '../components/Features.astro';
+import Footer from '../components/Footer.astro';
+import '../styles/landing.css';
+
+const base = import.meta.env.BASE_URL;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Maina — The verification-first developer OS</title>
+    <meta name="description" content="CLI + MCP server + skills package that proves AI-generated code is correct before it merges. Three engines: Context, Prompt, Verify." />
+    <link rel="icon" href={`${base}favicon.svg`} type="image/svg+xml" />
+  </head>
+  <body>
+    <nav class="nav">
+      <a href={base} class="nav-brand">
+        <img src={`${base}favicon.svg`} alt="" width="22" height="28" />
+        Maina
+      </a>
+      <div class="nav-links">
+        <a href={`${base}docs/getting-started`}>Docs</a>
+        <a href={`${base}docs/commands`}>Commands</a>
+        <a href={`${base}docs/mcp`}>MCP</a>
+        <a href="https://github.com/beeeku/maina">GitHub</a>
+        <a href={`${base}docs/getting-started`} class="nav-cta">Get Started</a>
+      </div>
+    </nav>
+    <Hero />
+    <Engines />
+    <Terminal />
+    <Features />
+    <Footer />
+  </body>
+</html>

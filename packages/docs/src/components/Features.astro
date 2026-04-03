@@ -1,0 +1,64 @@
+---
+const base = import.meta.env.BASE_URL;
+
+const features = [
+  {
+    icon: '\u{1F50C}',
+    title: 'MCP Server',
+    description:
+      'Expose all engines to any AI editor. Claude Code, Cursor, Windsurf, and more get verification natively.',
+    href: `${base}docs/mcp`,
+  },
+  {
+    icon: '\u{1F3AF}',
+    title: 'Cross-Platform Skills',
+    description:
+      'First-class skill packages for Claude Code, Cursor, Codex, and Gemini CLI. One tool, every editor.',
+    href: `${base}docs/skills`,
+  },
+  {
+    icon: '\u{1F6E1}\uFE0F',
+    title: 'Slop Detection',
+    description:
+      'Catches AI-generated filler, hallucinated imports, placeholder code, and lazy patterns before they land.',
+    href: `${base}docs/engines/verify`,
+  },
+  {
+    icon: '\u{1F4CA}',
+    title: 'PageRank Context',
+    description:
+      'Dependency graph scored with PageRank. The context engine knows which files matter most to your change.',
+    href: `${base}docs/engines/context`,
+  },
+  {
+    icon: '\u{1F9EC}',
+    title: 'Prompt Evolution',
+    description:
+      'Prompts are hashed, versioned, and A/B tested. Feedback drives evolution so every generation improves.',
+    href: `${base}docs/engines/prompt`,
+  },
+  {
+    icon: '\u{26A1}',
+    title: 'Zero Config',
+    description:
+      'One command to start. Auto-detects your stack, writes a constitution, and runs verification out of the box.',
+    href: `${base}docs/getting-started`,
+  },
+];
+---
+
+<section class="features-section">
+  <div class="section-inner">
+    <div class="section-label">Features</div>
+    <h2 class="section-title">Everything you need to ship verified code.</h2>
+    <div class="feature-grid">
+      {features.map((feature) => (
+        <a href={feature.href} class="feature-card">
+          <div class="feature-icon">{feature.icon}</div>
+          <h3>{feature.title}</h3>
+          <p>{feature.description}</p>
+        </a>
+      ))}
+    </div>
+  </div>
+</section>
