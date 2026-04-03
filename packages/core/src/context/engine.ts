@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { getChangedFiles, getStagedFiles } from "../git/index";
 import {
 	assembleBudget,
 	type BudgetAllocation,
@@ -96,9 +97,17 @@ async function loadSemanticLayer(
 			"./semantic"
 		);
 
-		// Build a task context from what we know
+		// Populate task context from git for PageRank personalization
+		const [staged, changed] = await Promise.all([
+			getStagedFiles(repoRoot),
+			getChangedFiles("HEAD~5", repoRoot),
+		]);
+		const touchedRelative = [...new Set([...staged, ...changed])];
+		// Graph uses absolute paths, so convert for personalization lookup
+		const touchedAbsolute = touchedRelative.map((f) => join(repoRoot, f));
+
 		const taskContext = {
-			touchedFiles: [],
+			touchedFiles: touchedAbsolute,
 			mentionedFiles: [],
 			currentTicketTerms: filter ?? [],
 		};
@@ -124,6 +133,17 @@ async function buildWorkingLayer(
 ): Promise<LayerContent> {
 	try {
 		const context = await loadWorkingContext(mainaDir, repoRoot);
+
+		// Backfill touchedFiles from git if empty (so working layer is useful
+		// even without explicit trackFile() calls)
+		if (context.touchedFiles.length === 0) {
+			const [staged, changed] = await Promise.all([
+				getStagedFiles(repoRoot),
+				getChangedFiles("HEAD~3", repoRoot),
+			]);
+			context.touchedFiles = [...new Set([...staged, ...changed])];
+		}
+
 		const text = assembleWorkingText(context);
 		const tokens = calculateTokens(text);
 		return { name: "working", text, tokens, priority: 0 };

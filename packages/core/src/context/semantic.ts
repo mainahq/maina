@@ -1,5 +1,5 @@
 import { readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import {
 	buildGraph,
 	type DependencyGraph,
@@ -129,11 +129,13 @@ export async function buildSemanticContext(
 	// Run PageRank with task personalization
 	const scores = scoreRelevance(graph, taskContext);
 
-	// Parse entities from all files and annotate with relevance
+	// Parse entities from all files and annotate with relevance.
+	// Entity filePaths are stored as relative to repoRoot for LLM consumption.
 	const entities: SemanticContext["entities"] = [];
 
 	for (const file of files) {
 		const fileScore = scores.get(file) ?? 0;
+		const relPath = relative(repoRoot, file);
 		let parsed: Awaited<ReturnType<typeof parseFile>> | undefined;
 		try {
 			parsed = await parseFile(file);
@@ -143,7 +145,7 @@ export async function buildSemanticContext(
 
 		for (const entity of parsed.entities) {
 			entities.push({
-				filePath: file,
+				filePath: relPath,
 				name: entity.name,
 				kind: entity.kind,
 				relevance: fileScore,
@@ -214,16 +216,40 @@ export function assembleSemanticText(
 		}
 	}
 
-	// Top entities section (always included unless filtered out)
+	// Codebase overview section: group entities by file, sorted by relevance
 	if (shouldInclude("entities") || !filter || filter.length === 0) {
-		const topEntities = getTopEntities(context, 20);
+		const topEntities = getTopEntities(context, 200);
 		if (topEntities.length > 0) {
-			parts.push("## Top Relevant Code Entities\n");
+			// Group entities by filePath
+			const byFile = new Map<
+				string,
+				{ kind: string; name: string; relevance: number }[]
+			>();
 			for (const entity of topEntities) {
-				const score = entity.relevance.toFixed(4);
-				parts.push(
-					`- **${entity.name}** (${entity.kind}) in \`${entity.filePath}\` — relevance: ${score}`,
-				);
+				const existing = byFile.get(entity.filePath) ?? [];
+				existing.push({
+					kind: entity.kind,
+					name: entity.name,
+					relevance: entity.relevance,
+				});
+				byFile.set(entity.filePath, existing);
+			}
+
+			// Sort files by max relevance descending
+			const sortedFiles = [...byFile.entries()].sort((a, b) => {
+				const maxA = Math.max(...a[1].map((e) => e.relevance));
+				const maxB = Math.max(...b[1].map((e) => e.relevance));
+				return maxB - maxA;
+			});
+
+			parts.push("## Codebase Overview\n");
+			for (const [filePath, entities] of sortedFiles) {
+				const fileScore = Math.max(...entities.map((e) => e.relevance));
+				parts.push(`### ${filePath} (relevance: ${fileScore.toFixed(4)})`);
+				for (const entity of entities) {
+					parts.push(`- \`${entity.name}\` (${entity.kind})`);
+				}
+				parts.push("");
 			}
 		}
 	}
