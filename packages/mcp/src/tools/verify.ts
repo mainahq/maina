@@ -29,6 +29,9 @@ export function registerVerifyTools(server: McpServer): void {
 								{
 									passed: result.passed,
 									findings: result.findings,
+									...(!result.syntaxPassed && {
+										syntaxErrors: result.syntaxErrors,
+									}),
 									duration: result.duration,
 								},
 								null,
