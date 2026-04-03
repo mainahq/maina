@@ -1,14 +1,20 @@
-import { getApiKey } from "../config/index";
+import { getApiKey, isHostMode } from "../config/index";
 
 export interface TryAIResult {
 	text: string | null;
 	fromAI: boolean;
+	hostDelegation: boolean;
 	promptHash?: string;
 }
 
 /**
  * Encapsulates the common pattern: check API key -> build prompt -> generate -> fallback.
- * Returns null text if AI is not available (no key, error, etc.)
+ *
+ * Returns:
+ * - { text, fromAI: true } when AI generates a response
+ * - { text, hostDelegation: true } when running inside a host agent (Claude Code/Cursor)
+ *   and the prompt should be delegated to the host. The text contains the structured prompt.
+ * - { text: null } when AI is not available (no key, error, etc.)
  */
 export async function tryAIGenerate(
 	task: string,
@@ -17,7 +23,9 @@ export async function tryAIGenerate(
 	userPrompt: string,
 ): Promise<TryAIResult> {
 	const apiKey = getApiKey();
-	if (!apiKey) return { text: null, fromAI: false };
+	if (!apiKey && !isHostMode()) {
+		return { text: null, fromAI: false, hostDelegation: false };
+	}
 
 	try {
 		const { buildSystemPrompt } = await import("../prompts/engine");
@@ -31,15 +39,25 @@ export async function tryAIGenerate(
 			mainaDir,
 		});
 
-		if (
-			result.text &&
-			!result.text.includes("API key") &&
-			!result.text.startsWith("[HOST_DELEGATION]")
-		) {
-			return { text: result.text, fromAI: true, promptHash: builtPrompt.hash };
+		if (result.text && result.text.startsWith("[HOST_DELEGATION]")) {
+			return {
+				text: result.text,
+				fromAI: false,
+				hostDelegation: true,
+				promptHash: builtPrompt.hash,
+			};
+		}
+
+		if (result.text && !result.text.includes("API key")) {
+			return {
+				text: result.text,
+				fromAI: true,
+				hostDelegation: false,
+				promptHash: builtPrompt.hash,
+			};
 		}
 	} catch {
 		// AI failure — return null for fallback
 	}
-	return { text: null, fromAI: false };
+	return { text: null, fromAI: false, hostDelegation: false };
 }
