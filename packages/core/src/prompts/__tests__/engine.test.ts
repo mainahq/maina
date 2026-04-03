@@ -29,6 +29,15 @@ describe("buildSystemPrompt", () => {
 		const constitutionContent = "Always be concise.";
 		writeFileSync(join(tmpDir, "constitution.md"), constitutionContent);
 
+		// Use a user override with {{constitution}} to ensure test is independent
+		// of which default template loadDefault returns
+		const promptsDir = join(tmpDir, "prompts");
+		mkdirSync(promptsDir, { recursive: true });
+		writeFileSync(
+			join(promptsDir, "commit.md"),
+			"Task prompt.\n\n## Constitution\n{{constitution}}\n\n## Diff\n{{diff}}",
+		);
+
 		const result = await buildSystemPrompt("commit", tmpDir, {
 			diff: "some diff",
 		});
@@ -37,6 +46,14 @@ describe("buildSystemPrompt", () => {
 	});
 
 	test("replaces template variables", async () => {
+		// Use a user override with {{diff}} to ensure deterministic template
+		const promptsDir = join(tmpDir, "prompts");
+		mkdirSync(promptsDir, { recursive: true });
+		writeFileSync(
+			join(promptsDir, "commit.md"),
+			"Generate commit for:\n{{diff}}",
+		);
+
 		const result = await buildSystemPrompt("commit", tmpDir, {
 			diff: "my test diff content",
 		});
@@ -46,6 +63,11 @@ describe("buildSystemPrompt", () => {
 	});
 
 	test("returns consistent hash for same content", async () => {
+		// Use a user override so hash is deterministic regardless of default template
+		const promptsDir = join(tmpDir, "prompts");
+		mkdirSync(promptsDir, { recursive: true });
+		writeFileSync(join(promptsDir, "commit.md"), "Stable prompt: {{diff}}");
+
 		const context = { diff: "same diff" };
 
 		const result1 = await buildSystemPrompt("commit", tmpDir, context);

@@ -4,8 +4,11 @@ export interface StoryConfig {
 	tier: number;
 	source: string;
 	testFiles: string[];
+	/** Hidden validation tests — not shown to AI during implementation */
+	validationFiles?: string[];
 	metrics: {
 		expectedTests: number;
+		expectedValidationTests?: number;
 		originalLOC: number;
 		complexity: "easy" | "medium" | "hard";
 	};
@@ -43,4 +46,50 @@ export interface LoadedStory {
 	specContent: string;
 	testFiles: Array<{ name: string; content: string }>;
 	storyDir: string;
+}
+
+export interface StepMetrics {
+	name: string;
+	durationMs: number;
+	tokensInput: number;
+	tokensOutput: number;
+	artifacts: string[];
+	// Optional per-step data
+	questionsAsked?: number;
+	testsGenerated?: number;
+	approachesProposed?: number;
+	loc?: number;
+	attempts?: number;
+	findings?: number;
+	findingsBySeverity?: Record<string, number>;
+	issuesFound?: number;
+	passed?: boolean;
+}
+
+export interface Tier3Totals {
+	durationMs: number;
+	tokensInput: number;
+	tokensOutput: number;
+	bugsIntroduced: number;
+	bugsCaught: number;
+	testsPassed: number;
+	testsTotal: number;
+	/** Validation-only metrics (hidden tests, not shown during implementation) */
+	validationPassed?: number;
+	validationTotal?: number;
+}
+
+export interface Tier3Results {
+	story: StoryConfig;
+	timestamp: string;
+	maina: {
+		steps: Record<string, StepMetrics>;
+		totals: Tier3Totals;
+	};
+	speckit: {
+		steps: Record<string, StepMetrics>;
+		totals: Tier3Totals;
+	};
+	winner: "maina" | "speckit" | "tie" | "incomplete";
+	learnings: string[];
 }

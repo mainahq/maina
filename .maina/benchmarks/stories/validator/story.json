@@ -1,0 +1,22 @@
+{
+	"name": "validator",
+	"description": "Input validation library — isEmail, isURL, isIP with RFC compliance, unicode, and security edge cases",
+	"tier": 3,
+	"source": "https://github.com/validatorjs/validator.js",
+	"testFiles": [
+		"tests/isEmail.test.ts",
+		"tests/isURL.test.ts",
+		"tests/isIP.test.ts"
+	],
+	"validationFiles": [
+		"tests/validation/isEmail.val.test.ts",
+		"tests/validation/isURL.val.test.ts",
+		"tests/validation/isIP.val.test.ts"
+	],
+	"metrics": {
+		"expectedTests": 34,
+		"expectedValidationTests": 95,
+		"originalLOC": 600,
+		"complexity": "hard"
+	}
+}

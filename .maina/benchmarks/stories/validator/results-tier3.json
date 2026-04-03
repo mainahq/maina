@@ -1,0 +1,121 @@
+{
+	"story": "validator",
+	"tier": 3,
+	"timestamp": "2026-04-03T18:00:00.000Z",
+	"methodology": {
+		"training_tests": 34,
+		"validation_tests": 95,
+		"split_rationale": "ML-style train/validation split — training tests given to AI during implementation, validation tests hidden and run only for evaluation"
+	},
+	"maina": {
+		"pipeline": "maina",
+		"steps": {
+			"context": {
+				"durationMs": 5200,
+				"artifacts": ["context-output"],
+				"notes": "maina context via MCP getContext — retrieved benchmark types, constitution, episodic memory"
+			},
+			"suggestTests": {
+				"durationMs": 0,
+				"artifacts": [],
+				"notes": "MCP suggestTests returned generic stubs — spec not in plan.md format"
+			},
+			"implement": {
+				"durationMs": 122068,
+				"artifacts": ["validator.ts"],
+				"loc": 403,
+				"attempts": 1
+			},
+			"test": {
+				"durationMs": 31,
+				"trainingPassed": 34,
+				"trainingTotal": 34
+			},
+			"verify": {
+				"durationMs": 15879,
+				"findings": 2,
+				"findingsBySeverity": { "warning": 1, "error": 1 },
+				"notes": "First run: 2 findings (unused variable, formatting). Fixed both. Second run: 0 findings."
+			},
+			"review": {
+				"durationMs": 60975,
+				"issuesFound": 0,
+				"passed": true,
+				"notes": "Two-stage review (spec compliance + code quality) both passed. 0 actionable findings."
+			}
+		},
+		"totals": {
+			"durationMs": 204153,
+			"toolsUsed": ["context", "suggestTests", "verify", "review"],
+			"implLOC": 403,
+			"trainingPassed": 34,
+			"trainingTotal": 34,
+			"validationPassed": 94,
+			"validationTotal": 95,
+			"validationPassRate": 0.989,
+			"bugsIntroduced": 1,
+			"bugsCaught": 0,
+			"verifyFindings": 2,
+			"attemptsToPass": 1
+		}
+	},
+	"speckit": {
+		"pipeline": "speckit",
+		"steps": {
+			"plan": {
+				"durationMs": 10038,
+				"artifacts": [],
+				"notes": "Spec analysis and mental planning"
+			},
+			"implement": {
+				"durationMs": 90312,
+				"artifacts": ["validator.ts"],
+				"loc": 504,
+				"attempts": 1
+			},
+			"test": {
+				"durationMs": 16406,
+				"trainingPassed": 34,
+				"trainingTotal": 34
+			},
+			"self_review": {
+				"durationMs": 24395,
+				"issuesFound": 1,
+				"notes": "Found and fixed Gmail domain-specific dead code"
+			}
+		},
+		"totals": {
+			"durationMs": 141151,
+			"toolsUsed": [],
+			"implLOC": 504,
+			"trainingPassed": 34,
+			"trainingTotal": 34,
+			"validationPassed": 94,
+			"validationTotal": 95,
+			"validationPassRate": 0.989,
+			"bugsIntroduced": 1,
+			"bugsCaught": 0,
+			"verifyFindings": null,
+			"attemptsToPass": 1
+		}
+	},
+	"winner": "tie",
+	"shared_failure": {
+		"test": "isURL validation — host > invalid IPv4 host",
+		"description": "Both implementations accept http://999.999.999.999 as valid — URL validator does not call isIP() to validate IP address hosts",
+		"root_cause": "Cross-function integration gap: isIP exists but is not used within isURL's host validation path",
+		"caught_by": "validation_tests_only"
+	},
+	"learnings": [
+		"Train/validation split reveals bugs invisible to both pipelines — the hidden test set is essential for honest evaluation",
+		"Both AI pipelines produce near-identical quality (94/95 = 98.9%) on tier 3 complexity",
+		"The shared failure (IP host validation in URLs) is a cross-function integration bug — spec says 'IP addresses are validated according to isIP rules' but neither pipeline enforced this",
+		"Maina's verify caught 2 real issues (unused var, formatting) and fixed them; review ran two-stage (spec+quality) with 0 actionable findings",
+		"Spec Kit was 31% faster (141s vs 204s) because it skips verify+review overhead",
+		"Maina produced leaner code (403 LOC vs 504 LOC) — verify/review may encourage tighter implementations",
+		"Self-review (Spec Kit) caught 1 real issue (Gmail dead code); maina verify caught 3 issues but missed the critical IP host bug",
+		"Validation test set justifies its existence: without it, both pipelines would show 100% and appear identical",
+		"For tier 3+ complexity, the verification pipeline needs to be tuned to escalate cross-function integration checks from info to warning level",
+		"The spec deliberately mentioned 'validated according to isIP rules' — a spec-compliance checker should have flagged this gap"
+	]
+}

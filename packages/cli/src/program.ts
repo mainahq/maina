@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import pkg from "../package.json";
 import { analyzeCommand } from "./commands/analyze";
+import { benchmarkCommand } from "./commands/benchmark";
 import { cacheCommand } from "./commands/cache";
 import { commitCommand } from "./commands/commit";
 import { contextCommand } from "./commands/context";
@@ -27,6 +28,7 @@ export function createProgram(): Command {
 		.description("Verification-first developer operating system")
 		.version(pkg.version);
 	program.addCommand(analyzeCommand());
+	program.addCommand(benchmarkCommand());
 	program.addCommand(contextCommand());
 	program.addCommand(promptCommand());
 	program.addCommand(cacheCommand());

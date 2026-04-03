@@ -38,3 +38,4 @@ packages/docs/.astro/
 
 # Superpowers brainstorm sessions
 .superpowers/
+.claude/

@@ -1,0 +1,92 @@
+{
+	"story": "validator",
+	"tier": 3,
+	"lifecycle": "full",
+	"timestamp": "2026-04-03T19:00:00.000Z",
+	"methodology": {
+		"training_tests": 34,
+		"validation_tests": 95,
+		"split": "ML-style train/validation — training given during implementation, validation hidden",
+		"difference_from_partial": "Full 9-step lifecycle (init→commit) vs previous 5-step (implement→review)"
+	},
+	"maina": {
+		"pipeline": "maina",
+		"steps": {
+			"init": { "durationMs": 118, "status": "done", "artifacts": ["constitution.md", "review.md", "commit.md", "AGENTS.md"] },
+			"plan": { "durationMs": 182, "status": "done", "artifacts": ["plan.md", "spec.md", "tasks.md"] },
+			"spec": { "durationMs": 169, "status": "skipped", "notes": "Interactive prompt — no --no-interactive flag" },
+			"design": { "durationMs": 99, "status": "skipped", "notes": "Interactive prompt — no --no-interactive flag" },
+			"implement": { "durationMs": 72896, "status": "done", "loc": 460, "attempts": 1 },
+			"verify": { "durationMs": 137, "status": "done", "findings": 0, "notes": "No linters installed in benchmark project — 0 tools ran" },
+			"review": { "durationMs": 128, "status": "done", "issuesFound": 0, "passed": true },
+			"commit": { "durationMs": 179, "status": "done", "notes": "First attempt failed (no biome), succeeded with --no-verify" }
+		},
+		"totals": {
+			"durationMs": 73908,
+			"trainingPassed": 34,
+			"trainingTotal": 34,
+			"validationPassed": 93,
+			"validationTotal": 95,
+			"validationPassRate": 0.979,
+			"implLOC": 460,
+			"stepsCompleted": 6,
+			"stepsSkipped": 2,
+			"stepsTotal": 9,
+			"artifacts": 7
+		}
+	},
+	"speckit": {
+		"pipeline": "speckit",
+		"steps": {
+			"init": { "durationMs": 24, "status": "done", "artifacts": ["constitution.md"] },
+			"specify": { "durationMs": 27, "status": "done", "artifacts": ["specs/validator.md"] },
+			"plan": { "durationMs": 30, "status": "done", "artifacts": ["plans/validator.md"] },
+			"tasks": { "durationMs": 26, "status": "done", "artifacts": ["tasks/validator.md"] },
+			"implement": { "durationMs": 82794, "status": "done", "loc": 496, "attempts": 1 },
+			"self_review": { "durationMs": 57861, "status": "done", "issuesFound": 4 },
+			"commit": { "durationMs": 56, "status": "done" },
+			"pr_description": { "durationMs": 26, "status": "done" }
+		},
+		"totals": {
+			"durationMs": 271155,
+			"trainingPassed": 34,
+			"trainingTotal": 34,
+			"validationPassed": 95,
+			"validationTotal": 95,
+			"validationPassRate": 1.0,
+			"implLOC": 496,
+			"stepsCompleted": 8,
+			"stepsSkipped": 0,
+			"stepsTotal": 8,
+			"artifacts": 6
+		}
+	},
+	"winner": "speckit",
+	"maina_failures": [
+		{
+			"test": "isURL validation — host > invalid IPv4 host",
+			"expected": "isURL('http://999.999.999.999') === false",
+			"actual": "returned true",
+			"root_cause": "URL validator doesn't validate IP host via isIP()"
+		},
+		{
+			"test": "isIP validation — IPv6 edges > single colon at start",
+			"expected": "isIP(':2001:db8::1') === false",
+			"actual": "returned true",
+			"root_cause": "IPv6 parser doesn't reject leading single colon"
+		}
+	],
+	"learnings": [
+		"SPECKIT WINS full lifecycle: 95/95 (100%) vs Maina 93/95 (97.9%) on hidden validation tests",
+		"Spec Kit's thorough self-review (58s) caught 4 issues including edge cases Maina missed",
+		"Maina's verify ran in 137ms but was useless — no linters installed in the benchmark project",
+		"Maina's spec and design commands are INTERACTIVE-ONLY — can't be automated for benchmarks",
+		"The real problem: maina verify in a clean project has no tools to run, making it a no-op",
+		"Spec Kit completed all 8 steps vs Maina's 6/9 (2 skipped due to interactive requirements)",
+		"Implementation time similar: Maina 73s vs SpecKit 83s for the code itself",
+		"Self-review >> automated verify when verify has no tools available",
+		"Action item: maina verify should work standalone without project-specific tool installation",
+		"Action item: maina spec/design need --no-interactive or --auto flags for CI/benchmark use",
+		"Action item: maina verify needs built-in checks that don't depend on external tools (type checking, basic pattern matching)"
+	]
+}
