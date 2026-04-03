@@ -13,6 +13,7 @@
  */
 
 import { createCacheManager } from "../cache/manager";
+import { getNoisyRules } from "../feedback/preferences";
 import { getStagedFiles } from "../git/index";
 import type { DetectedTool } from "./detect";
 import { detectTools } from "./detect";
@@ -192,6 +193,21 @@ export async function runPipeline(
 	} else {
 		shownFindings = allFindings;
 		hiddenCount = 0;
+	}
+
+	// ── Step 6b: Downgrade noisy rules based on preferences ──────────────
+	try {
+		const noisy = getNoisyRules(mainaDir);
+		const noisyIds = new Set(noisy.map((r) => r.ruleId));
+		for (const finding of shownFindings) {
+			if (finding.ruleId && noisyIds.has(finding.ruleId)) {
+				// Downgrade: error→warning, warning→info
+				if (finding.severity === "error") finding.severity = "warning";
+				else if (finding.severity === "warning") finding.severity = "info";
+			}
+		}
+	} catch {
+		// Preference loading failure should never block verification
 	}
 
 	// ── Step 7: Determine pass/fail ───────────────────────────────────────
