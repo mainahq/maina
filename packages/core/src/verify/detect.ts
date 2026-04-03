@@ -16,7 +16,8 @@ export type ToolName =
 	| "trivy"
 	| "secretlint"
 	| "sonarqube"
-	| "stryker";
+	| "stryker"
+	| "diff-cover";
 
 export interface DetectedTool {
 	name: string;
@@ -35,6 +36,7 @@ export const TOOL_REGISTRY: Record<
 	secretlint: { command: "secretlint", versionFlag: "--version" },
 	sonarqube: { command: "sonar-scanner", versionFlag: "--version" },
 	stryker: { command: "stryker", versionFlag: "--version" },
+	"diff-cover": { command: "diff-cover", versionFlag: "--version" },
 };
 
 /**
