@@ -1,5 +1,21 @@
 node_modules/
 dist/
 *.tsbuildinfo
-.maina/
 .DS_Store
+
+# Maina — local data (per-machine, not shared)
+.maina/context/
+.maina/cache/
+.maina/feedback.db
+.maina/feedback.db-shm
+.maina/feedback.db-wal
+.maina/stats.db
+.maina/stats.db-shm
+.maina/stats.db-wal
+.maina/benchmarks/
+
+# Maina — shared files ARE tracked:
+# .maina/constitution.md
+# .maina/prompts/
+# .maina/features/
+# .maina/hooks/
