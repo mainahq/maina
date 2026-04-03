@@ -6,7 +6,7 @@
   "description": "Maina CLI — verification-first developer OS command-line interface",
   "repository": {
     "type": "git",
-    "url": "https://github.com/user/maina.git",
+    "url": "https://github.com/beeeku/maina.git",
     "directory": "packages/cli"
   },
   "engines": {

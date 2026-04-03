@@ -6,13 +6,14 @@
   "description": "Maina core engines — Context, Prompt, and Verify for verification-first development",
   "repository": {
     "type": "git",
-    "url": "https://github.com/user/maina.git",
+    "url": "https://github.com/beeeku/maina.git",
     "directory": "packages/core"
   },
   "engines": {
     "bun": ">=1.0.0"
   },
-  "files": ["src", "package.json"],
+  "files": ["src", "package.json", "README.md"],
+  "keywords": ["maina", "verification", "context-engine", "prompt-engine", "ai-code-review"],
   "main": "src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit"

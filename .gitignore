@@ -2,6 +2,17 @@ node_modules/
 dist/
 *.tsbuildinfo
 .DS_Store
+.cursor/
+
+# SQLite temp files
+*.db-shm
+*.db-wal
+
+# Test artifacts
+test-todos.db
+test-todos.db-shm
+test-todos.db-wal
+todos.db
 
 # Maina — local data (per-machine, not shared)
 .maina/context/

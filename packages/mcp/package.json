@@ -6,12 +6,14 @@
   "description": "Maina MCP server — Model Context Protocol bridge for AI host agents",
   "repository": {
     "type": "git",
-    "url": "https://github.com/user/maina.git",
+    "url": "https://github.com/beeeku/maina.git",
     "directory": "packages/mcp"
   },
   "engines": {
     "bun": ">=1.0.0"
   },
+  "files": ["src", "package.json", "README.md"],
+  "keywords": ["maina", "mcp", "model-context-protocol", "verification", "ai-code-review"],
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
