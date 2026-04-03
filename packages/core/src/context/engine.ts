@@ -93,9 +93,11 @@ async function loadSemanticLayer(
 	filter?: string[],
 ): Promise<string> {
 	try {
-		const { buildSemanticContext, assembleSemanticText } = await import(
-			"./semantic"
-		);
+		const {
+			buildSemanticContext,
+			assembleSemanticText,
+			persistSemanticContext,
+		} = await import("./semantic");
 
 		// Populate task context from git for PageRank personalization
 		const [staged, changed] = await Promise.all([
@@ -117,6 +119,10 @@ async function loadSemanticLayer(
 			mainaDir,
 			taskContext,
 		);
+
+		// Persist entities + dependency graph to DB for cross-session recall
+		persistSemanticContext(mainaDir, semanticContext);
+
 		return assembleSemanticText(semanticContext, filter);
 	} catch {
 		// semantic module not available or failed — use minimal fallback

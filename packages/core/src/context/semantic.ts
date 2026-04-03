@@ -1,5 +1,6 @@
 import { readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { getContextDb } from "../db/index";
 import {
 	buildGraph,
 	type DependencyGraph,
@@ -255,4 +256,62 @@ export function assembleSemanticText(
 	}
 
 	return parts.join("\n");
+}
+
+/**
+ * Persist semantic context (entities + dependency edges) to the context DB.
+ * Replaces all existing data — this is a full re-index.
+ * Never throws — silently fails on DB errors.
+ */
+export function persistSemanticContext(
+	mainaDir: string,
+	context: SemanticContext,
+): void {
+	try {
+		const dbResult = getContextDb(mainaDir);
+		if (!dbResult.ok) return;
+
+		const db = dbResult.value.db;
+		const now = new Date().toISOString();
+
+		// Clear existing data and re-insert (full re-index)
+		db.exec("DELETE FROM semantic_entities");
+		db.exec("DELETE FROM dependency_edges");
+
+		// Insert entities
+		const insertEntity = db.prepare(
+			`INSERT INTO semantic_entities (id, file_path, name, kind, start_line, end_line, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		);
+		for (const entity of context.entities) {
+			insertEntity.run(
+				crypto.randomUUID(),
+				entity.filePath,
+				entity.name,
+				entity.kind,
+				0,
+				0,
+				now,
+			);
+		}
+
+		// Insert dependency edges
+		const insertEdge = db.prepare(
+			`INSERT INTO dependency_edges (id, source_file, target_file, weight, type)
+			 VALUES (?, ?, ?, ?, ?)`,
+		);
+		for (const [source, targets] of context.graph.edges) {
+			for (const [target, weight] of targets) {
+				insertEdge.run(
+					crypto.randomUUID(),
+					relative(process.cwd(), source),
+					relative(process.cwd(), target),
+					weight,
+					"import",
+				);
+			}
+		}
+	} catch {
+		// Persistence failure should never propagate
+	}
 }
