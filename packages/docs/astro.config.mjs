@@ -1,9 +1,11 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   site: 'https://beeeku.github.io',
   base: '/maina',
+  vite: { plugins: [tailwindcss()] },
   integrations: [
     starlight({
       title: 'Maina',
@@ -52,7 +54,15 @@ export default defineConfig({
           ],
         },
       ],
-      customCss: ['./src/styles/custom.css'],
+      expressiveCode: {
+        themes: ['github-dark', 'github-light'],
+        useStarlightDarkModeSwitch: true,
+        useStarlightUiThemeColors: true,
+        styleOverrides: {
+          borderRadius: '0.5rem',
+        },
+      },
+      customCss: ['./src/styles/global.css'],
     }),
   ],
 });

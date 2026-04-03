@@ -12,9 +12,12 @@
     "typecheck": "astro check"
   },
   "dependencies": {
-    "astro": "^5.9.4",
     "@astrojs/starlight": "^0.35.2",
-    "sharp": "^0.33.5"
+    "@astrojs/starlight-tailwind": "^5.0.0",
+    "@tailwindcss/vite": "^4.2.2",
+    "astro": "^5.9.4",
+    "sharp": "^0.33.5",
+    "tailwindcss": "^4.2.2"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.8",
