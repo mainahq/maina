@@ -15,6 +15,16 @@ export {
 export { type TryAIResult, tryAIGenerate } from "./ai/try-generate";
 // AI validation
 export { type AIValidationResult, validateAIOutput } from "./ai/validate";
+export { buildReport, formatComparison } from "./benchmark/reporter";
+export { parseTestOutput, runBenchmark } from "./benchmark/runner";
+export { listStories, loadStory } from "./benchmark/story-loader";
+// Benchmark
+export type {
+	BenchmarkMetrics,
+	BenchmarkReport,
+	LoadedStory,
+	StoryConfig,
+} from "./benchmark/types";
 // Cache
 export {
 	type CacheManager,

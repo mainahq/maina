@@ -1,0 +1,12 @@
+{
+	"name": "mitt",
+	"description": "Tiny (~200b) functional event emitter / pubsub",
+	"tier": 1,
+	"source": "https://github.com/developit/mitt",
+	"testFiles": ["tests/mitt.test.ts"],
+	"metrics": {
+		"expectedTests": 18,
+		"originalLOC": 80,
+		"complexity": "easy"
+	}
+}
