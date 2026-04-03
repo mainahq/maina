@@ -74,6 +74,18 @@ export {
 	promote,
 	retire,
 } from "./prompts/evolution";
+// Stats
+export {
+	type CommitSnapshot,
+	getLatest,
+	getStats,
+	getTrends,
+	recordSnapshot,
+	type SnapshotInput,
+	type StatsReport,
+	type TrendDirection,
+	type TrendsReport,
+} from "./stats/tracker";
 export {
 	type DetectedTool,
 	detectTool,

@@ -86,6 +86,26 @@ function createTables(db: Database): void {
 			usage_count INTEGER,
 			created_at TEXT NOT NULL
 		);
+
+		CREATE TABLE IF NOT EXISTS commit_snapshots (
+			id TEXT PRIMARY KEY,
+			timestamp TEXT NOT NULL,
+			branch TEXT NOT NULL,
+			commit_hash TEXT NOT NULL,
+			verify_duration_ms INTEGER NOT NULL,
+			total_duration_ms INTEGER NOT NULL,
+			context_tokens INTEGER NOT NULL,
+			context_budget INTEGER NOT NULL,
+			context_utilization REAL NOT NULL,
+			cache_hits INTEGER NOT NULL,
+			cache_misses INTEGER NOT NULL,
+			findings_total INTEGER NOT NULL,
+			findings_errors INTEGER NOT NULL,
+			findings_warnings INTEGER NOT NULL,
+			tools_run INTEGER NOT NULL,
+			syntax_passed INTEGER NOT NULL,
+			pipeline_passed INTEGER NOT NULL
+		);
 	`);
 }
 
@@ -129,4 +149,12 @@ export function getCacheDb(mainaDir: string): Result<DbHandle> {
  */
 export function getFeedbackDb(mainaDir: string): Result<DbHandle> {
 	return initDatabase(join(mainaDir, "feedback.db"));
+}
+
+/**
+ * Open the stats database (.maina/stats.db).
+ * Contains: commit_snapshots.
+ */
+export function getStatsDb(mainaDir: string): Result<DbHandle> {
+	return initDatabase(join(mainaDir, "stats.db"));
 }
