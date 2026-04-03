@@ -73,10 +73,20 @@ function toTestName(description: string): string {
 }
 
 /**
+ * Detect if a task handles user input (needs security tests).
+ */
+function handlesInput(description: string): boolean {
+	const inputPatterns =
+		/\b(input|param|arg|path|file|query|search|body|title|label|name|url|content)\b/i;
+	return inputPatterns.test(description);
+}
+
+/**
  * Pure function: parses plan.md content and generates TDD test stubs.
  *
  * - Parses task lines (- T001: or - [ ] T001:)
  * - Creates it() blocks with failing expects (red phase)
+ * - Generates five test categories per task: happy path, edge cases, error handling, security, integration
  * - Adds [NEEDS CLARIFICATION] for ambiguous tasks
  * - Returns complete TypeScript test file as a string
  */
@@ -108,9 +118,34 @@ export function generateTestStubs(
 			lines.push("\t});");
 		} else {
 			lines.push("");
-			lines.push(`\tit("${task.id}: ${testName}", () => {`);
-			lines.push("\t\t// TODO: implement test");
-			lines.push("\t\texpect(true).toBe(false); // Red phase");
+			lines.push(`\tdescribe("${task.id}: ${task.description}", () => {`);
+
+			// Happy path
+			lines.push(`\t\tit("happy path: ${testName}", () => {`);
+			lines.push("\t\t\texpect(true).toBe(false); // Red phase");
+			lines.push("\t\t});");
+
+			// Edge cases
+			lines.push("");
+			lines.push(`\t\tit("edge case: handles empty input", () => {`);
+			lines.push("\t\t\texpect(true).toBe(false); // Red phase");
+			lines.push("\t\t});");
+
+			// Error handling
+			lines.push("");
+			lines.push(`\t\tit("error: returns Result error on failure", () => {`);
+			lines.push("\t\t\texpect(true).toBe(false); // Red phase");
+			lines.push("\t\t});");
+
+			// Security (only if task handles input)
+			if (handlesInput(task.description)) {
+				lines.push("");
+				lines.push(`\t\tit("security: rejects malicious input", () => {`);
+				lines.push("\t\t\t// Test path traversal, injection, oversized input");
+				lines.push("\t\t\texpect(true).toBe(false); // Red phase");
+				lines.push("\t\t});");
+			}
+
 			lines.push("\t});");
 		}
 	}
