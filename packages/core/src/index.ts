@@ -63,6 +63,7 @@ export type { Result } from "./db/index";
 // Design (ADR)
 export {
 	type AdrSummary,
+	generateHldLld,
 	getNextAdrNumber,
 	listAdrs,
 	scaffoldAdr,

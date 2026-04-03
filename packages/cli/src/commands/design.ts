@@ -1,4 +1,10 @@
-import { appendFileSync, existsSync } from "node:fs";
+import {
+	appendFileSync,
+	existsSync,
+	readdirSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { intro, isCancel, log, outro, select, text } from "@clack/prompts";
 import {
@@ -17,6 +23,7 @@ export interface DesignActionOptions {
 	list?: boolean;
 	cwd?: string;
 	noInteractive?: boolean;
+	hld?: boolean;
 }
 
 export interface DesignActionResult {
@@ -145,6 +152,56 @@ export async function designAction(
 
 	log.success(`ADR ${adrNumber} created: ${filePath}`);
 
+	// Step 3b: Generate HLD/LLD if --hld and spec exists
+	if (options.hld) {
+		const mainaDir = join(cwd, ".maina");
+		const featureDir = join(mainaDir, "features");
+
+		// Find current feature spec
+		let specContent: string | null = null;
+		try {
+			const features = readdirSync(featureDir);
+			// Find latest feature directory with a spec.md
+			const sorted = features
+				.filter((f: string) => /^\d{3}-/.test(f))
+				.sort()
+				.reverse();
+
+			for (const dir of sorted) {
+				const specPath = join(featureDir, dir, "spec.md");
+				if (existsSync(specPath)) {
+					specContent = readFileSync(specPath, "utf-8");
+					break;
+				}
+			}
+		} catch {
+			// No feature spec found
+		}
+
+		if (specContent) {
+			const { generateHldLld } = await import("@maina/core");
+			log.info("Generating HLD/LLD from spec...");
+			const hldResult = await generateHldLld(specContent, mainaDir);
+
+			if (hldResult.ok && hldResult.value) {
+				// Replace the HLD/LLD placeholder sections in the scaffolded ADR
+				const adrContent = readFileSync(filePath, "utf-8");
+
+				// Find where HLD section starts and replace everything from there to end
+				const hldIndex = adrContent.indexOf("## High-Level Design");
+				if (hldIndex !== -1) {
+					const newContent = `${adrContent.slice(0, hldIndex)}${hldResult.value}\n`;
+					writeFileSync(filePath, newContent);
+					log.success("HLD/LLD sections generated from spec.");
+				}
+			} else {
+				log.warn("AI unavailable — HLD/LLD sections left as placeholders.");
+			}
+		} else {
+			log.warn("No spec.md found — HLD/LLD sections left as placeholders.");
+		}
+	}
+
 	// Step 4: Interactive approach proposals
 	let approachSelected: string | undefined;
 
@@ -229,6 +286,7 @@ export function designCommand(): Command {
 		.option("-t, --title <title>", "ADR title")
 		.option("--list", "List existing ADRs")
 		.option("--no-interactive", "Skip approach proposals phase")
+		.option("--hld", "Generate HLD/LLD from feature spec using AI")
 		.action(async (options) => {
 			intro("maina design");
 
@@ -236,6 +294,7 @@ export function designCommand(): Command {
 				title: options.title,
 				list: options.list,
 				noInteractive: options.interactive === false,
+				hld: options.hld,
 			});
 
 			if (result.listed) {
