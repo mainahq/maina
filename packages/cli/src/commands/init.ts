@@ -1,12 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
-import {
-	bootstrap,
-	type DetectedStack,
-	type InitReport,
-	type Result,
-} from "@maina/core";
+import { bootstrap, type InitReport, type Result } from "@maina/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
