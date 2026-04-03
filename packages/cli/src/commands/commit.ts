@@ -3,7 +3,9 @@ import { intro, log, outro, text } from "@clack/prompts";
 import {
 	getCurrentBranch,
 	getStagedFiles,
+	type PipelineResult,
 	recordOutcome,
+	recordSnapshot,
 	runHooks,
 	runPipeline,
 } from "@maina/core";
@@ -103,6 +105,8 @@ export async function commitAction(
 ): Promise<CommitActionResult> {
 	const cwd = options.cwd ?? process.cwd();
 	const mainaDir = join(cwd, ".maina");
+	const startTime = Date.now();
+	let pipelineResult: PipelineResult | undefined;
 
 	// ── Step 1: Get staged files ──────────────────────────────────────────
 	const stagedFiles = await getStagedFiles(cwd);
@@ -148,7 +152,7 @@ export async function commitAction(
 
 	// ── Step 3: Verification pipeline (unless --skip or --no-verify) ──────
 	if (!options.skip && !options.noVerify) {
-		const pipelineResult = await runPipeline({
+		pipelineResult = await runPipeline({
 			files: stagedFiles,
 			cwd,
 			mainaDir,
@@ -270,7 +274,37 @@ export async function commitAction(
 		}
 	}
 
-	// ── Step 8: Record success in feedback ────────────────────────────────
+	// ── Step 8: Record stats snapshot ────────────────────────────────────
+	try {
+		const branch = await getCurrentBranch(cwd);
+		const hashMatch = /\[[\w/.-]+ ([a-f0-9]+)\]/.exec(stdout);
+		const commitHash = hashMatch?.[1] ?? "unknown";
+
+		recordSnapshot(mainaDir, {
+			branch,
+			commitHash,
+			verifyDurationMs: pipelineResult?.duration ?? 0,
+			totalDurationMs: Date.now() - startTime,
+			contextTokens: 0,
+			contextBudget: 200000,
+			cacheHits: 0,
+			cacheMisses: 0,
+			findingsTotal: pipelineResult?.findings.length ?? 0,
+			findingsErrors:
+				pipelineResult?.findings.filter((f) => f.severity === "error").length ??
+				0,
+			findingsWarnings:
+				pipelineResult?.findings.filter((f) => f.severity === "warning")
+					.length ?? 0,
+			toolsRun: pipelineResult?.tools.length ?? 0,
+			syntaxPassed: pipelineResult?.syntaxPassed ?? true,
+			pipelinePassed: pipelineResult?.passed ?? true,
+		});
+	} catch {
+		// Stats recording should never block a commit
+	}
+
+	// ── Step 9: Record success in feedback ────────────────────────────────
 	recordOutcome(mainaDir, "commit-gate", {
 		accepted: true,
 		command: "commit",
