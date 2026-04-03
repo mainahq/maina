@@ -191,11 +191,13 @@ describe("scaffoldFeature", () => {
 		await scaffoldFeature(featureDir);
 		const content = readFileSync(join(featureDir, "spec.md"), "utf-8");
 		// WHAT/WHY sections
-		expect(content).toContain("Feature Name");
+		expect(content).toContain("Feature:");
 		expect(content).toContain("User Stories");
-		expect(content).toContain("Acceptance Criteria");
+		expect(content).toContain("Success Criteria");
+		expect(content).toContain("Problem Statement");
+		expect(content).toContain("Out of Scope");
 		// Must NOT contain HOW sections
-		expect(content).not.toContain("Architecture");
+		expect(content).not.toContain("## Architecture");
 		expect(content).not.toContain("## Tasks");
 	});
 
@@ -205,9 +207,11 @@ describe("scaffoldFeature", () => {
 		// HOW sections
 		expect(content).toContain("Architecture");
 		expect(content).toContain("Tasks");
+		expect(content).toContain("Failure Modes");
+		expect(content).toContain("Testing Strategy");
 		// Must NOT contain WHAT/WHY sections
 		expect(content).not.toContain("User Stories");
-		expect(content).not.toContain("Acceptance Criteria");
+		expect(content).not.toContain("Success Criteria");
 	});
 
 	test("all files contain [NEEDS CLARIFICATION] marker", async () => {

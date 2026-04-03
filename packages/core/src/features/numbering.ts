@@ -140,22 +140,60 @@ export interface DesignChoices {
 	clarifications?: Array<{ question: string; answer: string }>;
 }
 
-const SPEC_TEMPLATE = `# Feature Name
+// ─── Spec Template (Product Manager perspective) ─────────────────────────────
+// Think as a PM: What problem are we solving? For whom? How will we know it works?
+// Inspired by Superpowers brainstorming: purpose, constraints, success criteria.
 
-> WHAT and WHY only — no implementation details here.
+const SPEC_TEMPLATE = `# Feature: [Name]
+
+## Problem Statement
+
+What specific problem does this solve? Who experiences it? What happens if we don't solve it?
+
+- [NEEDS CLARIFICATION] Define the problem clearly.
+
+## Target User
+
+Who benefits? What is their current workflow? What frustrates them about it?
+
+- Primary: [NEEDS CLARIFICATION]
+- Secondary: [NEEDS CLARIFICATION]
 
 ## User Stories
 
 - As a [role], I want [capability] so that [benefit].
 
-## Acceptance Criteria
+## Success Criteria
 
-- [ ] [NEEDS CLARIFICATION] Define acceptance criteria.
+How do we know this works? Every criterion must be testable — if you can't write
+an assertion for it, the requirement isn't clear enough.
 
-## [NEEDS CLARIFICATION]
+- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
 
-- List any open questions or ambiguities here.
+## Scope
+
+### In Scope
+
+- [NEEDS CLARIFICATION] What this feature does.
+
+### Out of Scope
+
+- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
+
+## Design Decisions
+
+Key choices made and WHY. Record tradeoffs — future you will thank you.
+
+- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
+
+## Open Questions
+
+- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
 `;
+
+// ─── Plan Template (Technical Architect perspective) ─────────────────────────
+// Think as an architect: What's the simplest approach? What are the failure modes?
+// How does this fit into the existing system? Where are the integration points?
 
 const PLAN_TEMPLATE = `# Implementation Plan
 
@@ -163,26 +201,68 @@ const PLAN_TEMPLATE = `# Implementation Plan
 
 ## Architecture
 
-- [NEEDS CLARIFICATION] Describe the technical approach.
+What is the technical approach? How does it fit into existing architecture?
+Where are the integration points with existing code?
+
+- Pattern: [NEEDS CLARIFICATION]
+- Integration points: [NEEDS CLARIFICATION]
+
+## Key Technical Decisions
+
+What libraries, patterns, or approaches? WHY these and not alternatives?
+
+- [NEEDS CLARIFICATION]
+
+## Files
+
+| File | Purpose | New/Modified |
+|------|---------|-------------|
+| [NEEDS CLARIFICATION] | | |
 
 ## Tasks
 
-- [ ] [NEEDS CLARIFICATION] Break down implementation tasks.
+TDD: every implementation task must have a preceding test task.
+
+- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.
+
+## Failure Modes
+
+What can go wrong? How do we handle it gracefully?
+
+- [NEEDS CLARIFICATION]
+
+## Testing Strategy
+
+Unit tests, integration tests, or both? What mocks are needed?
+
+- [NEEDS CLARIFICATION]
 `;
+
+// ─── Tasks Template ──────────────────────────────────────────────────────────
 
 const TASKS_TEMPLATE = `# Task Breakdown
 
 ## Tasks
 
-- [ ] [NEEDS CLARIFICATION] Define tasks with estimates.
+Each task should be completable in one commit. Test tasks precede implementation tasks.
+
+- [ ] [NEEDS CLARIFICATION] Define tasks.
 
 ## Dependencies
 
-- [NEEDS CLARIFICATION] List any blocking dependencies.
+Which tasks block which? Draw the critical path.
 
-## Notes
+- [NEEDS CLARIFICATION]
 
-- [NEEDS CLARIFICATION] Additional context or constraints.
+## Definition of Done
+
+How do we know this feature is complete?
+
+- [ ] All tests pass
+- [ ] Biome lint clean
+- [ ] TypeScript compiles
+- [ ] maina analyze shows no errors
+- [ ] [NEEDS CLARIFICATION] Feature-specific criteria
 `;
 
 /**
@@ -221,11 +301,9 @@ function buildEnrichedSpec(name: string, choices: DesignChoices): string {
 	const lines: string[] = [];
 	lines.push(`# Feature: ${name}`);
 	lines.push("");
-	lines.push("> WHAT and WHY only — no implementation details here.");
-	lines.push("");
 
 	if (choices.description) {
-		lines.push(`## Overview`);
+		lines.push("## Problem Statement");
 		lines.push("");
 		lines.push(choices.description);
 		lines.push("");
@@ -236,9 +314,11 @@ function buildEnrichedSpec(name: string, choices: DesignChoices): string {
 	lines.push("- As a [role], I want [capability] so that [benefit].");
 	lines.push("");
 
-	lines.push("## Acceptance Criteria");
+	lines.push("## Success Criteria");
 	lines.push("");
-	lines.push("- [ ] [NEEDS CLARIFICATION] Define acceptance criteria.");
+	lines.push(
+		"- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.",
+	);
 	lines.push("");
 
 	if (choices.tradeoffs && choices.tradeoffs.length > 0) {
@@ -260,9 +340,9 @@ function buildEnrichedSpec(name: string, choices: DesignChoices): string {
 		lines.push("");
 	}
 
-	lines.push("## [NEEDS CLARIFICATION]");
+	lines.push("## Open Questions");
 	lines.push("");
-	lines.push("- List any remaining open questions here.");
+	lines.push("- [NEEDS CLARIFICATION] Resolve before implementation.");
 	lines.push("");
 	return lines.join("\n");
 }
@@ -288,7 +368,7 @@ function buildEnrichedPlan(choices: DesignChoices): string {
 	lines.push("");
 
 	if (choices.libraries && choices.libraries.length > 0) {
-		lines.push("## Libraries & Tools");
+		lines.push("## Key Technical Decisions");
 		lines.push("");
 		for (const lib of choices.libraries) {
 			lines.push(`- ${lib}`);
@@ -298,7 +378,16 @@ function buildEnrichedPlan(choices: DesignChoices): string {
 
 	lines.push("## Tasks");
 	lines.push("");
-	lines.push("- [ ] [NEEDS CLARIFICATION] Break down implementation tasks.");
+	lines.push("TDD: every implementation task must have a preceding test task.");
+	lines.push("");
+	lines.push(
+		"- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.",
+	);
+	lines.push("");
+
+	lines.push("## Failure Modes");
+	lines.push("");
+	lines.push("- [NEEDS CLARIFICATION] What can go wrong?");
 	lines.push("");
 	return lines.join("\n");
 }
