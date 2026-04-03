@@ -76,6 +76,7 @@ mock.module("@maina/core", () => ({
 		return mockFixResult;
 	},
 	getStagedFiles: async () => mockStagedFiles,
+	getTrackedFiles: async () => mockStagedFiles,
 	// Also export symbols needed by doctor.ts to avoid cross-file mock conflicts
 	detectTools: async () => [],
 	createCacheManager: () => ({
@@ -361,11 +362,12 @@ describe("maina verify", () => {
 		expect(pipelineCalledWith?.files).toEqual(["src/foo.ts", "src/bar.ts"]);
 	});
 
-	test("does not pass specific files when --all is set", async () => {
+	test("passes all tracked files when --all is set", async () => {
 		await verifyAction({ all: true, cwd: tmpDir });
 
 		expect(pipelineCalledWith).toBeDefined();
-		// When --all is set, no files filter should be passed
-		expect(pipelineCalledWith?.files).toBeUndefined();
+		// When --all is set, all tracked files are passed
+		expect(Array.isArray(pipelineCalledWith?.files)).toBe(true);
+		expect(pipelineCalledWith?.diffOnly).toBe(false);
 	});
 });

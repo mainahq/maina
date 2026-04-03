@@ -188,22 +188,15 @@ describe("parseSarif", () => {
 // ─── runSemgrep ────────────────────────────────────────────────────────────
 
 describe("runSemgrep", () => {
-	it("should skip when semgrep is not installed", async () => {
-		// In CI/test, semgrep is typically not installed
-		const result = await runSemgrep();
-		// If semgrep is not installed, it should be skipped
-		if (result.skipped) {
-			expect(result.findings).toEqual([]);
-			expect(result.skipped).toBe(true);
-		} else {
-			// If it is installed, we just check the shape
-			expect(Array.isArray(result.findings)).toBe(true);
-			expect(result.skipped).toBe(false);
-		}
+	it("should return skipped when availability is false", async () => {
+		const result = await runSemgrep({ available: false });
+		expect(result.findings).toEqual([]);
+		expect(result.skipped).toBe(true);
 	});
 
 	it("should return correct result shape", async () => {
-		const result = await runSemgrep();
+		// Use available: false to avoid running the actual tool in tests
+		const result = await runSemgrep({ available: false });
 		expect(result).toHaveProperty("findings");
 		expect(result).toHaveProperty("skipped");
 		expect(Array.isArray(result.findings)).toBe(true);
@@ -215,8 +208,9 @@ describe("runSemgrep", () => {
 			files: ["nonexistent-file.ts"],
 			config: "auto",
 			cwd: "/tmp",
+			available: false,
 		});
-		// Should not throw, regardless of whether semgrep is installed
+		// Should not throw
 		expect(result).toHaveProperty("findings");
 		expect(result).toHaveProperty("skipped");
 	});

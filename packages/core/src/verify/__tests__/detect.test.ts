@@ -55,10 +55,10 @@ describe("detectTool", () => {
 		expect(typeof result.version).toBe("string");
 	});
 
-	test("reports trivy as unavailable (not installed)", async () => {
-		const result = await detectTool("trivy");
-		expect(result.name).toBe("trivy");
-		expect(result.command).toBe("trivy");
+	test("reports sonarqube as unavailable (not installed)", async () => {
+		const result = await detectTool("sonarqube");
+		expect(result.name).toBe("sonarqube");
+		expect(result.command).toBe("sonar-scanner");
 		expect(result.available).toBe(false);
 		expect(result.version).toBeNull();
 	});
@@ -98,10 +98,10 @@ describe("detectTools", () => {
 
 	test("should skip missing tools with info note", async () => {
 		const results = await detectTools();
-		const trivy = results.find((t) => t.name === "trivy");
-		expect(trivy).toBeDefined();
-		expect(trivy?.available).toBe(false);
-		expect(trivy?.version).toBeNull();
+		const sonarqube = results.find((t) => t.name === "sonarqube");
+		expect(sonarqube).toBeDefined();
+		expect(sonarqube?.available).toBe(false);
+		expect(sonarqube?.version).toBeNull();
 	});
 
 	test("detects tools in parallel (all results returned)", async () => {
@@ -124,8 +124,8 @@ describe("isToolAvailable", () => {
 		expect(available).toBe(true);
 	});
 
-	test("returns false for trivy", async () => {
-		const available = await isToolAvailable("trivy");
+	test("returns false for sonarqube", async () => {
+		const available = await isToolAvailable("sonarqube");
 		expect(available).toBe(false);
 	});
 });
