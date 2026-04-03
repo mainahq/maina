@@ -1,6 +1,8 @@
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
 import {
+	type ComparisonReport,
+	getComparison,
 	getStats,
 	getTrends,
 	type StatsReport,
@@ -13,6 +15,7 @@ import { Command } from "commander";
 export interface StatsActionOptions {
 	json?: boolean;
 	last?: number;
+	compare?: boolean;
 	cwd?: string;
 }
 
@@ -149,13 +152,51 @@ function displayStats(stats: StatsReport, trends: TrendsReport): void {
 
 // ── Commander Command ────────────────────────────────────────────────────────
 
+function displayComparison(report: ComparisonReport): void {
+	log.info("maina vs raw git — what maina adds:\n");
+	log.message(
+		[
+			`  With maina (${report.totalCommits} commits):`,
+			`    Findings caught:     ${report.findingsCaught}`,
+			`    Verify time:         ${(report.totalVerifyTimeMs / 1000).toFixed(1)}s total (${(report.avgVerifyTimeMs / 1000).toFixed(1)}s avg)`,
+			`    Context assembled:   ${report.totalContextTokens} tokens`,
+			`    Episodic memory:     ${report.episodicEntries} entries`,
+			`    Semantic entities:   ${report.semanticEntities} indexed`,
+			`    Dependency graph:    ${report.dependencyEdges} edges`,
+			`    Cache hits:          ${report.cacheHits}`,
+			"",
+			"  Without maina (raw git commit):",
+			"    Findings caught:     0",
+			"    Verification:        none",
+			"    Context:             none (manual CLAUDE.md only)",
+			"    Memory:              none (ephemeral)",
+			"    Codebase index:      none",
+			"    Cache:               none",
+		].join("\n"),
+	);
+}
+
 export function statsCommand(): Command {
 	return new Command("stats")
 		.description("Show commit verification metrics and trends")
 		.option("--json", "Output raw snapshots as JSON")
 		.option("--last <n>", "Number of commits to analyze", "10")
+		.option("--compare", "Show maina vs raw git comparison")
 		.action(async (options) => {
 			intro("maina stats");
+
+			if (options.compare) {
+				const cwd = process.cwd();
+				const mainaDir = join(cwd, ".maina");
+				const compareResult = getComparison(mainaDir);
+				if (compareResult.ok) {
+					displayComparison(compareResult.value);
+				} else {
+					log.warning(compareResult.error);
+				}
+				outro("Done.");
+				return;
+			}
 
 			const last = Number.parseInt(options.last, 10);
 			const result = await statsAction({
