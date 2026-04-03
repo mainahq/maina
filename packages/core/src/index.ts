@@ -15,7 +15,12 @@ export {
 export { type TryAIResult, tryAIGenerate } from "./ai/try-generate";
 // AI validation
 export { type AIValidationResult, validateAIOutput } from "./ai/validate";
-export { buildReport, formatComparison } from "./benchmark/reporter";
+export {
+	buildReport,
+	buildTier3Report,
+	formatComparison,
+	formatTier3Comparison,
+} from "./benchmark/reporter";
 export { parseTestOutput, runBenchmark } from "./benchmark/runner";
 export { listStories, loadStory } from "./benchmark/story-loader";
 // Benchmark
@@ -23,7 +28,10 @@ export type {
 	BenchmarkMetrics,
 	BenchmarkReport,
 	LoadedStory,
+	StepMetrics,
 	StoryConfig,
+	Tier3Results,
+	Tier3Totals,
 } from "./benchmark/types";
 // Cache
 export {

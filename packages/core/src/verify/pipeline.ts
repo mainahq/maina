@@ -201,17 +201,23 @@ export async function runPipeline(
 		hiddenCount = 0;
 	}
 
-	// ── Step 6b: Downgrade noisy rules based on preferences ──────────────
+	// ── Step 6b: Skip or downgrade noisy rules based on preferences ─────
 	try {
 		const noisy = getNoisyRules(mainaDir);
-		const noisyIds = new Set(noisy.map((r) => r.ruleId));
-		for (const finding of shownFindings) {
-			if (finding.ruleId && noisyIds.has(finding.ruleId)) {
-				// Downgrade: error→warning, warning→info
+		const noisyMap = new Map(noisy.map((r) => [r.ruleId, r]));
+		shownFindings = shownFindings.filter((finding) => {
+			if (!finding.ruleId) return true;
+			const rule = noisyMap.get(finding.ruleId);
+			if (!rule) return true;
+			// Skip entirely if FP rate > 50% — these erode trust
+			if (rule.falsePositiveRate > 0.5) return false;
+			// Downgrade if borderline (>30%)
+			if (rule.falsePositiveRate > 0.3) {
 				if (finding.severity === "error") finding.severity = "warning";
 				else if (finding.severity === "warning") finding.severity = "info";
 			}
-		}
+			return true;
+		});
 	} catch {
 		// Preference loading failure should never block verification
 	}

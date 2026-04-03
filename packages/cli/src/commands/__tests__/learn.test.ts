@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { analyseFeedback, recordOutcome } from "@maina/core";
+import { analyseFeedback, getPromptStats, recordOutcome } from "@maina/core";
 
 let tmpDir: string;
 
@@ -38,6 +38,12 @@ describe("maina learn", () => {
 				command: "review",
 			});
 		}
+
+		// Verify the records were written via prompt stats before analysing
+		const stats = getPromptStats(tmpDir);
+		const reviewStat = stats.find((s) => s.promptHash === "review-v1");
+		expect(reviewStat).toBeDefined();
+		expect(reviewStat?.totalUsage).toBe(35);
 
 		const analysis = analyseFeedback(tmpDir, "review");
 		expect(analysis.totalSamples).toBe(35);

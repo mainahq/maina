@@ -16,7 +16,7 @@ import { generate } from "../index";
 
 const TEST_DIR = join(tmpdir(), `maina-ai-test-${Date.now()}`);
 
-/** Env vars that can trigger host-mode delegation or provide API keys. */
+/** Env vars that can trigger host-mode delegation, provide API keys, or override config. */
 const HOST_ENV_VARS = [
 	"MAINA_API_KEY",
 	"OPENROUTER_API_KEY",
@@ -25,6 +25,7 @@ const HOST_ENV_VARS = [
 	"CLAUDE_CODE_ENTRYPOINT",
 	"CURSOR",
 	"MAINA_HOST_MODE",
+	"MAINA_PROVIDER",
 ] as const;
 
 /** Saved env values restored after each test. */
@@ -64,6 +65,11 @@ function makeDir(sub: string): string {
 
 describe("generate — cache hit", () => {
 	test("returns cached result when cache has matching entry", async () => {
+		// Clear all env vars that can influence model resolution / host delegation
+		for (const key of HOST_ENV_VARS) {
+			delete process.env[key];
+		}
+
 		const mainaDir = makeDir("cache-hit");
 		const cache = createCacheManager(mainaDir);
 

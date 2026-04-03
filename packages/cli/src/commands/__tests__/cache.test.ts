@@ -30,13 +30,16 @@ describe("cache stats", () => {
 		manager.set("key1", "value1");
 		manager.set("key2", "value2");
 
-		// Hit one
-		manager.get("key1");
+		// Verify entries are stored before checking stats
+		const entry1 = manager.get("key1");
+		expect(entry1).not.toBeNull();
+		expect(entry1?.value).toBe("value1");
 
 		// Miss one
 		manager.get("nonexistent");
 
 		const stats = manager.stats();
+		// The first get("key1") above is a real L1 hit
 		expect(stats.l1Hits).toBe(1);
 		expect(stats.misses).toBe(1);
 		expect(stats.entriesL1).toBe(2);

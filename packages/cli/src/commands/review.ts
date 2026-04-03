@@ -5,6 +5,7 @@ import {
 	comprehensiveReview,
 	getChangedFiles,
 	getDiff,
+	recordFeedbackWithCompression,
 } from "@maina/core";
 import { Command } from "commander";
 
@@ -187,6 +188,22 @@ export function reviewCommand(): Command {
 
 			if (result.result) {
 				displayReview(result.result);
+
+				// Record feedback for RL loop + episodic compression
+				const mainaDir = join(process.cwd(), ".maina");
+				const accepted = result.result.verdict !== "not-ready";
+				try {
+					recordFeedbackWithCompression(mainaDir, {
+						promptHash: "review",
+						task: "review",
+						accepted,
+						timestamp: new Date().toISOString(),
+						modification: `verdict: ${result.result.verdict}`,
+						aiOutput: result.result.verdictReason,
+					});
+				} catch {
+					// Feedback recording should never block the review
+				}
 			}
 
 			outro("Done.");
