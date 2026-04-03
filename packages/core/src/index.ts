@@ -14,6 +14,17 @@ export {
 	type LayerReport,
 } from "./context/engine";
 export type { MainaCommand } from "./context/selector";
+// Git
+export {
+	type Commit,
+	getBranchName,
+	getChangedFiles,
+	getCurrentBranch,
+	getDiff,
+	getRecentCommits,
+	getRepoRoot,
+	getStagedFiles,
+} from "./git/index";
 // Hooks
 export {
 	executeHook,
@@ -42,7 +53,6 @@ export {
 	promote,
 	retire,
 } from "./prompts/evolution";
-// Verify
 export {
 	type DetectedTool,
 	detectTool,
@@ -66,6 +76,13 @@ export {
 	hashFinding,
 	parseFixResponse,
 } from "./verify/fix";
+// Verify — Pipeline
+export {
+	type PipelineOptions,
+	type PipelineResult,
+	runPipeline,
+	type ToolReport,
+} from "./verify/pipeline";
 export {
 	detectCommentedCode,
 	detectConsoleLogs,
