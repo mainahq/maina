@@ -234,6 +234,13 @@ export {
 	resolveReferencedFunctions,
 	runAIReview,
 } from "./verify/ai-review";
+// Verify — Coverage
+export {
+	type CoverageOptions,
+	type CoverageResult,
+	parseDiffCoverJson,
+	runCoverage,
+} from "./verify/coverage";
 export {
 	type DetectedTool,
 	detectTool,
@@ -257,6 +264,13 @@ export {
 	hashFinding,
 	parseFixResponse,
 } from "./verify/fix";
+// Verify — Mutation
+export {
+	type MutationOptions,
+	type MutationResult,
+	parseStrykerReport,
+	runMutation,
+} from "./verify/mutation";
 // Verify — Pipeline
 export {
 	type PipelineOptions,
@@ -274,6 +288,13 @@ export {
 	type SlopResult,
 	type SlopRule,
 } from "./verify/slop";
+// Verify — SonarQube
+export {
+	parseSonarReport,
+	runSonar,
+	type SonarOptions,
+	type SonarResult,
+} from "./verify/sonar";
 export {
 	parseBiomeOutput,
 	type SyntaxDiagnostic,

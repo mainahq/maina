@@ -16,13 +16,16 @@ import { createCacheManager } from "../cache/manager";
 import { getNoisyRules } from "../feedback/preferences";
 import { getDiff, getStagedFiles } from "../git/index";
 import { type AIReviewResult, runAIReview } from "./ai-review";
+import { runCoverage } from "./coverage";
 import type { DetectedTool } from "./detect";
 import { detectTools } from "./detect";
 import type { Finding } from "./diff-filter";
 import { filterByDiff } from "./diff-filter";
+import { runMutation } from "./mutation";
 import { runSecretlint } from "./secretlint";
 import { runSemgrep } from "./semgrep";
 import { detectSlop } from "./slop";
+import { runSonar } from "./sonar";
 import type { SyntaxDiagnostic } from "./syntax-guard";
 import { syntaxGuard } from "./syntax-guard";
 import { runTrivy } from "./trivy";
@@ -178,6 +181,36 @@ export async function runPipeline(
 				files,
 				cwd,
 				available: toolAvailability.get("secretlint") ?? false,
+			}),
+		),
+	);
+
+	// SonarQube — pass pre-resolved availability
+	toolPromises.push(
+		runToolWithTiming("sonarqube", () =>
+			runSonar({
+				cwd,
+				available: toolAvailability.get("sonarqube") ?? false,
+			}),
+		),
+	);
+
+	// Stryker mutation testing — pass pre-resolved availability
+	toolPromises.push(
+		runToolWithTiming("stryker", () =>
+			runMutation({
+				cwd,
+				available: toolAvailability.get("stryker") ?? false,
+			}),
+		),
+	);
+
+	// diff-cover — pass pre-resolved availability
+	toolPromises.push(
+		runToolWithTiming("diff-cover", () =>
+			runCoverage({
+				cwd,
+				available: toolAvailability.get("diff-cover") ?? false,
 			}),
 		),
 	);

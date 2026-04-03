@@ -75,6 +75,27 @@ mock.module("../secretlint", () => ({
 	},
 }));
 
+mock.module("../sonar", () => ({
+	runSonar: async (..._args: unknown[]) => {
+		callOrder.push("runSonar");
+		return { findings: [], skipped: true };
+	},
+}));
+
+mock.module("../mutation", () => ({
+	runMutation: async (..._args: unknown[]) => {
+		callOrder.push("runMutation");
+		return { findings: [], skipped: true };
+	},
+}));
+
+mock.module("../coverage", () => ({
+	runCoverage: async (..._args: unknown[]) => {
+		callOrder.push("runCoverage");
+		return { findings: [], skipped: true };
+	},
+}));
+
 mock.module("../diff-filter", () => ({
 	filterByDiff: async (findings: Finding[], ..._args: unknown[]) => {
 		callOrder.push("filterByDiff");
@@ -222,7 +243,7 @@ describe("VerifyPipeline", () => {
 		expect(callOrder).toContain("runSecretlint");
 
 		// 5 tool reports (slop + semgrep + trivy + secretlint + ai-review)
-		expect(result.tools).toHaveLength(5);
+		expect(result.tools).toHaveLength(8);
 		expect(result.findings).toHaveLength(3);
 	});
 
