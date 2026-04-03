@@ -94,6 +94,29 @@ mock.module("../../git/index", () => ({
 		callOrder.push("getStagedFiles");
 		return mockStagedFiles;
 	},
+	getDiff: async (..._args: unknown[]) => {
+		return "+  some changed code";
+	},
+}));
+
+// Mock AI review
+let mockAIReviewResult: {
+	findings: Finding[];
+	skipped: boolean;
+	tier: string;
+	duration: number;
+} = {
+	findings: [],
+	skipped: true,
+	tier: "mechanical",
+	duration: 0,
+};
+
+mock.module("../ai-review", () => ({
+	runAIReview: async (..._args: unknown[]) => {
+		callOrder.push("runAIReview");
+		return mockAIReviewResult;
+	},
 }));
 
 afterAll(() => {
@@ -144,6 +167,12 @@ describe("VerifyPipeline", () => {
 		mockSecretlintResult = { findings: [], skipped: false };
 		mockDiffFilterResult = { shown: [], hidden: 0 };
 		mockStagedFiles = ["src/app.ts"];
+		mockAIReviewResult = {
+			findings: [],
+			skipped: true,
+			tier: "mechanical",
+			duration: 0,
+		};
 	});
 
 	it("should auto-detect installed tools", async () => {
@@ -192,8 +221,8 @@ describe("VerifyPipeline", () => {
 		expect(callOrder).toContain("runTrivy");
 		expect(callOrder).toContain("runSecretlint");
 
-		// 4 tool reports (slop + semgrep + trivy + secretlint)
-		expect(result.tools).toHaveLength(4);
+		// 5 tool reports (slop + semgrep + trivy + secretlint + ai-review)
+		expect(result.tools).toHaveLength(5);
 		expect(result.findings).toHaveLength(3);
 	});
 
@@ -438,5 +467,47 @@ describe("VerifyPipeline", () => {
 
 		const pipelineWarning = result.findings.find((f) => f.tool === "pipeline");
 		expect(pipelineWarning).toBeUndefined();
+	});
+
+	it("should run AI review after diff filter and include findings", async () => {
+		const aiReviewFinding = makeFinding({
+			tool: "ai-review",
+			message: "missing null check",
+			severity: "warning",
+			ruleId: "ai-review/edge-case",
+		});
+
+		mockAIReviewResult = {
+			findings: [aiReviewFinding],
+			skipped: false,
+			tier: "mechanical",
+			duration: 100,
+		};
+
+		const result = await runPipeline({ files: ["src/app.ts"] });
+
+		expect(callOrder).toContain("runAIReview");
+		expect(result.findings).toContainEqual(aiReviewFinding);
+		const aiReport = result.tools.find((t) => t.tool === "ai-review");
+		expect(aiReport).toBeDefined();
+		expect(aiReport?.skipped).toBe(false);
+	});
+
+	it("should pass deep flag to AI review when specified", async () => {
+		await runPipeline({ files: ["src/app.ts"], deep: true });
+		expect(callOrder).toContain("runAIReview");
+	});
+
+	it("should pass when AI review is skipped", async () => {
+		mockAIReviewResult = {
+			findings: [],
+			skipped: true,
+			tier: "mechanical",
+			duration: 0,
+		};
+		const result = await runPipeline({ files: ["src/app.ts"] });
+		expect(result.passed).toBe(true);
+		const aiReport = result.tools.find((t) => t.tool === "ai-review");
+		expect(aiReport?.skipped).toBe(true);
 	});
 });

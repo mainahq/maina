@@ -14,7 +14,8 @@
 
 import { createCacheManager } from "../cache/manager";
 import { getNoisyRules } from "../feedback/preferences";
-import { getStagedFiles } from "../git/index";
+import { getDiff, getStagedFiles } from "../git/index";
+import { type AIReviewResult, runAIReview } from "./ai-review";
 import type { DetectedTool } from "./detect";
 import { detectTools } from "./detect";
 import type { Finding } from "./diff-filter";
@@ -52,6 +53,7 @@ export interface PipelineOptions {
 	files?: string[]; // specific files (default: staged files)
 	baseBranch?: string; // for diff filter (default: "main")
 	diffOnly?: boolean; // default: true
+	deep?: boolean; // NEW — triggers standard-tier AI review
 	cwd?: string;
 	mainaDir?: string;
 }
@@ -238,10 +240,38 @@ export async function runPipeline(
 		// Preference loading failure should never block verification
 	}
 
-	// ── Step 7: Determine pass/fail ───────────────────────────────────────
+	// ── Step 7: AI review (mechanical always, standard if --deep) ────────
+	const deep = options?.deep ?? false;
+	let diffText = "";
+	try {
+		diffText = diffOnly ? await getDiff(baseBranch, undefined, cwd) : "";
+	} catch {
+		// getDiff failure should not block pipeline
+	}
+
+	const aiReviewResult: AIReviewResult = await runAIReview({
+		diff: diffText,
+		entities: [], // Entities require tree-sitter + file body reads; wired when semantic index is hydrated
+		deep,
+		mainaDir: options?.mainaDir ?? ".maina",
+	});
+
+	const aiReport: ToolReport = {
+		tool: "ai-review",
+		findings: aiReviewResult.findings,
+		skipped: aiReviewResult.skipped,
+		duration: aiReviewResult.duration,
+	};
+
+	toolReports.push(aiReport);
+
+	// Merge AI findings into shown findings
+	shownFindings.push(...aiReviewResult.findings);
+
+	// ── Step 8: Determine pass/fail ───────────────────────────────────────
 	const passed = !shownFindings.some((f) => f.severity === "error");
 
-	// ── Step 8: Return unified result ─────────────────────────────────────
+	// ── Step 9: Return unified result ─────────────────────────────────────
 	const cacheStats = slopCache.stats();
 	return {
 		passed,
