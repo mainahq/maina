@@ -14,6 +14,15 @@ export {
 	type LayerReport,
 } from "./context/engine";
 export type { MainaCommand } from "./context/selector";
+// Hooks
+export {
+	executeHook,
+	type HookContext,
+	type HookEvent,
+	type HookResult,
+	runHooks,
+	scanHooks,
+} from "./hooks/index";
 export { loadDefault, type PromptTask } from "./prompts/defaults/index";
 // Prompts
 export {
