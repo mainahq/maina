@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ReviewContext } from "../review";
 import { buildReviewContext, reviewDesign } from "../review";
 
 function makeTmpDir(): string {
@@ -387,5 +388,132 @@ describe("reviewDesign", () => {
 		if (result.ok) {
 			expect(result.value.adrPath).toBe("adr/0001-use-bun-runtime.md");
 		}
+	});
+});
+
+// ── reviewDesign HLD/LLD validation ─────────────────────────────────────────
+
+describe("reviewDesign HLD/LLD validation", () => {
+	function makeContext(content: string): ReviewContext {
+		return {
+			targetAdr: { path: "/test/0001-test.md", content, title: "Test" },
+			existingAdrs: [],
+			constitution: null,
+		};
+	}
+
+	test("should warn when HLD sections are missing", () => {
+		const content = `# 0001. Test
+
+## Status
+Proposed
+
+## Context
+Some context.
+
+## Decision
+Some decision.
+
+## Consequences
+Some consequences.
+`;
+
+		const result = reviewDesign(makeContext(content));
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+
+		const hldWarning = result.value.findings.find((f) =>
+			f.message.includes("High-Level Design"),
+		);
+		expect(hldWarning).toBeDefined();
+		expect(hldWarning?.severity).toBe("warning");
+	});
+
+	test("should warn when LLD sections are missing", () => {
+		const content = `# 0001. Test
+
+## Status
+Proposed
+
+## Context
+Some context.
+
+## Decision
+Some decision.
+
+## Consequences
+Some consequences.
+
+## High-Level Design
+### System Overview
+Overview here.
+### Component Boundaries
+Components here.
+### Data Flow
+Flow here.
+### External Dependencies
+None.
+`;
+
+		const result = reviewDesign(makeContext(content));
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+
+		const lldWarning = result.value.findings.find((f) =>
+			f.message.includes("Low-Level Design"),
+		);
+		expect(lldWarning).toBeDefined();
+	});
+
+	test("should not warn when all HLD/LLD sections are present", () => {
+		const content = `# 0001. Test
+
+## Status
+Proposed
+
+## Context
+Some context.
+
+## Decision
+Some decision.
+
+## Consequences
+Some consequences.
+
+## High-Level Design
+### System Overview
+Overview.
+### Component Boundaries
+Components.
+### Data Flow
+Flow.
+### External Dependencies
+None.
+
+## Low-Level Design
+### Interfaces & Types
+Types.
+### Function Signatures
+Signatures.
+### DB Schema Changes
+None.
+### Sequence of Operations
+Steps.
+### Error Handling
+Errors.
+### Edge Cases
+Edges.
+`;
+
+		const result = reviewDesign(makeContext(content));
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+
+		const designWarnings = result.value.findings.filter(
+			(f) =>
+				f.message.includes("High-Level Design") ||
+				f.message.includes("Low-Level Design"),
+		);
+		expect(designWarnings).toHaveLength(0);
 	});
 });
