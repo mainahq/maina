@@ -345,6 +345,7 @@ export async function commitAction(
 			toolsRun: pipelineResult?.tools.length ?? 0,
 			syntaxPassed: pipelineResult?.syntaxPassed ?? true,
 			pipelinePassed: pipelineResult?.passed ?? true,
+			skipped: options.skip || options.noVerify,
 		});
 
 		// Write episodic entry — commit summary for future context recall

@@ -16,12 +16,14 @@ export interface SnapshotInput {
 	toolsRun: number;
 	syntaxPassed: boolean;
 	pipelinePassed: boolean;
+	skipped?: boolean;
 }
 
 export interface CommitSnapshot extends SnapshotInput {
 	id: string;
 	timestamp: string;
 	contextUtilization: number;
+	skipped: boolean;
 }
 
 export interface StatsReport {
@@ -91,6 +93,7 @@ interface RawSnapshotRow {
 	tools_run: number;
 	syntax_passed: number;
 	pipeline_passed: number;
+	skipped: number;
 }
 
 function rowToSnapshot(row: RawSnapshotRow): CommitSnapshot {
@@ -112,6 +115,7 @@ function rowToSnapshot(row: RawSnapshotRow): CommitSnapshot {
 		toolsRun: row.tools_run,
 		syntaxPassed: row.syntax_passed === 1,
 		pipelinePassed: row.pipeline_passed === 1,
+		skipped: row.skipped === 1,
 	};
 }
 
@@ -143,8 +147,8 @@ export function recordSnapshot(
 				context_tokens, context_budget, context_utilization,
 				cache_hits, cache_misses,
 				findings_total, findings_errors, findings_warnings,
-				tools_run, syntax_passed, pipeline_passed
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				tools_run, syntax_passed, pipeline_passed, skipped
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		).run(
 			id,
 			timestamp,
@@ -163,6 +167,7 @@ export function recordSnapshot(
 			snapshot.toolsRun,
 			snapshot.syntaxPassed ? 1 : 0,
 			snapshot.pipelinePassed ? 1 : 0,
+			snapshot.skipped ? 1 : 0,
 		);
 
 		return { ok: true, value: undefined };
@@ -449,6 +454,38 @@ export function getComparison(mainaDir: string): Result<ComparisonReport> {
 				},
 			},
 		};
+	} catch (e) {
+		return { ok: false, error: e instanceof Error ? e.message : String(e) };
+	}
+}
+
+/**
+ * Compute the skip rate from commit_snapshots.
+ * Returns total commits, skipped count, and rate (0-1).
+ */
+export function getSkipRate(
+	mainaDir: string,
+): Result<{ total: number; skipped: number; rate: number }> {
+	try {
+		const dbResult = getStatsDb(mainaDir);
+		if (!dbResult.ok) return dbResult;
+
+		const { db } = dbResult.value;
+
+		const row = db
+			.prepare(
+				`SELECT
+				COUNT(*) as total,
+				SUM(CASE WHEN skipped = 1 THEN 1 ELSE 0 END) as skipped
+			FROM commit_snapshots`,
+			)
+			.get() as { total: number; skipped: number } | null;
+
+		const total = row?.total ?? 0;
+		const skipped = row?.skipped ?? 0;
+		const rate = total > 0 ? skipped / total : 0;
+
+		return { ok: true, value: { total, skipped, rate } };
 	} catch (e) {
 		return { ok: false, error: e instanceof Error ? e.message : String(e) };
 	}

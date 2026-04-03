@@ -75,7 +75,14 @@ export {
 	scaffoldFeature,
 	scaffoldFeatureWithContext,
 } from "./features/numbering";
+export { type QualityScore, scoreSpec } from "./features/quality";
 export { generateTestStubs } from "./features/test-stubs";
+export type {
+	TaskTrace,
+	TraceabilityReport,
+	TraceDeps,
+} from "./features/traceability";
+export { traceFeature } from "./features/traceability";
 // Feedback
 export {
 	type FeedbackRecord,
@@ -169,6 +176,7 @@ export {
 	type ComparisonReport,
 	getComparison,
 	getLatest,
+	getSkipRate,
 	getStats,
 	getTrends,
 	recordSnapshot,

@@ -23,6 +23,7 @@ function makeSnapshot(
 		toolsRun: number;
 		syntaxPassed: boolean;
 		pipelinePassed: boolean;
+		skipped: boolean;
 	}>,
 ) {
 	return {
@@ -43,6 +44,7 @@ function makeSnapshot(
 		toolsRun: 3,
 		syntaxPassed: true,
 		pipelinePassed: true,
+		skipped: false,
 		...overrides,
 	};
 }

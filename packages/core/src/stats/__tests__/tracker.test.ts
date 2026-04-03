@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
 	type CommitSnapshot,
 	getLatest,
+	getSkipRate,
 	getStats,
 	getTrends,
 	recordSnapshot,
@@ -268,5 +269,55 @@ describe("getTrends", () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.value.verifyDuration).toBe("stable");
+	});
+});
+
+describe("skip tracking", () => {
+	test("recordSnapshot with skipped=true stores correctly", () => {
+		const dir = makeDir("skip-true");
+		recordSnapshot(dir, makeSnapshot({ skipped: true }));
+
+		const latest = getLatest(dir);
+		expect(latest.ok).toBe(true);
+		if (!latest.ok) return;
+		const snap = latest.value as CommitSnapshot;
+		expect(snap.skipped).toBe(true);
+	});
+
+	test("recordSnapshot without skipped defaults to false", () => {
+		const dir = makeDir("skip-default");
+		recordSnapshot(dir, makeSnapshot());
+
+		const latest = getLatest(dir);
+		expect(latest.ok).toBe(true);
+		if (!latest.ok) return;
+		const snap = latest.value as CommitSnapshot;
+		expect(snap.skipped).toBe(false);
+	});
+
+	test("getSkipRate with 5 commits, 2 skipped returns rate 0.4", () => {
+		const dir = makeDir("skip-rate-mixed");
+		recordSnapshot(dir, makeSnapshot({ skipped: true }));
+		recordSnapshot(dir, makeSnapshot({ skipped: false }));
+		recordSnapshot(dir, makeSnapshot({ skipped: true }));
+		recordSnapshot(dir, makeSnapshot({ skipped: false }));
+		recordSnapshot(dir, makeSnapshot({ skipped: false }));
+
+		const result = getSkipRate(dir);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.total).toBe(5);
+		expect(result.value.skipped).toBe(2);
+		expect(result.value.rate).toBeCloseTo(0.4, 4);
+	});
+
+	test("getSkipRate with 0 commits returns rate 0", () => {
+		const dir = makeDir("skip-rate-empty");
+		const result = getSkipRate(dir);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.total).toBe(0);
+		expect(result.value.skipped).toBe(0);
+		expect(result.value.rate).toBe(0);
 	});
 });

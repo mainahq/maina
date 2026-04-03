@@ -124,7 +124,8 @@ function createStatsTables(db: Database): void {
 			findings_warnings INTEGER NOT NULL,
 			tools_run INTEGER NOT NULL,
 			syntax_passed INTEGER NOT NULL,
-			pipeline_passed INTEGER NOT NULL
+			pipeline_passed INTEGER NOT NULL,
+			skipped INTEGER NOT NULL DEFAULT 0
 		);
 	`);
 }
