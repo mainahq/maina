@@ -42,3 +42,12 @@ export {
 	promote,
 	retire,
 } from "./prompts/evolution";
+// Verify
+export {
+	type DetectedTool,
+	detectTool,
+	detectTools,
+	isToolAvailable,
+	TOOL_REGISTRY,
+	type ToolName,
+} from "./verify/detect";
