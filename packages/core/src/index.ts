@@ -3,6 +3,8 @@ export const VERSION = "0.1.0";
 // AI
 export { generateCommitMessage } from "./ai/commit-msg";
 export { generate } from "./ai/index";
+// AI validation
+export { type AIValidationResult, validateAIOutput } from "./ai/validate";
 // Cache
 export {
 	type CacheManager,
@@ -10,7 +12,7 @@ export {
 	createCacheManager,
 } from "./cache/manager";
 // Config
-export { getApiKey, isHostMode } from "./config/index";
+export { getApiKey, isHostMode, shouldDelegateToHost } from "./config/index";
 export { calculateTokens } from "./context/budget";
 export {
 	type AssembledContext,

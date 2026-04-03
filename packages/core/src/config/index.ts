@@ -141,12 +141,16 @@ export function resolveProvider(config: MainaConfig): string {
  *
  * Checks for:
  * - MAINA_HOST_MODE=true (explicit opt-in)
- * - ANTHROPIC_API_KEY without MAINA_API_KEY (Claude Code sets this)
- * - CLAUDE_CODE=1 or CURSOR=1 (host-specific env vars)
+ * - CLAUDECODE=1 (Claude Code sets this — note: no underscore)
+ * - CLAUDE_CODE_ENTRYPOINT (Claude Code sets this to "cli")
+ * - CURSOR=1 (Cursor sets this)
+ * - ANTHROPIC_API_KEY without MAINA_API_KEY
  */
 export function isHostMode(): boolean {
 	if (process.env.MAINA_HOST_MODE === "true") return true;
-	if (process.env.CLAUDE_CODE === "1") return true;
+	// Claude Code sets CLAUDECODE=1 (no underscore) and CLAUDE_CODE_ENTRYPOINT
+	if (process.env.CLAUDECODE === "1") return true;
+	if (process.env.CLAUDE_CODE_ENTRYPOINT) return true;
 	if (process.env.CURSOR === "1") return true;
 	// Infer host mode when we have an Anthropic key but no explicit Maina config
 	if (
@@ -157,4 +161,31 @@ export function isHostMode(): boolean {
 		return true;
 	}
 	return false;
+}
+
+/**
+ * When running inside a host agent (Claude Code, Cursor), AI calls should
+ * be delegated to the host rather than making direct API calls.
+ *
+ * Returns structured prompt data that the host agent can process.
+ * The MCP server or skills package uses this to pass context to the host.
+ */
+export interface HostDelegation {
+	mode: "host";
+	systemPrompt: string;
+	userPrompt: string;
+	task: string;
+}
+
+/**
+ * Check if AI should be delegated to host instead of direct API call.
+ * True when: running in host mode AND no direct API key available.
+ */
+export function shouldDelegateToHost(): boolean {
+	if (!isHostMode()) return false;
+	// If user has their own API key, use it directly
+	if (process.env.MAINA_API_KEY || process.env.OPENROUTER_API_KEY) return false;
+	if (process.env.ANTHROPIC_API_KEY) return false;
+	// In host mode with no key — delegate to host agent
+	return true;
 }

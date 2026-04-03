@@ -343,12 +343,14 @@ describe("isHostMode", () => {
 			openrouter: process.env.OPENROUTER_API_KEY,
 			anthropic: process.env.ANTHROPIC_API_KEY,
 			hostMode: process.env.MAINA_HOST_MODE,
-			claude: process.env.CLAUDE_CODE,
+			claude: process.env.CLAUDECODE,
+			claudeEntrypoint: process.env.CLAUDE_CODE_ENTRYPOINT,
 			cursor: process.env.CURSOR,
 		};
 		delete process.env.MAINA_HOST_MODE;
 		delete process.env.ANTHROPIC_API_KEY;
-		delete process.env.CLAUDE_CODE;
+		delete process.env.CLAUDECODE;
+		delete process.env.CLAUDE_CODE_ENTRYPOINT;
 		delete process.env.CURSOR;
 		process.env.MAINA_API_KEY = "test";
 
@@ -363,7 +365,10 @@ describe("isHostMode", () => {
 			process.env.ANTHROPIC_API_KEY = saved.anthropic;
 		if (saved.hostMode !== undefined)
 			process.env.MAINA_HOST_MODE = saved.hostMode;
-		if (saved.claude !== undefined) process.env.CLAUDE_CODE = saved.claude;
+		if (saved.claude !== undefined) process.env.CLAUDECODE = saved.claude;
+		if (saved.claudeEntrypoint !== undefined)
+			process.env.CLAUDE_CODE_ENTRYPOINT = saved.claudeEntrypoint;
+		else delete process.env.CLAUDE_CODE_ENTRYPOINT;
 		if (saved.cursor !== undefined) process.env.CURSOR = saved.cursor;
 
 		expect(result).toBe(false);

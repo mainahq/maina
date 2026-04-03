@@ -1,8 +1,14 @@
 import { buildCacheKey, hashContent } from "../cache/keys";
 import { createCacheManager } from "../cache/manager";
 import { getTtl } from "../cache/ttl";
-import { getApiKey, loadConfig, resolveProvider } from "../config/index";
+import {
+	getApiKey,
+	loadConfig,
+	resolveProvider,
+	shouldDelegateToHost,
+} from "../config/index";
 import { resolveModel } from "./tiers";
+import { validateAIOutput } from "./validate";
 
 export interface GenerateOptions {
 	task: string;
@@ -17,6 +23,7 @@ export interface GenerateResult {
 	cached: boolean;
 	model: string;
 	tokens?: { input: number; output: number };
+	slopWarnings?: string[];
 }
 
 interface StoredResult {
@@ -130,6 +137,16 @@ export async function generate(
 		}
 	}
 
+	// Host delegation: when running inside Claude Code/Cursor without own API key,
+	// return the prompt so the host agent can process it via MCP or skills
+	if (shouldDelegateToHost()) {
+		return {
+			text: `[HOST_DELEGATION] Task: ${task}\n\nSystem: ${systemPrompt}\n\nUser: ${userPrompt}`,
+			cached: false,
+			model: "host",
+		};
+	}
+
 	// Check for API key
 	const apiKey = getApiKey();
 	if (apiKey === null) {
@@ -166,10 +183,15 @@ export async function generate(
 	};
 	cache.set(cacheKey, JSON.stringify(storedResult), { ttl, model: modelId });
 
+	// Validate AI output for slop patterns
+	const validation = validateAIOutput(aiResult.text);
+
 	return {
-		text: aiResult.text,
+		text: validation.sanitized,
 		cached: false,
 		model: modelId,
 		tokens: aiResult.tokens,
+		slopWarnings:
+			validation.warnings.length > 0 ? validation.warnings : undefined,
 	};
 }
