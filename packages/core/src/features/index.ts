@@ -1,3 +1,6 @@
+export type { CheckResult, VerificationReport } from "./checklist";
+
+export { verifyPlan } from "./checklist";
 export {
 	createFeatureDir,
 	getNextFeatureNumber,
