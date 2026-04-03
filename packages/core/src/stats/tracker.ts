@@ -45,6 +45,34 @@ export interface TrendsReport {
 	window: number;
 }
 
+export interface ComparisonReport {
+	totalCommits: number;
+	/** Total findings caught by maina that would have shipped without it */
+	findingsCaught: number;
+	/** Total verification time invested */
+	totalVerifyTimeMs: number;
+	/** Average verify time per commit */
+	avgVerifyTimeMs: number;
+	/** Context tokens assembled (shows context engine doing useful work) */
+	totalContextTokens: number;
+	/** Episodic entries (shows memory growing) */
+	episodicEntries: number;
+	/** Semantic entities indexed */
+	semanticEntities: number;
+	/** Dependency edges mapped */
+	dependencyEdges: number;
+	/** Cache hits (tokens saved) */
+	cacheHits: number;
+	/** What raw git gives you: none of the above */
+	withoutMaina: {
+		findingsCaught: 0;
+		contextTokens: 0;
+		episodicMemory: 0;
+		verificationTools: 0;
+		cacheHits: 0;
+	};
+}
+
 interface RawSnapshotRow {
 	id: string;
 	timestamp: string;
@@ -335,6 +363,92 @@ export function getTrends(
 					previous.findingsPerCommit,
 				),
 				window,
+			},
+		};
+	} catch (e) {
+		return { ok: false, error: e instanceof Error ? e.message : String(e) };
+	}
+}
+
+/**
+ * Generate a comparison report: what maina provides vs raw git commit.
+ * Queries stats DB + context DB for comprehensive metrics.
+ */
+export function getComparison(mainaDir: string): Result<ComparisonReport> {
+	try {
+		const dbResult = getStatsDb(mainaDir);
+		if (!dbResult.ok) {
+			return { ok: false, error: dbResult.error };
+		}
+
+		const db = dbResult.value.db;
+
+		const aggRow = db
+			.prepare(
+				`SELECT
+				COUNT(*) as total_commits,
+				SUM(findings_total) as total_findings,
+				SUM(verify_duration_ms) as total_verify_ms,
+				AVG(verify_duration_ms) as avg_verify_ms,
+				SUM(context_tokens) as total_context_tokens,
+				SUM(cache_hits) as total_cache_hits
+			FROM commit_snapshots`,
+			)
+			.get() as {
+			total_commits: number;
+			total_findings: number;
+			total_verify_ms: number;
+			avg_verify_ms: number;
+			total_context_tokens: number;
+			total_cache_hits: number;
+		} | null;
+
+		let episodicEntries = 0;
+		let semanticEntities = 0;
+		let dependencyEdges = 0;
+		try {
+			const { getContextDb } =
+				require("../db/index") as typeof import("../db/index");
+			const ctxDb = getContextDb(mainaDir);
+			if (ctxDb.ok) {
+				const epCount = ctxDb.value.db
+					.prepare("SELECT COUNT(*) as c FROM episodic_entries")
+					.get() as { c: number } | null;
+				episodicEntries = epCount?.c ?? 0;
+
+				const seCount = ctxDb.value.db
+					.prepare("SELECT COUNT(*) as c FROM semantic_entities")
+					.get() as { c: number } | null;
+				semanticEntities = seCount?.c ?? 0;
+
+				const deCount = ctxDb.value.db
+					.prepare("SELECT COUNT(*) as c FROM dependency_edges")
+					.get() as { c: number } | null;
+				dependencyEdges = deCount?.c ?? 0;
+			}
+		} catch {
+			// Context DB not available
+		}
+
+		return {
+			ok: true,
+			value: {
+				totalCommits: aggRow?.total_commits ?? 0,
+				findingsCaught: aggRow?.total_findings ?? 0,
+				totalVerifyTimeMs: aggRow?.total_verify_ms ?? 0,
+				avgVerifyTimeMs: Math.round(aggRow?.avg_verify_ms ?? 0),
+				totalContextTokens: aggRow?.total_context_tokens ?? 0,
+				episodicEntries,
+				semanticEntities,
+				dependencyEdges,
+				cacheHits: aggRow?.total_cache_hits ?? 0,
+				withoutMaina: {
+					findingsCaught: 0,
+					contextTokens: 0,
+					episodicMemory: 0,
+					verificationTools: 0,
+					cacheHits: 0,
+				},
 			},
 		};
 	} catch (e) {

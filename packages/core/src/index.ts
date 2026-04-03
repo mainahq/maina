@@ -134,6 +134,8 @@ export {
 // Stats
 export {
 	type CommitSnapshot,
+	type ComparisonReport,
+	getComparison,
 	getLatest,
 	getStats,
 	getTrends,
