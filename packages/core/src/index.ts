@@ -16,6 +16,20 @@ export {
 	type LayerReport,
 } from "./context/engine";
 export type { MainaCommand } from "./context/selector";
+// Design (ADR)
+export {
+	type AdrSummary,
+	getNextAdrNumber,
+	listAdrs,
+	scaffoldAdr,
+} from "./design/index";
+// Explain
+export {
+	type DiagramOptions,
+	generateDependencyDiagram,
+	generateModuleSummary,
+	type ModuleSummary,
+} from "./explain/index";
 // Features
 export {
 	type AnalysisFinding,

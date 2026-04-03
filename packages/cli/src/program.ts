@@ -4,7 +4,9 @@ import { analyzeCommand } from "./commands/analyze";
 import { cacheCommand } from "./commands/cache";
 import { commitCommand } from "./commands/commit";
 import { contextCommand } from "./commands/context";
+import { designCommand } from "./commands/design";
 import { doctorCommand } from "./commands/doctor";
+import { explainCommand } from "./commands/explain";
 import { learnCommand } from "./commands/learn";
 import { planCommand } from "./commands/plan";
 import { promptCommand } from "./commands/prompt";
@@ -30,6 +32,8 @@ export function createProgram(): Command {
 	program.addCommand(statsCommand());
 	program.addCommand(verifyCommand());
 	program.addCommand(ticketCommand());
+	program.addCommand(designCommand());
 	program.addCommand(doctorCommand());
+	program.addCommand(explainCommand());
 	return program;
 }

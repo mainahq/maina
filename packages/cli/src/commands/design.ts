@@ -1,0 +1,176 @@
+import { join } from "node:path";
+import { intro, isCancel, log, outro, text } from "@clack/prompts";
+import {
+	getNextAdrNumber as coreGetNextAdrNumber,
+	listAdrs as coreListAdrs,
+	scaffoldAdr as coreScaffoldAdr,
+} from "@maina/core";
+import { Command } from "commander";
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+export interface DesignActionOptions {
+	title?: string;
+	list?: boolean;
+	cwd?: string;
+}
+
+export interface DesignActionResult {
+	created: boolean;
+	listed?: boolean;
+	reason?: string;
+	adrNumber?: string;
+	path?: string;
+}
+
+export interface DesignDeps {
+	getNextAdrNumber: typeof coreGetNextAdrNumber;
+	scaffoldAdr: typeof coreScaffoldAdr;
+	listAdrs: typeof coreListAdrs;
+	openInEditor: (filePath: string, cwd: string) => Promise<void>;
+}
+
+// ── Editor Helper ───────────────────────────────────────────────────────────
+
+async function openInEditor(filePath: string, cwd: string): Promise<void> {
+	const editor = process.env.EDITOR;
+	if (!editor) return;
+
+	try {
+		const proc = Bun.spawn([editor, filePath], {
+			cwd,
+			stdout: "inherit",
+			stderr: "inherit",
+			stdin: "inherit",
+		});
+		await proc.exited;
+	} catch {
+		// Editor launch failed — not critical
+	}
+}
+
+const defaultDeps: DesignDeps = {
+	getNextAdrNumber: coreGetNextAdrNumber,
+	scaffoldAdr: coreScaffoldAdr,
+	listAdrs: coreListAdrs,
+	openInEditor,
+};
+
+// ── Core Action (testable) ───────────────────────────────────────────────────
+
+/**
+ * The core design logic, extracted so tests can call it directly
+ * without going through Commander parsing.
+ */
+export async function designAction(
+	options: DesignActionOptions,
+	deps: DesignDeps = defaultDeps,
+): Promise<DesignActionResult> {
+	const cwd = options.cwd ?? process.cwd();
+	const adrDir = join(cwd, "adr");
+
+	// ── List mode ────────────────────────────────────────────────────────
+	if (options.list) {
+		const listResult = await deps.listAdrs(adrDir);
+
+		if (!listResult.ok) {
+			log.error(listResult.error);
+			return { created: false, listed: false, reason: listResult.error };
+		}
+
+		if (listResult.value.length === 0) {
+			log.info("No ADRs found.");
+		} else {
+			for (const adr of listResult.value) {
+				log.info(`${adr.number}. ${adr.title} [${adr.status}]`);
+			}
+		}
+
+		return { created: false, listed: true };
+	}
+
+	// ── Create mode ──────────────────────────────────────────────────────
+
+	// Step 1: Get next ADR number
+	const numberResult = await deps.getNextAdrNumber(adrDir);
+
+	if (!numberResult.ok) {
+		log.error(`Failed to get ADR number: ${numberResult.error}`);
+		return {
+			created: false,
+			reason: numberResult.error,
+		};
+	}
+
+	const adrNumber = numberResult.value;
+
+	// Step 2: Resolve title
+	let title = options.title;
+
+	if (!title) {
+		const userTitle = await text({
+			message: "ADR title:",
+			placeholder: "Describe the architectural decision",
+			validate: (value) => {
+				if (!value || value.trim().length === 0) {
+					return "Title is required.";
+				}
+			},
+		});
+
+		if (typeof userTitle === "symbol" || isCancel(userTitle)) {
+			return { created: false, reason: "Cancelled by user" };
+		}
+
+		title = userTitle;
+	}
+
+	// Step 3: Scaffold the ADR
+	const scaffoldResult = await deps.scaffoldAdr(adrDir, adrNumber, title);
+
+	if (!scaffoldResult.ok) {
+		log.error(`Failed to scaffold ADR: ${scaffoldResult.error}`);
+		return {
+			created: false,
+			reason: scaffoldResult.error,
+		};
+	}
+
+	const filePath = scaffoldResult.value;
+
+	log.success(`ADR ${adrNumber} created: ${filePath}`);
+
+	// Step 4: Open in $EDITOR if available
+	await deps.openInEditor(filePath, cwd);
+
+	return {
+		created: true,
+		adrNumber,
+		path: filePath,
+	};
+}
+
+// ── Commander Command ────────────────────────────────────────────────────────
+
+export function designCommand(): Command {
+	return new Command("design")
+		.description("Create an Architecture Decision Record")
+		.option("-t, --title <title>", "ADR title")
+		.option("--list", "List existing ADRs")
+		.action(async (options) => {
+			intro("maina design");
+
+			const result = await designAction({
+				title: options.title,
+				list: options.list,
+			});
+
+			if (result.listed) {
+				outro("Done.");
+			} else if (result.created) {
+				outro(`ADR ${result.adrNumber} ready — edit the file, then review.`);
+			} else {
+				outro(`Aborted: ${result.reason}`);
+			}
+		});
+}
