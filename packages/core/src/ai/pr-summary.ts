@@ -37,7 +37,7 @@ Instructions:
 - Use markdown formatting`,
 	);
 
-	if (aiResult.text) {
+	if (aiResult.text && aiResult.fromAI) {
 		return `${aiResult.text.trim()}
 
 ## Review
