@@ -1,7 +1,7 @@
 import { buildCacheKey, hashContent } from "../cache/keys";
 import { createCacheManager } from "../cache/manager";
 import { getTtl } from "../cache/ttl";
-import { getApiKey, loadConfig } from "../config/index";
+import { getApiKey, loadConfig, resolveProvider } from "../config/index";
 import { resolveModel } from "./tiers";
 
 export interface GenerateOptions {
@@ -43,9 +43,13 @@ export async function callModel(
 		const { generateText } = await import("ai");
 		const { createOpenAI } = await import("@ai-sdk/openai");
 
-		// createOpenAI supports custom base URLs — we use it for OpenRouter too
-		const baseURL =
-			provider === "openrouter" ? "https://openrouter.ai/api/v1" : undefined;
+		// Provider-specific base URLs
+		let baseURL: string | undefined;
+		if (provider === "openrouter") {
+			baseURL = "https://openrouter.ai/api/v1";
+		} else if (provider === "anthropic") {
+			baseURL = "https://api.anthropic.com/v1";
+		}
 
 		const openai = createOpenAI({
 			apiKey,
@@ -87,7 +91,15 @@ export async function generate(
 	const { task, systemPrompt, userPrompt, files, mainaDir } = options;
 
 	const config = await loadConfig();
-	const { modelId, provider } = resolveModel(task, config);
+	const resolved = resolveModel(task, config);
+	const provider = resolveProvider(config);
+	// In host mode with Anthropic, use a sensible model instead of OpenRouter model IDs
+	const modelId =
+		provider === "anthropic" && resolved.modelId.startsWith("google/")
+			? "claude-sonnet-4-20250514"
+			: provider === "anthropic" && resolved.modelId.includes("/")
+				? (resolved.modelId.split("/")[1] ?? resolved.modelId)
+				: resolved.modelId;
 
 	// Build cache key
 	const promptHash = hashContent(systemPrompt + userPrompt);

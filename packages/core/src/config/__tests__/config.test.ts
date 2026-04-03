@@ -6,6 +6,7 @@ import {
 	findConfigFile,
 	getApiKey,
 	getDefaultConfig,
+	isHostMode,
 	loadConfig,
 	resolveProvider,
 } from "../index";
@@ -259,5 +260,112 @@ describe("resolveProvider", () => {
 		if (saved !== undefined) process.env.MAINA_PROVIDER = saved;
 
 		expect(result).toBe("my-custom-provider");
+	});
+
+	test("auto-detects anthropic provider in host mode", () => {
+		const saved = {
+			provider: process.env.MAINA_PROVIDER,
+			maina: process.env.MAINA_API_KEY,
+			openrouter: process.env.OPENROUTER_API_KEY,
+			anthropic: process.env.ANTHROPIC_API_KEY,
+			hostMode: process.env.MAINA_HOST_MODE,
+		};
+		delete process.env.MAINA_PROVIDER;
+		delete process.env.MAINA_API_KEY;
+		delete process.env.OPENROUTER_API_KEY;
+		process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+		process.env.MAINA_HOST_MODE = "true";
+
+		const config = getDefaultConfig();
+		const result = resolveProvider(config);
+
+		// Restore
+		if (saved.provider !== undefined)
+			process.env.MAINA_PROVIDER = saved.provider;
+		if (saved.maina !== undefined) process.env.MAINA_API_KEY = saved.maina;
+		if (saved.openrouter !== undefined)
+			process.env.OPENROUTER_API_KEY = saved.openrouter;
+		if (saved.anthropic !== undefined)
+			process.env.ANTHROPIC_API_KEY = saved.anthropic;
+		else delete process.env.ANTHROPIC_API_KEY;
+		if (saved.hostMode !== undefined)
+			process.env.MAINA_HOST_MODE = saved.hostMode;
+		else delete process.env.MAINA_HOST_MODE;
+
+		expect(result).toBe("anthropic");
+	});
+});
+
+// ─── isHostMode ─────────────────────────────────────────────────────────────
+
+describe("isHostMode", () => {
+	test("returns true when MAINA_HOST_MODE=true", () => {
+		const saved = process.env.MAINA_HOST_MODE;
+		process.env.MAINA_HOST_MODE = "true";
+
+		const result = isHostMode();
+
+		if (saved !== undefined) process.env.MAINA_HOST_MODE = saved;
+		else delete process.env.MAINA_HOST_MODE;
+
+		expect(result).toBe(true);
+	});
+
+	test("returns true when ANTHROPIC_API_KEY set without Maina keys", () => {
+		const saved = {
+			maina: process.env.MAINA_API_KEY,
+			openrouter: process.env.OPENROUTER_API_KEY,
+			anthropic: process.env.ANTHROPIC_API_KEY,
+			hostMode: process.env.MAINA_HOST_MODE,
+		};
+		delete process.env.MAINA_API_KEY;
+		delete process.env.OPENROUTER_API_KEY;
+		delete process.env.MAINA_HOST_MODE;
+		process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+
+		const result = isHostMode();
+
+		if (saved.maina !== undefined) process.env.MAINA_API_KEY = saved.maina;
+		if (saved.openrouter !== undefined)
+			process.env.OPENROUTER_API_KEY = saved.openrouter;
+		if (saved.anthropic !== undefined)
+			process.env.ANTHROPIC_API_KEY = saved.anthropic;
+		else delete process.env.ANTHROPIC_API_KEY;
+		if (saved.hostMode !== undefined)
+			process.env.MAINA_HOST_MODE = saved.hostMode;
+
+		expect(result).toBe(true);
+	});
+
+	test("returns false when no host indicators present", () => {
+		const saved = {
+			maina: process.env.MAINA_API_KEY,
+			openrouter: process.env.OPENROUTER_API_KEY,
+			anthropic: process.env.ANTHROPIC_API_KEY,
+			hostMode: process.env.MAINA_HOST_MODE,
+			claude: process.env.CLAUDE_CODE,
+			cursor: process.env.CURSOR,
+		};
+		delete process.env.MAINA_HOST_MODE;
+		delete process.env.ANTHROPIC_API_KEY;
+		delete process.env.CLAUDE_CODE;
+		delete process.env.CURSOR;
+		process.env.MAINA_API_KEY = "test";
+
+		const result = isHostMode();
+
+		// Restore
+		if (saved.maina !== undefined) process.env.MAINA_API_KEY = saved.maina;
+		else delete process.env.MAINA_API_KEY;
+		if (saved.openrouter !== undefined)
+			process.env.OPENROUTER_API_KEY = saved.openrouter;
+		if (saved.anthropic !== undefined)
+			process.env.ANTHROPIC_API_KEY = saved.anthropic;
+		if (saved.hostMode !== undefined)
+			process.env.MAINA_HOST_MODE = saved.hostMode;
+		if (saved.claude !== undefined) process.env.CLAUDE_CODE = saved.claude;
+		if (saved.cursor !== undefined) process.env.CURSOR = saved.cursor;
+
+		expect(result).toBe(false);
 	});
 });

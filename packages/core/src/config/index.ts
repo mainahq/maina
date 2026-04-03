@@ -92,16 +92,69 @@ export async function loadConfig(startDir?: string): Promise<MainaConfig> {
 
 /**
  * Returns the API key from environment variables, preferring MAINA_API_KEY
- * over OPENROUTER_API_KEY.  Returns null when neither is set.
+ * over OPENROUTER_API_KEY.  When MAINA_HOST_MODE is set, also checks for
+ * ANTHROPIC_API_KEY (set by Claude Code and similar host agents).
+ * Returns null when no key is found.
  */
 export function getApiKey(): string | null {
-	return process.env.MAINA_API_KEY ?? process.env.OPENROUTER_API_KEY ?? null;
+	return (
+		process.env.MAINA_API_KEY ??
+		process.env.OPENROUTER_API_KEY ??
+		process.env.ANTHROPIC_API_KEY ??
+		null
+	);
 }
 
 /**
  * Resolves the active provider, allowing the MAINA_PROVIDER environment
  * variable to override whatever is in the config.
+ *
+ * When running in host mode (MAINA_HOST_MODE=true or ANTHROPIC_API_KEY is set
+ * without explicit provider), auto-detects the appropriate provider:
+ * - ANTHROPIC_API_KEY → "anthropic"
+ * - Otherwise → config default
  */
 export function resolveProvider(config: MainaConfig): string {
-	return process.env.MAINA_PROVIDER ?? config.provider;
+	// Explicit override always wins
+	if (process.env.MAINA_PROVIDER) {
+		return process.env.MAINA_PROVIDER;
+	}
+
+	// Host mode auto-detection: if running inside Claude Code or similar,
+	// ANTHROPIC_API_KEY is available but no explicit Maina key
+	if (isHostMode()) {
+		if (
+			process.env.ANTHROPIC_API_KEY &&
+			!process.env.MAINA_API_KEY &&
+			!process.env.OPENROUTER_API_KEY
+		) {
+			return "anthropic";
+		}
+	}
+
+	return config.provider;
+}
+
+/**
+ * Detect if Maina is running inside a host agent environment
+ * (e.g., Claude Code, Cursor, Codex).
+ *
+ * Checks for:
+ * - MAINA_HOST_MODE=true (explicit opt-in)
+ * - ANTHROPIC_API_KEY without MAINA_API_KEY (Claude Code sets this)
+ * - CLAUDE_CODE=1 or CURSOR=1 (host-specific env vars)
+ */
+export function isHostMode(): boolean {
+	if (process.env.MAINA_HOST_MODE === "true") return true;
+	if (process.env.CLAUDE_CODE === "1") return true;
+	if (process.env.CURSOR === "1") return true;
+	// Infer host mode when we have an Anthropic key but no explicit Maina config
+	if (
+		process.env.ANTHROPIC_API_KEY &&
+		!process.env.MAINA_API_KEY &&
+		!process.env.OPENROUTER_API_KEY
+	) {
+		return true;
+	}
+	return false;
 }
