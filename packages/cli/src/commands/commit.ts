@@ -1,6 +1,8 @@
 import { join } from "node:path";
 import { intro, log, outro, text } from "@clack/prompts";
 import {
+	addEpisodicEntry,
+	assembleContext,
 	getCurrentBranch,
 	getStagedFiles,
 	type PipelineResult,
@@ -8,6 +10,7 @@ import {
 	recordSnapshot,
 	runHooks,
 	runPipeline,
+	setVerificationResult,
 } from "@maina/core";
 import { Command } from "commander";
 
@@ -274,19 +277,34 @@ export async function commitAction(
 		}
 	}
 
-	// ── Step 8: Record stats snapshot ────────────────────────────────────
+	// ── Step 8: Record context, episodic entry, and stats ────────────────
 	try {
 		const branch = await getCurrentBranch(cwd);
 		const hashMatch = /\[[\w/.-]+ ([a-f0-9]+)\]/.exec(stdout);
 		const commitHash = hashMatch?.[1] ?? "unknown";
 
+		// Assemble context to get real token counts
+		let contextTokens = 0;
+		let contextBudget = 200000;
+		try {
+			const ctx = await assembleContext("commit", {
+				repoRoot: cwd,
+				mainaDir,
+			});
+			contextTokens = ctx.tokens;
+			contextBudget = ctx.budget.total;
+		} catch {
+			// Context assembly failure should not block stats
+		}
+
+		// Record stats snapshot with real context data
 		recordSnapshot(mainaDir, {
 			branch,
 			commitHash,
 			verifyDurationMs: pipelineResult?.duration ?? 0,
 			totalDurationMs: Date.now() - startTime,
-			contextTokens: 0,
-			contextBudget: 200000,
+			contextTokens,
+			contextBudget,
 			cacheHits: 0,
 			cacheMisses: 0,
 			findingsTotal: pipelineResult?.findings.length ?? 0,
@@ -300,8 +318,29 @@ export async function commitAction(
 			syntaxPassed: pipelineResult?.syntaxPassed ?? true,
 			pipelinePassed: pipelineResult?.passed ?? true,
 		});
+
+		// Write episodic entry — commit summary for future context recall
+		const findingsCount = pipelineResult?.findings.length ?? 0;
+		const toolCount = pipelineResult?.tools.length ?? 0;
+		addEpisodicEntry(mainaDir, {
+			content: `Commit ${commitHash} on ${branch}: ${stagedFiles.length} file(s), ${findingsCount} finding(s), ${toolCount} tool(s), ${pipelineResult?.duration ?? 0}ms verify`,
+			summary: `${commitHash}: ${message}`,
+			type: "commit",
+		});
+
+		// Persist working context — verification result + touched files
+		if (pipelineResult) {
+			await setVerificationResult(mainaDir, cwd, {
+				passed: pipelineResult.passed,
+				checks: pipelineResult.tools.map((t) => ({
+					name: t.tool,
+					passed: t.findings.length === 0,
+				})),
+				timestamp: new Date().toISOString(),
+			});
+		}
 	} catch {
-		// Stats recording should never block a commit
+		// Context/stats recording should never block a commit
 	}
 
 	// ── Step 9: Record success in feedback ────────────────────────────────

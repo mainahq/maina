@@ -15,7 +15,15 @@ export {
 	type ContextOptions,
 	type LayerReport,
 } from "./context/engine";
+// Context — episodic
+export { addEntry as addEpisodicEntry } from "./context/episodic";
 export type { MainaCommand } from "./context/selector";
+// Context — working
+export {
+	saveWorkingContext,
+	setVerificationResult,
+	trackFile,
+} from "./context/working";
 // Design (ADR)
 export {
 	type AdrSummary,

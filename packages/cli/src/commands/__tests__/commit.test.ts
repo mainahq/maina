@@ -80,6 +80,31 @@ mock.module("@maina/core", () => ({
 		recordedOutcomes.push({ mainaDir, promptHash, outcome });
 	},
 	recordSnapshot: () => ({ ok: true, value: undefined }),
+	assembleContext: async () => ({
+		text: "",
+		tokens: 1500,
+		layers: [],
+		mode: "focused",
+		budget: {
+			total: 200000,
+			working: 30000,
+			episodic: 0,
+			semantic: 0,
+			retrieval: 0,
+			headroom: 170000,
+		},
+	}),
+	addEpisodicEntry: () => ({
+		id: "test",
+		content: "",
+		summary: "",
+		type: "commit",
+		relevance: 1,
+		accessCount: 0,
+		createdAt: "",
+		lastAccessedAt: "",
+	}),
+	setVerificationResult: async () => ({}),
 }));
 
 mock.module("@clack/prompts", () => ({
