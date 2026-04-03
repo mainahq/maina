@@ -333,8 +333,8 @@ export async function commitAction(
 			totalDurationMs: Date.now() - startTime,
 			contextTokens,
 			contextBudget,
-			cacheHits: 0,
-			cacheMisses: 0,
+			cacheHits: pipelineResult?.cacheHits ?? 0,
+			cacheMisses: pipelineResult?.cacheMisses ?? 0,
 			findingsTotal: pipelineResult?.findings.length ?? 0,
 			findingsErrors:
 				pipelineResult?.findings.filter((f) => f.severity === "error").length ??
