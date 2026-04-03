@@ -40,6 +40,7 @@ export interface ContextOptions {
 	mainaDir?: string; // defaults to join(repoRoot, '.maina')
 	searchQuery?: string; // for retrieval layer
 	scope?: string; // limit to specific directory
+	modeOverride?: BudgetMode; // override the command-derived budget mode
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -232,7 +233,7 @@ export async function assembleContext(
 	const mainaDir = options.mainaDir ?? join(repoRoot, ".maina");
 
 	const needs = getContextNeeds(command);
-	const mode = getBudgetMode(command);
+	const mode = options.modeOverride ?? getBudgetMode(command);
 	const budget = assembleBudget(mode);
 
 	// Determine which layers to build

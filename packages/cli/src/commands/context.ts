@@ -52,10 +52,13 @@ export function contextCommand(): Command {
 			const s = spinner();
 			s.start("Assembling context…");
 
+			const modeOverride =
+				options.mode !== "explore" ? options.mode : undefined;
 			const result = await assembleContext("context", {
 				repoRoot,
 				mainaDir,
 				scope: options.scope,
+				modeOverride,
 			});
 
 			s.stop("Context assembled.");
