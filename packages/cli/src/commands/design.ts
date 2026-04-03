@@ -1,9 +1,12 @@
+import { appendFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { intro, isCancel, log, outro, text } from "@clack/prompts";
+import { intro, isCancel, log, outro, select, text } from "@clack/prompts";
 import {
 	getNextAdrNumber as coreGetNextAdrNumber,
 	listAdrs as coreListAdrs,
 	scaffoldAdr as coreScaffoldAdr,
+	type DesignApproach,
+	generateDesignApproaches,
 } from "@maina/core";
 import { Command } from "commander";
 
@@ -13,6 +16,7 @@ export interface DesignActionOptions {
 	title?: string;
 	list?: boolean;
 	cwd?: string;
+	noInteractive?: boolean;
 }
 
 export interface DesignActionResult {
@@ -21,6 +25,7 @@ export interface DesignActionResult {
 	reason?: string;
 	adrNumber?: string;
 	path?: string;
+	approachSelected?: string;
 }
 
 export interface DesignDeps {
@@ -140,14 +145,80 @@ export async function designAction(
 
 	log.success(`ADR ${adrNumber} created: ${filePath}`);
 
-	// Step 4: Open in $EDITOR if available
+	// Step 4: Interactive approach proposals
+	let approachSelected: string | undefined;
+
+	if (!options.noInteractive && title) {
+		const mainaDir = join(cwd, ".maina");
+		const approachesResult = await generateDesignApproaches(
+			`ADR: ${title}`,
+			mainaDir,
+		);
+
+		if (approachesResult.ok && approachesResult.value.length > 0) {
+			const selected = await proposeApproaches(approachesResult.value);
+			if (selected) {
+				appendAlternativesConsidered(
+					filePath,
+					approachesResult.value,
+					selected,
+				);
+				approachSelected = selected;
+			}
+		}
+	}
+
+	// Step 5: Open in $EDITOR if available
 	await deps.openInEditor(filePath, cwd);
 
 	return {
 		created: true,
 		adrNumber,
 		path: filePath,
+		approachSelected,
 	};
+}
+
+// ── Interactive Approach Helpers ─────────────────────────────────────────────
+
+async function proposeApproaches(
+	approaches: DesignApproach[],
+): Promise<string | null> {
+	const recommended = approaches.find((a) => a.recommended);
+
+	const selected = await select({
+		message: `Choose an approach${recommended ? ` (recommended: ${recommended.name})` : ""}:`,
+		options: approaches.map((a) => ({
+			value: a.name,
+			label: `${a.name}${a.recommended ? " (recommended)" : ""}`,
+			hint: a.description,
+		})),
+	});
+
+	if (isCancel(selected)) {
+		return null;
+	}
+
+	return selected as string;
+}
+
+function appendAlternativesConsidered(
+	adrPath: string,
+	approaches: DesignApproach[],
+	selectedName: string,
+): void {
+	if (!existsSync(adrPath)) return;
+
+	let section = "\n\n## Alternatives Considered\n\n";
+	section +=
+		"| Approach | Pros | Cons | Selected |\n|----------|------|------|----------|\n";
+
+	for (const a of approaches) {
+		const isSelected = a.name === selectedName ? "**Yes**" : "No";
+		section += `| ${a.name} | ${a.pros.join(", ")} | ${a.cons.join(", ")} | ${isSelected} |\n`;
+	}
+
+	appendFileSync(adrPath, section);
 }
 
 // ── Commander Command ────────────────────────────────────────────────────────
@@ -157,17 +228,22 @@ export function designCommand(): Command {
 		.description("Create an Architecture Decision Record")
 		.option("-t, --title <title>", "ADR title")
 		.option("--list", "List existing ADRs")
+		.option("--no-interactive", "Skip approach proposals phase")
 		.action(async (options) => {
 			intro("maina design");
 
 			const result = await designAction({
 				title: options.title,
 				list: options.list,
+				noInteractive: options.interactive === false,
 			});
 
 			if (result.listed) {
 				outro("Done.");
 			} else if (result.created) {
+				if (result.approachSelected) {
+					log.info(`Approach selected: ${result.approachSelected}`);
+				}
 				outro(`ADR ${result.adrNumber} ready — edit the file, then review.`);
 			} else {
 				outro(`Aborted: ${result.reason}`);

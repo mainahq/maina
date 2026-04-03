@@ -13,9 +13,31 @@ export function registerFeatureTools(server: McpServer): void {
 		async ({ planPath }) => {
 			try {
 				const content = await Bun.file(planPath).text();
-				const { generateTestStubs } = await import("@maina/core");
+				const { generateTestStubs, generateSpecQuestions } = await import(
+					"@maina/core"
+				);
+
+				// Generate test stubs
 				const stubs = generateTestStubs(content, "feature");
-				return { content: [{ type: "text" as const, text: stubs }] };
+
+				// Generate clarifying questions when ambiguities detected
+				const mainaDir = planPath.includes(".maina")
+					? planPath.slice(0, planPath.indexOf(".maina") + ".maina".length)
+					: ".maina";
+				const questionsResult = await generateSpecQuestions(content, mainaDir);
+
+				const parts: Array<{ type: "text"; text: string }> = [
+					{ type: "text" as const, text: stubs },
+				];
+
+				if (questionsResult.ok && questionsResult.value.length > 0) {
+					parts.push({
+						type: "text" as const,
+						text: `\n\n## Clarifying Questions\n\nThe following ambiguities were detected in the plan. Consider resolving them before implementation:\n\n${JSON.stringify(questionsResult.value, null, 2)}`,
+					});
+				}
+
+				return { content: parts };
 			} catch (e) {
 				return {
 					content: [

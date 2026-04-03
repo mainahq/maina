@@ -2,8 +2,16 @@ export const VERSION = "0.1.0";
 
 // AI
 export { generateCommitMessage } from "./ai/commit-msg";
+export {
+	type DesignApproach,
+	generateDesignApproaches,
+} from "./ai/design-approaches";
 export { generate } from "./ai/index";
 export { generatePrSummary } from "./ai/pr-summary";
+export {
+	generateSpecQuestions,
+	type SpecQuestion,
+} from "./ai/spec-questions";
 export { type TryAIResult, tryAIGenerate } from "./ai/try-generate";
 // AI validation
 export { type AIValidationResult, validateAIOutput } from "./ai/validate";

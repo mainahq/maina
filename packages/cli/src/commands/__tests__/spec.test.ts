@@ -19,6 +19,16 @@ import { join } from "node:path";
 // ── Mock State ───────────────────────────────────────────────────────────────
 
 let mockCurrentBranch = "feature/001-user-auth";
+let mockSpecQuestions: Array<{
+	question: string;
+	type: "text" | "select";
+	options?: string[];
+	reason: string;
+}> = [];
+let mockClackTextResponses: string[] = [];
+let mockClackTextCallIndex = 0;
+let mockClackSelectResponses: string[] = [];
+let mockClackSelectCallIndex = 0;
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +38,10 @@ const realCore = await import("@maina/core");
 mock.module("@maina/core", () => ({
 	getCurrentBranch: async (_cwd?: string) => mockCurrentBranch,
 	generateTestStubs: realCore.generateTestStubs,
+	generateSpecQuestions: async (_planContent: string, _mainaDir: string) => ({
+		ok: true,
+		value: mockSpecQuestions,
+	}),
 }));
 
 mock.module("@clack/prompts", () => ({
@@ -45,6 +59,17 @@ mock.module("@clack/prompts", () => ({
 		start: () => {},
 		stop: () => {},
 	}),
+	text: async () => {
+		const response = mockClackTextResponses[mockClackTextCallIndex] ?? "";
+		mockClackTextCallIndex++;
+		return response;
+	},
+	select: async () => {
+		const response = mockClackSelectResponses[mockClackSelectCallIndex] ?? "";
+		mockClackSelectCallIndex++;
+		return response;
+	},
+	isCancel: (v: unknown) => typeof v === "symbol",
 }));
 
 afterAll(() => {
@@ -70,6 +95,11 @@ beforeEach(() => {
 
 	// Reset mock state
 	mockCurrentBranch = "feature/001-user-auth";
+	mockSpecQuestions = [];
+	mockClackTextResponses = [];
+	mockClackTextCallIndex = 0;
+	mockClackSelectResponses = [];
+	mockClackSelectCallIndex = 0;
 });
 
 afterEach(() => {
@@ -532,5 +562,98 @@ describe("specAction", () => {
 		expect(result.generated).toBe(true);
 		expect(result.redPhaseVerified).toBeUndefined();
 		expect(result.redGreenWarning).toBeUndefined();
+	});
+
+	// ── Interactive question phase tests ────────────────────────────────────
+
+	test("interactive mode asks clarifying questions and records answers in spec.md", async () => {
+		mockSpecQuestions = [
+			{
+				question: "Should login support OAuth?",
+				type: "text",
+				reason: "Not specified",
+			},
+			{
+				question: "Rate limit strategy?",
+				type: "select",
+				options: ["Per-user", "Per-IP", "Both"],
+				reason: "Ambiguous",
+			},
+		];
+		mockClackTextResponses = ["Yes, OAuth2 via Google"];
+		mockClackSelectResponses = ["Both"];
+
+		const featureDir = join(tmpDir, ".maina", "features", "001-user-auth");
+		mkdirSync(featureDir, { recursive: true });
+		writeFileSync(
+			join(featureDir, "plan.md"),
+			`## Tasks\n\n- T001: Implement login\n`,
+		);
+		writeFileSync(join(featureDir, "spec.md"), "# Feature: User Auth\n");
+
+		const result = await specAction(
+			{ featureDir, cwd: tmpDir },
+			createMockDeps(),
+		);
+
+		expect(result.generated).toBe(true);
+		expect(result.questionsAsked).toBe(2);
+
+		// Answers should be appended to spec.md
+		const specContent = readFileSync(join(featureDir, "spec.md"), "utf-8");
+		expect(specContent).toContain("## Clarifications");
+		expect(specContent).toContain("Should login support OAuth?");
+		expect(specContent).toContain("Yes, OAuth2 via Google");
+		expect(specContent).toContain("Rate limit strategy?");
+		expect(specContent).toContain("Both");
+	});
+
+	test("--no-interactive skips question phase entirely", async () => {
+		mockSpecQuestions = [
+			{
+				question: "Should never see this?",
+				type: "text",
+				reason: "Should be skipped",
+			},
+		];
+
+		const featureDir = join(tmpDir, ".maina", "features", "001-user-auth");
+		mkdirSync(featureDir, { recursive: true });
+		writeFileSync(
+			join(featureDir, "plan.md"),
+			`## Tasks\n\n- T001: Implement login\n`,
+		);
+		writeFileSync(join(featureDir, "spec.md"), "# Feature: User Auth\n");
+
+		const result = await specAction(
+			{ featureDir, cwd: tmpDir, noInteractive: true },
+			createMockDeps(),
+		);
+
+		expect(result.generated).toBe(true);
+		expect(result.questionsAsked).toBeUndefined();
+
+		// spec.md should NOT have Clarifications
+		const specContent = readFileSync(join(featureDir, "spec.md"), "utf-8");
+		expect(specContent).not.toContain("## Clarifications");
+	});
+
+	test("no questions from AI skips question phase gracefully", async () => {
+		mockSpecQuestions = [];
+
+		const featureDir = join(tmpDir, ".maina", "features", "001-user-auth");
+		mkdirSync(featureDir, { recursive: true });
+		writeFileSync(
+			join(featureDir, "plan.md"),
+			`## Tasks\n\n- T001: Implement login\n`,
+		);
+
+		const result = await specAction(
+			{ featureDir, cwd: tmpDir },
+			createMockDeps(),
+		);
+
+		expect(result.generated).toBe(true);
+		expect(result.questionsAsked).toBeUndefined();
 	});
 });

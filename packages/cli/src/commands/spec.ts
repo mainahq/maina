@@ -1,7 +1,18 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import {
+	appendFileSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+} from "node:fs";
 import { join } from "node:path";
-import { intro, log, outro } from "@clack/prompts";
-import { generateTestStubs, getCurrentBranch } from "@maina/core";
+import { intro, isCancel, log, outro, select, text } from "@clack/prompts";
+import {
+	generateSpecQuestions,
+	generateTestStubs,
+	getCurrentBranch,
+	type SpecQuestion,
+} from "@maina/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -11,6 +22,7 @@ export interface SpecActionOptions {
 	output?: string; // Output file path (default: feature dir / spec-tests.ts)
 	cwd?: string;
 	noRedGreen?: boolean; // Skip red-green enforcement check
+	noInteractive?: boolean; // Skip clarifying questions phase
 }
 
 export interface SpecActionResult {
@@ -20,6 +32,7 @@ export interface SpecActionResult {
 	taskCount?: number;
 	redPhaseVerified?: boolean;
 	redGreenWarning?: string;
+	questionsAsked?: number;
 }
 
 export interface SpecDeps {
@@ -140,16 +153,33 @@ export async function specAction(
 
 	const planContent = readFileSync(planPath, "utf-8");
 
-	// ── Step 3: Extract feature name for describe block ──────────────────
+	// ── Step 3: Interactive clarifying questions ─────────────────────────
+	let questionsAsked: number | undefined;
+
+	if (!options.noInteractive) {
+		const mainaDir = join(cwd, ".maina");
+		const questionsResult = await generateSpecQuestions(planContent, mainaDir);
+
+		if (questionsResult.ok && questionsResult.value.length > 0) {
+			const answers = await askClarifyingQuestions(questionsResult.value);
+			if (answers.length > 0) {
+				const specPath = join(featureDir, "spec.md");
+				appendClarifications(specPath, answers);
+				questionsAsked = answers.length;
+			}
+		}
+	}
+
+	// ── Step 4: Extract feature name for describe block ──────────────────
 	// Try to get feature name from dir name (e.g. "001-user-auth" → "user-auth")
 	const dirBasename = featureDir.split("/").pop() ?? "unknown";
 	const featureName = dirBasename.replace(/^\d+-/, "");
 
-	// ── Step 4: Generate test stubs ──────────────────────────────────────
+	// ── Step 5: Generate test stubs ──────────────────────────────────────
 	const testContent = generateTestStubs(planContent, featureName);
 	const taskCount = (testContent.match(/\bit\(/g) ?? []).length;
 
-	// ── Step 5: Write output file ────────────────────────────────────────
+	// ── Step 6: Write output file ────────────────────────────────────────
 	const outputPath = options.output ?? join(featureDir, "spec-tests.ts");
 
 	// Ensure parent directory exists
@@ -164,9 +194,10 @@ export async function specAction(
 		generated: true,
 		outputPath,
 		taskCount,
+		questionsAsked,
 	};
 
-	// ── Step 6: Red-green enforcement ────────────────────────────────────
+	// ── Step 7: Red-green enforcement ────────────────────────────────────
 	if (!options.noRedGreen && deps.runTests) {
 		try {
 			const { passCount, failCount } = await deps.runTests(outputPath, cwd);
@@ -183,6 +214,59 @@ export async function specAction(
 	return result;
 }
 
+// ── Interactive Question Helpers ─────────────────────────────────────────────
+
+interface ClarificationAnswer {
+	question: string;
+	answer: string;
+}
+
+async function askClarifyingQuestions(
+	questions: SpecQuestion[],
+): Promise<ClarificationAnswer[]> {
+	const answers: ClarificationAnswer[] = [];
+
+	for (const q of questions) {
+		let answer: string | symbol;
+
+		if (q.type === "select" && q.options && q.options.length > 0) {
+			answer = await select({
+				message: q.question,
+				options: q.options.map((o) => ({ value: o, label: o })),
+			});
+		} else {
+			answer = await text({
+				message: q.question,
+				placeholder: "Your answer",
+			});
+		}
+
+		if (isCancel(answer)) {
+			break;
+		}
+
+		answers.push({ question: q.question, answer: answer as string });
+	}
+
+	return answers;
+}
+
+function appendClarifications(
+	specPath: string,
+	answers: ClarificationAnswer[],
+): void {
+	if (answers.length === 0) return;
+
+	let section = "\n\n## Clarifications\n\n";
+	for (const { question, answer } of answers) {
+		section += `**Q:** ${question}\n**A:** ${answer}\n\n`;
+	}
+
+	if (existsSync(specPath)) {
+		appendFileSync(specPath, section);
+	}
+}
+
 // ── Commander Command ────────────────────────────────────────────────────────
 
 export function specCommand(): Command {
@@ -191,6 +275,7 @@ export function specCommand(): Command {
 		.option("--feature-dir <dir>", "Feature directory path")
 		.option("-o, --output <path>", "Output file path")
 		.option("--no-red-green", "Skip red-green enforcement check")
+		.option("--no-interactive", "Skip clarifying questions phase")
 		.action(async (options) => {
 			intro("maina spec");
 
@@ -198,9 +283,15 @@ export function specCommand(): Command {
 				featureDir: options.featureDir,
 				output: options.output,
 				noRedGreen: options.redGreen === false,
+				noInteractive: options.interactive === false,
 			});
 
 			if (result.generated) {
+				if (result.questionsAsked) {
+					log.info(
+						`Recorded ${result.questionsAsked} clarification(s) in spec.md`,
+					);
+				}
 				log.success(`Generated ${result.taskCount} test stub(s)`);
 				log.info(`Output: ${result.outputPath}`);
 
