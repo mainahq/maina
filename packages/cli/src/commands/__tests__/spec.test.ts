@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import {
+	afterAll,
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	mock,
+	test,
+} from "bun:test";
 import {
 	existsSync,
 	mkdirSync,
@@ -34,6 +42,10 @@ mock.module("@clack/prompts", () => ({
 		stop: () => {},
 	}),
 }));
+
+afterAll(() => {
+	mock.restore();
+});
 
 // ── Import the module under test AFTER mocks ─────────────────────────────────
 

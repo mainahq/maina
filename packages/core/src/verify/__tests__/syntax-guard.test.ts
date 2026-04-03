@@ -73,7 +73,7 @@ describe("SyntaxGuard", () => {
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
 			expect(result.error.length).toBeGreaterThan(0);
-			const first = result.error[0]!;
+			const first = result.error[0] as NonNullable<(typeof result.error)[0]>;
 			expect(typeof first.file).toBe("string");
 			expect(first.file).toContain("structured.ts");
 			expect(typeof first.line).toBe("number");
@@ -136,7 +136,7 @@ describe("parseBiomeOutput", () => {
 
 		const errors = parseBiomeOutput(json);
 		expect(errors.length).toBe(1);
-		const first = errors[0]!;
+		const first = errors[0] as NonNullable<(typeof errors)[0]>;
 		expect(first.file).toBe("/tmp/test.ts");
 		expect(first.line).toBe(3);
 		expect(first.column).toBe(10);
@@ -176,8 +176,12 @@ describe("parseBiomeOutput", () => {
 
 		const errors = parseBiomeOutput(json);
 		expect(errors.length).toBe(2);
-		expect(errors[0]!.severity).toBe("warning");
-		expect(errors[1]!.severity).toBe("error");
+		expect((errors[0] as NonNullable<(typeof errors)[0]>).severity).toBe(
+			"warning",
+		);
+		expect((errors[1] as NonNullable<(typeof errors)[0]>).severity).toBe(
+			"error",
+		);
 	});
 
 	it("should return empty array for invalid JSON", () => {

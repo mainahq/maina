@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "bun run --filter '*' dev",
     "build": "bun run --filter '*' build",
-    "test": "bun test --recursive",
+    "test": "bun run scripts/test-isolated.ts",
     "check": "bunx @biomejs/biome check .",
     "typecheck": "bun run --filter '*' typecheck",
     "verify": "bun run check && bun run typecheck && bun run test"

@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import {
+	afterAll,
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	mock,
+	test,
+} from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -91,6 +99,10 @@ mock.module("@clack/prompts", () => ({
 	text: async () => "test commit message",
 	confirm: async () => true,
 }));
+
+afterAll(() => {
+	mock.restore();
+});
 
 // ── Import the module under test AFTER mocks ─────────────────────────────────
 
