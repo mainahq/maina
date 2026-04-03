@@ -130,6 +130,27 @@ describe("isToolAvailable", () => {
 	});
 });
 
+// ─── Language-specific linter tools ─────────────────────────────────────────
+
+describe("language-specific linter tools", () => {
+	it("should have ruff in tool registry", () => {
+		expect(TOOL_REGISTRY.ruff).toBeDefined();
+		expect(TOOL_REGISTRY.ruff.command).toBe("ruff");
+	});
+
+	it("should have golangci-lint in tool registry", () => {
+		expect(TOOL_REGISTRY["golangci-lint"]).toBeDefined();
+	});
+
+	it("should have cargo-clippy in tool registry", () => {
+		expect(TOOL_REGISTRY["cargo-clippy"]).toBeDefined();
+	});
+
+	it("should have cargo-audit in tool registry", () => {
+		expect(TOOL_REGISTRY["cargo-audit"]).toBeDefined();
+	});
+});
+
 // ─── VerifyPipeline (TDD contract from Sprint 3) ───────────────────────────
 
 describe("VerifyPipeline", () => {
