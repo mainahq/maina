@@ -1,0 +1,92 @@
+---
+title: Commands
+description: All 20 Maina commands organized by workflow phase -- Define, Build, Verify, and Meta.
+---
+
+Maina has 20 commands organized into four workflow phases. Every command draws from the three engines -- Context, Prompt, and Verify -- as needed.
+
+## Define Phase
+
+Define what you're building and why.
+
+| Command | Description | Context Needs |
+|---------|------------|---------------|
+| `maina init` | Bootstrap Maina in any repo. Creates `.maina/` directory, constitution, AGENTS.md, default prompts, lefthook hooks. | None |
+| `maina ticket` | Create a GitHub Issue with automatic module tagging based on the semantic layer. | Semantic (module structure) |
+| `maina context` | Generate focused codebase context. Loads all 4 context layers in exploration mode (80% budget). | All 4 layers (exploration) |
+| `maina context add <file>` | Add a file to the semantic custom context layer for persistent inclusion. | None |
+| `maina context show` | Show context layers with token counts and budget utilization. | None |
+| `maina explain` | Visualize codebase structure with Mermaid dependency diagrams and LLM summary. | Semantic (dependency graph) |
+| `maina design` | Create an Architecture Decision Record (ADR). Captures WHAT and WHY only. | Semantic (existing ADRs) |
+| `maina review design` | AI reviews an ADR against existing decisions and the project constitution. | Semantic (ADRs + constitution) |
+
+## Build Phase
+
+Plan, specify, and commit.
+
+| Command | Description | Context Needs |
+|---------|------------|---------------|
+| `maina plan` | Create a feature branch with auto-numbered directory (`.maina/features/001-name/`) and structured PLAN.md. | Working + Semantic |
+| `maina spec` | Generate TDD test stubs from PLAN.md. Scores spec quality across clarity, testability, completeness, consistency, and atomicity. | Working + Episodic (past test patterns) |
+| `maina commit` | Run syntax guard, parallel verification gates, then git commit. Fast path -- uses Working context only. | Working only (fast) |
+
+## Verify Phase
+
+Prove correctness before merge.
+
+| Command | Description | Context Needs |
+|---------|------------|---------------|
+| `maina verify` | Run the full verification pipeline on your diff. Diff-only by default -- no pre-existing noise. | Working + Semantic |
+| `maina review` | Comprehensive two-stage code review: spec compliance first, then code quality. | Working + Semantic |
+| `maina analyze` | Check cross-artifact consistency: spec, plan, tasks, and code must align. | Semantic (all artifacts) |
+| `maina pr` | Create a pull request with two-stage AI review attached. | All 4 layers |
+
+## Meta
+
+Tune, learn, and diagnose.
+
+| Command | Description |
+|---------|------------|
+| `maina learn` | Analyze feedback patterns and propose prompt improvements. Manages A/B tests between prompt versions. |
+| `maina prompt edit <task>` | Open a custom prompt template in `$EDITOR`. For example, `maina prompt edit review` edits the review prompt. |
+| `maina prompt list` | Show all prompt tasks with version hashes, usage counts, and accept rates. |
+| `maina cache stats` | Show cache hit rate, total entries, tokens saved, and estimated cost savings. |
+| `maina stats` | Show commit verification metrics, trends, and spec quality evolution. |
+| `maina doctor` | Check tool installation status and engine health. Shows what's installed, what's missing, and what's optional. |
+
+## Common Workflows
+
+### First-time setup
+
+```bash
+maina init              # Bootstrap in your repo
+maina doctor            # Check what tools are available
+maina context show      # See what the context engine knows
+```
+
+### Daily development
+
+```bash
+maina plan              # Start a feature with structured planning
+maina spec              # Generate TDD test stubs
+# ... write code ...
+maina commit            # Verify and commit
+maina pr                # Create PR with AI review
+```
+
+### Prompt tuning
+
+```bash
+maina prompt list       # See current prompts and their accept rates
+maina prompt edit review  # Edit the review prompt
+maina learn             # Analyze feedback and evolve prompts
+maina stats             # Track improvement over time
+```
+
+### Investigation
+
+```bash
+maina context           # Full codebase context (exploration mode)
+maina explain           # Mermaid diagrams of module structure
+maina analyze           # Check spec/plan/code consistency
+```

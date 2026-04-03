@@ -1,0 +1,77 @@
+---
+title: Roadmap
+description: Upcoming features and the future direction of Maina.
+---
+
+Maina is open source (Apache 2.0) and actively developed. Here is what is planned.
+
+## v1.1 -- Structured Output
+
+- **`--json` flag** on all commands for machine-readable output
+- **Structured tool results** -- verification findings, context summaries, and review output as typed JSON
+- **CI integration** -- `maina verify --json` for GitHub Actions, GitLab CI, and other pipelines
+- **Exit codes** -- meaningful exit codes for scripting (0 = pass, 1 = findings, 2 = error)
+
+## v1.5 -- Extended Analysis
+
+- **DAST with ZAP** -- Dynamic Application Security Testing for web applications
+- **Lighthouse** -- Performance, accessibility, and SEO auditing for web projects
+- **Playwright MCP** -- Browser automation for end-to-end verification
+- **Custom tool plugins** -- Register your own analysis tools in the verification pipeline
+
+## v2.0 -- Extensibility
+
+- **Chrome extension** -- Review AI-generated code in GitHub PRs directly in the browser
+- **`transformContext` hooks** -- Programmatic context manipulation before it reaches the AI
+- **`maina extend`** -- Install community extensions from a registry
+- **Team sync** (Maina Cloud) -- Shared prompts, feedback, and learned preferences across team members via Turso
+
+## Future
+
+- **File tracking** -- Know which files are AI-generated, which are human-written, and track the ratio over time
+- **Branch summarization** -- Automatic compressed summaries of branch activity for the episodic layer
+- **Self-extending agent** -- Maina proposes its own extensions based on usage patterns
+- **Fine-tuned models** -- Custom model fine-tuning from your team's accepted reviews and feedback
+- **Air-gapped enterprise** -- On-premise deployment with audit logging, SSO, and SOC 2 compliance
+
+## Contributing
+
+Maina is open source and welcomes contributions.
+
+### Getting started
+
+```bash
+git clone https://github.com/beeeku/maina
+cd maina
+bun install
+bun run build
+bun run test
+```
+
+### Development commands
+
+```bash
+bun run dev          # Dev mode with watch
+bun run check        # Biome lint + format check
+bun run typecheck    # tsc --noEmit
+bun run verify       # Full verification: check + typecheck + test
+```
+
+### Conventions
+
+- **Conventional commits** with scopes: `cli`, `core`, `mcp`, `skills`, `docs`, `ci`
+- **TDD always** -- write tests first, watch them fail, implement, watch them pass
+- **Result pattern** -- `Result<T, E>` for error handling, never throw
+- **Bun only** -- Bun runtime, bun:test, bun:sqlite. Not Node.js, not Jest, not Vitest.
+
+### Where to contribute
+
+- **New analysis tools** -- Add a tool adapter in `packages/core/src/verify/`
+- **Skills** -- Write new SKILL.md files in `packages/skills/`
+- **Custom Semgrep rules** -- Add rules in `rules/`
+- **Documentation** -- Improve these docs in `packages/docs/`
+- **Bug reports and feature requests** -- Open a GitHub Issue
+
+### Dogfooding
+
+From Sprint 3 onward, every commit to Maina has gone through `maina commit`. If you contribute, use `maina commit` for your commits too. If a gate is noisy, fix the gate -- do not skip it.
