@@ -5,6 +5,7 @@ import { commitCommand } from "./commands/commit";
 import { contextCommand } from "./commands/context";
 import { doctorCommand } from "./commands/doctor";
 import { learnCommand } from "./commands/learn";
+import { planCommand } from "./commands/plan";
 import { promptCommand } from "./commands/prompt";
 import { verifyCommand } from "./commands/verify";
 
@@ -19,6 +20,7 @@ export function createProgram(): Command {
 	program.addCommand(cacheCommand());
 	program.addCommand(learnCommand());
 	program.addCommand(commitCommand());
+	program.addCommand(planCommand());
 	program.addCommand(verifyCommand());
 	program.addCommand(doctorCommand());
 	return program;

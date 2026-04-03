@@ -14,6 +14,22 @@ export {
 	type LayerReport,
 } from "./context/engine";
 export type { MainaCommand } from "./context/selector";
+// Features
+export {
+	type AnalysisFinding,
+	type AnalysisReport,
+	analyze,
+} from "./features/analyzer";
+export {
+	type CheckResult,
+	type VerificationReport,
+	verifyPlan,
+} from "./features/checklist";
+export {
+	createFeatureDir,
+	getNextFeatureNumber,
+	scaffoldFeature,
+} from "./features/numbering";
 // Git
 export {
 	type Commit,
