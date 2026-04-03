@@ -20,6 +20,7 @@ export { addEntry as addEpisodicEntry } from "./context/episodic";
 export type { MainaCommand } from "./context/selector";
 // Context — working
 export {
+	loadWorkingContext,
 	saveWorkingContext,
 	setVerificationResult,
 	trackFile,

@@ -15,6 +15,7 @@ import { promptCommand } from "./commands/prompt";
 import { reviewDesignCommand } from "./commands/review-design";
 import { specCommand } from "./commands/spec";
 import { statsCommand } from "./commands/stats";
+import { statusCommand } from "./commands/status";
 import { ticketCommand } from "./commands/ticket";
 import { verifyCommand } from "./commands/verify";
 
@@ -41,5 +42,6 @@ export function createProgram(): Command {
 	program.addCommand(initCommand());
 	program.addCommand(prCommand());
 	program.addCommand(reviewDesignCommand());
+	program.addCommand(statusCommand());
 	return program;
 }
