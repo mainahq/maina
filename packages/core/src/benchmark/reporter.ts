@@ -86,6 +86,21 @@ export function formatComparison(report: BenchmarkReport): string {
 			metricValue(report.maina, "specQualityScore"),
 			metricValue(report.speckit, "specQualityScore"),
 		],
+		[
+			"Impl LOC",
+			metricValue(report.maina, "implLOC"),
+			metricValue(report.speckit, "implLOC"),
+		],
+		[
+			"Attempts to Pass",
+			metricValue(report.maina, "attemptsToPass"),
+			metricValue(report.speckit, "attemptsToPass"),
+		],
+		[
+			"Bugs Introduced",
+			metricValue(report.maina, "bugsIntroduced"),
+			metricValue(report.speckit, "bugsIntroduced"),
+		],
 	];
 
 	const lines = [

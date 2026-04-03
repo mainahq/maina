@@ -22,6 +22,10 @@ const mainaMetrics: BenchmarkMetrics = {
 	testsFailed: 2,
 	verifyFindings: 3,
 	specQualityScore: 83,
+	implLOC: 85,
+	attemptsToPass: 1,
+	bugsIntroduced: 0,
+	toolsUsed: ["getContext", "verify", "reviewCode"],
 };
 
 const speckitMetrics: BenchmarkMetrics = {
@@ -35,6 +39,10 @@ const speckitMetrics: BenchmarkMetrics = {
 	testsFailed: 4,
 	verifyFindings: 0,
 	specQualityScore: 70,
+	implLOC: 112,
+	attemptsToPass: 2,
+	bugsIntroduced: 1,
+	toolsUsed: ["specify init", "constitution", "specs", "plans", "tasks"],
 };
 
 describe("buildReport", () => {

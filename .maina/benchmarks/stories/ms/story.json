@@ -1,0 +1,12 @@
+{
+	"name": "ms",
+	"description": "Tiny millisecond conversion utility — parse duration strings and format milliseconds",
+	"tier": 2,
+	"source": "https://github.com/vercel/ms",
+	"testFiles": ["tests/ms.test.ts"],
+	"metrics": {
+		"expectedTests": 45,
+		"originalLOC": 200,
+		"complexity": "medium"
+	}
+}

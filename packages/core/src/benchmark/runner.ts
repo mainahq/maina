@@ -16,6 +16,10 @@ export interface RunBenchmarkOptions {
 	tokensOutput?: number;
 	verifyFindings?: number;
 	specQualityScore?: number;
+	implLOC?: number;
+	attemptsToPass?: number;
+	bugsIntroduced?: number;
+	toolsUsed?: string[];
 }
 
 /**
@@ -72,6 +76,10 @@ export async function runBenchmark(
 				testsFailed: testResult.failed,
 				verifyFindings: options.verifyFindings ?? 0,
 				specQualityScore: options.specQualityScore ?? 0,
+				implLOC: options.implLOC ?? 0,
+				attemptsToPass: options.attemptsToPass ?? 1,
+				bugsIntroduced: options.bugsIntroduced ?? 0,
+				toolsUsed: options.toolsUsed ?? [],
 			},
 		};
 	} catch (e) {

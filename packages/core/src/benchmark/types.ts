@@ -22,6 +22,12 @@ export interface BenchmarkMetrics {
 	testsFailed: number;
 	verifyFindings: number;
 	specQualityScore: number;
+	// Extended metrics from tier 1 learnings
+	implLOC: number;
+	attemptsToPass: number;
+	bugsIntroduced: number;
+	toolsUsed: string[];
+	stepTimings?: Record<string, number>;
 }
 
 export interface BenchmarkReport {

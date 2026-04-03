@@ -6,10 +6,10 @@
  *
  * The implementation path is injected via MITT_IMPL_PATH env var.
  */
-import { beforeEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 // Dynamic import so the harness can point to either pipeline's output
-const implPath = process.env.MITT_IMPL_PATH ?? "./mitt";
+const implPath = process.env.MITT_IMPL_PATH ?? "../mitt";
 const { default: mitt } = await import(implPath);
 
 type Events = {

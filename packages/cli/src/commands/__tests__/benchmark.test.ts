@@ -7,7 +7,7 @@ import {
 	mock,
 	test,
 } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
@@ -106,6 +106,10 @@ function mockDeps(overrides?: Partial<BenchmarkDepsType>): BenchmarkDepsType {
 				testsFailed: 2,
 				verifyFindings: 3,
 				specQualityScore: 83,
+				implLOC: 85,
+				attemptsToPass: 1,
+				bugsIntroduced: 0,
+				toolsUsed: ["getContext", "verify"],
 			},
 		}),
 		buildReport: (story, maina, speckit) => ({

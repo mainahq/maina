@@ -1,0 +1,44 @@
+{
+	"story": "mitt",
+	"tier": 1,
+	"timestamp": "2026-04-03T17:15:00.000Z",
+	"maina": {
+		"pipeline": "maina",
+		"tokens": 32493,
+		"toolCalls": 25,
+		"durationMs": 159597,
+		"testsTotal": 15,
+		"testsPassed": 15,
+		"testsFailed": 0,
+		"implLOC": 85,
+		"toolsUsed": ["getContext", "getConventions", "suggestTests", "verify", "reviewCode", "checkSlop"],
+		"verifyFindings": 0,
+		"slopFindings": 0,
+		"attemptsToPass": 1,
+		"bugsIntroduced": 0
+	},
+	"speckit": {
+		"pipeline": "speckit",
+		"tokens": 40857,
+		"toolCalls": 30,
+		"durationMs": 205064,
+		"testsTotal": 15,
+		"testsPassed": 15,
+		"testsFailed": 0,
+		"implLOC": 112,
+		"toolsUsed": ["specify init", "constitution.md", "specs/mitt.md", "plans/mitt.md", "tasks/mitt.md"],
+		"verifyFindings": null,
+		"slopFindings": null,
+		"attemptsToPass": 1,
+		"bugsIntroduced": 0
+	},
+	"winner": "tie",
+	"learnings": [
+		"Both produce identical outcomes on trivial tasks — differentiation comes from verification",
+		"Maina used 20% fewer tokens, 22% less time",
+		"Spec Kit produces more documentation artifacts (4 files vs 0)",
+		"Maina agent only used MCP tools, should also use CLI (maina init, plan, spec, commit)",
+		"Need to track intermediate failures, retry count, per-step timing",
+		"On trivial tasks, tooling overhead dominates — tier 2 should test where verification catches real bugs"
+	]
+}
