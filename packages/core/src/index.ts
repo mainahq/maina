@@ -59,6 +59,14 @@ export {
 	parseChangedLines,
 } from "./verify/diff-filter";
 export {
+	type FixOptions,
+	type FixResult,
+	type FixSuggestion,
+	generateFixes,
+	hashFinding,
+	parseFixResponse,
+} from "./verify/fix";
+export {
 	detectCommentedCode,
 	detectConsoleLogs,
 	detectEmptyBodies,
