@@ -18,7 +18,7 @@ export async function generateCommitMessage(
 		`Generate a conventional commit message for this diff:\n\n${diff}\n\nFiles: ${stagedFiles.join(", ")}`,
 	);
 
-	if (aiResult.text) {
+	if (aiResult.text && aiResult.fromAI) {
 		// Clean up: extract first line as commit message
 		const firstLine = aiResult.text.trim().split("\n")[0] ?? "";
 		return firstLine.replace(/^["'`]|["'`]$/g, "").trim() || null;
