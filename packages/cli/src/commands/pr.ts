@@ -170,7 +170,13 @@ export async function prAction(
 
 	// ── Step 1: Get current branch and diff ──────────────────────────────
 	const branch = await deps.getCurrentBranch(cwd);
-	const diff = await deps.getDiff(base, undefined, cwd);
+	// Use origin/<base> for PR diff to catch all commits since push,
+	// fall back to local <base> if remote ref doesn't exist
+	const remoteBase = `origin/${base}`;
+	let diff = await deps.getDiff(`${remoteBase}...HEAD`, undefined, cwd);
+	if (!diff || diff.trim().length === 0) {
+		diff = await deps.getDiff(`${base}...HEAD`, undefined, cwd);
+	}
 
 	if (!diff || diff.trim().length === 0) {
 		log.error(`No diff found between ${base} and current branch.`);
