@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { StatsDeps } from "../stats";
 import { statsAction } from "../stats";
 
@@ -300,6 +302,106 @@ describe("statsAction", () => {
 
 		expect(result.displayed).toBe(false);
 		expect(result.reason).toBe("Trends computation failed");
+	});
+
+	test("--specs flag with features shows quality table", async () => {
+		const tmpDir = join("/tmp", `stats-specs-test-${Date.now()}`);
+		const mainaDir = join(tmpDir, ".maina");
+		const featuresDir = join(mainaDir, "features");
+		const feat1 = join(featuresDir, "001-stats-tracker");
+		const feat2 = join(featuresDir, "002-ticket");
+
+		mkdirSync(feat1, { recursive: true });
+		mkdirSync(feat2, { recursive: true });
+		writeFileSync(
+			join(feat1, "spec.md"),
+			"# Feature 1\n## Success Criteria\n- returns data",
+		);
+		writeFileSync(
+			join(feat2, "spec.md"),
+			"# Feature 2\n## Success Criteria\n- validates input",
+		);
+
+		try {
+			const deps = createMockDeps({});
+			deps.scoreSpec = (_specPath: string) => ({
+				ok: true as const,
+				value: {
+					overall: 72,
+					measurability: 80,
+					testability: 65,
+					ambiguity: 75,
+					completeness: 70,
+					details: [],
+				},
+			});
+			deps.getSkipRate = (_mainaDir: string) => ({
+				ok: true as const,
+				value: { total: 28, skipped: 0, rate: 0 },
+			});
+
+			const result = await statsAction({ cwd: tmpDir, specs: true }, deps);
+
+			expect(result.displayed).toBe(true);
+			expect(result.specsResult).toBeDefined();
+			const specs = result.specsResult;
+			expect(specs?.scores.length).toBe(2);
+			expect(specs?.scores[0]?.feature).toBe("001-stats-tracker");
+			expect(specs?.scores[0]?.score.overall).toBe(72);
+			expect(specs?.average).toBe(72);
+			expect(specs?.skipRate?.total).toBe(28);
+			expect(specs?.skipRate?.skipped).toBe(0);
+			expect(specs?.skipRate?.rate).toBe(0);
+		} finally {
+			rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
+	test("--specs flag with no features shows 'No features found'", async () => {
+		const tmpDir = join("/tmp", `stats-specs-empty-${Date.now()}`);
+		const mainaDir = join(tmpDir, ".maina");
+		mkdirSync(mainaDir, { recursive: true });
+
+		try {
+			const deps = createMockDeps({});
+			const result = await statsAction({ cwd: tmpDir, specs: true }, deps);
+
+			expect(result.displayed).toBe(false);
+			expect(result.reason).toBe("No features found");
+		} finally {
+			rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
+	test("--specs flag with no .maina dir shows 'No features found'", async () => {
+		const tmpDir = join("/tmp", `stats-specs-nodir-${Date.now()}`);
+		mkdirSync(tmpDir, { recursive: true });
+
+		try {
+			const deps = createMockDeps({});
+			const result = await statsAction({ cwd: tmpDir, specs: true }, deps);
+
+			expect(result.displayed).toBe(false);
+			expect(result.reason).toBe("No features found");
+		} finally {
+			rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
+	test("--specs flag with features dir but no spec.md files shows 'No features found'", async () => {
+		const tmpDir = join("/tmp", `stats-specs-nospecs-${Date.now()}`);
+		const featuresDir = join(tmpDir, ".maina", "features", "001-empty");
+		mkdirSync(featuresDir, { recursive: true });
+
+		try {
+			const deps = createMockDeps({});
+			const result = await statsAction({ cwd: tmpDir, specs: true }, deps);
+
+			expect(result.displayed).toBe(false);
+			expect(result.reason).toBe("No features found");
+		} finally {
+			rmSync(tmpDir, { recursive: true, force: true });
+		}
 	});
 
 	test("defaults last to 10 when not specified", async () => {

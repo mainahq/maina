@@ -1,11 +1,16 @@
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
+import type { Result } from "@maina/core";
 import {
 	type ComparisonReport,
 	getComparison,
+	getSkipRate,
 	getStats,
 	getTrends,
+	type QualityScore,
 	type StatsReport,
+	scoreSpec,
 	type TrendsReport,
 } from "@maina/core";
 import { Command } from "commander";
@@ -16,7 +21,19 @@ export interface StatsActionOptions {
 	json?: boolean;
 	last?: number;
 	compare?: boolean;
+	specs?: boolean;
 	cwd?: string;
+}
+
+export interface SpecScore {
+	feature: string;
+	score: QualityScore;
+}
+
+export interface SpecsResult {
+	scores: SpecScore[];
+	average: number;
+	skipRate?: { total: number; skipped: number; rate: number };
 }
 
 export interface StatsActionResult {
@@ -25,16 +42,21 @@ export interface StatsActionResult {
 	stats?: StatsReport;
 	trends?: TrendsReport;
 	jsonOutput?: string;
+	specsResult?: SpecsResult;
 }
 
 export interface StatsDeps {
 	getStats: typeof getStats;
 	getTrends: typeof getTrends;
+	scoreSpec?: (specPath: string) => Result<QualityScore>;
+	getSkipRate?: (
+		mainaDir: string,
+	) => Result<{ total: number; skipped: number; rate: number }>;
 }
 
 // ── Default Dependencies ─────────────────────────────────────────────────────
 
-const defaultDeps: StatsDeps = { getStats, getTrends };
+const defaultDeps: StatsDeps = { getStats, getTrends, scoreSpec, getSkipRate };
 
 // ── Formatting Helpers ───────────────────────────────────────────────────────
 
@@ -74,6 +96,60 @@ export async function statsAction(
 	const mainaDir = join(cwd, ".maina");
 	const last = options.last ?? 10;
 
+	// ── Specs mode ─────────────────────────────────────────────────────
+	if (options.specs) {
+		const scoreFn = deps.scoreSpec ?? scoreSpec;
+		const skipFn = deps.getSkipRate ?? getSkipRate;
+
+		const featuresDir = join(mainaDir, "features");
+		if (!existsSync(featuresDir)) {
+			return { displayed: false, reason: "No features found" };
+		}
+
+		let featureDirs: string[];
+		try {
+			featureDirs = readdirSync(featuresDir)
+				.filter((f) => {
+					const specPath = join(featuresDir, f, "spec.md");
+					return existsSync(specPath);
+				})
+				.sort();
+		} catch {
+			return { displayed: false, reason: "No features found" };
+		}
+
+		if (featureDirs.length === 0) {
+			return { displayed: false, reason: "No features found" };
+		}
+
+		const scores: SpecScore[] = [];
+		for (const dir of featureDirs) {
+			const specPath = join(featuresDir, dir, "spec.md");
+			const result = scoreFn(specPath);
+			if (result.ok) {
+				scores.push({ feature: dir, score: result.value });
+			}
+		}
+
+		const average =
+			scores.length > 0
+				? Math.round(
+						scores.reduce((sum, s) => sum + s.score.overall, 0) / scores.length,
+					)
+				: 0;
+
+		let skipRate: { total: number; skipped: number; rate: number } | undefined;
+		const skipResult = skipFn(mainaDir);
+		if (skipResult.ok) {
+			skipRate = skipResult.value;
+		}
+
+		return {
+			displayed: true,
+			specsResult: { scores, average, skipRate },
+		};
+	}
+
 	// ── Fetch stats ────────────────────────────────────────────────────
 	const statsResult = deps.getStats(mainaDir, { last });
 	if (!statsResult.ok) {
@@ -101,6 +177,35 @@ export async function statsAction(
 
 	// ── Formatted display ──────────────────────────────────────────────
 	return { displayed: true, stats, trends };
+}
+
+// ── Specs Display Helper ────────────────────────────────────────────────────
+
+function displaySpecs(result: SpecsResult): void {
+	log.info("Feature Specs Quality:\n");
+
+	// Column headers
+	const header = `  ${"Feature".padEnd(26)} ${"Score".padEnd(7)} ${"Measurability".padEnd(15)} ${"Testability".padEnd(13)} ${"Ambiguity".padEnd(11)} ${"Completeness"}`;
+	const separator = `  ${"─".repeat(26)} ${"─".repeat(7)} ${"─".repeat(15)} ${"─".repeat(13)} ${"─".repeat(11)} ${"─".repeat(12)}`;
+
+	log.info(header);
+	log.info(separator);
+
+	for (const entry of result.scores) {
+		const s = entry.score;
+		const row = `  ${entry.feature.padEnd(26)} ${String(s.overall).padStart(3).padEnd(7)} ${String(s.measurability).padStart(3).padEnd(15)} ${String(s.testability).padStart(3).padEnd(13)} ${String(s.ambiguity).padStart(3).padEnd(11)} ${String(s.completeness).padStart(3)}`;
+		log.info(row);
+	}
+
+	log.info("");
+	log.info(`  Average: ${result.average}/100`);
+
+	if (result.skipRate) {
+		const pct = `${Math.round(result.skipRate.rate * 100)}%`;
+		log.info(
+			`  Skip rate: ${pct} (${result.skipRate.skipped}/${result.skipRate.total} commits)`,
+		);
+	}
 }
 
 // ── Display Helper ───────────────────────────────────────────────────────────
@@ -182,6 +287,7 @@ export function statsCommand(): Command {
 		.option("--json", "Output raw snapshots as JSON")
 		.option("--last <n>", "Number of commits to analyze", "10")
 		.option("--compare", "Show maina vs raw git comparison")
+		.option("--specs", "Show feature spec quality scores")
 		.action(async (options) => {
 			intro("maina stats");
 
@@ -202,6 +308,7 @@ export function statsCommand(): Command {
 			const result = await statsAction({
 				json: options.json,
 				last: Number.isNaN(last) ? 10 : last,
+				specs: options.specs,
 			});
 
 			if (!result.displayed) {
@@ -210,7 +317,9 @@ export function statsCommand(): Command {
 				return;
 			}
 
-			if (result.jsonOutput) {
+			if (result.specsResult) {
+				displaySpecs(result.specsResult);
+			} else if (result.jsonOutput) {
 				// biome-ignore lint/suspicious/noConsole: JSON output goes to stdout
 				console.log(result.jsonOutput);
 			} else if (result.stats && result.trends) {
