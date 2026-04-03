@@ -1,7 +1,12 @@
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
 import type { Finding, FixSuggestion, PipelineResult } from "@maina/core";
-import { generateFixes, getStagedFiles, runPipeline } from "@maina/core";
+import {
+	generateFixes,
+	getStagedFiles,
+	getTrackedFiles,
+	runPipeline,
+} from "@maina/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -98,7 +103,11 @@ export async function verifyAction(
 		mainaDir,
 	};
 
-	if (!options.all) {
+	if (options.all) {
+		// --all: scan all tracked files in the repo
+		const allFiles = await getTrackedFiles(cwd);
+		pipelineOpts.files = allFiles;
+	} else {
 		const stagedFiles = await getStagedFiles(cwd);
 		pipelineOpts.files = stagedFiles;
 	}

@@ -24,6 +24,7 @@ export {
 	getRecentCommits,
 	getRepoRoot,
 	getStagedFiles,
+	getTrackedFiles,
 } from "./git/index";
 // Hooks
 export {

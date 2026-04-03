@@ -98,3 +98,12 @@ export async function getStagedFiles(cwd?: string): Promise<string[]> {
 	if (!output) return [];
 	return output.split("\n").filter((line) => line.trim().length > 0);
 }
+
+export async function getTrackedFiles(cwd?: string): Promise<string[]> {
+	const output = await exec(
+		["ls-files", "--cached", "--exclude-standard"],
+		cwd,
+	);
+	if (!output) return [];
+	return output.split("\n").filter((line) => line.trim().length > 0);
+}

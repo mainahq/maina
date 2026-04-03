@@ -54,6 +54,11 @@ function cacheKey(fileHash: string): string {
  * Does NOT flag object literals (const x = {}) or array literals.
  */
 export function detectEmptyBodies(content: string, file: string): Finding[] {
+	// Skip test files — mocks/stubs intentionally use empty bodies
+	if (/\.(test|spec)\.[jt]sx?$/.test(file)) {
+		return [];
+	}
+
 	const findings: Finding[] = [];
 	const lines = content.split("\n");
 
@@ -145,6 +150,11 @@ export function detectHallucinatedImports(
 	file: string,
 	cwd: string,
 ): Finding[] {
+	// Skip test files — test fixtures intentionally use non-existent imports
+	if (/\.(test|spec)\.[jt]sx?$/.test(file)) {
+		return [];
+	}
+
 	const findings: Finding[] = [];
 	const lines = content.split("\n");
 
@@ -165,6 +175,9 @@ export function detectHallucinatedImports(
 
 		// Only check relative imports
 		if (!importPath.startsWith(".")) continue;
+
+		// Skip placeholder/ellipsis imports (e.g. "..." in dynamic import docs)
+		if (/^\.{2,}$/.test(importPath)) continue;
 
 		const resolvedBase = resolve(fileDir, importPath);
 
