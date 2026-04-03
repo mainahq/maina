@@ -51,3 +51,9 @@ export {
 	TOOL_REGISTRY,
 	type ToolName,
 } from "./verify/detect";
+export {
+	parseBiomeOutput,
+	type SyntaxDiagnostic,
+	type SyntaxGuardResult,
+	syntaxGuard,
+} from "./verify/syntax-guard";
