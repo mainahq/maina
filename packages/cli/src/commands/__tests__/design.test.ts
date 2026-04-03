@@ -14,6 +14,15 @@ import { join } from "node:path";
 
 let mockClackTextResponses: string[] = [];
 let mockClackTextCallIndex = 0;
+let mockClackSelectResponses: string[] = [];
+let mockClackSelectCallIndex = 0;
+let mockDesignApproaches: Array<{
+	name: string;
+	description: string;
+	pros: string[];
+	cons: string[];
+	recommended: boolean;
+}> = [];
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -37,8 +46,23 @@ mock.module("@clack/prompts", () => ({
 		mockClackTextCallIndex++;
 		return response;
 	},
+	select: async () => {
+		const response = mockClackSelectResponses[mockClackSelectCallIndex] ?? "";
+		mockClackSelectCallIndex++;
+		return response;
+	},
 	confirm: async () => true,
 	isCancel: (v: unknown) => typeof v === "symbol",
+}));
+
+mock.module("@maina/core", () => ({
+	getNextAdrNumber: async () => ({ ok: true, value: "0001" }),
+	scaffoldAdr: async () => ({ ok: true, value: "" }),
+	listAdrs: async () => ({ ok: true, value: [] }),
+	generateDesignApproaches: async () => ({
+		ok: true,
+		value: mockDesignApproaches,
+	}),
 }));
 
 afterAll(() => {
@@ -64,6 +88,9 @@ beforeEach(() => {
 	// Reset mock state
 	mockClackTextResponses = [];
 	mockClackTextCallIndex = 0;
+	mockClackSelectResponses = [];
+	mockClackSelectCallIndex = 0;
+	mockDesignApproaches = [];
 });
 
 afterEach(() => {
@@ -227,5 +254,121 @@ describe("designAction", () => {
 
 		expect(result.created).toBe(true);
 		expect(result.adrNumber).toBe("0005");
+	});
+
+	// ── Interactive approach phase tests ────────────────────────────────────
+
+	test("interactive mode proposes approaches and records selection in ADR", async () => {
+		mockDesignApproaches = [
+			{
+				name: "Event-driven",
+				description: "Steps emit events.",
+				pros: ["Parallel", "Decoupled"],
+				cons: ["Complex debugging"],
+				recommended: true,
+			},
+			{
+				name: "Middleware chain",
+				description: "Sequential middleware.",
+				pros: ["Simple"],
+				cons: ["No parallelism"],
+				recommended: false,
+			},
+		];
+		// User selects "Event-driven"
+		mockClackSelectResponses = ["Event-driven"];
+
+		let capturedFilePath = "";
+		const adrPath = join(tmpDir, "adr", "0001-test-decision.md");
+
+		const mockDeps: DesignDepsType = {
+			getNextAdrNumber: async () => ({ ok: true, value: "0001" }),
+			scaffoldAdr: async (_adrDir, _number, _title) => {
+				capturedFilePath = adrPath;
+				// Write a minimal ADR file so appendAlternatives can find it
+				mkdirSync(join(tmpDir, "adr"), { recursive: true });
+				const { writeFileSync } = await import("node:fs");
+				writeFileSync(
+					adrPath,
+					"# ADR-0001: Test Decision\n\n## Context\nTest.\n",
+				);
+				return { ok: true, value: adrPath };
+			},
+			listAdrs: async () => ({ ok: true, value: [] }),
+			openInEditor: async () => {},
+		};
+
+		const result = await designAction(
+			{ title: "Test Decision", cwd: tmpDir },
+			mockDeps,
+		);
+
+		expect(result.created).toBe(true);
+		expect(result.approachSelected).toBe("Event-driven");
+
+		// ADR should have Alternatives Considered section
+		const { readFileSync } = await import("node:fs");
+		const adrContent = readFileSync(capturedFilePath, "utf-8");
+		expect(adrContent).toContain("## Alternatives Considered");
+		expect(adrContent).toContain("Event-driven");
+		expect(adrContent).toContain("Middleware chain");
+	});
+
+	test("--no-interactive skips approach phase entirely", async () => {
+		mockDesignApproaches = [
+			{
+				name: "Should not appear",
+				description: "D",
+				pros: ["p"],
+				cons: ["c"],
+				recommended: true,
+			},
+		];
+
+		const adrPath = join(tmpDir, "adr", "0001-test.md");
+
+		const mockDeps: DesignDepsType = {
+			getNextAdrNumber: async () => ({ ok: true, value: "0001" }),
+			scaffoldAdr: async () => {
+				mkdirSync(join(tmpDir, "adr"), { recursive: true });
+				const { writeFileSync } = await import("node:fs");
+				writeFileSync(adrPath, "# ADR-0001: Test\n");
+				return { ok: true, value: adrPath };
+			},
+			listAdrs: async () => ({ ok: true, value: [] }),
+			openInEditor: async () => {},
+		};
+
+		const result = await designAction(
+			{ title: "Test", cwd: tmpDir, noInteractive: true },
+			mockDeps,
+		);
+
+		expect(result.created).toBe(true);
+		expect(result.approachSelected).toBeUndefined();
+
+		// ADR should NOT have Alternatives Considered
+		const { readFileSync } = await import("node:fs");
+		const adrContent = readFileSync(adrPath, "utf-8");
+		expect(adrContent).not.toContain("## Alternatives Considered");
+	});
+
+	test("no approaches from AI skips approach phase gracefully", async () => {
+		mockDesignApproaches = [];
+
+		const mockDeps: DesignDepsType = {
+			getNextAdrNumber: async () => ({ ok: true, value: "0001" }),
+			scaffoldAdr: async () => ({
+				ok: true,
+				value: join(tmpDir, "adr", "0001-test.md"),
+			}),
+			listAdrs: async () => ({ ok: true, value: [] }),
+			openInEditor: async () => {},
+		};
+
+		const result = await designAction({ title: "Test", cwd: tmpDir }, mockDeps);
+
+		expect(result.created).toBe(true);
+		expect(result.approachSelected).toBeUndefined();
 	});
 });
