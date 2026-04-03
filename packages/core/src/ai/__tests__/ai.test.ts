@@ -5,6 +5,7 @@ import {
 	beforeEach,
 	describe,
 	expect,
+	it,
 	test,
 } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
@@ -13,6 +14,7 @@ import { join } from "node:path";
 import { buildCacheKey, hashContent } from "../../cache/keys";
 import { createCacheManager } from "../../cache/manager";
 import { generate } from "../index";
+import { getTaskTier } from "../tiers";
 
 const TEST_DIR = join(tmpdir(), `maina-ai-test-${Date.now()}`);
 
@@ -180,5 +182,15 @@ describe("generate — cache key construction", () => {
 		});
 
 		expect(key1).not.toBe(key2);
+	});
+});
+
+describe("getTaskTier — code-review tasks", () => {
+	it("should map code-review to mechanical tier", () => {
+		expect(getTaskTier("code-review")).toBe("mechanical");
+	});
+
+	it("should map deep-code-review to standard tier", () => {
+		expect(getTaskTier("deep-code-review")).toBe("standard");
 	});
 });

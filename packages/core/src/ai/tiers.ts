@@ -8,7 +8,13 @@ export interface ModelResolution {
 	provider: string;
 }
 
-const MECHANICAL_TASKS = new Set(["commit", "tests", "slop", "compress"]);
+const MECHANICAL_TASKS = new Set([
+	"commit",
+	"tests",
+	"slop",
+	"compress",
+	"code-review",
+]);
 const ARCHITECTURAL_TASKS = new Set(["design-review", "architecture", "learn"]);
 
 /**
