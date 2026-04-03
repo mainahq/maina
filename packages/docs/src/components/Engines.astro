@@ -1,0 +1,43 @@
+---
+const base = import.meta.env.BASE_URL;
+
+const engines = [
+  {
+    tag: 'Observes',
+    name: 'Context Engine',
+    description:
+      '4-layer retrieval with PageRank-scored dependency graphs, tree-sitter AST, and dynamic token budgets. Knows what matters before you ask.',
+    href: `${base}docs/engines/context`,
+  },
+  {
+    tag: 'Learns',
+    name: 'Prompt Engine',
+    description:
+      'Loads your constitution and custom prompts. Hashes, versions, and A/B-tests prompt variants so every generation improves over time.',
+    href: `${base}docs/engines/prompt`,
+  },
+  {
+    tag: 'Verifies',
+    name: 'Verify Engine',
+    description:
+      'Syntax guard, parallel deterministic tools, diff-only filter, AI fix, two-stage review. Catches problems before they reach your PR.',
+    href: `${base}docs/engines/verify`,
+  },
+];
+---
+
+<section class="engines-section">
+  <div class="section-inner">
+    <div class="section-label">Three Engines</div>
+    <h2 class="section-title">Observe. Learn. Verify.</h2>
+    <div class="engine-cards">
+      {engines.map((engine) => (
+        <a href={engine.href} class="engine-card">
+          <span class="engine-tag">{engine.tag}</span>
+          <h3>{engine.name}</h3>
+          <p>{engine.description}</p>
+        </a>
+      ))}
+    </div>
+  </div>
+</section>
