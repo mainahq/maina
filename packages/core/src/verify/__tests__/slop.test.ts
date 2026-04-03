@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { getProfile } from "../../language/profile";
 import {
 	detectCommentedCode,
 	detectConsoleLogs,
@@ -305,6 +306,61 @@ function double(n: number): number {
 			);
 			const result = await detectSlop([filePath], { cwd: TMP_DIR });
 			expect(result.findings.length).toBe(0);
+		});
+	});
+
+	// ─── Language-aware slop detection ──────────────────────────────────────
+
+	describe("language-aware slop detection", () => {
+		it("should detect print() in Python files", () => {
+			const findings = detectConsoleLogs(
+				"x = 1\nprint('debug')\ny = 2",
+				"app.py",
+				getProfile("python"),
+			);
+			expect(findings).toHaveLength(1);
+			expect(findings[0]?.ruleId).toBe("slop/console-log");
+		});
+
+		it("should detect fmt.Println in Go files", () => {
+			const findings = detectConsoleLogs(
+				"package main\nfmt.Println(x)\n",
+				"main.go",
+				getProfile("go"),
+			);
+			expect(findings).toHaveLength(1);
+		});
+
+		it("should detect println! in Rust files", () => {
+			const findings = detectConsoleLogs(
+				'fn main() {\n  println!("debug");\n}',
+				"main.rs",
+				getProfile("rust"),
+			);
+			expect(findings).toHaveLength(1);
+		});
+
+		it("should skip Python test files", () => {
+			const findings = detectConsoleLogs(
+				"print('ok')",
+				"test_app.py",
+				getProfile("python"),
+			);
+			expect(findings).toHaveLength(0);
+		});
+
+		it("should skip Go test files", () => {
+			const findings = detectConsoleLogs(
+				"fmt.Println(x)",
+				"app_test.go",
+				getProfile("go"),
+			);
+			expect(findings).toHaveLength(0);
+		});
+
+		it("should still work without profile (backward compatible)", () => {
+			const findings = detectConsoleLogs("console.log('test')", "app.ts");
+			expect(findings).toHaveLength(1);
 		});
 	});
 });

@@ -159,6 +159,21 @@ export {
 	type InitOptions,
 	type InitReport,
 } from "./init/index";
+// Language
+export {
+	detectLanguages,
+	getPrimaryLanguage,
+} from "./language/detect";
+export {
+	GO_PROFILE,
+	getProfile,
+	getSupportedLanguages,
+	type LanguageId,
+	type LanguageProfile,
+	PYTHON_PROFILE,
+	RUST_PROFILE,
+	TYPESCRIPT_PROFILE,
+} from "./language/profile";
 export { loadDefault, type PromptTask } from "./prompts/defaults/index";
 // Prompts
 export {

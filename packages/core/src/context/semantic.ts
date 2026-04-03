@@ -22,8 +22,19 @@ export interface SemanticContext {
 	customContext: string[];
 }
 
+const SOURCE_EXTENSIONS = new Set([
+	".ts",
+	".tsx",
+	".js",
+	".jsx",
+	".py",
+	".pyi",
+	".go",
+	".rs",
+]);
+
 /**
- * Recursively walks a directory and collects .ts and .js files,
+ * Recursively walks a directory and collects source files,
  * excluding node_modules, dist, and .git directories.
  */
 function collectSourceFiles(dir: string): string[] {
@@ -52,7 +63,9 @@ function collectSourceFiles(dir: string): string[] {
 			if (stat.isDirectory()) {
 				walk(fullPath);
 			} else if (stat.isFile()) {
-				if (entry.endsWith(".ts") || entry.endsWith(".js")) {
+				const dotIdx = entry.lastIndexOf(".");
+				const ext = dotIdx >= 0 ? entry.slice(dotIdx) : "";
+				if (SOURCE_EXTENSIONS.has(ext)) {
 					results.push(fullPath);
 				}
 			}

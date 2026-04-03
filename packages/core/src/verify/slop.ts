@@ -12,6 +12,8 @@
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { CacheManager } from "../cache/manager";
+import type { LanguageProfile } from "../language/profile";
+import { TYPESCRIPT_PROFILE } from "../language/profile";
 import type { Finding } from "./diff-filter";
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -49,9 +51,14 @@ function cacheKey(fileHash: string): string {
  * Does NOT flag bodies that contain comments.
  * Does NOT flag object literals or array literals.
  */
-export function detectEmptyBodies(content: string, file: string): Finding[] {
+export function detectEmptyBodies(
+	content: string,
+	file: string,
+	profile?: LanguageProfile,
+): Finding[] {
+	const lang = profile ?? TYPESCRIPT_PROFILE;
 	// Skip test files — mocks/stubs intentionally use empty bodies
-	if (/\.(test|spec)\.[jt]sx?$/.test(file)) {
+	if (lang.testFilePattern.test(file)) {
 		return [];
 	}
 
@@ -153,9 +160,11 @@ export function detectHallucinatedImports(
 	content: string,
 	file: string,
 	cwd: string,
+	profile?: LanguageProfile,
 ): Finding[] {
+	const lang = profile ?? TYPESCRIPT_PROFILE;
 	// Skip test files — test fixtures intentionally use non-existent imports
-	if (/\.(test|spec)\.[jt]sx?$/.test(file)) {
+	if (lang.testFilePattern.test(file)) {
 		return [];
 	}
 
@@ -220,35 +229,39 @@ export function detectHallucinatedImports(
  * Detect console.log/warn/error/debug/info in production code.
  *
  * Skips test files (*.test.ts, *.spec.ts).
+ * Accepts an optional LanguageProfile for language-specific patterns.
+ * Defaults to TYPESCRIPT_PROFILE for backward compatibility.
  */
-export function detectConsoleLogs(content: string, file: string): Finding[] {
-	// Skip test files
-	if (/\.(test|spec)\.[jt]sx?$/.test(file)) {
+export function detectConsoleLogs(
+	content: string,
+	file: string,
+	profile?: LanguageProfile,
+): Finding[] {
+	const lang = profile ?? TYPESCRIPT_PROFILE;
+
+	// Skip test files using language-specific pattern
+	if (lang.testFilePattern.test(file)) {
 		return [];
 	}
 
 	const findings: Finding[] = [];
 	const lines = content.split("\n");
 
-	const consolePattern = /console\.(log|warn|error|debug|info)\s*\(/;
-
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i] ?? "";
 		// Respect lint-ignore directives on preceding line
 		const prevLine = i > 0 ? (lines[i - 1] ?? "") : "";
-		if (
-			/(?:biome-ignore|eslint-disable|@ts-ignore|noinspection)/.test(prevLine)
-		) {
+		if (lang.lintIgnorePattern.test(prevLine)) {
 			continue;
 		}
-		const match = consolePattern.exec(line);
+		const match = lang.printPattern.exec(line);
 		if (match) {
 			findings.push({
 				tool: "slop",
 				file,
 				line: i + 1,
 				column: (match.index ?? 0) + 1,
-				message: `console.${match[1]} found in production code`,
+				message: "Print/log statement found in production code",
 				severity: "warning",
 				ruleId: "slop/console-log",
 			});
@@ -266,9 +279,11 @@ export function detectConsoleLogs(content: string, file: string): Finding[] {
 export function detectTodosWithoutTickets(
 	content: string,
 	file: string,
+	profile?: LanguageProfile,
 ): Finding[] {
+	const lang = profile ?? TYPESCRIPT_PROFILE;
 	// Skip test files — fixtures legitimately contain TODO patterns as test data
-	if (/\.(test|spec)\.[jt]sx?$/.test(file)) {
+	if (lang.testFilePattern.test(file)) {
 		return [];
 	}
 
@@ -305,9 +320,14 @@ export function detectTodosWithoutTickets(
  *
  * JSDoc-style comments (starting with /**) are treated as documentation and skipped.
  */
-export function detectCommentedCode(content: string, file: string): Finding[] {
+export function detectCommentedCode(
+	content: string,
+	file: string,
+	profile?: LanguageProfile,
+): Finding[] {
+	const lang = profile ?? TYPESCRIPT_PROFILE;
 	// Skip test files — fixtures contain intentional commented-out code as test data
-	if (/\.(test|spec)\.[jt]sx?$/.test(file)) {
+	if (lang.testFilePattern.test(file)) {
 		return [];
 	}
 

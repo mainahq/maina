@@ -140,6 +140,17 @@ mock.module("../ai-review", () => ({
 	},
 }));
 
+mock.module("../../language/detect", () => ({
+	detectLanguages: (..._args: unknown[]) => ["typescript"],
+}));
+
+mock.module("../../language/profile", () => ({
+	getProfile: (..._args: unknown[]) => ({
+		id: "typescript",
+		syntaxTool: "biome",
+	}),
+}));
+
 afterAll(() => {
 	mock.restore();
 });
@@ -530,5 +541,13 @@ describe("VerifyPipeline", () => {
 		expect(result.passed).toBe(true);
 		const aiReport = result.tools.find((t) => t.tool === "ai-review");
 		expect(aiReport?.skipped).toBe(true);
+	});
+
+	it("should accept languages option", async () => {
+		const result = await runPipeline({
+			files: ["src/app.ts"],
+			languages: ["typescript"],
+		});
+		expect(result.syntaxPassed).toBe(true);
 	});
 });

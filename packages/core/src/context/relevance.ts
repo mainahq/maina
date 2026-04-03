@@ -32,10 +32,21 @@ function resolveImportPath(
 	// Try exact path first, then with extensions
 	const candidates = [
 		base,
+		// TypeScript/JavaScript
 		`${base}.ts`,
+		`${base}.tsx`,
 		`${base}.js`,
+		`${base}.jsx`,
 		`${base}/index.ts`,
 		`${base}/index.js`,
+		// Python
+		`${base}.py`,
+		`${base}/__init__.py`,
+		// Go
+		`${base}.go`,
+		// Rust
+		`${base}.rs`,
+		`${base}/mod.rs`,
 	];
 
 	for (const candidate of candidates) {

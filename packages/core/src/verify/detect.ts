@@ -17,7 +17,11 @@ export type ToolName =
 	| "secretlint"
 	| "sonarqube"
 	| "stryker"
-	| "diff-cover";
+	| "diff-cover"
+	| "ruff"
+	| "golangci-lint"
+	| "cargo-clippy"
+	| "cargo-audit";
 
 export interface DetectedTool {
 	name: string;
@@ -37,6 +41,10 @@ export const TOOL_REGISTRY: Record<
 	sonarqube: { command: "sonar-scanner", versionFlag: "--version" },
 	stryker: { command: "stryker", versionFlag: "--version" },
 	"diff-cover": { command: "diff-cover", versionFlag: "--version" },
+	ruff: { command: "ruff", versionFlag: "--version" },
+	"golangci-lint": { command: "golangci-lint", versionFlag: "--version" },
+	"cargo-clippy": { command: "cargo", versionFlag: "clippy --version" },
+	"cargo-audit": { command: "cargo-audit", versionFlag: "--version" },
 };
 
 /**

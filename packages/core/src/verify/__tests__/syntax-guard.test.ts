@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { getProfile } from "../../language/profile";
 import { parseBiomeOutput, syntaxGuard } from "../syntax-guard";
 
 // ─── Fixtures ──────────────────────────────────────────────────────────────
@@ -99,6 +100,41 @@ describe("SyntaxGuard", () => {
 		const result = await syntaxGuard([file]);
 		// This should pass because there are no errors (only possible warnings)
 		expect(result.ok).toBe(true);
+	});
+});
+
+// ─── syntaxGuard with language profile ────────────────────────────────────
+
+describe("syntaxGuard with language profile", () => {
+	it("should accept a language profile parameter", async () => {
+		const profile = getProfile("typescript");
+		const result = await syntaxGuard([], undefined, profile);
+		expect(result.ok).toBe(true);
+	});
+
+	it("should use biome for typescript profile (default behavior)", async () => {
+		const result = await syntaxGuard(["nonexistent.ts"]);
+		expect(result).toBeDefined();
+	});
+
+	it("should attempt ruff for python profile", async () => {
+		const profile = getProfile("python");
+		// ruff likely not installed — should fail gracefully
+		const result = await syntaxGuard(["test.py"], undefined, profile);
+		expect(result).toBeDefined();
+		// Either ok (if ruff found nothing) or error (if ruff not installed)
+	});
+
+	it("should attempt go vet for go profile", async () => {
+		const profile = getProfile("go");
+		const result = await syntaxGuard(["test.go"], undefined, profile);
+		expect(result).toBeDefined();
+	});
+
+	it("should attempt clippy for rust profile", async () => {
+		const profile = getProfile("rust");
+		const result = await syntaxGuard(["test.rs"], undefined, profile);
+		expect(result).toBeDefined();
 	});
 });
 

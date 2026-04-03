@@ -15,6 +15,9 @@
 import { createCacheManager } from "../cache/manager";
 import { getNoisyRules } from "../feedback/preferences";
 import { getDiff, getStagedFiles } from "../git/index";
+import { detectLanguages } from "../language/detect";
+import type { LanguageId } from "../language/profile";
+import { getProfile } from "../language/profile";
 import { type AIReviewResult, runAIReview } from "./ai-review";
 import { runCoverage } from "./coverage";
 import type { DetectedTool } from "./detect";
@@ -59,6 +62,7 @@ export interface PipelineOptions {
 	deep?: boolean; // NEW — triggers standard-tier AI review
 	cwd?: string;
 	mainaDir?: string;
+	languages?: string[]; // override language detection
 }
 
 // ─── Tool Runner Helpers ──────────────────────────────────────────────────
@@ -117,7 +121,11 @@ export async function runPipeline(
 	}
 
 	// ── Step 2: Syntax guard (MUST run first) ─────────────────────────────
-	const syntaxResult = await syntaxGuard(files, cwd);
+	// Detect languages or use provided override
+	const languages = options?.languages ?? detectLanguages(cwd);
+	const primaryLang = (languages[0] ?? "typescript") as LanguageId;
+	const profile = getProfile(primaryLang);
+	const syntaxResult = await syntaxGuard(files, cwd, profile);
 
 	if (!syntaxResult.ok) {
 		return {
