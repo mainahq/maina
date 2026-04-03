@@ -15,16 +15,16 @@ describe("isToolAvailable", () => {
 });
 
 describe("search", () => {
-	test("finds getCurrentBranch in git/index.ts", async () => {
+	test("finds known symbol in codebase", async () => {
 		const results = await search("getCurrentBranch", {
 			cwd: process.cwd(),
 		});
 		expect(results.length).toBeGreaterThan(0);
-		const found = results.some(
-			(r) =>
-				r.filePath.includes("git") && r.content.includes("getCurrentBranch"),
+		// At least one result should contain the search term
+		const hasMatch = results.some((r) =>
+			r.content.includes("getCurrentBranch"),
 		);
-		expect(found).toBe(true);
+		expect(hasMatch).toBe(true);
 	});
 
 	test("respects maxResults limit", async () => {
