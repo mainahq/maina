@@ -88,6 +88,63 @@ function parsePlainOutput(output: string): SearchResult[] {
 }
 
 /**
+ * Parse Zoekt search output into SearchResult[].
+ * Zoekt outputs in format: filePath:lineNum:content
+ * Similar to grep/rg plain output but may include header lines.
+ */
+export function parseZoektOutput(output: string): SearchResult[] {
+	const results: SearchResult[] = [];
+	const lines = output.split("\n");
+	for (const line of lines) {
+		if (!line.trim()) continue;
+		// Skip Zoekt header lines (e.g., "Repository: name")
+		if (!line.includes(":") || line.startsWith("Repository:")) continue;
+		const firstColon = line.indexOf(":");
+		if (firstColon === -1) continue;
+		const afterFirst = line.indexOf(":", firstColon + 1);
+		if (afterFirst === -1) continue;
+		const filePath = line.slice(0, firstColon);
+		const lineNum = Number.parseInt(line.slice(firstColon + 1, afterFirst), 10);
+		const content = line.slice(afterFirst + 1);
+		if (filePath && !Number.isNaN(lineNum) && lineNum > 0) {
+			results.push({ filePath, line: lineNum, content, matchLength: 0 });
+		}
+	}
+	return results;
+}
+
+/**
+ * Search using Zoekt (Google's code search).
+ * Zoekt provides fast indexed search across the entire repo.
+ * Falls back gracefully if zoekt is not available.
+ */
+export async function searchWithZoekt(
+	query: string,
+	options: RetrievalOptions,
+): Promise<SearchResult[]> {
+	const cwd = options.cwd ?? process.cwd();
+	const maxResults = options.maxResults ?? 20;
+
+	const zoektAvailable = await isToolAvailable("zoekt");
+	if (!zoektAvailable) {
+		return [];
+	}
+
+	try {
+		const proc = Bun.spawn(["zoekt", "-n", String(maxResults), query], {
+			cwd,
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		const output = await new Response(proc.stdout).text();
+		await proc.exited;
+		return parseZoektOutput(output);
+	} catch {
+		return [];
+	}
+}
+
+/**
  * Search using ripgrep (rg). Uses --json format if available.
  * Respects .gitignore. Excludes node_modules, dist, .git.
  */
@@ -218,11 +275,17 @@ export async function search(
 	let results: SearchResult[] = [];
 
 	try {
-		const rgAvailable = await isToolAvailable("rg");
-		if (rgAvailable) {
-			results = await searchWithRipgrep(query, options);
+		// Try Zoekt first (indexed, fastest), then rg, then grep
+		const zoektResults = await searchWithZoekt(query, options);
+		if (zoektResults.length > 0) {
+			results = zoektResults;
 		} else {
-			results = await searchWithGrep(query, options);
+			const rgAvailable = await isToolAvailable("rg");
+			if (rgAvailable) {
+				results = await searchWithRipgrep(query, options);
+			} else {
+				results = await searchWithGrep(query, options);
+			}
 		}
 	} catch {
 		return [];
