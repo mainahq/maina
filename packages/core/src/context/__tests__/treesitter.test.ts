@@ -190,7 +190,7 @@ describe("extractEntities", () => {
 
 describe("parseFile", () => {
 	test("reads an actual TS file and returns imports/exports/entities", async () => {
-		const filePath = "/Users/Bikash/try/maina/packages/core/src/git/index.ts";
+		const filePath = `${process.cwd()}/packages/core/src/git/index.ts`;
 		const result = await parseFile(filePath);
 
 		expect(result).toHaveProperty("imports");
