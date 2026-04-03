@@ -1,5 +1,6 @@
 import { getFeedbackDb } from "../db/index";
 import { recordOutcome } from "../prompts/engine";
+import { compressReview, storeCompressedReview } from "./compress";
 
 export interface FeedbackRecord {
 	promptHash: string;
@@ -63,4 +64,29 @@ export function getFeedbackSummary(
 		rejected,
 		acceptRate: total > 0 ? accepted / total : 0,
 	};
+}
+
+/**
+ * Record feedback and, if the review was accepted, compress and store
+ * it as an episodic entry for future context.
+ */
+export function recordFeedbackWithCompression(
+	mainaDir: string,
+	record: FeedbackRecord & { aiOutput?: string; diff?: string },
+): void {
+	// Record the feedback
+	recordFeedback(mainaDir, record);
+
+	// If accepted review, compress and store as episodic
+	if (record.accepted && record.task === "review" && record.aiOutput) {
+		const compressed = compressReview({
+			diff: record.diff ?? "",
+			aiOutput: record.aiOutput,
+			task: record.task,
+			accepted: true,
+		});
+		if (compressed) {
+			storeCompressedReview(mainaDir, compressed, record.task);
+		}
+	}
 }

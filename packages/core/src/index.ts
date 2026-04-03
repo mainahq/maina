@@ -81,7 +81,12 @@ export {
 	type FeedbackRecord,
 	getFeedbackSummary,
 	recordFeedback,
+	recordFeedbackWithCompression,
 } from "./feedback/collector";
+export {
+	compressReview,
+	storeCompressedReview,
+} from "./feedback/compress";
 export {
 	acknowledgeFinding,
 	dismissFinding,
@@ -129,12 +134,14 @@ export {
 	recordOutcome,
 } from "./prompts/engine";
 export {
+	type ABResolution,
 	abTest,
 	analyseFeedback,
 	type CandidatePrompt,
 	createCandidate,
 	type FeedbackAnalysis,
 	promote,
+	resolveABTests,
 	retire,
 } from "./prompts/evolution";
 // Comprehensive Review (Superpowers-style)

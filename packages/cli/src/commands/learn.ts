@@ -1,6 +1,11 @@
 import { join } from "node:path";
 import { confirm, intro, log, outro, select, spinner } from "@clack/prompts";
-import { analyseFeedback, createCandidate, type PromptTask } from "@maina/core";
+import {
+	analyseFeedback,
+	createCandidate,
+	type PromptTask,
+	resolveABTests,
+} from "@maina/core";
 import { Command } from "commander";
 
 const TASKS: PromptTask[] = [
@@ -52,6 +57,25 @@ export function learnCommand(): Command {
 			});
 
 			log.message([header, separator, ...rows].join("\n"));
+
+			// Resolve active A/B tests
+			const resolutions = resolveABTests(mainaDir);
+			if (resolutions.length > 0) {
+				log.step("A/B Test Results:");
+				for (const r of resolutions) {
+					const rateInfo =
+						r.candidateAcceptRate !== undefined
+							? ` (candidate: ${(r.candidateAcceptRate * 100).toFixed(1)}%${r.incumbentAcceptRate !== undefined ? `, incumbent: ${(r.incumbentAcceptRate * 100).toFixed(1)}%` : ""})`
+							: "";
+					if (r.action === "promoted") {
+						log.success(`  ${r.task}: PROMOTED${rateInfo} — ${r.reason}`);
+					} else if (r.action === "retired") {
+						log.warning(`  ${r.task}: RETIRED${rateInfo} — ${r.reason}`);
+					} else {
+						log.info(`  ${r.task}: continuing${rateInfo} — ${r.reason}`);
+					}
+				}
+			}
 
 			// Find tasks that need improvement and have enough data
 			const improvable = analyses.filter(
