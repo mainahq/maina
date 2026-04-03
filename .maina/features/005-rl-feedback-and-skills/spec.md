@@ -1,45 +1,49 @@
-# Feature: [Name]
+# Feature: RL Feedback Loop + Skills Package
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
+AI-generated outputs (reviews, commit messages, explanations) have no feedback mechanism. We can't tell if prompts are improving or degrading. And maina's verification workflow can't be used by other AI agents (Cursor, Codex) without the CLI installed.
 
 ## Target User
 
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
+- Primary: Developer using maina who wants prompts to get smarter over time based on their accept/reject behavior
+- Secondary: AI agent (Claude Code, Cursor, Codex) that needs maina's workflow without installing the CLI
 
 ## User Stories
 
-- As a [role], I want [capability] so that [benefit].
+- As a developer, I want every AI output to ask me if it was helpful so prompts improve over time
+- As a developer, I want `maina learn` to propose better prompts when accept rates drop
+- As a developer, I want accepted reviews to become few-shot examples for future reviews
+- As a Cursor user, I want to drop a SKILL.md file and get maina's verification workflow
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [ ] Every tryAIGenerate call records prompt hash, task, accepted/rejected, and optional modification to feedback.db
+- [ ] Per-rule false positive tracking: when a verification finding is dismissed, record it in preferences.json to reduce noise
+- [ ] `maina learn` proposes improved prompts via createCandidate when accept rate drops below 60%
+- [ ] Accepted AI reviews are compressed and stored as episodic few-shot examples for future context
+- [ ] Skills package ships with SKILL.md files for: verification-workflow, context-generation, plan-writing, code-review, tdd
+- [ ] Skills use progressive disclosure: metadata under 100 tokens, full content under 5k tokens
+- [ ] Skills work cross-platform: Claude Code, Cursor, Codex, Gemini CLI
 
 ## Scope
 
 ### In Scope
 
-- [NEEDS CLARIFICATION] What this feature does.
+- Feedback collection wired into tryAIGenerate and commit flow
+- Preference learning from dismissed findings
+- Episodic compression of accepted reviews
+- Skills SKILL.md files in packages/skills/
 
 ### Out of Scope
 
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
+- Online learning (real-time prompt updates) — batch only via `maina learn`
+- Custom model fine-tuning
+- Skills marketplace or registry
 
 ## Design Decisions
 
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- Feedback is append-only to feedback.db — never delete, always accumulate
+- Preferences.json is a simple JSON file, not a DB — easy to edit manually
+- Skills use markdown with frontmatter — works in any tool that reads .md files
+- A/B testing uses 80/20 split: 80% new candidate, 20% incumbent
