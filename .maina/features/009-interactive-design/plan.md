@@ -49,28 +49,28 @@ TDD: every implementation task must have a preceding test task.
 
 ### Part B: Interactive Spec Questions
 
-- [ ] Task 1: Create `spec-questions.md` prompt template
-- [ ] Task 2: Write failing tests for `generateSpecQuestions()`
-- [ ] Task 3: Implement `generateSpecQuestions()` in `core/ai/spec-questions.ts`
-- [ ] Task 4: Write failing tests for interactive spec flow in `spec.test.ts`
-- [ ] Task 5: Add question phase to `specAction()` — ask questions, append to spec.md
-- [ ] Task 6: Add `--no-interactive` flag to spec command
-- [ ] Task 7: Update MCP `suggestTests` to include questions
+- [ ] Task 1: Create `spec-questions.md` prompt template for clarifying questions (AC-6)
+- [ ] Task 2: Write failing tests for `generateSpecQuestions()` — clarifying questions from plan (AC-1, AC-6)
+- [ ] Task 3: Implement `generateSpecQuestions()` in `core/ai/spec-questions.ts` — derive questions from plan content (AC-1, AC-6)
+- [ ] Task 4: Write failing tests for spec clarifying questions flow, --no-interactive skip, answers recorded in Clarifications (AC-1, AC-2, AC-7)
+- [ ] Task 5: Add question phase to `specAction()` — ask clarifying questions, record answers in spec.md Clarifications (AC-1, AC-7)
+- [ ] Task 6: Add `--no-interactive` flag to spec command — skip questions, preserve current behavior (AC-2)
+- [ ] Task 7: Update MCP `suggestTests` to include questions when ambiguities detected (AC-5)
 
 ### Part C: Multi-Approach Design
 
-- [ ] Task 8: Create `design-approaches.md` prompt template
-- [ ] Task 9: Write failing tests for `generateDesignApproaches()`
-- [ ] Task 10: Implement `generateDesignApproaches()` in `core/ai/design-approaches.ts`
-- [ ] Task 11: Write failing tests for interactive design flow in `design.test.ts`
-- [ ] Task 12: Add approach phase to `designAction()` — propose, select, record in ADR
-- [ ] Task 13: Add `--no-interactive` flag to design command
+- [ ] Task 8: Create `design-approaches.md` prompt template for design approaches with tradeoffs (AC-3)
+- [ ] Task 9: Write failing tests for `generateDesignApproaches()` — propose approaches with pros/cons (AC-3, AC-8)
+- [ ] Task 10: Implement `generateDesignApproaches()` in `core/ai/design-approaches.ts` — approaches with recommendation (AC-3)
+- [ ] Task 11: Write failing tests for design approaches with pros/cons, --no-interactive skip, selection recorded in ADR Alternatives Considered (AC-3, AC-4, AC-8)
+- [ ] Task 12: Add approach phase to `designAction()` — propose approaches, select, record in ADR Alternatives Considered (AC-3, AC-8)
+- [ ] Task 13: Add `--no-interactive` flag to design command — skip proposals, preserve current behavior (AC-4)
 
 ### Integration
 
-- [ ] Task 14: Export new functions from `packages/core/src/index.ts`
-- [ ] Task 15: Run `maina verify --all`, fix any findings
-- [ ] Task 16: Run `maina analyze` to verify spec-plan consistency
+- [ ] Task 14: Export clarifying questions and design approaches functions for spec and design commands (AC-1, AC-3)
+- [ ] Task 15: Verify spec quality score improves — run full verification, fix findings (AC-9)
+- [ ] Task 16: Verify spec quality score improves above 67/100 baseline — run `maina analyze` for consistency (AC-9)
 
 ## Failure Modes
 

@@ -2,10 +2,10 @@
 
 ## Problem Statement
 
-`maina spec` generates test stubs mechanically from plan.md — it doesn't explore requirements or surface ambiguity before implementation. `maina design` creates ADRs but doesn't help the user think through approaches. When building UI-heavy features (like the docs landing page), we had to use Superpowers brainstorming skill to iterate on design, then manually translate that into maina artifacts. This gap causes:
+The spec command generates test stubs mechanically without exploring requirements or surfacing ambiguity first. The design command creates ADRs but doesn't help the user think through alternative approaches. This forces developers to iterate on design outside of maina, then manually translate decisions back into artifacts. This gap causes:
 
-1. Specs that miss edge cases because requirements weren't explored through questions
-2. Designs that pick the first approach without considering alternatives
+1. Specs that miss edge cases because requirements weren't explored through clarifying questions
+2. Designs that pick the first approach without considering alternatives with tradeoffs
 3. No feedback loop between design exploration and spec/plan artifacts
 
 ## Target User
@@ -21,15 +21,15 @@
 
 ## Success Criteria
 
-- [ ] `maina spec` in interactive mode asks 3-5 clarifying questions derived from plan.md before generating stubs
-- [ ] `maina spec --no-interactive` skips questions and generates stubs directly (current behavior preserved)
-- [ ] `maina design` proposes 2-3 approaches with pros/cons/recommendation before writing the ADR
-- [ ] `maina design --no-interactive` skips proposals and writes ADR directly (current behavior preserved)
-- [ ] MCP `suggestTests` tool returns questions as part of its response when ambiguities are detected
-- [ ] Questions are derived from actual plan.md content, not generic templates
-- [ ] User answers are recorded in spec.md under a "Clarifications" section
-- [ ] Approach selection is recorded in the ADR under "Alternatives Considered"
-- [ ] Spec quality score improves (baseline: 67/100 average)
+- [ ] AC-1: `maina spec` in interactive mode asks 3-5 clarifying questions derived from plan.md before generating stubs
+- [ ] AC-2: `maina spec --no-interactive` skips questions and generates stubs directly (current behavior preserved)
+- [ ] AC-3: `maina design` proposes 2-3 approaches with pros/cons/recommendation before writing the ADR
+- [ ] AC-4: `maina design --no-interactive` skips proposals and writes ADR directly (current behavior preserved)
+- [ ] AC-5: MCP `suggestTests` tool returns questions as part of its response when ambiguities are detected
+- [ ] AC-6: Questions are derived from actual plan.md content, not generic templates
+- [ ] AC-7: User answers are recorded in spec.md under a "Clarifications" section
+- [ ] AC-8: Approach selection is recorded in the ADR under "Alternatives Considered"
+- [ ] AC-9: Spec quality score improves (baseline: 67/100 average)
 
 ## Scope
 

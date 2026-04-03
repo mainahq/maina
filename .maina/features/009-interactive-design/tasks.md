@@ -4,28 +4,28 @@
 
 ### Part B: Interactive Spec Questions
 
-- [ ] Task 1: Create spec-questions.md prompt template
-- [ ] Task 2: Write failing tests for generateSpecQuestions()
-- [ ] Task 3: Implement generateSpecQuestions()
-- [ ] Task 4: Write failing tests for interactive spec flow
-- [ ] Task 5: Add question phase to specAction()
-- [ ] Task 6: Add --no-interactive flag to spec command
-- [ ] Task 7: Update MCP suggestTests to include questions
+- [ ] Task 1: Create spec-questions.md prompt template for clarifying questions (AC-6)
+- [ ] Task 2: Write failing tests for generateSpecQuestions() — clarifying questions from plan (AC-1, AC-6)
+- [ ] Task 3: Implement generateSpecQuestions() — derive questions from plan content (AC-1, AC-6)
+- [ ] Task 4: Write failing tests for spec clarifying questions flow, --no-interactive skip, answers recorded in Clarifications (AC-1, AC-2, AC-7)
+- [ ] Task 5: Add question phase to specAction() — ask questions, record answers in Clarifications (AC-1, AC-7)
+- [ ] Task 6: Add --no-interactive flag to spec command — skip questions, preserve current behavior (AC-2)
+- [ ] Task 7: Update MCP suggestTests to include questions when ambiguities detected (AC-5)
 
 ### Part C: Multi-Approach Design
 
-- [ ] Task 8: Create design-approaches.md prompt template
-- [ ] Task 9: Write failing tests for generateDesignApproaches()
-- [ ] Task 10: Implement generateDesignApproaches()
-- [ ] Task 11: Write failing tests for interactive design flow
-- [ ] Task 12: Add approach phase to designAction()
-- [ ] Task 13: Add --no-interactive flag to design command
+- [ ] Task 8: Create design-approaches.md prompt template for approaches with tradeoffs (AC-3)
+- [ ] Task 9: Write failing tests for generateDesignApproaches() — propose approaches with pros/cons (AC-3, AC-8)
+- [ ] Task 10: Implement generateDesignApproaches() — approaches with recommendation (AC-3)
+- [ ] Task 11: Write failing tests for design approaches with pros/cons, --no-interactive skip, selection recorded in ADR Alternatives Considered (AC-3, AC-4, AC-8)
+- [ ] Task 12: Add approach phase to designAction() — propose approaches, record in ADR Alternatives Considered (AC-3, AC-8)
+- [ ] Task 13: Add --no-interactive flag to design command — skip proposals, preserve current behavior (AC-4)
 
 ### Integration
 
-- [ ] Task 14: Export new functions from core/index.ts
-- [ ] Task 15: Run maina verify --all, fix findings
-- [ ] Task 16: Run maina analyze, verify consistency
+- [ ] Task 14: Export clarifying questions and design approaches functions for spec and design commands (AC-1, AC-3)
+- [ ] Task 15: Verify spec quality score improves — run full verification, fix findings (AC-9)
+- [ ] Task 16: Verify spec quality score improves above 67/100 baseline — run analyze for consistency (AC-9)
 
 ## Dependencies
 
