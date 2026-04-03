@@ -13,6 +13,7 @@
   "dependencies": {
     "@clack/prompts": "^1.2.0",
     "@maina/core": "workspace:*",
+    "@maina/mcp": "workspace:*",
     "commander": "^14.0.3"
   }
 }
