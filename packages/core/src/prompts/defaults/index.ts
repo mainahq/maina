@@ -9,7 +9,9 @@ export type PromptTask =
 	| "design"
 	| "context"
 	| "spec-questions"
-	| "design-approaches";
+	| "design-approaches"
+	| "ai-review"
+	| "design-hld-lld";
 
 const FALLBACK_TEMPLATE = `You are a helpful AI assistant completing the "{{task}}" task.
 
