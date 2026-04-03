@@ -1,0 +1,35 @@
+{
+  "reconstructed": true,
+  "source": "stats.db commit_snapshots, reconstructed 2026-04-03",
+  "stats": {
+    "totalCommits": 4,
+    "branches": ["feature/004-mcp-server", "master"],
+    "latest": {
+      "timestamp": "2026-04-03T11:23:39.783Z",
+      "branch": "master",
+      "commitHash": "138d311",
+      "verifyDurationMs": 8714,
+      "contextTokens": 614,
+      "cacheHits": 0,
+      "cacheMisses": 0,
+      "findingsTotal": 0,
+      "toolsRun": 4,
+      "syntaxPassed": true,
+      "pipelinePassed": true
+    },
+    "averages": {
+      "verifyDurationMs": 8753,
+      "contextTokens": 420.5,
+      "cacheHitRate": 0,
+      "findingsPerCommit": 5.5
+    }
+  },
+  "trends": {
+    "verifyDuration": "stable",
+    "contextTokens": "up",
+    "cacheHitRate": "stable",
+    "findingsPerCommit": "spike",
+    "note": "Context tokens jumped 3x (127→421) as MCP server added 8 tools. Findings spiked to 22 total (5.5/commit) — mostly from new MCP server code triggering slop detector on larger diffs."
+  },
+  "sprintScope": "MCP server with 8 tools (getContext, getConventions, verify, checkSlop, reviewCode, explainModule, suggestTests, analyzeFeature). IDE integration for Claude Code, Cursor."
+}

@@ -59,19 +59,31 @@ Switched to maina tools for verification, review, PR creation, and learning.
 | **Context awareness** | CLAUDE.md + conversation only | 4-layer context (5,828 tokens, 291 entities, 74 episodic) | Maina |
 | **Learning** | None — same mistakes repeat | Prompts improved from session, A/B testable | Maina |
 
-## Sprint-over-Sprint Trends
+## Sprint-over-Sprint Trends (Complete)
 
-| Metric | Sprint 5 | Sprint 8 | Sprint 9 | Sprint 10 |
-|--------|----------|----------|----------|-----------|
-| Commits tracked | 9 | 25 | 28 | 28+ |
-| Avg verify (ms) | 8,474 | 8,776 | 8,830 | 8,830 |
-| Avg context tokens | 21 | 310 | 340 | 5,828 |
-| Findings/commit | 0 | 2.5 | 2.2 | 2.2 |
-| Semantic entries | — | — | — | 291 |
-| Episodic entries | — | — | — | 74 |
-| Cache L2 entries | — | — | 70 | 283 |
-| Tests | — | — | 802 | 803 |
-| Custom prompts | 0 | 0 | 0 | 2 (review, pr) |
+Data reconstructed from stats.db (28 snapshots) for missing Sprints 6-7.
+
+| Metric | Sprint 5 | Sprint 6 | Sprint 7 | Sprint 8 | Sprint 9 | Sprint 10 |
+|--------|----------|----------|----------|----------|----------|-----------|
+| Commits | 3 | 15 | 4 | 3 | 3 | 29 |
+| Cumulative commits | 9 | 18 | 22 | 25 | 28 | 28+ |
+| Avg verify (ms) | 8,443 | 8,785 | 8,753 | 8,776 | 8,830 | 8,830 |
+| Avg context tokens | 0 | 127 | 421 | 310 | 340 | 5,828 |
+| Findings/commit | 0 | 0.5 | 5.5 | 2.5 | 2.2 | 2.2 |
+| Total findings | 0 | 7 | 22 | — | — | 44 (--all) |
+| Cache L2 entries | — | — | — | — | 70 | 283 |
+| Semantic entries | — | — | — | — | — | 291 |
+| Episodic entries | — | — | — | — | — | 74 |
+| Tests | — | — | — | — | 802 | 803 |
+| Custom prompts | 0 | 0 | 0 | 0 | 0 | 2 |
+
+**Key inflection points:**
+- **Sprint 5:** First tracked commits. Context tokens at 0 (semantic index not built yet).
+- **Sprint 6:** First findings detected (7 total). Context tokens growing as semantic index builds.
+- **Sprint 7:** Findings spike to 5.5/commit — MCP server code triggered slop detector on larger diffs. Context tokens 3x jump (127→421) as 8 MCP tools added.
+- **Sprint 8:** Findings normalize to 2.5/commit. Feedback loop and A/B testing introduced.
+- **Sprint 9:** Spec quality scoring added. 70 cache entries but 0% hit rate.
+- **Sprint 10:** Context explodes to 5,828 tokens (291 semantic entries). 283 cache entries. 2 custom prompts from RL loop. Host delegation bug found and fixed.
 
 ## Prompt Evolution (RL Loop)
 

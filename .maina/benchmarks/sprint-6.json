@@ -1,0 +1,35 @@
+{
+  "reconstructed": true,
+  "source": "stats.db commit_snapshots, reconstructed 2026-04-03",
+  "stats": {
+    "totalCommits": 15,
+    "branches": ["feature/002-ticket", "feature/003-pr-and-init", "master"],
+    "latest": {
+      "timestamp": "2026-04-03T10:43:49.783Z",
+      "branch": "master",
+      "commitHash": "d40331d",
+      "verifyDurationMs": 9110,
+      "contextTokens": 154,
+      "cacheHits": 0,
+      "cacheMisses": 0,
+      "findingsTotal": 1,
+      "toolsRun": 4,
+      "syntaxPassed": true,
+      "pipelinePassed": true
+    },
+    "averages": {
+      "verifyDurationMs": 8785,
+      "contextTokens": 126.5,
+      "cacheHitRate": 0,
+      "findingsPerCommit": 0.5
+    }
+  },
+  "trends": {
+    "verifyDuration": "stable",
+    "contextTokens": "up",
+    "cacheHitRate": "stable",
+    "findingsPerCommit": "up",
+    "note": "First sprint with findings — 7 total across 15 commits. Context tokens growing as semantic index builds."
+  },
+  "sprintScope": "Ticket creation (maina ticket), PR workflow (maina pr), init detection (maina init). Two-stage review introduced."
+}

@@ -1,0 +1,52 @@
+{
+  "stats": {
+    "totalCommits": 28,
+    "sprintCommits": 29,
+    "latest": {
+      "timestamp": "2026-04-03T15:49:00.000Z",
+      "branch": "master",
+      "commitHash": "e0c5689",
+      "verifyDurationMs": 8830,
+      "contextTokens": 5828,
+      "cacheHits": 0,
+      "cacheMisses": 0,
+      "findingsTotal": 44,
+      "toolsRun": 1,
+      "syntaxPassed": true,
+      "pipelinePassed": false
+    },
+    "averages": {
+      "verifyDurationMs": 8830,
+      "contextTokens": 340,
+      "cacheHitRate": 0,
+      "findingsPerCommit": 2.2
+    }
+  },
+  "context": {
+    "totalTokens": 5828,
+    "layers": {
+      "working": { "tokens": 114, "entries": 14 },
+      "semantic": { "tokens": 3123, "entries": 291 },
+      "episodic": { "tokens": 1951, "entries": 74 },
+      "retrieval": { "tokens": 640, "entries": 20 }
+    }
+  },
+  "cache": {
+    "l2Entries": 283,
+    "storageKb": 220,
+    "hitRate": 0,
+    "note": "0% hit rate due to host delegation bug (fixed this sprint). Cache entries exist but were never queried."
+  },
+  "prompts": {
+    "customOverrides": 2,
+    "tasks": {
+      "review": { "version": "v2", "checks": 11, "acceptRate": "44% (pre-v2)" },
+      "pr": { "version": "v1", "new": true }
+    }
+  },
+  "bugsFixed": 10,
+  "prsCreated": 2,
+  "ciStatus": "green",
+  "tests": 803,
+  "sprintScope": "Docs site (Astro Starlight + Tailwind), landing page, GitHub Actions (deploy + release), npm publish prep, PR summary AI, improved prompts, host delegation fix."
+}
