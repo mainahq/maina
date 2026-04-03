@@ -7,6 +7,7 @@
 
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { tryAIGenerate } from "../ai/try-generate";
 import type { Result } from "../db/index";
 import { toKebabCase } from "../utils";
 
@@ -249,5 +250,37 @@ export async function listAdrs(adrDir: string): Promise<Result<AdrSummary[]>> {
 			ok: false,
 			error: `Failed to list ADRs: ${message}`,
 		};
+	}
+}
+
+/**
+ * Generate HLD/LLD sections from a spec using AI (standard tier).
+ * Returns the generated markdown content, or null if AI is unavailable.
+ */
+export async function generateHldLld(
+	specContent: string,
+	mainaDir: string,
+): Promise<Result<string | null>> {
+	try {
+		const variables: Record<string, string> = {
+			spec: specContent,
+			conventions: "",
+		};
+
+		const aiResult = await tryAIGenerate(
+			"design-hld-lld",
+			mainaDir,
+			variables,
+			`Generate HLD and LLD sections for this spec:\n\n${specContent}`,
+		);
+
+		if (!aiResult.text || aiResult.hostDelegation) {
+			return { ok: true, value: null };
+		}
+
+		return { ok: true, value: aiResult.text };
+	} catch (e) {
+		const message = e instanceof Error ? e.message : String(e);
+		return { ok: false, error: `HLD/LLD generation failed: ${message}` };
 	}
 }

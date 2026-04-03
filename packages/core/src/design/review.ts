@@ -43,6 +43,22 @@ export interface ReviewResult {
 
 const REQUIRED_SECTIONS = ["Status", "Context", "Decision", "Consequences"];
 
+const HLD_SECTIONS = [
+	"System Overview",
+	"Component Boundaries",
+	"Data Flow",
+	"External Dependencies",
+];
+
+const LLD_SECTIONS = [
+	"Interfaces & Types",
+	"Function Signatures",
+	"DB Schema Changes",
+	"Sequence of Operations",
+	"Error Handling",
+	"Edge Cases",
+];
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
@@ -235,6 +251,52 @@ export function reviewDesign(
 				severity: "warning",
 				message: `Contains ${clarificationCount} [NEEDS CLARIFICATION] marker${clarificationCount > 1 ? "s" : ""} — ADR is incomplete`,
 			});
+		}
+
+		// Check HLD sections (warning, not error — these are optional for simple ADRs)
+		const hasHldHeader = /^##\s+High-Level Design/im.test(content);
+		if (!hasHldHeader) {
+			findings.push({
+				severity: "warning",
+				message:
+					"Missing High-Level Design section — consider adding for complex decisions",
+				section: "High-Level Design",
+			});
+		} else {
+			for (const sub of HLD_SECTIONS) {
+				const escaped = sub.replace(/[&]/g, "\\$&");
+				const pattern = new RegExp(`^###\\s+${escaped}\\s*$`, "im");
+				if (!pattern.test(content)) {
+					findings.push({
+						severity: "warning",
+						message: `High-Level Design missing subsection: "${sub}"`,
+						section: `High-Level Design / ${sub}`,
+					});
+				}
+			}
+		}
+
+		// Check LLD sections
+		const hasLldHeader = /^##\s+Low-Level Design/im.test(content);
+		if (!hasLldHeader) {
+			findings.push({
+				severity: "warning",
+				message:
+					"Missing Low-Level Design section — consider adding for complex decisions",
+				section: "Low-Level Design",
+			});
+		} else {
+			for (const sub of LLD_SECTIONS) {
+				const escaped = sub.replace(/[&]/g, "\\$&");
+				const pattern = new RegExp(`^###\\s+${escaped}\\s*$`, "im");
+				if (!pattern.test(content)) {
+					findings.push({
+						severity: "warning",
+						message: `Low-Level Design missing subsection: "${sub}"`,
+						section: `Low-Level Design / ${sub}`,
+					});
+				}
+			}
 		}
 
 		const hasErrors = findings.some((f) => f.severity === "error");
