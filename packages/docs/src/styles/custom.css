@@ -1,0 +1,15 @@
+:root {
+  --sl-color-accent-low: #fff7ed;
+  --sl-color-accent: #f97316;
+  --sl-color-accent-high: #9a3412;
+  --sl-color-white: #fafaf9;
+  --sl-color-gray-1: #e7e5e4;
+  --sl-color-gray-2: #d6d3d1;
+  --sl-color-gray-3: #a8a29e;
+  --sl-color-gray-4: #78716c;
+  --sl-color-gray-5: #44403c;
+  --sl-color-gray-6: #1c1917;
+  --sl-color-black: #0c0a09;
+  --sl-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --sl-font-mono: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+}
