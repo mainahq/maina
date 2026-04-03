@@ -16,6 +16,7 @@ export interface VerifyActionOptions {
 	fix?: boolean;
 	json?: boolean;
 	base?: string;
+	deep?: boolean;
 	cwd?: string;
 }
 
@@ -94,11 +95,13 @@ export async function verifyAction(
 		files?: string[];
 		baseBranch: string;
 		diffOnly: boolean;
+		deep: boolean;
 		cwd: string;
 		mainaDir: string;
 	} = {
 		baseBranch,
 		diffOnly: !options.all,
+		deep: options.deep ?? false,
 		cwd,
 		mainaDir,
 	};
@@ -202,6 +205,7 @@ export function verifyCommand(): Command {
 		.option("--fix", "Show AI fix suggestions")
 		.option("--json", "Output JSON for CI")
 		.option("--base <ref>", "Base branch for diff", "main")
+		.option("--deep", "Run standard-tier AI semantic review")
 		.action(async (options) => {
 			intro("maina verify");
 
@@ -213,6 +217,7 @@ export function verifyCommand(): Command {
 				fix: options.fix,
 				json: options.json,
 				base: options.base,
+				deep: options.deep,
 			});
 
 			s.stop("Pipeline complete.");
