@@ -11,6 +11,11 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Result } from "../db/index";
+import type { LanguageProfile } from "../language/profile";
+import { TYPESCRIPT_PROFILE } from "../language/profile";
+import { parseClippyOutput } from "./linters/clippy";
+import { parseGoVetOutput } from "./linters/go-vet";
+import { parseRuffOutput } from "./linters/ruff";
 
 export interface SyntaxDiagnostic {
 	file: string;
@@ -115,12 +120,19 @@ export function parseBiomeOutput(output: string): SyntaxDiagnostic[] {
 export async function syntaxGuard(
 	files: string[],
 	cwd?: string,
+	profile?: LanguageProfile,
 ): Promise<SyntaxGuardResult> {
 	if (files.length === 0) {
 		return { ok: true, value: undefined };
 	}
 
+	const lang = profile ?? TYPESCRIPT_PROFILE;
 	const workDir = cwd ?? process.cwd();
+
+	// Route to language-specific linter for non-TypeScript
+	if (lang.id !== "typescript") {
+		return runLanguageLinter(files, workDir, lang);
+	}
 	const biomeBin = findBiomeBinary(workDir);
 
 	try {
@@ -172,6 +184,65 @@ export async function syntaxGuard(
 					line: 0,
 					column: 0,
 					message: `Failed to run biome: ${message}`,
+					severity: "error",
+				},
+			],
+		};
+	}
+}
+
+/**
+ * Run a language-specific linter and return structured diagnostics.
+ * Gracefully handles tool-not-found by returning an error diagnostic.
+ */
+async function runLanguageLinter(
+	files: string[],
+	cwd: string,
+	profile: LanguageProfile,
+): Promise<SyntaxGuardResult> {
+	const args = profile.syntaxArgs(files, cwd);
+
+	try {
+		const proc = Bun.spawn(args, {
+			cwd,
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+
+		const stdout = await new Response(proc.stdout).text();
+		const stderr = await new Response(proc.stderr).text();
+		await proc.exited;
+
+		let diagnostics: SyntaxDiagnostic[] = [];
+
+		switch (profile.id) {
+			case "python":
+				diagnostics = parseRuffOutput(stdout);
+				break;
+			case "go":
+				diagnostics = parseGoVetOutput(stderr);
+				break;
+			case "rust":
+				diagnostics = parseClippyOutput(stdout);
+				break;
+		}
+
+		const errors = diagnostics.filter((d) => d.severity === "error");
+		if (errors.length === 0) {
+			return { ok: true, value: undefined };
+		}
+
+		return { ok: false, error: diagnostics };
+	} catch (e) {
+		const message = e instanceof Error ? e.message : String(e);
+		return {
+			ok: false,
+			error: [
+				{
+					file: "",
+					line: 0,
+					column: 0,
+					message: `Failed to run ${profile.syntaxTool}: ${message}`,
 					severity: "error",
 				},
 			],
