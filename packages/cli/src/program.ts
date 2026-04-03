@@ -10,6 +10,7 @@ import { explainCommand } from "./commands/explain";
 import { learnCommand } from "./commands/learn";
 import { planCommand } from "./commands/plan";
 import { promptCommand } from "./commands/prompt";
+import { reviewDesignCommand } from "./commands/review-design";
 import { specCommand } from "./commands/spec";
 import { statsCommand } from "./commands/stats";
 import { ticketCommand } from "./commands/ticket";
@@ -35,5 +36,6 @@ export function createProgram(): Command {
 	program.addCommand(designCommand());
 	program.addCommand(doctorCommand());
 	program.addCommand(explainCommand());
+	program.addCommand(reviewDesignCommand());
 	return program;
 }

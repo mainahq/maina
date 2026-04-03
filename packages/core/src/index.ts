@@ -23,6 +23,16 @@ export {
 	listAdrs,
 	scaffoldAdr,
 } from "./design/index";
+// Design Review
+export {
+	buildReviewContext,
+	findAdrByNumber,
+	type ReviewContext,
+	type ReviewFinding,
+	type ReviewOptions,
+	type ReviewResult,
+	reviewDesign,
+} from "./design/review";
 // Explain
 export {
 	type DiagramOptions,
