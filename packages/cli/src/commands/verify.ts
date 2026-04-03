@@ -117,16 +117,18 @@ export async function verifyAction(
 	// Syntax errors
 	if (!pipelineResult.syntaxPassed && pipelineResult.syntaxErrors) {
 		result.syntaxErrors = pipelineResult.syntaxErrors;
-		log.error("Syntax check failed:");
-		log.message(formatSyntaxErrors(pipelineResult.syntaxErrors));
+		if (!options.json) {
+			log.error("Syntax check failed:");
+			log.message(formatSyntaxErrors(pipelineResult.syntaxErrors));
+		}
 	}
 
 	// Findings
-	if (pipelineResult.findings.length > 0) {
+	if (!options.json && pipelineResult.findings.length > 0) {
 		log.message(formatFindingsTable(pipelineResult.findings));
 	}
 
-	if (pipelineResult.hiddenCount > 0) {
+	if (!options.json && pipelineResult.hiddenCount > 0) {
 		log.info(
 			`${pipelineResult.hiddenCount} pre-existing issue(s) hidden (diff-only mode).`,
 		);
@@ -140,7 +142,7 @@ export async function verifyAction(
 		});
 		result.fixSuggestions = fixResult.suggestions;
 
-		if (fixResult.suggestions.length > 0) {
+		if (!options.json && fixResult.suggestions.length > 0) {
 			log.step("AI Fix Suggestions:");
 			log.message(formatFixSuggestions(fixResult.suggestions));
 		}
@@ -167,14 +169,16 @@ export async function verifyAction(
 	}
 
 	// ── Step 6: Summary ──────────────────────────────────────────────────
-	if (pipelineResult.passed) {
-		log.success(
-			`Verification passed in ${pipelineResult.duration}ms. ${pipelineResult.tools.length} tool(s) ran.`,
-		);
-	} else {
-		log.error(
-			`Verification failed: ${pipelineResult.findings.length} finding(s).`,
-		);
+	if (!options.json) {
+		if (pipelineResult.passed) {
+			log.success(
+				`Verification passed in ${pipelineResult.duration}ms. ${pipelineResult.tools.length} tool(s) ran.`,
+			);
+		} else {
+			log.error(
+				`Verification failed: ${pipelineResult.findings.length} finding(s).`,
+			);
+		}
 	}
 
 	return result;

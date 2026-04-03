@@ -128,6 +128,13 @@ export async function commitAction(
 
 		if (hookResult.status === "block") {
 			log.error(`Pre-commit hook blocked: ${hookResult.message}`);
+
+			recordOutcome(mainaDir, "commit-gate", {
+				accepted: false,
+				command: "commit",
+				context: `hook blocked: ${hookResult.message}`,
+			});
+
 			return {
 				committed: false,
 				reason: `Pre-commit hook blocked: ${hookResult.message}`,
@@ -223,7 +230,18 @@ export async function commitAction(
 		message = userMessage;
 	}
 
-	// ── Step 5: Git commit ────────────────────────────────────────────────
+	// ── Step 5: Validate commit message format ───────────────────────────
+	if (!options.noVerify) {
+		const commitMsgPattern =
+			/^(feat|fix|refactor|test|docs|chore|ci|perf)(\([a-z0-9-]+\))?!?: .+/;
+		if (!commitMsgPattern.test(message)) {
+			log.warning(
+				"Commit message does not follow conventional format: <type>(<scope>): <description>",
+			);
+		}
+	}
+
+	// ── Step 6: Git commit ────────────────────────────────────────────────
 	const { exitCode, stdout, stderr } = await deps.gitCommit(message, cwd);
 
 	if (exitCode !== 0) {
@@ -233,7 +251,7 @@ export async function commitAction(
 
 	log.success(stdout.trim());
 
-	// ── Step 6: Post-commit hooks (unless --no-verify) ────────────────────
+	// ── Step 7: Post-commit hooks (unless --no-verify) ────────────────────
 	if (!options.noVerify) {
 		const branch = await getCurrentBranch(cwd);
 		const postHookContext = {
@@ -252,7 +270,7 @@ export async function commitAction(
 		}
 	}
 
-	// ── Step 7: Record success in feedback ────────────────────────────────
+	// ── Step 8: Record success in feedback ────────────────────────────────
 	recordOutcome(mainaDir, "commit-gate", {
 		accepted: true,
 		command: "commit",
