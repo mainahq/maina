@@ -47,6 +47,14 @@ export interface ContextOptions {
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 /**
+ * Escape regex metacharacters in a string so it can be safely used
+ * as a literal term inside a ripgrep/grep alternation pattern.
+ */
+function escapeRegex(s: string): string {
+	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
  * Try to read a file as text. Returns empty string on any failure.
  */
 function tryReadFile(filePath: string): string {
@@ -301,7 +309,8 @@ export async function assembleContext(
 				]);
 				const recentFiles = [...new Set([...staged, ...changed])];
 				if (recentFiles.length > 0) {
-					// Extract meaningful terms and join with | for ripgrep alternation
+					// Extract meaningful terms, escape regex metacharacters in each,
+					// then join with | for ripgrep alternation
 					const terms = recentFiles
 						.flatMap(
 							(f) =>
@@ -312,6 +321,7 @@ export async function assembleContext(
 									.split(/[-_.]/) ?? [],
 						)
 						.filter((t) => t.length > 3)
+						.map(escapeRegex)
 						.slice(0, 5);
 					if (terms.length > 0) {
 						query = terms.join("|");

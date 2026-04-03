@@ -2,6 +2,17 @@
   "name": "@maina/core",
   "version": "0.1.0",
   "type": "module",
+  "license": "Apache-2.0",
+  "description": "Maina core engines — Context, Prompt, and Verify for verification-first development",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/maina.git",
+    "directory": "packages/core"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "files": ["src", "package.json"],
   "main": "src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit"

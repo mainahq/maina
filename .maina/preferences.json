@@ -1,0 +1,17 @@
+{
+  "rules": {
+    "slop/console-log": {
+      "ruleId": "slop/console-log",
+      "dismissCount": 18,
+      "totalCount": 28,
+      "falsePositiveRate": 0.6428571428571429
+    },
+    "slop/empty-body": {
+      "ruleId": "slop/empty-body",
+      "dismissCount": 1,
+      "totalCount": 11,
+      "falsePositiveRate": 0.09090909090909091
+    }
+  },
+  "updatedAt": "2026-04-03T11:49:19.773Z"
+}

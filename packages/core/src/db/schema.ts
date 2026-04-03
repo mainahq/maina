@@ -69,6 +69,7 @@ export const commitSnapshots = sqliteTable("commit_snapshots", {
 	toolsRun: integer("tools_run").notNull(),
 	syntaxPassed: integer("syntax_passed", { mode: "boolean" }).notNull(),
 	pipelinePassed: integer("pipeline_passed", { mode: "boolean" }).notNull(),
+	skipped: integer("skipped", { mode: "boolean" }).notNull().default(false),
 });
 
 export const promptVersions = sqliteTable("prompt_versions", {

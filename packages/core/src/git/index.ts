@@ -16,7 +16,8 @@ async function exec(
 			stderr: "pipe",
 		});
 		const output = await new Response(proc.stdout).text();
-		await proc.exited;
+		const exitCode = await proc.exited;
+		if (exitCode !== 0) return "";
 		return output.trim();
 	} catch {
 		return "";

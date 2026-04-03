@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
-import { getPromptStats, loadDefault, type PromptTask } from "@maina/core";
+import { loadDefault, type PromptTask } from "@maina/core";
 import { Command } from "commander";
 
 const TASKS: PromptTask[] = [
@@ -63,10 +63,10 @@ export function promptCommand(): Command {
 			const mainaDir = join(repoRoot, ".maina");
 
 			const s = spinner();
-			s.start("Loading prompt stats…");
+			s.start("Loading prompt info…");
 
-			const stats = getPromptStats(mainaDir);
-			s.stop("Stats loaded.");
+			// TODO(#sprint-10): Wire getPromptStats(mainaDir) once feedback query is fixed
+			s.stop("Loaded.");
 
 			const header = `  ${"Task".padEnd(12)} ${"Usage".padStart(7)}  ${"Accept".padStart(8)}  Override`;
 			const separator = `  ${"─".repeat(12)} ${"─".repeat(7)}  ${"─".repeat(8)}  ${"─".repeat(8)}`;
@@ -76,25 +76,10 @@ export function promptCommand(): Command {
 				const overridePath = join(mainaDir, "prompts", `${task}.md`);
 				const hasOverride = await Bun.file(overridePath).exists();
 
-				// Find stats matching this task's command
-				const taskStats = stats.filter((s) => s.promptHash.startsWith(task));
-				const totalUsage = taskStats.reduce((sum, s) => sum + s.totalUsage, 0);
-				const avgAcceptRate =
-					taskStats.length > 0
-						? taskStats.reduce((sum, s) => sum + s.acceptRate, 0) /
-							taskStats.length
-						: 0;
-
-				// Also check overall stats by command
-				const commandStats = stats.length > 0 ? stats : [];
-				const overallUsage =
-					totalUsage > 0
-						? totalUsage
-						: commandStats.reduce((s, st) => s + st.totalUsage, 0);
-
-				const usageStr = overallUsage > 0 ? String(overallUsage) : "—";
-				const rateStr =
-					avgAcceptRate > 0 ? `${(avgAcceptRate * 100).toFixed(0)}%` : "—";
+				// Stats matching requires feedback table query by command, not prompt hash prefix
+				// TODO(#sprint-10): Fix stats display with proper feedback query
+				const usageStr = "\u2014";
+				const rateStr = "\u2014";
 				const overrideStr = hasOverride ? "yes" : "no";
 
 				rows.push(

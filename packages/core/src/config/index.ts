@@ -169,6 +169,8 @@ export function isHostMode(): boolean {
  *
  * Returns structured prompt data that the host agent can process.
  * The MCP server or skills package uses this to pass context to the host.
+ *
+ * NOTE: Currently unused — retained for MCP/skills host delegation (Sprint 10+).
  */
 export interface HostDelegation {
 	mode: "host";
@@ -179,7 +181,12 @@ export interface HostDelegation {
 
 /**
  * Check if AI should be delegated to host instead of direct API call.
- * True when: running in host mode AND no direct API key available.
+ *
+ * NOTE: In practice this currently returns true only when MAINA_HOST_MODE=true
+ * is set explicitly with no API keys. The common Claude Code scenario
+ * (CLAUDECODE=1 without API keys) triggers isHostMode() but also triggers
+ * this function's delegation. The generate() function handles this by
+ * returning a [HOST_DELEGATION] prompt string.
  */
 export function shouldDelegateToHost(): boolean {
 	if (!isHostMode()) return false;

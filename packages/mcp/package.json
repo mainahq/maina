@@ -2,6 +2,16 @@
   "name": "@maina/mcp",
   "version": "0.1.0",
   "type": "module",
+  "license": "Apache-2.0",
+  "description": "Maina MCP server — Model Context Protocol bridge for AI host agents",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/maina.git",
+    "directory": "packages/mcp"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
