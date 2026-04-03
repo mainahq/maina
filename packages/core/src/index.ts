@@ -6,6 +6,8 @@ export {
 	type CacheStats,
 	createCacheManager,
 } from "./cache/manager";
+// Config
+export { isHostMode } from "./config/index";
 export { calculateTokens } from "./context/budget";
 export {
 	type AssembledContext,
@@ -27,8 +29,10 @@ export {
 } from "./features/checklist";
 export {
 	createFeatureDir,
+	type DesignChoices,
 	getNextFeatureNumber,
 	scaffoldFeature,
+	scaffoldFeatureWithContext,
 } from "./features/numbering";
 // Git
 export {

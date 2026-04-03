@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { DesignChoices } from "../numbering";
 import {
 	createFeatureDir,
 	getNextFeatureNumber,
 	scaffoldFeature,
+	scaffoldFeatureWithContext,
 } from "../numbering";
 
 function makeTmpDir(): string {
@@ -225,5 +227,89 @@ describe("scaffoldFeature", () => {
 		if (!result.ok) {
 			expect(result.error).toContain("does not exist");
 		}
+	});
+});
+
+describe("scaffoldFeatureWithContext", () => {
+	let tmpDir: string;
+
+	beforeEach(() => {
+		tmpDir = makeTmpDir();
+	});
+
+	afterEach(() => {
+		rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	test("creates enriched spec.md with description and tradeoffs", async () => {
+		mkdirSync(tmpDir, { recursive: true });
+		const choices: DesignChoices = {
+			description: "User authentication system with OAuth support",
+			pattern: "service-layer",
+			libraries: ["passport.js", "jsonwebtoken"],
+			tradeoffs: ["Chose simplicity over enterprise features for MVP"],
+			clarifications: [
+				{ question: "Support OAuth?", answer: "Yes, Google and GitHub" },
+			],
+		};
+
+		const result = await scaffoldFeatureWithContext(
+			tmpDir,
+			"user-auth",
+			choices,
+		);
+		expect(result.ok).toBe(true);
+
+		const spec = readFileSync(join(tmpDir, "spec.md"), "utf-8");
+		expect(spec).toContain("User authentication system with OAuth support");
+		expect(spec).toContain("Chose simplicity over enterprise features for MVP");
+		expect(spec).toContain("Support OAuth?");
+		expect(spec).toContain("Yes, Google and GitHub");
+		// Spec should NOT contain implementation details (HOW)
+		expect(spec).not.toContain("service-layer");
+		expect(spec).not.toContain("passport.js");
+	});
+
+	test("creates enriched plan.md with pattern and libraries", async () => {
+		mkdirSync(tmpDir, { recursive: true });
+		const choices: DesignChoices = {
+			pattern: "repository",
+			libraries: ["drizzle", "zod"],
+		};
+
+		const result = await scaffoldFeatureWithContext(
+			tmpDir,
+			"data-layer",
+			choices,
+		);
+		expect(result.ok).toBe(true);
+
+		const plan = readFileSync(join(tmpDir, "plan.md"), "utf-8");
+		expect(plan).toContain("repository");
+		expect(plan).toContain("drizzle");
+		expect(plan).toContain("zod");
+		// Plan should NOT contain WHAT/WHY
+		expect(plan).toContain("HOW only");
+	});
+
+	test("falls back to generic markers when choices are empty", async () => {
+		mkdirSync(tmpDir, { recursive: true });
+		const choices: DesignChoices = {};
+
+		const result = await scaffoldFeatureWithContext(tmpDir, "simple", choices);
+		expect(result.ok).toBe(true);
+
+		const plan = readFileSync(join(tmpDir, "plan.md"), "utf-8");
+		expect(plan).toContain("[NEEDS CLARIFICATION]");
+	});
+
+	test("creates tasks.md with standard template", async () => {
+		mkdirSync(tmpDir, { recursive: true });
+		const choices: DesignChoices = { description: "Test feature" };
+
+		await scaffoldFeatureWithContext(tmpDir, "test", choices);
+
+		const tasks = readFileSync(join(tmpDir, "tasks.md"), "utf-8");
+		expect(tasks).toContain("Task Breakdown");
 	});
 });

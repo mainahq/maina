@@ -1,9 +1,19 @@
 import { join } from "node:path";
-import { intro, log, outro } from "@clack/prompts";
+import {
+	confirm,
+	intro,
+	isCancel,
+	log,
+	outro,
+	select,
+	text,
+} from "@clack/prompts";
 import {
 	createFeatureDir,
+	type DesignChoices,
 	getNextFeatureNumber,
 	scaffoldFeature,
+	scaffoldFeatureWithContext,
 	verifyPlan,
 } from "@maina/core";
 import { Command } from "commander";
@@ -14,6 +24,9 @@ export interface PlanActionOptions {
 	name: string;
 	cwd?: string;
 	noVerify?: boolean;
+	interactive?: boolean;
+	/** Pre-supplied design choices (for testing or programmatic use) */
+	designChoices?: DesignChoices;
 }
 
 export interface PlanActionResult {
@@ -104,6 +117,158 @@ function toKebabCase(input: string): string {
 		.toLowerCase();
 }
 
+// ── Interactive Design Prompts ───────────────────────────────────────────────
+
+/** Architecture patterns users can choose from during planning */
+const ARCHITECTURE_PATTERNS = [
+	{
+		value: "repository",
+		label: "Repository pattern",
+		hint: "Data access abstraction layer",
+	},
+	{
+		value: "service-layer",
+		label: "Service layer",
+		hint: "Business logic in service classes",
+	},
+	{
+		value: "event-driven",
+		label: "Event-driven",
+		hint: "Pub/sub, message queues, reactive",
+	},
+	{
+		value: "pipeline",
+		label: "Pipeline / middleware",
+		hint: "Sequential processing stages",
+	},
+	{
+		value: "plugin",
+		label: "Plugin architecture",
+		hint: "Extensible via hooks/plugins",
+	},
+	{ value: "cqrs", label: "CQRS", hint: "Separate read/write models" },
+	{
+		value: "other",
+		label: "Other / custom",
+		hint: "Describe your own approach",
+	},
+] as const;
+
+/**
+ * Collect design choices interactively from the user.
+ * Returns DesignChoices with all user decisions.
+ */
+export async function collectDesignChoices(
+	featureName: string,
+): Promise<DesignChoices | null> {
+	// 1. Feature description
+	const description = await text({
+		message: `Describe "${featureName}" in 1-2 sentences:`,
+		placeholder: "What does this feature do and why is it needed?",
+	});
+	if (isCancel(description)) return null;
+
+	// 2. Architecture pattern
+	const pattern = await select({
+		message: "Architecture pattern:",
+		options: [...ARCHITECTURE_PATTERNS],
+	});
+	if (isCancel(pattern)) return null;
+
+	let patternName = String(pattern);
+	if (pattern === "other") {
+		const custom = await text({
+			message: "Describe your architecture approach:",
+			placeholder: "e.g., hexagonal architecture with ports and adapters",
+		});
+		if (isCancel(custom)) return null;
+		patternName = custom;
+	}
+
+	// 3. Library choices (free text, comma-separated)
+	const libInput = await text({
+		message: "Key libraries or tools (comma-separated, or skip):",
+		placeholder: "e.g., zod, hono, drizzle",
+		defaultValue: "",
+	});
+	if (isCancel(libInput)) return null;
+	const libraries = libInput
+		? libInput
+				.split(",")
+				.map((l) => l.trim())
+				.filter(Boolean)
+		: [];
+
+	// 4. Tradeoff decisions
+	const tradeoffs: string[] = [];
+
+	const hasTradeoffs = await confirm({
+		message: "Any design tradeoffs to record?",
+		initialValue: false,
+	});
+	if (isCancel(hasTradeoffs)) return null;
+
+	if (hasTradeoffs) {
+		const tradeoffInput = await text({
+			message: "Describe key tradeoffs (one per line or comma-separated):",
+			placeholder: "e.g., Chose simplicity over performance for MVP",
+		});
+		if (isCancel(tradeoffInput)) return null;
+		if (tradeoffInput) {
+			const parts = tradeoffInput.includes("\n")
+				? tradeoffInput.split("\n")
+				: tradeoffInput.split(",");
+			tradeoffs.push(...parts.map((t) => t.trim()).filter(Boolean));
+		}
+	}
+
+	// 5. Resolve ambiguities
+	const clarifications: Array<{ question: string; answer: string }> = [];
+
+	const hasQuestions = await confirm({
+		message: "Any open questions you can answer now?",
+		initialValue: false,
+	});
+	if (isCancel(hasQuestions)) return null;
+
+	if (hasQuestions) {
+		let moreQuestions = true;
+		while (moreQuestions) {
+			const question = await text({
+				message: "Question:",
+				placeholder: "e.g., Should we support OAuth?",
+			});
+			if (isCancel(question)) break;
+
+			const answer = await text({
+				message: "Answer:",
+				placeholder: "e.g., Yes, Google and GitHub OAuth via passport.js",
+			});
+			if (isCancel(answer)) break;
+
+			if (question && answer) {
+				clarifications.push({ question, answer });
+			}
+
+			const more = await confirm({
+				message: "Another question?",
+				initialValue: false,
+			});
+			if (isCancel(more) || !more) {
+				moreQuestions = false;
+			}
+		}
+	}
+
+	return {
+		description: description || undefined,
+		pattern: patternName,
+		libraries: libraries.length > 0 ? libraries : undefined,
+		tradeoffs: tradeoffs.length > 0 ? tradeoffs : undefined,
+		clarifications: clarifications.length > 0 ? clarifications : undefined,
+	};
+}
+
 // ── Core Action (testable) ───────────────────────────────────────────────────
 
 /**
@@ -145,7 +310,10 @@ export async function planAction(
 	const featureDir = dirResult.value;
 
 	// ── Step 3: Scaffold template files ──────────────────────────────────
-	const scaffoldResult = await scaffoldFeature(featureDir);
+	const choices = options.designChoices;
+	const scaffoldResult = choices
+		? await scaffoldFeatureWithContext(featureDir, options.name, choices)
+		: await scaffoldFeature(featureDir);
 
 	if (!scaffoldResult.ok) {
 		log.error(`Failed to scaffold feature: ${scaffoldResult.error}`);
@@ -221,18 +389,37 @@ export function planCommand(): Command {
 		.description("Create feature branch with structured plan")
 		.argument("<name>", "Feature name")
 		.option("--no-verify", "Skip plan verification checklist")
+		.option("--no-interactive", "Skip interactive design prompts")
 		.action(async (name, options) => {
 			intro("maina plan");
+
+			let designChoices: DesignChoices | undefined;
+
+			// Interactive mode: collect design choices from user
+			if (options.interactive !== false) {
+				log.info("Let's define the design for this feature.");
+				const choices = await collectDesignChoices(name);
+				if (choices === null) {
+					outro("Cancelled.");
+					return;
+				}
+				designChoices = choices;
+			}
 
 			const result = await planAction({
 				name,
 				noVerify: !options.verify, // Commander parses --no-verify as verify: false
+				interactive: options.interactive !== false,
+				designChoices,
 			});
 
 			if (result.created) {
 				log.success(`Feature ${result.featureNumber} created`);
 				log.info(`Branch: ${result.branch}`);
 				log.info(`Directory: ${result.featureDir}`);
+				if (designChoices) {
+					log.info("Design choices saved to spec.md and plan.md");
+				}
 				outro("Plan ready — edit spec.md and plan.md, then run `maina spec`");
 			} else {
 				outro(`Aborted: ${result.reason}`);

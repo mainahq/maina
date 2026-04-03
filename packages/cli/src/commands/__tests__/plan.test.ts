@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import {
+	afterAll,
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	mock,
+	test,
+} from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
@@ -58,6 +66,14 @@ mock.module("@maina/core", () => ({
 		scaffoldFeatureCalls.push(dir);
 		return mockScaffoldResult;
 	},
+	scaffoldFeatureWithContext: async (
+		dir: string,
+		_name: string,
+		_choices: unknown,
+	) => {
+		scaffoldFeatureCalls.push(dir);
+		return mockScaffoldResult;
+	},
 	verifyPlan: (planPath: string, specPath: string) => {
 		verifyPlanCalls.push({ planPath, specPath });
 		return mockVerifyResult;
@@ -79,7 +95,16 @@ mock.module("@clack/prompts", () => ({
 		start: () => {},
 		stop: () => {},
 	}),
+	text: async () => "",
+	select: async () => "repository",
+	multiselect: async () => [],
+	confirm: async () => false,
+	isCancel: () => false,
 }));
+
+afterAll(() => {
+	mock.restore();
+});
 
 // ── Import the module under test AFTER mocks ─────────────────────────────────
 
@@ -356,5 +381,41 @@ describe("planAction", () => {
 		expect(result.created).toBe(true);
 		// Branch name should use kebab-case
 		expect(result.branch).toBe("feature/001-my-cool-feature");
+	});
+
+	test("uses enriched scaffold when designChoices are provided", async () => {
+		mockNextNumber = "001";
+		scaffoldFeatureCalls = [];
+
+		const result = await planAction(
+			{
+				name: "user-auth",
+				cwd: tmpDir,
+				designChoices: {
+					description: "User authentication with OAuth",
+					pattern: "service-layer",
+					libraries: ["passport.js", "jsonwebtoken"],
+					tradeoffs: ["Chose simplicity over enterprise features"],
+				},
+			},
+			mockDeps,
+		);
+
+		expect(result.created).toBe(true);
+		// scaffoldFeatureWithContext should have been called
+		expect(scaffoldFeatureCalls.length).toBe(1);
+	});
+
+	test("uses plain scaffold when no designChoices provided", async () => {
+		mockNextNumber = "001";
+		scaffoldFeatureCalls = [];
+
+		const result = await planAction(
+			{ name: "simple-fix", cwd: tmpDir },
+			mockDeps,
+		);
+
+		expect(result.created).toBe(true);
+		expect(scaffoldFeatureCalls.length).toBe(1);
 	});
 });

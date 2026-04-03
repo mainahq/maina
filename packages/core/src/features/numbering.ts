@@ -120,6 +120,26 @@ export async function createFeatureDir(
 	}
 }
 
+// ─── Design Choices ──────────────────────────────────────────────────────
+
+/**
+ * Represents user's design decisions collected during interactive planning.
+ * When provided, these enrich the scaffolded templates with concrete choices
+ * instead of generic [NEEDS CLARIFICATION] markers.
+ */
+export interface DesignChoices {
+	/** Brief description of what the feature does */
+	description?: string;
+	/** Architecture pattern chosen (e.g., "repository", "service-layer", "event-driven") */
+	pattern?: string;
+	/** Key libraries or tools selected */
+	libraries?: string[];
+	/** Tradeoff decisions made (e.g., "Chose simplicity over performance") */
+	tradeoffs?: string[];
+	/** Resolved clarifications — questions the user already answered */
+	clarifications?: Array<{ question: string; answer: string }>;
+}
+
 const SPEC_TEMPLATE = `# Feature Name
 
 > WHAT and WHY only — no implementation details here.
@@ -184,6 +204,127 @@ export async function scaffoldFeature(
 
 		await Bun.write(join(featureDir, "spec.md"), SPEC_TEMPLATE);
 		await Bun.write(join(featureDir, "plan.md"), PLAN_TEMPLATE);
+		await Bun.write(join(featureDir, "tasks.md"), TASKS_TEMPLATE);
+
+		return { ok: true, value: undefined };
+	} catch (e) {
+		const message = e instanceof Error ? e.message : String(e);
+		return { ok: false, error: `Failed to scaffold feature: ${message}` };
+	}
+}
+
+/**
+ * Build a spec.md from design choices, filling in concrete details
+ * instead of generic [NEEDS CLARIFICATION] markers.
+ */
+function buildEnrichedSpec(name: string, choices: DesignChoices): string {
+	const lines: string[] = [];
+	lines.push(`# Feature: ${name}`);
+	lines.push("");
+	lines.push("> WHAT and WHY only — no implementation details here.");
+	lines.push("");
+
+	if (choices.description) {
+		lines.push(`## Overview`);
+		lines.push("");
+		lines.push(choices.description);
+		lines.push("");
+	}
+
+	lines.push("## User Stories");
+	lines.push("");
+	lines.push("- As a [role], I want [capability] so that [benefit].");
+	lines.push("");
+
+	lines.push("## Acceptance Criteria");
+	lines.push("");
+	lines.push("- [ ] [NEEDS CLARIFICATION] Define acceptance criteria.");
+	lines.push("");
+
+	if (choices.tradeoffs && choices.tradeoffs.length > 0) {
+		lines.push("## Design Decisions");
+		lines.push("");
+		for (const tradeoff of choices.tradeoffs) {
+			lines.push(`- ${tradeoff}`);
+		}
+		lines.push("");
+	}
+
+	if (choices.clarifications && choices.clarifications.length > 0) {
+		lines.push("## Resolved Questions");
+		lines.push("");
+		for (const c of choices.clarifications) {
+			lines.push(`- **Q:** ${c.question}`);
+			lines.push(`  **A:** ${c.answer}`);
+		}
+		lines.push("");
+	}
+
+	lines.push("## [NEEDS CLARIFICATION]");
+	lines.push("");
+	lines.push("- List any remaining open questions here.");
+	lines.push("");
+	return lines.join("\n");
+}
+
+/**
+ * Build a plan.md from design choices, pre-filling architecture
+ * and library selections.
+ */
+function buildEnrichedPlan(choices: DesignChoices): string {
+	const lines: string[] = [];
+	lines.push("# Implementation Plan");
+	lines.push("");
+	lines.push("> HOW only — see spec.md for WHAT and WHY.");
+	lines.push("");
+
+	lines.push("## Architecture");
+	lines.push("");
+	if (choices.pattern) {
+		lines.push(`- Pattern: **${choices.pattern}**`);
+	} else {
+		lines.push("- [NEEDS CLARIFICATION] Describe the technical approach.");
+	}
+	lines.push("");
+
+	if (choices.libraries && choices.libraries.length > 0) {
+		lines.push("## Libraries & Tools");
+		lines.push("");
+		for (const lib of choices.libraries) {
+			lines.push(`- ${lib}`);
+		}
+		lines.push("");
+	}
+
+	lines.push("## Tasks");
+	lines.push("");
+	lines.push("- [ ] [NEEDS CLARIFICATION] Break down implementation tasks.");
+	lines.push("");
+	return lines.join("\n");
+}
+
+/**
+ * Scaffold feature files enriched with user's design choices.
+ * Falls back to generic templates for any missing choices.
+ */
+export async function scaffoldFeatureWithContext(
+	featureDir: string,
+	name: string,
+	choices: DesignChoices,
+): Promise<Result<void>> {
+	try {
+		if (!existsSync(featureDir)) {
+			return {
+				ok: false,
+				error: `Feature directory does not exist: ${featureDir}`,
+			};
+		}
+
+		const spec = buildEnrichedSpec(name, choices);
+		const plan = buildEnrichedPlan(choices);
+
+		await Bun.write(join(featureDir, "spec.md"), spec);
+		await Bun.write(join(featureDir, "plan.md"), plan);
 		await Bun.write(join(featureDir, "tasks.md"), TASKS_TEMPLATE);
 
 		return { ok: true, value: undefined };
