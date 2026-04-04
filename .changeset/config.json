@@ -7,7 +7,7 @@
   "commit": false,
   "fixed": [],
   "linked": [
-    ["@maina/cli", "@maina/core", "@maina/mcp", "@maina/skills"]
+    ["@mainahq/cli", "@mainahq/core", "@mainahq/mcp", "@mainahq/skills"]
   ],
   "access": "public",
   "baseBranch": "master",

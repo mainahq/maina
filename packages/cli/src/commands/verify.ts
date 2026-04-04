@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
-import type { Finding, FixSuggestion, PipelineResult } from "@maina/core";
+import type { Finding, FixSuggestion, PipelineResult } from "@mainahq/core";
 import {
 	appendWorkflowStep,
 	generateFixes,
@@ -11,7 +11,7 @@ import {
 	recordFeedbackAsync,
 	runPipeline,
 	runVisualVerification,
-} from "@maina/core";
+} from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@ import {
 	createCandidate,
 	type PromptTask,
 	resolveABTests,
-} from "@maina/core";
+} from "@mainahq/core";
 import { Command } from "commander";
 
 const TASKS: PromptTask[] = [

@@ -17,7 +17,7 @@ import {
 	getCurrentBranch,
 	getWorkflowId,
 	recordFeedbackAsync,
-} from "@maina/core";
+} from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -201,7 +201,7 @@ export async function designAction(
 		}
 
 		if (specContent) {
-			const { generateHldLld } = await import("@maina/core");
+			const { generateHldLld } = await import("@mainahq/core");
 			log.info("Generating HLD/LLD from spec...");
 			const hldResult = await generateHldLld(specContent, mainaDir);
 

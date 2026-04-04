@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
-import type { Result } from "@maina/core";
+import type { Result } from "@mainahq/core";
 import {
 	type ComparisonReport,
 	getComparison,
@@ -12,7 +12,7 @@ import {
 	type StatsReport,
 	scoreSpec,
 	type TrendsReport,
-} from "@maina/core";
+} from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────

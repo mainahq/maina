@@ -67,7 +67,7 @@ let recordedOutcomes: Array<{
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-mock.module("@maina/core", () => ({
+mock.module("@mainahq/core", () => ({
 	getStagedFiles: async () => mockStagedFiles,
 	getCurrentBranch: async () => mockBranch,
 	getDiff: async () => "+ some diff content",

@@ -13,7 +13,7 @@ export function registerVerifyTools(server: McpServer): void {
 		{ files: z.array(z.string()).optional() },
 		async ({ files }) => {
 			try {
-				const { runPipeline, getStagedFiles } = await import("@maina/core");
+				const { runPipeline, getStagedFiles } = await import("@mainahq/core");
 				const cwd = process.cwd();
 				const targetFiles = files ?? (await getStagedFiles(cwd));
 				const result = await runPipeline({
@@ -81,7 +81,9 @@ export function registerVerifyTools(server: McpServer): void {
 		{ files: z.array(z.string()) },
 		async ({ files }) => {
 			try {
-				const { detectSlop, createCacheManager } = await import("@maina/core");
+				const { detectSlop, createCacheManager } = await import(
+					"@mainahq/core"
+				);
 				const cwd = process.cwd();
 				const cache = createCacheManager(join(cwd, ".maina"));
 				const result = await detectSlop(files, { cwd, cache });

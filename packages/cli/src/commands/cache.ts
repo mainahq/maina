@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
-import { createCacheManager } from "@maina/core";
+import { createCacheManager } from "@mainahq/core";
 import { Command } from "commander";
 
 export function cacheCommand(): Command {

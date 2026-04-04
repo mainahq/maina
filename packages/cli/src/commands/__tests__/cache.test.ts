@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { createCacheManager } from "@maina/core";
+import { createCacheManager } from "@mainahq/core";
 
 let tmpDir: string;
 

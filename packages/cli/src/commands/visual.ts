@@ -5,7 +5,7 @@ import {
 	detectWebProject,
 	loadVisualConfig,
 	updateBaselines,
-} from "@maina/core";
+} from "@mainahq/core";
 import { Command } from "commander";
 
 export interface VisualActionOptions {

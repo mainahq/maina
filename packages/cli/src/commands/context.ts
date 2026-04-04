@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
-import { assembleContext } from "@maina/core";
+import { assembleContext } from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

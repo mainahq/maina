@@ -21,7 +21,7 @@ import {
 	scaffoldFeatureWithContext,
 	toKebabCase,
 	verifyPlan,
-} from "@maina/core";
+} from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────

@@ -33,9 +33,9 @@ let mockClackSelectCallIndex = 0;
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 // Re-export generateTestStubs from the real module so the test can use it
-const realCore = await import("@maina/core");
+const realCore = await import("@mainahq/core");
 
-mock.module("@maina/core", () => ({
+mock.module("@mainahq/core", () => ({
 	getCurrentBranch: async (_cwd?: string) => mockCurrentBranch,
 	generateTestStubs: realCore.generateTestStubs,
 	generateSpecQuestions: async (_planContent: string, _mainaDir: string) => ({
@@ -79,7 +79,7 @@ afterAll(() => {
 // ── Import the module under test AFTER mocks ─────────────────────────────────
 
 const { specAction } = await import("../spec");
-const { generateTestStubs } = await import("@maina/core");
+const { generateTestStubs } = await import("@mainahq/core");
 type SpecDepsType = import("../spec").SpecDeps;
 
 // ── Test helpers ─────────────────────────────────────────────────────────────

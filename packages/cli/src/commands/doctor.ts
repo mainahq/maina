@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
-import type { CacheStats, DetectedTool } from "@maina/core";
-import { createCacheManager, detectTools } from "@maina/core";
+import type { CacheStats, DetectedTool } from "@mainahq/core";
+import { createCacheManager, detectTools } from "@mainahq/core";
 import { Command } from "commander";
 import pkg from "../../package.json";
 
