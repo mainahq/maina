@@ -1,4 +1,4 @@
-# ମୈନା Maina — Implementation Plan
+# Maina — Implementation Plan
 
 **Methodology: Superpowers-style subagent-driven development with TDD.**
 **From zero to `bunx maina` in 10 sprints.**

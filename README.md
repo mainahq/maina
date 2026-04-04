@@ -1,4 +1,4 @@
-# ମୈନା Maina
+# Maina
 
 **The verification-first developer operating system.**
 
@@ -270,9 +270,9 @@ bun run verify           # Full verification: check + typecheck + test
 
 ## The Name
 
-**Maina** (ମୈନା) -- Odia for the mynah bird. Observes its environment. Learns from what it hears. Communicates with precision.
+**Maina** — named after the mynah bird. Observes its environment. Learns from what it hears. Communicates with precision.
 
-Context Engine observes. Prompt Engine learns. Verify Engine communicates.
+Context Engine observes. Prompt Engine learns. Verify Engine verifies.
 
 ## License
 

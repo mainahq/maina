@@ -1,4 +1,4 @@
-# ମୈନା Maina
+# Maina
 
 **The verification-first developer operating system.**
 
@@ -583,9 +583,9 @@ Not an IDE. Not a code generator. Not a CI/CD platform. Not a chatbot. Not vendo
 
 ## The name
 
-**Maina** (ମୈନା) — Odia for the mynah bird. Observes its environment. Learns from what it hears. Communicates with precision.
+**Maina** — named after the mynah bird. Observes its environment. Learns from what it hears. Communicates with precision.
 
-Context Engine observes. Prompt Engine learns. Verify Engine communicates.
+Context Engine observes. Prompt Engine learns. Verify Engine verifies.
 
 **"Observe. Learn. Verify."**
 

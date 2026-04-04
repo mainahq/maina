@@ -163,8 +163,8 @@ export function detectHallucinatedImports(
 	profile?: LanguageProfile,
 ): Finding[] {
 	const lang = profile ?? TYPESCRIPT_PROFILE;
-	// Skip test files — test fixtures intentionally use non-existent imports
-	if (lang.testFilePattern.test(file)) {
+	// Skip test files and markdown files — code blocks in .md trigger false positives
+	if (lang.testFilePattern.test(file) || file.endsWith(".md")) {
 		return [];
 	}
 

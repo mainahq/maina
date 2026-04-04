@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Maina (ମୈନା) — verification-first developer OS. CLI + MCP server + skills package that proves AI-generated code is correct before it merges. Three engines: Context (observes), Prompt (learns), Verify (verifies).
+Maina — verification-first developer OS. CLI + MCP server + skills package that proves AI-generated code is correct before it merges. Three engines: Context (observes), Prompt (learns), Verify (verifies).
 
 Read PRODUCT_SPEC.md for full product context. Read IMPLEMENTATION_PLAN.md for sprint-by-sprint execution plan.
 
