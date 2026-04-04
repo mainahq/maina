@@ -26,7 +26,9 @@ const MIN_SAMPLES_FOR_LEARNING = 30;
 export function learnCommand(): Command {
 	return new Command("learn")
 		.description("Analyse feedback and propose prompt improvements")
-		.action(async () => {
+		.option("--no-interactive", "Skip interactive prompts (report only)")
+		.action(async (options) => {
+			const interactive = options.interactive !== false;
 			intro("maina learn");
 
 			const repoRoot = process.cwd();
@@ -132,6 +134,18 @@ export function learnCommand(): Command {
 			log.warning(
 				`${improvable.length} task(s) could benefit from prompt improvement.`,
 			);
+
+			if (!interactive) {
+				for (const task of improvable) {
+					log.step(
+						`${task.task}: ${task.totalSamples} samples, ${(task.acceptRate * 100).toFixed(0)}% accept rate — needs improvement`,
+					);
+				}
+				outro(
+					"Done. Run without --no-interactive to create improvement candidates.",
+				);
+				return;
+			}
 
 			for (const task of improvable) {
 				log.step(

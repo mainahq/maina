@@ -1,6 +1,7 @@
 import { hashContent } from "../cache/keys";
 import { getFeedbackDb } from "../db/index";
 import { loadDefault, type PromptTask } from "./defaults/index";
+import { abTest } from "./evolution";
 import {
 	loadConstitution,
 	loadUserOverride,
@@ -40,6 +41,26 @@ export async function buildSystemPrompt(
 
 	// Load default prompt template
 	const defaultPrompt = await loadDefault(task as PromptTask);
+
+	// A/B test: check if a candidate prompt should be used (20% traffic)
+	const abResult = abTest(mainaDir, task);
+	if (abResult.variant === "candidate" && abResult.hash) {
+		// Candidate selected — load its content from prompt_versions
+		const dbResult = getFeedbackDb(mainaDir);
+		if (dbResult.ok) {
+			const row = dbResult.value.db
+				.query("SELECT content FROM prompt_versions WHERE hash = ? LIMIT 1")
+				.get(abResult.hash) as { content: string } | null;
+			if (row?.content) {
+				const allVariables: Record<string, string> = {
+					constitution,
+					...variables,
+				};
+				const prompt = renderTemplate(row.content, allVariables);
+				return { prompt, hash: hashContent(prompt) };
+			}
+		}
+	}
 
 	// Load user override from .maina/prompts/<task>.md
 	const userOverride = await loadUserOverride(mainaDir, task);
