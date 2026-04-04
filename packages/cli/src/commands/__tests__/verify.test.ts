@@ -103,6 +103,9 @@ mock.module("@maina/core", () => ({
 		clear: () => {},
 	}),
 	appendWorkflowStep: () => {},
+	getCurrentBranch: async () => "feature/test-branch",
+	getWorkflowId: () => "abc123def456",
+	recordFeedbackAsync: () => {},
 }));
 
 mock.module("@clack/prompts", () => ({

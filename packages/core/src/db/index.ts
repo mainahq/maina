@@ -100,6 +100,18 @@ function createFeedbackTables(db: Database): void {
 			created_at TEXT NOT NULL
 		);
 	`);
+
+	// Add workflow columns (nullable — backward compatible)
+	try {
+		db.exec(`ALTER TABLE feedback ADD COLUMN workflow_step TEXT`);
+	} catch {
+		// Column already exists — safe to ignore
+	}
+	try {
+		db.exec(`ALTER TABLE feedback ADD COLUMN workflow_id TEXT`);
+	} catch {
+		// Column already exists — safe to ignore
+	}
 }
 
 /**

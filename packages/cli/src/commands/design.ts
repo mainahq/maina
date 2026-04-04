@@ -14,6 +14,9 @@ import {
 	scaffoldAdr as coreScaffoldAdr,
 	type DesignApproach,
 	generateDesignApproaches,
+	getCurrentBranch,
+	getWorkflowId,
+	recordFeedbackAsync,
 } from "@maina/core";
 import { Command } from "commander";
 
@@ -159,6 +162,17 @@ export async function designAction(
 		"design",
 		`ADR ${adrNumber} created: ${title}.`,
 	);
+
+	const branch = await getCurrentBranch(cwd);
+	const workflowId = getWorkflowId(branch);
+	recordFeedbackAsync(wfMainaDir, {
+		promptHash: "deterministic",
+		task: "design",
+		accepted: true,
+		timestamp: new Date().toISOString(),
+		workflowStep: "design",
+		workflowId,
+	});
 
 	// Step 3b: Generate HLD/LLD if --hld and spec exists
 	if (options.hld) {

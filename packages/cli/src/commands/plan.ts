@@ -12,7 +12,10 @@ import {
 	appendWorkflowStep,
 	createFeatureDir,
 	type DesignChoices,
+	getCurrentBranch,
 	getNextFeatureNumber,
+	getWorkflowId,
+	recordFeedbackAsync,
 	resetWorkflowContext,
 	scaffoldFeature,
 	scaffoldFeatureWithContext,
@@ -369,6 +372,17 @@ export async function planAction(
 		"plan",
 		`Feature ${featureNumber} scaffolded. Branch: ${branchName}. Dir: ${featureDir}.`,
 	);
+
+	const branch = await getCurrentBranch(cwd);
+	const workflowId = getWorkflowId(branch);
+	recordFeedbackAsync(mainaDir, {
+		promptHash: "deterministic",
+		task: "plan",
+		accepted: true,
+		timestamp: new Date().toISOString(),
+		workflowStep: "plan",
+		workflowId,
+	});
 
 	return {
 		created: true,

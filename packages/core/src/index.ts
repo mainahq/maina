@@ -115,7 +115,9 @@ export { traceFeature } from "./features/traceability";
 export {
 	type FeedbackRecord,
 	getFeedbackSummary,
+	getWorkflowId,
 	recordFeedback,
+	recordFeedbackAsync,
 	recordFeedbackWithCompression,
 } from "./feedback/collector";
 export {

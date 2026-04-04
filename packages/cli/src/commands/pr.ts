@@ -6,6 +6,8 @@ import {
 	getDiff as coreGetDiff,
 	getRecentCommits as coreGetRecentCommits,
 	runTwoStageReview as coreRunTwoStageReview,
+	getWorkflowId,
+	recordFeedbackAsync,
 } from "@maina/core";
 import { Command } from "commander";
 
@@ -255,6 +257,16 @@ export async function prAction(
 
 	const prUrl = result.value.url;
 	appendWorkflowStep(mainaDir, "pr", `PR created: ${prUrl}.`);
+
+	const workflowId = getWorkflowId(branch);
+	recordFeedbackAsync(mainaDir, {
+		promptHash: "deterministic",
+		task: "pr",
+		accepted: true,
+		timestamp: new Date().toISOString(),
+		workflowStep: "pr",
+		workflowId,
+	});
 
 	return {
 		created: true,
