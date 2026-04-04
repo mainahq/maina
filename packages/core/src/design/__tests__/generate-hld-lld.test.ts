@@ -65,27 +65,25 @@ Empty diff returns no findings`;
 		expect(result.value).toContain("## Low-Level Design");
 	});
 
-	it("should return null when AI is unavailable", async () => {
+	it("should return error when AI is unavailable", async () => {
 		mockAIResult = { text: null, fromAI: false, hostDelegation: false };
 
 		const result = await generateHldLld("Test spec", ".maina");
 
-		expect(result.ok).toBe(true);
-		if (!result.ok) return;
-		expect(result.value).toBeNull();
+		expect(result.ok).toBe(false);
 	});
 
-	it("should return null on host delegation", async () => {
+	it("should use delegation text as content when host delegation active", async () => {
 		mockAIResult = {
-			text: "[HOST_DELEGATION] prompt",
+			text: "Generate HLD and LLD sections for this spec:\n\nTest spec content",
 			fromAI: false,
 			hostDelegation: true,
 		};
 
-		const result = await generateHldLld("Test spec", ".maina");
+		const result = await generateHldLld("Test spec content", ".maina");
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
-		expect(result.value).toBeNull();
+		expect(result.value).toContain("Test spec content");
 	});
 });

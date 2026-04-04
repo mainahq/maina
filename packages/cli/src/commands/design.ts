@@ -194,6 +194,8 @@ export async function designAction(
 					writeFileSync(filePath, newContent);
 					log.success("HLD/LLD sections generated from spec.");
 				}
+			} else if (!hldResult.ok) {
+				log.error(hldResult.error);
 			} else {
 				log.warn("AI unavailable — HLD/LLD sections left as placeholders.");
 			}

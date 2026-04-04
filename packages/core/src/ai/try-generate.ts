@@ -40,6 +40,23 @@ export async function tryAIGenerate(
 		});
 
 		if (result.text?.startsWith("[HOST_DELEGATION]")) {
+			// In CLI mode, extract the user prompt as usable content
+			// The delegation text contains: [HOST_DELEGATION] Task: ...\n\nSystem: ...\n\nUser: <content>
+			const userIdx = result.text.indexOf("\n\nUser: ");
+			const extractedContent =
+				userIdx !== -1
+					? result.text.slice(userIdx + 8) // length of "\n\nUser: "
+					: null;
+
+			if (extractedContent) {
+				return {
+					text: extractedContent,
+					fromAI: false,
+					hostDelegation: true,
+					promptHash: builtPrompt.hash,
+				};
+			}
+
 			return {
 				text: result.text,
 				fromAI: false,

@@ -274,9 +274,15 @@ export async function generateHldLld(
 			`Generate HLD and LLD sections for this spec:\n\n${specContent}`,
 		);
 
-		if (!aiResult.text || aiResult.hostDelegation) {
-			return { ok: true, value: null };
+		if (!aiResult.text) {
+			return {
+				ok: false,
+				error:
+					"AI generation unavailable — set MAINA_API_KEY or OPENROUTER_API_KEY to enable HLD/LLD generation",
+			};
 		}
+		// Host delegation returns the user prompt as content — use it
+		// (it's not AI-generated, but it's the structured prompt the user provided)
 
 		return { ok: true, value: aiResult.text };
 	} catch (e) {

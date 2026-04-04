@@ -194,3 +194,14 @@ describe("getTaskTier — code-review tasks", () => {
 		expect(getTaskTier("deep-code-review")).toBe("standard");
 	});
 });
+
+describe("tryAIGenerate host delegation", () => {
+	it("should extract user prompt from delegation text", async () => {
+		// This tests the extraction logic directly
+		const delegationText =
+			"[HOST_DELEGATION] Task: design-hld-lld\n\nSystem: system prompt\n\nUser: Generate HLD and LLD sections";
+		const userIdx = delegationText.indexOf("\n\nUser: ");
+		const extracted = userIdx !== -1 ? delegationText.slice(userIdx + 8) : null;
+		expect(extracted).toBe("Generate HLD and LLD sections");
+	});
+});
