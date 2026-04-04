@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
 import {
+	appendWorkflowStep,
 	buildReviewContext as coreBuildReviewContext,
 	findAdrByNumber as coreFindAdrByNumber,
 	reviewDesign as coreReviewDesign,
@@ -131,6 +132,12 @@ export async function reviewDesignAction(
 				break;
 		}
 	}
+
+	appendWorkflowStep(
+		mainaDir,
+		"design-review",
+		`ADR reviewed: ${passed ? "passed" : "failed"}. ${findings.length} finding(s).`,
+	);
 
 	return {
 		reviewed: true,

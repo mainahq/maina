@@ -86,6 +86,8 @@ mock.module("@maina/core", () => ({
 		verifyPlanCalls.push({ planPath, specPath });
 		return mockVerifyResult;
 	},
+	appendWorkflowStep: () => {},
+	resetWorkflowContext: () => {},
 }));
 
 mock.module("@clack/prompts", () => ({

@@ -102,6 +102,7 @@ mock.module("@maina/core", () => ({
 		invalidate: () => {},
 		clear: () => {},
 	}),
+	appendWorkflowStep: () => {},
 }));
 
 mock.module("@clack/prompts", () => ({

@@ -63,6 +63,7 @@ mock.module("@maina/core", () => ({
 		ok: true,
 		value: mockDesignApproaches,
 	}),
+	appendWorkflowStep: () => {},
 }));
 
 afterAll(() => {

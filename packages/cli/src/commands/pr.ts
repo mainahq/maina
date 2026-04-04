@@ -1,5 +1,6 @@
 import { log } from "@clack/prompts";
 import {
+	appendWorkflowStep,
 	generatePrSummary as coreGeneratePrSummary,
 	getCurrentBranch as coreGetCurrentBranch,
 	getDiff as coreGetDiff,
@@ -252,9 +253,12 @@ export async function prAction(
 
 	log.success(`PR created: ${result.value.url}`);
 
+	const prUrl = result.value.url;
+	appendWorkflowStep(mainaDir, "pr", `PR created: ${prUrl}.`);
+
 	return {
 		created: true,
-		url: result.value.url,
+		url: prUrl,
 		reviewPassed: reviewResult.passed,
 	};
 }
