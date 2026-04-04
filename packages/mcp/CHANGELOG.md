@@ -1,5 +1,22 @@
 # @mainahq/mcp
 
+## 0.3.0
+
+### Minor Changes
+
+- [`e5a82ae`](https://github.com/beeeku/maina/commit/e5a82aedb0fb61d95758d5465c424a8cff3e9e8e) Thanks [@beeeku](https://github.com/beeeku)! - v0.3.0 — AI delegation, brainstorm command, enterprise languages.
+
+  - Structured AI delegation protocol (`---MAINA_AI_REQUEST---`) for Claude Code, Codex, OpenCode
+  - `maina brainstorm` — interactive idea exploration that generates structured GitHub issues
+  - C#/.NET support — dotnet format, .sln/.csproj detection
+  - Java/Kotlin support — Checkstyle, pom.xml/build.gradle detection
+  - 6 languages, 16 tools, 25 commands, 1017+ tests
+
+### Patch Changes
+
+- Updated dependencies [[`e5a82ae`](https://github.com/beeeku/maina/commit/e5a82aedb0fb61d95758d5465c424a8cff3e9e8e)]:
+  - @mainahq/core@0.3.0
+
 ## 0.2.2
 
 ### Patch Changes
