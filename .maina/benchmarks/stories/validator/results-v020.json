@@ -1,0 +1,36 @@
+{
+  "story": "validator",
+  "tier": 3,
+  "version": "v0.2.0",
+  "timestamp": "2026-04-04T17:00:00.000Z",
+  "maina": {
+    "trainingPassed": 34,
+    "trainingTotal": 34,
+    "validationPassed": 95,
+    "validationTotal": 95,
+    "validationPassRate": 1.0,
+    "implLOC": 504,
+    "verifyFindings": 1,
+    "toolsRan": 8,
+    "stepsCompleted": 7,
+    "stepsTotal": 7
+  },
+  "speckit_previous": {
+    "validationPassed": 95,
+    "validationTotal": 95,
+    "validationPassRate": 1.0
+  },
+  "maina_previous": {
+    "validationPassed": 93,
+    "validationTotal": 95,
+    "validationPassRate": 0.979
+  },
+  "improvement": "97.9% → 100% — closed the gap with SpecKit",
+  "key_changes": [
+    "12-tool verify pipeline (was 0 tools in previous benchmark)",
+    "AI review catches semantic issues",
+    "Slop detection catches patterns",
+    "Full workflow enforcement (plan → verify → commit)",
+    "Multi-language syntax guard"
+  ]
+}
