@@ -1,5 +1,11 @@
 # @mainahq/mcp
 
+## 0.2.2
+
+### Patch Changes
+
+- [`6532845`](https://github.com/beeeku/maina/commit/65328455596b1f26396a1254011916060cdb77bf) Thanks [@beeeku](https://github.com/beeeku)! - Fix npm install — move bundled workspace deps to devDependencies in CLI, use fixed version in MCP.
+
 ## 0.2.1
 
 ### Patch Changes
