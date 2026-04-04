@@ -5,12 +5,16 @@
 "@maina/skills": minor
 ---
 
-Initial public release of Maina — verification-first developer OS.
+Initial release of Maina — verification-first developer OS.
 
-- 20 CLI commands, 8 MCP tools, 5 cross-platform skills
-- Three engines: Context (4-layer retrieval), Prompt (A/B tested evolution), Verify (4-tool pipeline)
-- 820 tests, 31k lines of TypeScript
-- Smart project detection on `maina init`
-- Cache-aware slop detection and verification
-- Spec quality scoring (Karpathy-principled)
-- Feedback loop with prompt evolution
+- 21 CLI commands, 8 MCP tools, 5 cross-platform skills
+- 12-tool verify pipeline (Biome, Semgrep, Trivy, Secretlint, SonarQube, Stryker, diff-cover, AI review, slop detection, visual regression)
+- Multi-language support: TypeScript, Python, Go, Rust
+- Context Engine: 4-layer retrieval with PageRank relevance
+- Prompt Engine: constitution + A/B testing + feedback-driven evolution
+- Workflow context forwarding between lifecycle steps
+- Background RL feedback with post-workflow self-improvement loop
+- Visual verification with Playwright screenshots
+- Unified host delegation for Claude Code, Codex, OpenCode
+- Verification proof artifacts in PR body
+- 990 tests
