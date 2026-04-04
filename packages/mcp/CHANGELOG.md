@@ -1,5 +1,11 @@
 # @mainahq/mcp
 
+## 0.2.1
+
+### Patch Changes
+
+- [`570d0e5`](https://github.com/beeeku/maina/commit/570d0e5c8cb383d566c5901bbe3db98a40fbdf59) Thanks [@beeeku](https://github.com/beeeku)! - Fix workspace:\* dependencies not resolving on npm install. Changed to workspace:^ so changesets replaces them with ^version during publish.
+
 ## 0.2.0
 
 ### Minor Changes

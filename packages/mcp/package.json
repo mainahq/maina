@@ -1,6 +1,6 @@
 {
   "name": "@mainahq/mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "license": "Apache-2.0",
   "description": "Maina MCP server — Model Context Protocol bridge for AI host agents",
