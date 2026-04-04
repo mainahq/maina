@@ -108,6 +108,8 @@ mock.module("@maina/core", () => ({
 	}),
 	setVerificationResult: async () => ({}),
 	appendWorkflowStep: () => {},
+	getWorkflowId: () => "abc123def456",
+	recordFeedbackAsync: () => {},
 }));
 
 mock.module("@clack/prompts", () => ({

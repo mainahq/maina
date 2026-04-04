@@ -1,3 +1,4 @@
+import { hashContent } from "../cache/keys";
 import { getFeedbackDb } from "../db/index";
 import { recordOutcome } from "../prompts/engine";
 import { compressReview, storeCompressedReview } from "./compress";
@@ -89,4 +90,46 @@ export function recordFeedbackWithCompression(
 			storeCompressedReview(mainaDir, compressed, record.task);
 		}
 	}
+}
+
+/**
+ * Record feedback asynchronously — never blocks the calling command.
+ * Uses queueMicrotask for zero-latency fire-and-forget.
+ */
+export function recordFeedbackAsync(
+	mainaDir: string,
+	record: FeedbackRecord & {
+		workflowStep?: string;
+		workflowId?: string;
+	},
+): void {
+	queueMicrotask(() => {
+		try {
+			// Use existing recordFeedback for the base record
+			recordFeedback(mainaDir, record);
+
+			// Write workflow columns directly if provided
+			if (record.workflowStep || record.workflowId) {
+				const dbResult = getFeedbackDb(mainaDir);
+				if (!dbResult.ok) return;
+				const { db } = dbResult.value;
+
+				// Update the most recent row for this prompt hash
+				db.prepare(
+					`UPDATE feedback SET workflow_step = ?, workflow_id = ?
+           WHERE id = (SELECT id FROM feedback ORDER BY created_at DESC LIMIT 1)`,
+				).run(record.workflowStep ?? null, record.workflowId ?? null);
+			}
+		} catch {
+			// Never throw from background feedback
+		}
+	});
+}
+
+/**
+ * Generate a workflow ID from a branch name.
+ * All commands on the same branch share the same workflow ID.
+ */
+export function getWorkflowId(branchName: string): string {
+	return hashContent(`workflow:${branchName}`).slice(0, 12);
 }

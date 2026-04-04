@@ -64,6 +64,9 @@ mock.module("@maina/core", () => ({
 		value: mockDesignApproaches,
 	}),
 	appendWorkflowStep: () => {},
+	getCurrentBranch: async () => "feature/test-branch",
+	getWorkflowId: () => "abc123def456",
+	recordFeedbackAsync: () => {},
 }));
 
 afterAll(() => {

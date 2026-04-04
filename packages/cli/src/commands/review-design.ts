@@ -6,6 +6,9 @@ import {
 	buildReviewContext as coreBuildReviewContext,
 	findAdrByNumber as coreFindAdrByNumber,
 	reviewDesign as coreReviewDesign,
+	getCurrentBranch,
+	getWorkflowId,
+	recordFeedbackAsync,
 } from "@maina/core";
 import { Command } from "commander";
 
@@ -138,6 +141,17 @@ export async function reviewDesignAction(
 		"design-review",
 		`ADR reviewed: ${passed ? "passed" : "failed"}. ${findings.length} finding(s).`,
 	);
+
+	const branch = await getCurrentBranch(cwd);
+	const workflowId = getWorkflowId(branch);
+	recordFeedbackAsync(mainaDir, {
+		promptHash: "deterministic",
+		task: "review-design",
+		accepted: passed,
+		timestamp: new Date().toISOString(),
+		workflowStep: "design-review",
+		workflowId,
+	});
 
 	return {
 		reviewed: true,

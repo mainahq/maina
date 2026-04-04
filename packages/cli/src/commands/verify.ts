@@ -4,8 +4,11 @@ import type { Finding, FixSuggestion, PipelineResult } from "@maina/core";
 import {
 	appendWorkflowStep,
 	generateFixes,
+	getCurrentBranch,
 	getStagedFiles,
 	getTrackedFiles,
+	getWorkflowId,
+	recordFeedbackAsync,
 	runPipeline,
 } from "@maina/core";
 import { Command } from "commander";
@@ -200,6 +203,17 @@ export async function verifyAction(
 		"verify",
 		`Pipeline ${result.passed ? "passed" : "failed"}: ${result.findingsCount} findings, ${result.duration}ms.`,
 	);
+
+	const branch = await getCurrentBranch(cwd);
+	const workflowId = getWorkflowId(branch);
+	recordFeedbackAsync(wfMainaDir, {
+		promptHash: "deterministic",
+		task: "verify",
+		accepted: result.passed,
+		timestamp: new Date().toISOString(),
+		workflowStep: "verify",
+		workflowId,
+	});
 
 	return result;
 }

@@ -7,7 +7,9 @@ import {
 	getCurrentBranch,
 	getDiff,
 	getStagedFiles,
+	getWorkflowId,
 	type PipelineResult,
+	recordFeedbackAsync,
 	recordOutcome,
 	recordSnapshot,
 	runHooks,
@@ -387,6 +389,17 @@ export async function commitAction(
 		"commit",
 		`Verified: ${toolCount} tools, ${findingsCount} findings. Committed.`,
 	);
+
+	const commitBranch = await getCurrentBranch(cwd);
+	const workflowId = getWorkflowId(commitBranch);
+	recordFeedbackAsync(mainaDir, {
+		promptHash: "deterministic",
+		task: "commit",
+		accepted: true,
+		timestamp: new Date().toISOString(),
+		workflowStep: "commit",
+		workflowId,
+	});
 
 	return { committed: true };
 }
