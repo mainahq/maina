@@ -13,9 +13,27 @@ const base = import.meta.env.BASE_URL;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Maina — The verification-first developer OS</title>
-    <meta name="description" content="CLI + MCP server + skills package that proves AI-generated code is correct before it merges. Three engines: Context, Prompt, Verify." />
+    <title>Maina — Stop shipping broken AI code</title>
+    <meta name="description" content="16-tool verification pipeline that proves AI-generated code is correct before it merges. TypeScript, Python, Go, Rust, C#, Java. Works inside Claude Code, Cursor, Codex." />
+    <meta name="keywords" content="code verification, AI code review, code quality, static analysis, mcp server, claude code, cursor, codex, semgrep, trivy, biome, slop detection, visual regression, playwright" />
+    <meta property="og:title" content="Maina — Stop shipping broken AI code" />
+    <meta property="og:description" content="16-tool verification pipeline for AI-generated code. 6 languages. Works inside your AI tool." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://beeeku.github.io/maina/" />
     <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Maina",
+      "description": "Verification-first developer OS. 16-tool pipeline that proves AI-generated code is correct before it merges.",
+      "url": "https://beeeku.github.io/maina/",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "macOS, Linux, Windows",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "softwareVersion": "0.3.0",
+      "programmingLanguage": ["TypeScript", "Python", "Go", "Rust", "C#", "Java"],
+      "codeRepository": "https://github.com/beeeku/maina"
+    })} />
   </head>
   <body>
     <nav class="nav">
