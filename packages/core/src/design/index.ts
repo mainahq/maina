@@ -275,14 +275,19 @@ export async function generateHldLld(
 		);
 
 		if (!aiResult.text) {
+			if (aiResult.delegation) {
+				// Return delegation prompt for host to process
+				return {
+					ok: true,
+					value: `<!-- AI delegation: process this prompt to generate HLD/LLD -->\n\n${aiResult.delegation.userPrompt}`,
+				};
+			}
 			return {
 				ok: false,
 				error:
 					"AI generation unavailable — set MAINA_API_KEY or OPENROUTER_API_KEY to enable HLD/LLD generation",
 			};
 		}
-		// Host delegation returns the user prompt as content — use it
-		// (it's not AI-generated, but it's the structured prompt the user provided)
 
 		return { ok: true, value: aiResult.text };
 	} catch (e) {

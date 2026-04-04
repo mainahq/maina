@@ -354,12 +354,19 @@ export async function reviewCodeQualityWithAI(
 		);
 
 		// Parse AI findings and merge with deterministic ones
-		// For now, add AI summary as an info finding
-		if (aiResult.text) {
+		if (aiResult.text && aiResult.fromAI) {
 			deterministicResult.findings.push({
 				stage: "code-quality",
 				severity: "info",
 				message: `AI review: ${aiResult.text.slice(0, 200)}${aiResult.text.length > 200 ? "..." : ""}`,
+			});
+		} else if (aiResult.hostDelegation && aiResult.delegation) {
+			// Host mode — include delegation note for the host agent
+			deterministicResult.findings.push({
+				stage: "code-quality",
+				severity: "info",
+				message:
+					"AI review delegated to host agent. Deterministic checks complete.",
 			});
 		}
 	} catch {
