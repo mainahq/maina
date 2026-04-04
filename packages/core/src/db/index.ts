@@ -140,6 +140,15 @@ function createStatsTables(db: Database): void {
 			skipped INTEGER NOT NULL DEFAULT 0
 		);
 	`);
+
+	// Migration: add skipped column to existing tables
+	try {
+		db.exec(
+			"ALTER TABLE commit_snapshots ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0",
+		);
+	} catch {
+		// Column already exists — safe to ignore
+	}
 }
 
 /**
