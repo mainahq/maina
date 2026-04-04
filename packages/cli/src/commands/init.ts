@@ -9,6 +9,7 @@ import { Command } from "commander";
 export interface InitActionOptions {
 	cwd?: string;
 	force?: boolean;
+	install?: boolean;
 }
 
 /** Dependency injection for testing — avoids mock.module */
@@ -30,12 +31,18 @@ const defaultDeps: InitActionDeps = { intro, outro, log };
 /** Install hints for missing verification tools. */
 const INSTALL_HINTS: Record<string, string> = {
 	biome: "bun add -d @biomejs/biome",
-	semgrep: "pip install semgrep",
+	semgrep: "brew install semgrep",
 	trivy: "brew install trivy",
 	secretlint:
 		"bun add -d @secretlint/secretlint-rule-preset-recommend secretlint",
-	sonarqube: "https://docs.sonarsource.com/sonarqube-cloud/",
+	sonarqube: "brew install sonar-scanner",
 	stryker: "bun add -d @stryker-mutator/core",
+	"diff-cover": "pipx install diff-cover",
+	ruff: "brew install ruff",
+	"golangci-lint": "brew install golangci-lint",
+	"cargo-clippy": "rustup component add clippy",
+	"cargo-audit": "cargo install cargo-audit",
+	playwright: "npx playwright install chromium",
 };
 
 // ── Core Action (testable) ──────────────────────────────────────────────────
@@ -95,6 +102,32 @@ export async function initAction(
 				deps.log.message(`    ${t.name}: ${cmd}`);
 			}
 		}
+
+		// Auto-install if --install flag is set
+		if (options.install) {
+			deps.log.step("Installing missing tools...");
+			for (const t of missing) {
+				const cmd = INSTALL_HINTS[t.name];
+				if (!cmd || cmd.startsWith("http")) continue;
+				deps.log.message(`  Installing ${t.name}...`);
+				try {
+					const args = cmd.split(" ");
+					const proc = Bun.spawn(args, {
+						cwd,
+						stdout: "pipe",
+						stderr: "pipe",
+					});
+					await proc.exited;
+					if (proc.exitCode === 0) {
+						deps.log.success(`    ${t.name} installed`);
+					} else {
+						deps.log.warning(`    ${t.name} install failed (non-zero exit)`);
+					}
+				} catch {
+					deps.log.warning(`    ${t.name} install failed`);
+				}
+			}
+		}
 	}
 
 	// Display created files
@@ -137,11 +170,13 @@ export function initCommand(): Command {
 	return new Command("init")
 		.description("Bootstrap Maina in this repository")
 		.option("--force", "Overwrite existing files")
+		.option("--install", "Auto-install missing verification tools")
 		.action(async (options) => {
 			intro("maina init");
 
 			const result = await initAction({
 				force: options.force,
+				install: options.install,
 			});
 
 			if (result.ok) {
