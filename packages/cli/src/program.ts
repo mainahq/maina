@@ -21,6 +21,7 @@ import { statsCommand } from "./commands/stats";
 import { statusCommand } from "./commands/status";
 import { ticketCommand } from "./commands/ticket";
 import { verifyCommand } from "./commands/verify";
+import { visualCommand } from "./commands/visual";
 
 export function createProgram(): Command {
 	const program = new Command();
@@ -49,5 +50,6 @@ export function createProgram(): Command {
 	program.addCommand(reviewDesignCommand());
 	program.addCommand(slopCommand());
 	program.addCommand(statusCommand());
+	program.addCommand(visualCommand());
 	return program;
 }
