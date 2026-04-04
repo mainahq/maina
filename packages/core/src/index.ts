@@ -2,6 +2,13 @@ export const VERSION = "0.1.0";
 
 // AI
 export { generateCommitMessage } from "./ai/commit-msg";
+// AI — Delegation
+export {
+	type DelegationRequest,
+	formatDelegationRequest,
+	outputDelegationRequest,
+	parseDelegationRequest,
+} from "./ai/delegation";
 export {
 	type DesignApproach,
 	generateDesignApproaches,

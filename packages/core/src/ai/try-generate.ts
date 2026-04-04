@@ -1,4 +1,5 @@
 import { getApiKey, isHostMode } from "../config/index";
+import { outputDelegationRequest } from "./delegation";
 
 export interface DelegationPrompt {
 	task: string;
@@ -68,6 +69,22 @@ export async function tryAIGenerate(
 				};
 			}
 		}
+
+		// Output structured request for host agent to process
+		outputDelegationRequest({
+			task,
+			context: `AI ${task} requested — process with host AI`,
+			prompt: userPrompt,
+			expectedFormat:
+				task === "commit"
+					? "text"
+					: task.includes("review")
+						? "json"
+						: "markdown",
+			schema: task.includes("review")
+				? '{"findings":[{"file":"path","line":42,"message":"desc","severity":"warning"}]}'
+				: undefined,
+		});
 
 		// Host mode — return structured delegation for host agent to process
 		return {
