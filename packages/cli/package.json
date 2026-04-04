@@ -28,8 +28,8 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.2.0",
-    "@mainahq/core": "workspace:*",
-    "@mainahq/mcp": "workspace:*",
+    "@mainahq/core": "workspace:^",
+    "@mainahq/mcp": "workspace:^",
     "commander": "^14.0.3"
   }
 }
