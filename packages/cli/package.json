@@ -1,6 +1,6 @@
 {
   "name": "@mainahq/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "license": "Apache-2.0",
   "description": "Maina CLI — verification-first developer OS command-line interface",
@@ -13,7 +13,11 @@
   "engines": {
     "bun": ">=1.0.0"
   },
-  "files": ["dist", "package.json", "README.md"],
+  "files": [
+    "dist",
+    "package.json",
+    "README.md"
+  ],
   "main": "dist/index.js",
   "bin": {
     "maina": "dist/index.js"

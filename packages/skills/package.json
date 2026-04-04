@@ -1,6 +1,6 @@
 {
   "name": "@mainahq/skills",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "license": "Apache-2.0",
   "description": "Maina skills — cross-platform integration for Claude Code, Cursor, Codex, and Gemini CLI",
@@ -13,5 +13,9 @@
   "engines": {
     "bun": ">=1.0.0"
   },
-  "files": ["*/SKILL.md", "README.md", "package.json"]
+  "files": [
+    "*/SKILL.md",
+    "README.md",
+    "package.json"
+  ]
 }
