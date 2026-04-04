@@ -178,9 +178,11 @@ export {
 	getPrimaryLanguage,
 } from "./language/detect";
 export {
+	CSHARP_PROFILE,
 	GO_PROFILE,
 	getProfile,
 	getSupportedLanguages,
+	JAVA_PROFILE,
 	type LanguageId,
 	type LanguageProfile,
 	PYTHON_PROFILE,

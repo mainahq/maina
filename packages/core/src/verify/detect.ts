@@ -22,7 +22,11 @@ export type ToolName =
 	| "golangci-lint"
 	| "cargo-clippy"
 	| "cargo-audit"
-	| "playwright";
+	| "playwright"
+	| "dotnet-format"
+	| "checkstyle"
+	| "spotbugs"
+	| "pmd";
 
 export interface DetectedTool {
 	name: string;
@@ -47,6 +51,10 @@ export const TOOL_REGISTRY: Record<
 	"cargo-clippy": { command: "cargo", versionFlag: "clippy --version" },
 	"cargo-audit": { command: "cargo-audit", versionFlag: "--version" },
 	playwright: { command: "npx", versionFlag: "playwright --version" },
+	"dotnet-format": { command: "dotnet", versionFlag: "format --version" },
+	checkstyle: { command: "checkstyle", versionFlag: "--version" },
+	spotbugs: { command: "spotbugs", versionFlag: "-version" },
+	pmd: { command: "pmd", versionFlag: "--version" },
 };
 
 /**

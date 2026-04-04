@@ -47,6 +47,11 @@ function resolveImportPath(
 		// Rust
 		`${base}.rs`,
 		`${base}/mod.rs`,
+		// C#
+		`${base}.cs`,
+		// Java
+		`${base}.java`,
+		`${base}.kt`,
 	];
 
 	for (const candidate of candidates) {

@@ -31,6 +31,9 @@ const SOURCE_EXTENSIONS = new Set([
 	".pyi",
 	".go",
 	".rs",
+	".cs",
+	".java",
+	".kt",
 ]);
 
 /**
