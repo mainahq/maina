@@ -1,45 +1,102 @@
-# Feature: [Name]
+# Feature 016: Post-Workflow RL Self-Improvement Loop
 
-## Problem Statement
+## Problem
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
-
-## Target User
-
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
-
-## User Stories
-
-- As a [role], I want [capability] so that [benefit].
+`maina learn` shows per-command metrics (review: 44%, commit: 83%) but has no visibility into per-workflow-step performance. Feature 015 added `workflow_step` and `workflow_id` to feedback records, but nothing reads them yet. There's no way to see which workflow steps consistently underperform or which workflow runs produced the best outcomes.
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
+- **SC-1:** `analyseWorkflowFeedback(mainaDir)` returns per-step metrics (samples, accept rate, needs improvement) using the `workflow_step` column
+- **SC-2:** `analyseWorkflowRuns(mainaDir)` returns per-workflow-run metrics grouped by `workflow_id` (how many steps passed, overall success rate)
+- **SC-3:** `maina learn` shows a workflow steps table alongside the existing tasks table
+- **SC-4:** `maina learn` shows workflow run summaries (last 5 runs: X/Y steps passed)
+- **SC-5:** A/B test resolution considers workflow step context — a prompt that performs well in the "review" step should be promoted for that step
 
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+## Out of Scope
 
-## Scope
+- Correlation analysis (spec quality → implementation findings) — future
+- Auto-generating improved prompts from workflow trace — future
+- Per-file language-specific learning — future
 
-### In Scope
+## Design
 
-- [NEEDS CLARIFICATION] What this feature does.
+### New Analysis Functions
 
-### Out of Scope
+In `packages/core/src/prompts/evolution.ts`, add:
 
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
+```typescript
+interface WorkflowStepAnalysis {
+  step: string;
+  totalSamples: number;
+  acceptRate: number;
+  needsImprovement: boolean;
+}
 
-## Design Decisions
+interface WorkflowRunSummary {
+  workflowId: string;
+  totalSteps: number;
+  passedSteps: number;
+  successRate: number;
+  createdAt: string;
+}
 
-Key choices made and WHY. Record tradeoffs — future you will thank you.
+function analyseWorkflowFeedback(mainaDir: string): WorkflowStepAnalysis[]
+function analyseWorkflowRuns(mainaDir: string, limit?: number): WorkflowRunSummary[]
+```
 
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
+### SQL Queries
 
-## Open Questions
+Per-step analysis:
+```sql
+SELECT workflow_step, COUNT(*) as total,
+       SUM(CASE WHEN accepted = 1 THEN 1 ELSE 0 END) as accepted_count
+FROM feedback
+WHERE workflow_step IS NOT NULL
+GROUP BY workflow_step
+```
 
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+Per-run summary:
+```sql
+SELECT workflow_id, COUNT(*) as total_steps,
+       SUM(CASE WHEN accepted = 1 THEN 1 ELSE 0 END) as passed_steps,
+       MIN(created_at) as created_at
+FROM feedback
+WHERE workflow_id IS NOT NULL
+GROUP BY workflow_id
+ORDER BY created_at DESC
+LIMIT ?
+```
+
+### Learn Command Enhancement
+
+`packages/cli/src/commands/learn.ts` adds two new sections after the existing tasks table:
+
+1. **Workflow Steps table** — same format as tasks table but grouped by `workflow_step`
+2. **Recent Workflow Runs** — last 5 runs with step pass rates
+
+```
+Workflow Steps:
+  Step              Samples  Accept  Status
+  ──────────────── ──────── ──────── ────────
+  plan                  12     92%  healthy
+  design                 8     75%  needs improvement
+  design-review         10     80%  healthy
+  commit                84     83%  healthy
+  verify                45     95%  healthy
+  pr                     6    100%  healthy
+
+Recent Workflow Runs:
+  Workflow ID   Steps  Passed  Rate
+  ──────────── ────── ─────── ──────
+  a3f8b2c1d4e5   6/6    100%  ✓
+  b7d2e9f0a1c3   5/6     83%  —
+```
+
+## Files to Change
+
+| File | Change |
+|------|--------|
+| `packages/core/src/prompts/evolution.ts` | Add `analyseWorkflowFeedback`, `analyseWorkflowRuns`, new types |
+| `packages/core/src/prompts/__tests__/evolution.test.ts` | Tests for new functions |
+| `packages/cli/src/commands/learn.ts` | Show workflow steps + runs tables |
+| `packages/core/src/index.ts` | Export new functions + types |
