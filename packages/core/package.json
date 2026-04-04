@@ -1,6 +1,6 @@
 {
   "name": "@mainahq/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "license": "Apache-2.0",
   "description": "Maina core engines — Context, Prompt, and Verify for verification-first development",
@@ -13,8 +13,18 @@
   "engines": {
     "bun": ">=1.0.0"
   },
-  "files": ["src", "package.json", "README.md"],
-  "keywords": ["maina", "verification", "context-engine", "prompt-engine", "ai-code-review"],
+  "files": [
+    "src",
+    "package.json",
+    "README.md"
+  ],
+  "keywords": [
+    "maina",
+    "verification",
+    "context-engine",
+    "prompt-engine",
+    "ai-code-review"
+  ],
   "main": "src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit"

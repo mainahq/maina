@@ -1,6 +1,6 @@
 {
   "name": "@mainahq/mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "license": "Apache-2.0",
   "description": "Maina MCP server — Model Context Protocol bridge for AI host agents",
@@ -13,8 +13,18 @@
   "engines": {
     "bun": ">=1.0.0"
   },
-  "files": ["src", "package.json", "README.md"],
-  "keywords": ["maina", "mcp", "model-context-protocol", "verification", "ai-code-review"],
+  "files": [
+    "src",
+    "package.json",
+    "README.md"
+  ],
+  "keywords": [
+    "maina",
+    "mcp",
+    "model-context-protocol",
+    "verification",
+    "ai-code-review"
+  ],
   "main": "src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit"
