@@ -4,6 +4,7 @@ import { analyzeCommand } from "./commands/analyze";
 import { benchmarkCommand } from "./commands/benchmark";
 import { cacheCommand } from "./commands/cache";
 import { commitCommand } from "./commands/commit";
+import { configureCommand } from "./commands/configure";
 import { contextCommand } from "./commands/context";
 import { designCommand } from "./commands/design";
 import { doctorCommand } from "./commands/doctor";
@@ -31,6 +32,7 @@ export function createProgram(): Command {
 		.version(pkg.version);
 	program.addCommand(analyzeCommand());
 	program.addCommand(benchmarkCommand());
+	program.addCommand(configureCommand());
 	program.addCommand(contextCommand());
 	program.addCommand(promptCommand());
 	program.addCommand(cacheCommand());
