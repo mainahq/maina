@@ -68,6 +68,17 @@ function makeDeps(overrides: Partial<PrDepsType> = {}): PrDepsType {
 				.join("\n");
 			return `## Summary\n\nTest summary.\n\n## What Changed\n\n${commitList}\n\n## Review\n\n${reviewSummary}`;
 		},
+		gatherVerificationProof: async () => ({
+			pipeline: [],
+			pipelinePassed: true,
+			pipelineDuration: 0,
+			tests: null,
+			review: null,
+			slop: null,
+			visual: null,
+			workflowSummary: null,
+		}),
+		formatVerificationProof: () => "",
 		...overrides,
 	};
 }

@@ -6,6 +6,8 @@ import {
 	getDiff as coreGetDiff,
 	getRecentCommits as coreGetRecentCommits,
 	runTwoStageReview as coreRunTwoStageReview,
+	formatVerificationProof,
+	gatherVerificationProof,
 	getWorkflowId,
 	recordFeedbackAsync,
 } from "@maina/core";
@@ -52,6 +54,8 @@ export interface PrDeps {
 		reviewSummary: string,
 		mainaDir: string,
 	) => Promise<string>;
+	gatherVerificationProof: typeof gatherVerificationProof;
+	formatVerificationProof: typeof formatVerificationProof;
 }
 
 // ── Default createPr implementation ─────────────────────────────────────────
@@ -122,6 +126,8 @@ const defaultDeps: PrDeps = {
 	getCurrentBranch: coreGetCurrentBranch,
 	runTwoStageReview: coreRunTwoStageReview,
 	generatePrSummary: coreGeneratePrSummary,
+	gatherVerificationProof,
+	formatVerificationProof,
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -232,13 +238,30 @@ export async function prAction(
 		mainaDir,
 	);
 
+	// ── Step 3b: Gather verification proof ──────────────────────────────
+	let proofSection = "";
+	try {
+		const proof = await deps.gatherVerificationProof({
+			cwd,
+			mainaDir,
+			baseBranch: base,
+			reviewResult: reviewResult,
+			skipTests: false,
+		});
+		proofSection = deps.formatVerificationProof(proof);
+	} catch {
+		// Proof gathering failure should never block PR creation
+	}
+
+	const fullBody = body + proofSection;
+
 	// ── Step 4: Resolve title ────────────────────────────────────────────
 	const title = options.title ?? titleFromBranch(branch);
 
 	// ── Step 5: Create PR ────────────────────────────────────────────────
 	const result = await deps.createPr({
 		title,
-		body,
+		body: fullBody,
 		base,
 		draft,
 		cwd,
