@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
 import type { Finding, FixSuggestion, PipelineResult } from "@maina/core";
 import {
+	appendWorkflowStep,
 	generateFixes,
 	getStagedFiles,
 	getTrackedFiles,
@@ -192,6 +193,13 @@ export async function verifyAction(
 			);
 		}
 	}
+
+	const wfMainaDir = join(cwd, ".maina");
+	appendWorkflowStep(
+		wfMainaDir,
+		"verify",
+		`Pipeline ${result.passed ? "passed" : "failed"}: ${result.findingsCount} findings, ${result.duration}ms.`,
+	);
 
 	return result;
 }

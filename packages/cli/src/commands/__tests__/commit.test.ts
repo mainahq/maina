@@ -107,6 +107,7 @@ mock.module("@maina/core", () => ({
 		lastAccessedAt: "",
 	}),
 	setVerificationResult: async () => ({}),
+	appendWorkflowStep: () => {},
 }));
 
 mock.module("@clack/prompts", () => ({

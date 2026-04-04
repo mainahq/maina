@@ -180,6 +180,7 @@ describe("assembleWorkingText", () => {
 		const ctx = {
 			branch: "feature/foo",
 			planContent: null,
+			workflowContext: null,
 			touchedFiles: ["a.ts", "b.ts"],
 			lastVerification: null,
 			updatedAt: new Date().toISOString(),
@@ -193,6 +194,7 @@ describe("assembleWorkingText", () => {
 		const ctx = {
 			branch: "main",
 			planContent: null,
+			workflowContext: null,
 			touchedFiles: ["src/foo.ts", "src/bar.ts"],
 			lastVerification: null,
 			updatedAt: new Date().toISOString(),
@@ -206,6 +208,7 @@ describe("assembleWorkingText", () => {
 		const ctx = {
 			branch: "main",
 			planContent: "# Plan\nDo stuff.",
+			workflowContext: null,
 			touchedFiles: [],
 			lastVerification: null,
 			updatedAt: new Date().toISOString(),
@@ -218,6 +221,7 @@ describe("assembleWorkingText", () => {
 		const ctx = {
 			branch: "main",
 			planContent: null,
+			workflowContext: null,
 			touchedFiles: [],
 			lastVerification: {
 				passed: false,

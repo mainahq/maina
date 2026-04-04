@@ -9,9 +9,11 @@ import {
 	text,
 } from "@clack/prompts";
 import {
+	appendWorkflowStep,
 	createFeatureDir,
 	type DesignChoices,
 	getNextFeatureNumber,
+	resetWorkflowContext,
 	scaffoldFeature,
 	scaffoldFeatureWithContext,
 	toKebabCase,
@@ -360,6 +362,14 @@ export async function planAction(
 	}
 
 	// ── Step 7: Return result ────────────────────────────────────────────
+	const mainaDir = join(cwd, ".maina");
+	resetWorkflowContext(mainaDir, branchName);
+	appendWorkflowStep(
+		mainaDir,
+		"plan",
+		`Feature ${featureNumber} scaffolded. Branch: ${branchName}. Dir: ${featureDir}.`,
+	);
+
 	return {
 		created: true,
 		featureNumber,

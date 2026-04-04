@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { confirm, intro, isCancel, log, outro, text } from "@clack/prompts";
 import {
 	addEpisodicEntry,
+	appendWorkflowStep,
 	assembleContext,
 	getCurrentBranch,
 	getDiff,
@@ -378,6 +379,14 @@ export async function commitAction(
 		command: "commit",
 		context: `committed: ${message}`,
 	});
+
+	const toolCount = pipelineResult?.tools.length ?? 0;
+	const findingsCount = pipelineResult?.findings.length ?? 0;
+	appendWorkflowStep(
+		mainaDir,
+		"commit",
+		`Verified: ${toolCount} tools, ${findingsCount} findings. Committed.`,
+	);
 
 	return { committed: true };
 }

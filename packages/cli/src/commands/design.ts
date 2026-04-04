@@ -8,6 +8,7 @@ import {
 import { join } from "node:path";
 import { intro, isCancel, log, outro, select, text } from "@clack/prompts";
 import {
+	appendWorkflowStep,
 	getNextAdrNumber as coreGetNextAdrNumber,
 	listAdrs as coreListAdrs,
 	scaffoldAdr as coreScaffoldAdr,
@@ -151,6 +152,13 @@ export async function designAction(
 	const filePath = scaffoldResult.value;
 
 	log.success(`ADR ${adrNumber} created: ${filePath}`);
+
+	const wfMainaDir = join(cwd, ".maina");
+	appendWorkflowStep(
+		wfMainaDir,
+		"design",
+		`ADR ${adrNumber} created: ${title}.`,
+	);
 
 	// Step 3b: Generate HLD/LLD if --hld and spec exists
 	if (options.hld) {
