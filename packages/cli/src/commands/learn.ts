@@ -2,6 +2,8 @@ import { join } from "node:path";
 import { confirm, intro, log, outro, select, spinner } from "@clack/prompts";
 import {
 	analyseFeedback,
+	analyseWorkflowFeedback,
+	analyseWorkflowRuns,
 	createCandidate,
 	type PromptTask,
 	resolveABTests,
@@ -57,6 +59,40 @@ export function learnCommand(): Command {
 			});
 
 			log.message([header, separator, ...rows].join("\n"));
+
+			// Workflow step metrics
+			const workflowSteps = analyseWorkflowFeedback(mainaDir);
+			if (workflowSteps.length > 0) {
+				log.step("Workflow Steps:");
+				const wfHeader = `  ${"Step".padEnd(18)} ${"Samples".padStart(8)}  ${"Accept".padStart(8)}  Status`;
+				const wfSeparator = `  ${"─".repeat(18)} ${"─".repeat(8)}  ${"─".repeat(8)}  ${"─".repeat(16)}`;
+				const wfRows = workflowSteps.map((s) => {
+					const rate =
+						s.totalSamples > 0 ? `${(s.acceptRate * 100).toFixed(0)}%` : "—";
+					const status = s.needsImprovement
+						? "needs improvement"
+						: s.totalSamples >= 10
+							? "healthy"
+							: s.totalSamples > 0
+								? "gathering data"
+								: "no data";
+					return `  ${s.step.padEnd(18)} ${String(s.totalSamples).padStart(8)}  ${rate.padStart(8)}  ${status}`;
+				});
+				log.message([wfHeader, wfSeparator, ...wfRows].join("\n"));
+			}
+
+			// Recent workflow runs
+			const workflowRuns = analyseWorkflowRuns(mainaDir, 5);
+			if (workflowRuns.length > 0) {
+				log.step("Recent Workflow Runs:");
+				const runHeader = `  ${"Workflow ID".padEnd(14)} ${"Steps".padStart(6)}  ${"Passed".padStart(7)}  ${"Rate".padStart(6)}`;
+				const runSeparator = `  ${"─".repeat(14)} ${"─".repeat(6)}  ${"─".repeat(7)}  ${"─".repeat(6)}`;
+				const runRows = workflowRuns.map((r) => {
+					const rate = `${(r.successRate * 100).toFixed(0)}%`;
+					return `  ${r.workflowId.padEnd(14)} ${String(r.totalSteps).padStart(6)}  ${String(r.passedSteps).padStart(7)}  ${rate.padStart(6)}`;
+				});
+				log.message([runHeader, runSeparator, ...runRows].join("\n"));
+			}
 
 			// Resolve active A/B tests
 			const resolutions = resolveABTests(mainaDir);

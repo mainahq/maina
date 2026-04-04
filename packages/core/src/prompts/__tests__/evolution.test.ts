@@ -1,10 +1,12 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { recordOutcome } from "../engine";
 import {
 	abTest,
 	analyseFeedback,
+	analyseWorkflowFeedback,
+	analyseWorkflowRuns,
 	createCandidate,
 	promote,
 	retire,
@@ -141,5 +143,45 @@ describe("retire", () => {
 		// No candidate should exist
 		const result = abTest(tmpDir, "review");
 		expect(result.variant).toBe("active");
+	});
+});
+
+describe("analyseWorkflowFeedback", () => {
+	it("should return an array", () => {
+		const result = analyseWorkflowFeedback(tmpDir);
+		expect(Array.isArray(result)).toBe(true);
+	});
+
+	it("should have step and acceptRate fields when data exists", () => {
+		const result = analyseWorkflowFeedback(tmpDir);
+		for (const entry of result) {
+			expect(typeof entry.step).toBe("string");
+			expect(typeof entry.totalSamples).toBe("number");
+			expect(typeof entry.acceptRate).toBe("number");
+			expect(typeof entry.needsImprovement).toBe("boolean");
+		}
+	});
+});
+
+describe("analyseWorkflowRuns", () => {
+	it("should return an array", () => {
+		const result = analyseWorkflowRuns(tmpDir);
+		expect(Array.isArray(result)).toBe(true);
+	});
+
+	it("should respect limit parameter", () => {
+		const result = analyseWorkflowRuns(tmpDir, 3);
+		expect(result.length).toBeLessThanOrEqual(3);
+	});
+
+	it("should have correct fields when data exists", () => {
+		const result = analyseWorkflowRuns(tmpDir);
+		for (const entry of result) {
+			expect(typeof entry.workflowId).toBe("string");
+			expect(typeof entry.totalSteps).toBe("number");
+			expect(typeof entry.passedSteps).toBe("number");
+			expect(typeof entry.successRate).toBe("number");
+			expect(typeof entry.createdAt).toBe("string");
+		}
 	});
 });
