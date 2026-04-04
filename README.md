@@ -156,7 +156,7 @@ Maina's 12-tool pipeline caught issues that ad-hoc implementation missed.
 ## Quick Start
 
 ```bash
-bun add -g @mainahq/cli       # Install
+bun add -g @mainahq/cli    # Install
 maina init --install         # Bootstrap + install verification tools
 maina configure              # Set conventions interactively
 maina doctor                 # Check what's available
@@ -203,7 +203,7 @@ export default defineConfig({
 ```bash
 git clone https://github.com/beeeku/maina
 cd maina && bun install
-bun run build && bun run test    # 990 tests
+bun run build && bun run test    # 1017+ tests
 ```
 
 ## The Name

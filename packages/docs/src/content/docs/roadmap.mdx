@@ -5,25 +5,25 @@ description: Upcoming features and the future direction of Maina.
 
 Maina is open source (Apache 2.0) and actively developed. Here is what is shipped and planned.
 
-## Shipped (v0.2.0)
+## Shipped (v0.3.0)
 
-- **24 CLI commands** across Define, Build, Verify, and Meta phases
-- **12-tool verification pipeline** -- Biome, Semgrep, Trivy, Secretlint, SonarQube, Stryker, diff-cover, AI review, slop detection, and visual regression
-- **Multi-language support** -- TypeScript, Python, Go, Rust with language-specific profiles
+- **25 CLI commands** including `maina brainstorm` as the workflow starting point
+- **16-tool verification pipeline** -- Biome, ruff, go vet, clippy, dotnet format, Checkstyle, Semgrep, Trivy, Secretlint, SonarQube, Stryker, diff-cover, AI review, slop detection, visual regression, SpotBugs/PMD
+- **6 languages** -- TypeScript, Python, Go, Rust, C#/.NET, Java/Kotlin
+- **Structured AI delegation** -- `---MAINA_AI_REQUEST---` stdout protocol for any MCP-compatible host
 - **Visual verification** -- Playwright screenshot regression testing
 - **Workflow context** -- rolling summary forwarded between lifecycle steps
 - **Background RL** -- async feedback recording at each workflow step with post-workflow analysis
-- **Interactive configuration** -- `maina configure` for constitution, conventions, tools, visual URLs
 - **Verification proof** -- `maina pr` includes verification artifacts in the PR body
-- **Host delegation** -- works inside Claude Code, Codex, and OpenCode via structured DelegationPrompt
+- **`maina brainstorm`** -- interactive idea exploration that generates structured GitHub issues
+- **`maina configure`** -- interactive constitution, conventions, tools, visual URLs
+- **`maina init --install`** -- auto-install missing verification tools
 - **8 MCP tools** for IDE integration
 - **5 cross-platform skills** for Claude Code, Cursor, Codex, Gemini CLI
-- **990 tests**
+- **1017+ tests**, 100% benchmark (matches SpecKit)
 
-## v0.3.0 -- Enterprise Languages
+## v0.4.0 -- Polish + CI
 
-- **C# (.NET) support** -- `dotnet format` / Roslyn analyzers, `.sln`/`.csproj` detection
-- **Java/Kotlin support** -- Checkstyle, SpotBugs, PMD, `pom.xml`/`build.gradle` detection
 - **PHP support** -- PHPStan, Psalm
 - **Per-file language detection** in polyglot repos (currently uses primary language)
 

@@ -1,13 +1,21 @@
 ---
 title: Commands
-description: All 24 Maina commands organized by workflow phase -- Define, Build, Verify, and Meta.
+description: All 25 Maina commands organized by workflow phase -- Brainstorm, Define, Build, Verify, and Meta.
 ---
 
-Maina has 24 commands organized into four workflow phases. Every command draws from the three engines -- Context, Prompt, and Verify -- as needed.
+Maina has 25 commands organized into five workflow phases. Every command draws from the three engines -- Context, Prompt, and Verify -- as needed.
+
+## Brainstorm Phase
+
+Start here. Explore ideas before committing to implementation.
+
+| Command | Description | Context Needs |
+|---------|------------|---------------|
+| `maina brainstorm` | Interactive idea exploration -- generates a structured GitHub issue with user stories, acceptance criteria, edge cases. The starting point for every feature. | None |
 
 ## Define Phase
 
-Define what you're building and why.
+Set up your project and define architecture.
 
 | Command | Description | Context Needs |
 |---------|------------|---------------|
@@ -89,6 +97,8 @@ Maina detects your project language from marker files and adapts:
 | Python | `pyproject.toml`, `setup.py`, `requirements.txt` | ruff |
 | Go | `go.mod` | go vet |
 | Rust | `Cargo.toml` | clippy |
+| C# (.NET) | `.sln`, `.csproj`, `global.json` | dotnet format |
+| Java/Kotlin | `pom.xml`, `build.gradle` | Checkstyle |
 
 ## Workflow Context
 
