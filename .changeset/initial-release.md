@@ -7,7 +7,7 @@
 
 Initial release of Maina — verification-first developer OS.
 
-- 21 CLI commands, 8 MCP tools, 5 cross-platform skills
+- 24 CLI commands, 8 MCP tools, 5 cross-platform skills
 - 12-tool verify pipeline (Biome, Semgrep, Trivy, Secretlint, SonarQube, Stryker, diff-cover, AI review, slop detection, visual regression)
 - Multi-language support: TypeScript, Python, Go, Rust
 - Context Engine: 4-layer retrieval with PageRank relevance
