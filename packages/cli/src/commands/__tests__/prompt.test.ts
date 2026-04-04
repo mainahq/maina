@@ -23,7 +23,7 @@ afterEach(() => {
 
 describe("prompt edit", () => {
 	test("creates prompt file from default template if not exists", async () => {
-		const { loadDefault } = await import("@maina/core");
+		const { loadDefault } = await import("@mainahq/core");
 		const promptsDir = join(tmpDir, "prompts");
 		mkdirSync(promptsDir, { recursive: true });
 		const filePath = join(promptsDir, "review.md");
@@ -40,7 +40,7 @@ describe("prompt edit", () => {
 
 describe("prompt list", () => {
 	test("getPromptStats returns empty array when no feedback", async () => {
-		const { getPromptStats } = await import("@maina/core");
+		const { getPromptStats } = await import("@mainahq/core");
 		const stats = getPromptStats(tmpDir);
 		expect(stats).toEqual([]);
 	});

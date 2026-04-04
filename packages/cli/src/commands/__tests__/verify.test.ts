@@ -74,7 +74,7 @@ let fixCalledWith: { findings: unknown[]; options: unknown } | undefined;
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-mock.module("@maina/core", () => ({
+mock.module("@mainahq/core", () => ({
 	runPipeline: async (opts?: Record<string, unknown>) => {
 		pipelineCalledWith = opts;
 		return mockPipelineResult;

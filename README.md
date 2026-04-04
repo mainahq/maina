@@ -156,7 +156,7 @@ Maina's 12-tool pipeline caught issues that ad-hoc implementation missed.
 ## Quick Start
 
 ```bash
-bun add -g @maina/cli       # Install
+bun add -g @mainahq/cli       # Install
 maina init --install         # Bootstrap + install verification tools
 maina configure              # Set conventions interactively
 maina doctor                 # Check what's available

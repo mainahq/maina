@@ -42,7 +42,7 @@ let mockCacheStats = {
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-mock.module("@maina/core", () => ({
+mock.module("@mainahq/core", () => ({
 	detectTools: async () => mockDetectedTools,
 	createCacheManager: () => ({
 		stats: () => mockCacheStats,

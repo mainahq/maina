@@ -14,7 +14,7 @@ export function registerFeatureTools(server: McpServer): void {
 			try {
 				const content = await Bun.file(planPath).text();
 				const { generateTestStubs, generateSpecQuestions } = await import(
-					"@maina/core"
+					"@mainahq/core"
 				);
 
 				// Generate test stubs
@@ -58,7 +58,7 @@ export function registerFeatureTools(server: McpServer): void {
 		{ featureDir: z.string() },
 		async ({ featureDir }) => {
 			try {
-				const { analyze } = await import("@maina/core");
+				const { analyze } = await import("@mainahq/core");
 				const result = analyze(featureDir);
 				if (!result.ok) {
 					return {

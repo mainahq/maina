@@ -1,7 +1,11 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { intro, isCancel, log, outro, select, text } from "@clack/prompts";
-import { appendWorkflowStep, detectLanguages, detectTools } from "@maina/core";
+import {
+	appendWorkflowStep,
+	detectLanguages,
+	detectTools,
+} from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Install hints (same as init.ts) ─────────────────────────────────────

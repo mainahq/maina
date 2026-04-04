@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
-import { assembleContext, loadWorkingContext } from "@maina/core";
+import { assembleContext, loadWorkingContext } from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────

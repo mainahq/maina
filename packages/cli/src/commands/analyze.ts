@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
-import { analyze, getCurrentBranch } from "@maina/core";
+import { analyze, getCurrentBranch } from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────

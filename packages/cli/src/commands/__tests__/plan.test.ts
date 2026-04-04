@@ -47,7 +47,7 @@ let verifyPlanCalls: Array<{ planPath: string; specPath: string }> = [];
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-mock.module("@maina/core", () => ({
+mock.module("@mainahq/core", () => ({
 	toKebabCase: (input: string) =>
 		input
 			.replace(/([a-z0-9])([A-Z])/g, "$1-$2")

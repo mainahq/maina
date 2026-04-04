@@ -13,7 +13,7 @@ export function registerExplainTools(server: McpServer): void {
 		{ scope: z.string().optional() },
 		async ({ scope }) => {
 			try {
-				const { generateDependencyDiagram } = await import("@maina/core");
+				const { generateDependencyDiagram } = await import("@mainahq/core");
 				const mainaDir = join(process.cwd(), ".maina");
 				const diagram = generateDependencyDiagram(mainaDir, { scope });
 				return {

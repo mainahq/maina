@@ -18,7 +18,7 @@ export function registerReviewTools(server: McpServer): void {
 					recordFeedbackAsync,
 					getWorkflowId,
 					getCurrentBranch,
-				} = await import("@maina/core");
+				} = await import("@mainahq/core");
 				const mainaDir = join(process.cwd(), ".maina");
 				const result = await runTwoStageReview({
 					diff,

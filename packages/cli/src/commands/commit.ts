@@ -15,7 +15,7 @@ import {
 	runHooks,
 	runPipeline,
 	setVerificationResult,
-} from "@maina/core";
+} from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -226,7 +226,7 @@ export async function commitAction(
 	// Try AI-generated commit message before manual prompt
 	if (!message) {
 		try {
-			const { generateCommitMessage } = await import("@maina/core");
+			const { generateCommitMessage } = await import("@mainahq/core");
 			const diff = await getDiff(undefined, undefined, cwd);
 			const suggested = await generateCommitMessage(
 				diff,

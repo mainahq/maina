@@ -12,7 +12,7 @@ import {
 	generateTestStubs,
 	getCurrentBranch,
 	type SpecQuestion,
-} from "@maina/core";
+} from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────

@@ -1,8 +1,8 @@
 ---
-"@maina/cli": minor
-"@maina/core": minor
-"@maina/mcp": minor
-"@maina/skills": minor
+"@mainahq/cli": minor
+"@mainahq/core": minor
+"@mainahq/mcp": minor
+"@mainahq/skills": minor
 ---
 
 Initial release of Maina — verification-first developer OS.

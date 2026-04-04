@@ -3,7 +3,7 @@ import { intro, isCancel, log, outro, text } from "@clack/prompts";
 import {
 	createTicket as coreCreateTicket,
 	detectModules as coreDetectModules,
-} from "@maina/core";
+} from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────

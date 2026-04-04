@@ -10,7 +10,7 @@ import {
 	gatherVerificationProof,
 	getWorkflowId,
 	recordFeedbackAsync,
-} from "@maina/core";
+} from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────

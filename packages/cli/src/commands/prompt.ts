@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
-import { loadDefault, type PromptTask } from "@maina/core";
+import { loadDefault, type PromptTask } from "@mainahq/core";
 import { Command } from "commander";
 
 const TASKS: PromptTask[] = [

@@ -6,7 +6,7 @@ import {
 	type Finding,
 	getStagedFiles,
 	getTrackedFiles,
-} from "@maina/core";
+} from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────

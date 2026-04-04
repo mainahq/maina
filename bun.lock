@@ -18,20 +18,20 @@
       },
     },
     "packages/cli": {
-      "name": "@maina/cli",
+      "name": "@mainahq/cli",
       "version": "0.1.0",
       "bin": {
         "maina": "dist/index.js",
       },
       "dependencies": {
         "@clack/prompts": "^1.2.0",
-        "@maina/core": "workspace:*",
-        "@maina/mcp": "workspace:*",
+        "@mainahq/core": "workspace:*",
+        "@mainahq/mcp": "workspace:*",
         "commander": "^14.0.3",
       },
     },
     "packages/core": {
-      "name": "@maina/core",
+      "name": "@mainahq/core",
       "version": "0.1.0",
       "dependencies": {
         "@ai-sdk/openai": "^3.0.50",
@@ -40,7 +40,7 @@
       },
     },
     "packages/docs": {
-      "name": "@maina/docs",
+      "name": "@mainahq/docs",
       "version": "0.1.0",
       "dependencies": {
         "@astrojs/starlight": "^0.35.2",
@@ -56,16 +56,16 @@
       },
     },
     "packages/mcp": {
-      "name": "@maina/mcp",
+      "name": "@mainahq/mcp",
       "version": "0.1.0",
       "dependencies": {
-        "@maina/core": "workspace:*",
+        "@mainahq/core": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "zod": "^4.3.6",
       },
     },
     "packages/skills": {
-      "name": "@maina/skills",
+      "name": "@mainahq/skills",
       "version": "0.1.0",
     },
   },
@@ -368,15 +368,15 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@maina/cli": ["@maina/cli@workspace:packages/cli"],
+    "@mainahq/cli": ["@mainahq/cli@workspace:packages/cli"],
 
-    "@maina/core": ["@maina/core@workspace:packages/core"],
+    "@mainahq/core": ["@mainahq/core@workspace:packages/core"],
 
-    "@maina/docs": ["@maina/docs@workspace:packages/docs"],
+    "@mainahq/docs": ["@mainahq/docs@workspace:packages/docs"],
 
-    "@maina/mcp": ["@maina/mcp@workspace:packages/mcp"],
+    "@mainahq/mcp": ["@mainahq/mcp@workspace:packages/mcp"],
 
-    "@maina/skills": ["@maina/skills@workspace:packages/skills"],
+    "@mainahq/skills": ["@mainahq/skills@workspace:packages/skills"],
 
     "@manypkg/find-root": ["@manypkg/find-root@1.1.0", "", { "dependencies": { "@babel/runtime": "^7.5.5", "@types/node": "^12.7.1", "find-up": "^4.1.0", "fs-extra": "^8.1.0" } }, "sha512-mki5uBvhHzO8kYYix/WRy2WX8S3B5wdVSc9D6KcU5lQNglP2yt58/VfLuAK49glRXChosY8ap2oJ1qgma3GUVA=="],
 

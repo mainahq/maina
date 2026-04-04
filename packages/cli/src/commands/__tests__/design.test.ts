@@ -55,7 +55,7 @@ mock.module("@clack/prompts", () => ({
 	isCancel: (v: unknown) => typeof v === "symbol",
 }));
 
-mock.module("@maina/core", () => ({
+mock.module("@mainahq/core", () => ({
 	getNextAdrNumber: async () => ({ ok: true, value: "0001" }),
 	scaffoldAdr: async () => ({ ok: true, value: "" }),
 	listAdrs: async () => ({ ok: true, value: [] }),

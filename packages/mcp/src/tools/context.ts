@@ -26,7 +26,7 @@ export function registerContextTools(server: McpServer): void {
 		{ command: z.enum(COMMANDS) },
 		async ({ command }) => {
 			try {
-				const { assembleContext } = await import("@maina/core");
+				const { assembleContext } = await import("@mainahq/core");
 				const result = await assembleContext(command, {
 					repoRoot: process.cwd(),
 					mainaDir: join(process.cwd(), ".maina"),
@@ -52,7 +52,7 @@ export function registerContextTools(server: McpServer): void {
 		{},
 		async () => {
 			try {
-				const { buildSystemPrompt } = await import("@maina/core");
+				const { buildSystemPrompt } = await import("@mainahq/core");
 				const mainaDir = join(process.cwd(), ".maina");
 				const built = await buildSystemPrompt("review", mainaDir, {});
 				return { content: [{ type: "text" as const, text: built.prompt }] };

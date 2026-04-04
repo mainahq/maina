@@ -20,11 +20,11 @@ export interface BenchmarkActionResult {
 }
 
 export interface BenchmarkDeps {
-	listStories: typeof import("@maina/core").listStories;
-	loadStory: typeof import("@maina/core").loadStory;
-	runBenchmark: typeof import("@maina/core").runBenchmark;
-	buildReport: typeof import("@maina/core").buildReport;
-	formatComparison: typeof import("@maina/core").formatComparison;
+	listStories: typeof import("@mainahq/core").listStories;
+	loadStory: typeof import("@mainahq/core").loadStory;
+	runBenchmark: typeof import("@mainahq/core").runBenchmark;
+	buildReport: typeof import("@mainahq/core").buildReport;
+	formatComparison: typeof import("@mainahq/core").formatComparison;
 }
 
 // ── Default Dependencies ─────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ let defaultDeps: BenchmarkDeps | null = null;
 
 async function getDefaultDeps(): Promise<BenchmarkDeps> {
 	if (defaultDeps) return defaultDeps;
-	const core = await import("@maina/core");
+	const core = await import("@mainahq/core");
 	defaultDeps = {
 		listStories: core.listStories,
 		loadStory: core.loadStory,

@@ -59,7 +59,7 @@ function makeDeps(overrides: Partial<PrDepsType> = {}): PrDepsType {
 		],
 		getCurrentBranch: async () => "feat/add-greeting",
 		runTwoStageReview: (options) => {
-			const { runTwoStageReview: real } = require("@maina/core");
+			const { runTwoStageReview: real } = require("@mainahq/core");
 			return real(options);
 		},
 		generatePrSummary: async (_diff, commits, reviewSummary) => {
