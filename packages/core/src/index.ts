@@ -190,12 +190,16 @@ export {
 	type ABResolution,
 	abTest,
 	analyseFeedback,
+	analyseWorkflowFeedback,
+	analyseWorkflowRuns,
 	type CandidatePrompt,
 	createCandidate,
 	type FeedbackAnalysis,
 	promote,
 	resolveABTests,
 	retire,
+	type WorkflowRunSummary,
+	type WorkflowStepAnalysis,
 } from "./prompts/evolution";
 // Comprehensive Review (Superpowers-style)
 export {

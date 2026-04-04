@@ -30,6 +30,21 @@ export interface ABResolution {
 	incumbentAcceptRate?: number;
 }
 
+export interface WorkflowStepAnalysis {
+	step: string;
+	totalSamples: number;
+	acceptRate: number;
+	needsImprovement: boolean;
+}
+
+export interface WorkflowRunSummary {
+	workflowId: string;
+	totalSteps: number;
+	passedSteps: number;
+	successRate: number;
+	createdAt: string;
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 /** Accept rate below this threshold triggers needsImprovement flag */
@@ -93,6 +108,85 @@ export function analyseFeedback(
 		acceptRate,
 		needsImprovement,
 	};
+}
+
+/**
+ * Analyse feedback grouped by workflow step.
+ * Returns per-step metrics using the workflow_step column.
+ */
+export function analyseWorkflowFeedback(
+	mainaDir: string,
+): WorkflowStepAnalysis[] {
+	const handle = ensurePromptVersionsTable(mainaDir);
+	if (!handle) return [];
+
+	const { db } = handle;
+
+	const rows = db
+		.query(
+			`SELECT workflow_step, COUNT(*) as total,
+			        SUM(CASE WHEN accepted = 1 THEN 1 ELSE 0 END) as accepted_count
+			 FROM feedback
+			 WHERE workflow_step IS NOT NULL
+			 GROUP BY workflow_step
+			 ORDER BY workflow_step`,
+		)
+		.all() as Array<{
+		workflow_step: string;
+		total: number;
+		accepted_count: number;
+	}>;
+
+	return rows.map((row) => {
+		const acceptRate = row.total > 0 ? row.accepted_count / row.total : 0;
+		return {
+			step: row.workflow_step,
+			totalSamples: row.total,
+			acceptRate,
+			needsImprovement:
+				row.total >= MIN_SAMPLES && acceptRate < IMPROVEMENT_THRESHOLD,
+		};
+	});
+}
+
+/**
+ * Analyse workflow runs grouped by workflow_id.
+ * Returns per-run summary showing how many steps passed.
+ */
+export function analyseWorkflowRuns(
+	mainaDir: string,
+	limit = 5,
+): WorkflowRunSummary[] {
+	const handle = ensurePromptVersionsTable(mainaDir);
+	if (!handle) return [];
+
+	const { db } = handle;
+
+	const rows = db
+		.query(
+			`SELECT workflow_id, COUNT(*) as total_steps,
+			        SUM(CASE WHEN accepted = 1 THEN 1 ELSE 0 END) as passed_steps,
+			        MIN(created_at) as created_at
+			 FROM feedback
+			 WHERE workflow_id IS NOT NULL
+			 GROUP BY workflow_id
+			 ORDER BY created_at DESC
+			 LIMIT ?`,
+		)
+		.all(limit) as Array<{
+		workflow_id: string;
+		total_steps: number;
+		passed_steps: number;
+		created_at: string;
+	}>;
+
+	return rows.map((row) => ({
+		workflowId: row.workflow_id,
+		totalSteps: row.total_steps,
+		passedSteps: row.passed_steps,
+		successRate: row.total_steps > 0 ? row.passed_steps / row.total_steps : 0,
+		createdAt: row.created_at,
+	}));
 }
 
 /**
