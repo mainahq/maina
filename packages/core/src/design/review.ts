@@ -245,8 +245,14 @@ export function reviewDesign(
 		}
 
 		// Check for [NEEDS CLARIFICATION] markers
+		// >5 markers means the ADR is effectively empty — error, not warning
 		const clarificationCount = countClarificationMarkers(content);
-		if (clarificationCount > 0) {
+		if (clarificationCount > 5) {
+			findings.push({
+				severity: "error",
+				message: `Contains ${clarificationCount} [NEEDS CLARIFICATION] markers — ADR is effectively empty and should not be committed`,
+			});
+		} else if (clarificationCount > 0) {
 			findings.push({
 				severity: "warning",
 				message: `Contains ${clarificationCount} [NEEDS CLARIFICATION] marker${clarificationCount > 1 ? "s" : ""} — ADR is incomplete`,

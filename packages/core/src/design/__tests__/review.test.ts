@@ -281,6 +281,48 @@ describe("reviewDesign", () => {
 		}
 	});
 
+	test("many [NEEDS CLARIFICATION] markers produce error (empty ADR)", () => {
+		const emptyAdr = `# 0005. Empty ADR
+
+## Status
+Proposed
+
+## Context
+[NEEDS CLARIFICATION]
+
+## Decision
+[NEEDS CLARIFICATION]
+
+## Consequences
+[NEEDS CLARIFICATION]
+[NEEDS CLARIFICATION]
+[NEEDS CLARIFICATION]
+[NEEDS CLARIFICATION]
+`;
+		const context: ReviewContext = {
+			targetAdr: {
+				path: "adr/0005-empty.md",
+				content: emptyAdr,
+				title: "Empty ADR",
+			},
+			existingAdrs: [],
+			constitution: null,
+		};
+
+		const result = reviewDesign(context);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			const errors = result.value.findings.filter(
+				(f) => f.severity === "error",
+			);
+			const clarificationError = errors.find((f) =>
+				f.message.includes("effectively empty"),
+			);
+			expect(clarificationError).toBeDefined();
+			expect(result.value.passed).toBe(false);
+		}
+	});
+
 	test("contains [NEEDS CLARIFICATION] produces warning", () => {
 		const context = {
 			targetAdr: {
