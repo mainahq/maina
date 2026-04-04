@@ -12,7 +12,11 @@ export {
 	generateSpecQuestions,
 	type SpecQuestion,
 } from "./ai/spec-questions";
-export { type TryAIResult, tryAIGenerate } from "./ai/try-generate";
+export {
+	type DelegationPrompt,
+	type TryAIResult,
+	tryAIGenerate,
+} from "./ai/try-generate";
 // AI validation
 export { type AIValidationResult, validateAIOutput } from "./ai/validate";
 export {

@@ -1,7 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import type { TryAIResult } from "../../ai/try-generate";
 
-let mockAIResult = {
-	text: null as string | null,
+let mockAIResult: TryAIResult = {
+	text: null,
 	fromAI: false,
 	hostDelegation: false,
 };
@@ -85,5 +86,24 @@ Empty diff returns no findings`;
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.value).toContain("Test spec content");
+	});
+
+	it("should return delegation prompt when AI unavailable but host delegation active", async () => {
+		mockAIResult = {
+			text: null,
+			fromAI: false,
+			hostDelegation: true,
+			delegation: {
+				task: "design-hld-lld",
+				systemPrompt: "system",
+				userPrompt: "Generate HLD for this spec:\n\nTest spec",
+				promptHash: "hash123",
+			},
+		};
+
+		const result = await generateHldLld("Test spec", ".maina");
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value).toContain("Test spec");
 	});
 });
