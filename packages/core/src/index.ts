@@ -316,3 +316,9 @@ export {
 	type SyntaxGuardResult,
 	syntaxGuard,
 } from "./verify/syntax-guard";
+// Workflow
+export {
+	appendWorkflowStep,
+	loadWorkflowContext,
+	resetWorkflowContext,
+} from "./workflow/context";

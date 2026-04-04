@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getCurrentBranch } from "../git/index";
+import { loadWorkflowContext } from "../workflow/context";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -13,6 +14,7 @@ export interface VerificationResult {
 export interface WorkingContext {
 	branch: string;
 	planContent: string | null;
+	workflowContext: string | null;
 	touchedFiles: string[];
 	lastVerification: VerificationResult | null;
 	updatedAt: string;
@@ -28,6 +30,7 @@ function freshContext(branch: string): WorkingContext {
 	return {
 		branch,
 		planContent: null,
+		workflowContext: null,
 		touchedFiles: [],
 		lastVerification: null,
 		updatedAt: new Date().toISOString(),
@@ -64,12 +67,13 @@ export async function loadWorkingContext(
 	const currentBranch = await getCurrentBranch(repoRoot);
 
 	const planContent = await readPlanContent(repoRoot);
+	const workflowContext = loadWorkflowContext(mainaDir);
 
 	try {
 		const filePath = contextFilePath(mainaDir);
 		const file = Bun.file(filePath);
 		if (!(await file.exists())) {
-			return { ...freshContext(currentBranch), planContent };
+			return { ...freshContext(currentBranch), planContent, workflowContext };
 		}
 
 		const raw = await file.text();
@@ -77,13 +81,13 @@ export async function loadWorkingContext(
 
 		// Branch switch — discard stale session state
 		if (saved.branch !== currentBranch) {
-			return { ...freshContext(currentBranch), planContent };
+			return { ...freshContext(currentBranch), planContent, workflowContext };
 		}
 
-		// Refresh plan content from disk
-		return { ...saved, planContent };
+		// Refresh plan content and workflow context from disk
+		return { ...saved, planContent, workflowContext };
 	} catch {
-		return { ...freshContext(currentBranch), planContent };
+		return { ...freshContext(currentBranch), planContent, workflowContext };
 	}
 }
 
