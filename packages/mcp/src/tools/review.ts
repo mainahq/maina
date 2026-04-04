@@ -13,12 +13,31 @@ export function registerReviewTools(server: McpServer): void {
 		{ diff: z.string(), planContent: z.string().optional() },
 		async ({ diff, planContent }) => {
 			try {
-				const { runTwoStageReview } = await import("@maina/core");
+				const {
+					runTwoStageReview,
+					recordFeedbackAsync,
+					getWorkflowId,
+					getCurrentBranch,
+				} = await import("@maina/core");
+				const mainaDir = join(process.cwd(), ".maina");
 				const result = await runTwoStageReview({
 					diff,
 					planContent,
-					mainaDir: join(process.cwd(), ".maina"),
+					mainaDir,
 				});
+
+				// Record feedback for RL loop — review outcome feeds A/B test
+				const branch = await getCurrentBranch(process.cwd());
+				const workflowId = getWorkflowId(branch);
+				recordFeedbackAsync(mainaDir, {
+					promptHash: "review-mcp",
+					task: "review",
+					accepted: result.passed,
+					timestamp: new Date().toISOString(),
+					workflowStep: "review",
+					workflowId,
+				});
+
 				return {
 					content: [
 						{
