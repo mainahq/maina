@@ -35,6 +35,21 @@ describe("LanguageProfile", () => {
 		expect(profile.commentPrefixes).toContain("//");
 	});
 
+	it("should return C# profile", () => {
+		const profile = getProfile("csharp");
+		expect(profile.id).toBe("csharp");
+		expect(profile.extensions).toContain(".cs");
+		expect(profile.syntaxTool).toBe("dotnet-format");
+	});
+
+	it("should return Java profile", () => {
+		const profile = getProfile("java");
+		expect(profile.id).toBe("java");
+		expect(profile.extensions).toContain(".java");
+		expect(profile.extensions).toContain(".kt");
+		expect(profile.syntaxTool).toBe("checkstyle");
+	});
+
 	it("should have test file pattern for each language", () => {
 		expect(TYPESCRIPT_PROFILE.testFilePattern.test("app.test.ts")).toBe(true);
 		expect(getProfile("python").testFilePattern.test("test_app.py")).toBe(true);

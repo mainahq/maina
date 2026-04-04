@@ -2,6 +2,7 @@ import { Command } from "commander";
 import pkg from "../package.json";
 import { analyzeCommand } from "./commands/analyze";
 import { benchmarkCommand } from "./commands/benchmark";
+import { brainstormCommand } from "./commands/brainstorm";
 import { cacheCommand } from "./commands/cache";
 import { commitCommand } from "./commands/commit";
 import { configureCommand } from "./commands/configure";
@@ -30,6 +31,7 @@ export function createProgram(): Command {
 		.name("maina")
 		.description("Verification-first developer operating system")
 		.version(pkg.version);
+	program.addCommand(brainstormCommand());
 	program.addCommand(analyzeCommand());
 	program.addCommand(benchmarkCommand());
 	program.addCommand(configureCommand());

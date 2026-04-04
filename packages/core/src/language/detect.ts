@@ -2,7 +2,7 @@
  * Language Detection — detects project languages from marker files.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { LanguageId } from "./profile";
 
@@ -17,6 +17,8 @@ const LANGUAGE_MARKERS: Record<LanguageId, string[]> = {
 	],
 	go: ["go.mod", "go.sum"],
 	rust: ["Cargo.toml", "Cargo.lock"],
+	csharp: ["global.json", "Directory.Build.props"],
+	java: ["pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle"],
 };
 
 /**
@@ -37,6 +39,18 @@ export function detectLanguages(cwd: string): LanguageId[] {
 				break;
 			}
 		}
+	}
+
+	// C# — check for .sln or .csproj files (names vary)
+	if (!detected.includes("csharp")) {
+		try {
+			const entries = readdirSync(cwd);
+			if (
+				entries.some((e: string) => e.endsWith(".sln") || e.endsWith(".csproj"))
+			) {
+				detected.push("csharp");
+			}
+		} catch {}
 	}
 
 	// Also check package.json for TypeScript dependency

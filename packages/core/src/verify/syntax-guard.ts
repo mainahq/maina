@@ -13,7 +13,9 @@ import { join } from "node:path";
 import type { Result } from "../db/index";
 import type { LanguageProfile } from "../language/profile";
 import { TYPESCRIPT_PROFILE } from "../language/profile";
+import { parseCheckstyleOutput } from "./linters/checkstyle";
 import { parseClippyOutput } from "./linters/clippy";
+import { parseDotnetFormatOutput } from "./linters/dotnet-format";
 import { parseGoVetOutput } from "./linters/go-vet";
 import { parseRuffOutput } from "./linters/ruff";
 
@@ -224,6 +226,12 @@ async function runLanguageLinter(
 				break;
 			case "rust":
 				diagnostics = parseClippyOutput(stdout);
+				break;
+			case "csharp":
+				diagnostics = parseDotnetFormatOutput(stdout);
+				break;
+			case "java":
+				diagnostics = parseCheckstyleOutput(stdout);
 				break;
 		}
 

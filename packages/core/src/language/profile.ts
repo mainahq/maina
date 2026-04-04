@@ -3,7 +3,13 @@
  * file patterns, and slop detection rules.
  */
 
-export type LanguageId = "typescript" | "python" | "go" | "rust";
+export type LanguageId =
+	| "typescript"
+	| "python"
+	| "go"
+	| "rust"
+	| "csharp"
+	| "java";
 
 export interface LanguageProfile {
 	id: LanguageId;
@@ -94,11 +100,48 @@ export const RUST_PROFILE: LanguageProfile = {
 	fileGlobs: ["*.rs"],
 };
 
+export const CSHARP_PROFILE: LanguageProfile = {
+	id: "csharp",
+	displayName: "C#",
+	extensions: [".cs"],
+	syntaxTool: "dotnet-format",
+	syntaxArgs: (files, _cwd) => [
+		"dotnet",
+		"format",
+		"--verify-no-changes",
+		"--include",
+		...files,
+	],
+	commentPrefixes: ["//", "/*"],
+	testFilePattern: /(?:Tests?\.cs$|\.Tests?\.|tests\/)/,
+	printPattern: /Console\.Write(?:Line)?\s*\(/,
+	lintIgnorePattern:
+		/#pragma\s+warning\s+disable|\/\/\s*noinspection|\[SuppressMessage/,
+	importPattern: /^using\s+(\S+)/,
+	fileGlobs: ["*.cs"],
+};
+
+export const JAVA_PROFILE: LanguageProfile = {
+	id: "java",
+	displayName: "Java",
+	extensions: [".java", ".kt"],
+	syntaxTool: "checkstyle",
+	syntaxArgs: (files, _cwd) => ["checkstyle", "-f", "xml", ...files],
+	commentPrefixes: ["//", "/*"],
+	testFilePattern: /(?:Test\.java$|Spec\.java$|src\/test\/)/,
+	printPattern: /System\.out\.print(?:ln)?\s*\(/,
+	lintIgnorePattern: /@SuppressWarnings|\/\/\s*NOPMD|\/\/\s*NOSONAR/,
+	importPattern: /^import\s+(\S+)/,
+	fileGlobs: ["*.java", "*.kt"],
+};
+
 const PROFILES: Record<LanguageId, LanguageProfile> = {
 	typescript: TYPESCRIPT_PROFILE,
 	python: PYTHON_PROFILE,
 	go: GO_PROFILE,
 	rust: RUST_PROFILE,
+	csharp: CSHARP_PROFILE,
+	java: JAVA_PROFILE,
 };
 
 export function getProfile(id: LanguageId): LanguageProfile {
