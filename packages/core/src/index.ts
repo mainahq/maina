@@ -299,6 +299,14 @@ export {
 	runPipeline,
 	type ToolReport,
 } from "./verify/pipeline";
+// Verify — Proof
+export {
+	formatVerificationProof,
+	gatherVerificationProof,
+	type ProofOptions,
+	type ToolProof,
+	type VerificationProof,
+} from "./verify/proof";
 export {
 	detectCommentedCode,
 	detectConsoleLogs,
