@@ -23,14 +23,9 @@ export async function visualUpdateAction(
 	const cwd = options.cwd ?? process.cwd();
 	const mainaDir = join(cwd, ".maina");
 
-	if (!detectWebProject(cwd)) {
-		log.warn("Not a web project — no dev server detected in package.json.");
-		return { updated: [], errors: ["Not a web project"] };
-	}
-
 	const config = loadVisualConfig(mainaDir);
 
-	if (config.urls.length === 0) {
+	if (config.urls.length === 0 && !detectWebProject(cwd)) {
 		log.warn(
 			'No URLs configured. Add "visual.urls" to .maina/preferences.json.',
 		);

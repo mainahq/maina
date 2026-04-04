@@ -13,5 +13,13 @@
       "falsePositiveRate": 0.09090909090909091
     }
   },
-  "updatedAt": "2026-04-03T11:49:19.773Z"
+  "updatedAt": "2026-04-03T11:49:19.773Z",
+  "visual": {
+    "urls": [
+      "http://localhost:4321/maina/",
+      "http://localhost:4321/maina/guides/getting-started/"
+    ],
+    "threshold": 0.001,
+    "viewport": { "width": 1280, "height": 720 }
+  }
 }

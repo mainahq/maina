@@ -67,7 +67,10 @@ async function tryCommand(
 	versionFlag: string,
 ): Promise<string | null> {
 	try {
-		const proc = Bun.spawn([command, versionFlag], {
+		const args = versionFlag.includes(" ")
+			? [command, ...versionFlag.split(" ")]
+			: [command, versionFlag];
+		const proc = Bun.spawn(args, {
 			stdout: "pipe",
 			stderr: "pipe",
 		});
