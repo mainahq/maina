@@ -4,31 +4,53 @@ const base = import.meta.env.BASE_URL;
 
 <section class="hero">
   <img src={`${base}/favicon.svg`} alt="Maina" width="100" height="125" class="hero-logo" />
-  <h1>Prove AI code is correct before it merges.</h1>
+  <h1>Stop shipping broken AI code.</h1>
   <p class="hero-subtitle">
-    CLI + MCP server + skills package. Three engines that observe your codebase,
-    learn your conventions, and verify every change.
+    AI writes 41% of code today — with 1.7x more defects. Maina is the verification layer that proves every change is correct before it merges. One CLI. Any language. Any AI tool.
   </p>
   <div class="hero-actions">
-    <a href={`${base}/getting-started`} class="btn-primary">$ bunx maina init</a>
-    <a href={`${base}/getting-started`} class="btn-secondary">Read the docs</a>
+    <a href={`${base}/getting-started`} class="btn-primary">Get Started</a>
+    <a href="https://www.npmjs.com/package/@mainahq/cli" class="btn-secondary">npm: @mainahq/cli</a>
+  </div>
+  <div class="install-cmd">
+    <code>bun add -g @mainahq/cli && maina init --install</code>
   </div>
   <div class="metrics">
     <div class="metric">
-      <div class="metric-value">1017</div>
-      <div class="metric-label">tests passing</div>
-    </div>
-    <div class="metric">
       <div class="metric-value">16</div>
-      <div class="metric-label">verify tools</div>
+      <div class="metric-label">verification tools</div>
     </div>
     <div class="metric">
       <div class="metric-value">6</div>
       <div class="metric-label">languages</div>
     </div>
     <div class="metric">
-      <div class="metric-value">25</div>
-      <div class="metric-label">CLI commands</div>
+      <div class="metric-value">100%</div>
+      <div class="metric-label">benchmark score</div>
+    </div>
+    <div class="metric">
+      <div class="metric-value">0</div>
+      <div class="metric-label">config needed</div>
     </div>
   </div>
 </section>
+
+<style>
+  .install-cmd {
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    background: var(--sl-color-gray-6, #f3f4f6);
+    border-radius: 0.5rem;
+    display: inline-block;
+  }
+  .install-cmd code {
+    font-size: 0.875rem;
+    color: var(--sl-color-gray-1, #374151);
+  }
+  :global([data-theme='dark']) .install-cmd {
+    background: var(--sl-color-gray-5, #1f2937);
+  }
+  :global([data-theme='dark']) .install-cmd code {
+    color: var(--sl-color-gray-1, #e5e7eb);
+  }
+</style>
