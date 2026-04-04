@@ -21,22 +21,43 @@ export function registerVerifyTools(server: McpServer): void {
 					cwd,
 					mainaDir: join(cwd, ".maina"),
 				});
+
+				const aiReviewTool = result.tools.find((t) => t.tool === "ai-review");
+				const aiSkipped = aiReviewTool?.skipped ?? true;
+
+				const resultJson = JSON.stringify(
+					{
+						passed: result.passed,
+						findings: result.findings,
+						...(!result.syntaxPassed && {
+							syntaxErrors: result.syntaxErrors,
+						}),
+						duration: result.duration,
+					},
+					null,
+					2,
+				);
+
+				if (aiSkipped) {
+					return {
+						content: [
+							{
+								type: "text" as const,
+								text: resultJson,
+							},
+							{
+								type: "text" as const,
+								text: "\n\n---\nNote: AI review was not available (no API key). The deterministic checks above are complete. For AI-powered review, analyze the changed files for: cross-function consistency, missing edge cases, dead branches, API contract violations, and spec compliance.",
+							},
+						],
+					};
+				}
+
 				return {
 					content: [
 						{
 							type: "text" as const,
-							text: JSON.stringify(
-								{
-									passed: result.passed,
-									findings: result.findings,
-									...(!result.syntaxPassed && {
-										syntaxErrors: result.syntaxErrors,
-									}),
-									duration: result.duration,
-								},
-								null,
-								2,
-							),
+							text: resultJson,
 						},
 					],
 				};
