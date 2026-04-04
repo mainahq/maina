@@ -21,7 +21,8 @@ export type ToolName =
 	| "ruff"
 	| "golangci-lint"
 	| "cargo-clippy"
-	| "cargo-audit";
+	| "cargo-audit"
+	| "playwright";
 
 export interface DetectedTool {
 	name: string;
@@ -45,6 +46,7 @@ export const TOOL_REGISTRY: Record<
 	"golangci-lint": { command: "golangci-lint", versionFlag: "--version" },
 	"cargo-clippy": { command: "cargo", versionFlag: "clippy --version" },
 	"cargo-audit": { command: "cargo-audit", versionFlag: "--version" },
+	playwright: { command: "npx", versionFlag: "playwright --version" },
 };
 
 /**

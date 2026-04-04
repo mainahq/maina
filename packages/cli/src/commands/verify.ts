@@ -10,6 +10,7 @@ import {
 	getWorkflowId,
 	recordFeedbackAsync,
 	runPipeline,
+	runVisualVerification,
 } from "@maina/core";
 import { Command } from "commander";
 
@@ -21,6 +22,7 @@ export interface VerifyActionOptions {
 	json?: boolean;
 	base?: string;
 	deep?: boolean;
+	visual?: boolean;
 	cwd?: string;
 }
 
@@ -164,6 +166,33 @@ export async function verifyAction(
 		}
 	}
 
+	// ── Step 4b: Visual verification (if --visual) ──────────────────────
+	if (options.visual) {
+		const visualResult = await runVisualVerification(mainaDir);
+
+		if (!visualResult.skipped && visualResult.findings.length > 0) {
+			if (!options.json) {
+				log.step("Visual Verification:");
+				for (const f of visualResult.findings as Finding[]) {
+					const icon = f.severity === "warning" ? "⚠" : "ℹ";
+					log.message(`  ${icon} ${f.file || "visual"}: ${f.message}`);
+				}
+			}
+
+			// Add visual findings to the result
+			result.findingsCount += visualResult.findings.length;
+			if (
+				(visualResult.findings as Finding[]).some((f) => f.severity === "error")
+			) {
+				result.passed = false;
+			}
+		} else if (visualResult.skipped && !options.json) {
+			log.info(
+				"Visual verification skipped (no baselines or Playwright not installed).",
+			);
+		}
+	}
+
 	// ── Step 5: JSON output ──────────────────────────────────────────────
 	if (options.json) {
 		const jsonOutput = {
@@ -228,6 +257,7 @@ export function verifyCommand(): Command {
 		.option("--json", "Output JSON for CI")
 		.option("--base <ref>", "Base branch for diff", "main")
 		.option("--deep", "Run standard-tier AI semantic review")
+		.option("--visual", "Run visual regression checks")
 		.action(async (options) => {
 			intro("maina verify");
 
@@ -240,6 +270,7 @@ export function verifyCommand(): Command {
 				json: options.json,
 				base: options.base,
 				deep: options.deep,
+				visual: options.visual,
 			});
 
 			s.stop("Pipeline complete.");

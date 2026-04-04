@@ -322,6 +322,20 @@ export {
 	type SyntaxGuardResult,
 	syntaxGuard,
 } from "./verify/syntax-guard";
+// Verify — Visual
+export {
+	captureScreenshot,
+	compareImages,
+	detectWebProject,
+	loadVisualConfig,
+	runVisualVerification,
+	type ScreenshotOptions,
+	type ScreenshotResult,
+	updateBaselines,
+	type VisualConfig,
+	type VisualDiffResult,
+	type VisualVerifyResult,
+} from "./verify/visual";
 // Workflow
 export {
 	appendWorkflowStep,

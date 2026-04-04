@@ -106,6 +106,18 @@ mock.module("@maina/core", () => ({
 	getCurrentBranch: async () => "feature/test-branch",
 	getWorkflowId: () => "abc123def456",
 	recordFeedbackAsync: () => {},
+	// Visual verification
+	loadVisualConfig: () => ({
+		urls: [],
+		threshold: 0.001,
+		viewport: { width: 1280, height: 720 },
+	}),
+	runVisualVerification: async () => ({
+		findings: [],
+		skipped: true,
+		screenshotsTaken: 0,
+		comparisons: 0,
+	}),
 }));
 
 mock.module("@clack/prompts", () => ({
