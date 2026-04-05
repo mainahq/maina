@@ -1,5 +1,17 @@
 # @mainahq/core
 
+## 0.5.0
+
+### Minor Changes
+
+- [`c978eff`](https://github.com/beeeku/maina/commit/c978eff517e566a02bb27aa2190f8bceb77bfa7e) Thanks [@beeeku](https://github.com/beeeku)! - v0.5.0 release
+
+  - Built-in typecheck, consistency check, 0-tools warning, Biome auto-config
+  - --json flag on all commands, exit codes, GitHub Action
+  - PHP support, per-file language detection, ZAP DAST, Lighthouse
+  - Cloud API client, OAuth device flow, team sync, cross-repo ticketing
+  - Post-workflow RL trace analysis, --auto flags
+
 ## 0.4.0
 
 ### Minor Changes
