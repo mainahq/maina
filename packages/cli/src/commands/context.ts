@@ -3,6 +3,7 @@ import { basename, join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
 import { assembleContext } from "@mainahq/core";
 import { Command } from "commander";
+import { outputJson } from "../json";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,14 +44,15 @@ export function contextCommand(): Command {
 		.option("--scope <dir>", "Limit to specific directory")
 		.option("--show", "Show layer report only")
 		.option("--mode <mode>", "Budget mode: explore|focused|default", "explore")
+		.option("--json", "Output JSON")
 		.action(async (options) => {
-			intro("maina context");
+			if (!options.json) intro("maina context");
 
 			const repoRoot = process.cwd();
 			const mainaDir = join(repoRoot, ".maina");
 
-			const s = spinner();
-			s.start("Assembling context…");
+			const s = options.json ? null : spinner();
+			s?.start("Assembling context…");
 
 			const modeOverride =
 				options.mode !== "explore" ? options.mode : undefined;
@@ -61,7 +63,17 @@ export function contextCommand(): Command {
 				modeOverride,
 			});
 
-			s.stop("Context assembled.");
+			s?.stop("Context assembled.");
+
+			if (options.json) {
+				outputJson({
+					mode: result.mode,
+					tokens: result.tokens,
+					budget: result.budget,
+					layers: result.layers,
+				});
+				return;
+			}
 
 			log.info(formatSummary(result));
 			log.message(formatLayerTable(result.layers));

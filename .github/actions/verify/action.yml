@@ -1,0 +1,102 @@
+name: Maina Verify
+description: Run maina verify pipeline and post results to GitHub Step Summary
+
+inputs:
+  base:
+    description: Base branch for diff comparison
+    required: false
+    default: main
+  deep:
+    description: Enable standard-tier AI semantic review
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
+
+    - name: Install dependencies
+      shell: bash
+      run: bun install --frozen-lockfile
+
+    - name: Build
+      shell: bash
+      run: bun run build
+
+    - name: Run maina verify
+      id: verify
+      shell: bash
+      run: |
+        FLAGS="--json --base ${{ inputs.base }}"
+        if [ "${{ inputs.deep }}" = "true" ]; then
+          FLAGS="$FLAGS --deep"
+        fi
+
+        set +e
+        OUTPUT=$(bun packages/cli/dist/index.js verify $FLAGS 2>&1)
+        EXIT_CODE=$?
+        set -e
+
+        # Extract JSON from output (last line that starts with {)
+        JSON_LINE=$(echo "$OUTPUT" | grep -E '^\{' | tail -1)
+
+        if [ -z "$JSON_LINE" ]; then
+          echo "findings_count=0" >> "$GITHUB_OUTPUT"
+          echo "passed=unknown" >> "$GITHUB_OUTPUT"
+          echo "duration=0" >> "$GITHUB_OUTPUT"
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+          echo "raw_output<<MAINA_EOF" >> "$GITHUB_OUTPUT"
+          echo "$OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "MAINA_EOF" >> "$GITHUB_OUTPUT"
+        else
+          PASSED=$(echo "$JSON_LINE" | bun -e "const j=JSON.parse(await Bun.stdin.text()); console.log(j.passed)")
+          FINDINGS=$(echo "$JSON_LINE" | bun -e "const j=JSON.parse(await Bun.stdin.text()); console.log((j.findings||[]).length)")
+          DURATION=$(echo "$JSON_LINE" | bun -e "const j=JSON.parse(await Bun.stdin.text()); console.log(j.duration)")
+
+          echo "findings_count=$FINDINGS" >> "$GITHUB_OUTPUT"
+          echo "passed=$PASSED" >> "$GITHUB_OUTPUT"
+          echo "duration=$DURATION" >> "$GITHUB_OUTPUT"
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+          echo "raw_output<<MAINA_EOF" >> "$GITHUB_OUTPUT"
+          echo "$OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "MAINA_EOF" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Post summary
+      shell: bash
+      if: always()
+      run: |
+        PASSED="${{ steps.verify.outputs.passed }}"
+        FINDINGS="${{ steps.verify.outputs.findings_count }}"
+        DURATION="${{ steps.verify.outputs.duration }}"
+        EXIT_CODE="${{ steps.verify.outputs.exit_code }}"
+
+        if [ "$PASSED" = "true" ]; then
+          STATUS="Passed"
+          ICON="white_check_mark"
+        else
+          STATUS="Failed"
+          ICON="x"
+        fi
+
+        {
+          echo "## :${ICON}: Maina Verify ${STATUS}"
+          echo ""
+          echo "| Metric | Value |"
+          echo "|--------|-------|"
+          echo "| Status | **${STATUS}** |"
+          echo "| Findings | ${FINDINGS} |"
+          echo "| Duration | ${DURATION}ms |"
+          echo "| Base branch | \`${{ inputs.base }}\` |"
+          echo "| Deep review | \`${{ inputs.deep }}\` |"
+          echo "| Exit code | ${EXIT_CODE} |"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Fail if verify failed
+      shell: bash
+      if: steps.verify.outputs.exit_code != '0'
+      run: exit 1

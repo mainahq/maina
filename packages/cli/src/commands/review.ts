@@ -8,12 +8,14 @@ import {
 	recordFeedbackWithCompression,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { exitCodeFromResult, outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface ReviewActionOptions {
 	base?: string;
 	planPath?: string;
+	json?: boolean;
 	cwd?: string;
 }
 
@@ -172,21 +174,52 @@ export function reviewCommand(): Command {
 		.description("Comprehensive code review (Superpowers-style)")
 		.option("--base <ref>", "Base ref to diff against", "HEAD~1")
 		.option("--plan <path>", "Plan file for alignment check")
+		.option("--json", "Output JSON for CI")
 		.action(async (options) => {
-			intro("maina review");
+			if (!options.json) intro("maina review");
 
 			const result = await reviewAction({
 				base: options.base,
 				planPath: options.plan,
+				json: options.json,
 			});
 
 			if (!result.reviewed) {
+				if (options.json) {
+					outputJson(
+						{ passed: true, stage1: null, stage2: null, findings: [] },
+						0,
+					);
+					return;
+				}
 				log.warning(result.reason ?? "Unknown error");
 				outro("Done.");
 				return;
 			}
 
 			if (result.result) {
+				if (options.json) {
+					const passed = result.result.verdict !== "not-ready";
+					outputJson(
+						{
+							passed,
+							stage1: {
+								verdict: result.result.verdict,
+								verdictReason: result.result.verdictReason,
+								strengths: result.result.strengths,
+							},
+							stage2: {
+								architecture: result.result.architecture,
+								testing: result.result.testing,
+								planAlignment: result.result.planAlignment,
+							},
+							findings: result.result.findings,
+						},
+						exitCodeFromResult({ passed }),
+					);
+					return;
+				}
+
 				displayReview(result.result);
 
 				// Record feedback for RL loop + episodic compression
@@ -206,6 +239,6 @@ export function reviewCommand(): Command {
 				}
 			}
 
-			outro("Done.");
+			if (!options.json) outro("Done.");
 		});
 }

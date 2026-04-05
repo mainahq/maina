@@ -259,10 +259,12 @@ export function verifyCommand(): Command {
 		.option("--deep", "Run standard-tier AI semantic review")
 		.option("--visual", "Run visual regression checks")
 		.action(async (options) => {
-			intro("maina verify");
+			const isJson = options.json === true;
 
-			const s = spinner();
-			s.start("Running verification pipeline…");
+			if (!isJson) intro("maina verify");
+
+			const s = isJson ? null : spinner();
+			s?.start("Running verification pipeline…");
 
 			const result = await verifyAction({
 				all: options.all,
@@ -273,16 +275,18 @@ export function verifyCommand(): Command {
 				visual: options.visual,
 			});
 
-			s.stop("Pipeline complete.");
+			s?.stop("Pipeline complete.");
 
-			if (result.json) {
-				// For CI, output raw JSON
-				process.stdout.write(`${result.json}\n`);
+			if (isJson && result.json) {
+				const { exitCodeFromResult, outputJson } = await import("../json");
+				outputJson(JSON.parse(result.json), exitCodeFromResult(result));
+				return;
 			}
 
 			if (result.passed) {
 				outro("Verification passed.");
 			} else {
+				process.exitCode = 1;
 				outro("Verification failed.");
 			}
 		});

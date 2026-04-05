@@ -3,8 +3,8 @@
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import type { LanguageId } from "./profile";
+import { extname, join } from "node:path";
+import { type LanguageId, PROFILES } from "./profile";
 
 const LANGUAGE_MARKERS: Record<LanguageId, string[]> = {
 	typescript: ["tsconfig.json", "tsconfig.build.json"],
@@ -19,6 +19,7 @@ const LANGUAGE_MARKERS: Record<LanguageId, string[]> = {
 	rust: ["Cargo.toml", "Cargo.lock"],
 	csharp: ["global.json", "Directory.Build.props"],
 	java: ["pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle"],
+	php: ["composer.json", "composer.lock"],
 };
 
 /**
@@ -81,4 +82,19 @@ export function detectLanguages(cwd: string): LanguageId[] {
 export function getPrimaryLanguage(cwd: string): LanguageId {
 	const languages = detectLanguages(cwd);
 	return languages[0] ?? "typescript";
+}
+
+/**
+ * Detect language for a single file based on its extension.
+ * Returns the LanguageId if matched, or null if unknown.
+ */
+export function detectFileLanguage(filePath: string): LanguageId | null {
+	const ext = extname(filePath).toLowerCase();
+	if (!ext) return null;
+	for (const profile of Object.values(PROFILES)) {
+		if (profile.extensions.includes(ext)) {
+			return profile.id;
+		}
+	}
+	return null;
 }

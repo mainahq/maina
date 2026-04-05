@@ -17,6 +17,7 @@ import {
 	setVerificationResult,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { exitCodeFromResult, outputJson } from "../json.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,12 +25,22 @@ export interface CommitActionOptions {
 	message?: string;
 	skip?: boolean;
 	noVerify?: boolean;
+	json?: boolean;
 	cwd?: string;
 }
 
 export interface CommitActionResult {
 	committed: boolean;
 	reason?: string;
+	sha?: string;
+	verification?: {
+		passed: boolean;
+		duration: number;
+		tools: number;
+		findings: number;
+	};
+	duration?: number;
+	message?: string;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -119,7 +130,9 @@ export async function commitAction(
 	const stagedFiles = await getStagedFiles(cwd);
 
 	if (stagedFiles.length === 0) {
-		log.error("Nothing staged. Use `git add` first.");
+		if (!options.json) {
+			log.error("Nothing staged. Use `git add` first.");
+		}
 		return { committed: false, reason: "Nothing staged" };
 	}
 
@@ -138,7 +151,9 @@ export async function commitAction(
 		const hookResult = await runHooks(mainaDir, "pre-commit", hookContext);
 
 		if (hookResult.status === "block") {
-			log.error(`Pre-commit hook blocked: ${hookResult.message}`);
+			if (!options.json) {
+				log.error(`Pre-commit hook blocked: ${hookResult.message}`);
+			}
 
 			recordOutcome(mainaDir, "commit-gate", {
 				accepted: false,
@@ -152,7 +167,7 @@ export async function commitAction(
 			};
 		}
 
-		if (hookResult.status === "warn") {
+		if (hookResult.status === "warn" && !options.json) {
 			log.warning(`Hook warning: ${hookResult.message}`);
 		}
 	}
@@ -167,9 +182,11 @@ export async function commitAction(
 
 		// Syntax failure → abort immediately
 		if (!pipelineResult.syntaxPassed) {
-			log.error("Syntax check failed:");
-			if (pipelineResult.syntaxErrors) {
-				log.message(formatSyntaxErrors(pipelineResult.syntaxErrors));
+			if (!options.json) {
+				log.error("Syntax check failed:");
+				if (pipelineResult.syntaxErrors) {
+					log.message(formatSyntaxErrors(pipelineResult.syntaxErrors));
+				}
 			}
 
 			// Record rejection in feedback
@@ -183,11 +200,11 @@ export async function commitAction(
 		}
 
 		// Show summary
-		if (pipelineResult.findings.length > 0) {
+		if (!options.json && pipelineResult.findings.length > 0) {
 			log.message(formatFindings(pipelineResult.findings));
 		}
 
-		if (pipelineResult.hiddenCount > 0) {
+		if (!options.json && pipelineResult.hiddenCount > 0) {
 			log.info(
 				`${pipelineResult.hiddenCount} pre-existing finding(s) hidden (diff-only mode).`,
 			);
@@ -195,9 +212,11 @@ export async function commitAction(
 
 		// Pipeline failure → abort
 		if (!pipelineResult.passed) {
-			log.error(
-				`Verification failed: ${pipelineResult.findings.length} finding(s) with errors.`,
-			);
+			if (!options.json) {
+				log.error(
+					`Verification failed: ${pipelineResult.findings.length} finding(s) with errors.`,
+				);
+			}
 
 			recordOutcome(mainaDir, "commit-gate", {
 				accepted: false,
@@ -211,13 +230,19 @@ export async function commitAction(
 			};
 		}
 
-		log.success(
-			`Verification passed in ${pipelineResult.duration}ms. ${pipelineResult.tools.length} tool(s) ran.`,
-		);
+		if (!options.json) {
+			log.success(
+				`Verification passed in ${pipelineResult.duration}ms. ${pipelineResult.tools.length} tool(s) ran.`,
+			);
+		}
 	} else if (options.skip) {
-		log.warning("Verification skipped (--skip).");
+		if (!options.json) {
+			log.warning("Verification skipped (--skip).");
+		}
 	} else {
-		log.warning("All verification and hooks skipped (--no-verify).");
+		if (!options.json) {
+			log.warning("All verification and hooks skipped (--no-verify).");
+		}
 	}
 
 	// ── Step 4: Resolve commit message ────────────────────────────────────
@@ -225,28 +250,52 @@ export async function commitAction(
 
 	// Try AI-generated commit message before manual prompt
 	if (!message) {
-		try {
-			const { generateCommitMessage } = await import("@mainahq/core");
-			const diff = await getDiff(undefined, undefined, cwd);
-			const suggested = await generateCommitMessage(
-				diff,
-				stagedFiles,
-				mainaDir,
-			);
-			if (suggested) {
-				const accepted = await confirm({
-					message: `Suggested: "${suggested}" — use this?`,
-					initialValue: true,
-				});
-				if (isCancel(accepted)) {
-					return { committed: false, reason: "Cancelled by user" };
-				}
-				if (accepted) {
+		if (options.json) {
+			// JSON mode: no interactive prompts, try AI then fail
+			try {
+				const { generateCommitMessage } = await import("@mainahq/core");
+				const diff = await getDiff(undefined, undefined, cwd);
+				const suggested = await generateCommitMessage(
+					diff,
+					stagedFiles,
+					mainaDir,
+				);
+				if (suggested) {
 					message = suggested;
 				}
+			} catch {
+				// AI suggestion failure
 			}
-		} catch {
-			// AI suggestion failure — fall through to manual
+			if (!message) {
+				return {
+					committed: false,
+					reason: "No commit message provided (use -m in JSON mode)",
+				};
+			}
+		} else {
+			try {
+				const { generateCommitMessage } = await import("@mainahq/core");
+				const diff = await getDiff(undefined, undefined, cwd);
+				const suggested = await generateCommitMessage(
+					diff,
+					stagedFiles,
+					mainaDir,
+				);
+				if (suggested) {
+					const accepted = await confirm({
+						message: `Suggested: "${suggested}" — use this?`,
+						initialValue: true,
+					});
+					if (isCancel(accepted)) {
+						return { committed: false, reason: "Cancelled by user" };
+					}
+					if (accepted) {
+						message = suggested;
+					}
+				}
+			} catch {
+				// AI suggestion failure — fall through to manual
+			}
 		}
 	}
 
@@ -272,7 +321,7 @@ export async function commitAction(
 	if (!options.noVerify) {
 		const commitMsgPattern =
 			/^(feat|fix|refactor|test|docs|chore|ci|perf)(\([a-z0-9-]+\))?!?: .+/;
-		if (!commitMsgPattern.test(message)) {
+		if (!commitMsgPattern.test(message) && !options.json) {
 			log.warning(
 				"Commit message does not follow conventional format: <type>(<scope>): <description>",
 			);
@@ -283,11 +332,15 @@ export async function commitAction(
 	const { exitCode, stdout, stderr } = await deps.gitCommit(message, cwd);
 
 	if (exitCode !== 0) {
-		log.error(`git commit failed: ${stderr.trim() || stdout.trim()}`);
+		if (!options.json) {
+			log.error(`git commit failed: ${stderr.trim() || stdout.trim()}`);
+		}
 		return { committed: false, reason: `git commit failed (exit ${exitCode})` };
 	}
 
-	log.success(stdout.trim());
+	if (!options.json) {
+		log.success(stdout.trim());
+	}
 
 	// ── Step 7: Post-commit hooks (unless --no-verify) ────────────────────
 	if (!options.noVerify) {
@@ -303,16 +356,18 @@ export async function commitAction(
 
 		const postResult = await runHooks(mainaDir, "post-commit", postHookContext);
 
-		if (postResult.status === "warn") {
+		if (postResult.status === "warn" && !options.json) {
 			log.warning(`Post-commit hook warning: ${postResult.message}`);
 		}
 	}
 
 	// ── Step 8: Record context, episodic entry, and stats ────────────────
+	const hashMatch = /\[[\w/.-]+ ([a-f0-9]+)\]/.exec(stdout);
+	const commitHash = hashMatch?.[1] ?? "unknown";
+	const totalDuration = Date.now() - startTime;
+
 	try {
 		const branch = await getCurrentBranch(cwd);
-		const hashMatch = /\[[\w/.-]+ ([a-f0-9]+)\]/.exec(stdout);
-		const commitHash = hashMatch?.[1] ?? "unknown";
 
 		// Assemble context to get real token counts
 		let contextTokens = 0;
@@ -333,7 +388,7 @@ export async function commitAction(
 			branch,
 			commitHash,
 			verifyDurationMs: pipelineResult?.duration ?? 0,
-			totalDurationMs: Date.now() - startTime,
+			totalDurationMs: totalDuration,
 			contextTokens,
 			contextBudget,
 			cacheHits: pipelineResult?.cacheHits ?? 0,
@@ -401,7 +456,20 @@ export async function commitAction(
 		workflowId,
 	});
 
-	return { committed: true };
+	return {
+		committed: true,
+		sha: commitHash,
+		message,
+		verification: pipelineResult
+			? {
+					passed: pipelineResult.passed,
+					duration: pipelineResult.duration,
+					tools: pipelineResult.tools.length,
+					findings: pipelineResult.findings.length,
+				}
+			: undefined,
+		duration: totalDuration,
+	};
 }
 
 // ── Commander Command ────────────────────────────────────────────────────────
@@ -412,14 +480,34 @@ export function commitCommand(): Command {
 		.option("-m, --message <msg>", "Commit message")
 		.option("--skip", "Skip verification (not recommended)")
 		.option("--no-verify", "Skip all verification and hooks")
+		.option("--json", "Output JSON for CI")
 		.action(async (options) => {
-			intro("maina commit");
+			if (!options.json) {
+				intro("maina commit");
+			}
 
 			const result = await commitAction({
 				message: options.message,
 				skip: options.skip,
 				noVerify: !options.verify, // Commander parses --no-verify as verify: false
+				json: options.json,
 			});
+
+			if (options.json) {
+				const jsonOutput = {
+					passed: result.committed,
+					message: result.message ?? null,
+					sha: result.sha ?? null,
+					verification: result.verification ?? null,
+					duration: result.duration ?? null,
+					reason: result.reason ?? null,
+				};
+				outputJson(
+					jsonOutput,
+					exitCodeFromResult({ passed: result.committed }),
+				);
+				return;
+			}
 
 			if (result.committed) {
 				outro("Committed!");

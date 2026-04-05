@@ -5,11 +5,13 @@ import type { CacheStats, DetectedTool } from "@mainahq/core";
 import { createCacheManager, detectTools } from "@mainahq/core";
 import { Command } from "commander";
 import pkg from "../../package.json";
+import { EXIT_PASSED, outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface DoctorActionOptions {
 	cwd?: string;
+	json?: boolean;
 }
 
 export interface EngineHealth {
@@ -108,20 +110,27 @@ export async function doctorAction(
 ): Promise<DoctorActionResult> {
 	const cwd = options.cwd ?? process.cwd();
 	const mainaDir = join(cwd, ".maina");
+	const jsonMode = options.json ?? false;
 
 	// ── Step 1: Version ──────────────────────────────────────────────────
 	const version = pkg.version;
-	log.info(`Maina v${version}`);
+	if (!jsonMode) {
+		log.info(`Maina v${version}`);
+	}
 
 	// ── Step 2: Detect tools ─────────────────────────────────────────────
 	const tools = await detectTools();
-	log.step("Installed Tools:");
-	log.message(formatToolsTable(tools));
+	if (!jsonMode) {
+		log.step("Installed Tools:");
+		log.message(formatToolsTable(tools));
+	}
 
 	// ── Step 3: Engine health ────────────────────────────────────────────
 	const engines = checkEngineHealth(cwd);
-	log.step("Engine Health:");
-	log.message(formatEngineHealth(engines));
+	if (!jsonMode) {
+		log.step("Engine Health:");
+		log.message(formatEngineHealth(engines));
+	}
 
 	// ── Step 4: Cache stats (if .maina/cache/ exists) ────────────────────
 	let cacheStats: CacheStats | null = null;
@@ -129,8 +138,10 @@ export async function doctorAction(
 	if (existsSync(cacheDir)) {
 		const cache = createCacheManager(mainaDir);
 		cacheStats = cache.stats();
-		log.step("Cache Stats:");
-		log.message(formatCacheStats(cacheStats));
+		if (!jsonMode) {
+			log.step("Cache Stats:");
+			log.message(formatCacheStats(cacheStats));
+		}
 	}
 
 	return { version, tools, engines, cacheStats };
@@ -141,16 +152,26 @@ export async function doctorAction(
 export function doctorCommand(): Command {
 	return new Command("doctor")
 		.description("Check tool installation and engine health")
-		.action(async () => {
-			intro("maina doctor");
+		.option("--json", "Output JSON for CI")
+		.action(async (options) => {
+			const jsonMode = options.json ?? false;
+
+			if (!jsonMode) {
+				intro("maina doctor");
+			}
 
 			const s = spinner();
-			s.start("Checking system health…");
+			if (!jsonMode) {
+				s.start("Checking system health…");
+			}
 
-			await doctorAction({});
+			const result = await doctorAction({ json: jsonMode });
 
-			s.stop("Health check complete.");
-
-			outro("Done.");
+			if (!jsonMode) {
+				s.stop("Health check complete.");
+				outro("Done.");
+			} else {
+				outputJson(result, EXIT_PASSED);
+			}
 		});
 }

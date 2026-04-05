@@ -9,7 +9,8 @@ export type LanguageId =
 	| "go"
 	| "rust"
 	| "csharp"
-	| "java";
+	| "java"
+	| "php";
 
 export interface LanguageProfile {
 	id: LanguageId;
@@ -135,13 +136,34 @@ export const JAVA_PROFILE: LanguageProfile = {
 	fileGlobs: ["*.java", "*.kt"],
 };
 
-const PROFILES: Record<LanguageId, LanguageProfile> = {
+export const PHP_PROFILE: LanguageProfile = {
+	id: "php",
+	displayName: "PHP",
+	extensions: [".php"],
+	syntaxTool: "phpstan",
+	syntaxArgs: (files, _cwd) => [
+		"phpstan",
+		"analyse",
+		"--error-format=json",
+		"--no-progress",
+		...files,
+	],
+	commentPrefixes: ["//", "/*", "#"],
+	testFilePattern: /(?:Test\.php$|tests\/)/,
+	printPattern: /\b(?:echo|print|var_dump|print_r|error_log)\s*\(/,
+	lintIgnorePattern: /@phpstan-ignore|@psalm-suppress|phpcs:ignore/,
+	importPattern: /^(?:use|require|include)\s+/,
+	fileGlobs: ["*.php"],
+};
+
+export const PROFILES: Record<LanguageId, LanguageProfile> = {
 	typescript: TYPESCRIPT_PROFILE,
 	python: PYTHON_PROFILE,
 	go: GO_PROFILE,
 	rust: RUST_PROFILE,
 	csharp: CSHARP_PROFILE,
 	java: JAVA_PROFILE,
+	php: PHP_PROFILE,
 };
 
 export function getProfile(id: LanguageId): LanguageProfile {
