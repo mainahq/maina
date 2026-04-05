@@ -52,11 +52,12 @@ Maina is open source (Apache 2.0) and actively developed. Here is what is shippe
 - **A/B test coordination** -- Durable Objects track prompt variant allocation
 - **GitHub OAuth** -- Team auth via @workkit/auth
 
-## v0.6.0 -- Hosted Verification + Autonomous Workflow ([#43](https://github.com/beeeku/maina/issues/43))
+## v0.6.0 -- Hosted Verification + PR Checks + Autonomous Workflow ([#43](https://github.com/beeeku/maina/issues/43))
 
 - **Submit diffs via API** -- Verification runs on Workers Queue (@workkit/queue)
 - **Proof artifacts in R2** -- @workkit/r2 for verification results
 - **Distributed cache** -- Content-hash cache on KV with SWR
+- **PR check integration** -- Maina runs as a GitHub PR check alongside Copilot, CodeRabbit, DeepSource. Adds the verification-first layer they're missing: spec compliance, cross-function consistency, slop detection, AI review with learned prompts. Posts inline review comments on findings. Works as a complement, not a replacement.
 - **`mainahq/workflow-action` -- Autonomous coding Action** -- A GitHub Issue triggers the full maina workflow (brainstorm → plan → design → spec → implement → verify → review → commit → PR). User writes an issue, Action produces a verified PR. The entire verification-first pipeline runs in CI without human intervention.
 - **Rate limiting** -- @workkit/ratelimit on all API endpoints
 - **Structured logging** -- @workkit/logger for observability
@@ -98,6 +99,27 @@ Maina Cloud launches under the @mainahq organization.
 | Dashboard API | @workkit/api |
 | Observability | @workkit/logger |
 | Testing | @workkit/testing |
+
+### How Maina fits alongside existing tools
+
+```
+PR opened
+  │
+  ├── GitHub Copilot ──── code suggestions (write)
+  ├── CodeRabbit ──────── AI review comments (review)
+  ├── DeepSource ──────── static analysis (lint)
+  └── Maina ───────────── verification-first layer (verify)
+        │
+        ├── spec compliance check
+        ├── cross-function consistency (AST)
+        ├── slop detection (AI-generated patterns)
+        ├── AI review with learned prompts
+        ├── security (Semgrep, Trivy, ZAP)
+        ├── perf/a11y (Lighthouse)
+        └── inline PR comments + commit status
+```
+
+Copilot helps write code. CodeRabbit reviews it. DeepSource lints it. Maina **verifies** it — checks spec compliance, cross-function consistency, and uses prompts that evolve from your team's actual merge/reject patterns.
 
 ### Autonomous Actions architecture
 

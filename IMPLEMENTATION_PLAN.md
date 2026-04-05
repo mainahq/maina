@@ -1745,15 +1745,28 @@ Every cloud feature is a Cloudflare Workers problem that Workkit solves. Org mig
 **T004** — A/B test coordination via @workkit/do (Durable Objects)
 **T005** — GitHub OAuth via @workkit/auth
 
-### Sprint 14 — v0.6.0 Hosted Verification + Autonomous Workflow (#43)
+### Sprint 14 — v0.6.0 Hosted Verification + PR Checks + Autonomous Workflow (#43)
 
-**Goal:** Diffs verified via API. Issues become PRs automatically.
+**Goal:** Diffs verified via API. PR checks alongside Copilot/CodeRabbit/DeepSource. Issues become PRs automatically.
 
 **T001** — Hosted verification: submit diffs via API, Workers Queue processes jobs
 **T002** — Proof artifacts stored in R2 (@workkit/r2)
 **T003** — Distributed cache on KV with SWR (@workkit/cache)
 **T004** — Rate limiting (@workkit/ratelimit) + structured logging (@workkit/logger)
-**T005** — `mainahq/workflow-action` — Autonomous coding Action
+**T005** — PR check integration: Maina as a GitHub App that runs on every PR
+
+```
+PR opened/updated
+  → Webhook triggers hosted verification
+  → Full pipeline: spec compliance, consistency, slop, AI review
+  → Posts inline review comments on findings (like CodeRabbit)
+  → Sets commit status: pass/fail with summary
+  → Works alongside Copilot (code suggestions), CodeRabbit (review),
+    DeepSource (static analysis) — Maina adds verification-first layer
+  → Learns from PR merge/reject feedback
+```
+
+**T006** — `mainahq/workflow-action` — Autonomous coding Action
 
 ```
 Trigger: GitHub Issue created with "maina" label
