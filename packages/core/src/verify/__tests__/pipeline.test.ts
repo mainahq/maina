@@ -145,6 +145,20 @@ mock.module("../ai-review", () => ({
 	},
 }));
 
+mock.module("../typecheck", () => ({
+	runTypecheck: async (..._args: unknown[]) => {
+		callOrder.push("runTypecheck");
+		return { findings: [], duration: 0, tool: "tsc", skipped: true };
+	},
+}));
+
+mock.module("../consistency", () => ({
+	checkConsistency: async (..._args: unknown[]) => {
+		callOrder.push("checkConsistency");
+		return { findings: [], rulesChecked: 0 };
+	},
+}));
+
 mock.module("../../language/detect", () => ({
 	detectLanguages: (..._args: unknown[]) => ["typescript"],
 }));
@@ -258,8 +272,8 @@ describe("VerifyPipeline", () => {
 		expect(callOrder).toContain("runTrivy");
 		expect(callOrder).toContain("runSecretlint");
 
-		// 5 tool reports (slop + semgrep + trivy + secretlint + ai-review)
-		expect(result.tools).toHaveLength(8);
+		// 10 tool reports (slop + semgrep + trivy + secretlint + sonarqube + stryker + diff-cover + typecheck + consistency + ai-review)
+		expect(result.tools).toHaveLength(10);
 		expect(result.findings).toHaveLength(3);
 	});
 

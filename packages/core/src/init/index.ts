@@ -291,6 +291,38 @@ function getFileManifest(stack: DetectedStack): FileEntry[] {
 	];
 }
 
+/**
+ * Build a sensible default biome.json for projects without a linter.
+ * Ensures every maina-initialized project has at least one real linter.
+ */
+function buildBiomeConfig(): string {
+	return JSON.stringify(
+		{
+			$schema: "https://biomejs.dev/schemas/2.0.0/schema.json",
+			linter: {
+				enabled: true,
+				rules: {
+					recommended: true,
+					correctness: {
+						noUnusedVariables: "warn",
+						noUnusedImports: "warn",
+					},
+					style: {
+						useConst: "error",
+					},
+				},
+			},
+			formatter: {
+				enabled: true,
+				indentStyle: "tab",
+				lineWidth: 100,
+			},
+		},
+		null,
+		2,
+	);
+}
+
 /** Directories to create even if they have no files */
 const EXTRA_DIRS = [".maina/hooks"];
 
@@ -342,6 +374,17 @@ export async function bootstrap(
 			} else {
 				writeFileSync(fullPath, entry.content, "utf-8");
 				created.push(entry.relativePath);
+			}
+		}
+
+		// ── Auto-configure Biome if no linter detected ──────────────────
+		if (detectedStack.linter === "unknown") {
+			const biomePath = join(repoRoot, "biome.json");
+			if (!existsSync(biomePath) || force) {
+				const biomeConfig = buildBiomeConfig();
+				writeFileSync(biomePath, biomeConfig, "utf-8");
+				created.push("biome.json");
+				detectedStack.linter = "biome";
 			}
 		}
 

@@ -225,4 +225,55 @@ describe("bootstrap", () => {
 			}
 		}
 	});
+
+	test("auto-configures biome.json when no linter detected", async () => {
+		// Project with no linter in dependencies
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ dependencies: {} }),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			const biomePath = join(tmpDir, "biome.json");
+			expect(existsSync(biomePath)).toBe(true);
+
+			const biomeConfig = JSON.parse(readFileSync(biomePath, "utf-8"));
+			expect(biomeConfig.linter.enabled).toBe(true);
+			expect(biomeConfig.linter.rules.recommended).toBe(true);
+			expect(biomeConfig.formatter.enabled).toBe(true);
+
+			expect(result.value.created).toContain("biome.json");
+			expect(result.value.detectedStack.linter).toBe("biome");
+		}
+	});
+
+	test("does not overwrite existing biome.json", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ dependencies: {} }),
+		);
+		writeFileSync(join(tmpDir, "biome.json"), '{"custom": true}');
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const content = readFileSync(join(tmpDir, "biome.json"), "utf-8");
+		expect(JSON.parse(content)).toEqual({ custom: true });
+	});
+
+	test("skips biome.json when linter already detected", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ devDependencies: { eslint: "^9.0.0" } }),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(existsSync(join(tmpDir, "biome.json"))).toBe(false);
+			expect(result.value.detectedStack.linter).toBe("eslint");
+		}
+	});
 });
