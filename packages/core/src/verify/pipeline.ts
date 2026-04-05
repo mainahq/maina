@@ -19,6 +19,7 @@ import { detectLanguages } from "../language/detect";
 import type { LanguageId } from "../language/profile";
 import { getProfile } from "../language/profile";
 import { type AIReviewResult, runAIReview } from "./ai-review";
+import { checkConsistency } from "./consistency";
 import { runCoverage } from "./coverage";
 import type { DetectedTool } from "./detect";
 import { detectTools } from "./detect";
@@ -32,6 +33,7 @@ import { runSonar } from "./sonar";
 import type { SyntaxDiagnostic } from "./syntax-guard";
 import { syntaxGuard } from "./syntax-guard";
 import { runTrivy } from "./trivy";
+import { runTypecheck } from "./typecheck";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -223,10 +225,26 @@ export async function runPipeline(
 		),
 	);
 
+	// Built-in checks (always run, no external tool dependency)
+	toolPromises.push(
+		runToolWithTiming("typecheck", async () => {
+			const result = await runTypecheck(files, cwd, { language: primaryLang });
+			return { findings: result.findings, skipped: result.skipped };
+		}),
+	);
+
+	toolPromises.push(
+		runToolWithTiming("consistency", async () => {
+			const result = await checkConsistency(files, cwd, mainaDir);
+			return { findings: result.findings, skipped: false };
+		}),
+	);
+
 	const toolReports = await Promise.all(toolPromises);
 
 	// ── Step 4b: Warn if all external tools were skipped ─────────────────
-	const externalTools = toolReports.filter((r) => r.tool !== "slop");
+	const builtInTools = new Set(["slop", "typecheck", "consistency"]);
+	const externalTools = toolReports.filter((r) => !builtInTools.has(r.tool));
 	const allExternalSkipped =
 		externalTools.length > 0 && externalTools.every((r) => r.skipped);
 
@@ -242,7 +260,7 @@ export async function runPipeline(
 			tool: "pipeline",
 			file: "",
 			line: 0,
-			message: `No external verification tools ran (${skippedNames} skipped). Run \`maina doctor\` to check tool health or \`maina init\` to configure.`,
+			message: `WARNING: No external verification tools detected (${skippedNames} skipped). Built-in checks (typecheck, consistency, slop) still ran. Run \`maina init --install\` to add external tools.`,
 			severity: "warning",
 		});
 	}

@@ -48,11 +48,37 @@ Updated: 2026-04-03 (Sprint 9)
 - A/B testing: candidates auto-promoted at >5% improvement, retired at <-5%
 - maina learn analyzes feedback and proposes prompt improvements
 
+## Workflow Order (mandatory, sequential)
+
+Every feature follows this exact sequence using maina CLI/MCP tools. No skipping steps.
+
+```
+maina brainstorm  → explore idea, generate structured ticket
+maina ticket      → create GitHub Issue with module tagging
+maina plan <name> → scaffold feature branch + directory
+maina design      → create ADR (+ HLD/LLD with --hld)
+maina spec        → generate TDD test stubs from plan
+implement         → write code (TDD: red → green → refactor)
+maina verify      → run full verification pipeline
+maina review      → comprehensive code review
+fix               → address review findings
+maina commit      → verify + commit staged changes
+maina review      → final review pass
+maina pr          → create PR with verification proof
+```
+
+Between steps, use MCP tools for continuous checks:
+- `getContext` — before any AI-assisted step
+- `checkSlop` — after writing code
+- `reviewCode` — before committing
+- `verify` — before PRs
+- `analyzeFeature` — check spec/plan/task consistency
+
 ## Conventions
 - Conventional commits: scopes are cli, core, mcp, skills, docs, ci
 - TDD: write tests before implementation (5 categories: happy, edge, error, security, integration)
 - WHAT/WHY in spec.md, HOW in plan.md — never mixed
 - [NEEDS CLARIFICATION] markers for ambiguity — never guess
-- Dogfood: use maina plan/spec/analyze/commit for all development
+- Dogfood: use maina CLI/MCP tools for the entire workflow — never raw git commit, never skip maina tools
 - Self-improvement: after each commit run stats + review + context check
 - No console.log in production code

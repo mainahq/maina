@@ -33,6 +33,11 @@ let mockStagedFiles: string[] = ["src/app.ts"];
 let callOrder: string[] = [];
 
 // Mock the modules
+// NOTE: These mocks are intentionally minimal — they only export what pipeline.ts
+// needs. Tests MUST be run via `bun run test` (scripts/test-isolated.ts) which
+// runs each test file in its own subprocess, preventing mock.module() bleed.
+// Running `bun test` directly (single process) will cause cross-file mock leaks.
+
 mock.module("../syntax-guard", () => ({
 	syntaxGuard: async (..._args: unknown[]) => {
 		callOrder.push("syntaxGuard");
@@ -137,6 +142,20 @@ mock.module("../ai-review", () => ({
 	runAIReview: async (..._args: unknown[]) => {
 		callOrder.push("runAIReview");
 		return mockAIReviewResult;
+	},
+}));
+
+mock.module("../typecheck", () => ({
+	runTypecheck: async (..._args: unknown[]) => {
+		callOrder.push("runTypecheck");
+		return { findings: [], duration: 0, tool: "tsc", skipped: true };
+	},
+}));
+
+mock.module("../consistency", () => ({
+	checkConsistency: async (..._args: unknown[]) => {
+		callOrder.push("checkConsistency");
+		return { findings: [], rulesChecked: 0 };
 	},
 }));
 
@@ -253,8 +272,8 @@ describe("VerifyPipeline", () => {
 		expect(callOrder).toContain("runTrivy");
 		expect(callOrder).toContain("runSecretlint");
 
-		// 5 tool reports (slop + semgrep + trivy + secretlint + ai-review)
-		expect(result.tools).toHaveLength(8);
+		// 10 tool reports (slop + semgrep + trivy + secretlint + sonarqube + stryker + diff-cover + typecheck + consistency + ai-review)
+		expect(result.tools).toHaveLength(10);
 		expect(result.findings).toHaveLength(3);
 	});
 

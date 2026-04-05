@@ -276,6 +276,10 @@ export function specCommand(): Command {
 		.option("-o, --output <path>", "Output file path")
 		.option("--no-red-green", "Skip red-green enforcement check")
 		.option("--no-interactive", "Skip clarifying questions phase")
+		.option(
+			"--auto",
+			"Skip all interactive prompts (alias for --no-interactive)",
+		)
 		.action(async (options) => {
 			intro("maina spec");
 
@@ -283,7 +287,7 @@ export function specCommand(): Command {
 				featureDir: options.featureDir,
 				output: options.output,
 				noRedGreen: options.redGreen === false,
-				noInteractive: options.interactive === false,
+				noInteractive: options.interactive === false || options.auto === true,
 			});
 
 			if (result.generated) {

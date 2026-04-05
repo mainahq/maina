@@ -22,33 +22,129 @@ Maina is open source (Apache 2.0) and actively developed. Here is what is shippe
 - **5 cross-platform skills** for Claude Code, Cursor, Codex, Gemini CLI
 - **1017+ tests**, 100% benchmark (matches SpecKit)
 
-## v0.4.0 -- Polish + CI
+## Shipped (v0.3.x) -- Hardening
+
+- **Built-in type checking** -- `tsc --noEmit` runs as a verify step with zero extra installs
+- **Cross-function consistency check** -- AST-based deterministic check that related functions use consistent patterns
+- **Honest "0 tools" warning** -- Reports a warning and suggests `maina init --install` instead of false "0 findings, passed"
+- **`maina init` auto-configures Biome** -- Every initialized project gets at least one real linter out of the box
+- **`--auto` flags for `maina spec` and `maina design`** -- Skip interactive prompts for CI and scripting workflows
+- **Post-workflow RL trace analysis** -- Analyzes complete traces to propose prompt improvements fed into `maina learn`
+- **1036+ tests** across 95 files
+
+## v0.4.0 -- Polish + CI ([#41](https://github.com/beeeku/maina/issues/41))
 
 - **PHP support** -- PHPStan, Psalm
 - **Per-file language detection** in polyglot repos (currently uses primary language)
-
-## v0.4.0 -- Structured Output + CI
-
 - **`--json` flag** on all commands for machine-readable output
 - **CI integration** -- `maina verify --json` for GitHub Actions, GitLab CI
 - **Exit codes** -- meaningful exit codes for scripting
 - **DAST with ZAP** -- Dynamic Application Security Testing for web applications
 - **Lighthouse** -- Performance, accessibility, and SEO auditing
 
-## v1.0.0 -- Team / Cloud
+## v0.5.0 -- Workkit Bootstrap + Team Sync ([#42](https://github.com/beeeku/maina/issues/42))
 
-- **Team sync (Maina Cloud)** -- Shared prompts, feedback, and learned preferences across team members via Turso
-- **Usage dashboard** -- Track verification metrics across the team
+- **`maina init` in Workkit repo** -- Constitution for CF Workers conventions, custom Semgrep rules for Workers anti-patterns
+- **Every Workkit PR verified by Maina** -- Real production consumer of the verification pipeline
+- **Maina Cloud API scaffolded** -- Workers service using Workkit packages
+- **Shared prompts + feedback** -- Push/pull prompts across team members, team-wide `maina learn` via @workkit/d1 + @workkit/kv
+- **A/B test coordination** -- Durable Objects (@workkit/do) track prompt variant allocation across team members
+- **GitHub OAuth** -- Team auth via @workkit/auth (JWT + sessions)
+
+## v0.6.0 -- Hosted Verification ([#43](https://github.com/beeeku/maina/issues/43))
+
+- **Submit diffs via API** -- Verification runs on Workers Queue (@workkit/queue)
+- **Proof artifacts stored in R2** -- @workkit/r2 for verification results
+- **Distributed cache** -- Same content-hash cache strategy as local, but on KV (@workkit/kv) with SWR (@workkit/cache)
+- **CI integration** -- `mainahq/verify-action` GitHub Action, GitLab CI, Buildkite support
+- **Rate limiting** -- @workkit/ratelimit protects all API endpoints
+- **Structured logging** -- @workkit/logger for request observability
+
+## v0.7.0 -- Usage Dashboard + Billing ([#44](https://github.com/beeeku/maina/issues/44))
+
+- **Metrics API** -- Verification pass rate, cache hit rate, tokens saved, cost saved, prompt evolution timeline
+- **Dashboard UI** -- CF Pages frontend at app.mainahq.com
+- **Billing** -- Free tier (100 verifications/month), paid tiers via Stripe
+- **OpenAPI docs** -- Full API spec at docs.mainahq.com/api via @workkit/api
 - **SSO** -- Single sign-on for teams
-- **Shared visual baselines** -- S3/CDN storage for visual regression baselines
+
+## v0.8.0 -- CF Workers Skill + Cross-Dogfooding ([#45](https://github.com/beeeku/maina/issues/45))
+
+- **CF Workers Maina skill** -- Auto-detects `wrangler.toml`, loads Workers-specific verification rules, context patterns, and review prompts learned from dogfooding Workkit
+- **Cross-dogfooding report** -- Quantitative analysis of the Maina ↔ Workkit flywheel: bugs found, prompts evolved, patterns learned
+
+## v1.0.0 -- Org Migration + Launch ([#46](https://github.com/beeeku/maina/issues/46))
+
+Maina Cloud launches under the @mainahq organization.
+
+- **mainahq.com** -- Project domain, docs at docs.mainahq.com
+- **GitHub org** -- github.com/mainahq, transfer from beeeku/maina
+- **npm scope** -- `@mainahq/cli`, `@mainahq/core`, `@mainahq/mcp`, `@mainahq/skills`
+- **Org structure** -- Core and community teams, branch protection, CODEOWNERS
+- **Show HN, dev.to article** -- Launch announcement
+- **GitHub Discussions, issue templates, CONTRIBUTING.md** -- Community infrastructure
+
+### Workkit packages powering Maina Cloud
+
+| Maina Cloud feature | Workkit packages |
+|---|---|
+| Team registry + prompt sync | @workkit/d1, @workkit/kv, @workkit/env |
+| Hosted verification | @workkit/queue, @workkit/r2, @workkit/cache |
+| A/B test coordination | @workkit/do |
+| Auth + SSO | @workkit/auth |
+| API protection | @workkit/ratelimit |
+| Dashboard API | @workkit/api |
+| Observability | @workkit/logger |
+| Testing | @workkit/testing |
 
 ## v2.0.0 -- Enterprise
 
-- **Air-gapped deployment** -- On-premise with audit logging, SOC 2 compliance
-- **Custom model fine-tuning** -- From your team's accepted reviews and feedback
+Built on the same Workkit foundation, hardened for enterprise.
+
+### Security + compliance
+
+- **Encryption at rest** -- @workkit/crypto (AES-256-GCM) for all stored data: feedback, prompts, verification results, cache
+- **Per-org encryption keys** -- Key rotation support, managed via enterprise admin API
+- **SSO / SAML** -- @workkit/auth extended with SAML 2.0 and OIDC for enterprise IdPs
+- **Audit logging** -- Every verification, prompt change, feedback event logged immutably, SIEM export (Splunk, Datadog)
+- **SOC 2 Type II** -- Controls documented, penetration tested, data residency options (EU, US, APAC)
+
+### Air-gapped deployment
+
+- **Self-hosted option** -- Docker compose stack without Cloudflare dependencies: D1→SQLite/Postgres, KV→Redis, R2→S3/MinIO, Queue→BullMQ
+- **Ollama as default** -- No external AI API calls required
+- **@workkit/testing mocks** -- Used in CI for enterprise deployment tests
+
+### Advanced features
+
+- **Custom model fine-tuning** -- Export team feedback as training data, fine-tune via @workkit/ai-gateway
 - **Chrome extension** -- Review AI-generated code in GitHub PRs
 - **`transformContext` hooks** -- Programmatic context manipulation
 - **Self-extending agent** -- Maina proposes its own extensions based on usage patterns
+
+## Cross-dogfooding flywheel
+
+```
+Workkit development ──→ verified by Maina
+       │                        │
+       │                        ↓
+       │              Maina learns CF Workers patterns
+       │              (prompt evolution + Semgrep rules)
+       │                        │
+       │                        ↓
+       │              CF Workers skill ships
+       │              (benefits all CF developers)
+       ↓
+Maina Cloud ──→ built on Workkit
+       │                        │
+       │                        ↓
+       │              Workkit gets real production consumer
+       │              (edge cases found → Workkit improves)
+       │                        │
+       ↓                        ↓
+Maina Enterprise ──→ @workkit/crypto + @workkit/auth
+                     (enterprise hardening benefits both)
+```
 
 ## Contributing
 
@@ -57,7 +153,7 @@ Maina is open source and welcomes contributions.
 ### Getting started
 
 ```bash
-git clone https://github.com/beeeku/maina
+git clone https://github.com/mainahq/maina
 cd maina
 bun install
 bun run build
