@@ -144,6 +144,12 @@ export {
 	type RulePreference,
 	savePreferences,
 } from "./feedback/preferences";
+export {
+	analyzeWorkflowTrace,
+	type PromptImprovement,
+	type TraceResult,
+	type TraceStep,
+} from "./feedback/trace-analysis";
 // Git
 export {
 	type Commit,
@@ -268,6 +274,10 @@ export {
 	resolveReferencedFunctions,
 	runAIReview,
 } from "./verify/ai-review";
+export {
+	type ConsistencyResult,
+	checkConsistency,
+} from "./verify/consistency";
 // Verify — Coverage
 export {
 	type CoverageOptions,
@@ -343,6 +353,8 @@ export {
 	type SyntaxGuardResult,
 	syntaxGuard,
 } from "./verify/syntax-guard";
+// Verify — Typecheck + Consistency (built-in checks)
+export { runTypecheck, type TypecheckResult } from "./verify/typecheck";
 // Verify — Visual
 export {
 	captureScreenshot,

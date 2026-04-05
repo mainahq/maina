@@ -310,6 +310,10 @@ export function designCommand(): Command {
 		.option("-t, --title <title>", "ADR title")
 		.option("--list", "List existing ADRs")
 		.option("--no-interactive", "Skip approach proposals phase")
+		.option(
+			"--auto",
+			"Skip all interactive prompts (alias for --no-interactive)",
+		)
 		.option("--hld", "Generate HLD/LLD from feature spec using AI")
 		.action(async (options) => {
 			intro("maina design");
@@ -317,7 +321,7 @@ export function designCommand(): Command {
 			const result = await designAction({
 				title: options.title,
 				list: options.list,
-				noInteractive: options.interactive === false,
+				noInteractive: options.interactive === false || options.auto === true,
 				hld: options.hld,
 			});
 

@@ -318,6 +318,12 @@ export function prCommand(): Command {
 
 			if (result.created) {
 				outro(`Created: ${result.url}`);
+				// Run post-workflow RL trace analysis in background
+				import("@mainahq/core").then(({ analyzeWorkflowTrace }) => {
+					analyzeWorkflowTrace(".maina").catch(() => {
+						// Trace analysis failure should never block PR
+					});
+				});
 			} else {
 				outro(`Aborted: ${result.reason}`);
 			}
