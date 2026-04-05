@@ -239,6 +239,6 @@ describe("maina doctor", () => {
 	test("includes maina version", async () => {
 		const result = await doctorAction({ cwd: tmpDir });
 
-		expect(result.version).toBe("0.2.1");
+		expect(result.version).toBe("0.3.0");
 	});
 });

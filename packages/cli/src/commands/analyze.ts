@@ -3,12 +3,14 @@ import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
 import { analyze, getCurrentBranch } from "@mainahq/core";
 import { Command } from "commander";
+import { EXIT_FINDINGS, EXIT_PASSED, outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface AnalyzeActionOptions {
 	featureDir?: string; // Explicit feature dir, or auto-detect from branch
 	all?: boolean; // Analyze all features
+	json?: boolean; // Output JSON for CI
 	cwd?: string;
 }
 
@@ -266,13 +268,29 @@ export function analyzeCommand(): Command {
 		.description("Check spec \u2194 plan \u2194 tasks consistency")
 		.option("--feature-dir <dir>", "Feature directory path")
 		.option("--all", "Analyze all features")
+		.option("--json", "Output JSON for CI")
 		.action(async (options) => {
-			intro("maina analyze");
+			const jsonMode = options.json ?? false;
+
+			if (!jsonMode) {
+				intro("maina analyze");
+			}
 
 			const result = await analyzeAction({
 				featureDir: options.featureDir,
 				all: options.all,
+				json: jsonMode,
 			});
+
+			if (jsonMode) {
+				const exitCode = result.analyzed
+					? result.passed
+						? EXIT_PASSED
+						: EXIT_FINDINGS
+					: EXIT_FINDINGS;
+				outputJson(result, exitCode);
+				return;
+			}
 
 			if (!result.analyzed) {
 				log.error(result.reason ?? "Unknown error");
