@@ -12,6 +12,7 @@ import { doctorCommand } from "./commands/doctor";
 import { explainCommand } from "./commands/explain";
 import { initCommand } from "./commands/init";
 import { learnCommand } from "./commands/learn";
+import { loginCommand, logoutCommand } from "./commands/login";
 import { planCommand } from "./commands/plan";
 import { prCommand } from "./commands/pr";
 import { promptCommand } from "./commands/prompt";
@@ -21,6 +22,8 @@ import { slopCommand } from "./commands/slop";
 import { specCommand } from "./commands/spec";
 import { statsCommand } from "./commands/stats";
 import { statusCommand } from "./commands/status";
+import { syncCommand } from "./commands/sync";
+import { teamCommand } from "./commands/team";
 import { ticketCommand } from "./commands/ticket";
 import { verifyCommand } from "./commands/verify";
 import { visualCommand } from "./commands/visual";
@@ -54,6 +57,10 @@ export function createProgram(): Command {
 	program.addCommand(reviewDesignCommand());
 	program.addCommand(slopCommand());
 	program.addCommand(statusCommand());
+	program.addCommand(syncCommand());
+	program.addCommand(teamCommand());
+	program.addCommand(loginCommand());
+	program.addCommand(logoutCommand());
 	program.addCommand(visualCommand());
 	return program;
 }
