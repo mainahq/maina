@@ -13,6 +13,7 @@ export interface TicketActionOptions {
 	body?: string;
 	label?: string[];
 	cwd?: string;
+	repo?: string; // Cross-repo: "owner/name" or alias from constitution
 }
 
 export interface TicketActionResult {
@@ -93,12 +94,24 @@ export async function ticketAction(
 	const userLabels = options.label ?? [];
 	const allLabels = [...new Set([...userLabels, ...autoModules])];
 
+	// ── Step 4b: Resolve repo alias ──────────────────────────────────────
+	const REPO_ALIASES: Record<string, string> = {
+		"maina-cloud": "mainahq/maina-cloud",
+		cloud: "mainahq/maina-cloud",
+		workkit: "beeeku/workkit",
+		maina: "beeeku/maina",
+	};
+	const repo = options.repo
+		? (REPO_ALIASES[options.repo] ?? options.repo)
+		: undefined;
+
 	// ── Step 5: Create the ticket ────────────────────────────────────────
 	const result = await deps.createTicket({
 		title,
 		body,
 		labels: allLabels.length > 0 ? allLabels : undefined,
 		cwd,
+		repo,
 	});
 
 	if (!result.ok) {
@@ -124,6 +137,10 @@ export function ticketCommand(): Command {
 		.option("-t, --title <title>", "Issue title")
 		.option("-b, --body <body>", "Issue body")
 		.option("-l, --label <label...>", "Additional labels")
+		.option(
+			"-r, --repo <repo>",
+			"Target repo (alias: maina-cloud, workkit, or owner/name)",
+		)
 		.action(async (options) => {
 			intro("maina ticket");
 
@@ -131,6 +148,7 @@ export function ticketCommand(): Command {
 				title: options.title,
 				body: options.body,
 				label: options.label,
+				repo: options.repo,
 			});
 
 			if (result.created) {
