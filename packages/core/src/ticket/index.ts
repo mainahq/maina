@@ -16,6 +16,7 @@ export interface TicketOptions {
 	body: string;
 	labels?: string[];
 	cwd?: string;
+	repo?: string; // Cross-repo: "owner/name" for gh --repo flag
 }
 
 export interface TicketResult {
@@ -154,6 +155,10 @@ export async function createTicket(
 
 		if (options.labels && options.labels.length > 0) {
 			args.push("--label", options.labels.join(","));
+		}
+
+		if (options.repo) {
+			args.push("--repo", options.repo);
 		}
 
 		const { exitCode, stdout, stderr } = await deps.spawn(args, {

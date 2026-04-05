@@ -50,6 +50,26 @@ export {
 	type CacheStats,
 	createCacheManager,
 } from "./cache/manager";
+// Cloud
+export {
+	type AuthConfig,
+	clearAuthConfig,
+	loadAuthConfig,
+	pollForToken,
+	saveAuthConfig,
+	startDeviceFlow,
+} from "./cloud/auth";
+export { type CloudClient, createCloudClient } from "./cloud/client";
+export type {
+	ApiResponse,
+	CloudConfig,
+	CloudFeedbackPayload,
+	DeviceCodeResponse,
+	PromptRecord,
+	TeamInfo,
+	TeamMember,
+	TokenResponse,
+} from "./cloud/types";
 // Config
 export { getApiKey, isHostMode, shouldDelegateToHost } from "./config/index";
 export { calculateTokens } from "./context/budget";

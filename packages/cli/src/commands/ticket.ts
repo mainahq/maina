@@ -13,6 +13,7 @@ export interface TicketActionOptions {
 	body?: string;
 	label?: string[];
 	cwd?: string;
+	repo?: string; // Cross-repo: "owner/name" or alias from constitution
 }
 
 export interface TicketActionResult {
@@ -93,12 +94,34 @@ export async function ticketAction(
 	const userLabels = options.label ?? [];
 	const allLabels = [...new Set([...userLabels, ...autoModules])];
 
+	// ── Step 4b: Resolve repo alias from .maina/config.json ─────────────
+	let repo = options.repo;
+	if (repo && !repo.includes("/")) {
+		// Short alias — resolve from project config
+		try {
+			const configPath = join(mainaDir, "config.json");
+			const { existsSync, readFileSync } = await import("node:fs");
+			if (existsSync(configPath)) {
+				const config = JSON.parse(readFileSync(configPath, "utf-8"));
+				const aliases = config.repoAliases as
+					| Record<string, string>
+					| undefined;
+				if (aliases?.[repo]) {
+					repo = aliases[repo];
+				}
+			}
+		} catch {
+			// Config read failure — use repo as-is
+		}
+	}
+
 	// ── Step 5: Create the ticket ────────────────────────────────────────
 	const result = await deps.createTicket({
 		title,
 		body,
 		labels: allLabels.length > 0 ? allLabels : undefined,
 		cwd,
+		repo,
 	});
 
 	if (!result.ok) {
@@ -124,6 +147,10 @@ export function ticketCommand(): Command {
 		.option("-t, --title <title>", "Issue title")
 		.option("-b, --body <body>", "Issue body")
 		.option("-l, --label <label...>", "Additional labels")
+		.option(
+			"-r, --repo <repo>",
+			"Target repo (alias: maina-cloud, workkit, or owner/name)",
+		)
 		.action(async (options) => {
 			intro("maina ticket");
 
@@ -131,6 +158,7 @@ export function ticketCommand(): Command {
 				title: options.title,
 				body: options.body,
 				label: options.label,
+				repo: options.repo,
 			});
 
 			if (result.created) {
