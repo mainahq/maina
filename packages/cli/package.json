@@ -33,5 +33,8 @@
   "devDependencies": {
     "@mainahq/core": "workspace:^",
     "@mainahq/mcp": "workspace:^"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -17,5 +17,8 @@
     "*/SKILL.md",
     "README.md",
     "package.json"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }
