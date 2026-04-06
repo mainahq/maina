@@ -1,0 +1,108 @@
+---
+title: CI Integration
+description: Run Maina verification in GitHub Actions and other CI environments.
+---
+
+Maina integrates with CI pipelines to verify every pull request before it merges. Two options are available: a local action that runs tools on the runner, and a cloud action that submits diffs to Maina Cloud.
+
+## GitHub Action (Cloud)
+
+The `mainahq/verify-action@v1` action submits your PR diff to Maina Cloud for verification. No tool installation required on the runner.
+
+```yaml
+name: Maina Verify
+on:
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mainahq/verify-action@v1
+        with:
+          token: ${{ secrets.MAINA_TOKEN }}
+```
+
+### Inputs
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `token` | Yes | -- | Maina Cloud API token. Store as a repository secret. |
+| `base` | No | PR base branch | Base ref for diff calculation. |
+| `deep` | No | `false` | Enable AI semantic review. |
+| `visual` | No | `false` | Enable Playwright visual regression. |
+| `fail-on-findings` | No | `true` | Fail the check if error-severity findings are found. |
+
+### Outputs
+
+| Output | Description |
+|--------|-------------|
+| `status` | `passed`, `findings`, `tool-failure`, or `config-error` |
+| `findings-count` | Number of error-severity findings |
+| `proof-url` | URL to the proof artifact stored in R2 |
+
+### Example with options
+
+```yaml
+- uses: mainahq/verify-action@v1
+  with:
+    token: ${{ secrets.MAINA_TOKEN }}
+    deep: true
+    fail-on-findings: true
+```
+
+## GitHub Action (Local)
+
+If you prefer to run verification locally on the runner (no cloud account needed), use the local action:
+
+```yaml
+- uses: mainahq/maina/.github/actions/verify@main
+  with:
+    base: main
+```
+
+This installs Maina and runs the full pipeline on the runner. Tools are auto-detected -- install them in a prior step if needed.
+
+## How it works
+
+1. **Diff calculated** -- The action computes the diff between the PR branch and the base branch.
+2. **Pipeline runs** -- The full 18+ tool verification pipeline executes (cloud or local).
+3. **Findings filtered** -- Only findings on changed lines are reported (diff-only).
+4. **Results posted** -- Findings are posted as inline PR review comments.
+5. **Check status set** -- The GitHub check passes or fails based on findings.
+6. **Proof stored** -- Cloud mode stores proof artifacts in R2 for auditability.
+
+## Exit codes
+
+All Maina commands return structured exit codes for CI:
+
+| Code | Meaning | Description |
+|------|---------|-------------|
+| `0` | Passed | No error-severity findings |
+| `1` | Findings | Error-severity findings found |
+| `2` | Tool failure | A verification tool crashed |
+| `3` | Config error | Missing config, bad arguments |
+
+## Getting a token
+
+1. Run `maina login` locally to authenticate with Maina Cloud.
+2. Generate an API token at [app.mainahq.com](https://app.mainahq.com) (or via `maina token create`).
+3. Add the token as a repository secret named `MAINA_TOKEN`.
+
+## Other CI systems
+
+Maina works in any CI environment that has Bun installed:
+
+```bash
+# Install Maina
+bun add -g @mainahq/cli
+
+# Run verification with JSON output
+maina verify --json --base origin/main
+
+# Exit code indicates pass/fail
+```
+
+Parse the JSON output for custom integrations. The `--json` flag returns a `{ data, error, meta }` envelope with all findings.

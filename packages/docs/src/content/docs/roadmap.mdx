@@ -56,12 +56,14 @@ Maina is open source (Apache 2.0) and actively developed. Here is what is shippe
 - **7 languages** -- TypeScript, Python, Go, Rust, C#/.NET, Java/Kotlin, PHP
 - **1106+ tests** across 95+ files
 
-## v0.6.0 -- Hosted Verification + PR Checks + Autonomous Workflow ([#43](https://github.com/beeeku/maina/issues/43))
+## Shipped (v0.6.0) -- Hosted Verification + PR Checks + Autonomous Workflow ([#43](https://github.com/beeeku/maina/issues/43))
 
+- **`maina verify --cloud`** -- Submit diffs to Maina Cloud for hosted verification
 - **Submit diffs via API** -- Verification runs on Workers Queue (@workkit/queue)
 - **Proof artifacts in R2** -- @workkit/r2 for verification results
 - **Distributed cache** -- Content-hash cache on KV with SWR
 - **PR check integration** -- Maina runs as a GitHub PR check alongside Copilot, CodeRabbit, DeepSource. Adds the verification-first layer they're missing: spec compliance, cross-function consistency, slop detection, AI review with learned prompts. Posts inline review comments on findings. Works as a complement, not a replacement.
+- **`mainahq/verify-action@v1`** -- GitHub Action for CI integration in 3 lines of YAML
 - **`mainahq/workflow-action` -- Autonomous coding Action** -- A GitHub Issue triggers the full maina workflow (brainstorm → plan → design → spec → implement → verify → review → commit → PR). User writes an issue, Action produces a verified PR. The entire verification-first pipeline runs in CI without human intervention.
 - **Rate limiting** -- @workkit/ratelimit on all API endpoints
 - **Structured logging** -- @workkit/logger for observability

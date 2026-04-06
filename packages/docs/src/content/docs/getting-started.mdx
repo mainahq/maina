@@ -127,7 +127,15 @@ Add Maina to Claude Code, Cursor, or any MCP-compatible editor:
 
 ## CI Integration
 
-Add Maina verification to your GitHub Actions workflow:
+Add Maina cloud verification to your GitHub Actions workflow:
+
+```yaml
+- uses: mainahq/verify-action@v1
+  with:
+    token: ${{ secrets.MAINA_TOKEN }}
+```
+
+Or run locally on the runner (no cloud account needed):
 
 ```yaml
 - uses: mainahq/maina/.github/actions/verify@main
@@ -135,7 +143,7 @@ Add Maina verification to your GitHub Actions workflow:
     base: main
 ```
 
-This runs the full verification pipeline on every PR, posting findings as inline review comments. Exit codes: `0` (passed), `1` (findings), `2` (tool failure), `3` (config error).
+Both options run the full verification pipeline on every PR, posting findings as inline review comments. Exit codes: `0` (passed), `1` (findings), `2` (tool failure), `3` (config error). See the [CI Integration](/maina/ci) docs for full configuration.
 
 ## Cloud Sync
 
@@ -148,6 +156,19 @@ maina sync push      # share your prompts
 ```
 
 Team prompts, constitution updates, and A/B test results sync automatically. No self-hosting required.
+
+## Cloud Verification
+
+Run the full verification pipeline in the cloud instead of locally. Useful for CI, teams with heterogeneous environments, or when you want results without installing 18+ tools.
+
+```bash
+maina login              # authenticate (one-time)
+maina verify --cloud     # submit diff to Maina Cloud for verification
+```
+
+Your diff is submitted to the hosted pipeline. Results are stored as proof artifacts in R2 and returned to your terminal. The same 18+ tools run in the cloud -- no local installs required.
+
+See the [Verify Engine -- Cloud Verification](/maina/engines/verify#cloud-verification) docs for architecture details.
 
 ## Next Steps
 
