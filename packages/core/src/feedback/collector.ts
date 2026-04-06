@@ -1,7 +1,11 @@
 import { hashContent } from "../cache/keys";
+import { loadAuthConfig } from "../cloud/auth";
+import { createCloudClient } from "../cloud/client";
 import { getFeedbackDb } from "../db/index";
 import { recordOutcome } from "../prompts/engine";
 import { compressReview, storeCompressedReview } from "./compress";
+
+const CLOUD_URL = process.env.MAINA_CLOUD_URL ?? "https://api.mainahq.com";
 
 export interface FeedbackRecord {
 	promptHash: string;
@@ -122,6 +126,27 @@ export function recordFeedbackAsync(
 			}
 		} catch {
 			// Never throw from background feedback
+		}
+
+		// Auto-sync to cloud if logged in (fire-and-forget, never blocks)
+		try {
+			const auth = loadAuthConfig();
+			if (auth.ok && auth.value.accessToken) {
+				const client = createCloudClient({
+					baseUrl: CLOUD_URL,
+					token: auth.value.accessToken,
+				});
+				client.postFeedbackBatch([
+					{
+						promptHash: record.promptHash,
+						command: record.task,
+						accepted: record.accepted,
+						context: record.modification,
+					},
+				]);
+			}
+		} catch {
+			// Cloud sync failure is silent
 		}
 	});
 }
