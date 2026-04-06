@@ -227,17 +227,24 @@ async function runCloudLearn(mainaDir: string): Promise<void> {
 	const events = exportFeedbackForCloud(mainaDir);
 	s.stop(`Found ${events.length} local feedback event(s).`);
 
-	// 3. Upload if any
+	// 3. Upload in chunks (max 100 per batch to avoid timeouts)
 	if (events.length > 0) {
-		s.start(`Uploading ${events.length} event(s) to cloud…`);
-		const uploadResult = await client.postFeedbackBatch(events);
-		if (!uploadResult.ok) {
-			s.stop("Upload failed.");
-			log.error(uploadResult.error);
-			outro("Cloud sync failed.");
-			return;
+		const CHUNK_SIZE = 100;
+		let totalReceived = 0;
+		const chunks = Math.ceil(events.length / CHUNK_SIZE);
+		s.start(`Uploading ${events.length} event(s) in ${chunks} batch(es)…`);
+		for (let i = 0; i < events.length; i += CHUNK_SIZE) {
+			const chunk = events.slice(i, i + CHUNK_SIZE);
+			const uploadResult = await client.postFeedbackBatch(chunk);
+			if (!uploadResult.ok) {
+				s.stop(`Upload failed at batch ${Math.floor(i / CHUNK_SIZE) + 1}.`);
+				log.error(uploadResult.error);
+				break;
+			}
+			totalReceived += uploadResult.value.received;
+			s.message(`Uploaded ${totalReceived}/${events.length}…`);
 		}
-		s.stop(`Uploaded ${uploadResult.value.received} event(s).`);
+		s.stop(`Uploaded ${totalReceived} event(s).`);
 	} else {
 		log.info("No local feedback to upload.");
 	}
