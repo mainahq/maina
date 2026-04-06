@@ -1,45 +1,46 @@
-# Feature: [Name]
+# Feature: v1.0.0 — Launch
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
+Maina is feature-complete (v0.7.0) but lacks community infrastructure, proper org structure, and a launch story. The repo is still under `beeeku/maina`, there's no CONTRIBUTING.md, and a known bug (#47) ships broken brainstorm output.
 
 ## Target User
 
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
+- Primary: Developers discovering maina via Show HN / dev.to
+- Secondary: Contributors who want to participate in the project
 
 ## User Stories
 
-- As a [role], I want [capability] so that [benefit].
+- As a new user, I want clear onboarding from mainahq.com so I can start using maina in 5 minutes.
+- As a contributor, I want CONTRIBUTING.md and issue templates so I know how to participate.
+- As a team lead, I want to find maina under a professional org (mainahq) with proper governance.
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [ ] Bug #47 fixed — `brainstorm --no-interactive` generates real content
+- [ ] CONTRIBUTING.md with dev setup, PR guidelines, commit conventions
+- [ ] Issue templates: bug report, feature request, question
+- [ ] CODEOWNERS file mapping packages to maintainers
+- [ ] GitHub Discussions enabled
+- [ ] Repos transferred: beeeku/maina → mainahq/maina, beeeku/maina-cloud → mainahq/maina-cloud
+- [ ] All internal links updated post-transfer
+- [ ] Show HN draft written
+- [ ] v1.0.0 changeset + npm publish
 
 ## Scope
 
 ### In Scope
 
-- [NEEDS CLARIFICATION] What this feature does.
+- Fix bug #47 (brainstorm --no-interactive stubs)
+- Community files: CONTRIBUTING.md, issue templates, CODEOWNERS, PR template
+- Repo transfers to mainahq org
+- Update all GitHub/npm references post-transfer
+- Enable GitHub Discussions
+- Show HN + dev.to draft
+- Version bump to 1.0.0
 
 ### Out of Scope
 
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- CF Workers skill (v1.1.0)
+- Cross-dogfooding report (v1.1.0)
+- New features — this is polish + launch only
