@@ -1,5 +1,12 @@
 # @mainahq/mcp
 
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies [[`af6294a`](https://github.com/beeeku/maina/commit/af6294a394d35cac71853787028457b1858e01e9)]:
+  - @mainahq/core@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes
