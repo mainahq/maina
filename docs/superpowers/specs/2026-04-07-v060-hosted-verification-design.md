@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-07
 **Status:** Approved
-**Issue:** beeeku/maina#43
+**Issue:** mainahq/maina#43
 
 ---
 

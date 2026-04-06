@@ -1558,7 +1558,7 @@ Every cloud feature is a Cloudflare Workers problem that Workkit solves. Org mig
 ```
 - [ ] Blog post: "Building Maina Cloud on Workkit: A Dogfooding Story"
 - [ ] Data: bugs caught by Maina in Workkit, Workkit edge cases found by Maina Cloud
-- [ ] Published on mainahq.com/blog and beeeku.github.io/workkit/blog
+- [ ] Published on mainahq.com/blog and mainahq.github.io/workkit/blog
 ```
 
 ### Sprint 19 — Org Migration + v1.0.0 Launch (#46)
@@ -1569,7 +1569,7 @@ Every cloud feature is a Cloudflare Workers problem that Workkit solves. Org mig
 ```
 - [ ] Register mainahq.com domain
 - [ ] Create @mainahq GitHub org (github.com/mainahq)
-- [ ] Transfer beeeku/maina → mainahq/maina
+- [ ] Transfer mainahq/maina → mainahq/maina
 - [ ] Update npm scope: @mainahq/cli, @mainahq/core, @mainahq/mcp, @mainahq/skills
 - [ ] Update all package.json, imports, docs, README badges
 - [ ] Set up GitHub org: teams (core, community), branch protection, CODEOWNERS

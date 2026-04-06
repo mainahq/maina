@@ -1,0 +1,9 @@
+# Default
+* @mainahq
+
+# Packages
+packages/cli/ @mainahq
+packages/core/ @mainahq
+packages/mcp/ @mainahq
+packages/skills/ @mainahq
+packages/docs/ @mainahq

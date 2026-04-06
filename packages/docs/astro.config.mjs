@@ -17,11 +17,11 @@ export default defineConfig({
         {
           icon: 'github',
           label: 'GitHub',
-          href: 'https://github.com/beeeku/maina',
+          href: 'https://github.com/mainahq/maina',
         },
       ],
       editLink: {
-        baseUrl: 'https://github.com/beeeku/maina/edit/master/packages/docs/',
+        baseUrl: 'https://github.com/mainahq/maina/edit/master/packages/docs/',
       },
       sidebar: [
         {
