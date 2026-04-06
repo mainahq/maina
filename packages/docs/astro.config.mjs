@@ -3,8 +3,8 @@ import starlight from '@astrojs/starlight';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  site: 'https://beeeku.github.io',
-  base: '/maina',
+  site: 'https://mainahq.com',
+  base: '/',
   vite: { plugins: [tailwindcss()] },
   integrations: [
     starlight({

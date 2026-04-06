@@ -6,7 +6,8 @@ import Features from '../components/Features.astro';
 import Footer from '../components/Footer.astro';
 import '../styles/landing.css';
 
-const base = import.meta.env.BASE_URL;
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
 ---
 
 <html lang="en">
@@ -19,14 +20,14 @@ const base = import.meta.env.BASE_URL;
     <meta property="og:title" content="Maina — Stop shipping broken AI code" />
     <meta property="og:description" content="16-tool verification pipeline for AI-generated code. 6 languages. Works inside your AI tool." />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://beeeku.github.io/maina/" />
+    <meta property="og:url" content="https://mainahq.com/" />
     <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
     <script type="application/ld+json" set:html={JSON.stringify({
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       "name": "Maina",
       "description": "Verification-first developer OS. 16-tool pipeline that proves AI-generated code is correct before it merges.",
-      "url": "https://beeeku.github.io/maina/",
+      "url": "https://mainahq.com/",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "macOS, Linux, Windows",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
