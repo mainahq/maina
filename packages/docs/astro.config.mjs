@@ -35,6 +35,7 @@ export default defineConfig({
           label: 'Reference',
           items: [
             { slug: 'configuration' },
+            { slug: 'ci' },
             { slug: 'mcp' },
             { slug: 'skills' },
           ],

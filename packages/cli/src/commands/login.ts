@@ -17,7 +17,7 @@ import { Command } from "commander";
 // ── Constants ───────────────────────────────────────────────────────────────
 
 const DEFAULT_CLOUD_URL =
-	process.env.MAINA_CLOUD_URL ?? "https://api.maina.dev";
+	process.env.MAINA_CLOUD_URL ?? "https://api.mainahq.com";
 
 // ── Login Action ────────────────────────────────────────────────────────────
 

@@ -48,6 +48,7 @@ Prove correctness before merge.
 |---------|------------|---------------|
 | `maina verify` | Full verification pipeline (18+ tools). Diff-only by default. | Working + Semantic |
 | `maina verify --deep` | Add standard-tier AI semantic review (spec compliance, architecture). | Working + Semantic |
+| `maina verify --cloud` | Submit diff to Maina Cloud for hosted verification. No local tool installs required. | Working |
 | `maina verify --visual` | Add Playwright visual regression checks against baselines. | Working + Visual baselines |
 | `maina slop` | Standalone AI slop pattern detection. `--all` for all tracked files. | Working |
 | `maina review` | Comprehensive two-stage code review: spec compliance first, then code quality. | Working + Semantic |

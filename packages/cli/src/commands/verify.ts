@@ -1,13 +1,22 @@
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
-import type { Finding, FixSuggestion, PipelineResult } from "@mainahq/core";
+import type {
+	CloudClient,
+	Finding,
+	FixSuggestion,
+	PipelineResult,
+	VerifyResultResponse,
+} from "@mainahq/core";
 import {
 	appendWorkflowStep,
+	createCloudClient,
 	generateFixes,
 	getCurrentBranch,
+	getDiff,
 	getStagedFiles,
 	getTrackedFiles,
 	getWorkflowId,
+	loadAuthConfig,
 	recordFeedbackAsync,
 	runPipeline,
 	runVisualVerification,
@@ -23,6 +32,7 @@ export interface VerifyActionOptions {
 	base?: string;
 	deep?: boolean;
 	visual?: boolean;
+	cloud?: boolean;
 	cwd?: string;
 }
 
@@ -81,6 +91,218 @@ function formatFixSuggestions(suggestions: FixSuggestion[]): string {
 			return `${header}\n${explanation}\n${diff}`;
 		})
 		.join("\n\n");
+}
+
+// ── Cloud Verify ────────────────────────────────────────────────────────────
+
+const DEFAULT_CLOUD_URL =
+	process.env.MAINA_CLOUD_URL ?? "https://api.mainahq.com";
+
+const CLOUD_POLL_INTERVAL_MS = 2_000;
+const CLOUD_TIMEOUT_MS = 5 * 60 * 1_000; // 5 minutes
+
+/**
+ * Get the repo name from git remote origin URL.
+ * Returns "owner/repo" format, or the raw remote URL if parsing fails.
+ */
+async function getRepoName(cwd: string): Promise<string> {
+	try {
+		const proc = Bun.spawn(["git", "remote", "get-url", "origin"], {
+			cwd,
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		const output = (await new Response(proc.stdout).text()).trim();
+		const exitCode = await proc.exited;
+		if (exitCode !== 0 || !output) return "unknown/repo";
+
+		// Parse SSH: git@github.com:owner/repo.git
+		const sshMatch = output.match(/[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
+		if (sshMatch?.[1]) return sshMatch[1];
+
+		// Parse HTTPS: https://github.com/owner/repo.git
+		const httpsMatch = output.match(/\/([^/]+\/[^/]+?)(?:\.git)?$/);
+		if (httpsMatch?.[1]) return httpsMatch[1];
+
+		return output;
+	} catch {
+		return "unknown/repo";
+	}
+}
+
+function formatCloudFindings(
+	findings: VerifyResultResponse["findings"],
+): string {
+	if (findings.length === 0) return "  No findings.";
+	const header = `  ${"Tool".padEnd(12)} ${"File".padEnd(20)} ${"Line".padStart(5)}  ${"Severity".padEnd(8)}  Message`;
+	const separator = `  ${"─".repeat(12)} ${"─".repeat(20)} ${"─".repeat(5)}  ${"─".repeat(8)}  ${"─".repeat(30)}`;
+	const rows = findings.map((f) => {
+		const file =
+			f.file.length > 18 ? `…${f.file.slice(f.file.length - 17)}` : f.file;
+		return `  ${f.tool.padEnd(12)} ${file.padEnd(20)} ${String(f.line).padStart(5)}  ${f.severity.padEnd(8)}  ${f.message}`;
+	});
+	return [header, separator, ...rows].join("\n");
+}
+
+export interface CloudVerifyResult {
+	passed: boolean;
+	findingsCount: number;
+	duration: number;
+	proofKey: string | null;
+	json?: string;
+}
+
+/**
+ * Run verification on maina cloud.
+ *
+ * Submits the diff, polls for status, then fetches the full result.
+ * Accepts optional overrides for the CloudClient and sleep function
+ * so tests can mock them without touching real HTTP.
+ */
+export async function cloudVerifyAction(
+	options: VerifyActionOptions,
+	deps?: {
+		client?: CloudClient;
+		sleepFn?: (ms: number) => Promise<void>;
+	},
+): Promise<CloudVerifyResult> {
+	const cwd = options.cwd ?? process.cwd();
+	const baseBranch = options.base ?? "main";
+	const sleepFn = deps?.sleepFn ?? ((ms: number) => Bun.sleep(ms));
+
+	// ── Step 1: Auth ──────────────────────────────────────────────────────
+	let client: CloudClient;
+
+	if (deps?.client) {
+		client = deps.client;
+	} else {
+		const authResult = loadAuthConfig();
+		if (!authResult.ok) {
+			log.error("Not logged in. Run `maina login` first.");
+			return { passed: false, findingsCount: 0, duration: 0, proofKey: null };
+		}
+
+		client = createCloudClient({
+			baseUrl: DEFAULT_CLOUD_URL,
+			token: authResult.value.accessToken,
+		});
+	}
+
+	// ── Step 2: Build diff ────────────────────────────────────────────────
+	const diff = await getDiff(`${baseBranch}...HEAD`, undefined, cwd);
+	if (!diff) {
+		log.error(
+			"No diff found. Make sure you have commits ahead of the base branch.",
+		);
+		return { passed: false, findingsCount: 0, duration: 0, proofKey: null };
+	}
+
+	// ── Step 3: Get repo name ─────────────────────────────────────────────
+	const repo = await getRepoName(cwd);
+
+	// ── Step 4: Submit ────────────────────────────────────────────────────
+	const submitResult = await client.submitVerify({ diff, repo, baseBranch });
+	if (!submitResult.ok) {
+		log.error(`Cloud submission failed: ${submitResult.error}`);
+		return { passed: false, findingsCount: 0, duration: 0, proofKey: null };
+	}
+
+	const { jobId } = submitResult.value;
+
+	// ── Step 5: Poll ──────────────────────────────────────────────────────
+	const s = spinner();
+	s.start("Queued for verification…");
+
+	const deadline = Date.now() + CLOUD_TIMEOUT_MS;
+	let finalStatus = "queued";
+
+	while (Date.now() < deadline) {
+		await sleepFn(CLOUD_POLL_INTERVAL_MS);
+
+		const statusResult = await client.getVerifyStatus(jobId);
+		if (!statusResult.ok) {
+			s.stop("Poll failed");
+			log.error(`Status poll failed: ${statusResult.error}`);
+			return { passed: false, findingsCount: 0, duration: 0, proofKey: null };
+		}
+
+		const { status, currentStep } = statusResult.value;
+		finalStatus = status;
+
+		if (status === "done" || status === "failed") {
+			s.stop(
+				status === "done" ? "Verification complete." : "Verification failed.",
+			);
+			break;
+		}
+
+		s.message(currentStep || "Running…");
+	}
+
+	if (finalStatus !== "done" && finalStatus !== "failed") {
+		s.stop("Timed out");
+		log.error("Cloud verification timed out after 5 minutes.");
+		return { passed: false, findingsCount: 0, duration: 0, proofKey: null };
+	}
+
+	// ── Step 6: Fetch result ──────────────────────────────────────────────
+	const resultRes = await client.getVerifyResult(jobId);
+	if (!resultRes.ok) {
+		log.error(`Failed to fetch result: ${resultRes.error}`);
+		return { passed: false, findingsCount: 0, duration: 0, proofKey: null };
+	}
+
+	const verifyResult = resultRes.value;
+
+	// ── Step 7: Render ────────────────────────────────────────────────────
+	if (options.json) {
+		const jsonOutput = {
+			passed: verifyResult.passed,
+			findings: verifyResult.findings,
+			findingsErrors: verifyResult.findingsErrors,
+			findingsWarnings: verifyResult.findingsWarnings,
+			proofKey: verifyResult.proofKey,
+			duration: verifyResult.durationMs,
+			cloud: true,
+		};
+		return {
+			passed: verifyResult.passed,
+			findingsCount: verifyResult.findings.length,
+			duration: verifyResult.durationMs,
+			proofKey: verifyResult.proofKey,
+			json: JSON.stringify(jsonOutput, null, 2),
+		};
+	}
+
+	if (verifyResult.findings.length > 0) {
+		log.message(formatCloudFindings(verifyResult.findings));
+	}
+
+	if (verifyResult.passed) {
+		log.success(`Cloud verification passed in ${verifyResult.durationMs}ms.`);
+		if (verifyResult.proofKey) {
+			log.info(`Proof key: ${verifyResult.proofKey}`);
+		}
+	} else {
+		log.error(
+			`Cloud verification failed: ${verifyResult.findings.length} finding(s).`,
+		);
+	}
+
+	// ── Workflow tracking ─────────────────────────────────────────────────
+	const wfMainaDir = join(cwd, ".maina");
+	appendWorkflowStep(
+		wfMainaDir,
+		"verify",
+		`Cloud pipeline ${verifyResult.passed ? "passed" : "failed"}: ${verifyResult.findings.length} findings, ${verifyResult.durationMs}ms.`,
+	);
+
+	return {
+		passed: verifyResult.passed,
+		findingsCount: verifyResult.findings.length,
+		duration: verifyResult.durationMs,
+		proofKey: verifyResult.proofKey,
+	};
 }
 
 // ── Core Action (testable) ──────────────────────────────────────────────────
@@ -258,11 +480,36 @@ export function verifyCommand(): Command {
 		.option("--base <ref>", "Base branch for diff", "main")
 		.option("--deep", "Run standard-tier AI semantic review")
 		.option("--visual", "Run visual regression checks")
+		.option("--cloud", "Run verification on maina cloud")
 		.action(async (options) => {
 			const isJson = options.json === true;
 
 			if (!isJson) intro("maina verify");
 
+			// ── Cloud path ──────────────────────────────────────────────
+			if (options.cloud) {
+				const result = await cloudVerifyAction({
+					json: options.json,
+					base: options.base,
+					cloud: true,
+				});
+
+				if (isJson && result.json) {
+					const { exitCodeFromResult, outputJson } = await import("../json");
+					outputJson(JSON.parse(result.json), exitCodeFromResult(result));
+					return;
+				}
+
+				if (result.passed) {
+					outro("Cloud verification passed.");
+				} else {
+					process.exitCode = 1;
+					outro("Cloud verification failed.");
+				}
+				return;
+			}
+
+			// ── Local path ──────────────────────────────────────────────
 			const s = isJson ? null : spinner();
 			s?.start("Running verification pipeline…");
 

@@ -74,6 +74,18 @@ let fixCalledWith: { findings: unknown[]; options: unknown } | undefined;
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
+let mockAuthResult: {
+	ok: boolean;
+	value?: { accessToken: string };
+	error?: string;
+} = {
+	ok: true,
+	value: { accessToken: "test-token-123" },
+};
+
+let mockDiffOutput =
+	"diff --git a/src/index.ts b/src/index.ts\n--- a/src/index.ts\n+++ b/src/index.ts";
+
 mock.module("@mainahq/core", () => ({
 	runPipeline: async (opts?: Record<string, unknown>) => {
 		pipelineCalledWith = opts;
@@ -118,6 +130,10 @@ mock.module("@mainahq/core", () => ({
 		screenshotsTaken: 0,
 		comparisons: 0,
 	}),
+	// Cloud
+	loadAuthConfig: () => mockAuthResult,
+	createCloudClient: () => ({}),
+	getDiff: async () => mockDiffOutput,
 }));
 
 mock.module("@clack/prompts", () => ({
@@ -134,6 +150,7 @@ mock.module("@clack/prompts", () => ({
 	spinner: () => ({
 		start: () => {},
 		stop: () => {},
+		message: () => {},
 	}),
 }));
 
@@ -143,7 +160,7 @@ afterAll(() => {
 
 // ── Import the module under test AFTER mocks ────────────────────────────────
 
-const { verifyAction } = await import("../verify");
+const { verifyAction, cloudVerifyAction } = await import("../verify");
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
@@ -175,6 +192,12 @@ beforeEach(() => {
 	};
 	pipelineCalledWith = undefined;
 	fixCalledWith = undefined;
+	mockAuthResult = {
+		ok: true,
+		value: { accessToken: "test-token-123" },
+	};
+	mockDiffOutput =
+		"diff --git a/src/index.ts b/src/index.ts\n--- a/src/index.ts\n+++ b/src/index.ts";
 });
 
 afterEach(() => {
@@ -397,5 +420,327 @@ describe("maina verify", () => {
 		// When --all is set, all tracked files are passed
 		expect(Array.isArray(pipelineCalledWith?.files)).toBe(true);
 		expect(pipelineCalledWith?.diffOnly).toBe(false);
+	});
+});
+
+// ── Cloud Verify Tests ──────────────────────────────────────────────────────
+
+/** Helper to build a mock CloudClient for tests. */
+function createMockClient(overrides?: {
+	submitVerify?: (...args: unknown[]) => Promise<unknown>;
+	getVerifyStatus?: (...args: unknown[]) => Promise<unknown>;
+	getVerifyResult?: (...args: unknown[]) => Promise<unknown>;
+}) {
+	return {
+		health: async () => ({ ok: true as const, value: { status: "ok" } }),
+		getPrompts: async () => ({ ok: true as const, value: [] }),
+		putPrompts: async () => ({ ok: true as const, value: undefined }),
+		getTeam: async () => ({
+			ok: true as const,
+			value: {
+				id: "t1",
+				name: "team",
+				plan: "free",
+				seats: { used: 1, total: 5 },
+			},
+		}),
+		getTeamMembers: async () => ({ ok: true as const, value: [] }),
+		inviteTeamMember: async () => ({
+			ok: true as const,
+			value: { invited: true },
+		}),
+		postFeedback: async () => ({
+			ok: true as const,
+			value: { recorded: true },
+		}),
+		submitVerify:
+			overrides?.submitVerify ??
+			(async () => ({
+				ok: true as const,
+				value: { jobId: "job-001" },
+			})),
+		getVerifyStatus:
+			overrides?.getVerifyStatus ??
+			(async () => ({
+				ok: true as const,
+				value: { status: "done", currentStep: "Complete" },
+			})),
+		getVerifyResult:
+			overrides?.getVerifyResult ??
+			(async () => ({
+				ok: true as const,
+				value: {
+					id: "job-001",
+					status: "done",
+					passed: true,
+					findings: [],
+					findingsErrors: 0,
+					findingsWarnings: 0,
+					proofKey: "proof-abc123",
+					durationMs: 1200,
+				},
+			})),
+	};
+}
+
+/** No-op sleep for tests. */
+const noopSleep = async () => {};
+
+describe("maina verify --cloud", () => {
+	test("passes when cloud verification succeeds with no findings", async () => {
+		const client = createMockClient();
+
+		const result = await cloudVerifyAction(
+			{ cloud: true, cwd: tmpDir },
+			{
+				client: client as unknown as import("@mainahq/core").CloudClient,
+				sleepFn: noopSleep,
+			},
+		);
+
+		expect(result.passed).toBe(true);
+		expect(result.findingsCount).toBe(0);
+		expect(result.duration).toBe(1200);
+		expect(result.proofKey).toBe("proof-abc123");
+	});
+
+	test("fails when cloud verification finds issues", async () => {
+		const client = createMockClient({
+			getVerifyResult: async () => ({
+				ok: true,
+				value: {
+					id: "job-002",
+					status: "done",
+					passed: false,
+					findings: [
+						{
+							tool: "semgrep",
+							file: "src/auth.ts",
+							line: 18,
+							message: "SQL injection risk",
+							severity: "error",
+							ruleId: "sql-injection",
+						},
+						{
+							tool: "slop",
+							file: "src/api.ts",
+							line: 42,
+							message: "console.log in production",
+							severity: "warning",
+						},
+					],
+					findingsErrors: 1,
+					findingsWarnings: 1,
+					proofKey: null,
+					durationMs: 2500,
+				},
+			}),
+		});
+
+		const result = await cloudVerifyAction(
+			{ cloud: true, cwd: tmpDir },
+			{
+				client: client as unknown as import("@mainahq/core").CloudClient,
+				sleepFn: noopSleep,
+			},
+		);
+
+		expect(result.passed).toBe(false);
+		expect(result.findingsCount).toBe(2);
+		expect(result.proofKey).toBeNull();
+	});
+
+	test("returns JSON output when --json is set", async () => {
+		const client = createMockClient();
+
+		const result = await cloudVerifyAction(
+			{ cloud: true, json: true, cwd: tmpDir },
+			{
+				client: client as unknown as import("@mainahq/core").CloudClient,
+				sleepFn: noopSleep,
+			},
+		);
+
+		expect(result.json).toBeDefined();
+		const parsed = JSON.parse(result.json ?? "{}");
+		expect(parsed.passed).toBe(true);
+		expect(parsed.cloud).toBe(true);
+		expect(parsed.proofKey).toBe("proof-abc123");
+		expect(parsed.duration).toBe(1200);
+	});
+
+	test("fails when auth is not available and no client injected", async () => {
+		mockAuthResult = {
+			ok: false,
+			error: "Not logged in. Run `maina login` first.",
+		};
+
+		const result = await cloudVerifyAction(
+			{ cloud: true, cwd: tmpDir },
+			{ sleepFn: noopSleep },
+		);
+
+		expect(result.passed).toBe(false);
+		expect(result.findingsCount).toBe(0);
+	});
+
+	test("fails when diff is empty", async () => {
+		mockDiffOutput = "";
+		const client = createMockClient();
+
+		const result = await cloudVerifyAction(
+			{ cloud: true, cwd: tmpDir },
+			{
+				client: client as unknown as import("@mainahq/core").CloudClient,
+				sleepFn: noopSleep,
+			},
+		);
+
+		expect(result.passed).toBe(false);
+		expect(result.findingsCount).toBe(0);
+	});
+
+	test("fails when submit returns error", async () => {
+		const client = createMockClient({
+			submitVerify: async () => ({
+				ok: false,
+				error: "Rate limit exceeded",
+			}),
+		});
+
+		const result = await cloudVerifyAction(
+			{ cloud: true, cwd: tmpDir },
+			{
+				client: client as unknown as import("@mainahq/core").CloudClient,
+				sleepFn: noopSleep,
+			},
+		);
+
+		expect(result.passed).toBe(false);
+		expect(result.findingsCount).toBe(0);
+	});
+
+	test("polls status until done", async () => {
+		let pollCount = 0;
+		const client = createMockClient({
+			getVerifyStatus: async () => {
+				pollCount++;
+				if (pollCount < 3) {
+					return {
+						ok: true,
+						value: {
+							status: "running",
+							currentStep: `Step ${pollCount}`,
+						},
+					};
+				}
+				return {
+					ok: true,
+					value: { status: "done", currentStep: "Complete" },
+				};
+			},
+		});
+
+		const result = await cloudVerifyAction(
+			{ cloud: true, cwd: tmpDir },
+			{
+				client: client as unknown as import("@mainahq/core").CloudClient,
+				sleepFn: noopSleep,
+			},
+		);
+
+		expect(result.passed).toBe(true);
+		expect(pollCount).toBe(3);
+	});
+
+	test("fails when status poll returns error", async () => {
+		const client = createMockClient({
+			getVerifyStatus: async () => ({
+				ok: false,
+				error: "Internal server error",
+			}),
+		});
+
+		const result = await cloudVerifyAction(
+			{ cloud: true, cwd: tmpDir },
+			{
+				client: client as unknown as import("@mainahq/core").CloudClient,
+				sleepFn: noopSleep,
+			},
+		);
+
+		expect(result.passed).toBe(false);
+	});
+
+	test("fails when result fetch returns error", async () => {
+		const client = createMockClient({
+			getVerifyResult: async () => ({
+				ok: false,
+				error: "Job not found",
+			}),
+		});
+
+		const result = await cloudVerifyAction(
+			{ cloud: true, cwd: tmpDir },
+			{
+				client: client as unknown as import("@mainahq/core").CloudClient,
+				sleepFn: noopSleep,
+			},
+		);
+
+		expect(result.passed).toBe(false);
+	});
+
+	test("handles failed verification status", async () => {
+		const client = createMockClient({
+			getVerifyStatus: async () => ({
+				ok: true,
+				value: { status: "failed", currentStep: "Pipeline error" },
+			}),
+			getVerifyResult: async () => ({
+				ok: true,
+				value: {
+					id: "job-003",
+					status: "failed",
+					passed: false,
+					findings: [],
+					findingsErrors: 0,
+					findingsWarnings: 0,
+					proofKey: null,
+					durationMs: 500,
+				},
+			}),
+		});
+
+		const result = await cloudVerifyAction(
+			{ cloud: true, cwd: tmpDir },
+			{
+				client: client as unknown as import("@mainahq/core").CloudClient,
+				sleepFn: noopSleep,
+			},
+		);
+
+		expect(result.passed).toBe(false);
+	});
+
+	test("uses custom base branch", async () => {
+		let submittedPayload: Record<string, unknown> | undefined;
+		const client = createMockClient({
+			submitVerify: async (payload: unknown) => {
+				submittedPayload = payload as Record<string, unknown>;
+				return { ok: true, value: { jobId: "job-004" } };
+			},
+		});
+
+		await cloudVerifyAction(
+			{ cloud: true, base: "develop", cwd: tmpDir },
+			{
+				client: client as unknown as import("@mainahq/core").CloudClient,
+				sleepFn: noopSleep,
+			},
+		);
+
+		expect(submittedPayload).toBeDefined();
+		expect(submittedPayload?.baseBranch).toBe("develop");
 	});
 });

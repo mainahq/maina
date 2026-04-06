@@ -66,9 +66,13 @@ export type {
 	CloudFeedbackPayload,
 	DeviceCodeResponse,
 	PromptRecord,
+	SubmitVerifyPayload,
 	TeamInfo,
 	TeamMember,
 	TokenResponse,
+	VerifyFinding,
+	VerifyResultResponse,
+	VerifyStatusResponse,
 } from "./cloud/types";
 // Config
 export { getApiKey, isHostMode, shouldDelegateToHost } from "./config/index";
@@ -306,16 +310,12 @@ export {
 	runCoverage,
 } from "./verify/coverage";
 export {
-	type DetectedTool,
 	detectTool,
 	detectTools,
 	isToolAvailable,
 	TOOL_REGISTRY,
-	type ToolName,
 } from "./verify/detect";
 export {
-	type DiffFilterResult,
-	type Finding,
 	filterByDiff,
 	filterByDiffWithMap,
 	parseChangedLines,
@@ -343,12 +343,7 @@ export {
 	runMutation,
 } from "./verify/mutation";
 // Verify — Pipeline
-export {
-	type PipelineOptions,
-	type PipelineResult,
-	runPipeline,
-	type ToolReport,
-} from "./verify/pipeline";
+export { runPipeline } from "./verify/pipeline";
 // Verify — Proof
 export {
 	formatVerificationProof,
@@ -376,12 +371,22 @@ export {
 } from "./verify/sonar";
 export {
 	parseBiomeOutput,
-	type SyntaxDiagnostic,
-	type SyntaxGuardResult,
 	syntaxGuard,
 } from "./verify/syntax-guard";
 // Verify — Typecheck + Consistency (built-in checks)
 export { runTypecheck, type TypecheckResult } from "./verify/typecheck";
+// Verify — Public Type Surface (consolidated for external consumers like maina-cloud)
+export type {
+	DetectedTool,
+	DiffFilterResult,
+	Finding,
+	PipelineOptions,
+	PipelineResult,
+	SyntaxDiagnostic,
+	SyntaxGuardResult,
+	ToolName,
+	ToolReport,
+} from "./verify/types";
 // Verify — Visual
 export {
 	captureScreenshot,
