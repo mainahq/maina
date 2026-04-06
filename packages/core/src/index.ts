@@ -172,7 +172,11 @@ export {
 	type RulePreference,
 	savePreferences,
 } from "./feedback/preferences";
-export { exportFeedbackForCloud } from "./feedback/sync";
+export {
+	exportFeedbackForCloud,
+	exportWorkflowStats,
+	type WorkflowStats,
+} from "./feedback/sync";
 export {
 	analyzeWorkflowTrace,
 	type PromptImprovement,

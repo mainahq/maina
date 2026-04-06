@@ -242,6 +242,23 @@ async function runCloudLearn(mainaDir: string): Promise<void> {
 		log.info("No local feedback to upload.");
 	}
 
+	// 3b. Upload workflow stats
+	s.start("Syncing workflow stats…");
+	const { exportWorkflowStats } = await import("@mainahq/core");
+	const stats = exportWorkflowStats(mainaDir);
+	if (stats) {
+		const statsResult = await client.postWorkflowStats(stats);
+		if (statsResult.ok) {
+			s.stop(
+				`Synced stats: ${stats.totalCommits} commits, ${stats.passRate > 0 ? `${(stats.passRate * 100).toFixed(0)}%` : "0%"} pass rate.`,
+			);
+		} else {
+			s.stop("Stats sync skipped (endpoint not available).");
+		}
+	} else {
+		s.stop("No local stats to sync.");
+	}
+
 	// 4. Fetch improvements
 	s.start("Fetching improvement suggestions…");
 	const improvementsResult = await client.getFeedbackImprovements();
