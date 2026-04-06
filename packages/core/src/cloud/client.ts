@@ -87,6 +87,17 @@ export interface CloudClient {
 		Result<FeedbackImprovementsResponse, string>
 	>;
 
+	/** Post workflow stats to cloud analytics. */
+	postWorkflowStats(stats: {
+		totalCommits: number;
+		totalVerifyTimeMs: number;
+		avgVerifyTimeMs: number;
+		totalFindings: number;
+		totalContextTokens: number;
+		cacheHitRate: number;
+		passRate: number;
+	}): Promise<Result<{ received: boolean }, string>>;
+
 	/** Submit a diff for cloud verification. */
 	submitVerify(
 		payload: SubmitVerifyPayload,
@@ -254,6 +265,17 @@ export function createCloudClient(config: CloudConfig): CloudClient {
 				},
 			});
 		},
+
+		postWorkflowStats: (stats) =>
+			request<{ received: boolean }>("POST", "/feedback/stats", {
+				total_commits: stats.totalCommits,
+				total_verify_time_ms: stats.totalVerifyTimeMs,
+				avg_verify_time_ms: stats.avgVerifyTimeMs,
+				total_findings: stats.totalFindings,
+				total_context_tokens: stats.totalContextTokens,
+				cache_hit_rate: stats.cacheHitRate,
+				pass_rate: stats.passRate,
+			}),
 
 		submitVerify: async (payload) => {
 			// biome-ignore lint/suspicious/noExplicitAny: snake_case API mapping
