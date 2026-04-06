@@ -1,5 +1,11 @@
 # @mainahq/core
 
+## 0.7.0
+
+### Minor Changes
+
+- v0.7.0: RL flywheel — daily audit workflow, cloud feedback endpoints, `maina learn --cloud`, feedback sync module. Adds `postFeedbackBatch` and `getFeedbackImprovements` to CloudClient.
+
 ## 0.6.0
 
 ### Minor Changes

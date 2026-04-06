@@ -1,6 +1,6 @@
 {
   "name": "@mainahq/cli",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "license": "Apache-2.0",
   "description": "Maina CLI — verification-first developer OS command-line interface",

@@ -1,5 +1,12 @@
 # @mainahq/mcp
 
+## 0.7.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @mainahq/core@0.7.0
+
 ## 0.6.0
 
 ### Patch Changes
