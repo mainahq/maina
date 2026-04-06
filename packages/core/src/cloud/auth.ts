@@ -144,7 +144,7 @@ export async function startDeviceFlow(
 		}
 
 		const body = (await response.json()) as {
-			data?: DeviceCodeResponse;
+			data?: Record<string, unknown>;
 			error?: string;
 		};
 		if (body.error) {
@@ -153,7 +153,14 @@ export async function startDeviceFlow(
 		if (!body.data) {
 			return err("Invalid response: missing data");
 		}
-		return ok(body.data);
+		const d = body.data;
+		return ok({
+			userCode: (d.userCode ?? d.user_code) as string,
+			deviceCode: (d.deviceCode ?? d.device_code) as string,
+			verificationUri: (d.verificationUri ?? d.verification_uri) as string,
+			interval: (d.interval ?? 5) as number,
+			expiresIn: (d.expiresIn ?? d.expires_in ?? 900) as number,
+		});
 	} catch (e) {
 		return err(
 			`Device flow request failed: ${e instanceof Error ? e.message : String(e)}`,
@@ -188,8 +195,8 @@ export async function pollForToken(
 					Accept: "application/json",
 				},
 				body: JSON.stringify({
-					deviceCode,
-					grantType: "urn:ietf:params:oauth:grant-type:device_code",
+					device_code: deviceCode,
+					grant_type: "urn:ietf:params:oauth:grant-type:device_code",
 				}),
 			});
 
@@ -204,7 +211,7 @@ export async function pollForToken(
 			}
 
 			const body = (await response.json()) as {
-				data?: TokenResponse;
+				data?: Record<string, unknown>;
 				error?: string;
 			};
 			if (body.error) {
@@ -217,7 +224,12 @@ export async function pollForToken(
 			if (!body.data) {
 				return err("Invalid token response: missing data");
 			}
-			return ok(body.data);
+			const d = body.data;
+			return ok({
+				accessToken: (d.accessToken ?? d.access_token) as string,
+				refreshToken: (d.refreshToken ?? d.refresh_token) as string | undefined,
+				expiresIn: (d.expiresIn ?? d.expires_in ?? 0) as number,
+			});
 		} catch (e) {
 			// Network errors during polling are transient — keep trying
 			if (Date.now() >= deadline) {

@@ -122,3 +122,78 @@ The review splits into two focused passes:
 **Stage 2 -- Code quality:** Is the code clean, tested, and safe? Does it follow the constitution? Are there performance, security, or maintainability concerns?
 
 Splitting the review into two stages catches more issues than a single combined review. Each stage has a focused prompt tuned for its specific concern.
+
+## Cloud Verification
+
+Run the full verification pipeline on Maina Cloud instead of locally. This is useful when you want consistent results across a team without requiring every developer to install 18+ tools, or when running verification in CI.
+
+### How it works
+
+```
+maina verify --cloud
+    |
+    v
+Authenticate (maina login, one-time)
+    |
+    v
+Collect diff (staged changes or branch diff)
+    |
+    v
+Submit to Maina Cloud API
+    |
+    v
+Workers Queue picks up the job (@workkit/queue)
+    |
+    v
+Full pipeline runs in the cloud
+    |   Syntax guard
+    |   Parallel analysis (all 18+ tools)
+    |   Diff-only filter
+    |   AI fix suggestions
+    |   Two-stage review
+    |
+    v
+Proof artifacts stored in R2 (@workkit/r2)
+    |
+    v
+Results returned to CLI / posted as PR comments
+```
+
+### Authentication
+
+```bash
+maina login     # GitHub OAuth device flow, stores token in ~/.maina/auth.json
+maina logout    # Clear stored credentials
+```
+
+### Usage
+
+```bash
+maina verify --cloud          # Run hosted verification on current diff
+maina verify --cloud --deep   # Include AI semantic review in the cloud
+```
+
+Flags like `--deep` and `--visual` work the same way in cloud mode. The cloud pipeline has all tools pre-installed, so results are consistent regardless of your local setup.
+
+### Proof artifacts
+
+Every cloud verification produces a proof artifact stored in R2. These artifacts include:
+
+- Full tool output from all 18+ tools
+- Diff-only filtered findings
+- AI fix suggestions (if AI review was enabled)
+- Timestamp and content hash for auditability
+
+Proof artifacts are referenced in PR bodies created by `maina pr` and in GitHub Action check runs.
+
+### CI integration
+
+Use the `mainahq/verify-action@v1` GitHub Action for cloud verification in CI:
+
+```yaml
+- uses: mainahq/verify-action@v1
+  with:
+    token: ${{ secrets.MAINA_TOKEN }}
+```
+
+See the [CI Integration](/maina/ci) docs for full configuration options.

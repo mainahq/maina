@@ -11,8 +11,11 @@ import type {
 	CloudConfig,
 	CloudFeedbackPayload,
 	PromptRecord,
+	SubmitVerifyPayload,
 	TeamInfo,
 	TeamMember,
+	VerifyResultResponse,
+	VerifyStatusResponse,
 } from "./types";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -70,6 +73,17 @@ export interface CloudClient {
 	postFeedback(
 		payload: CloudFeedbackPayload,
 	): Promise<Result<{ recorded: boolean }, string>>;
+
+	/** Submit a diff for cloud verification. */
+	submitVerify(
+		payload: SubmitVerifyPayload,
+	): Promise<Result<{ jobId: string }, string>>;
+
+	/** Poll the status of a verification job. */
+	getVerifyStatus(jobId: string): Promise<Result<VerifyStatusResponse, string>>;
+
+	/** Retrieve the full result of a completed verification job. */
+	getVerifyResult(jobId: string): Promise<Result<VerifyResultResponse, string>>;
 }
 
 /**
@@ -186,5 +200,51 @@ export function createCloudClient(config: CloudConfig): CloudClient {
 
 		postFeedback: (payload) =>
 			request<{ recorded: boolean }>("POST", "/feedback", payload),
+
+		submitVerify: async (payload) => {
+			// biome-ignore lint/suspicious/noExplicitAny: snake_case API mapping
+			const result = await request<any>("POST", "/verify", {
+				diff: payload.diff,
+				repo: payload.repo,
+				base_branch: payload.baseBranch,
+			});
+			if (!result.ok) return result;
+			const d = result.value;
+			return ok({ jobId: d.jobId ?? d.job_id });
+		},
+
+		getVerifyStatus: async (jobId) => {
+			// biome-ignore lint/suspicious/noExplicitAny: snake_case API mapping
+			const result = await request<any>("GET", `/verify/${jobId}/status`);
+			if (!result.ok) return result;
+			const d = result.value;
+			return ok({
+				status: d.status,
+				currentStep: d.currentStep ?? d.current_step ?? d.step ?? "",
+			});
+		},
+
+		getVerifyResult: async (jobId) => {
+			// biome-ignore lint/suspicious/noExplicitAny: snake_case API mapping
+			const result = await request<any>("GET", `/verify/${jobId}`);
+			if (!result.ok) return result;
+			const d = result.value;
+			const items = d.findings?.items ?? d.findings ?? [];
+			return ok({
+				id: d.id,
+				status: d.status,
+				passed: d.passed,
+				findings: items,
+				findingsErrors:
+					d.findingsErrors ?? d.findings_errors ?? d.findings?.errors ?? 0,
+				findingsWarnings:
+					d.findingsWarnings ??
+					d.findings_warnings ??
+					d.findings?.warnings ??
+					0,
+				proofKey: d.proofKey ?? d.proof_key ?? d.proof_url ?? null,
+				durationMs: d.durationMs ?? d.duration_ms ?? 0,
+			});
+		},
 	};
 }
