@@ -1,5 +1,17 @@
 # @mainahq/core
 
+## 0.6.0
+
+### Minor Changes
+
+- [#53](https://github.com/beeeku/maina/pull/53) [`af6294a`](https://github.com/beeeku/maina/commit/af6294a394d35cac71853787028457b1858e01e9) Thanks [@beeeku](https://github.com/beeeku)! - v0.6.0 cloud verification
+
+  - Cloud verification via `--cloud` flag for offloading verify runs
+  - Shared type exports between CLI and core packages
+  - Cloud client methods: submitVerify, getVerifyStatus, getVerifyResult
+  - Default cloud URL updated to api.mainahq.com
+  - Fixed snake_case API response mapping to camelCase types
+
 ## 0.5.0
 
 ### Minor Changes
