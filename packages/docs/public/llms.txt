@@ -72,8 +72,8 @@ Tools: getContext, getConventions, verify, checkSlop, reviewCode, explainModule,
 ## Links
 
 - npm: https://www.npmjs.com/package/@mainahq/cli
-- GitHub: https://github.com/beeeku/maina
-- Docs: https://beeeku.github.io/maina/
+- GitHub: https://github.com/mainahq/maina
+- Docs: https://mainahq.com/
 
 ## Comparison
 

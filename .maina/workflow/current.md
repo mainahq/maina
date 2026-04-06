@@ -1,10 +1,10 @@
-# Workflow: feature/024-v05-cloud-client
+# Workflow: feature/027-v10-launch
 
-## plan (2026-04-05T12:27:23.007Z)
-Feature 024 scaffolded. Branch: feature/024-v05-cloud-client. Dir: /Users/Bikash/try/maina/.maina/features/024-v05-cloud-client.
+## plan (2026-04-06T22:46:30.636Z)
+Feature 027 scaffolded. Branch: feature/027-v10-launch. Dir: /Users/Bikash/try/maina/.maina/features/027-v10-launch.
 
-## design (2026-04-05T12:28:01.195Z)
-ADR 0010 created: v0.5.0 Cloud Client + maina-cloud.
+## commit (2026-04-06T22:48:06.137Z)
+Verified: 10 tools, 0 findings. Committed.
 
-## design-review (2026-04-05T12:28:30.175Z)
-ADR reviewed: passed. 9 finding(s).
+## commit (2026-04-06T22:51:49.093Z)
+Verified: 10 tools, 0 findings. Committed.

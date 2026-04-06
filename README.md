@@ -4,7 +4,7 @@
 
 *Observe. Learn. Verify.*
 
-[Docs](https://beeeku.github.io/maina/) | [Getting Started](https://beeeku.github.io/maina/getting-started/) | [Commands](https://beeeku.github.io/maina/commands/) | [Roadmap](https://beeeku.github.io/maina/roadmap/)
+[Docs](https://mainahq.com/) | [Getting Started](https://mainahq.com/getting-started/) | [Commands](https://mainahq.com/commands/) | [Roadmap](https://mainahq.com/roadmap/)
 
 ---
 
@@ -151,7 +151,7 @@ Maina's 16-tool pipeline caught issues that ad-hoc implementation missed.
 ### Meta
 `learn`, `visual update`, `prompt edit`, `cache stats`, `stats`, `benchmark`, `doctor`
 
-[Full command reference](https://beeeku.github.io/maina/commands/)
+[Full command reference](https://mainahq.com/commands/)
 
 ## Quick Start
 
@@ -201,7 +201,7 @@ export default defineConfig({
 ## Development
 
 ```bash
-git clone https://github.com/beeeku/maina
+git clone https://github.com/mainahq/maina
 cd maina && bun install
 bun run build && bun run test    # 1017+ tests
 ```

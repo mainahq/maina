@@ -10,7 +10,7 @@ Thank you for your interest in contributing to Maina. This guide covers everythi
 ## Dev Setup
 
 ```bash
-git clone https://github.com/beeeku/maina.git
+git clone https://github.com/mainahq/maina.git
 cd maina
 bun install
 bun run build

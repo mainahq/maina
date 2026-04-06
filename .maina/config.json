@@ -2,6 +2,6 @@
 	"repoAliases": {
 		"maina-cloud": "mainahq/maina-cloud",
 		"cloud": "mainahq/maina-cloud",
-		"workkit": "beeeku/workkit"
+		"workkit": "mainahq/workkit"
 	}
 }

@@ -1,9 +1,9 @@
 # Default
-* @beeeku
+* @mainahq
 
 # Packages
-packages/cli/ @beeeku
-packages/core/ @beeeku
-packages/mcp/ @beeeku
-packages/skills/ @beeeku
-packages/docs/ @beeeku
+packages/cli/ @mainahq
+packages/core/ @mainahq
+packages/mcp/ @mainahq
+packages/skills/ @mainahq
+packages/docs/ @mainahq

@@ -4,10 +4,10 @@
   "type": "module",
   "license": "Apache-2.0",
   "description": "Maina CLI — verification-first developer OS command-line interface",
-  "homepage": "https://beeeku.github.io/maina/",
+  "homepage": "https://mainahq.com/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/beeeku/maina.git",
+    "url": "https://github.com/mainahq/maina.git",
     "directory": "packages/cli"
   },
   "engines": {

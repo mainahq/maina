@@ -177,7 +177,7 @@ function buildAgentsMd(stack: DetectedStack): string {
 
 	return `# AGENTS.md
 
-This repo uses [Maina](https://github.com/beeeku/maina) for verification-first development.
+This repo uses [Maina](https://github.com/mainahq/maina) for verification-first development.
 
 ## Quick Start
 \`\`\`bash
