@@ -204,12 +204,52 @@ maina commit    # verify + commit
 |------|---------|-----------|
 | \`.maina/constitution.md\` | Project DNA — stack, rules, gates | Team (stable, rarely changes) |
 | \`AGENTS.md\` | Agent instructions — commands, conventions | Team |
+| \`.github/copilot-instructions.md\` | Copilot agent instructions + MCP tools | Team |
 | \`CLAUDE.md\` | Claude Code specific instructions | Optional, Claude Code users |
 | \`.maina/prompts/*.md\` | Prompt overrides for review/commit/etc | Maina (via \`maina learn\`) |
 
 ## Runtime
 - Package manager: \`${runCmd}\`
 - Test: \`${runCmd} test\`
+`;
+}
+
+function buildCopilotInstructions(stack: DetectedStack): string {
+	const runCmd = stack.runtime === "bun" ? "bun" : "npm";
+	return `# Copilot Instructions
+
+You are working on a codebase verified by [Maina](https://mainahq.com), the verification-first developer OS. Maina MCP tools are available — use them.
+
+## Workflow
+
+1. **Get context** — call \`maina getContext\` to understand codebase state
+2. **Write tests first** — TDD always. Write failing tests, then implement
+3. **Verify your work** — call \`maina verify\` before requesting review
+4. **Check for slop** — call \`maina checkSlop\` on changed files
+5. **Review your code** — call \`maina reviewCode\` with your diff
+
+## Available MCP Tools
+
+| Tool | When to use |
+|------|-------------|
+| \`getContext\` | Before starting — understand branch state and verification status |
+| \`verify\` | After changes — run the full verification pipeline |
+| \`checkSlop\` | On changed files — detect AI-generated slop patterns |
+| \`reviewCode\` | On your diff — two-stage review (spec compliance + code quality) |
+| \`suggestTests\` | When implementing — generate TDD test stubs |
+| \`getConventions\` | Understand project coding conventions |
+
+## Conventions
+
+- Runtime: ${stack.runtime}
+- Test: \`${runCmd} test\`
+- Commits: conventional commits (feat, fix, refactor, test, docs, chore)
+- No \`console.log\` in production code
+- Diff-only: only fix issues on changed lines
+
+## When Working on Audit Issues
+
+Issues labeled \`audit\` come from maina's daily verification. Fix the specific findings listed — don't refactor unrelated code.
 `;
 }
 
@@ -287,6 +327,10 @@ function getFileManifest(stack: DetectedStack): FileEntry[] {
 		{
 			relativePath: ".github/workflows/maina-ci.yml",
 			content: buildCiWorkflow(stack),
+		},
+		{
+			relativePath: ".github/copilot-instructions.md",
+			content: buildCopilotInstructions(stack),
 		},
 	];
 }
