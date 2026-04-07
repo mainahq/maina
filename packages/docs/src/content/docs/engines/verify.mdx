@@ -188,10 +188,10 @@ Proof artifacts are referenced in PR bodies created by `maina pr` and in GitHub 
 
 ### CI integration
 
-Use the `mainahq/verify-action@v1` GitHub Action for cloud verification in CI:
+Use the `mainahq/maina/.github/actions/verify@main` GitHub Action for cloud verification in CI:
 
 ```yaml
-- uses: mainahq/verify-action@v1
+- uses: mainahq/maina/.github/actions/verify@main
   with:
     token: ${{ secrets.MAINA_TOKEN }}
 ```

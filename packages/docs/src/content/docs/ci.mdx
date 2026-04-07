@@ -7,7 +7,7 @@ Maina integrates with CI pipelines to verify every pull request before it merges
 
 ## GitHub Action (Cloud)
 
-The `mainahq/verify-action@v1` action submits your PR diff to Maina Cloud for verification. No tool installation required on the runner.
+The `mainahq/maina/.github/actions/verify@main` action submits your PR diff to Maina Cloud for verification. No tool installation required on the runner.
 
 ```yaml
 name: Maina Verify
@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mainahq/verify-action@v1
+      - uses: mainahq/maina/.github/actions/verify@main
         with:
           token: ${{ secrets.MAINA_TOKEN }}
 ```
@@ -46,7 +46,7 @@ jobs:
 ### Example with options
 
 ```yaml
-- uses: mainahq/verify-action@v1
+- uses: mainahq/maina/.github/actions/verify@main
   with:
     token: ${{ secrets.MAINA_TOKEN }}
     deep: true
@@ -105,4 +105,4 @@ maina verify --json --base origin/main
 # Exit code indicates pass/fail
 ```
 
-Parse the JSON output for custom integrations. The `--json` flag returns a `{ data, error, meta }` envelope with all findings.
+Parse the JSON output for custom integrations. The `--json` flag (available on `verify`, `commit`, `review`, `analyze`, `slop`, `stats`, `doctor`, and `context`) returns a `{ data, error, meta }` envelope with all findings.
