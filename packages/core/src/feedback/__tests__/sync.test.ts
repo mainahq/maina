@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { addEntry } from "../../context/episodic";
 import { recordOutcome } from "../../prompts/engine";
-import { exportFeedbackForCloud } from "../sync";
+import { exportEpisodicForCloud, exportFeedbackForCloud } from "../sync";
 
 let tmpDir: string;
 
@@ -100,5 +101,66 @@ describe("exportFeedbackForCloud", () => {
 			"/nonexistent/path/that/does/not/exist",
 		);
 		expect(events).toEqual([]);
+	});
+});
+
+describe("exportEpisodicForCloud", () => {
+	test("returns empty array when no episodic entries exist", () => {
+		const entries = exportEpisodicForCloud(tmpDir, "acme/app");
+		expect(entries).toEqual([]);
+	});
+
+	test("exports episodic entries in cloud format", () => {
+		addEntry(tmpDir, {
+			content: "Fixed authentication middleware to use JWT",
+			summary: "Auth fix",
+			type: "review",
+		});
+
+		const entries = exportEpisodicForCloud(tmpDir, "acme/app");
+
+		expect(entries).toHaveLength(1);
+		expect(entries[0]?.repo).toBe("acme/app");
+		expect(entries[0]?.entryType).toBe("review");
+		expect(entries[0]?.title).toBe("Auth fix");
+		expect(entries[0]?.summary).toBe(
+			"Fixed authentication middleware to use JWT",
+		);
+		expect(entries[0]?.relevanceScore).toBe(1.0);
+	});
+
+	test("exports multiple entries with correct types", () => {
+		addEntry(tmpDir, {
+			content: "Added rate limiting",
+			summary: "Rate limit",
+			type: "commit",
+		});
+		addEntry(tmpDir, {
+			content: "Code review feedback on error handling",
+			summary: "Error handling review",
+			type: "review",
+		});
+
+		const entries = exportEpisodicForCloud(tmpDir, "org/repo");
+
+		expect(entries).toHaveLength(2);
+		expect(entries[0]?.entryType).toBe("commit");
+		expect(entries[1]?.entryType).toBe("review");
+		expect(entries[0]?.repo).toBe("org/repo");
+		expect(entries[1]?.repo).toBe("org/repo");
+	});
+
+	test("uses type as title fallback when summary is empty", () => {
+		addEntry(tmpDir, {
+			content: "Some content",
+			summary: "",
+			type: "session",
+		});
+
+		const entries = exportEpisodicForCloud(tmpDir, "acme/app");
+
+		expect(entries).toHaveLength(1);
+		// When summary is empty string, title falls back to type
+		expect(entries[0]?.title).toBe("session");
 	});
 });

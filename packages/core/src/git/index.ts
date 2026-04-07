@@ -108,3 +108,28 @@ export async function getTrackedFiles(cwd?: string): Promise<string[]> {
 	if (!output) return [];
 	return output.split("\n").filter((line) => line.trim().length > 0);
 }
+
+/**
+ * Extract the "owner/repo" slug from the git remote origin URL.
+ * Handles HTTPS (https://github.com/owner/repo.git) and
+ * SSH (git@github.com:owner/repo.git) formats.
+ * Returns the directory basename as fallback if parsing fails.
+ */
+export async function getRepoSlug(cwd?: string): Promise<string> {
+	const url = await exec(["remote", "get-url", "origin"], cwd);
+	if (url) {
+		// SSH: git@github.com:owner/repo.git
+		const sshMatch = url.match(/:([^/]+\/[^/]+?)(?:\.git)?$/);
+		if (sshMatch?.[1]) return sshMatch[1];
+		// HTTPS: https://github.com/owner/repo.git
+		const httpsMatch = url.match(/\/([^/]+\/[^/]+?)(?:\.git)?$/);
+		if (httpsMatch?.[1]) return httpsMatch[1];
+	}
+	// Fallback: use directory name
+	const root = await exec(["rev-parse", "--show-toplevel"], cwd);
+	if (root) {
+		const parts = root.split("/");
+		return parts[parts.length - 1] ?? "unknown";
+	}
+	return "unknown";
+}

@@ -63,9 +63,11 @@ export { type CloudClient, createCloudClient } from "./cloud/client";
 export type {
 	ApiResponse,
 	CloudConfig,
+	CloudEpisodicEntry,
 	CloudFeedbackPayload,
 	CloudPromptImprovement,
 	DeviceCodeResponse,
+	EpisodicCloudEntry,
 	FeedbackBatchPayload,
 	FeedbackEvent,
 	FeedbackImprovementsResponse,
@@ -173,6 +175,7 @@ export {
 	savePreferences,
 } from "./feedback/preferences";
 export {
+	exportEpisodicForCloud,
 	exportFeedbackForCloud,
 	exportWorkflowStats,
 	type WorkflowStats,
@@ -192,6 +195,7 @@ export {
 	getDiff,
 	getRecentCommits,
 	getRepoRoot,
+	getRepoSlug,
 	getStagedFiles,
 	getTrackedFiles,
 } from "./git/index";

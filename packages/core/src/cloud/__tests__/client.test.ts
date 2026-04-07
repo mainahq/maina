@@ -661,4 +661,175 @@ describe("createCloudClient", () => {
 			expect(result.error).toBe("Forbidden");
 		}
 	});
+
+	// ── postEpisodicEntries ─────────────────────────────────────────────────
+
+	test("postEpisodicEntries sends entries in snake_case", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(jsonResponse({ data: { received: 2 } })),
+		);
+
+		const client = setupClient();
+		const result = await client.postEpisodicEntries([
+			{
+				repo: "acme/app",
+				entryType: "review",
+				title: "Accepted review",
+				summary: "Fixed auth middleware",
+				relevanceScore: 0.9,
+			},
+			{
+				repo: "acme/app",
+				entryType: "commit",
+				title: "Commit summary",
+				summary: "Added logging",
+			},
+		]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.received).toBe(2);
+		}
+
+		const call = mockFetch.mock.calls[0] as unknown[];
+		const url = call[0] as string;
+		expect(url).toBe("https://api.test.maina.dev/context/episodic");
+
+		const requestInit = call[1] as RequestInit;
+		expect(requestInit.method).toBe("POST");
+
+		const body = JSON.parse(requestInit.body as string);
+		expect(body.entries).toHaveLength(2);
+		// Verify snake_case mapping
+		expect(body.entries[0].entry_type).toBe("review");
+		expect(body.entries[0].relevance_score).toBe(0.9);
+		expect(body.entries[0].repo).toBe("acme/app");
+		expect(body.entries[1].entry_type).toBe("commit");
+	});
+
+	test("postEpisodicEntries returns error on failure", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(jsonResponse({ error: "Unauthorized" }, 401)),
+		);
+
+		const client = setupClient();
+		const result = await client.postEpisodicEntries([]);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toBe("Unauthorized");
+		}
+	});
+
+	// ── getEpisodicEntries ──────────────────────────────────────────────────
+
+	test("getEpisodicEntries returns mapped entries", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(
+				jsonResponse({
+					data: {
+						entries: [
+							{
+								id: "ep_001",
+								repo: "acme/app",
+								entry_type: "review",
+								title: "Auth review",
+								summary: "Fixed auth flow",
+								relevance_score: 0.85,
+								member_id: "mem_abc",
+								decay_factor: 0.95,
+								created_at: "2026-04-01T00:00:00Z",
+								accessed_at: "2026-04-02T00:00:00Z",
+							},
+						],
+					},
+				}),
+			),
+		);
+
+		const client = setupClient();
+		const result = await client.getEpisodicEntries("acme/app");
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toHaveLength(1);
+			const entry = result.value[0]!;
+			expect(entry.id).toBe("ep_001");
+			expect(entry.entryType).toBe("review");
+			expect(entry.relevanceScore).toBe(0.85);
+			expect(entry.memberId).toBe("mem_abc");
+			expect(entry.decayFactor).toBe(0.95);
+			expect(entry.createdAt).toBe("2026-04-01T00:00:00Z");
+			expect(entry.accessedAt).toBe("2026-04-02T00:00:00Z");
+		}
+
+		const call = mockFetch.mock.calls[0] as unknown[];
+		const url = call[0] as string;
+		expect(url).toBe(
+			"https://api.test.maina.dev/context/episodic?repo=acme%2Fapp",
+		);
+	});
+
+	test("getEpisodicEntries handles camelCase response", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(
+				jsonResponse({
+					data: {
+						entries: [
+							{
+								id: "ep_002",
+								repo: "acme/app",
+								entryType: "commit",
+								title: "Commit entry",
+								summary: "Added tests",
+								relevanceScore: 0.7,
+								memberId: "mem_xyz",
+								decayFactor: 0.8,
+								createdAt: "2026-04-03T00:00:00Z",
+								accessedAt: "2026-04-03T12:00:00Z",
+							},
+						],
+					},
+				}),
+			),
+		);
+
+		const client = setupClient();
+		const result = await client.getEpisodicEntries("acme/app");
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value[0]?.entryType).toBe("commit");
+			expect(result.value[0]?.relevanceScore).toBe(0.7);
+			expect(result.value[0]?.memberId).toBe("mem_xyz");
+		}
+	});
+
+	test("getEpisodicEntries returns empty array when no entries", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(jsonResponse({ data: { entries: [] } })),
+		);
+
+		const client = setupClient();
+		const result = await client.getEpisodicEntries("acme/app");
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toEqual([]);
+		}
+	});
+
+	test("getEpisodicEntries returns error on failure", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(jsonResponse({ error: "Forbidden" }, 403)),
+		);
+
+		const client = setupClient();
+		const result = await client.getEpisodicEntries("acme/app");
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toBe("Forbidden");
+		}
+	});
 });

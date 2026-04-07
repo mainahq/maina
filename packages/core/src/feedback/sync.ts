@@ -6,7 +6,8 @@
  * Also exports workflow step counts for analytics.
  */
 
-import type { FeedbackEvent } from "../cloud/types";
+import type { EpisodicCloudEntry, FeedbackEvent } from "../cloud/types";
+import { getEntries } from "../context/episodic";
 import { getFeedbackDb, getStatsDb } from "../db/index";
 
 /** Raw row shape from the feedback table. */
@@ -116,4 +117,27 @@ export function exportWorkflowStats(mainaDir: string): WorkflowStats | null {
 	} catch {
 		return null;
 	}
+}
+
+/**
+ * Export local episodic entries for cloud upload.
+ *
+ * Reads from the episodic_entries table in the context DB and maps
+ * each entry to the cloud-compatible EpisodicCloudEntry format.
+ *
+ * @param repo - Repository identifier (e.g. "owner/repo") to tag entries with.
+ */
+export function exportEpisodicForCloud(
+	mainaDir: string,
+	repo: string,
+): EpisodicCloudEntry[] {
+	const entries = getEntries(mainaDir);
+
+	return entries.map((entry) => ({
+		repo,
+		entryType: entry.type,
+		title: entry.summary || entry.type,
+		summary: entry.content,
+		relevanceScore: entry.relevance,
+	}));
 }

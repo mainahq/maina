@@ -1,6 +1,10 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getChangedFiles, getStagedFiles } from "../git/index";
+import { loadAuthConfig } from "../cloud/auth";
+import { createCloudClient } from "../cloud/client";
+import type { CloudEpisodicEntry } from "../cloud/types";
+import { getChangedFiles, getRepoSlug, getStagedFiles } from "../git/index";
 import {
 	assembleBudget,
 	type BudgetAllocation,
@@ -173,9 +177,50 @@ async function buildWorkingLayer(
 }
 
 /**
- * Build the episodic layer content. Never throws.
+ * Deduplicate cloud entries against local entries by hashing title+summary.
+ * Returns only the cloud entries not already present locally.
  */
-function buildEpisodicLayer(mainaDir: string, filter?: string[]): LayerContent {
+function deduplicateCloudEntries(
+	localEntries: import("./episodic").EpisodicEntry[],
+	cloudEntries: CloudEpisodicEntry[],
+): import("./episodic").EpisodicEntry[] {
+	const localHashes = new Set(
+		localEntries.map((e) => {
+			const key = `${e.summary}::${e.content}`;
+			return createHash("sha256").update(key).digest("hex").slice(0, 16);
+		}),
+	);
+
+	return cloudEntries
+		.filter((ce) => {
+			const key = `${ce.title}::${ce.summary}`;
+			const hash = createHash("sha256").update(key).digest("hex").slice(0, 16);
+			return !localHashes.has(hash);
+		})
+		.map((ce) => ({
+			id: ce.id,
+			content: ce.summary,
+			summary: ce.title,
+			relevance: (ce.relevanceScore ?? 1.0) * ce.decayFactor,
+			accessCount: 0,
+			createdAt: ce.createdAt,
+			lastAccessedAt: ce.accessedAt,
+			type: ce.entryType,
+		}));
+}
+
+const CLOUD_URL = process.env.MAINA_CLOUD_URL ?? "https://api.mainahq.com";
+
+/**
+ * Build the episodic layer content. Never throws.
+ * When the user is logged into the cloud, also fetches team episodic entries
+ * and merges them (deduplicated by title+summary hash) with local entries.
+ */
+async function buildEpisodicLayer(
+	mainaDir: string,
+	repoRoot: string,
+	filter?: string[],
+): Promise<LayerContent> {
 	try {
 		decayAllEntries(mainaDir);
 
@@ -192,6 +237,30 @@ function buildEpisodicLayer(mainaDir: string, filter?: string[]): LayerContent {
 			});
 		} else {
 			entries = getEntries(mainaDir);
+		}
+
+		// Merge cloud episodic entries if logged in
+		try {
+			const auth = loadAuthConfig();
+			if (auth.ok && auth.value.accessToken) {
+				const client = createCloudClient({
+					baseUrl: CLOUD_URL,
+					token: auth.value.accessToken,
+				});
+				const repo = await getRepoSlug(repoRoot);
+				const cloudResult = await client.getEpisodicEntries(repo);
+				if (cloudResult.ok && cloudResult.value.length > 0) {
+					const uniqueCloud = deduplicateCloudEntries(
+						entries,
+						cloudResult.value,
+					);
+					entries = [...entries, ...uniqueCloud];
+					// Re-sort by relevance descending after merging
+					entries.sort((a, b) => b.relevance - a.relevance);
+				}
+			}
+		} catch {
+			// Cloud fetch failure is silent — local entries are still available
 		}
 
 		const text = assembleEpisodicText(entries);
@@ -291,9 +360,7 @@ export async function assembleContext(
 		const episodicFilter = Array.isArray(needs.episodic)
 			? needs.episodic
 			: undefined;
-		layerPromises.push(
-			Promise.resolve(buildEpisodicLayer(mainaDir, episodicFilter)),
-		);
+		layerPromises.push(buildEpisodicLayer(mainaDir, repoRoot, episodicFilter));
 	}
 
 	// Retrieval layer — auto-generates search query from staged/changed files if not provided

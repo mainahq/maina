@@ -2,6 +2,7 @@ import { hashContent } from "../cache/keys";
 import { loadAuthConfig } from "../cloud/auth";
 import { createCloudClient } from "../cloud/client";
 import { getFeedbackDb } from "../db/index";
+import { getRepoSlug } from "../git/index";
 import { recordOutcome } from "../prompts/engine";
 import { compressReview, storeCompressedReview } from "./compress";
 
@@ -92,6 +93,34 @@ export function recordFeedbackWithCompression(
 		});
 		if (compressed) {
 			storeCompressedReview(mainaDir, compressed, record.task);
+
+			// Auto-sync episodic entry to cloud (fire-and-forget)
+			queueMicrotask(async () => {
+				try {
+					const auth = loadAuthConfig();
+					if (auth.ok && auth.value.accessToken) {
+						const client = createCloudClient({
+							baseUrl: CLOUD_URL,
+							token: auth.value.accessToken,
+						});
+						const repo = await getRepoSlug();
+						const title =
+							record.task === "review"
+								? "Accepted review"
+								: `Accepted ${record.task} review`;
+						await client.postEpisodicEntries([
+							{
+								repo,
+								entryType: record.task,
+								title,
+								summary: compressed,
+							},
+						]);
+					}
+				} catch {
+					// Cloud sync failure is silent
+				}
+			});
 		}
 	}
 }

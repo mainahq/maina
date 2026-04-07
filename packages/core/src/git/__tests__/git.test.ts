@@ -6,6 +6,7 @@ import {
 	getDiff,
 	getRecentCommits,
 	getRepoRoot,
+	getRepoSlug,
 	getStagedFiles,
 } from "../index";
 
@@ -58,5 +59,19 @@ describe("git operations", () => {
 	test("getDiff() returns a string", async () => {
 		const diff = await getDiff();
 		expect(typeof diff).toBe("string");
+	});
+
+	test("getRepoSlug() returns owner/repo format", async () => {
+		const slug = await getRepoSlug();
+		expect(typeof slug).toBe("string");
+		// Should contain a slash (owner/repo) or at minimum be non-empty
+		expect(slug.length).toBeGreaterThan(0);
+		// If remote exists, should be owner/repo format
+		if (slug !== "unknown" && slug.includes("/")) {
+			const parts = slug.split("/");
+			expect(parts).toHaveLength(2);
+			expect(parts[0]!.length).toBeGreaterThan(0);
+			expect(parts[1]!.length).toBeGreaterThan(0);
+		}
 	});
 });

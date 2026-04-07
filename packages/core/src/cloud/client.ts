@@ -9,8 +9,10 @@ import type { Result } from "../db/index";
 import type {
 	ApiResponse,
 	CloudConfig,
+	CloudEpisodicEntry,
 	CloudFeedbackPayload,
 	CloudPromptImprovement,
+	EpisodicCloudEntry,
 	FeedbackEvent,
 	FeedbackImprovementsResponse,
 	PromptRecord,
@@ -97,6 +99,16 @@ export interface CloudClient {
 		cacheHitRate: number;
 		passRate: number;
 	}): Promise<Result<{ received: boolean }, string>>;
+
+	/** Upload episodic entries to the cloud for team sharing. */
+	postEpisodicEntries(
+		entries: EpisodicCloudEntry[],
+	): Promise<Result<{ received: number }, string>>;
+
+	/** Fetch team's episodic entries for a repo from the cloud. */
+	getEpisodicEntries(
+		repo: string,
+	): Promise<Result<CloudEpisodicEntry[], string>>;
 
 	/** Submit a diff for cloud verification. */
 	submitVerify(
@@ -264,6 +276,47 @@ export function createCloudClient(config: CloudConfig): CloudClient {
 					acceptRate: totals.acceptRate ?? totals.accept_rate ?? 0,
 				},
 			});
+		},
+
+		postEpisodicEntries: async (entries) => {
+			// Map camelCase → snake_case for cloud API
+			const snakeEntries = entries.map((e) => ({
+				repo: e.repo,
+				entry_type: e.entryType,
+				title: e.title,
+				summary: e.summary,
+				relevance_score: e.relevanceScore,
+			}));
+			return request<{ received: number }>("POST", "/context/episodic", {
+				entries: snakeEntries,
+			});
+		},
+
+		getEpisodicEntries: async (repo) => {
+			// biome-ignore lint/suspicious/noExplicitAny: snake_case API mapping
+			const result = await request<any>(
+				"GET",
+				`/context/episodic?repo=${encodeURIComponent(repo)}`,
+			);
+			if (!result.ok) return result;
+			const d = result.value;
+			const rawEntries = d.entries ?? [];
+			const mapped: CloudEpisodicEntry[] = rawEntries.map(
+				// biome-ignore lint/suspicious/noExplicitAny: snake_case API mapping
+				(e: any) => ({
+					id: e.id,
+					repo: e.repo,
+					entryType: e.entryType ?? e.entry_type,
+					title: e.title,
+					summary: e.summary,
+					relevanceScore: e.relevanceScore ?? e.relevance_score ?? 1.0,
+					memberId: e.memberId ?? e.member_id,
+					decayFactor: e.decayFactor ?? e.decay_factor ?? 1.0,
+					createdAt: e.createdAt ?? e.created_at,
+					accessedAt: e.accessedAt ?? e.accessed_at,
+				}),
+			);
+			return ok(mapped);
 		},
 
 		postWorkflowStats: (stats) =>

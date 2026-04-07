@@ -157,6 +157,34 @@ export interface CloudFeedbackPayload {
 	context?: string;
 }
 
+// ── Episodic Context (team sharing) ───────────────────────────────────────
+
+export interface EpisodicCloudEntry {
+	/** Repository identifier (e.g. "owner/repo"). */
+	repo: string;
+	/** Type of episodic entry (e.g. "review", "commit", "session"). */
+	entryType: string;
+	/** Short title for the entry. */
+	title: string;
+	/** Compressed summary of the entry. */
+	summary: string;
+	/** Relevance score (0-1). Default: 1.0. */
+	relevanceScore?: number;
+}
+
+export interface CloudEpisodicEntry extends EpisodicCloudEntry {
+	/** Unique identifier (ep_<uuid>). */
+	id: string;
+	/** Team member who created the entry. */
+	memberId: string;
+	/** Ebbinghaus decay factor (0-1). */
+	decayFactor: number;
+	/** ISO-8601 creation timestamp. */
+	createdAt: string;
+	/** ISO-8601 last access timestamp. */
+	accessedAt: string;
+}
+
 // ── Feedback Batch (learn --cloud) ─────────────────────────────────────────
 
 export interface FeedbackEvent {
