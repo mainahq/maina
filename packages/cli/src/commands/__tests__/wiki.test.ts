@@ -420,6 +420,39 @@ describe("maina wiki query", () => {
 		expect(result.answer).toContain("empty");
 		expect(result.sources).toHaveLength(0);
 	});
+
+	test("returns AI-synthesized answer when AI is available", async () => {
+		seedWikiArticles(tmpDir);
+
+		// Test using queryWiki directly with _aiGenerate override
+		const { queryWiki } = await import("@maina/core");
+		const wikiDir = join(tmpDir, ".maina", "wiki");
+		const result = await queryWiki({
+			wikiDir,
+			question: "how does auth work?",
+			repoRoot: tmpDir,
+			_aiGenerate: async () => ({
+				text: "Auth uses JWT tokens [[decisions/use-jwt.md]]. The core module exposes authenticate() [[modules/core.md]].",
+				fromAI: true,
+			}),
+		});
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.answer).toContain("JWT");
+			expect(result.value.answer).toContain("[[decisions/use-jwt.md]]");
+			expect(result.value.sources.length).toBeGreaterThan(0);
+			expect(result.value.cached).toBe(false);
+		}
+	});
+
+	test("returns cached field from queryWiki result", async () => {
+		seedWikiArticles(tmpDir);
+
+		const result = await wikiQueryAction("authentication", { cwd: tmpDir });
+
+		expect(typeof result.cached).toBe("boolean");
+	});
 });
 
 describe("maina wiki compile", () => {

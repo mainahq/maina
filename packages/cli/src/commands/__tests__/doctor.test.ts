@@ -324,4 +324,65 @@ describe("maina doctor", () => {
 		expect(result.aiStatus.cacheEntries).toBe(0);
 		expect(result.aiStatus.cacheHitRate).toBe(0);
 	});
+
+	// ── Wiki Health ────────────────────────────────────────────────────
+
+	test("wiki health shows not initialized when no wiki dir", async () => {
+		const result = await doctorAction({ cwd: tmpDir });
+
+		expect(result.wikiHealth.initialized).toBe(false);
+		expect(result.wikiHealth.totalArticles).toBe(0);
+		expect(result.wikiHealth.lastCompile).toBe("never");
+	});
+
+	test("wiki health shows initialized when wiki dir exists", async () => {
+		mkdirSync(join(tmpDir, ".maina", "wiki", "modules"), { recursive: true });
+		writeFileSync(
+			join(tmpDir, ".maina", "wiki", "modules", "auth.md"),
+			"# Auth Module\n",
+		);
+		writeFileSync(
+			join(tmpDir, ".maina", "wiki", "modules", "db.md"),
+			"# DB Module\n",
+		);
+
+		const result = await doctorAction({ cwd: tmpDir });
+
+		expect(result.wikiHealth.initialized).toBe(true);
+		expect(result.wikiHealth.totalArticles).toBe(2);
+		expect(result.wikiHealth.lastCompile).toBe("never");
+	});
+
+	test("wiki health reads state.json for lastCompile and coverage", async () => {
+		mkdirSync(join(tmpDir, ".maina", "wiki"), { recursive: true });
+		writeFileSync(
+			join(tmpDir, ".maina", "wiki", ".state.json"),
+			JSON.stringify({
+				lastCompile: "2026-04-07T15:21:54.012Z",
+				coveragePercent: 87,
+				staleCount: 3,
+			}),
+		);
+
+		const result = await doctorAction({ cwd: tmpDir });
+
+		expect(result.wikiHealth.initialized).toBe(true);
+		expect(result.wikiHealth.lastCompile).toBe("2026-04-07T15:21:54.012Z");
+		expect(result.wikiHealth.coveragePercent).toBe(87);
+		expect(result.wikiHealth.staleCount).toBe(3);
+	});
+
+	test("wiki health handles malformed state.json gracefully", async () => {
+		mkdirSync(join(tmpDir, ".maina", "wiki"), { recursive: true });
+		writeFileSync(
+			join(tmpDir, ".maina", "wiki", ".state.json"),
+			"not valid json",
+		);
+
+		const result = await doctorAction({ cwd: tmpDir });
+
+		expect(result.wikiHealth.initialized).toBe(true);
+		expect(result.wikiHealth.lastCompile).toBe("never");
+		expect(result.wikiHealth.coveragePercent).toBe(0);
+	});
 });

@@ -88,7 +88,7 @@ function setupWiki(): string {
 
 describe("Wiki MCP Tools", () => {
 	describe("wikiQuery", () => {
-		it("should return relevant results for known articles", async () => {
+		it("should return answer and sources for known articles", async () => {
 			setupWiki();
 			const server = createMcpServer();
 			const cb = getToolCallback(server, "wikiQuery");
@@ -100,12 +100,16 @@ describe("Wiki MCP Tools", () => {
 			expect(result.isError).toBeUndefined();
 
 			const parsed = JSON.parse(result.content[0].text);
-			expect(parsed.matches.length).toBeGreaterThan(0);
-			// Auth module should rank highest for "authentication login JWT"
-			expect(parsed.matches[0].title).toContain("Authentication");
+			// New format: { answer, sources, cached }
+			expect(parsed.answer).toBeDefined();
+			expect(typeof parsed.answer).toBe("string");
+			expect(parsed.sources.length).toBeGreaterThan(0);
+			// Auth module should be in sources
+			const hasAuth = parsed.sources.some((s: string) => s.includes("auth"));
+			expect(hasAuth).toBe(true);
 		});
 
-		it("should return empty matches for irrelevant query", async () => {
+		it("should return empty sources for irrelevant query", async () => {
 			setupWiki();
 			const server = createMcpServer();
 			const cb = getToolCallback(server, "wikiQuery");
@@ -113,7 +117,8 @@ describe("Wiki MCP Tools", () => {
 
 			const result = await cb({ question: "xyzzy plugh" }, {});
 			const parsed = JSON.parse(result.content[0].text);
-			expect(parsed.matches).toHaveLength(0);
+			expect(parsed.sources).toHaveLength(0);
+			expect(parsed.answer).toContain("No articles match");
 		});
 
 		it("should handle missing wiki dir gracefully", async () => {
@@ -126,11 +131,11 @@ describe("Wiki MCP Tools", () => {
 			expect(result.isError).toBeUndefined();
 
 			const parsed = JSON.parse(result.content[0].text);
-			expect(parsed.matches).toHaveLength(0);
-			expect(parsed.message).toContain("not initialized");
+			expect(parsed.sources).toHaveLength(0);
+			expect(parsed.answer).toContain("not initialized");
 		});
 
-		it("should return total article count", async () => {
+		it("should include cached field in response", async () => {
 			setupWiki();
 			const server = createMcpServer();
 			const cb = getToolCallback(server, "wikiQuery");
@@ -138,7 +143,7 @@ describe("Wiki MCP Tools", () => {
 
 			const result = await cb({ question: "database" }, {});
 			const parsed = JSON.parse(result.content[0].text);
-			expect(parsed.total).toBe(4);
+			expect(typeof parsed.cached).toBe("boolean");
 		});
 	});
 

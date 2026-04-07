@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { confirm, intro, log, outro, select, spinner } from "@clack/prompts";
 import {
@@ -109,6 +110,35 @@ export function learnCommand(): Command {
 					return `  ${r.workflowId.padEnd(14)} ${String(r.totalSteps).padStart(6)}  ${String(r.passedSteps).padStart(7)}  ${rate.padStart(6)}`;
 				});
 				log.message([runHeader, runSeparator, ...runRows].join("\n"));
+			}
+
+			// Wiki effectiveness
+			const signalsFile = join(mainaDir, "wiki", ".signals.json");
+			if (existsSync(signalsFile)) {
+				try {
+					const signals = JSON.parse(readFileSync(signalsFile, "utf-8"));
+					const loaded =
+						typeof signals.articlesLoaded === "number"
+							? signals.articlesLoaded
+							: 0;
+					const acceptRate =
+						typeof signals.acceptRate === "number"
+							? `${Math.round(signals.acceptRate * 100)}%`
+							: "N/A";
+					const dormant =
+						typeof signals.dormantCount === "number" ? signals.dormantCount : 0;
+
+					log.step("Wiki Effectiveness:");
+					log.message(
+						[
+							`  Articles loaded: ${loaded}`,
+							`  Accept rate: ${acceptRate}`,
+							`  Dormant articles (<0.2 score): ${dormant}`,
+						].join("\n"),
+					);
+				} catch {
+					// ignore parse errors
+				}
 			}
 
 			// Resolve active A/B tests

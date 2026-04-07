@@ -21,6 +21,7 @@ import {
 } from "./retrieval";
 import type { MainaCommand } from "./selector";
 import { getBudgetMode, getContextNeeds, needsLayer } from "./selector";
+import { loadWikiContext } from "./wiki";
 import { assembleWorkingText, loadWorkingContext } from "./working";
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -413,6 +414,42 @@ export async function assembleContext(
 					text: "",
 					tokens: 0,
 					priority: 3,
+				}),
+			);
+		}
+	}
+
+	// Wiki layer — synchronous, wrapped in a promise for parallel execution
+	if (needsLayer(needs, "wiki")) {
+		const wikiDir = join(mainaDir, "wiki");
+		// Gather working files from a quick git check
+		let workingFiles: string[] | undefined;
+		try {
+			const [staged, changed] = await Promise.all([
+				getStagedFiles(repoRoot),
+				getChangedFiles("HEAD~3", repoRoot),
+			]);
+			workingFiles = [...new Set([...staged, ...changed])];
+		} catch {
+			workingFiles = undefined;
+		}
+
+		const wikiResult = loadWikiContext({
+			wikiDir,
+			workingFiles,
+			command,
+		});
+
+		if (wikiResult !== null) {
+			layerPromises.push(Promise.resolve(wikiResult));
+		} else {
+			// Empty placeholder so it appears in reports
+			layerPromises.push(
+				Promise.resolve({
+					name: "wiki",
+					text: "",
+					tokens: 0,
+					priority: 4,
 				}),
 			);
 		}

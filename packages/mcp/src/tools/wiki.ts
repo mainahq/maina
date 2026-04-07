@@ -26,14 +26,6 @@ interface ArticleInfo {
 	content: string;
 }
 
-interface QueryMatch {
-	path: string;
-	type: string;
-	title: string;
-	score: number;
-	excerpt: string;
-}
-
 interface WikiStatusResult {
 	initialized: boolean;
 	articlesByType: Record<string, number>;
@@ -114,66 +106,6 @@ function loadArticles(wikiDir: string): ArticleInfo[] {
 	return articles;
 }
 
-/** Score an article against a search question using keyword matching. */
-function scoreArticle(article: ArticleInfo, keywords: string[]): number {
-	let score = 0;
-	const lowerContent = article.content.toLowerCase();
-	const lowerTitle = article.title.toLowerCase();
-
-	for (const keyword of keywords) {
-		const lower = keyword.toLowerCase();
-		// Title matches are worth more
-		if (lowerTitle.includes(lower)) {
-			score += 3;
-		}
-		// Count content occurrences (capped)
-		const pattern = new RegExp(
-			lower.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-			"gi",
-		);
-		const matches = lowerContent.match(pattern);
-		if (matches) {
-			score += Math.min(matches.length, 5);
-		}
-	}
-
-	return score;
-}
-
-/** Extract a relevant excerpt from content based on keyword proximity. */
-function extractExcerpt(
-	content: string,
-	keywords: string[],
-	maxLen = 300,
-): string {
-	const lower = content.toLowerCase();
-
-	// Find the first keyword occurrence
-	let bestPos = -1;
-	for (const keyword of keywords) {
-		const pos = lower.indexOf(keyword.toLowerCase());
-		if (pos !== -1 && (bestPos === -1 || pos < bestPos)) {
-			bestPos = pos;
-		}
-	}
-
-	if (bestPos === -1) {
-		// No keyword found — return start of content
-		return (
-			content.slice(0, maxLen).trim() + (content.length > maxLen ? "..." : "")
-		);
-	}
-
-	// Center excerpt around the keyword
-	const start = Math.max(0, bestPos - 50);
-	const end = Math.min(content.length, start + maxLen);
-	const excerpt = content.slice(start, end).trim();
-	const prefix = start > 0 ? "..." : "";
-	const suffix = end < content.length ? "..." : "";
-
-	return `${prefix}${excerpt}${suffix}`;
-}
-
 /** Load .state.json from wiki directory. */
 function loadWikiState(
 	wikiDir: string,
@@ -203,7 +135,7 @@ export function registerWikiTools(server: McpServer): void {
 	// ── wikiQuery ────────────────────────────────────────────────────────
 	server.tool(
 		"wikiQuery",
-		"Search and synthesize answers from wiki articles. Returns top matches with excerpts.",
+		"Search and synthesize answers from wiki articles using AI. Returns a synthesized answer with source citations.",
 		{
 			question: z
 				.string()
@@ -215,98 +147,33 @@ export function registerWikiTools(server: McpServer): void {
 		},
 		async ({ question, save }) => {
 			try {
-				const wikiDir = join(process.cwd(), ".maina", "wiki");
+				const cwd = process.cwd();
+				const wikiDir = join(cwd, ".maina", "wiki");
 
-				if (!existsSync(wikiDir)) {
+				const { queryWiki } = await import("@maina/core");
+				const result = await queryWiki({
+					wikiDir,
+					question,
+					maxArticles: 10,
+					repoRoot: cwd,
+				});
+
+				if (!result.ok) {
 					return {
 						content: [
 							{
 								type: "text" as const,
-								text: JSON.stringify({
-									matches: [],
-									message: "Wiki not initialized. Run `maina wiki init` first.",
-								}),
+								text: JSON.stringify({ error: result.error }),
 							},
 						],
+						isError: true,
 					};
 				}
 
-				const articles = loadArticles(wikiDir);
-				if (articles.length === 0) {
-					return {
-						content: [
-							{
-								type: "text" as const,
-								text: JSON.stringify({
-									matches: [],
-									message:
-										"No wiki articles found. Run `maina wiki compile` to generate articles.",
-								}),
-							},
-						],
-					};
-				}
-
-				// Tokenize question into keywords (filter stopwords)
-				const stopwords = new Set([
-					"the",
-					"a",
-					"an",
-					"is",
-					"are",
-					"was",
-					"were",
-					"in",
-					"on",
-					"at",
-					"to",
-					"for",
-					"of",
-					"with",
-					"by",
-					"from",
-					"and",
-					"or",
-					"not",
-					"it",
-					"this",
-					"that",
-					"what",
-					"how",
-					"why",
-					"when",
-					"where",
-					"which",
-					"do",
-					"does",
-					"did",
-					"has",
-					"have",
-					"had",
-					"be",
-					"been",
-					"being",
-				]);
-				const keywords = question
-					.toLowerCase()
-					.split(/\W+/)
-					.filter((w) => w.length > 1 && !stopwords.has(w));
-
-				// Score and rank articles
-				const scored: QueryMatch[] = articles
-					.map((article) => ({
-						path: article.path,
-						type: article.type,
-						title: article.title,
-						score: scoreArticle(article, keywords),
-						excerpt: extractExcerpt(article.content, keywords),
-					}))
-					.filter((m) => m.score > 0)
-					.sort((a, b) => b.score - a.score)
-					.slice(0, 5);
+				const queryResult = result.value;
 
 				// Optionally save the answer to raw/
-				if (save && scored.length > 0) {
+				if (save && queryResult.sources.length > 0) {
 					const rawDir = join(wikiDir, "raw");
 					if (!existsSync(rawDir)) {
 						mkdirSync(rawDir, { recursive: true });
@@ -320,12 +187,11 @@ export function registerWikiTools(server: McpServer): void {
 					const content = [
 						`# ${question}`,
 						"",
-						`> Auto-generated wiki query result`,
+						queryResult.answer,
 						"",
-						...scored.map(
-							(m) =>
-								`## ${m.title}\n\nType: ${m.type} | Score: ${m.score}\n\n${m.excerpt}\n`,
-						),
+						"## Sources",
+						"",
+						...queryResult.sources.map((s: string) => `- ${s}`),
 					].join("\n");
 					writeFileSync(join(rawDir, fileName), content);
 				}
@@ -335,7 +201,11 @@ export function registerWikiTools(server: McpServer): void {
 						{
 							type: "text" as const,
 							text: JSON.stringify(
-								{ matches: scored, total: articles.length },
+								{
+									answer: queryResult.answer,
+									sources: queryResult.sources,
+									cached: queryResult.cached,
+								},
 								null,
 								2,
 							),

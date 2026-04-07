@@ -42,12 +42,13 @@ describe("getBudgetRatio", () => {
 describe("assembleBudget", () => {
 	test("allocations sum correctly for default mode with default context window", () => {
 		const allocation = assembleBudget("default");
-		// working + episodic + semantic + retrieval + headroom === total
+		// working + episodic + semantic + retrieval + wiki + headroom === total
 		const layerSum =
 			allocation.working +
 			allocation.episodic +
 			allocation.semantic +
 			allocation.retrieval +
+			allocation.wiki +
 			allocation.headroom;
 		expect(layerSum).toBe(allocation.total);
 	});
@@ -75,7 +76,8 @@ describe("assembleBudget", () => {
 			allocation.working +
 			allocation.episodic +
 			allocation.semantic +
-			allocation.retrieval;
+			allocation.retrieval +
+			allocation.wiki;
 		expect(layerSum).toBe(budget);
 	});
 
@@ -83,14 +85,34 @@ describe("assembleBudget", () => {
 		const modelContext = 200_000;
 		const allocationDefault = assembleBudget("default", modelContext);
 		const allocationFocused = assembleBudget("focused", modelContext);
-		// working = ~25% of budget; for focused: budget = 0.4 * 200_000 = 80_000
-		// working = floor(80_000 * 0.25) = 20_000
+		// working = ~12% of budget; for focused: budget = 0.4 * 200_000 = 80_000
+		// working = floor(80_000 * 0.12) = 9_600
 		expect(allocationFocused.working).toBe(
-			Math.floor(Math.floor(modelContext * 0.4) * 0.25),
+			Math.floor(Math.floor(modelContext * 0.4) * 0.12),
 		);
 		expect(allocationDefault.working).toBe(
-			Math.floor(Math.floor(modelContext * 0.6) * 0.25),
+			Math.floor(Math.floor(modelContext * 0.6) * 0.12),
 		);
+	});
+
+	test("wiki allocation is ~12% of usable budget", () => {
+		const modelContext = 200_000;
+		const allocation = assembleBudget("default", modelContext);
+		const budget = Math.floor(modelContext * 0.6);
+		expect(allocation.wiki).toBe(Math.floor(budget * 0.12));
+	});
+
+	test("all 5 layers sum to budget for default mode", () => {
+		const modelContext = 200_000;
+		const allocation = assembleBudget("default", modelContext);
+		const budget = Math.floor(modelContext * 0.6);
+		const layerSum =
+			allocation.working +
+			allocation.episodic +
+			allocation.semantic +
+			allocation.retrieval +
+			allocation.wiki;
+		expect(layerSum).toBe(budget);
 	});
 });
 
@@ -109,6 +131,7 @@ describe("truncateToFit", () => {
 		semantic: 200,
 		episodic: 300,
 		retrieval: 400,
+		wiki: 0,
 		headroom: 0,
 		total: 1000,
 		...overrides,

@@ -7,7 +7,7 @@ import {
 	mock,
 	test,
 } from "bun:test";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
@@ -270,5 +270,60 @@ describe("prAction", () => {
 
 		expect(result.created).toBe(false);
 		expect(result.reason).toContain("diff");
+	});
+
+	// ── Wiki Coverage ──────────────────────────────────────────────────
+
+	test("PR body includes wiki coverage when .state.json exists", async () => {
+		let capturedBody = "";
+
+		// Create wiki state file
+		const wikiDir = join(tmpDir, ".maina", "wiki");
+		mkdirSync(wikiDir, { recursive: true });
+		writeFileSync(
+			join(wikiDir, ".state.json"),
+			JSON.stringify({
+				articlesUpdated: 5,
+				articlesAdded: 2,
+				coveragePercent: 78,
+			}),
+		);
+
+		const deps = makeDeps({
+			createPr: async (options) => {
+				capturedBody = options.body;
+				return {
+					ok: true as const,
+					value: { url: "https://github.com/owner/repo/pull/99" },
+				};
+			},
+		});
+
+		const result = await prAction({ cwd: tmpDir }, deps);
+
+		expect(result.created).toBe(true);
+		expect(capturedBody).toContain("### Wiki Coverage");
+		expect(capturedBody).toContain("Articles updated: 5");
+		expect(capturedBody).toContain("Articles added: 2");
+		expect(capturedBody).toContain("Total coverage: 78%");
+	});
+
+	test("PR body has no wiki section when wiki not initialized", async () => {
+		let capturedBody = "";
+
+		const deps = makeDeps({
+			createPr: async (options) => {
+				capturedBody = options.body;
+				return {
+					ok: true as const,
+					value: { url: "https://github.com/owner/repo/pull/100" },
+				};
+			},
+		});
+
+		const result = await prAction({ cwd: tmpDir }, deps);
+
+		expect(result.created).toBe(true);
+		expect(capturedBody).not.toContain("### Wiki Coverage");
 	});
 });

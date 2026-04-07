@@ -404,6 +404,63 @@ describe("statsAction", () => {
 		}
 	});
 
+	// ── Wiki Metrics ──────────────────────────────────────────────────
+
+	test("wiki metrics included when wiki dir exists", async () => {
+		const tmpDir = join("/tmp", `stats-wiki-test-${Date.now()}`);
+		const mainaDir = join(tmpDir, ".maina");
+		const wikiDir = join(mainaDir, "wiki");
+
+		// Create wiki structure with articles
+		mkdirSync(join(wikiDir, "modules"), { recursive: true });
+		mkdirSync(join(wikiDir, "entities"), { recursive: true });
+		mkdirSync(join(wikiDir, "features"), { recursive: true });
+		writeFileSync(join(wikiDir, "modules", "auth.md"), "# Auth\n");
+		writeFileSync(join(wikiDir, "modules", "db.md"), "# DB\n");
+		writeFileSync(join(wikiDir, "entities", "user.md"), "# User\n");
+		writeFileSync(join(wikiDir, "features", "login.md"), "# Login\n");
+		writeFileSync(
+			join(wikiDir, ".state.json"),
+			JSON.stringify({
+				lastCompile: "2026-04-07T15:21:54.012Z",
+				compilationTimeMs: 195,
+			}),
+		);
+
+		try {
+			const deps = createMockDeps({});
+			const result = await statsAction({ cwd: tmpDir }, deps);
+
+			expect(result.displayed).toBe(true);
+			expect(result.wikiMetrics).toBeDefined();
+			expect(result.wikiMetrics?.totalArticles).toBe(4);
+			expect(result.wikiMetrics?.modules).toBe(2);
+			expect(result.wikiMetrics?.entities).toBe(1);
+			expect(result.wikiMetrics?.features).toBe(1);
+			expect(result.wikiMetrics?.decisions).toBe(0);
+			expect(result.wikiMetrics?.architecture).toBe(0);
+			expect(result.wikiMetrics?.lastCompile).toBe("2026-04-07T15:21:54.012Z");
+			expect(result.wikiMetrics?.compilationTimeMs).toBe(195);
+		} finally {
+			rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
+	test("wiki metrics not included when no wiki dir", async () => {
+		const tmpDir = join("/tmp", `stats-nowiki-test-${Date.now()}`);
+		mkdirSync(tmpDir, { recursive: true });
+
+		try {
+			const deps = createMockDeps({});
+			const result = await statsAction({ cwd: tmpDir }, deps);
+
+			expect(result.displayed).toBe(true);
+			expect(result.wikiMetrics).toBeUndefined();
+		} finally {
+			rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
 	test("defaults last to 10 when not specified", async () => {
 		let capturedStatsLast: number | undefined;
 		let capturedTrendsWindow: number | undefined;

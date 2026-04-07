@@ -3,28 +3,31 @@ import type { BudgetMode } from "../budget.ts";
 import { getBudgetMode, getContextNeeds, needsLayer } from "../selector.ts";
 
 describe("getContextNeeds", () => {
-	it("commit needs only working + conventions", () => {
+	it("commit needs only working + conventions + wiki", () => {
 		const needs = getContextNeeds("commit");
 		expect(needs.working).toBe(true);
 		expect(needs.episodic).toBe(false);
 		expect(needs.semantic).toEqual(["conventions"]);
 		expect(needs.retrieval).toBe(false);
+		expect(needs.wiki).toBe(true);
 	});
 
-	it("context command needs all 4 layers", () => {
+	it("context command needs all 5 layers", () => {
 		const needs = getContextNeeds("context");
 		expect(needs.working).toBe(true);
 		expect(needs.episodic).toBe(true);
 		expect(needs.semantic).toBe(true);
 		expect(needs.retrieval).toBe(true);
+		expect(needs.wiki).toBe(true);
 	});
 
-	it("verify needs working + recent-reviews + adrs + conventions", () => {
+	it("verify needs working + recent-reviews + adrs + conventions + wiki", () => {
 		const needs = getContextNeeds("verify");
 		expect(needs.working).toBe(true);
 		expect(needs.episodic).toEqual(["recent-reviews"]);
 		expect(needs.semantic).toEqual(["adrs", "conventions"]);
 		expect(needs.retrieval).toBe(false);
+		expect(needs.wiki).toBe(true);
 	});
 
 	it("review returns correct context needs", () => {
@@ -33,6 +36,7 @@ describe("getContextNeeds", () => {
 		expect(needs.episodic).toEqual(["past-reviews"]);
 		expect(needs.semantic).toEqual(["adrs"]);
 		expect(needs.retrieval).toBe(false);
+		expect(needs.wiki).toBe(true);
 	});
 
 	it("plan returns correct context needs", () => {
@@ -41,6 +45,7 @@ describe("getContextNeeds", () => {
 		expect(needs.semantic).toEqual(["adrs", "conventions"]);
 		expect(needs.episodic).toBe(false);
 		expect(needs.retrieval).toBe(false);
+		expect(needs.wiki).toBe(true);
 	});
 
 	it("explain returns correct context needs", () => {
@@ -49,6 +54,7 @@ describe("getContextNeeds", () => {
 		expect(needs.episodic).toBe(false);
 		expect(needs.semantic).toBe(true);
 		expect(needs.retrieval).toBe(true);
+		expect(needs.wiki).toBe(true);
 	});
 
 	it("design returns correct context needs", () => {
@@ -57,6 +63,7 @@ describe("getContextNeeds", () => {
 		expect(needs.episodic).toBe(false);
 		expect(needs.semantic).toEqual(["adrs"]);
 		expect(needs.retrieval).toBe(false);
+		expect(needs.wiki).toBe(true);
 	});
 
 	it("ticket returns correct context needs", () => {
@@ -65,6 +72,7 @@ describe("getContextNeeds", () => {
 		expect(needs.episodic).toBe(false);
 		expect(needs.semantic).toEqual(["modules"]);
 		expect(needs.retrieval).toBe(false);
+		expect(needs.wiki).toBe(false);
 	});
 
 	it("analyze returns correct context needs", () => {
@@ -73,6 +81,7 @@ describe("getContextNeeds", () => {
 		expect(needs.episodic).toBe(true);
 		expect(needs.semantic).toBe(true);
 		expect(needs.retrieval).toBe(false);
+		expect(needs.wiki).toBe(true);
 	});
 
 	it("pr returns correct context needs", () => {
@@ -81,6 +90,7 @@ describe("getContextNeeds", () => {
 		expect(needs.episodic).toEqual(["past-reviews"]);
 		expect(needs.semantic).toBe(true);
 		expect(needs.retrieval).toBe(true);
+		expect(needs.wiki).toBe(true);
 	});
 });
 
@@ -128,6 +138,16 @@ describe("needsLayer", () => {
 	it("correctly identifies when retrieval layer is not needed", () => {
 		const needs = getContextNeeds("commit");
 		expect(needsLayer(needs, "retrieval")).toBe(false);
+	});
+
+	it("correctly identifies when wiki layer is needed", () => {
+		const needs = getContextNeeds("commit");
+		expect(needsLayer(needs, "wiki")).toBe(true);
+	});
+
+	it("correctly identifies when wiki layer is not needed", () => {
+		const needs = getContextNeeds("ticket");
+		expect(needsLayer(needs, "wiki")).toBe(false);
 	});
 });
 

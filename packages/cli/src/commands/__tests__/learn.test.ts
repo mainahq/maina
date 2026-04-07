@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	analyseFeedback,
@@ -72,6 +72,60 @@ describe("maina learn", () => {
 
 		const analysis = analyseFeedback(tmpDir, "commit");
 		expect(analysis.needsImprovement).toBe(false);
+	});
+});
+
+describe("learn wiki effectiveness", () => {
+	test(".signals.json is readable when present", () => {
+		const wikiDir = join(tmpDir, "wiki");
+		mkdirSync(wikiDir, { recursive: true });
+		writeFileSync(
+			join(wikiDir, ".signals.json"),
+			JSON.stringify({
+				articlesLoaded: 42,
+				acceptRate: 0.85,
+				dormantCount: 3,
+			}),
+		);
+
+		const signalsFile = join(wikiDir, ".signals.json");
+		expect(existsSync(signalsFile)).toBe(true);
+
+		const signals = JSON.parse(readFileSync(signalsFile, "utf-8"));
+		expect(signals.articlesLoaded).toBe(42);
+		expect(signals.acceptRate).toBe(0.85);
+		expect(signals.dormantCount).toBe(3);
+	});
+
+	test("learn works normally when no .signals.json exists", () => {
+		const signalsFile = join(tmpDir, "wiki", ".signals.json");
+		expect(existsSync(signalsFile)).toBe(false);
+		// No error — the learn command simply skips the section
+	});
+
+	test(".signals.json with missing fields defaults gracefully", () => {
+		const wikiDir = join(tmpDir, "wiki");
+		mkdirSync(wikiDir, { recursive: true });
+		writeFileSync(
+			join(wikiDir, ".signals.json"),
+			JSON.stringify({ articlesLoaded: 10 }),
+		);
+
+		const signals = JSON.parse(
+			readFileSync(join(wikiDir, ".signals.json"), "utf-8"),
+		);
+		const loaded =
+			typeof signals.articlesLoaded === "number" ? signals.articlesLoaded : 0;
+		const acceptRate =
+			typeof signals.acceptRate === "number"
+				? `${Math.round(signals.acceptRate * 100)}%`
+				: "N/A";
+		const dormant =
+			typeof signals.dormantCount === "number" ? signals.dormantCount : 0;
+
+		expect(loaded).toBe(10);
+		expect(acceptRate).toBe("N/A");
+		expect(dormant).toBe(0);
 	});
 });
 

@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
 import {
@@ -14,6 +14,7 @@ import { Command } from "commander";
 export interface ExplainActionOptions {
 	scope?: string;
 	output?: string;
+	save?: boolean;
 	cwd?: string;
 }
 
@@ -25,6 +26,8 @@ export interface ExplainActionResult {
 	aiSummary?: string;
 	outputPath?: string;
 	empty?: boolean;
+	wikiContext?: string;
+	savedToWiki?: string;
 }
 
 export interface ExplainDeps {
@@ -49,6 +52,53 @@ function formatSummaryTable(summaries: ModuleSummary[]): string {
 			`  ${s.module.padEnd(30)} ${String(s.entityCount).padStart(8)}  ${String(s.functions).padStart(4)}  ${String(s.classes).padStart(4)}  ${String(s.interfaces).padStart(4)}  ${String(s.types).padStart(4)}`,
 	);
 	return [header, separator, ...rows].join("\n");
+}
+
+// ── Wiki Helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Search wiki directories for an article matching the given scope/target.
+ * Returns the content of the first matching article, or undefined.
+ */
+function findWikiArticle(mainaDir: string, scope?: string): string | undefined {
+	if (!scope) return undefined;
+	const wikiDir = join(mainaDir, "wiki");
+	if (!existsSync(wikiDir)) return undefined;
+
+	// Normalize scope to a filename-friendly slug
+	const slug = scope.replace(/[/\\]/g, "-").toLowerCase();
+
+	// Search in wiki subdirectories for a matching article
+	const searchDirs = ["modules", "entities", "features", "architecture"];
+	for (const subdir of searchDirs) {
+		const dir = join(wikiDir, subdir);
+		if (!existsSync(dir)) continue;
+		const candidate = join(dir, `${slug}.md`);
+		if (existsSync(candidate)) {
+			try {
+				return readFileSync(candidate, "utf-8");
+			} catch {
+				// ignore read errors
+			}
+		}
+	}
+	return undefined;
+}
+
+/**
+ * Save an explanation to wiki/raw/ for later compilation.
+ */
+function saveToWikiRaw(
+	mainaDir: string,
+	scope: string,
+	content: string,
+): string {
+	const rawDir = join(mainaDir, "wiki", "raw");
+	mkdirSync(rawDir, { recursive: true });
+	const slug = scope.replace(/[/\\]/g, "-").toLowerCase();
+	const filePath = join(rawDir, `${slug}.md`);
+	writeFileSync(filePath, content);
+	return filePath;
 }
 
 // ── Core Action (testable) ───────────────────────────────────────────────────
@@ -84,6 +134,9 @@ export async function explainAction(
 	// Detect if codebase is empty (no edges, no entities)
 	const isEmpty = diagram === "graph LR\n" && summaries.length === 0;
 
+	// Check for wiki context
+	const wikiContext = findWikiArticle(mainaDir, options.scope);
+
 	// Try AI summary when API key available
 	let aiSummary: string | undefined;
 	if (!isEmpty) {
@@ -93,15 +146,25 @@ export async function explainAction(
 					`${s.module}: ${s.functions}fn, ${s.classes}cls, ${s.interfaces}ifc`,
 			)
 			.join("\n");
+		const wikiPreamble = wikiContext
+			? `Existing wiki context:\n${wikiContext}\n\n`
+			: "";
 		const aiResult = await tryAIGenerate(
 			"explain",
 			mainaDir,
 			{ diagram, modules: modulesText },
-			`Summarize this codebase structure:\n\n${diagram}\n\nModules:\n${modulesText}`,
+			`${wikiPreamble}Summarize this codebase structure:\n\n${diagram}\n\nModules:\n${modulesText}`,
 		);
 		if (aiResult.text) {
 			aiSummary = aiResult.text;
 		}
+	}
+
+	// Save to wiki/raw/ if --save is set
+	let savedToWiki: string | undefined;
+	if (options.save && options.scope && (aiSummary ?? diagram)) {
+		const content = aiSummary ?? diagram;
+		savedToWiki = saveToWikiRaw(mainaDir, options.scope, content);
 	}
 
 	return {
@@ -111,6 +174,8 @@ export async function explainAction(
 		aiSummary,
 		outputPath: options.output,
 		empty: isEmpty,
+		wikiContext,
+		savedToWiki,
 	};
 }
 
@@ -152,18 +217,24 @@ export function explainCommand(): Command {
 		.description("Visualize codebase structure with Mermaid diagrams")
 		.option("--scope <dir>", "Limit to specific directory")
 		.option("-o, --output <path>", "Write diagram to file")
+		.option("--save", "Save explanation to wiki/raw/")
 		.action(async (options) => {
 			intro("maina explain");
 
 			const result = await explainAction({
 				scope: options.scope,
 				output: options.output,
+				save: options.save,
 			});
 
 			if (!result.displayed) {
 				log.warning(result.reason ?? "Unknown error");
 				outro("Done.");
 				return;
+			}
+
+			if (result.wikiContext) {
+				log.info("Wiki context found for scope, included in AI prompt.");
 			}
 
 			displayExplain(
@@ -177,6 +248,10 @@ export function explainCommand(): Command {
 			if (result.outputPath && result.diagram) {
 				writeFileSync(result.outputPath, result.diagram);
 				log.success(`Diagram written to ${result.outputPath}`);
+			}
+
+			if (result.savedToWiki) {
+				log.success(`Explanation saved to ${result.savedToWiki}`);
 			}
 
 			outro("Done.");

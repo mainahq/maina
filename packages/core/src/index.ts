@@ -473,6 +473,12 @@ export {
 	type LouvainNode,
 	type LouvainResult,
 } from "./wiki/louvain";
+// Wiki — Query
+export {
+	queryWiki,
+	type WikiQueryOptions,
+	type WikiQueryResult,
+} from "./wiki/query";
 export {
 	DEFAULT_SCHEMA,
 	getArticleMaxLength,
