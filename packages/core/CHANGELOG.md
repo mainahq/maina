@@ -1,5 +1,11 @@
 # @mainahq/core
 
+## 1.1.1
+
+### Patch Changes
+
+- [#73](https://github.com/mainahq/maina/pull/73) [`331c58d`](https://github.com/mainahq/maina/commit/331c58d6287658934d8b434dffa5fab88a6db06e) Thanks [@beeeku](https://github.com/beeeku)! - Post-release fixes: MCP stdout fix, 12-tool support, install script, CI test fixes, docs updates.
+
 ## 1.1.0
 
 ### Minor Changes
