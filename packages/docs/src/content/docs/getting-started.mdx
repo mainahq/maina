@@ -3,93 +3,113 @@ title: Getting Started
 description: Install Maina and run your first verification in under a minute.
 ---
 
-Maina is a CLI, MCP server, and skills package that proves AI-generated code is correct before it merges. This guide gets you running in under a minute.
+import { Tabs, TabItem, Card, CardGrid, Steps, Aside, LinkCard, Badge } from '@astrojs/starlight/components';
+
+Maina is the verification layer for AI-generated code. 18 tools. 7 languages. One command. Zero config.
 
 ## Install
 
-```bash
-bun add -g @mainahq/cli
-```
+<Tabs>
+  <TabItem label="Global install">
+    ```bash
+    bun add -g @mainahq/cli
+    ```
+  </TabItem>
+  <TabItem label="Try without installing">
+    ```bash
+    bunx @mainahq/cli init
+    bunx @mainahq/cli verify
+    ```
+  </TabItem>
+</Tabs>
 
-Or try without installing:
-
-```bash
-bunx @mainahq/cli init
-bunx @mainahq/cli verify
-```
-
+<Aside type="tip">
 **Prerequisites:** [Git](https://git-scm.com/) and [Bun](https://bun.sh/) (v1.1+). That's it.
+</Aside>
 
 ## Quick Start
 
-### 1. Initialize
+<Steps>
 
-```bash
-maina init --install
-```
+1. **Initialize your project**
 
-This creates the `.maina/` directory in your repo, detects your stack, and installs missing verification tools:
-- `constitution.md` -- your project's non-negotiable rules
-- `prompts/` -- custom AI prompt templates
-- `AGENTS.md` -- cross-tool agent instructions
+   ```bash
+   maina init --install
+   ```
 
-Then configure your project settings:
+   This detects your stack, creates `.maina/` with a constitution and custom prompts, and installs missing verification tools.
 
-```bash
-maina configure
-```
+   Then configure your project:
 
-### 2. Make changes and commit
+   ```bash
+   maina configure
+   ```
 
-```bash
-# Stage your changes
-git add .
+2. **Make changes and commit**
 
-# Verify and commit in one step
-maina commit
-```
+   ```bash
+   git add .
+   maina commit
+   ```
 
-`maina commit` runs the full 18-tool verification pipeline -- syntax guard, parallel analysis, diff-only filtering -- then commits if everything passes.
+   `maina commit` runs the full 18-tool verification pipeline — syntax guard, parallel analysis, diff-only filtering — then commits if everything passes.
 
-### 3. Run verification standalone
+3. **Run verification standalone**
 
-```bash
-maina verify
-maina verify --deep     # Add AI semantic review
-maina verify --visual   # Add Playwright screenshot regression
-```
+   ```bash
+   maina verify
+   maina verify --deep     # Add AI semantic review
+   maina verify --visual   # Add Playwright screenshot regression
+   maina verify --cloud    # Submit to Maina Cloud
+   ```
 
-### 4. Start a new feature
+4. **Start a feature with the full workflow**
 
-```bash
-maina brainstorm        # Explore the idea, create a ticket
-maina plan my-feature   # Create branch with structured spec/plan
-# ... implement ...
-maina commit            # Verify and commit
-maina pr                # Create PR with verification proof
-```
+   ```bash
+   maina brainstorm        # Explore the idea, create a ticket
+   maina plan my-feature   # Create branch with structured spec/plan
+   # ... implement ...
+   maina commit            # Verify and commit
+   maina pr                # Create PR with verification proof
+   ```
 
-### 5. Check your setup
+5. **Check your setup**
 
-```bash
-maina doctor
-```
+   ```bash
+   maina doctor
+   ```
 
-Shows which of the 18+ tools are installed, engine health, and install commands for missing tools.
+   Shows which of the 18+ tools are installed, engine health, and install commands for anything missing.
+
+</Steps>
 
 ## Supported Languages
 
-Maina auto-detects your project language and adapts:
+Maina auto-detects your project language and adapts the verification pipeline:
 
-| Language | Detected from | Linter |
-|----------|--------------|--------|
-| TypeScript | `tsconfig.json` | Biome |
-| Python | `pyproject.toml`, `requirements.txt` | ruff |
-| Go | `go.mod` | go vet |
-| Rust | `Cargo.toml` | clippy |
-| C# (.NET) | `.sln`, `.csproj` | dotnet format |
-| Java/Kotlin | `pom.xml`, `build.gradle` | Checkstyle |
-| PHP | `composer.json` | PHPStan, Psalm |
+<CardGrid>
+  <Card title="TypeScript" icon="seti:typescript">
+    Detected from `tsconfig.json`. Linter: **Biome**.
+  </Card>
+  <Card title="Python" icon="seti:python">
+    Detected from `pyproject.toml`, `requirements.txt`. Linter: **ruff**.
+  </Card>
+  <Card title="Go" icon="seti:go">
+    Detected from `go.mod`. Linter: **go vet**.
+  </Card>
+  <Card title="Rust" icon="seti:rust">
+    Detected from `Cargo.toml`. Linter: **clippy**.
+  </Card>
+  <Card title="C# / .NET" icon="seti:c-sharp">
+    Detected from `.sln`, `.csproj`. Linter: **dotnet format**.
+  </Card>
+  <Card title="Java / Kotlin" icon="seti:java">
+    Detected from `pom.xml`, `build.gradle`. Linter: **Checkstyle**.
+  </Card>
+  <Card title="PHP" icon="seti:php">
+    Detected from `composer.json`. Linter: **PHPStan**, **Psalm**.
+  </Card>
+</CardGrid>
 
 ## Zero-Friction Layers
 
@@ -97,21 +117,32 @@ Maina works with zero config and scales up as you add capabilities.
 
 | Layer | What you add | What you get |
 |-------|-------------|-------------|
-| **L0 -- Git-native** | Nothing beyond Git + Bun | Core commands, deterministic verification, context engine |
-| **L1 -- Add AI** | `MAINA_API_KEY` or Ollama | AI-powered reviews, commit messages, explanations, fix generation |
-| **L2 -- Add tools** | Semgrep, Trivy, Secretlint, SonarQube | Deeper SAST, CVE scanning, secret detection, quality gates |
-| **L3 -- Add PM** | GitHub Issues | Sync to Huly, Linear, Plane, or any GitHub-syncing PM tool |
+| **L0 — Git-native** | Nothing beyond Git + Bun | Core commands, deterministic verification, context engine |
+| **L1 — Add AI** | `MAINA_API_KEY` or Ollama | AI-powered reviews, commit messages, explanations, fix generation |
+| **L2 — Add tools** | Semgrep, Trivy, Secretlint, SonarQube | Deeper SAST, CVE scanning, secret detection, quality gates |
+| **L3 — Add PM** | GitHub Issues | Sync to Huly, Linear, Plane, or any GitHub-syncing PM tool |
 
-No accounts. No Docker. No cloud. Everything runs locally in your terminal.
+<Aside>
+No accounts. No Docker. No cloud required. Everything runs locally in your terminal.
+</Aside>
 
 ## What happens during `maina commit`
 
-1. **Syntax guard** -- Language-aware linting (Biome/ruff/go vet/clippy/dotnet format/Checkstyle/PHPStan). Under 500ms. Rejects immediately on failure.
-2. **Parallel analysis** -- 18+ tools run in parallel: slop, Semgrep, Trivy, Secretlint, SonarQube, Stryker, diff-cover, typecheck, consistency, ZAP, Lighthouse, AI review, and more.
-3. **Diff-only filter** -- Only findings on changed lines. No pre-existing noise.
-4. **AI fix** (if AI configured) -- Context-aware fix suggestions.
-5. **Git commit** -- If everything passes, your changes are committed.
-6. **Workflow tracking** -- Step recorded in workflow context + async RL feedback for prompt evolution.
+<Steps>
+
+1. **Syntax guard** — Language-aware linting (Biome/ruff/go vet/clippy/dotnet format/Checkstyle/PHPStan). Under 500ms. Rejects immediately on failure.
+
+2. **Parallel analysis** — 18+ tools run in parallel: slop, Semgrep, Trivy, Secretlint, SonarQube, Stryker, diff-cover, typecheck, consistency, ZAP, Lighthouse, AI review, and more.
+
+3. **Diff-only filter** — Only findings on changed lines. No pre-existing noise.
+
+4. **AI fix** (if AI configured) — Context-aware fix suggestions.
+
+5. **Git commit** — If everything passes, your changes are committed.
+
+6. **Workflow tracking** — Step recorded in workflow context + async RL feedback for prompt evolution.
+
+</Steps>
 
 ## MCP Server
 
@@ -127,27 +158,28 @@ Add Maina to Claude Code, Cursor, or any MCP-compatible editor:
 
 ## CI Integration
 
-Add Maina cloud verification to your GitHub Actions workflow:
+<Tabs>
+  <TabItem label="Cloud (no local tools)">
+    ```yaml
+    - uses: mainahq/maina/.github/actions/verify@main
+      with:
+        token: ${{ secrets.MAINA_TOKEN }}
+    ```
+  </TabItem>
+  <TabItem label="Local (on runner)">
+    ```yaml
+    - uses: mainahq/maina/.github/actions/verify@main
+      with:
+        base: main
+    ```
+  </TabItem>
+</Tabs>
 
-```yaml
-- uses: mainahq/maina/.github/actions/verify@main
-  with:
-    token: ${{ secrets.MAINA_TOKEN }}
-```
-
-Or run locally on the runner (no cloud account needed):
-
-```yaml
-- uses: mainahq/maina/.github/actions/verify@main
-  with:
-    base: main
-```
-
-Both options run the full verification pipeline on every PR, posting findings as inline review comments. Exit codes: `0` (passed), `1` (findings), `2` (tool failure), `3` (config error). See the [CI Integration](/maina/ci) docs for full configuration.
+Both options run the full verification pipeline on every PR, posting findings as inline review comments. Exit codes: `0` (passed), `1` (findings), `2` (tool failure), `3` (config error). See the [CI Integration](/ci) docs for full configuration.
 
 ## Cloud Sync
 
-Share prompts and feedback across your team with Maina Cloud:
+Share prompts and feedback across your team:
 
 ```bash
 maina login          # authenticate with Maina Cloud
@@ -155,24 +187,25 @@ maina sync pull      # get team prompts
 maina sync push      # share your prompts
 ```
 
-Team prompts, constitution updates, and A/B test results sync automatically. No self-hosting required.
-
 ## Cloud Verification
 
-Run the full verification pipeline in the cloud instead of locally. Useful for CI, teams with heterogeneous environments, or when you want results without installing 18+ tools.
+Run the full pipeline in the cloud — no local tool installs required:
 
 ```bash
 maina login              # authenticate (one-time)
-maina verify --cloud     # submit diff to Maina Cloud for verification
+maina verify --cloud     # submit diff to Maina Cloud
 ```
 
-Your diff is submitted to the hosted pipeline. Results are stored as proof artifacts in R2 and returned to your terminal. The same 18+ tools run in the cloud -- no local installs required.
-
-See the [Verify Engine -- Cloud Verification](/maina/engines/verify#cloud-verification) docs for architecture details.
+<Aside type="tip">
+Results are stored as proof artifacts and returned to your terminal. The same 18+ tools run in the cloud.
+See [Verify Engine — Cloud Verification](/engines/verify#cloud-verification) for details.
+</Aside>
 
 ## Next Steps
 
-- [Commands](/maina/commands) -- All 28+ commands across Brainstorm, Define, Build, Verify, and Meta phases
-- [Configuration](/maina/configuration) -- Model tiers, constitution, custom prompts
-- [MCP Server](/maina/mcp) -- Add Maina to your IDE
-- [Engines](/maina/engines/context) -- How Context, Prompt, and Verify engines work
+<CardGrid>
+  <LinkCard title="Commands" description="All 28+ commands across workflow phases" href="/commands" />
+  <LinkCard title="Configuration" description="Model tiers, constitution, custom prompts" href="/configuration" />
+  <LinkCard title="MCP Server" description="Add Maina to your IDE" href="/mcp" />
+  <LinkCard title="Engines" description="How Context, Prompt, and Verify work" href="/engines/context" />
+</CardGrid>
