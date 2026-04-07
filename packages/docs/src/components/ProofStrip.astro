@@ -1,0 +1,26 @@
+---
+const stats = [
+  { value: '1,167+', label: 'tests' },
+  { value: '18+', label: 'tools' },
+  { value: '7', label: 'languages' },
+  { value: '100%', label: 'benchmark' },
+];
+---
+
+<section class="proof-section">
+  <div class="proof-inner">
+    <h2 class="proof-title">Built with Maina. Verified by Maina.</h2>
+    <p class="proof-body">
+      Every one of the 250+ commits in this repository was verified by
+      <code>maina commit</code> before it merged. The tool eats its own cooking.
+    </p>
+    <div class="proof-stats">
+      {stats.map((stat) => (
+        <div class="proof-stat">
+          <div class="proof-stat-value">{stat.value}</div>
+          <div class="proof-stat-label">{stat.label}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
