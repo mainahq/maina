@@ -15,30 +15,30 @@ export function registerReviewTools(server: McpServer): void {
 			try {
 				const {
 					runTwoStageReview,
-					recordFeedbackAsync,
-					getWorkflowId,
+					captureResult,
+					getCachedResult,
 					getCurrentBranch,
+					getWorkflowId,
 				} = await import("@mainahq/core");
 				const mainaDir = join(process.cwd(), ".maina");
+				const input = { diff, planContent };
+
+				// Check cache — same diff = same review
+				const cached = getCachedResult("reviewCode", input, mainaDir);
+				if (cached !== null) {
+					return {
+						content: [{ type: "text" as const, text: cached }],
+					};
+				}
+
+				const start = Date.now();
 				const result = await runTwoStageReview({
 					diff,
 					planContent,
 					mainaDir,
 				});
+				const durationMs = Date.now() - start;
 
-				// Record feedback for RL loop
-				const branch = await getCurrentBranch(process.cwd());
-				const workflowId = getWorkflowId(branch);
-				recordFeedbackAsync(mainaDir, {
-					promptHash: "review-mcp",
-					task: "review",
-					accepted: result.passed,
-					timestamp: new Date().toISOString(),
-					workflowStep: "review",
-					workflowId,
-				});
-
-				// Check if any findings contain delegation prompts
 				const allFindings = [
 					...result.stage1.findings,
 					...(result.stage2?.findings ?? []),
@@ -50,14 +50,33 @@ export function registerReviewTools(server: McpServer): void {
 							f.message.includes("[HOST_DELEGATION]")),
 				);
 
+				const resultJson = JSON.stringify(result, null, 2);
+
+				// Capture for flywheel (skip delegation results — AI may be available next time)
+				if (!hasDelegation) {
+					let workflowId: string | undefined;
+					try {
+						const branch = await getCurrentBranch(process.cwd());
+						workflowId = getWorkflowId(branch);
+					} catch {
+						/* outside git repo */
+					}
+
+					captureResult({
+						tool: "reviewCode",
+						input,
+						output: resultJson,
+						promptHash: "review-mcp",
+						durationMs,
+						mainaDir,
+						workflowId,
+					});
+				}
+
 				if (hasDelegation) {
-					// Include instruction for host agent
 					return {
 						content: [
-							{
-								type: "text" as const,
-								text: JSON.stringify(result, null, 2),
-							},
+							{ type: "text" as const, text: resultJson },
 							{
 								type: "text" as const,
 								text: "\n\n---\nNote: AI review was not available (no API key). The deterministic checks above are complete. For AI-powered review, analyze the diff above for: cross-function consistency, missing edge cases, dead branches, API contract violations, and spec compliance.",
@@ -67,12 +86,7 @@ export function registerReviewTools(server: McpServer): void {
 				}
 
 				return {
-					content: [
-						{
-							type: "text" as const,
-							text: JSON.stringify(result, null, 2),
-						},
-					],
+					content: [{ type: "text" as const, text: resultJson }],
 				};
 			} catch (e) {
 				return {

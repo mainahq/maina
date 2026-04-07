@@ -13,14 +13,24 @@ export function registerVerifyTools(server: McpServer): void {
 		{ files: z.array(z.string()).optional() },
 		async ({ files }) => {
 			try {
-				const { runPipeline, getStagedFiles } = await import("@mainahq/core");
+				const {
+					runPipeline,
+					getStagedFiles,
+					captureResult,
+					getCurrentBranch,
+					getWorkflowId,
+				} = await import("@mainahq/core");
 				const cwd = process.cwd();
+				const mainaDir = join(cwd, ".maina");
 				const targetFiles = files ?? (await getStagedFiles(cwd));
+
+				const start = Date.now();
 				const result = await runPipeline({
 					files: targetFiles,
 					cwd,
-					mainaDir: join(cwd, ".maina"),
+					mainaDir,
 				});
+				const durationMs = Date.now() - start;
 
 				const aiReviewTool = result.tools.find((t) => t.tool === "ai-review");
 				const aiSkipped = aiReviewTool?.skipped ?? true;
@@ -38,13 +48,28 @@ export function registerVerifyTools(server: McpServer): void {
 					2,
 				);
 
+				let workflowId: string | undefined;
+				try {
+					const branch = await getCurrentBranch(cwd);
+					workflowId = getWorkflowId(branch);
+				} catch {
+					/* outside git repo */
+				}
+
+				captureResult({
+					tool: "verify",
+					input: { files: targetFiles },
+					output: resultJson,
+					promptHash: result.passed ? "verify-pass" : "verify-fail",
+					durationMs,
+					mainaDir,
+					workflowId,
+				});
+
 				if (aiSkipped) {
 					return {
 						content: [
-							{
-								type: "text" as const,
-								text: resultJson,
-							},
+							{ type: "text" as const, text: resultJson },
 							{
 								type: "text" as const,
 								text: "\n\n---\nNote: AI review was not available (no API key). The deterministic checks above are complete. For AI-powered review, analyze the changed files for: cross-function consistency, missing edge cases, dead branches, API contract violations, and spec compliance.",
@@ -54,12 +79,7 @@ export function registerVerifyTools(server: McpServer): void {
 				}
 
 				return {
-					content: [
-						{
-							type: "text" as const,
-							text: resultJson,
-						},
-					],
+					content: [{ type: "text" as const, text: resultJson }],
 				};
 			} catch (e) {
 				return {
@@ -81,16 +101,42 @@ export function registerVerifyTools(server: McpServer): void {
 		{ files: z.array(z.string()) },
 		async ({ files }) => {
 			try {
-				const { detectSlop, createCacheManager } = await import(
-					"@mainahq/core"
-				);
+				const {
+					detectSlop,
+					createCacheManager,
+					captureResult,
+					getCurrentBranch,
+					getWorkflowId,
+				} = await import("@mainahq/core");
 				const cwd = process.cwd();
-				const cache = createCacheManager(join(cwd, ".maina"));
+				const mainaDir = join(cwd, ".maina");
+
+				const start = Date.now();
+				const cache = createCacheManager(mainaDir);
 				const result = await detectSlop(files, { cwd, cache });
+				const durationMs = Date.now() - start;
+
+				const resultJson = JSON.stringify(result, null, 2);
+
+				let workflowId: string | undefined;
+				try {
+					const branch = await getCurrentBranch(cwd);
+					workflowId = getWorkflowId(branch);
+				} catch {
+					/* outside git repo */
+				}
+
+				captureResult({
+					tool: "checkSlop",
+					input: { files },
+					output: resultJson,
+					durationMs,
+					mainaDir,
+					workflowId,
+				});
+
 				return {
-					content: [
-						{ type: "text" as const, text: JSON.stringify(result, null, 2) },
-					],
+					content: [{ type: "text" as const, text: resultJson }],
 				};
 			} catch (e) {
 				return {

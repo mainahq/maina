@@ -154,6 +154,12 @@ export type {
 	TraceDeps,
 } from "./features/traceability";
 export { traceFeature } from "./features/traceability";
+export {
+	buildToolCacheKey,
+	type CaptureInput,
+	captureResult,
+	getCachedResult,
+} from "./feedback/capture";
 // Feedback
 export {
 	type FeedbackRecord,
