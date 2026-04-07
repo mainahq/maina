@@ -61,5 +61,18 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
     <ProofStrip />
     <Features />
     <Footer />
+    <script is:inline>
+      const obs = new IntersectionObserver((entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            e.target.classList.add('visible');
+            obs.unobserve(e.target);
+          }
+        }
+      }, { threshold: 0.15 });
+      for (const el of document.querySelectorAll('.reveal, .reveal-stagger')) {
+        obs.observe(el);
+      }
+    </script>
   </body>
 </html>

@@ -28,6 +28,10 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -38,6 +42,52 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* --- Scroll Reveal Animations --- */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+}
+
+.reveal.visible {
+  animation: fadeUp 0.6s ease-out forwards;
+}
+
+.reveal-stagger > * {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+.reveal-stagger.visible > * {
+  animation: fadeUp 0.5s ease-out forwards;
+}
+
+.reveal-stagger.visible > *:nth-child(1) { animation-delay: 0s; }
+.reveal-stagger.visible > *:nth-child(2) { animation-delay: 0.1s; }
+.reveal-stagger.visible > *:nth-child(3) { animation-delay: 0.2s; }
+.reveal-stagger.visible > *:nth-child(4) { animation-delay: 0.3s; }
+.reveal-stagger.visible > *:nth-child(5) { animation-delay: 0.4s; }
+.reveal-stagger.visible > *:nth-child(6) { animation-delay: 0.5s; }
 
 a {
   color: inherit;
@@ -126,6 +176,7 @@ img {
   transform: translate(-50%, -30%);
   pointer-events: none;
   z-index: 0;
+  animation: glowPulse 4s ease-in-out infinite;
 }
 
 .hero > * {
@@ -138,6 +189,13 @@ img {
   font-size: 0.8rem;
   margin-bottom: 1.5rem;
   letter-spacing: 0.02em;
+}
+
+.hero-prompt::after {
+  content: '▋';
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+  color: var(--green);
 }
 
 .hero-logo {
@@ -180,11 +238,12 @@ img {
   border-radius: 6px;
   font-size: 0.85rem;
   font-weight: 700;
-  transition: opacity 0.15s;
+  transition: transform 0.15s, box-shadow 0.15s;
 }
 
 .btn-primary:hover {
-  opacity: 0.85;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.3);
 }
 
 .btn-secondary {
@@ -286,11 +345,13 @@ img {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1.75rem;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
 }
 
 .engine-card:hover {
   border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 24px rgba(249, 115, 22, 0.08);
 }
 
 .engine-tag {
@@ -333,6 +394,12 @@ img {
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.3s;
+}
+
+.terminal:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .terminal-dots {
@@ -459,6 +526,11 @@ img {
   border-radius: 10px;
   padding: 2.5rem;
   background: var(--bg-card);
+  transition: border-color 0.2s;
+}
+
+.proof-inner:hover {
+  border-color: var(--border-hover);
 }
 
 .proof-title {
@@ -524,11 +596,13 @@ img {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1.75rem;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
 }
 
 .feature-card:hover {
   border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 24px rgba(249, 115, 22, 0.08);
 }
 
 .feature-icon {
@@ -627,4 +701,13 @@ img {
   .nav-links {
     display: none;
   }
+}
+
+/* --- Reduced Motion --- */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1; transform: none; }
+  .reveal-stagger > * { opacity: 1; transform: none; }
+  .hero::before { animation: none; }
+  .hero-prompt::after { animation: none; }
 }
