@@ -5,6 +5,7 @@ import {
 	appendWorkflowStep,
 	assembleContext,
 	checkAIAvailability,
+	emitAcceptSignal,
 	getCurrentBranch,
 	getDiff,
 	getStagedFiles,
@@ -465,6 +466,10 @@ export async function commitAction(
 
 	const commitBranch = await getCurrentBranch(cwd);
 	const workflowId = getWorkflowId(commitBranch);
+
+	// Emit accept signal — commit success confirms prior review/verify results
+	emitAcceptSignal(mainaDir, workflowId);
+
 	recordFeedbackAsync(mainaDir, {
 		promptHash: "deterministic",
 		task: "commit",

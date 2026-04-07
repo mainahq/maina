@@ -182,6 +182,7 @@ export {
 	type RulePreference,
 	savePreferences,
 } from "./feedback/preferences";
+export { emitAcceptSignal, emitRejectSignal } from "./feedback/signals";
 export {
 	exportEpisodicForCloud,
 	exportFeedbackForCloud,
