@@ -438,6 +438,50 @@ export {
 	type ZapOptions,
 	type ZapResult,
 } from "./verify/zap";
+export { type CodeEntity, extractCodeEntities } from "./wiki/extractors/code";
+export {
+	extractDecisions,
+	extractSingleDecision,
+} from "./wiki/extractors/decision";
+export {
+	extractFeatures,
+	extractSingleFeature,
+} from "./wiki/extractors/feature";
+export { extractWorkflowTrace } from "./wiki/extractors/workflow";
+export {
+	DEFAULT_SCHEMA,
+	getArticleMaxLength,
+	getLinkSyntax,
+	validateArticleStructure,
+	type WikiSchema,
+} from "./wiki/schema";
+export {
+	createEmptyState,
+	getChangedFiles as getWikiChangedFiles,
+	hashContent,
+	hashFile,
+	loadState as loadWikiState,
+	saveState as saveWikiState,
+} from "./wiki/state";
+// Wiki
+export type {
+	ArticleType,
+	DecisionStatus,
+	EdgeType,
+	ExtractedDecision,
+	ExtractedFeature,
+	ExtractedWorkflowTrace,
+	RLSignal,
+	TaskItem,
+	WikiArticle,
+	WikiLink,
+	WikiLintCheck,
+	WikiLintFinding,
+	WikiLintResult,
+	WikiState,
+	WorkflowStep as WikiWorkflowStep,
+} from "./wiki/types";
+export { DECAY_HALF_LIVES } from "./wiki/types";
 // Workflow
 export {
 	appendWorkflowStep,
