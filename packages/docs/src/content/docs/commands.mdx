@@ -3,6 +3,40 @@ title: Commands
 description: All 28+ Maina commands organized by workflow phase -- Brainstorm, Define, Build, Verify, Cloud, and Meta.
 ---
 
+import Mermaid from '../../components/Mermaid.astro';
+
+<Mermaid chart={`flowchart TD
+    subgraph Discovery["Discovery"]
+        brainstorm["maina brainstorm"]
+        ticket["maina ticket"]
+    end
+    subgraph Planning["Planning"]
+        plan["maina plan"]
+        design["maina design"]
+        spec["maina spec"]
+    end
+    subgraph Execution["Execution"]
+        implement["implement (TDD)"]
+        verify["maina verify"]
+        review["maina review"]
+        fix["fix findings"]
+    end
+    subgraph Ship["Ship"]
+        commit["maina commit"]
+        review2["maina review"]
+        pr["maina pr"]
+    end
+
+    brainstorm --> ticket --> plan --> design --> spec
+    spec --> implement --> verify --> review --> fix
+    fix --> commit --> review2 --> pr
+
+    style Discovery fill:#1e3a5f,stroke:#3b82f6,color:#93c5fd
+    style Planning fill:#3b1f5e,stroke:#8b5cf6,color:#c4b5fd
+    style Execution fill:#1a3a2a,stroke:#22c55e,color:#86efac
+    style Ship fill:#164e63,stroke:#22d3ee,color:#a5f3fc
+`} />
+
 Maina has 28+ commands organized into six workflow phases. Every command draws from the three engines -- Context, Prompt, and Verify -- as needed.
 
 Eight commands support `--json` for machine-readable output (JSON envelope with `{ data, error, meta }`): `analyze`, `commit`, `context`, `doctor`, `review`, `slop`, `stats`, and `verify`.
