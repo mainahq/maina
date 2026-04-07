@@ -1,0 +1,263 @@
+---
+title: Maina Cloud
+description: Hosted verification, team sync, and prompt evolution across your organization.
+---
+
+import { Tabs, TabItem, Card, CardGrid, Steps, Aside, LinkCard } from '@astrojs/starlight/components';
+
+Maina Cloud is the hosted layer that turns Maina from a single-developer CLI into a team-wide verification platform. Shared prompts, hosted verification, feedback-driven prompt evolution, and team analytics — all synced automatically.
+
+<Aside type="tip">
+Maina Cloud is optional. The CLI works fully offline with zero accounts. Cloud adds team features on top.
+</Aside>
+
+## Quick Start
+
+<Steps>
+
+1. **Authenticate**
+
+   ```bash
+   maina login
+   ```
+
+   Opens a browser-based device flow (GitHub OAuth). Your token is stored at `~/.maina/auth.json`.
+
+2. **Sync your prompts**
+
+   ```bash
+   maina sync push     # upload local prompts to your team
+   maina sync pull     # download team prompts
+   ```
+
+3. **Run hosted verification**
+
+   ```bash
+   maina verify --cloud
+   ```
+
+   Your diff is submitted to Maina Cloud. Results come back to your terminal — no local tool installs required.
+
+</Steps>
+
+## Authentication
+
+Maina uses the OAuth device authorization grant (RFC 8628) for CLI login — the same flow GitHub CLI uses.
+
+```bash
+maina login     # start device flow, opens browser
+maina logout    # clear stored credentials
+```
+
+Credentials are stored at `~/.maina/auth.json`. The token is used for all cloud API calls.
+
+<Aside>
+Set `MAINA_CLOUD_URL` to point to a self-hosted instance if your org runs its own Maina Cloud.
+</Aside>
+
+## Cloud Verification
+
+Submit your diff to the hosted pipeline instead of running tools locally. Useful for:
+
+- **CI environments** where installing 18+ tools is impractical
+- **Teams with heterogeneous setups** — everyone gets the same verification regardless of local tooling
+- **Quick checks** without waiting for local tool installation
+
+```bash
+maina verify --cloud                  # submit current diff
+maina verify --cloud --base main      # verify against a specific base branch
+```
+
+### How it works
+
+<Steps>
+
+1. **Diff submitted** — Your local diff is sent to the Maina Cloud API
+2. **Pipeline runs** — The full 18-tool pipeline executes on cloud workers
+3. **Findings filtered** — Only findings on changed lines (diff-only)
+4. **Results returned** — Findings stream back to your terminal
+5. **Proof stored** — Verification proof is stored in R2 for auditability
+
+</Steps>
+
+### CI Integration
+
+Use the GitHub Action to verify every PR automatically:
+
+<Tabs>
+  <TabItem label="Cloud (recommended)">
+    ```yaml
+    name: Maina Verify
+    on:
+      pull_request:
+        branches: [main, master]
+
+    jobs:
+      verify:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+          - uses: mainahq/maina/.github/actions/verify@main
+            with:
+              token: ${{ secrets.MAINA_TOKEN }}
+    ```
+  </TabItem>
+  <TabItem label="Local (on runner)">
+    ```yaml
+    - uses: mainahq/maina/.github/actions/verify@main
+      with:
+        base: main
+    ```
+  </TabItem>
+</Tabs>
+
+See the [CI Integration](/ci) docs for inputs, outputs, and advanced configuration.
+
+## Prompt Sync
+
+Every team member's prompts can be shared and kept in sync across the organization.
+
+### Push local prompts
+
+```bash
+maina sync push
+```
+
+Uploads all `.md` files from your local `.maina/prompts/` directory. Each prompt is content-hashed — only changed prompts are uploaded.
+
+### Pull team prompts
+
+```bash
+maina sync pull
+```
+
+Downloads the team's prompt library and merges with your local copies. If a remote prompt conflicts with a local one, the CLI prompts you to resolve the conflict.
+
+### What gets synced
+
+| Artifact | Direction | Description |
+|----------|-----------|-------------|
+| Custom prompts | Push/Pull | `.maina/prompts/*.md` — task-specific prompt templates |
+| Constitution | Push/Pull | `.maina/constitution.md` — project-level rules |
+| Feedback events | Push (auto) | Accept/reject signals sent on every command |
+| Episodic entries | Push/Pull (auto) | Compressed review summaries shared across team |
+| Workflow stats | Push (auto) | Commit counts, pass rates, verification durations |
+
+<Aside type="caution">
+Your code is never uploaded to Maina Cloud. Only prompts, feedback signals, and compressed summaries are synced. Diffs are submitted only when you explicitly run `maina verify --cloud`.
+</Aside>
+
+## Team Management
+
+```bash
+maina team                        # show team info, plan, members
+maina team invite user@example.com  # invite a new member
+```
+
+### Team info
+
+`maina team` shows:
+- Team name and plan tier
+- Seat usage (used / total)
+- Member list with email, role, and join date
+
+### Invitations
+
+`maina team invite <email>` sends an invitation. The invitee receives an email and can join via `maina login`.
+
+Roles:
+- **admin** — manage members, billing, and settings
+- **member** — sync prompts, run cloud verification, contribute feedback
+
+## Feedback and Learning
+
+Maina Cloud aggregates feedback from all team members to improve prompt quality across the organization.
+
+### How feedback flows
+
+<Steps>
+
+1. **Local feedback** — Every `maina commit`, `maina review`, or `maina pr` records an accept/reject signal
+2. **Auto-sync** — Feedback events are automatically uploaded to Maina Cloud on every command (when logged in)
+3. **Analysis** — Cloud aggregates signals across all team members per prompt variant
+4. **Improvements** — `maina learn --cloud` fetches improvement suggestions based on team-wide patterns
+
+</Steps>
+
+### Learn from the team
+
+```bash
+maina learn --cloud
+```
+
+This command:
+1. Uploads any unsent local feedback events
+2. Uploads workflow stats (commit counts, pass rates)
+3. Fetches team-wide improvement suggestions
+4. Shows which prompts are healthy, which need attention, and team-wide accept rates
+
+### Episodic context sharing
+
+When you accept a review or commit, Maina compresses the outcome into an episodic entry and uploads it to the cloud. Other team members automatically receive these entries in their context engine, deduplicated by content hash. This means:
+
+- Reviews your teammate accepted feed into your context
+- The team builds shared institutional knowledge over time
+- Ebbinghaus decay ensures stale entries fade naturally
+
+## Architecture
+
+```
+┌──────────────────────────┐
+│  maina CLI               │
+│                          │
+│  login / logout          │──── ~/.maina/auth.json
+│  sync push / pull        │──┐
+│  verify --cloud          │  │
+│  learn --cloud           │  │
+│  team / team invite      │  │
+│                          │  │
+│  Auto-sync:              │  │
+│  - feedback events       │  │
+│  - episodic entries      │  │
+│  - workflow stats        │  │
+└──────────┬───────────────┘  │
+           │                  │
+           ▼                  ▼
+┌──────────────────────────────────┐
+│  Maina Cloud API                 │
+│  api.mainahq.com                 │
+│                                  │
+│  /auth/device        OAuth flow  │
+│  /prompts            CRUD sync   │
+│  /feedback           Events      │
+│  /feedback/batch     Batch sync  │
+│  /feedback/improvements  RL      │
+│  /feedback/stats     Analytics   │
+│  /context/episodic   Team ctx    │
+│  /verify             Submit diff │
+│  /verify/:id/status  Poll        │
+│  /verify/:id         Results     │
+│  /team               Info        │
+│  /team/members       List        │
+│  /team/invite        Invite      │
+└──────────────────────────────────┘
+```
+
+## Pricing
+
+Maina Cloud is currently in early access. The CLI is free and open source (Apache 2.0) forever. Cloud pricing will be announced with the dashboard launch.
+
+| Tier | Price | Includes |
+|------|-------|---------|
+| **Free** | $0 | CLI, local verification, MCP server, all 18+ tools |
+| **Team** (coming) | TBD | Cloud verification, prompt sync, team analytics, feedback loop |
+| **Enterprise** (coming) | TBD | SSO, audit logging, self-hosted option, custom model fine-tuning |
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard title="Getting Started" description="Install and run your first verification" href="/getting-started" />
+  <LinkCard title="CI Integration" description="GitHub Actions setup for cloud verification" href="/ci" />
+  <LinkCard title="Verify Engine" description="How the 18-tool pipeline works" href="/engines/verify" />
+  <LinkCard title="Commands" description="All 28+ commands including cloud commands" href="/commands" />
+</CardGrid>
