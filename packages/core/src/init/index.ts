@@ -1063,6 +1063,13 @@ async function tryGenerateConstitution(
 	stack: DetectedStack,
 ): Promise<string | null> {
 	try {
+		// Only attempt AI generation if we have an actual API key.
+		// Host delegation just dumps prompts to stderr which confuses users.
+		const { getApiKey } = await import("../config/index");
+		if (!getApiKey()) {
+			return null;
+		}
+
 		const { tryAIGenerate } = await import("../ai/try-generate");
 		const mainaDir = join(repoRoot, ".maina");
 		const summary = buildProjectSummary(repoRoot, stack);
