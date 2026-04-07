@@ -1,5 +1,11 @@
 # @mainahq/cli
 
+## 1.1.5
+
+### Patch Changes
+
+- [`30f4b22`](https://github.com/mainahq/maina/commit/30f4b22a9e60e6ecfb7434adbb463d1df2a5a57a) Thanks [@beeeku](https://github.com/beeeku)! - Fix: replace workspace:^ with real version ranges for @mainahq/core and @mainahq/mcp dependencies. The workspace protocol was being published to npm literally, making the CLI uninstallable.
+
 ## 1.1.4
 
 ### Patch Changes
