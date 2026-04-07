@@ -16,7 +16,7 @@ When changes are ready for review, before merging a PR, or when you want a struc
 
 ## Steps
 
-1. **Run the review** with `maina review`. This performs a two-stage AI-powered review on the current diff.
+1. **Run the review** with `maina review` (or call the `reviewCode` MCP tool). This performs a two-stage AI-powered review on the current diff.
 2. **Stage 1 -- Spec Compliance:** The reviewer checks whether the changes fulfill the plan:
    - Do the changes implement what the spec and plan describe?
    - Are all acceptance criteria addressed?
@@ -70,4 +70,5 @@ maina review
 
 - The review only examines changed lines (diff-only filter), so existing technical debt does not pollute results.
 - This is the one maina command that makes two LLM calls: one for each review stage.
-- Combine with `maina verify` for the complete pre-merge pipeline: deterministic tools first, then AI review.
+- Combine with `maina verify` (or the `verify` MCP tool) for the complete pre-merge pipeline: deterministic tools first, then AI review.
+- All commands are available as both CLI (`maina <command>` or `npx @mainahq/cli <command>`) and MCP tools when running inside an AI coding tool.

@@ -4,7 +4,7 @@
 
 ## Architecture
 
-Two parallel tracks: cloud API client in this repo, Workers service in /Users/Bikash/try/maina-cloud. Shared types ensure contract consistency.
+Two parallel tracks: cloud API client in this repo, Workers service in mainahq/maina-cloud. Shared types ensure contract consistency.
 
 ## Key Technical Decisions
 
@@ -66,7 +66,7 @@ Two parallel tracks: cloud API client in this repo, Workers service in /Users/Bi
 
 ### Track 2: maina-cloud private repo
 
-- [ ] T2.1: Scaffold repo at /Users/Bikash/try/maina-cloud — Bun, Workkit, wrangler.toml
+- [ ] T2.1: Scaffold repo at mainahq/maina-cloud — Bun, Workkit, wrangler.toml
 - [ ] T2.2: Create Workers entrypoint + health endpoint
 - [ ] T2.3: Create D1 schema — teams, members, prompts, feedback tables
 - [ ] T2.4: Create auth endpoints — device flow + token exchange

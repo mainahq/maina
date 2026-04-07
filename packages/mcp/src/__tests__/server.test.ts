@@ -20,10 +20,10 @@ describe("createMcpServer", () => {
 		expect(typeof server.close).toBe("function");
 	});
 
-	test("registers all 8 tools", () => {
+	test("registers all 10 tools", () => {
 		const server = createMcpServer();
 		const names = getRegisteredToolNames(server);
-		expect(names).toHaveLength(8);
+		expect(names).toHaveLength(10);
 	});
 
 	test("registers context tools", () => {

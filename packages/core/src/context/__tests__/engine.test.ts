@@ -156,6 +156,7 @@ describe("assembleContext", () => {
 		expect(typeof result.budget.episodic).toBe("number");
 		expect(typeof result.budget.semantic).toBe("number");
 		expect(typeof result.budget.retrieval).toBe("number");
+		expect(typeof result.budget.wiki).toBe("number");
 		expect(typeof result.budget.total).toBe("number");
 		expect(typeof result.budget.headroom).toBe("number");
 		expect(result.budget.total).toBeGreaterThan(0);

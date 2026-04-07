@@ -17,6 +17,7 @@ export interface ContextNeeds {
 	episodic: boolean | string[];
 	semantic: boolean | string[];
 	retrieval: boolean;
+	wiki: boolean;
 }
 
 const CONTEXT_NEEDS: Record<MainaCommand, ContextNeeds> = {
@@ -25,45 +26,70 @@ const CONTEXT_NEEDS: Record<MainaCommand, ContextNeeds> = {
 		episodic: false,
 		semantic: ["conventions"],
 		retrieval: false,
+		wiki: true,
 	},
 	verify: {
 		working: true,
 		episodic: ["recent-reviews"],
 		semantic: ["adrs", "conventions"],
 		retrieval: false,
+		wiki: true,
 	},
-	context: { working: true, episodic: true, semantic: true, retrieval: true },
+	context: {
+		working: true,
+		episodic: true,
+		semantic: true,
+		retrieval: true,
+		wiki: true,
+	},
 	review: {
 		working: true,
 		episodic: ["past-reviews"],
 		semantic: ["adrs"],
 		retrieval: false,
+		wiki: true,
 	},
 	plan: {
 		working: true,
 		semantic: ["adrs", "conventions"],
 		episodic: false,
 		retrieval: false,
+		wiki: true,
 	},
-	explain: { working: true, episodic: false, semantic: true, retrieval: true },
+	explain: {
+		working: true,
+		episodic: false,
+		semantic: true,
+		retrieval: true,
+		wiki: true,
+	},
 	design: {
 		working: true,
 		episodic: false,
 		semantic: ["adrs"],
 		retrieval: false,
+		wiki: true,
 	},
 	ticket: {
 		working: false,
 		episodic: false,
 		semantic: ["modules"],
 		retrieval: false,
+		wiki: false,
 	},
-	analyze: { working: true, episodic: true, semantic: true, retrieval: false },
+	analyze: {
+		working: true,
+		episodic: true,
+		semantic: true,
+		retrieval: false,
+		wiki: true,
+	},
 	pr: {
 		working: true,
 		episodic: ["past-reviews"],
 		semantic: true,
 		retrieval: true,
+		wiki: true,
 	},
 };
 
@@ -73,7 +99,7 @@ export function getContextNeeds(command: MainaCommand): ContextNeeds {
 
 export function needsLayer(
 	needs: ContextNeeds,
-	layer: "working" | "episodic" | "semantic" | "retrieval",
+	layer: "working" | "episodic" | "semantic" | "retrieval" | "wiki",
 ): boolean {
 	const value = needs[layer];
 	if (Array.isArray(value)) {

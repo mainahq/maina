@@ -7,8 +7,8 @@ import {
 	test,
 } from "bun:test";
 
-// bootstrap() spawns tool-detection processes — CI needs more time
-setDefaultTimeout(15_000);
+// bootstrap() spawns tool-detection processes — CI runners need more time
+setDefaultTimeout(30_000);
 
 import {
 	existsSync,

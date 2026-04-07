@@ -3,32 +3,70 @@ title: MCP Server
 description: Add Maina's verification, context, and review tools to any MCP-compatible IDE.
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 Maina includes an MCP (Model Context Protocol) server that exposes its engines to any MCP-compatible IDE -- Claude Code, Cursor, Windsurf, and others.
 
 ## Setup
 
-Add one entry to your IDE's MCP configuration:
+The install script handles this automatically:
 
-```json
-{
-  "mcpServers": {
-    "maina": {
-      "command": "maina",
-      "args": ["--mcp"]
-    }
-  }
-}
+```bash
+curl -fsSL https://mainahq.com/install | bash
 ```
 
-**For Claude Code**, add this to your `claude_desktop_config.json` or project `.mcp.json`.
+Or configure manually per tool:
 
-**For Cursor**, add this to your MCP settings.
+<Tabs>
+  <TabItem label="Claude Code">
+    `.claude/settings.json` (auto-created by `maina init`):
+    ```json
+    {"mcpServers":{"maina":{"command":"npx","args":["@mainahq/cli","--mcp"]}}}
+    ```
+  </TabItem>
+  <TabItem label="Cursor">
+    `.cursor/mcp.json` or `.mcp.json`:
+    ```json
+    {"mcpServers":{"maina":{"command":"npx","args":["@mainahq/cli","--mcp"]}}}
+    ```
+  </TabItem>
+  <TabItem label="Windsurf">
+    `~/.codeium/windsurf/mcp_config.json`:
+    ```json
+    {"mcpServers":{"maina":{"command":"npx","args":["@mainahq/cli","--mcp"]}}}
+    ```
+  </TabItem>
+  <TabItem label="Continue.dev">
+    `.continue/mcpServers/maina.json` (auto-discovered):
+    ```json
+    {"maina":{"command":"npx","args":["@mainahq/cli","--mcp"]}}
+    ```
+  </TabItem>
+  <TabItem label="Roo Code">
+    `.roo/mcp.json`:
+    ```json
+    {"mcpServers":{"maina":{"command":"npx","args":["@mainahq/cli","--mcp"]}}}
+    ```
+  </TabItem>
+  <TabItem label="Amazon Q">
+    `.amazonq/mcp.json`:
+    ```json
+    {"mcpServers":{"maina":{"command":"npx","args":["@mainahq/cli","--mcp"]}}}
+    ```
+  </TabItem>
+  <TabItem label="Zed">
+    `~/.config/zed/settings.json` under `context_servers`:
+    ```json
+    {"context_servers":{"maina":{"command":{"path":"npx","args":["@mainahq/cli","--mcp"]},"source":"custom"}}}
+    ```
+  </TabItem>
+</Tabs>
 
-That's it. No plugins, no extensions, no separate server process.
+No plugins, no extensions, no separate server process.
 
 ## Tools
 
-The MCP server exposes 8 tools, each delegating to the appropriate engine:
+The MCP server exposes 10 tools, each delegating to the appropriate engine:
 
 | Tool | Description | Engine |
 |------|------------|--------|
@@ -40,6 +78,8 @@ The MCP server exposes 8 tools, each delegating to the appropriate engine:
 | `explainModule` | Get a Mermaid dependency diagram for a directory. Visualizes module structure and cross-file references. | Context |
 | `suggestTests` | Generate TDD test stubs from a plan.md file. Returns test code with red-green annotations. | Prompt + Context |
 | `analyzeFeature` | Check spec/plan/tasks consistency for a feature. Reports mismatches and orphaned artifacts. | Context |
+| `wikiQuery` | Search and synthesize answers from codebase wiki. Returns AI-generated answer with source citations. | Context (L5) |
+| `wikiStatus` | Wiki health dashboard — article counts, coverage, staleness. | Context |
 
 ## How It Works
 
@@ -59,6 +99,8 @@ maina --mcp
   +-- explainModule ----> Context Engine (semantic layer + tree-sitter)
   +-- suggestTests -----> Prompt Engine + Context Engine
   +-- analyzeFeature ---> Context Engine (cross-artifact analysis)
+  +-- wikiQuery -------> Context Engine (L5 wiki layer)
+  +-- wikiStatus ------> Context Engine (wiki health)
   |
   +-- Cache (all tools respect the 3-layer cache)
 ```
@@ -74,5 +116,6 @@ With the MCP server running, your IDE's AI assistant gains:
 - **Inline verification** -- `verify` and `checkSlop` catch issues as you write, not after you commit.
 - **Review on demand** -- `reviewCode` gives you the same two-stage review the CLI provides, inside your editor.
 - **Test suggestions** -- `suggestTests` generates TDD stubs from your plan files.
+- **Wiki search** -- `wikiQuery` searches compiled codebase knowledge and returns AI-synthesized answers with citations.
 
 The MCP server is the same three engines, accessible from any tool that speaks MCP.

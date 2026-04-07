@@ -7,6 +7,7 @@ import {
 	createCandidate,
 	createCloudClient,
 	exportFeedbackForCloud,
+	getWikiEffectivenessReport,
 	loadAuthConfig,
 	type PromptTask,
 	resolveABTests,
@@ -109,6 +110,65 @@ export function learnCommand(): Command {
 					return `  ${r.workflowId.padEnd(14)} ${String(r.totalSteps).padStart(6)}  ${String(r.passedSteps).padStart(7)}  ${rate.padStart(6)}`;
 				});
 				log.message([runHeader, runSeparator, ...runRows].join("\n"));
+			}
+
+			// Wiki effectiveness
+			const signalsFile = join(mainaDir, "wiki", ".signals.json");
+			const wikiReport = getWikiEffectivenessReport(signalsFile);
+			if (wikiReport.totalLoads > 0) {
+				const uniqueCommands = new Set(
+					wikiReport.articleStats.map((a) => a.article),
+				).size;
+				log.step("Wiki Effectiveness:");
+				log.message(
+					[
+						`  Articles loaded: ${wikiReport.totalLoads} (across ${uniqueCommands} article(s))`,
+						`  Accept rate: ${Math.round(wikiReport.acceptRate * 100)}%`,
+					].join("\n"),
+				);
+
+				// Top effective articles (top 5 with at least 2 loads)
+				const topArticles = wikiReport.articleStats
+					.filter((a) => a.loads >= 2)
+					.slice(0, 5);
+				if (topArticles.length > 0) {
+					const topLines = topArticles.map(
+						(a) =>
+							`    ${a.article} — ${Math.round(a.effectivenessScore * 100)}% (${a.accepts}/${a.loads})`,
+					);
+					log.message(
+						["", "  Top effective articles:", ...topLines].join("\n"),
+					);
+				}
+
+				// Negative-signal articles
+				if (wikiReport.negativeArticles.length > 0) {
+					const negLines = wikiReport.negativeArticles
+						.slice(0, 5)
+						.map((art) => {
+							const stat = wikiReport.articleStats.find(
+								(a) => a.article === art,
+							);
+							const detail = stat
+								? ` — ${Math.round(stat.effectivenessScore * 100)}% (${stat.accepts}/${stat.loads})`
+								: "";
+							return `    ${art}${detail}`;
+						});
+					log.message(
+						[
+							"",
+							"  Negative-signal articles (flag for recompilation):",
+							...negLines,
+						].join("\n"),
+					);
+				}
+
+				// Dormant articles
+				if (wikiReport.dormantArticles.length > 0) {
+					log.message(
+						`\n  Dormant articles (ebbinghaus < 0.2): ${wikiReport.dormantArticles.length}`,
+					);
+				}
 			}
 
 			// Resolve active A/B tests

@@ -64,6 +64,32 @@ export function appendWorkflowStep(
 }
 
 /**
+ * Append wiki reference tracking to the workflow file.
+ * Records which wiki articles were read and written during a workflow step.
+ */
+export function appendWikiRefs(
+	mainaDir: string,
+	step: string,
+	refsRead: string[],
+	refsWritten: string[],
+): void {
+	const filePath = workflowFilePath(mainaDir);
+	if (!existsSync(filePath)) {
+		const dir = dirname(filePath);
+		if (!existsSync(dir)) {
+			mkdirSync(dir, { recursive: true });
+		}
+		writeFileSync(filePath, "# Workflow\n");
+	}
+
+	const readList = refsRead.length > 0 ? refsRead.join(", ") : "_none_";
+	const writtenList =
+		refsWritten.length > 0 ? refsWritten.join(", ") : "_none_";
+	const entry = `\nWiki refs for ${step}:\n  Read: ${readList}\n  Written: ${writtenList}\n`;
+	appendFileSync(filePath, entry);
+}
+
+/**
  * Load the current workflow context.
  * Returns the full markdown content, or null if no workflow is active.
  */

@@ -49,7 +49,7 @@ maina verify --cloud
 | `packages/core/src/index.ts` | Re-export verify types | Modified |
 | `packages/cli/src/commands/verify.ts` | Add --cloud flag, polling logic, cloud result rendering | Modified |
 
-### maina-cloud repo (/Users/Bikash/try/maina-cloud)
+### maina-cloud repo (mainahq/maina-cloud)
 
 | File | Purpose | New/Modified |
 |------|---------|-------------|

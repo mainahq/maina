@@ -274,7 +274,12 @@ describe("bootstrap", () => {
 
 	// ── .mcp.json generation ──────────────────────────────────────────────
 
-	test("creates .mcp.json at repo root", async () => {
+	test("creates .mcp.json at repo root with npx for node runtime", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ dependencies: { express: "^4" } }),
+		);
+
 		const result = await bootstrap(tmpDir);
 		expect(result.ok).toBe(true);
 
@@ -284,8 +289,25 @@ describe("bootstrap", () => {
 		const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
 		expect(content.mcpServers).toBeDefined();
 		expect(content.mcpServers.maina).toBeDefined();
-		expect(content.mcpServers.maina.command).toBe("maina");
-		expect(content.mcpServers.maina.args).toEqual(["--mcp"]);
+		expect(content.mcpServers.maina.command).toBe("npx");
+		expect(content.mcpServers.maina.args).toEqual(["@mainahq/cli", "--mcp"]);
+	});
+
+	test("creates .mcp.json with bunx for bun runtime", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ devDependencies: { "@types/bun": "latest" } }),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const mcpPath = join(tmpDir, ".mcp.json");
+		expect(existsSync(mcpPath)).toBe(true);
+
+		const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
+		expect(content.mcpServers.maina.command).toBe("bunx");
+		expect(content.mcpServers.maina.args).toEqual(["@mainahq/cli", "--mcp"]);
 	});
 
 	test("does not overwrite existing .mcp.json", async () => {
@@ -513,13 +535,388 @@ describe("bootstrap", () => {
 				".github/workflows/maina-ci.yml",
 				".github/copilot-instructions.md",
 				".mcp.json",
+				".claude/settings.json",
 				"CLAUDE.md",
 				"GEMINI.md",
 				".cursorrules",
+				".windsurfrules",
+				".clinerules",
+				".continue/config.yaml",
+				".continue/mcpServers/maina.json",
+				".roo/mcp.json",
+				".roo/rules/maina.md",
+				".amazonq/mcp.json",
+				".aider.conf.yml",
+				"CONVENTIONS.md",
 			];
 			for (const f of expectedFiles) {
 				expect(result.value.created).toContain(f);
 			}
+		}
+	});
+
+	// ── .claude/settings.json generation ──────────────────────────────────
+
+	test("creates .claude/settings.json for Claude Code MCP config", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ devDependencies: { "@types/bun": "latest" } }),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const settingsPath = join(tmpDir, ".claude", "settings.json");
+		expect(existsSync(settingsPath)).toBe(true);
+
+		const content = JSON.parse(readFileSync(settingsPath, "utf-8"));
+		expect(content.mcpServers).toBeDefined();
+		expect(content.mcpServers.maina).toBeDefined();
+		expect(content.mcpServers.maina.command).toBe("bunx");
+		expect(content.mcpServers.maina.args).toEqual(["@mainahq/cli", "--mcp"]);
+	});
+
+	test(".claude/settings.json uses npx for node runtime", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ dependencies: { express: "^4" } }),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const settingsPath = join(tmpDir, ".claude", "settings.json");
+		expect(existsSync(settingsPath)).toBe(true);
+
+		const content = JSON.parse(readFileSync(settingsPath, "utf-8"));
+		expect(content.mcpServers.maina.command).toBe("npx");
+		expect(content.mcpServers.maina.args).toEqual(["@mainahq/cli", "--mcp"]);
+	});
+
+	// ── CLAUDE.md includes wiki commands ─────────────────────────────────
+
+	test("CLAUDE.md includes wiki commands", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const content = readFileSync(join(tmpDir, "CLAUDE.md"), "utf-8");
+		expect(content).toContain("maina wiki init");
+		expect(content).toContain("maina wiki query");
+		expect(content).toContain("maina wiki compile");
+		expect(content).toContain("maina wiki status");
+		expect(content).toContain("maina wiki lint");
+		expect(content).toContain("maina brainstorm");
+		expect(content).toContain("maina ticket");
+		expect(content).toContain("maina design");
+		expect(content).toContain("maina spec");
+		expect(content).toContain("maina slop");
+		expect(content).toContain("maina explain");
+		expect(content).toContain("maina status");
+	});
+
+	// ── MCP_TOOLS_TABLE includes wiki tools ──────────────────────────────
+
+	test("MCP tools table includes wikiQuery and wikiStatus", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		// Check multiple agent files that embed the MCP tools table
+		const claudeContent = readFileSync(join(tmpDir, "CLAUDE.md"), "utf-8");
+		expect(claudeContent).toContain("wikiQuery");
+		expect(claudeContent).toContain("wikiStatus");
+
+		const agentsContent = readFileSync(join(tmpDir, "AGENTS.md"), "utf-8");
+		expect(agentsContent).toContain("wikiQuery");
+		expect(agentsContent).toContain("wikiStatus");
+	});
+
+	// ── Wiki section in agent files ──────────────────────────────────────
+
+	test("agent files include wiki section", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const claudeContent = readFileSync(join(tmpDir, "CLAUDE.md"), "utf-8");
+		expect(claudeContent).toContain("## Wiki");
+		expect(claudeContent).toContain("wikiQuery");
+
+		const agentsContent = readFileSync(join(tmpDir, "AGENTS.md"), "utf-8");
+		expect(agentsContent).toContain("## Wiki");
+
+		const geminiContent = readFileSync(join(tmpDir, "GEMINI.md"), "utf-8");
+		expect(geminiContent).toContain("## Wiki");
+
+		const cursorContent = readFileSync(join(tmpDir, ".cursorrules"), "utf-8");
+		expect(cursorContent).toContain("## Wiki");
+
+		const copilotContent = readFileSync(
+			join(tmpDir, ".github", "copilot-instructions.md"),
+			"utf-8",
+		);
+		expect(copilotContent).toContain("## Wiki");
+	});
+
+	// ── Windsurf ──────────────────────────────────────────────────────────
+
+	test("creates .windsurfrules at repo root", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const filePath = join(tmpDir, ".windsurfrules");
+		expect(existsSync(filePath)).toBe(true);
+
+		const content = readFileSync(filePath, "utf-8");
+		expect(content).toContain("Windsurf Rules");
+		expect(content).toContain("constitution.md");
+		expect(content).toContain("brainstorm");
+		expect(content).toContain("maina verify");
+		expect(content).toContain("getContext");
+		expect(content).toContain("checkSlop");
+	});
+
+	test(".windsurfrules includes MCP tools table", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const content = readFileSync(join(tmpDir, ".windsurfrules"), "utf-8");
+		expect(content).toContain("MCP Tools");
+		expect(content).toContain("getContext");
+		expect(content).toContain("reviewCode");
+		expect(content).toContain("wikiQuery");
+	});
+
+	test("merges maina section into existing .windsurfrules", async () => {
+		writeFileSync(join(tmpDir, ".windsurfrules"), "# My Windsurf Rules\n");
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.updated).toContain(".windsurfrules");
+		}
+
+		const content = readFileSync(join(tmpDir, ".windsurfrules"), "utf-8");
+		expect(content).toContain("# My Windsurf Rules");
+		expect(content).toContain("## Maina");
+	});
+
+	// ── Cline ─────────────────────────────────────────────────────────────
+
+	test("creates .clinerules at repo root", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const filePath = join(tmpDir, ".clinerules");
+		expect(existsSync(filePath)).toBe(true);
+
+		const content = readFileSync(filePath, "utf-8");
+		expect(content).toContain("Cline Rules");
+		expect(content).toContain("constitution.md");
+		expect(content).toContain("brainstorm");
+		expect(content).toContain("maina verify");
+		expect(content).toContain("getContext");
+		expect(content).toContain("checkSlop");
+	});
+
+	test("merges maina section into existing .clinerules", async () => {
+		writeFileSync(join(tmpDir, ".clinerules"), "# My Cline Rules\n");
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.updated).toContain(".clinerules");
+		}
+
+		const content = readFileSync(join(tmpDir, ".clinerules"), "utf-8");
+		expect(content).toContain("# My Cline Rules");
+		expect(content).toContain("## Maina");
+	});
+
+	// ── Continue.dev ──────────────────────────────────────────────────────
+
+	test("creates .continue/mcpServers/maina.json", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const mcpPath = join(tmpDir, ".continue", "mcpServers", "maina.json");
+		expect(existsSync(mcpPath)).toBe(true);
+
+		const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
+		expect(content.maina).toBeDefined();
+		expect(content.maina.command).toBe("npx");
+		expect(content.maina.args).toEqual(["@mainahq/cli", "--mcp"]);
+	});
+
+	test("creates .continue/config.yaml", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const configPath = join(tmpDir, ".continue", "config.yaml");
+		expect(existsSync(configPath)).toBe(true);
+
+		const content = readFileSync(configPath, "utf-8");
+		expect(content).toContain("customInstructions");
+		expect(content).toContain("Maina");
+		expect(content).toContain("constitution.md");
+	});
+
+	test(".continue/mcpServers/maina.json uses bunx for bun runtime", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ devDependencies: { "@types/bun": "latest" } }),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const mcpPath = join(tmpDir, ".continue", "mcpServers", "maina.json");
+		const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
+		expect(content.maina.command).toBe("bunx");
+	});
+
+	// ── Roo Code ──────────────────────────────────────────────────────────
+
+	test("creates .roo/mcp.json", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const mcpPath = join(tmpDir, ".roo", "mcp.json");
+		expect(existsSync(mcpPath)).toBe(true);
+
+		const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
+		expect(content.mcpServers).toBeDefined();
+		expect(content.mcpServers.maina).toBeDefined();
+		expect(content.mcpServers.maina.command).toBe("npx");
+		expect(content.mcpServers.maina.args).toEqual(["@mainahq/cli", "--mcp"]);
+	});
+
+	test("creates .roo/rules/maina.md with MCP tools", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const rulesPath = join(tmpDir, ".roo", "rules", "maina.md");
+		expect(existsSync(rulesPath)).toBe(true);
+
+		const content = readFileSync(rulesPath, "utf-8");
+		expect(content).toContain("# Maina");
+		expect(content).toContain("constitution.md");
+		expect(content).toContain("getContext");
+		expect(content).toContain("checkSlop");
+		expect(content).toContain("reviewCode");
+		expect(content).toContain("wikiQuery");
+	});
+
+	test(".roo/mcp.json uses bunx for bun runtime", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ devDependencies: { "@types/bun": "latest" } }),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const mcpPath = join(tmpDir, ".roo", "mcp.json");
+		const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
+		expect(content.mcpServers.maina.command).toBe("bunx");
+	});
+
+	// ── Amazon Q ──────────────────────────────────────────────────────────
+
+	test("creates .amazonq/mcp.json", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const mcpPath = join(tmpDir, ".amazonq", "mcp.json");
+		expect(existsSync(mcpPath)).toBe(true);
+
+		const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
+		expect(content.mcpServers).toBeDefined();
+		expect(content.mcpServers.maina).toBeDefined();
+		expect(content.mcpServers.maina.command).toBe("npx");
+		expect(content.mcpServers.maina.args).toEqual(["@mainahq/cli", "--mcp"]);
+	});
+
+	test(".amazonq/mcp.json uses bunx for bun runtime", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ devDependencies: { "@types/bun": "latest" } }),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const mcpPath = join(tmpDir, ".amazonq", "mcp.json");
+		const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
+		expect(content.mcpServers.maina.command).toBe("bunx");
+	});
+
+	// ── Aider ─────────────────────────────────────────────────────────────
+
+	test("creates .aider.conf.yml", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const configPath = join(tmpDir, ".aider.conf.yml");
+		expect(existsSync(configPath)).toBe(true);
+
+		const content = readFileSync(configPath, "utf-8");
+		expect(content).toContain("CONVENTIONS.md");
+		expect(content).toContain("constitution.md");
+		expect(content).toContain("auto-commits: false");
+	});
+
+	test("creates CONVENTIONS.md", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const convPath = join(tmpDir, "CONVENTIONS.md");
+		expect(existsSync(convPath)).toBe(true);
+
+		const content = readFileSync(convPath, "utf-8");
+		expect(content).toContain("# Conventions");
+		expect(content).toContain("constitution.md");
+		expect(content).toContain("brainstorm");
+		expect(content).toContain("getContext");
+		expect(content).toContain("checkSlop");
+		expect(content).toContain("reviewCode");
+		expect(content).toContain("maina verify");
+		expect(content).toContain("wikiQuery");
+	});
+
+	test("merges maina section into existing CONVENTIONS.md", async () => {
+		writeFileSync(join(tmpDir, "CONVENTIONS.md"), "# My Conventions\n");
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.updated).toContain("CONVENTIONS.md");
+		}
+
+		const content = readFileSync(join(tmpDir, "CONVENTIONS.md"), "utf-8");
+		expect(content).toContain("# My Conventions");
+		expect(content).toContain("## Maina");
+	});
+
+	// ── All rules files consistent ───────────────────────────────────────
+
+	test("all rules files contain MCP tools table", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const rulesFiles = [
+			".cursorrules",
+			".windsurfrules",
+			".clinerules",
+			".roo/rules/maina.md",
+			"CONVENTIONS.md",
+		];
+
+		for (const f of rulesFiles) {
+			const content = readFileSync(join(tmpDir, f), "utf-8");
+			expect(content).toContain("getContext");
+			expect(content).toContain("checkSlop");
+			expect(content).toContain("reviewCode");
+			expect(content).toContain("suggestTests");
+			expect(content).toContain("wikiQuery");
 		}
 	});
 });

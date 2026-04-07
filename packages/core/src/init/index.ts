@@ -332,7 +332,9 @@ const MCP_TOOLS_TABLE = `| Tool | When to use |
 | \`suggestTests\` | When implementing — generate TDD test stubs |
 | \`getConventions\` | Understand project coding conventions |
 | \`explainModule\` | Understand a module's purpose and dependencies |
-| \`analyzeFeature\` | Analyze a feature directory for consistency |`;
+| \`analyzeFeature\` | Analyze a feature directory for consistency |
+| \`wikiQuery\` | Search wiki for codebase knowledge — "how does auth work?" |
+| \`wikiStatus\` | Wiki health check — article counts, staleness, coverage |`;
 
 // ── Templates ────────────────────────────────────────────────────────────────
 
@@ -465,6 +467,13 @@ maina commit    # verify + commit
 
 ${MCP_TOOLS_TABLE}
 
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
+
 ## Config Files
 | File | Purpose | Who Edits |
 |------|---------|-----------|
@@ -474,6 +483,13 @@ ${MCP_TOOLS_TABLE}
 | \`CLAUDE.md\` | Claude Code specific instructions | Optional, Claude Code users |
 | \`GEMINI.md\` | Gemini CLI specific instructions | Optional, Gemini CLI users |
 | \`.cursorrules\` | Cursor specific instructions | Optional, Cursor users |
+| \`.windsurfrules\` | Windsurf specific instructions | Optional, Windsurf users |
+| \`.clinerules\` | Cline specific instructions | Optional, Cline users |
+| \`.continue/\` | Continue.dev config + MCP | Optional, Continue.dev users |
+| \`.roo/\` | Roo Code MCP config + rules | Optional, Roo Code users |
+| \`.amazonq/mcp.json\` | Amazon Q MCP config | Optional, Amazon Q users |
+| \`.aider.conf.yml\` | Aider config | Optional, Aider users |
+| \`CONVENTIONS.md\` | Project conventions (Aider, generic) | Team |
 | \`.mcp.json\` | MCP server configuration | Team |
 | \`.maina/prompts/*.md\` | Prompt overrides for review/commit/etc | Maina (via \`maina learn\`) |
 
@@ -506,6 +522,13 @@ Follow this order for every feature:
 
 ${MCP_TOOLS_TABLE}
 
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
+
 ## Conventions
 
 - Runtime: ${stack.runtime}
@@ -529,6 +552,10 @@ const MERGEABLE_AGENT_FILES = [
 	"GEMINI.md",
 	".cursorrules",
 	".github/copilot-instructions.md",
+	".windsurfrules",
+	".clinerules",
+	".roo/rules/maina.md",
+	"CONVENTIONS.md",
 ];
 
 /**
@@ -551,13 +578,32 @@ ${MCP_TOOLS_TABLE}
 
 // ── .mcp.json ───────────────────────────────────────────────────────────────
 
-function buildMcpJson(): string {
+function buildMcpJson(stack: DetectedStack): string {
+	const command = stack.runtime === "bun" ? "bunx" : "npx";
 	return JSON.stringify(
 		{
 			mcpServers: {
 				maina: {
-					command: "maina",
-					args: ["--mcp"],
+					command,
+					args: ["@mainahq/cli", "--mcp"],
+				},
+			},
+		},
+		null,
+		2,
+	);
+}
+
+// ── .claude/settings.json (Claude Code MCP config) ─────────────────────────
+
+function buildClaudeSettings(stack: DetectedStack): string {
+	const command = stack.runtime === "bun" ? "bunx" : "npx";
+	return JSON.stringify(
+		{
+			mcpServers: {
+				maina: {
+					command,
+					args: ["@mainahq/cli", "--mcp"],
 				},
 			},
 		},
@@ -586,16 +632,42 @@ Maina exposes MCP tools — use them in every session:
 
 ${MCP_TOOLS_TABLE}
 
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
+
 ## Commands
 
 \`\`\`bash
-maina verify    # run full verification pipeline
-maina commit    # verify + commit
-maina review    # two-stage code review
-maina context   # generate focused codebase context
-maina doctor    # check tool health
-maina plan      # create feature with spec/plan/tasks
-maina stats     # show verification metrics
+# Workflow
+maina brainstorm  # explore ideas interactively
+maina ticket      # create GitHub issue with module tagging
+maina plan <name> # scaffold feature branch + directory
+maina design      # create ADR (architecture decision record)
+maina spec        # generate TDD test stubs from plan
+
+# Verify & Review
+maina verify      # run full verification pipeline (12+ tools)
+maina review      # two-stage code review
+maina slop        # detect AI-generated slop patterns
+maina commit      # verify + commit staged changes
+
+# Wiki (codebase knowledge)
+maina wiki init    # compile codebase knowledge wiki
+maina wiki query   # ask questions about the codebase
+maina wiki compile # recompile wiki (incremental)
+maina wiki status  # wiki health dashboard
+maina wiki lint    # check wiki for issues
+
+# Context & Info
+maina context     # generate focused codebase context
+maina explain     # explain a module with wiki context
+maina doctor      # check tool health
+maina stats       # verification metrics
+maina status      # branch health overview
 \`\`\`
 
 ## Conventions
@@ -629,6 +701,13 @@ Maina exposes MCP tools via \`.mcp.json\`. Use them:
 
 ${MCP_TOOLS_TABLE}
 
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
+
 ## Key Commands
 
 - \`maina verify\` — run full verification pipeline
@@ -661,6 +740,13 @@ ${WORKFLOW_ORDER}
 ## MCP Tools (via .mcp.json)
 ${MCP_TOOLS_TABLE}
 
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
+
 ## Commands
 - maina verify — run full verification pipeline
 - maina commit — verify + commit
@@ -674,6 +760,236 @@ ${MCP_TOOLS_TABLE}
 - No console.log in production
 - Diff-only: only report findings on changed lines
 - TDD: write tests first, then implement
+`;
+}
+
+// ── Windsurf ────────────────────────────────────────────────────────────────
+
+function buildWindsurfRules(stack: DetectedStack): string {
+	const runCmd = stack.runtime === "bun" ? "bun" : "npm";
+	return `# Windsurf Rules
+
+This repo uses Maina for verification-first development.
+Read \`.maina/constitution.md\` for project DNA.
+
+## Workflow Order
+${WORKFLOW_ORDER}
+
+## MCP Tools (via .mcp.json)
+${MCP_TOOLS_TABLE}
+
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
+
+## Commands
+- maina verify — run full verification pipeline
+- maina commit — verify + commit
+- maina review — two-stage code review
+- maina context — generate focused codebase context
+
+## Conventions
+- Runtime: ${stack.runtime}
+- Test: ${runCmd} test
+- Conventional commits
+- No console.log in production
+- Diff-only: only report findings on changed lines
+- TDD: write tests first, then implement
+`;
+}
+
+// ── Cline ───────────────────────────────────────────────────────────────────
+
+function buildClineRules(stack: DetectedStack): string {
+	const runCmd = stack.runtime === "bun" ? "bun" : "npm";
+	return `# Cline Rules
+
+This repo uses Maina for verification-first development.
+Read \`.maina/constitution.md\` for project DNA.
+
+## Workflow Order
+${WORKFLOW_ORDER}
+
+## MCP Tools (via .mcp.json)
+${MCP_TOOLS_TABLE}
+
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
+
+## Commands
+- maina verify — run full verification pipeline
+- maina commit — verify + commit
+- maina review — two-stage code review
+- maina context — generate focused codebase context
+
+## Conventions
+- Runtime: ${stack.runtime}
+- Test: ${runCmd} test
+- Conventional commits
+- No console.log in production
+- Diff-only: only report findings on changed lines
+- TDD: write tests first, then implement
+`;
+}
+
+// ── Continue.dev ─────────────────────────────────────────────────────────────
+
+function buildContinueConfig(_stack: DetectedStack): string {
+	return `# Continue.dev configuration — auto-generated by maina init
+# See https://docs.continue.dev/reference/config
+
+customInstructions: |
+  This repo uses Maina for verification-first development.
+  Read .maina/constitution.md for project DNA.
+  Workflow: ${WORKFLOW_ORDER}
+  Always run maina verify before committing.
+  Use MCP tools: getContext, verify, checkSlop, reviewCode, suggestTests.
+`;
+}
+
+function buildContinueMcpJson(stack: DetectedStack): string {
+	const command = stack.runtime === "bun" ? "bunx" : "npx";
+	return JSON.stringify(
+		{
+			maina: {
+				command,
+				args: ["@mainahq/cli", "--mcp"],
+			},
+		},
+		null,
+		2,
+	);
+}
+
+// ── Roo Code ────────────────────────────────────────────────────────────────
+
+function buildRooMcpJson(stack: DetectedStack): string {
+	const command = stack.runtime === "bun" ? "bunx" : "npx";
+	return JSON.stringify(
+		{
+			mcpServers: {
+				maina: {
+					command,
+					args: ["@mainahq/cli", "--mcp"],
+				},
+			},
+		},
+		null,
+		2,
+	);
+}
+
+function buildRooRules(stack: DetectedStack): string {
+	const runCmd = stack.runtime === "bun" ? "bun" : "npm";
+	return `# Maina
+
+This repo uses [Maina](https://mainahq.com) for verification-first development.
+Read \`.maina/constitution.md\` for project DNA.
+
+## Workflow Order
+${WORKFLOW_ORDER}
+
+## MCP Tools
+${MCP_TOOLS_TABLE}
+
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
+
+## Commands
+- maina verify — run full verification pipeline
+- maina commit — verify + commit
+- maina review — two-stage code review
+- maina context — generate focused codebase context
+
+## Conventions
+- Runtime: ${stack.runtime}
+- Test: ${runCmd} test
+- Conventional commits
+- No console.log in production
+- Diff-only: only report findings on changed lines
+- TDD: write tests first, then implement
+`;
+}
+
+// ── Amazon Q ────────────────────────────────────────────────────────────────
+
+function buildAmazonQMcpJson(stack: DetectedStack): string {
+	const command = stack.runtime === "bun" ? "bunx" : "npx";
+	return JSON.stringify(
+		{
+			mcpServers: {
+				maina: {
+					command,
+					args: ["@mainahq/cli", "--mcp"],
+				},
+			},
+		},
+		null,
+		2,
+	);
+}
+
+// ── Aider ───────────────────────────────────────────────────────────────────
+
+function buildAiderConfig(_stack: DetectedStack): string {
+	return `# Maina conventions — auto-generated by maina init
+read: [CONVENTIONS.md, .maina/constitution.md]
+auto-commits: false
+`;
+}
+
+function buildConventionsMd(stack: DetectedStack): string {
+	const runCmd = stack.runtime === "bun" ? "bun" : "npm";
+	return `# Conventions
+
+This repo uses [Maina](https://mainahq.com) for verification-first development.
+Read \`.maina/constitution.md\` for project DNA — stack rules, conventions, and gates.
+
+## Maina Workflow
+
+Follow this order for every feature:
+\`${WORKFLOW_ORDER}\`
+
+## MCP Tools
+
+Maina exposes MCP tools — use them in every session:
+
+${MCP_TOOLS_TABLE}
+
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
+
+## Key Commands
+
+- \`maina verify\` — run full verification pipeline
+- \`maina commit\` — verify + commit
+- \`maina review\` — two-stage code review
+- \`maina context\` — generate focused codebase context
+- \`maina doctor\` — check tool health
+
+## Conventions
+
+- Runtime: ${stack.runtime}
+- Test: \`${runCmd} test\`
+- Conventional commits (feat, fix, refactor, test, docs, chore)
+- No \`console.log\` in production code
+- Diff-only: only report findings on changed lines
+- TDD always — write tests first
 `;
 }
 
@@ -869,7 +1185,11 @@ function getFileManifest(
 		},
 		{
 			relativePath: ".mcp.json",
-			content: buildMcpJson(),
+			content: buildMcpJson(stack),
+		},
+		{
+			relativePath: ".claude/settings.json",
+			content: buildClaudeSettings(stack),
 		},
 		{
 			relativePath: "CLAUDE.md",
@@ -882,6 +1202,42 @@ function getFileManifest(
 		{
 			relativePath: ".cursorrules",
 			content: buildCursorRules(stack),
+		},
+		{
+			relativePath: ".windsurfrules",
+			content: buildWindsurfRules(stack),
+		},
+		{
+			relativePath: ".clinerules",
+			content: buildClineRules(stack),
+		},
+		{
+			relativePath: ".continue/config.yaml",
+			content: buildContinueConfig(stack),
+		},
+		{
+			relativePath: ".continue/mcpServers/maina.json",
+			content: buildContinueMcpJson(stack),
+		},
+		{
+			relativePath: ".roo/mcp.json",
+			content: buildRooMcpJson(stack),
+		},
+		{
+			relativePath: ".roo/rules/maina.md",
+			content: buildRooRules(stack),
+		},
+		{
+			relativePath: ".amazonq/mcp.json",
+			content: buildAmazonQMcpJson(stack),
+		},
+		{
+			relativePath: ".aider.conf.yml",
+			content: buildAiderConfig(stack),
+		},
+		{
+			relativePath: "CONVENTIONS.md",
+			content: buildConventionsMd(stack),
 		},
 	];
 }

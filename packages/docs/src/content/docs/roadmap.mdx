@@ -11,8 +11,8 @@ Maina v1.0.0 launched under the [@mainahq](https://github.com/mainahq) organizat
 
 ### Core (v0.3.x)
 
-- **28+ CLI commands** including `maina brainstorm` as the workflow starting point
-- **18+ tool verification pipeline** -- Biome, ruff, go vet, clippy, dotnet format, Checkstyle, PHPStan, Semgrep, Trivy, Secretlint, SonarQube, Stryker, diff-cover, AI review, slop detection, visual regression, typecheck, consistency check, ZAP, Lighthouse
+- **38+ CLI commands** including `maina brainstorm` as the workflow starting point
+- **19+ tool verification pipeline** -- Biome, ruff, go vet, clippy, dotnet format, Checkstyle, PHPStan, Semgrep, Trivy, Secretlint, SonarQube, Stryker, diff-cover, AI review, slop detection, visual regression, typecheck, consistency check, ZAP, Lighthouse
 - **7 languages** -- TypeScript, Python, Go, Rust, C#/.NET, Java/Kotlin, PHP
 - **Structured AI delegation** -- `---MAINA_AI_REQUEST---` stdout protocol for any MCP-compatible host
 - **Visual verification** -- Playwright screenshot regression testing
@@ -26,8 +26,8 @@ Maina v1.0.0 launched under the [@mainahq](https://github.com/mainahq) organizat
 - **Exit codes** -- 0 (passed), 1 (findings), 2 (tool failure), 3 (config error)
 - **`--auto` flags for `maina spec` and `maina design`** -- CI and scripting workflows
 - **Post-workflow RL trace analysis** -- Proposes prompt improvements fed into `maina learn`
-- **8 MCP tools** for IDE integration
-- **5 cross-platform skills** for Claude Code, Cursor, Codex, Gemini CLI
+- **10 MCP tools** for IDE integration
+- **8 cross-platform skills** for Claude Code, Cursor, Windsurf, Cline, Roo Code, Continue.dev, Codex, Gemini CLI, Amazon Q, Zed, Aider
 
 ### Cloud + Team (v0.5.0–v0.6.0)
 
@@ -125,16 +125,26 @@ Copilot helps write code. CodeRabbit reviews it. DeepSource lints it. Maina **ve
 └─────────────────────────────────────────────────────┘
 ```
 
-## v1.1.0 -- Dashboard + Billing + Self-Improvement Loop ([#44](https://github.com/mainahq/maina/issues/44))
+### Round-trip Flywheel (v1.1.0) ([#70](https://github.com/mainahq/maina/pull/70))
+
+- **Codebase Wiki** -- `maina wiki init/compile/query/status/lint/ingest`. Compiles ~370 articles from code, plans, specs, ADRs, workflow traces. Context Engine Layer 5 with 12% token budget allocation.
+- **Universal install script** -- `curl -fsSL https://mainahq.com/install | bash`. Detects OS, installs maina, finds AI tools, configures MCP automatically.
+- **`maina setup`** -- Guided first-time setup: detects IDE, configures MCP, runs init + doctor
+- **12-tool MCP support** -- Claude Code, Cursor, Windsurf, Cline, Roo Code, Continue.dev, Amazon Q, Zed, Aider, Codex, Gemini CLI, and any MCP-compatible tool
+- **10 MCP tools** -- Added `wikiQuery` and `wikiStatus`
+- **8 cross-platform skills** -- Added `wiki-workflow`, `cloud-workflow`, `onboarding`
+- **Wiki lint** -- 9 automated checks: stale articles, orphan refs, broken links, spec drift, decision violations, coverage gaps, missing rationale, contradictions
+- **`mainahq/self-improve-action` -- Autonomous RL loop** -- Scheduled cron Action (daily/weekly) that collects traces across all recent workflows, analyzes prompt effectiveness, proposes improvements, A/B tests them against historical data, and commits better prompts automatically.
+
+## v1.2.0 -- Dashboard + Billing ([#44](https://github.com/mainahq/maina/issues/44))
 
 - **Metrics API** -- Verification pass rate, cache hit rate, tokens saved, prompt evolution
 - **Dashboard UI** -- CF Pages frontend at app.mainahq.com
 - **Billing** -- Free tier (100 verifications/month), paid tiers via Stripe
 - **OpenAPI docs** -- Full API spec at docs.mainahq.com/api via @workkit/api
 - **SSO** -- Single sign-on for teams
-- **`mainahq/self-improve-action` -- Autonomous RL loop** -- Scheduled cron Action (daily/weekly) that collects traces across all recent workflows, analyzes prompt effectiveness, proposes improvements, A/B tests them against historical data, and commits better prompts automatically.
 
-## v1.2.0 -- CF Workers Skill + Cross-Dogfooding ([#45](https://github.com/mainahq/maina/issues/45))
+## v1.3.0 -- CF Workers Skill + Cross-Dogfooding ([#45](https://github.com/mainahq/maina/issues/45))
 
 - **CF Workers Maina skill** -- Auto-detects `wrangler.toml`, loads Workers-specific rules and prompts
 - **Cross-dogfooding report** -- Quantitative analysis: bugs found, prompts evolved, patterns learned

@@ -17,7 +17,7 @@ Before committing any code change. The verification pipeline catches syntax erro
 ## Steps
 
 1. **Stage your changes** with `git add` as usual.
-2. **Run the pipeline** with `maina verify`. This runs the full verification sequence on staged files only.
+2. **Run the pipeline** with `maina verify` (or call the `verify` MCP tool). This runs the full verification sequence on staged files only.
 3. **Syntax guard (< 500ms):** Biome checks formatting and lint rules first. If this fails, nothing else runs -- fix syntax before proceeding.
 4. **Parallel tool sweep:** Once syntax passes, 18+ tools run simultaneously:
    - **Semgrep** -- pattern-based static analysis for bugs and anti-patterns
@@ -31,6 +31,7 @@ Before committing any code change. The verification pipeline catches syntax erro
 6. **Review findings:** Each finding includes file path, line number, severity, explanation, and a suggested fix.
 7. **Fix and re-run:** Address findings, re-stage, and run `maina verify` again until clean.
 8. **Commit through maina:** Use `maina commit` instead of `git commit`. This ensures the verification pipeline ran and attaches verification metadata to the commit.
+9. **MCP alternative:** All verification commands are also available as MCP tools (`verify`, `checkSlop`, `reviewCode`) when running inside an AI coding tool. Use `npx @mainahq/cli` if `maina` is not installed globally.
 
 ## Example
 

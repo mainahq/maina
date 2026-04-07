@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
 import type { CacheStats, DetectedTool } from "@mainahq/core";
@@ -35,12 +35,29 @@ export interface AIStatus {
 	cacheHitRate: number;
 }
 
+export interface WikiHealth {
+	initialized: boolean;
+	totalArticles: number;
+	staleCount: number;
+	coveragePercent: number;
+	lastCompile: string;
+}
+
+export interface McpHealth {
+	mcpJson: boolean;
+	claudeSettings: boolean;
+	serverCommand: string;
+	toolCount: number;
+}
+
 export interface DoctorActionResult {
 	version: string;
 	tools: DetectedTool[];
 	engines: EngineHealth;
 	cacheStats: CacheStats | null;
 	aiStatus: AIStatus;
+	wikiHealth: WikiHealth;
+	mcpHealth: McpHealth;
 }
 
 // ── Formatting Helpers ───────────────────────────────────────────────────────
@@ -119,6 +136,138 @@ function formatAIStatus(status: AIStatus): string {
 	}
 
 	return lines.join("\n");
+}
+
+function formatWikiHealth(health: WikiHealth): string {
+	if (!health.initialized) {
+		return "  Wiki: not initialized (run `maina wiki init`)";
+	}
+
+	const header = `  ${"Metric".padEnd(16)} Value`;
+	const separator = `  ${"─".repeat(16)} ${"─".repeat(20)}`;
+	const rows = [
+		`  ${"Articles".padEnd(16)} ${health.totalArticles}`,
+		`  ${"Stale".padEnd(16)} ${health.staleCount}`,
+		`  ${"Coverage".padEnd(16)} ${health.coveragePercent}%`,
+		`  ${"Last Compile".padEnd(16)} ${health.lastCompile}`,
+	];
+	return [header, separator, ...rows].join("\n");
+}
+
+// ── MCP Health Check ──────────────────────────────────────────────────────
+
+function checkMcpHealth(cwd: string): McpHealth {
+	const mcpJsonPath = join(cwd, ".mcp.json");
+	const mcpJson = existsSync(mcpJsonPath);
+
+	const claudeSettingsPath = join(cwd, ".claude", "settings.json");
+	let claudeSettings = false;
+	if (existsSync(claudeSettingsPath)) {
+		try {
+			const content = JSON.parse(readFileSync(claudeSettingsPath, "utf-8"));
+			claudeSettings = content?.mcpServers?.maina !== undefined;
+		} catch {
+			// Invalid JSON — not configured
+		}
+	}
+
+	// Determine the server command from .mcp.json
+	let serverCommand = "not configured";
+	let toolCount = 0;
+	if (mcpJson) {
+		try {
+			const content = JSON.parse(readFileSync(mcpJsonPath, "utf-8"));
+			const mainaServer = content?.mcpServers?.maina;
+			if (mainaServer) {
+				serverCommand = `${mainaServer.command} ${(mainaServer.args ?? []).join(" ")}`;
+				// Count known tools: 10 is the current registered count
+				// (getContext, verify, analyzeFeature, explainModule, reviewCode,
+				//  checkSlop, suggestTests, getConventions, wikiQuery, wikiCompile)
+				toolCount = 10;
+			}
+		} catch {
+			// Invalid JSON
+		}
+	}
+
+	return { mcpJson, claudeSettings, serverCommand, toolCount };
+}
+
+function formatMcpHealth(health: McpHealth): string {
+	const lines: string[] = [];
+	lines.push(
+		`  .mcp.json              ${health.mcpJson ? "\u2713 found" : "\u2717 missing"}`,
+	);
+	lines.push(
+		`  .claude/settings.json  ${health.claudeSettings ? "\u2713 found (Claude Code)" : "\u2717 missing (Claude Code)"}`,
+	);
+	if (health.serverCommand !== "not configured") {
+		lines.push(
+			`  MCP Server             \u2713 ${health.toolCount} tools registered`,
+		);
+	} else {
+		lines.push("  MCP Server             \u2717 not configured");
+	}
+	return lines.join("\n");
+}
+
+// ── Wiki Health Check ──────────────────────────────────────────────────────
+
+function countMdFiles(dir: string): number {
+	if (!existsSync(dir)) return 0;
+	let count = 0;
+	try {
+		const entries = readdirSync(dir, { withFileTypes: true });
+		for (const entry of entries) {
+			if (entry.isFile() && entry.name.endsWith(".md")) {
+				count++;
+			} else if (entry.isDirectory()) {
+				count += countMdFiles(join(dir, entry.name));
+			}
+		}
+	} catch {
+		// ignore read errors
+	}
+	return count;
+}
+
+function checkWikiHealth(cwd: string): WikiHealth {
+	const wikiDir = join(cwd, ".maina", "wiki");
+	if (!existsSync(wikiDir)) {
+		return {
+			initialized: false,
+			totalArticles: 0,
+			staleCount: 0,
+			coveragePercent: 0,
+			lastCompile: "never",
+		};
+	}
+
+	const totalArticles = countMdFiles(wikiDir);
+
+	let lastCompile = "never";
+	let coveragePercent = 0;
+	let staleCount = 0;
+	const stateFile = join(wikiDir, ".state.json");
+	if (existsSync(stateFile)) {
+		try {
+			const state = JSON.parse(readFileSync(stateFile, "utf-8"));
+			lastCompile = state.lastCompile ?? "never";
+			coveragePercent =
+				typeof state.coveragePercent === "number" ? state.coveragePercent : 0;
+			staleCount = typeof state.staleCount === "number" ? state.staleCount : 0;
+		} catch {
+			// ignore parse errors
+		}
+	}
+
+	return {
+		initialized: true,
+		totalArticles,
+		staleCount,
+		coveragePercent,
+		lastCompile,
+	};
 }
 
 // ── AI Status Check ────────────────────────────────────────────────────────
@@ -263,7 +412,29 @@ export async function doctorAction(
 		}
 	}
 
-	return { version, tools, engines, cacheStats, aiStatus };
+	// ── Step 6: Wiki Health ────────────────────────────────────────────
+	const wikiHealth = checkWikiHealth(cwd);
+	if (!jsonMode) {
+		log.step("Wiki Health:");
+		log.message(formatWikiHealth(wikiHealth));
+	}
+
+	// ── Step 7: MCP Integration ───────────────────────────────────────
+	const mcpHealth = checkMcpHealth(cwd);
+	if (!jsonMode) {
+		log.step("MCP Integration:");
+		log.message(formatMcpHealth(mcpHealth));
+	}
+
+	return {
+		version,
+		tools,
+		engines,
+		cacheStats,
+		aiStatus,
+		wikiHealth,
+		mcpHealth,
+	};
 }
 
 // ── Commander Command ────────────────────────────────────────────────────────

@@ -70,3 +70,4 @@ maina learn --cloud
 - Episodic entries (compressed review summaries) are shared across the team automatically and merged into each member's context engine with deduplication.
 - Use `maina logout` to clear stored credentials.
 - Set `MAINA_CLOUD_URL` for self-hosted instances.
+- All commands are available as both CLI (`maina <command>` or `npx @mainahq/cli <command>`) and MCP tools when running inside an AI coding tool.

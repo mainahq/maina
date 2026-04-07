@@ -43,7 +43,7 @@ beeeku/maina (open source)          mainahq/maina-cloud (private)
 
 ## Scope — Private Repo (maina-cloud)
 
-### Scaffold at `/Users/Bikash/try/maina-cloud`
+### Scaffold at `mainahq/maina-cloud` (private repo)
 
 - Bun + Workkit + Cloudflare Workers project
 - Health check endpoint (`GET /health`)
@@ -55,7 +55,7 @@ beeeku/maina (open source)          mainahq/maina-cloud (private)
 
 ## Success Criteria
 
-- [ ] maina-cloud repo exists at /Users/Bikash/try/maina-cloud with Workers service
+- [ ] maina-cloud repo exists at mainahq/maina-cloud with Workers service
 - [ ] `wrangler dev` starts and `/health` returns 200
 - [ ] Cloud API client in core can make authenticated requests
 - [ ] `maina login` completes device flow and stores token in ~/.maina/auth.json

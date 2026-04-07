@@ -11,6 +11,8 @@ const SKILL_NAMES = [
 	"code-review",
 	"tdd",
 	"cloud-workflow",
+	"wiki-workflow",
+	"onboarding",
 ];
 
 function readSkill(name: string): string {
@@ -111,4 +113,78 @@ describe("skills", () => {
 		const readmePath = join(SKILLS_DIR, "README.md");
 		expect(existsSync(readmePath)).toBe(true);
 	});
+});
+
+describe("onboarding skill", () => {
+	const REQUIRED_TOOL_SECTIONS = [
+		"Claude Code",
+		"Cursor",
+		"Windsurf",
+		"Continue.dev",
+		"Cline",
+		"Roo Code",
+		"GitHub Copilot",
+		"Amazon Q",
+		"Zed",
+		"Aider",
+		"Gemini CLI",
+		"Codex CLI",
+	];
+
+	test("has all per-tool setup sections", () => {
+		const content = readSkill("onboarding");
+		for (const tool of REQUIRED_TOOL_SECTIONS) {
+			expect(content).toContain(`### ${tool}`);
+		}
+	});
+
+	test("lists all MCP tools", () => {
+		const content = readSkill("onboarding");
+		const mcpTools = [
+			"getContext",
+			"getConventions",
+			"verify",
+			"checkSlop",
+			"reviewCode",
+			"explainModule",
+			"suggestTests",
+			"analyzeFeature",
+			"wikiQuery",
+			"wikiStatus",
+		];
+		for (const tool of mcpTools) {
+			expect(content).toContain(`\`${tool}\``);
+		}
+	});
+});
+
+describe("universal language", () => {
+	const TOOL_SPECIFIC_PATTERNS = [
+		/\buse the Read tool\b/i,
+		/\buse the Write tool\b/i,
+		/\buse the Edit tool\b/i,
+		/\buse Claude to\b/i,
+		/\bask Claude\b/i,
+		/\bCursor's? (composer|chat|tab)\b/i,
+		/\bCopilot Chat\b/i,
+		/\buse the Bash tool\b/i,
+	];
+
+	for (const name of SKILL_NAMES) {
+		test(`${name} has no tool-specific language`, () => {
+			const content = readSkill(name);
+			for (const pattern of TOOL_SPECIFIC_PATTERNS) {
+				expect(content).not.toMatch(pattern);
+			}
+		});
+	}
+
+	for (const name of SKILL_NAMES) {
+		test(`${name} mentions CLI and MCP usage`, () => {
+			const content = readSkill(name);
+			// Every skill should mention both maina CLI and MCP
+			expect(content).toMatch(/\bmaina\b/);
+			expect(content).toMatch(/\bMCP\b/);
+		});
+	}
 });

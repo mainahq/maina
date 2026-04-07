@@ -96,9 +96,9 @@ Detects your project and adapts:
 | Go | `go.mod` | go vet |
 | Rust | `Cargo.toml` | clippy |
 
-## Works Inside Your AI Tool
+## Works With 12+ AI Coding Tools
 
-Maina runs inside Claude Code, Cursor, Codex, and Gemini CLI via MCP:
+Maina runs inside any AI coding tool via MCP and cross-platform skills:
 
 ```json
 {
@@ -108,9 +108,26 @@ Maina runs inside Claude Code, Cursor, Codex, and Gemini CLI via MCP:
 }
 ```
 
-8 MCP tools: `getContext`, `getConventions`, `verify`, `checkSlop`, `reviewCode`, `explainModule`, `suggestTests`, `analyzeFeature`.
+10 MCP tools: `getContext`, `getConventions`, `verify`, `checkSlop`, `reviewCode`, `explainModule`, `suggestTests`, `analyzeFeature`, `wikiQuery`, `wikiStatus`.
 
-5 cross-platform skills that work even without the CLI installed.
+8 cross-platform skills that work even without the CLI installed.
+
+| Tool | MCP | Instructions | Setup |
+|------|-----|-------------|-------|
+| Claude Code | Yes | CLAUDE.md | `maina init` |
+| Cursor | Yes | .cursorrules | `maina init` |
+| Windsurf | Yes | .windsurfrules | `maina setup` |
+| GitHub Copilot | Yes | copilot-instructions.md | `maina init` |
+| Continue.dev | Yes | config.yaml | `maina init` |
+| Cline | Yes | .clinerules | `maina setup` |
+| Roo Code | Yes | .roo/rules/ | `maina init` |
+| Amazon Q | Yes | .amazonq/ | `maina init` |
+| Gemini CLI | Yes | GEMINI.md | `maina init` |
+| Zed | Yes | -- | `maina setup` |
+| Codex CLI | -- | AGENTS.md | `maina init` |
+| Aider | -- | CONVENTIONS.md | `maina init` |
+
+Run `maina init` to auto-configure MCP for detected tools, or `maina setup` for guided configuration. See the [onboarding skill](packages/skills/onboarding/SKILL.md) for per-tool details.
 
 ## The Workflow
 

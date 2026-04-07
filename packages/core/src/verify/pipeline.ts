@@ -33,6 +33,7 @@ import { detectSlop } from "./slop";
 import { runSonar } from "./sonar";
 import type { SyntaxDiagnostic } from "./syntax-guard";
 import { syntaxGuard } from "./syntax-guard";
+import { runWikiLintTool } from "./tools/wiki-lint-runner";
 import { runTrivy } from "./trivy";
 import { runTypecheck } from "./typecheck";
 
@@ -258,10 +259,21 @@ export async function runPipeline(
 		}),
 	);
 
+	// Wiki lint — only runs if .maina/wiki/ exists (auto-skips otherwise)
+	toolPromises.push(
+		runToolWithTiming("wiki-lint", () => runWikiLintTool({ cwd, mainaDir })),
+	);
+
 	const toolReports = await Promise.all(toolPromises);
 
 	// ── Step 4b: Warn if all external tools were skipped ─────────────────
-	const builtInTools = new Set(["slop", "typecheck", "consistency", "builtin"]);
+	const builtInTools = new Set([
+		"slop",
+		"typecheck",
+		"consistency",
+		"builtin",
+		"wiki-lint",
+	]);
 	const externalTools = toolReports.filter((r) => !builtInTools.has(r.tool));
 	const allExternalSkipped =
 		externalTools.length > 0 && externalTools.every((r) => r.skipped);

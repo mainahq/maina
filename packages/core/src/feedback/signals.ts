@@ -3,7 +3,9 @@
  * Infers outcomes from downstream user behavior instead of requiring explicit action.
  */
 
+import { join } from "node:path";
 import { getFeedbackDb } from "../db/index";
+import { recordWikiUsage } from "../wiki/signals";
 
 const DEFAULT_ACCEPT_TOOLS = ["reviewCode", "verify", "checkSlop"];
 
@@ -11,6 +13,7 @@ export function emitAcceptSignal(
 	mainaDir: string,
 	workflowId: string,
 	tools?: string[],
+	wikiArticles?: string[],
 ): void {
 	try {
 		const dbResult = getFeedbackDb(mainaDir);
@@ -23,6 +26,12 @@ export function emitAcceptSignal(
 			 WHERE workflow_id = ?
 			 AND command IN (${placeholders})`,
 		).run(workflowId, ...targetTools);
+
+		// Record wiki effectiveness signal for loaded articles
+		if (wikiArticles && wikiArticles.length > 0) {
+			const wikiDir = join(mainaDir, "wiki");
+			recordWikiUsage(wikiDir, wikiArticles, "accept", true);
+		}
 	} catch {
 		// Never throw from signals
 	}
@@ -32,6 +41,7 @@ export function emitRejectSignal(
 	mainaDir: string,
 	tool: string,
 	workflowId: string,
+	wikiArticles?: string[],
 ): void {
 	try {
 		const dbResult = getFeedbackDb(mainaDir);
@@ -46,6 +56,12 @@ export function emitRejectSignal(
 				 ORDER BY created_at DESC, rowid DESC LIMIT 1
 			 )`,
 		).run(tool, workflowId, tool, workflowId);
+
+		// Record wiki effectiveness signal for loaded articles
+		if (wikiArticles && wikiArticles.length > 0) {
+			const wikiDir = join(mainaDir, "wiki");
+			recordWikiUsage(wikiDir, wikiArticles, tool, false);
+		}
 	} catch {
 		// Never throw from signals
 	}

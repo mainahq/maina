@@ -5,6 +5,7 @@ export interface BudgetAllocation {
 	episodic: number;
 	semantic: number;
 	retrieval: number;
+	wiki: number;
 	total: number;
 	headroom: number; // reserved for AI reasoning
 }
@@ -45,10 +46,11 @@ export function getBudgetRatio(mode: BudgetMode): number {
  * Calculates per-layer token allocations for a given mode and model context window.
  *
  * Layer proportions within the usable budget:
- *   working:   ~25%
- *   semantic:  ~33%
- *   episodic:  ~25%
- *   retrieval: ~17%  (remainder after the above three)
+ *   working:   ~12%
+ *   episodic:  ~12%
+ *   semantic:  ~16%
+ *   retrieval: ~8%  (remainder after the above four)
+ *   wiki:      ~12%
  */
 export function assembleBudget(
 	mode: BudgetMode,
@@ -58,17 +60,19 @@ export function assembleBudget(
 	const budget = Math.floor(modelContextWindow * ratio);
 	const headroom = modelContextWindow - budget;
 
-	const working = Math.floor(budget * 0.25);
-	const semantic = Math.floor(budget * 0.33);
-	const episodic = Math.floor(budget * 0.25);
+	const working = Math.floor(budget * 0.12);
+	const episodic = Math.floor(budget * 0.12);
+	const semantic = Math.floor(budget * 0.16);
+	const wiki = Math.floor(budget * 0.12);
 	// retrieval gets the exact remainder so all layer tokens sum to budget
-	const retrieval = budget - working - semantic - episodic;
+	const retrieval = budget - working - episodic - semantic - wiki;
 
 	return {
 		working,
 		semantic,
 		episodic,
 		retrieval,
+		wiki,
 		headroom,
 		total: modelContextWindow,
 	};

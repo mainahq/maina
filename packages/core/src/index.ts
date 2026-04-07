@@ -438,8 +438,101 @@ export {
 	type ZapOptions,
 	type ZapResult,
 } from "./verify/zap";
+// Wiki — Compiler
+export {
+	type CompilationResult as WikiCompilationResult,
+	type CompileOptions as WikiCompileOptions,
+	compile as compileWiki,
+} from "./wiki/compiler";
+export { type CodeEntity, extractCodeEntities } from "./wiki/extractors/code";
+export {
+	extractDecisions,
+	extractSingleDecision,
+} from "./wiki/extractors/decision";
+export {
+	extractFeatures,
+	extractSingleFeature,
+} from "./wiki/extractors/feature";
+export { extractWorkflowTrace } from "./wiki/extractors/workflow";
+// Wiki — Graph
+export {
+	buildKnowledgeGraph,
+	computePageRank,
+	type GraphEdge,
+	type GraphNode,
+	type KnowledgeGraph,
+	mapToArticles,
+} from "./wiki/graph";
+// Wiki — Indexer
+export { generateIndex } from "./wiki/indexer";
+// Wiki — Linker
+export { generateLinks, type LinkResult } from "./wiki/linker";
+// Wiki — Louvain
+export {
+	detectCommunities,
+	type LouvainNode,
+	type LouvainResult,
+} from "./wiki/louvain";
+// Wiki — Query
+export {
+	queryWiki,
+	type WikiQueryOptions,
+	type WikiQueryResult,
+} from "./wiki/query";
+export {
+	DEFAULT_SCHEMA,
+	getArticleMaxLength,
+	getLinkSyntax,
+	validateArticleStructure,
+	type WikiSchema,
+} from "./wiki/schema";
+// Wiki — Signals
+export {
+	type ArticleLoadSignal,
+	type CompilationPromptSignal,
+	calculateEbbinghausScore,
+	getPromptEffectiveness,
+	getWikiEffectivenessReport,
+	recordArticlesLoaded,
+	recordWikiUsage,
+	type WikiEffectivenessReport,
+	type WikiEffectivenessSignal,
+} from "./wiki/signals";
+export {
+	createEmptyState,
+	getChangedFiles as getWikiChangedFiles,
+	hashContent,
+	hashFile,
+	loadState as loadWikiState,
+	saveState as saveWikiState,
+} from "./wiki/state";
+// Wiki — Tracking
+export {
+	trackWikiRefsRead,
+	trackWikiRefsWritten,
+} from "./wiki/tracking";
+// Wiki
+export type {
+	ArticleType,
+	DecisionStatus,
+	EdgeType,
+	ExtractedDecision,
+	ExtractedFeature,
+	ExtractedWorkflowTrace,
+	RLSignal,
+	TaskItem,
+	WikiArticle,
+	WikiLink,
+	WikiLintCheck,
+	WikiLintFinding,
+	WikiLintResult,
+	WikiState,
+	WorkflowStep as WikiWorkflowStep,
+} from "./wiki/types";
+export { DECAY_HALF_LIVES } from "./wiki/types";
 // Workflow
 export {
+	appendWikiRefs,
 	appendWorkflowStep,
 	loadWorkflowContext,
 	resetWorkflowContext,

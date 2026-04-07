@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { log } from "@clack/prompts";
 import {
 	appendWorkflowStep,
@@ -171,6 +173,36 @@ function formatReviewFindings(
 		.join("\n");
 }
 
+/**
+ * Build a wiki coverage section for the PR body.
+ * Returns an empty string if wiki is not initialized.
+ */
+function buildWikiCoverageSection(mainaDir: string): string {
+	const stateFile = join(mainaDir, "wiki", ".state.json");
+	if (!existsSync(stateFile)) return "";
+
+	try {
+		const state = JSON.parse(readFileSync(stateFile, "utf-8"));
+		const updated =
+			typeof state.articlesUpdated === "number" ? state.articlesUpdated : 0;
+		const added =
+			typeof state.articlesAdded === "number" ? state.articlesAdded : 0;
+		const coverage =
+			typeof state.coveragePercent === "number" ? state.coveragePercent : 0;
+
+		return [
+			"",
+			"### Wiki Coverage",
+			`- Articles updated: ${updated}`,
+			`- Articles added: ${added}`,
+			`- Total coverage: ${coverage}%`,
+			"",
+		].join("\n");
+	} catch {
+		return "";
+	}
+}
+
 // ── Core Action (testable) ──────────────────────────────────────────────────
 
 /**
@@ -253,7 +285,10 @@ export async function prAction(
 		// Proof gathering failure should never block PR creation
 	}
 
-	const fullBody = body + proofSection;
+	// ── Step 3c: Wiki coverage delta ────────────────────────────────
+	const wikiCoverage = buildWikiCoverageSection(mainaDir);
+
+	const fullBody = body + proofSection + wikiCoverage;
 
 	// ── Step 4: Resolve title ────────────────────────────────────────────
 	const title = options.title ?? titleFromBranch(branch);

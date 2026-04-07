@@ -5,26 +5,37 @@ description: Install Maina and run your first verification in under a minute.
 
 import { Tabs, TabItem, Card, CardGrid, Steps, Aside, LinkCard, Badge } from '@astrojs/starlight/components';
 
-Maina is the verification layer for AI-generated code. 18 tools. 7 languages. One command. Zero config.
+Maina is the verification layer for AI-generated code. 19+ tools. 7 languages. One command. Zero config.
 
 ## Install
 
 <Tabs>
-  <TabItem label="Global install">
+  <TabItem label="One-liner (recommended)">
+    ```bash
+    curl -fsSL https://mainahq.com/install | bash
+    ```
+    Detects your OS, installs maina, finds your AI tools, configures MCP automatically.
+  </TabItem>
+  <TabItem label="bun">
     ```bash
     bun add -g @mainahq/cli
     ```
   </TabItem>
+  <TabItem label="npm">
+    ```bash
+    npm install -g @mainahq/cli
+    ```
+  </TabItem>
   <TabItem label="Try without installing">
     ```bash
-    bunx @mainahq/cli init
-    bunx @mainahq/cli verify
+    npx @mainahq/cli init
+    npx @mainahq/cli verify
     ```
   </TabItem>
 </Tabs>
 
 <Aside type="tip">
-**Prerequisites:** [Git](https://git-scm.com/) and [Bun](https://bun.sh/) (v1.1+). That's it.
+**Prerequisites:** [Git](https://git-scm.com/) and [Bun](https://bun.sh/) (v1.1+) or [Node.js](https://nodejs.org/) (v18+). That's it.
 </Aside>
 
 ## Quick Start
@@ -39,10 +50,10 @@ Maina is the verification layer for AI-generated code. 18 tools. 7 languages. On
 
    This detects your stack, creates `.maina/` with a constitution and custom prompts, and installs missing verification tools.
 
-   Then configure your project:
+   Then run guided setup:
 
    ```bash
-   maina configure
+   maina setup   # guided setup — detects IDE, configures MCP
    ```
 
 2. **Make changes and commit**
@@ -52,9 +63,16 @@ Maina is the verification layer for AI-generated code. 18 tools. 7 languages. On
    maina commit
    ```
 
-   `maina commit` runs the full 18-tool verification pipeline — syntax guard, parallel analysis, diff-only filtering — then commits if everything passes.
+   `maina commit` runs the full 19+ tool verification pipeline — syntax guard, parallel analysis, diff-only filtering — then commits if everything passes.
 
-3. **Run verification standalone**
+3. **Compile codebase knowledge**
+
+   ```bash
+   maina wiki init    # compile codebase knowledge
+   maina wiki query "how does auth work?"
+   ```
+
+5. **Run verification standalone**
 
    ```bash
    maina verify
@@ -63,7 +81,7 @@ Maina is the verification layer for AI-generated code. 18 tools. 7 languages. On
    maina verify --cloud    # Submit to Maina Cloud
    ```
 
-4. **Start a feature with the full workflow**
+6. **Start a feature with the full workflow**
 
    ```bash
    maina brainstorm        # Explore the idea, create a ticket
@@ -73,13 +91,13 @@ Maina is the verification layer for AI-generated code. 18 tools. 7 languages. On
    maina pr                # Create PR with verification proof
    ```
 
-5. **Check your setup**
+7. **Check your setup**
 
    ```bash
    maina doctor
    ```
 
-   Shows which of the 18+ tools are installed, engine health, and install commands for anything missing.
+   Shows which of the 19+ tools are installed, engine health, and install commands for anything missing.
 
 </Steps>
 
@@ -132,7 +150,7 @@ No accounts. No Docker. No cloud required. Everything runs locally in your termi
 
 1. **Syntax guard** — Language-aware linting (Biome/ruff/go vet/clippy/dotnet format/Checkstyle/PHPStan). Under 500ms. Rejects immediately on failure.
 
-2. **Parallel analysis** — 18+ tools run in parallel: slop, Semgrep, Trivy, Secretlint, SonarQube, Stryker, diff-cover, typecheck, consistency, ZAP, Lighthouse, AI review, and more.
+2. **Parallel analysis** — 19+ tools run in parallel: slop, Semgrep, Trivy, Secretlint, SonarQube, Stryker, diff-cover, typecheck, consistency, ZAP, Lighthouse, AI review, and more.
 
 3. **Diff-only filter** — Only findings on changed lines. No pre-existing noise.
 
@@ -146,15 +164,24 @@ No accounts. No Docker. No cloud required. Everything runs locally in your termi
 
 ## MCP Server
 
-Add Maina to Claude Code, Cursor, or any MCP-compatible editor:
+Add Maina to your IDE:
 
-```json
-{
-  "mcpServers": {
-    "maina": { "command": "maina", "args": ["--mcp"] }
-  }
-}
-```
+<Tabs>
+  <TabItem label="Claude Code">
+    Automatic — `maina init` creates `.claude/settings.json`
+  </TabItem>
+  <TabItem label="Cursor">
+    Automatic — `maina init` creates `.mcp.json`
+  </TabItem>
+  <TabItem label="Windsurf">
+    Run `maina setup` to configure `~/.codeium/windsurf/mcp_config.json`
+  </TabItem>
+  <TabItem label="Other">
+    ```json
+    {"mcpServers":{"maina":{"command":"npx","args":["@mainahq/cli","--mcp"]}}}
+    ```
+  </TabItem>
+</Tabs>
 
 ## CI Integration
 
@@ -197,14 +224,15 @@ maina verify --cloud     # submit diff to Maina Cloud
 ```
 
 <Aside type="tip">
-Results are stored as proof artifacts and returned to your terminal. The same 18+ tools run in the cloud.
+Results are stored as proof artifacts and returned to your terminal. The same 19+ tools run in the cloud.
 See [Verify Engine — Cloud Verification](/engines/verify#cloud-verification) for details.
 </Aside>
 
 ## Next Steps
 
 <CardGrid>
-  <LinkCard title="Commands" description="All 28+ commands across workflow phases" href="/commands" />
+  <LinkCard title="Commands" description="All 38+ commands across workflow phases" href="/commands" />
+  <LinkCard title="Wiki" description="Compile codebase knowledge" href="/wiki" />
   <LinkCard title="Configuration" description="Model tiers, constitution, custom prompts" href="/configuration" />
   <LinkCard title="MCP Server" description="Add Maina to your IDE" href="/mcp" />
   <LinkCard title="Engines" description="How Context, Prompt, and Verify work" href="/engines/context" />

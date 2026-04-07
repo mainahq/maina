@@ -89,8 +89,8 @@ Cross-repo dogfooding flywheel. Report issues to each other with `maina ticket -
 
 | Project | Path | Repo | Relationship |
 |---------|------|------|-------------|
-| maina-cloud | /Users/Bikash/try/maina-cloud | mainahq/maina-cloud (private) | Cloud backend — consumes maina's API types, runs verification pipeline |
-| workkit | /Users/Bikash/try/workkit | mainahq/workkit | CF Workers utilities — @workkit/* packages power maina-cloud |
+| maina-cloud | mainahq/maina-cloud | mainahq/maina-cloud (private) | Cloud backend — consumes maina's API types, runs verification pipeline |
+| workkit | mainahq/workkit | mainahq/workkit | CF Workers utilities — @workkit/* packages power maina-cloud |
 
 - **maina → maina-cloud:** API type changes here must be synced to cloud. Cloud bugs found during CLI testing → `maina ticket --repo maina-cloud`
 - **maina → workkit:** @workkit bugs found during maina-cloud development → `maina ticket --repo workkit`

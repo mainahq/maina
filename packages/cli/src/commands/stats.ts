@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
 import type { Result } from "@mainahq/core";
@@ -36,6 +36,17 @@ export interface SpecsResult {
 	skipRate?: { total: number; skipped: number; rate: number };
 }
 
+export interface WikiMetrics {
+	totalArticles: number;
+	modules: number;
+	entities: number;
+	features: number;
+	decisions: number;
+	architecture: number;
+	lastCompile: string;
+	compilationTimeMs: number;
+}
+
 export interface StatsActionResult {
 	displayed: boolean;
 	reason?: string;
@@ -43,6 +54,7 @@ export interface StatsActionResult {
 	trends?: TrendsReport;
 	jsonOutput?: string;
 	specsResult?: SpecsResult;
+	wikiMetrics?: WikiMetrics;
 }
 
 export interface StatsDeps {
@@ -80,6 +92,57 @@ function formatUtilization(tokens: number, budget: number): string {
 	const budgetK =
 		budget >= 1000 ? `${Math.round(budget / 1000)}k` : `${budget}`;
 	return `${tokens}/${budgetK} (${pct}%)`;
+}
+
+// ── Wiki Metrics ────────────────────────────────────────────────────────────
+
+function countMdInDir(dir: string): number {
+	if (!existsSync(dir)) return 0;
+	try {
+		return readdirSync(dir).filter((f) => f.endsWith(".md")).length;
+	} catch {
+		return 0;
+	}
+}
+
+function gatherWikiMetrics(mainaDir: string): WikiMetrics | null {
+	const wikiDir = join(mainaDir, "wiki");
+	if (!existsSync(wikiDir)) return null;
+
+	const modules = countMdInDir(join(wikiDir, "modules"));
+	const entities = countMdInDir(join(wikiDir, "entities"));
+	const features = countMdInDir(join(wikiDir, "features"));
+	const decisions = countMdInDir(join(wikiDir, "decisions"));
+	const architecture = countMdInDir(join(wikiDir, "architecture"));
+	const totalArticles =
+		modules + entities + features + decisions + architecture;
+
+	let lastCompile = "never";
+	let compilationTimeMs = 0;
+	const stateFile = join(wikiDir, ".state.json");
+	if (existsSync(stateFile)) {
+		try {
+			const state = JSON.parse(readFileSync(stateFile, "utf-8"));
+			lastCompile = state.lastCompile ?? "never";
+			compilationTimeMs =
+				typeof state.compilationTimeMs === "number"
+					? state.compilationTimeMs
+					: 0;
+		} catch {
+			// ignore parse errors
+		}
+	}
+
+	return {
+		totalArticles,
+		modules,
+		entities,
+		features,
+		decisions,
+		architecture,
+		lastCompile,
+		compilationTimeMs,
+	};
 }
 
 // ── Core Action (testable) ───────────────────────────────────────────────────
@@ -169,14 +232,17 @@ export async function statsAction(
 	}
 	const trends = trendsResult.value;
 
+	// ── Wiki metrics ───────────────────────────────────────────────────
+	const wikiMetrics = gatherWikiMetrics(mainaDir) ?? undefined;
+
 	// ── JSON output ────────────────────────────────────────────────────
 	if (options.json) {
-		const jsonOutput = JSON.stringify({ stats, trends }, null, 2);
-		return { displayed: true, stats, trends, jsonOutput };
+		const jsonOutput = JSON.stringify({ stats, trends, wikiMetrics }, null, 2);
+		return { displayed: true, stats, trends, jsonOutput, wikiMetrics };
 	}
 
 	// ── Formatted display ──────────────────────────────────────────────
-	return { displayed: true, stats, trends };
+	return { displayed: true, stats, trends, wikiMetrics };
 }
 
 // ── Specs Display Helper ────────────────────────────────────────────────────
@@ -255,6 +321,20 @@ function displayStats(stats: StatsReport, trends: TrendsReport): void {
 	);
 }
 
+function displayWikiMetrics(metrics: WikiMetrics): void {
+	log.step("Wiki:");
+	const parts = [
+		`${metrics.modules} modules`,
+		`${metrics.entities} entities`,
+		`${metrics.features} features`,
+		`${metrics.decisions} decisions`,
+		`${metrics.architecture} architecture`,
+	];
+	log.message(`  Articles: ${metrics.totalArticles} (${parts.join(", ")})`);
+	log.message(`  Last compile: ${metrics.lastCompile}`);
+	log.message(`  Compilation time: ${metrics.compilationTimeMs}ms`);
+}
+
 // ── Commander Command ────────────────────────────────────────────────────────
 
 function displayComparison(report: ComparisonReport): void {
@@ -324,6 +404,10 @@ export function statsCommand(): Command {
 				console.log(result.jsonOutput);
 			} else if (result.stats && result.trends) {
 				displayStats(result.stats, result.trends);
+			}
+
+			if (result.wikiMetrics) {
+				displayWikiMetrics(result.wikiMetrics);
 			}
 
 			outro("Done.");
