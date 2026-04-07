@@ -9,6 +9,7 @@ import { registerExplainTools } from "./tools/explain";
 import { registerFeatureTools } from "./tools/features";
 import { registerReviewTools } from "./tools/review";
 import { registerVerifyTools } from "./tools/verify";
+import { registerWikiTools } from "./tools/wiki";
 
 export function createMcpServer(): McpServer {
 	const server = new McpServer(
@@ -21,6 +22,7 @@ export function createMcpServer(): McpServer {
 	registerFeatureTools(server);
 	registerExplainTools(server);
 	registerReviewTools(server);
+	registerWikiTools(server);
 
 	return server;
 }
