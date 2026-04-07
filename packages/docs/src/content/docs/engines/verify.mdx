@@ -125,7 +125,7 @@ Splitting the review into two stages catches more issues than a single combined 
 
 ## Cloud Verification
 
-Run the full verification pipeline on Maina Cloud instead of locally. This is useful when you want consistent results across a team without requiring every developer to install 18+ tools, or when running verification in CI.
+Run the full verification pipeline on Maina Cloud instead of locally. This is useful when you want consistent results across a team without requiring every developer to install 19+ tools, or when running verification in CI.
 
 ### How it works
 
@@ -147,7 +147,7 @@ Workers Queue picks up the job (@workkit/queue)
     v
 Full pipeline runs in the cloud
     |   Syntax guard
-    |   Parallel analysis (all 18+ tools)
+    |   Parallel analysis (all 19+ tools)
     |   Diff-only filter
     |   AI fix suggestions
     |   Two-stage review
@@ -179,7 +179,7 @@ Flags like `--deep` and `--visual` work the same way in cloud mode. The cloud pi
 
 Every cloud verification produces a proof artifact stored in R2. These artifacts include:
 
-- Full tool output from all 18+ tools
+- Full tool output from all 19+ tools
 - Diff-only filtered findings
 - AI fix suggestions (if AI review was enabled)
 - Timestamp and content hash for auditability

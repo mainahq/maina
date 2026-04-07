@@ -1,9 +1,9 @@
 ---
 title: Skills
-description: Cross-platform skills that teach any AI agent Maina's verification workflow.
+description: 8 cross-platform skills that teach any AI agent Maina's verification workflow.
 ---
 
-Maina ships a skills package alongside the CLI. Skills are markdown files that teach AI agents your team's verification workflow -- without requiring the CLI to be installed.
+Maina ships a skills package alongside the CLI. 8 skills that teach AI agents your team's verification workflow -- without requiring the CLI to be installed.
 
 ## What Are Skills?
 
@@ -24,6 +24,9 @@ Skills are the **knowledge layer**. The CLI is the **automation layer**. Both us
 | `plan-writing` | Structured feature planning. Guides creation of auto-numbered feature directories with spec/plan/tasks separation. | When the agent needs to plan a feature |
 | `code-review` | Two-stage review methodology. First checks spec compliance, then code quality. | When the agent needs to review code |
 | `tdd` | Test-driven development workflow. Red-green enforcement: stubs must fail before implementation, pass after. | When the agent needs to write tests |
+| `wiki-workflow` | Codebase knowledge compilation and querying. Guides wiki init, compile, query, and lint. | When the agent needs to build or search codebase knowledge |
+| `cloud-workflow` | Cloud sync, team prompts, and hosted verification. Guides login, sync, and cloud verify. | When the agent needs to use Maina Cloud features |
+| `onboarding` | First-time setup flow. Guides init, setup, doctor, and first commit. | When the agent is helping a new user get started |
 
 ## Installation
 
@@ -36,11 +39,14 @@ packages/skills/
   plan-writing/SKILL.md
   code-review/SKILL.md
   tdd/SKILL.md
+  wiki-workflow/SKILL.md
+  cloud-workflow/SKILL.md
+  onboarding/SKILL.md
 ```
 
 **For Claude Code:** Skills are discovered automatically when Maina is installed. They appear as available slash commands.
 
-**For Cursor / Codex / Gemini CLI:** Point the agent at the skill files or include them in your project's agent instructions.
+**For Cursor / Windsurf / Cline / Roo Code / Continue.dev / Codex / Gemini CLI / Amazon Q / Zed / Aider:** Point the agent at the skill files or include them in your project's agent instructions.
 
 **Without the CLI:** Copy the SKILL.md files into your project. An AI agent with just the skills follows the verification workflow -- no CLI needed.
 
@@ -79,7 +85,7 @@ Every skill ends with verification -- the agent confirms the output meets the pr
 |-----------|-----|-----|--------|
 | Runs tools directly | Yes | Yes | No (guides the agent) |
 | Works without installation | No | No | Yes |
-| Cross-platform | Terminal only | MCP-compatible IDEs | Any AI agent |
+| Cross-platform | Terminal only | MCP-compatible IDEs (12+) | Any AI agent |
 | Requires Bun | Yes | Yes | No |
 | Uses three engines | Directly | Via delegation | Via instructions |
 

@@ -35,6 +35,7 @@ export default defineConfig({
           label: 'Reference',
           items: [
             { slug: 'configuration' },
+            { slug: 'wiki' },
             { slug: 'cloud' },
             { slug: 'ci' },
             { slug: 'mcp' },
