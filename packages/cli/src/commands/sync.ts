@@ -39,6 +39,7 @@ function loadLocalPrompts(promptsDir: string): PromptRecord[] {
 		const content = readFileSync(filePath, "utf-8");
 		return {
 			id: file.replace(/\.md$/, ""),
+			name: file.replace(/\.md$/, ""),
 			path: file,
 			content,
 			hash: hashContent(content),
@@ -80,7 +81,11 @@ export async function syncPushAction(cwd?: string): Promise<SyncActionResult> {
 
 	const result = await client.putPrompts(prompts);
 	if (!result.ok) {
-		return { synced: false, count: 0, reason: result.error };
+		const errMsg =
+			typeof result.error === "string"
+				? result.error
+				: JSON.stringify(result.error);
+		return { synced: false, count: 0, reason: errMsg };
 	}
 
 	return { synced: true, count: prompts.length };
@@ -104,7 +109,11 @@ export async function syncPullAction(cwd?: string): Promise<SyncActionResult> {
 
 	const result = await client.getPrompts();
 	if (!result.ok) {
-		return { synced: false, count: 0, reason: result.error };
+		const errMsg =
+			typeof result.error === "string"
+				? result.error
+				: JSON.stringify(result.error);
+		return { synced: false, count: 0, reason: errMsg };
 	}
 
 	const prompts = result.value;
@@ -144,7 +153,11 @@ export function syncCommand(): Command {
 				outro("Sync complete.");
 			} else {
 				s.stop("Failed");
-				log.error(result.reason ?? "Unknown error");
+				log.error(
+					typeof result.reason === "string"
+						? result.reason
+						: String(result.reason ?? "Unknown error"),
+				);
 				outro("Sync failed.");
 			}
 		});
@@ -166,7 +179,11 @@ export function syncCommand(): Command {
 				outro("Sync complete.");
 			} else {
 				s.stop("Failed");
-				log.error(result.reason ?? "Unknown error");
+				log.error(
+					typeof result.reason === "string"
+						? result.reason
+						: String(result.reason ?? "Unknown error"),
+				);
 				outro("Sync failed.");
 			}
 		});
