@@ -5,7 +5,7 @@
  * 1. Get files to check (staged files, or provided list)
  * 2. Run syntax guard FIRST — abort immediately if it fails
  * 3. Auto-detect available tools
- * 4. Run all available tools in PARALLEL (slop, semgrep, trivy, secretlint)
+ * 4. Run all available tools in PARALLEL (slop, builtin, semgrep, trivy, secretlint)
  * 5. Collect all findings
  * 6. Apply diff-only filter (unless diffOnly === false)
  * 7. Determine pass/fail: passed = no error-severity findings
@@ -19,6 +19,7 @@ import { detectLanguages } from "../language/detect";
 import type { LanguageId } from "../language/profile";
 import { getProfile } from "../language/profile";
 import { type AIReviewResult, runAIReview } from "./ai-review";
+import { runBuiltinChecks } from "./builtin";
 import { checkConsistency } from "./consistency";
 import { runCoverage } from "./coverage";
 import type { DetectedTool } from "./detect";
@@ -240,10 +241,27 @@ export async function runPipeline(
 		}),
 	);
 
+	// Built-in checks (always run, pure functions, no external dependencies)
+	toolPromises.push(
+		runToolWithTiming("builtin", async () => {
+			const findings: Finding[] = [];
+			for (const file of files) {
+				try {
+					const fullPath = file.startsWith("/") ? file : `${cwd}/${file}`;
+					const text = await Bun.file(fullPath).text();
+					findings.push(...runBuiltinChecks(file, text));
+				} catch {
+					// File read failure should not block pipeline
+				}
+			}
+			return { findings, skipped: false };
+		}),
+	);
+
 	const toolReports = await Promise.all(toolPromises);
 
 	// ── Step 4b: Warn if all external tools were skipped ─────────────────
-	const builtInTools = new Set(["slop", "typecheck", "consistency"]);
+	const builtInTools = new Set(["slop", "typecheck", "consistency", "builtin"]);
 	const externalTools = toolReports.filter((r) => !builtInTools.has(r.tool));
 	const allExternalSkipped =
 		externalTools.length > 0 && externalTools.every((r) => r.skipped);
