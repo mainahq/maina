@@ -1,0 +1,48 @@
+---
+const rows = [
+  { label: 'Runs locally', maina: '✓', coderabbit: '✗', deepsource: '✗', manual: '✓' },
+  { label: 'Open source', maina: '✓', coderabbit: '✗', deepsource: 'Partial', manual: 'N/A' },
+  { label: 'Learns from your feedback', maina: '✓', coderabbit: '✗', deepsource: '✗', manual: 'Slow' },
+  { label: 'Deterministic tools', maina: '18+', coderabbit: '0', deepsource: '~5', manual: 'Varies' },
+  { label: 'Spec compliance check', maina: '✓', coderabbit: '✗', deepsource: '✗', manual: '✓' },
+  { label: 'Slop detection', maina: '✓', coderabbit: '✗', deepsource: '✗', manual: 'Subjective' },
+  { label: 'Price', maina: 'Free', coderabbit: '$19/mo+', deepsource: '$12/mo+', manual: '$$$ (time)' },
+];
+
+function cellClass(value: string): string {
+  if (value === '✓' || value === 'Free') return 'cell-pass';
+  if (value === '✗') return 'cell-fail';
+  return 'cell-neutral';
+}
+---
+
+<section class="comparison-section">
+  <div class="comparison-inner">
+    <div class="section-label">How It Compares</div>
+    <h2 class="comparison-title">Not another AI reviewer. A verification layer.</h2>
+    <div class="comparison-table-wrap">
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th class="col-maina">Maina</th>
+            <th>CodeRabbit</th>
+            <th>DeepSource</th>
+            <th>Manual Review</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr>
+              <td class="row-label">{row.label}</td>
+              <td class={`col-maina ${cellClass(row.maina)}`}>{row.maina}</td>
+              <td class={cellClass(row.coderabbit)}>{row.coderabbit}</td>
+              <td class={cellClass(row.deepsource)}>{row.deepsource}</td>
+              <td class={cellClass(row.manual)}>{row.manual}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

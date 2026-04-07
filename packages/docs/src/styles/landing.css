@@ -329,6 +329,144 @@ img {
   color: #f97316;
 }
 
+/* --- Comparison --- */
+.comparison-section {
+  background: #1c1917;
+  padding: 4rem 2rem;
+}
+
+.comparison-inner {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.comparison-section .section-label {
+  color: #c2410c;
+}
+
+.comparison-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  margin: 0 0 2rem;
+  color: #fafaf9;
+  letter-spacing: -0.01em;
+}
+
+.comparison-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  color: #d6d3d1;
+}
+
+.comparison-table thead th {
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+  font-weight: 600;
+  color: #a8a29e;
+  border-bottom: 1px solid #44403c;
+}
+
+.comparison-table thead th:first-child {
+  text-align: left;
+}
+
+.comparison-table thead th.col-maina {
+  color: #f97316;
+  font-weight: 700;
+}
+
+.comparison-table tbody td {
+  text-align: center;
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid #292524;
+}
+
+.comparison-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.comparison-table .row-label {
+  text-align: left;
+  color: #d6d3d1;
+}
+
+.comparison-table .col-maina {
+  color: #f97316;
+  font-weight: 600;
+}
+
+.comparison-table .cell-pass {
+  color: #22c55e;
+}
+
+.comparison-table .cell-fail {
+  color: #ef4444;
+}
+
+.comparison-table .cell-neutral {
+  color: #a8a29e;
+}
+
+/* --- Proof Strip --- */
+.proof-section {
+  padding: 4rem 2rem;
+  background: var(--bg);
+}
+
+.proof-inner {
+  max-width: 680px;
+  margin: 0 auto;
+  text-align: center;
+  border: 1.5px solid var(--card-border);
+  border-radius: 12px;
+  padding: 2.5rem;
+}
+
+.proof-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 0 0 0.75rem;
+  letter-spacing: -0.01em;
+}
+
+.proof-body {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  margin: 0 0 1.75rem;
+  line-height: 1.7;
+}
+
+.proof-body code {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+.proof-stats {
+  display: flex;
+  justify-content: center;
+  gap: 2.5rem;
+}
+
+.proof-stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.proof-stat-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+
 /* --- Features --- */
 .features-section {
   background: var(--bg-alt);
@@ -429,6 +567,20 @@ img {
 
   .feature-grid {
     grid-template-columns: 1fr;
+  }
+
+  .comparison-table {
+    font-size: 0.75rem;
+  }
+
+  .comparison-table thead th,
+  .comparison-table tbody td {
+    padding: 0.5rem 0.35rem;
+  }
+
+  .proof-stats {
+    flex-wrap: wrap;
+    gap: 1.5rem;
   }
 
   .nav-links {
