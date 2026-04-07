@@ -28,6 +28,7 @@ export interface InitOptions {
 export interface InitReport {
 	created: string[];
 	skipped: string[];
+	updated: string[];
 	directory: string;
 	detectedStack: DetectedStack;
 	detectedTools: DetectedTool[];
@@ -519,6 +520,35 @@ Issues labeled \`audit\` come from maina's daily verification. Fix the specific 
 `;
 }
 
+// ── Maina Section (for merging into existing agent files) ──────────────────
+
+/** Agent file names that support maina section merging */
+const MERGEABLE_AGENT_FILES = [
+	"AGENTS.md",
+	"CLAUDE.md",
+	"GEMINI.md",
+	".cursorrules",
+	".github/copilot-instructions.md",
+];
+
+/**
+ * Build a standalone "## Maina" section that can be appended to an existing
+ * agent file. Contains essential maina workflow + MCP tools info.
+ */
+export function buildMainaSection(_stack: DetectedStack): string {
+	return `## Maina
+
+This repo uses [Maina](https://mainahq.com) for verification-first development.
+Read \`.maina/constitution.md\` for project DNA.
+
+### Workflow
+\`${WORKFLOW_ORDER}\`
+
+### MCP Tools
+${MCP_TOOLS_TABLE}
+`;
+}
+
 // ── .mcp.json ───────────────────────────────────────────────────────────────
 
 function buildMcpJson(): string {
@@ -910,6 +940,7 @@ export async function bootstrap(
 	const mainaDir = join(repoRoot, ".maina");
 	const created: string[] = [];
 	const skipped: string[] = [];
+	const updated: string[] = [];
 
 	try {
 		// Detect project stack from package.json
@@ -950,7 +981,25 @@ export async function bootstrap(
 			mkdirSync(dirPath, { recursive: true });
 
 			if (existsSync(fullPath) && !force) {
-				skipped.push(entry.relativePath);
+				// Try to merge maina section for agent files
+				if (
+					MERGEABLE_AGENT_FILES.some((af) => entry.relativePath.endsWith(af))
+				) {
+					const existing = readFileSync(fullPath, "utf-8");
+					if (!existing.includes("## Maina")) {
+						const mainaSection = buildMainaSection(detectedStack);
+						writeFileSync(
+							fullPath,
+							`${existing.trimEnd()}\n\n${mainaSection}`,
+							"utf-8",
+						);
+						updated.push(entry.relativePath);
+					} else {
+						skipped.push(entry.relativePath);
+					}
+				} else {
+					skipped.push(entry.relativePath);
+				}
 			} else {
 				writeFileSync(fullPath, entry.content, "utf-8");
 				created.push(entry.relativePath);
@@ -973,6 +1022,7 @@ export async function bootstrap(
 			value: {
 				created,
 				skipped,
+				updated,
 				directory: mainaDir,
 				detectedStack,
 				detectedTools: detectedToolsList,

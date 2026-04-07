@@ -252,6 +252,16 @@ export async function initAction(
 		}
 	}
 
+	// Display updated files (maina section merged)
+	if (report.updated.length > 0) {
+		deps.log.success(
+			`Updated ${report.updated.length} file(s) with Maina section:`,
+		);
+		for (const file of report.updated) {
+			deps.log.message(`  ↑ ${file} (maina section added)`);
+		}
+	}
+
 	// Display skipped files
 	if (report.skipped.length > 0) {
 		deps.log.warning(`Skipped ${report.skipped.length} existing file(s):`);

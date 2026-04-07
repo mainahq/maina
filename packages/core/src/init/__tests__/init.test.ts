@@ -131,29 +131,21 @@ describe("bootstrap", () => {
 		expect(existsSync(hooksDir)).toBe(true);
 	});
 
-	test("skips existing files (no overwrite)", async () => {
+	test("skips existing non-agent files (no overwrite)", async () => {
 		// Pre-create constitution.md with custom content
 		const mainaDir = join(tmpDir, ".maina");
 		mkdirSync(mainaDir, { recursive: true });
 		const constitutionPath = join(mainaDir, "constitution.md");
 		writeFileSync(constitutionPath, "# My Custom Constitution\n");
 
-		// Pre-create AGENTS.md with custom content
-		const agentsPath = join(tmpDir, "AGENTS.md");
-		writeFileSync(agentsPath, "# My Custom Agents\n");
-
 		const result = await bootstrap(tmpDir);
 		expect(result.ok).toBe(true);
 		if (result.ok) {
 			expect(result.value.skipped).toContain(".maina/constitution.md");
-			expect(result.value.skipped).toContain("AGENTS.md");
 
 			// Content should NOT have been overwritten
 			const content = readFileSync(constitutionPath, "utf-8");
 			expect(content).toBe("# My Custom Constitution\n");
-
-			const agentsContent = readFileSync(agentsPath, "utf-8");
-			expect(agentsContent).toBe("# My Custom Agents\n");
 		}
 	});
 
@@ -195,8 +187,11 @@ describe("bootstrap", () => {
 			expect(result.value.created).toContain(".maina/prompts/review.md");
 			expect(result.value.created).toContain(".maina/prompts/commit.md");
 
-			// Total files should add up
-			const total = result.value.created.length + result.value.skipped.length;
+			// Total files should add up (created + skipped + updated)
+			const total =
+				result.value.created.length +
+				result.value.skipped.length +
+				result.value.updated.length;
 			expect(total).toBeGreaterThanOrEqual(5);
 		}
 	});
@@ -351,7 +346,7 @@ describe("bootstrap", () => {
 		expect(content).toContain("maina verify");
 	});
 
-	test("does not overwrite existing agent files", async () => {
+	test("merges maina section into existing agent files without ## Maina", async () => {
 		writeFileSync(join(tmpDir, "CLAUDE.md"), "# My Custom CLAUDE.md\n");
 		writeFileSync(join(tmpDir, "GEMINI.md"), "# My Custom GEMINI.md\n");
 		writeFileSync(join(tmpDir, ".cursorrules"), "# My Custom Rules\n");
@@ -359,14 +354,81 @@ describe("bootstrap", () => {
 		const result = await bootstrap(tmpDir);
 		expect(result.ok).toBe(true);
 		if (result.ok) {
-			expect(result.value.skipped).toContain("CLAUDE.md");
-			expect(result.value.skipped).toContain("GEMINI.md");
-			expect(result.value.skipped).toContain(".cursorrules");
+			expect(result.value.updated).toContain("CLAUDE.md");
+			expect(result.value.updated).toContain("GEMINI.md");
+			expect(result.value.updated).toContain(".cursorrules");
+			expect(result.value.skipped).not.toContain("CLAUDE.md");
+			expect(result.value.skipped).not.toContain("GEMINI.md");
+			expect(result.value.skipped).not.toContain(".cursorrules");
 		}
 
-		expect(readFileSync(join(tmpDir, "CLAUDE.md"), "utf-8")).toBe(
-			"# My Custom CLAUDE.md\n",
+		const claudeContent = readFileSync(join(tmpDir, "CLAUDE.md"), "utf-8");
+		expect(claudeContent).toContain("# My Custom CLAUDE.md");
+		expect(claudeContent).toContain("## Maina");
+		expect(claudeContent).toContain("constitution.md");
+		expect(claudeContent).toContain("getContext");
+
+		const geminiContent = readFileSync(join(tmpDir, "GEMINI.md"), "utf-8");
+		expect(geminiContent).toContain("# My Custom GEMINI.md");
+		expect(geminiContent).toContain("## Maina");
+
+		const cursorContent = readFileSync(join(tmpDir, ".cursorrules"), "utf-8");
+		expect(cursorContent).toContain("# My Custom Rules");
+		expect(cursorContent).toContain("## Maina");
+	});
+
+	test("skips agent files that already have ## Maina section", async () => {
+		writeFileSync(
+			join(tmpDir, "CLAUDE.md"),
+			"# My CLAUDE.md\n\n## Maina\n\nAlready configured.\n",
 		);
+		writeFileSync(
+			join(tmpDir, "GEMINI.md"),
+			"# My GEMINI.md\n\n## Maina\n\nAlready configured.\n",
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.skipped).toContain("CLAUDE.md");
+			expect(result.value.skipped).toContain("GEMINI.md");
+			expect(result.value.updated).not.toContain("CLAUDE.md");
+			expect(result.value.updated).not.toContain("GEMINI.md");
+		}
+
+		// Content should not be modified
+		const claudeContent = readFileSync(join(tmpDir, "CLAUDE.md"), "utf-8");
+		expect(claudeContent).toBe(
+			"# My CLAUDE.md\n\n## Maina\n\nAlready configured.\n",
+		);
+	});
+
+	test("merges AGENTS.md with maina section", async () => {
+		writeFileSync(
+			join(tmpDir, "AGENTS.md"),
+			"# My Agents File\n\nCustom content here.\n",
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.updated).toContain("AGENTS.md");
+		}
+
+		const content = readFileSync(join(tmpDir, "AGENTS.md"), "utf-8");
+		expect(content).toContain("# My Agents File");
+		expect(content).toContain("Custom content here.");
+		expect(content).toContain("## Maina");
+		expect(content).toContain("brainstorm");
+		expect(content).toContain("MCP Tools");
+	});
+
+	test("updated array is empty for fresh directory", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.updated).toEqual([]);
+		}
 	});
 
 	// ── Workflow order in agent files ─────────────────────────────────────
