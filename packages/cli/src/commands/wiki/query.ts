@@ -36,7 +36,7 @@ export async function wikiQueryAction(
 	const wikiDir = join(cwd, ".maina", "wiki");
 
 	// Delegate to core queryWiki
-	const { queryWiki } = await import("@maina/core");
+	const { queryWiki } = await import("@mainahq/core");
 	const result = await queryWiki({
 		wikiDir,
 		question,
@@ -69,7 +69,7 @@ export async function wikiQueryAction(
 			"",
 			"## Sources",
 			"",
-			...queryResult.sources.map((s) => `- ${s}`),
+			...queryResult.sources.map((s: string) => `- ${s}`),
 		].join("\n");
 		writeFileSync(queryFile, queryContent);
 	}

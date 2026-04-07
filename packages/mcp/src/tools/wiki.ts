@@ -150,7 +150,7 @@ export function registerWikiTools(server: McpServer): void {
 				const cwd = process.cwd();
 				const wikiDir = join(cwd, ".maina", "wiki");
 
-				const { queryWiki } = await import("@maina/core");
+				const { queryWiki } = await import("@mainahq/core");
 				const result = await queryWiki({
 					wikiDir,
 					question,

@@ -425,7 +425,7 @@ describe("maina wiki query", () => {
 		seedWikiArticles(tmpDir);
 
 		// Test using queryWiki directly with _aiGenerate override
-		const { queryWiki } = await import("@maina/core");
+		const { queryWiki } = await import("@mainahq/core");
 		const wikiDir = join(tmpDir, ".maina", "wiki");
 		const result = await queryWiki({
 			wikiDir,
