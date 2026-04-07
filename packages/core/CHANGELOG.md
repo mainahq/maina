@@ -1,5 +1,11 @@
 # @mainahq/core
 
+## 1.0.2
+
+### Patch Changes
+
+- Enrich constitution generation with project context: package.json scripts, build tool, monorepo detection, conventions (commitlint, strict TS, CI, Docker, git hooks), and verification commands.
+
 ## 1.0.1
 
 ### Patch Changes
