@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
 import {
 	type ComprehensiveReviewResult,
+	checkAIAvailability,
 	comprehensiveReview,
 	getChangedFiles,
 	getDiff,
@@ -136,6 +137,12 @@ export async function reviewAction(
 ): Promise<ReviewActionResult> {
 	const cwd = options.cwd ?? process.cwd();
 	const base = options.base ?? "HEAD~1";
+
+	// ── AI availability check ────────────────────────────────────────────
+	const ai = checkAIAvailability();
+	if (!ai.available) {
+		log.warning("Running without AI — deterministic checks only.");
+	}
 
 	// Get diff
 	const diff = await deps.getDiff(base, undefined, cwd);

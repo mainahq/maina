@@ -4,6 +4,7 @@ import {
 	addEpisodicEntry,
 	appendWorkflowStep,
 	assembleContext,
+	checkAIAvailability,
 	getCurrentBranch,
 	getDiff,
 	getStagedFiles,
@@ -250,7 +251,24 @@ export async function commitAction(
 
 	// Try AI-generated commit message before manual prompt
 	if (!message) {
-		if (options.json) {
+		const ai = checkAIAvailability();
+
+		if (!ai.available) {
+			if (options.json) {
+				// JSON mode with no AI and no -m: fail with config error
+				return {
+					committed: false,
+					reason:
+						"AI not configured — provide -m or run `maina init` to enable AI commit messages",
+				};
+			}
+			if (!options.json) {
+				log.warning("AI unavailable — skipping auto-generated commit message.");
+				log.message(
+					"  Run `maina init` to set up AI, or run inside an AI coding agent.",
+				);
+			}
+		} else if (options.json) {
 			// JSON mode: no interactive prompts, try AI then fail
 			try {
 				const { generateCommitMessage } = await import("@mainahq/core");
