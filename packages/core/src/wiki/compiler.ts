@@ -855,14 +855,10 @@ export async function compile(
 			);
 		}
 
-		// Feature articles
+		// Feature articles — use feature.id as filename to match [[feature:id]] wikilinks
 		for (const feature of features) {
 			const content = generateFeatureArticle(feature);
-			const safeName = (feature.title || feature.id).replace(
-				/[^a-zA-Z0-9_-]/g,
-				"-",
-			);
-			const articlePath = `wiki/features/${safeName}.md`;
+			const articlePath = `wiki/features/${feature.id}.md`;
 			const featureNode = graph.nodes.get(`feature:${feature.id}`);
 
 			articles.push(
@@ -878,14 +874,10 @@ export async function compile(
 			);
 		}
 
-		// Decision articles
+		// Decision articles — use decision.id as filename to match [[decision:id]] wikilinks
 		for (const decision of decisions) {
 			const content = generateDecisionArticle(decision);
-			const safeName = (decision.title || decision.id).replace(
-				/[^a-zA-Z0-9_-]/g,
-				"-",
-			);
-			const articlePath = `wiki/decisions/${safeName}.md`;
+			const articlePath = `wiki/decisions/${decision.id}.md`;
 			const decisionNode = graph.nodes.get(`decision:${decision.id}`);
 
 			articles.push(
