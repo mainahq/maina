@@ -94,6 +94,7 @@ mock.module("@mainahq/core", () => ({
 			episodic: 0,
 			semantic: 0,
 			retrieval: 0,
+			wiki: 0,
 			headroom: 170000,
 		},
 	}),
@@ -111,6 +112,9 @@ mock.module("@mainahq/core", () => ({
 	appendWorkflowStep: () => {},
 	getWorkflowId: () => "abc123def456",
 	recordFeedbackAsync: () => {},
+	emitAcceptSignal: () => {},
+	emitRejectSignal: () => {},
+	trackToolUsage: () => ({ ok: true, value: undefined }),
 }));
 
 mock.module("@clack/prompts", () => ({
