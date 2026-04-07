@@ -103,11 +103,22 @@ export function parseDelegationRequest(text: string): DelegationRequest | null {
 
 /**
  * Output a delegation request to stderr.
- * Uses stderr so that MCP stdio transport (which uses stdout for JSON-RPC)
- * is never corrupted by delegation text.
- * In CLI mode, stderr is still visible in the terminal.
+ * Only outputs when running inside an AI tool that can process it
+ * (detected via CLAUDE_CODE, CURSOR, or similar env vars).
+ * Silent in bare terminal to avoid confusing users.
  */
 export function outputDelegationRequest(req: DelegationRequest): void {
+	// Only output delegation when inside an AI tool that can process it
+	const inAITool =
+		process.env.CLAUDE_CODE === "1" ||
+		process.env.CLAUDE_PROJECT_DIR ||
+		process.env.CURSOR_TRACE_ID ||
+		process.env.CONTINUE_GLOBAL_DIR;
+
+	if (!inAITool) {
+		return;
+	}
+
 	const formatted = formatDelegationRequest(req);
 	process.stderr.write(`\n${formatted}\n`);
 }
