@@ -18,6 +18,7 @@ import { prCommand } from "./commands/pr";
 import { promptCommand } from "./commands/prompt";
 import { reviewCommand } from "./commands/review";
 import { reviewDesignCommand } from "./commands/review-design";
+import { setupCommand } from "./commands/setup";
 import { slopCommand } from "./commands/slop";
 import { specCommand } from "./commands/spec";
 import { statsCommand } from "./commands/stats";
@@ -33,36 +34,77 @@ export function createProgram(): Command {
 	const program = new Command();
 	program
 		.name("maina")
-		.description("Verification-first developer operating system")
+		.description(
+			`Verification-first developer operating system
+
+Workflow:
+  brainstorm    Explore ideas interactively
+  ticket        Create GitHub issue from feature
+  plan          Scaffold feature directory
+  design        Create architecture decision record
+  spec          Generate test stubs from spec
+
+Build & Verify:
+  verify        Run verification pipeline
+  commit        Verify + commit with message
+  review        Two-stage code review
+  slop          Detect AI slop patterns
+  pr            Create pull request
+
+Wiki:
+  wiki init     Compile codebase knowledge
+  wiki query    Ask about the codebase
+  wiki compile  Recompile wiki articles
+  wiki status   Wiki health and coverage
+
+Setup & Config:
+  init          Bootstrap maina in repo
+  setup         Guided first-time setup
+  doctor        Check tool and engine health
+  login         Cloud authentication
+  configure     Edit maina config`,
+		)
 		.version(pkg.version);
+
+	// ── Workflow ─────────────────────────────────────────────────────────
 	program.addCommand(brainstormCommand());
-	program.addCommand(analyzeCommand());
-	program.addCommand(benchmarkCommand());
-	program.addCommand(configureCommand());
-	program.addCommand(contextCommand());
-	program.addCommand(promptCommand());
-	program.addCommand(cacheCommand());
-	program.addCommand(learnCommand());
-	program.addCommand(commitCommand());
-	program.addCommand(planCommand());
-	program.addCommand(specCommand());
-	program.addCommand(statsCommand());
-	program.addCommand(verifyCommand());
 	program.addCommand(ticketCommand());
+	program.addCommand(planCommand());
 	program.addCommand(designCommand());
-	program.addCommand(doctorCommand());
-	program.addCommand(explainCommand());
-	program.addCommand(initCommand());
-	program.addCommand(prCommand());
+	program.addCommand(specCommand());
+
+	// ── Build & Verify ──────────────────────────────────────────────────
+	program.addCommand(verifyCommand());
+	program.addCommand(commitCommand());
 	program.addCommand(reviewCommand());
 	program.addCommand(reviewDesignCommand());
 	program.addCommand(slopCommand());
+	program.addCommand(prCommand());
+
+	// ── Wiki ────────────────────────────────────────────────────────────
+	program.addCommand(wikiCommand());
+
+	// ── Setup & Config ──────────────────────────────────────────────────
+	program.addCommand(initCommand());
+	program.addCommand(setupCommand());
+	program.addCommand(doctorCommand());
+	program.addCommand(loginCommand());
+	program.addCommand(logoutCommand());
+	program.addCommand(configureCommand());
+
+	// ── Internals ───────────────────────────────────────────────────────
+	program.addCommand(analyzeCommand());
+	program.addCommand(benchmarkCommand());
+	program.addCommand(cacheCommand());
+	program.addCommand(contextCommand());
+	program.addCommand(explainCommand());
+	program.addCommand(learnCommand());
+	program.addCommand(promptCommand());
+	program.addCommand(statsCommand());
 	program.addCommand(statusCommand());
 	program.addCommand(syncCommand());
 	program.addCommand(teamCommand());
-	program.addCommand(loginCommand());
-	program.addCommand(logoutCommand());
 	program.addCommand(visualCommand());
-	program.addCommand(wikiCommand());
+
 	return program;
 }

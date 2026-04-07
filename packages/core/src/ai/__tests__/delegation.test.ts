@@ -1,7 +1,8 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
 	type DelegationRequest,
 	formatDelegationRequest,
+	outputDelegationRequest,
 	parseDelegationRequest,
 } from "../delegation";
 
@@ -101,5 +102,58 @@ Some output after`;
 		const parsed = parseDelegationRequest(text);
 		expect(parsed?.task).toBe("test");
 		expect(parsed?.prompt).toBe("hello");
+	});
+});
+
+describe("outputDelegationRequest", () => {
+	let stderrChunks: string[];
+	let stdoutChunks: string[];
+	let originalStderrWrite: typeof process.stderr.write;
+	let originalStdoutWrite: typeof process.stdout.write;
+
+	beforeEach(() => {
+		stderrChunks = [];
+		stdoutChunks = [];
+		originalStderrWrite = process.stderr.write;
+		originalStdoutWrite = process.stdout.write;
+
+		process.stderr.write = ((chunk: string | Uint8Array) => {
+			stderrChunks.push(
+				typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+			);
+			return true;
+		}) as typeof process.stderr.write;
+
+		process.stdout.write = ((chunk: string | Uint8Array) => {
+			stdoutChunks.push(
+				typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk),
+			);
+			return true;
+		}) as typeof process.stdout.write;
+	});
+
+	afterEach(() => {
+		process.stderr.write = originalStderrWrite;
+		process.stdout.write = originalStdoutWrite;
+	});
+
+	it("writes to stderr, not stdout (prevents MCP protocol corruption)", () => {
+		const req: DelegationRequest = {
+			task: "review",
+			context: "test context",
+			prompt: "test prompt",
+			expectedFormat: "text",
+		};
+
+		outputDelegationRequest(req);
+
+		// Must write to stderr
+		expect(stderrChunks.length).toBeGreaterThan(0);
+		const stderrOutput = stderrChunks.join("");
+		expect(stderrOutput).toContain("---MAINA_AI_REQUEST---");
+		expect(stderrOutput).toContain("task: review");
+
+		// Must NOT write to stdout (stdout is reserved for JSON-RPC in MCP)
+		expect(stdoutChunks.length).toBe(0);
 	});
 });

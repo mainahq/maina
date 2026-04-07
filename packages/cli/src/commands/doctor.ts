@@ -43,6 +43,13 @@ export interface WikiHealth {
 	lastCompile: string;
 }
 
+export interface McpHealth {
+	mcpJson: boolean;
+	claudeSettings: boolean;
+	serverCommand: string;
+	toolCount: number;
+}
+
 export interface DoctorActionResult {
 	version: string;
 	tools: DetectedTool[];
@@ -50,6 +57,7 @@ export interface DoctorActionResult {
 	cacheStats: CacheStats | null;
 	aiStatus: AIStatus;
 	wikiHealth: WikiHealth;
+	mcpHealth: McpHealth;
 }
 
 // ── Formatting Helpers ───────────────────────────────────────────────────────
@@ -144,6 +152,63 @@ function formatWikiHealth(health: WikiHealth): string {
 		`  ${"Last Compile".padEnd(16)} ${health.lastCompile}`,
 	];
 	return [header, separator, ...rows].join("\n");
+}
+
+// ── MCP Health Check ──────────────────────────────────────────────────────
+
+function checkMcpHealth(cwd: string): McpHealth {
+	const mcpJsonPath = join(cwd, ".mcp.json");
+	const mcpJson = existsSync(mcpJsonPath);
+
+	const claudeSettingsPath = join(cwd, ".claude", "settings.json");
+	let claudeSettings = false;
+	if (existsSync(claudeSettingsPath)) {
+		try {
+			const content = JSON.parse(readFileSync(claudeSettingsPath, "utf-8"));
+			claudeSettings = content?.mcpServers?.maina !== undefined;
+		} catch {
+			// Invalid JSON — not configured
+		}
+	}
+
+	// Determine the server command from .mcp.json
+	let serverCommand = "not configured";
+	let toolCount = 0;
+	if (mcpJson) {
+		try {
+			const content = JSON.parse(readFileSync(mcpJsonPath, "utf-8"));
+			const mainaServer = content?.mcpServers?.maina;
+			if (mainaServer) {
+				serverCommand = `${mainaServer.command} ${(mainaServer.args ?? []).join(" ")}`;
+				// Count known tools: 10 is the current registered count
+				// (getContext, verify, analyzeFeature, explainModule, reviewCode,
+				//  checkSlop, suggestTests, getConventions, wikiQuery, wikiCompile)
+				toolCount = 10;
+			}
+		} catch {
+			// Invalid JSON
+		}
+	}
+
+	return { mcpJson, claudeSettings, serverCommand, toolCount };
+}
+
+function formatMcpHealth(health: McpHealth): string {
+	const lines: string[] = [];
+	lines.push(
+		`  .mcp.json              ${health.mcpJson ? "\u2713 found" : "\u2717 missing"}`,
+	);
+	lines.push(
+		`  .claude/settings.json  ${health.claudeSettings ? "\u2713 found (Claude Code)" : "\u2717 missing (Claude Code)"}`,
+	);
+	if (health.serverCommand !== "not configured") {
+		lines.push(
+			`  MCP Server             \u2713 ${health.toolCount} tools registered`,
+		);
+	} else {
+		lines.push("  MCP Server             \u2717 not configured");
+	}
+	return lines.join("\n");
 }
 
 // ── Wiki Health Check ──────────────────────────────────────────────────────
@@ -354,7 +419,22 @@ export async function doctorAction(
 		log.message(formatWikiHealth(wikiHealth));
 	}
 
-	return { version, tools, engines, cacheStats, aiStatus, wikiHealth };
+	// ── Step 7: MCP Integration ───────────────────────────────────────
+	const mcpHealth = checkMcpHealth(cwd);
+	if (!jsonMode) {
+		log.step("MCP Integration:");
+		log.message(formatMcpHealth(mcpHealth));
+	}
+
+	return {
+		version,
+		tools,
+		engines,
+		cacheStats,
+		aiStatus,
+		wikiHealth,
+		mcpHealth,
+	};
 }
 
 // ── Commander Command ────────────────────────────────────────────────────────

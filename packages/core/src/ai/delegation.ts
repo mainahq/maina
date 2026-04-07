@@ -102,10 +102,12 @@ export function parseDelegationRequest(text: string): DelegationRequest | null {
 }
 
 /**
- * Output a delegation request to stdout.
- * Used by tryAIGenerate when in host mode.
+ * Output a delegation request to stderr.
+ * Uses stderr so that MCP stdio transport (which uses stdout for JSON-RPC)
+ * is never corrupted by delegation text.
+ * In CLI mode, stderr is still visible in the terminal.
  */
 export function outputDelegationRequest(req: DelegationRequest): void {
 	const formatted = formatDelegationRequest(req);
-	process.stdout.write(`\n${formatted}\n`);
+	process.stderr.write(`\n${formatted}\n`);
 }

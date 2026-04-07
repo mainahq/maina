@@ -274,7 +274,12 @@ describe("bootstrap", () => {
 
 	// ── .mcp.json generation ──────────────────────────────────────────────
 
-	test("creates .mcp.json at repo root", async () => {
+	test("creates .mcp.json at repo root with npx for node runtime", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ dependencies: { express: "^4" } }),
+		);
+
 		const result = await bootstrap(tmpDir);
 		expect(result.ok).toBe(true);
 
@@ -284,8 +289,25 @@ describe("bootstrap", () => {
 		const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
 		expect(content.mcpServers).toBeDefined();
 		expect(content.mcpServers.maina).toBeDefined();
-		expect(content.mcpServers.maina.command).toBe("maina");
-		expect(content.mcpServers.maina.args).toEqual(["--mcp"]);
+		expect(content.mcpServers.maina.command).toBe("npx");
+		expect(content.mcpServers.maina.args).toEqual(["@mainahq/cli", "--mcp"]);
+	});
+
+	test("creates .mcp.json with bunx for bun runtime", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ devDependencies: { "@types/bun": "latest" } }),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const mcpPath = join(tmpDir, ".mcp.json");
+		expect(existsSync(mcpPath)).toBe(true);
+
+		const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
+		expect(content.mcpServers.maina.command).toBe("bunx");
+		expect(content.mcpServers.maina.args).toEqual(["@mainahq/cli", "--mcp"]);
 	});
 
 	test("does not overwrite existing .mcp.json", async () => {
@@ -513,6 +535,7 @@ describe("bootstrap", () => {
 				".github/workflows/maina-ci.yml",
 				".github/copilot-instructions.md",
 				".mcp.json",
+				".claude/settings.json",
 				"CLAUDE.md",
 				"GEMINI.md",
 				".cursorrules",
@@ -521,5 +544,106 @@ describe("bootstrap", () => {
 				expect(result.value.created).toContain(f);
 			}
 		}
+	});
+
+	// ── .claude/settings.json generation ──────────────────────────────────
+
+	test("creates .claude/settings.json for Claude Code MCP config", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ devDependencies: { "@types/bun": "latest" } }),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const settingsPath = join(tmpDir, ".claude", "settings.json");
+		expect(existsSync(settingsPath)).toBe(true);
+
+		const content = JSON.parse(readFileSync(settingsPath, "utf-8"));
+		expect(content.mcpServers).toBeDefined();
+		expect(content.mcpServers.maina).toBeDefined();
+		expect(content.mcpServers.maina.command).toBe("bunx");
+		expect(content.mcpServers.maina.args).toEqual(["@mainahq/cli", "--mcp"]);
+	});
+
+	test(".claude/settings.json uses npx for node runtime", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ dependencies: { express: "^4" } }),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const settingsPath = join(tmpDir, ".claude", "settings.json");
+		expect(existsSync(settingsPath)).toBe(true);
+
+		const content = JSON.parse(readFileSync(settingsPath, "utf-8"));
+		expect(content.mcpServers.maina.command).toBe("npx");
+		expect(content.mcpServers.maina.args).toEqual(["@mainahq/cli", "--mcp"]);
+	});
+
+	// ── CLAUDE.md includes wiki commands ─────────────────────────────────
+
+	test("CLAUDE.md includes wiki commands", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const content = readFileSync(join(tmpDir, "CLAUDE.md"), "utf-8");
+		expect(content).toContain("maina wiki init");
+		expect(content).toContain("maina wiki query");
+		expect(content).toContain("maina wiki compile");
+		expect(content).toContain("maina wiki status");
+		expect(content).toContain("maina wiki lint");
+		expect(content).toContain("maina brainstorm");
+		expect(content).toContain("maina ticket");
+		expect(content).toContain("maina design");
+		expect(content).toContain("maina spec");
+		expect(content).toContain("maina slop");
+		expect(content).toContain("maina explain");
+		expect(content).toContain("maina status");
+	});
+
+	// ── MCP_TOOLS_TABLE includes wiki tools ──────────────────────────────
+
+	test("MCP tools table includes wikiQuery and wikiStatus", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		// Check multiple agent files that embed the MCP tools table
+		const claudeContent = readFileSync(join(tmpDir, "CLAUDE.md"), "utf-8");
+		expect(claudeContent).toContain("wikiQuery");
+		expect(claudeContent).toContain("wikiStatus");
+
+		const agentsContent = readFileSync(join(tmpDir, "AGENTS.md"), "utf-8");
+		expect(agentsContent).toContain("wikiQuery");
+		expect(agentsContent).toContain("wikiStatus");
+	});
+
+	// ── Wiki section in agent files ──────────────────────────────────────
+
+	test("agent files include wiki section", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const claudeContent = readFileSync(join(tmpDir, "CLAUDE.md"), "utf-8");
+		expect(claudeContent).toContain("## Wiki");
+		expect(claudeContent).toContain("wikiQuery");
+
+		const agentsContent = readFileSync(join(tmpDir, "AGENTS.md"), "utf-8");
+		expect(agentsContent).toContain("## Wiki");
+
+		const geminiContent = readFileSync(join(tmpDir, "GEMINI.md"), "utf-8");
+		expect(geminiContent).toContain("## Wiki");
+
+		const cursorContent = readFileSync(join(tmpDir, ".cursorrules"), "utf-8");
+		expect(cursorContent).toContain("## Wiki");
+
+		const copilotContent = readFileSync(
+			join(tmpDir, ".github", "copilot-instructions.md"),
+			"utf-8",
+		);
+		expect(copilotContent).toContain("## Wiki");
 	});
 });

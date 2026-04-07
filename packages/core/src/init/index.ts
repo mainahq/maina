@@ -332,7 +332,9 @@ const MCP_TOOLS_TABLE = `| Tool | When to use |
 | \`suggestTests\` | When implementing — generate TDD test stubs |
 | \`getConventions\` | Understand project coding conventions |
 | \`explainModule\` | Understand a module's purpose and dependencies |
-| \`analyzeFeature\` | Analyze a feature directory for consistency |`;
+| \`analyzeFeature\` | Analyze a feature directory for consistency |
+| \`wikiQuery\` | Search wiki for codebase knowledge — "how does auth work?" |
+| \`wikiStatus\` | Wiki health check — article counts, staleness, coverage |`;
 
 // ── Templates ────────────────────────────────────────────────────────────────
 
@@ -465,6 +467,13 @@ maina commit    # verify + commit
 
 ${MCP_TOOLS_TABLE}
 
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
+
 ## Config Files
 | File | Purpose | Who Edits |
 |------|---------|-----------|
@@ -505,6 +514,13 @@ Follow this order for every feature:
 ## Available MCP Tools
 
 ${MCP_TOOLS_TABLE}
+
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
 
 ## Conventions
 
@@ -551,13 +567,32 @@ ${MCP_TOOLS_TABLE}
 
 // ── .mcp.json ───────────────────────────────────────────────────────────────
 
-function buildMcpJson(): string {
+function buildMcpJson(stack: DetectedStack): string {
+	const command = stack.runtime === "bun" ? "bunx" : "npx";
 	return JSON.stringify(
 		{
 			mcpServers: {
 				maina: {
-					command: "maina",
-					args: ["--mcp"],
+					command,
+					args: ["@mainahq/cli", "--mcp"],
+				},
+			},
+		},
+		null,
+		2,
+	);
+}
+
+// ── .claude/settings.json (Claude Code MCP config) ─────────────────────────
+
+function buildClaudeSettings(stack: DetectedStack): string {
+	const command = stack.runtime === "bun" ? "bunx" : "npx";
+	return JSON.stringify(
+		{
+			mcpServers: {
+				maina: {
+					command,
+					args: ["@mainahq/cli", "--mcp"],
 				},
 			},
 		},
@@ -586,16 +621,42 @@ Maina exposes MCP tools — use them in every session:
 
 ${MCP_TOOLS_TABLE}
 
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
+
 ## Commands
 
 \`\`\`bash
-maina verify    # run full verification pipeline
-maina commit    # verify + commit
-maina review    # two-stage code review
-maina context   # generate focused codebase context
-maina doctor    # check tool health
-maina plan      # create feature with spec/plan/tasks
-maina stats     # show verification metrics
+# Workflow
+maina brainstorm  # explore ideas interactively
+maina ticket      # create GitHub issue with module tagging
+maina plan <name> # scaffold feature branch + directory
+maina design      # create ADR (architecture decision record)
+maina spec        # generate TDD test stubs from plan
+
+# Verify & Review
+maina verify      # run full verification pipeline (12+ tools)
+maina review      # two-stage code review
+maina slop        # detect AI-generated slop patterns
+maina commit      # verify + commit staged changes
+
+# Wiki (codebase knowledge)
+maina wiki init    # compile codebase knowledge wiki
+maina wiki query   # ask questions about the codebase
+maina wiki compile # recompile wiki (incremental)
+maina wiki status  # wiki health dashboard
+maina wiki lint    # check wiki for issues
+
+# Context & Info
+maina context     # generate focused codebase context
+maina explain     # explain a module with wiki context
+maina doctor      # check tool health
+maina stats       # verification metrics
+maina status      # branch health overview
 \`\`\`
 
 ## Conventions
@@ -629,6 +690,13 @@ Maina exposes MCP tools via \`.mcp.json\`. Use them:
 
 ${MCP_TOOLS_TABLE}
 
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
+
 ## Key Commands
 
 - \`maina verify\` — run full verification pipeline
@@ -660,6 +728,13 @@ ${WORKFLOW_ORDER}
 
 ## MCP Tools (via .mcp.json)
 ${MCP_TOOLS_TABLE}
+
+## Wiki
+
+If \`.maina/wiki/\` exists, use wiki tools for context:
+- \`wikiQuery\` before coding — understand existing patterns and decisions
+- \`wikiStatus\` to check health
+- Wiki articles are loaded automatically as Context Engine Layer 5
 
 ## Commands
 - maina verify — run full verification pipeline
@@ -869,7 +944,11 @@ function getFileManifest(
 		},
 		{
 			relativePath: ".mcp.json",
-			content: buildMcpJson(),
+			content: buildMcpJson(stack),
+		},
+		{
+			relativePath: ".claude/settings.json",
+			content: buildClaudeSettings(stack),
 		},
 		{
 			relativePath: "CLAUDE.md",
