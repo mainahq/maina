@@ -1,5 +1,11 @@
 # @mainahq/core
 
+## 1.1.3
+
+### Patch Changes
+
+- [`f94987f`](https://github.com/mainahq/maina/commit/f94987f6bbc490c37f64f8dc66240319e63ffcb6) Thanks [@beeeku](https://github.com/beeeku)! - Fix MCP server inside Claude Code: suppress all delegation output in MCP server mode via MAINA_MCP_SERVER env flag. Prevents stderr pollution that breaks MCP JSON-RPC communication.
+
 ## 1.1.2
 
 ### Patch Changes
