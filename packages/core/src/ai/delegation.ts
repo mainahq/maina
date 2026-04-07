@@ -108,7 +108,12 @@ export function parseDelegationRequest(text: string): DelegationRequest | null {
  * Silent in bare terminal to avoid confusing users.
  */
 export function outputDelegationRequest(req: DelegationRequest): void {
-	// Only output delegation when inside an AI tool that can process it
+	// Never output in MCP mode — corrupts JSON-RPC communication
+	if (process.env.MAINA_MCP_SERVER === "1") {
+		return;
+	}
+
+	// Only output in bare CLI when inside an AI tool that can process it
 	const inAITool =
 		process.env.CLAUDE_CODE === "1" ||
 		process.env.CLAUDE_PROJECT_DIR ||

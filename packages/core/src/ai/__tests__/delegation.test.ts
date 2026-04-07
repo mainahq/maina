@@ -137,7 +137,12 @@ describe("outputDelegationRequest", () => {
 		process.stdout.write = originalStdoutWrite;
 	});
 
-	it("writes to stderr, not stdout (prevents MCP protocol corruption)", () => {
+	it("writes to stderr when inside AI tool, not stdout (prevents MCP corruption)", () => {
+		// Simulate running inside Claude Code
+		const origClaudeCode = process.env.CLAUDE_CODE;
+		process.env.CLAUDE_CODE = "1";
+		delete process.env.MAINA_MCP_SERVER;
+
 		const req: DelegationRequest = {
 			task: "review",
 			context: "test context",
@@ -153,7 +158,46 @@ describe("outputDelegationRequest", () => {
 		expect(stderrOutput).toContain("---MAINA_AI_REQUEST---");
 		expect(stderrOutput).toContain("task: review");
 
-		// Must NOT write to stdout (stdout is reserved for JSON-RPC in MCP)
+		// Must NOT write to stdout
+		expect(stdoutChunks.length).toBe(0);
+
+		// Restore
+		if (origClaudeCode) process.env.CLAUDE_CODE = origClaudeCode;
+		else delete process.env.CLAUDE_CODE;
+	});
+
+	it("suppresses output in MCP server mode", () => {
+		process.env.MAINA_MCP_SERVER = "1";
+		process.env.CLAUDE_CODE = "1";
+
+		outputDelegationRequest({
+			task: "test",
+			context: "ctx",
+			prompt: "p",
+			expectedFormat: "text",
+		});
+
+		expect(stderrChunks.length).toBe(0);
+		expect(stdoutChunks.length).toBe(0);
+
+		delete process.env.MAINA_MCP_SERVER;
+		delete process.env.CLAUDE_CODE;
+	});
+
+	it("suppresses output in bare terminal (no AI tool env vars)", () => {
+		delete process.env.CLAUDE_CODE;
+		delete process.env.CLAUDE_PROJECT_DIR;
+		delete process.env.CURSOR_TRACE_ID;
+		delete process.env.MAINA_MCP_SERVER;
+
+		outputDelegationRequest({
+			task: "test",
+			context: "ctx",
+			prompt: "p",
+			expectedFormat: "text",
+		});
+
+		expect(stderrChunks.length).toBe(0);
 		expect(stdoutChunks.length).toBe(0);
 	});
 });

@@ -28,6 +28,9 @@ export function createMcpServer(): McpServer {
 }
 
 export async function startServer(): Promise<void> {
+	// Signal to core modules that we're running as MCP — suppress all stderr output
+	process.env.MAINA_MCP_SERVER = "1";
+
 	const server = createMcpServer();
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
