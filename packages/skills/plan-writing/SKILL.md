@@ -16,25 +16,26 @@ When starting a new feature, refactor, or significant change. The planning workf
 
 ## Steps
 
-1. **Scaffold the feature** with `maina plan <name>`. This creates a numbered feature directory under `.maina/features/` containing `spec.md` and `plan.md` templates.
-2. **Fill in spec.md** with the WHAT and WHY:
+1. **Start with brainstorm** using `maina brainstorm` to explore the idea, surface edge cases, and generate a structured GitHub issue. This is the recommended starting point before planning.
+2. **Scaffold the feature** with `maina plan <name>`. This creates a numbered feature directory under `.maina/features/` containing `spec.md` and `plan.md` templates.
+3. **Fill in spec.md** with the WHAT and WHY:
    - **Problem Statement:** What problem does this solve and for whom?
    - **User Stories:** Concrete "As a [role], I want [action] so that [benefit]" statements.
    - **Acceptance Criteria:** Specific, testable conditions that define done.
    - **Scope:** What is explicitly in and out of scope.
    - Mark anything uncertain with `[NEEDS CLARIFICATION]` -- never guess.
-3. **Fill in plan.md** with the HOW:
+4. **Fill in plan.md** with the HOW:
    - **Architecture:** Key technical decisions and component design.
    - **Key Decisions:** Trade-offs made and why.
    - **Tasks:** Ordered task list (T001, T002, ...) with test tasks before implementation tasks (TDD).
    - **Failure Modes:** What can go wrong and how the design handles it.
-4. **Check consistency** with `maina analyze`. This verifies:
+5. **Check consistency** with `maina analyze`. This verifies:
    - Every acceptance criterion in spec.md is covered by at least one task in plan.md.
    - No TODO, TBD, PLACEHOLDER, or FIXME markers remain (except `[NEEDS CLARIFICATION]`).
    - Function and type names are used consistently across tasks.
    - Test tasks come before their corresponding implementation tasks.
-5. **Generate test stubs** with `maina spec`. This reads the plan and creates failing test files for each task, ready for the TDD red-green-refactor cycle.
-6. **Remember:** Spec = WHAT/WHY, Plan = HOW. Never mix concerns between the two files.
+6. **Generate test stubs** with `maina spec`. This reads the plan and creates failing test files for each task, ready for the TDD red-green-refactor cycle.
+7. **Remember:** Spec = WHAT/WHY, Plan = HOW. Never mix concerns between the two files.
 
 ## Example
 

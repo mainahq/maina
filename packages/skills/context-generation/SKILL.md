@@ -59,4 +59,5 @@ maina context --mode explore
 
 - Context is cached: identical queries with the same prompt version, context hash, and model never hit the AI twice.
 - Each maina command declares its own context needs via a selector, so `maina review` and `maina plan` automatically request different context shapes.
-- The semantic layer uses tree-sitter for language-aware parsing, supporting TypeScript, JavaScript, Python, Go, Rust, and more.
+- The semantic layer uses tree-sitter for language-aware parsing, supporting TypeScript, Python, Go, Rust, C#, Java, PHP, and more.
+- When logged into Maina Cloud (`maina login`), the episodic layer merges team entries automatically -- reviews your teammates accepted feed into your context. Entries are deduplicated by content hash and decay naturally over time.

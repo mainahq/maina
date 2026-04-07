@@ -10,6 +10,7 @@ const SKILL_NAMES = [
 	"plan-writing",
 	"code-review",
 	"tdd",
+	"cloud-workflow",
 ];
 
 function readSkill(name: string): string {

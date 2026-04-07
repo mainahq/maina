@@ -19,11 +19,14 @@ Before committing any code change. The verification pipeline catches syntax erro
 1. **Stage your changes** with `git add` as usual.
 2. **Run the pipeline** with `maina verify`. This runs the full verification sequence on staged files only.
 3. **Syntax guard (< 500ms):** Biome checks formatting and lint rules first. If this fails, nothing else runs -- fix syntax before proceeding.
-4. **Parallel tool sweep:** Once syntax passes, these tools run simultaneously:
+4. **Parallel tool sweep:** Once syntax passes, 18+ tools run simultaneously:
    - **Semgrep** -- pattern-based static analysis for bugs and anti-patterns
    - **Trivy** -- vulnerability scanning for dependencies and container configs
    - **Secretlint** -- detects accidentally committed secrets, tokens, and keys
-   - **Slop detector** -- catches AI-generated filler text ("I'd be happy to", placeholder code, etc.)
+   - **Slop detector** -- catches AI-generated filler text and placeholder code
+   - **Typecheck** -- `tsc --noEmit` for TypeScript projects
+   - **Consistency** -- cross-function AST-based consistency check
+   - Plus SonarQube, Stryker, diff-cover, ZAP, Lighthouse when installed.
 5. **Diff-only filter:** Results are filtered to only new or changed lines. Existing issues in untouched code are ignored.
 6. **Review findings:** Each finding includes file path, line number, severity, explanation, and a suggested fix.
 7. **Fix and re-run:** Address findings, re-stage, and run `maina verify` again until clean.
@@ -60,3 +63,6 @@ maina commit
 - The pipeline is designed for speed: syntax guard exits early on failure, parallel tools maximize throughput.
 - Use `maina verify --focused` for a narrower context budget (40%) on small, targeted changes.
 - Use `maina verify --explore` for a wider budget (80%) when making broad refactors.
+- Use `maina verify --deep` to add AI semantic review (spec compliance + code quality).
+- Use `maina verify --cloud` to run the pipeline on Maina Cloud (no local tools needed).
+- Use `maina verify --visual` to add Playwright screenshot regression testing.
