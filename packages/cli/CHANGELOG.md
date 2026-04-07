@@ -1,5 +1,11 @@
 # @mainahq/cli
 
+## 1.1.4
+
+### Patch Changes
+
+- [`f6bebe3`](https://github.com/mainahq/maina/commit/f6bebe38fba3a5e56f758f6cc798d3d4efbab6ac) Thanks [@beeeku](https://github.com/beeeku)! - Fix MCP server not found: move @mainahq/mcp from devDependencies to dependencies and import by package name instead of relative path. Fixes `maina --mcp` when installed from npm.
+
 ## 1.1.2
 
 ### Patch Changes
