@@ -490,3 +490,95 @@ export function getSkipRate(
 		return { ok: false, error: e instanceof Error ? e.message : String(e) };
 	}
 }
+
+export interface ToolUsageInput {
+	tool: string;
+	inputHash: string;
+	durationMs: number;
+	cacheHit: boolean;
+	workflowId?: string;
+}
+
+export interface ToolUsageStats {
+	totalCalls: number;
+	cacheHits: number;
+	cacheHitRate: number;
+	byTool: Record<
+		string,
+		{ calls: number; cacheHits: number; avgDurationMs: number }
+	>;
+}
+
+export function trackToolUsage(mainaDir: string, input: ToolUsageInput): void {
+	try {
+		const dbResult = getStatsDb(mainaDir);
+		if (!dbResult.ok) return;
+		const { db } = dbResult.value;
+		const id = crypto.randomUUID();
+		const timestamp = new Date().toISOString();
+		db.prepare(
+			`INSERT INTO tool_usage (id, tool, input_hash, duration_ms, cache_hit, timestamp, workflow_id)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		).run(
+			id,
+			input.tool,
+			input.inputHash,
+			input.durationMs,
+			input.cacheHit ? 1 : 0,
+			timestamp,
+			input.workflowId ?? null,
+		);
+	} catch {
+		// Never throw from stats tracking
+	}
+}
+
+export function getToolUsageStats(mainaDir: string): ToolUsageStats {
+	const empty: ToolUsageStats = {
+		totalCalls: 0,
+		cacheHits: 0,
+		cacheHitRate: 0,
+		byTool: {},
+	};
+	try {
+		const dbResult = getStatsDb(mainaDir);
+		if (!dbResult.ok) return empty;
+		const { db } = dbResult.value;
+		const totals = db
+			.query(
+				`SELECT COUNT(*) as total, SUM(CASE WHEN cache_hit = 1 THEN 1 ELSE 0 END) as hits FROM tool_usage`,
+			)
+			.get() as { total: number; hits: number } | null;
+		if (!totals || totals.total === 0) return empty;
+		const byToolRows = db
+			.query(
+				`SELECT tool, COUNT(*) as calls, SUM(CASE WHEN cache_hit = 1 THEN 1 ELSE 0 END) as cache_hits, AVG(duration_ms) as avg_duration
+			 FROM tool_usage GROUP BY tool`,
+			)
+			.all() as Array<{
+			tool: string;
+			calls: number;
+			cache_hits: number;
+			avg_duration: number;
+		}>;
+		const byTool: Record<
+			string,
+			{ calls: number; cacheHits: number; avgDurationMs: number }
+		> = {};
+		for (const row of byToolRows) {
+			byTool[row.tool] = {
+				calls: row.calls,
+				cacheHits: row.cache_hits,
+				avgDurationMs: Math.round(row.avg_duration),
+			};
+		}
+		return {
+			totalCalls: totals.total,
+			cacheHits: totals.hits,
+			cacheHitRate: totals.total > 0 ? totals.hits / totals.total : 0,
+			byTool,
+		};
+	} catch {
+		return empty;
+	}
+}

@@ -149,6 +149,18 @@ function createStatsTables(db: Database): void {
 	} catch {
 		// Column already exists — safe to ignore
 	}
+
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS tool_usage (
+			id TEXT PRIMARY KEY,
+			tool TEXT NOT NULL,
+			input_hash TEXT NOT NULL,
+			duration_ms INTEGER NOT NULL,
+			cache_hit INTEGER NOT NULL DEFAULT 0,
+			timestamp TEXT NOT NULL,
+			workflow_id TEXT
+		);
+	`);
 }
 
 /**
