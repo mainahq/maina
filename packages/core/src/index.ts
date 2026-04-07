@@ -1,6 +1,7 @@
 export const VERSION = "0.1.0";
 
 // AI
+export { type AIAvailability, checkAIAvailability } from "./ai/availability";
 export { generateCommitMessage } from "./ai/commit-msg";
 // AI — Delegation
 export {
@@ -99,8 +100,9 @@ export {
 	setVerificationResult,
 	trackFile,
 } from "./context/working";
-// DB (Result type)
+// DB
 export type { Result } from "./db/index";
+export { getFeedbackDb } from "./db/index";
 // Design (ADR)
 export {
 	type AdrSummary,
@@ -211,6 +213,7 @@ export {
 // Init
 export {
 	bootstrap,
+	buildMainaSection,
 	type DetectedStack,
 	type InitOptions,
 	type InitReport,

@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { intro, isCancel, log, outro, select, text } from "@clack/prompts";
 import {
 	appendWorkflowStep,
+	checkAIAvailability,
 	getCurrentBranch,
 	getWorkflowId,
 	recordFeedbackAsync,
@@ -131,6 +132,16 @@ export async function brainstormAction(
 ): Promise<BrainstormActionResult> {
 	const cwd = options.cwd ?? process.cwd();
 	const mainaDir = join(cwd, ".maina");
+
+	// ── AI availability check ────────────────────────────────────────────
+	const ai = checkAIAvailability();
+	if (!ai.available) {
+		log.error(ai.reason ?? "AI features unavailable.");
+		log.message(
+			"  Run `maina init` to set up AI, or run inside an AI coding agent.",
+		);
+		return { created: false, reason: "AI not configured" };
+	}
 
 	// ── Step 1: Get the idea ──────────────────────────────────────────────
 	let title = options.title;

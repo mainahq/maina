@@ -9,6 +9,7 @@ import type {
 } from "@mainahq/core";
 import {
 	appendWorkflowStep,
+	checkAIAvailability,
 	createCloudClient,
 	generateFixes,
 	getCurrentBranch,
@@ -317,6 +318,12 @@ export async function verifyAction(
 	const cwd = options.cwd ?? process.cwd();
 	const mainaDir = join(cwd, ".maina");
 	const baseBranch = options.base ?? "main";
+
+	// ── AI availability check ────────────────────────────────────────────
+	const ai = checkAIAvailability();
+	if (!ai.available && !options.json) {
+		log.warning("Running without AI — deterministic checks only.");
+	}
 
 	// ── Step 1: Determine files to check ──────────────────────────────────
 	const pipelineOpts: {
