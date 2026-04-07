@@ -32,5 +32,8 @@
     "drizzle-kit": "^0.31.10",
     "knip": "^6.3.0",
     "lefthook": "^2.1.4"
+  },
+  "dependencies": {
+    "vite": "^8.0.6"
   }
 }
