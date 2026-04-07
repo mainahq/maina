@@ -753,7 +753,7 @@ describe("createCloudClient", () => {
 		expect(result.ok).toBe(true);
 		if (result.ok) {
 			expect(result.value).toHaveLength(1);
-			const entry = result.value[0]!;
+			const entry = result.value[0] as (typeof result.value)[number];
 			expect(entry.id).toBe("ep_001");
 			expect(entry.entryType).toBe("review");
 			expect(entry.relevanceScore).toBe(0.85);

@@ -34,7 +34,9 @@
 			"!**/dist",
 			"!**/node_modules",
 			"!packages/docs/.astro",
-			"!packages/docs/dist"
+			"!packages/docs/dist",
+			"!.claude/worktrees",
+			"!examples/**/.cursor"
 		]
 	}
 }

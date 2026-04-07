@@ -276,4 +276,188 @@ describe("bootstrap", () => {
 			expect(result.value.detectedStack.linter).toBe("eslint");
 		}
 	});
+
+	// ── .mcp.json generation ──────────────────────────────────────────────
+
+	test("creates .mcp.json at repo root", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const mcpPath = join(tmpDir, ".mcp.json");
+		expect(existsSync(mcpPath)).toBe(true);
+
+		const content = JSON.parse(readFileSync(mcpPath, "utf-8"));
+		expect(content.mcpServers).toBeDefined();
+		expect(content.mcpServers.maina).toBeDefined();
+		expect(content.mcpServers.maina.command).toBe("maina");
+		expect(content.mcpServers.maina.args).toEqual(["--mcp"]);
+	});
+
+	test("does not overwrite existing .mcp.json", async () => {
+		writeFileSync(join(tmpDir, ".mcp.json"), '{"custom": true}');
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.skipped).toContain(".mcp.json");
+		}
+
+		const content = readFileSync(join(tmpDir, ".mcp.json"), "utf-8");
+		expect(JSON.parse(content)).toEqual({ custom: true });
+	});
+
+	// ── Agent instruction files ───────────────────────────────────────────
+
+	test("creates CLAUDE.md at repo root", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const claudePath = join(tmpDir, "CLAUDE.md");
+		expect(existsSync(claudePath)).toBe(true);
+
+		const content = readFileSync(claudePath, "utf-8");
+		expect(content).toContain("# CLAUDE.md");
+		expect(content).toContain("constitution.md");
+		expect(content).toContain("brainstorm");
+		expect(content).toContain("getContext");
+		expect(content).toContain("maina verify");
+	});
+
+	test("creates GEMINI.md at repo root", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const geminiPath = join(tmpDir, "GEMINI.md");
+		expect(existsSync(geminiPath)).toBe(true);
+
+		const content = readFileSync(geminiPath, "utf-8");
+		expect(content).toContain("# GEMINI.md");
+		expect(content).toContain("constitution.md");
+		expect(content).toContain("brainstorm");
+		expect(content).toContain("getContext");
+	});
+
+	test("creates .cursorrules at repo root", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const cursorPath = join(tmpDir, ".cursorrules");
+		expect(existsSync(cursorPath)).toBe(true);
+
+		const content = readFileSync(cursorPath, "utf-8");
+		expect(content).toContain("Cursor Rules");
+		expect(content).toContain("constitution.md");
+		expect(content).toContain("brainstorm");
+		expect(content).toContain("maina verify");
+	});
+
+	test("does not overwrite existing agent files", async () => {
+		writeFileSync(join(tmpDir, "CLAUDE.md"), "# My Custom CLAUDE.md\n");
+		writeFileSync(join(tmpDir, "GEMINI.md"), "# My Custom GEMINI.md\n");
+		writeFileSync(join(tmpDir, ".cursorrules"), "# My Custom Rules\n");
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.skipped).toContain("CLAUDE.md");
+			expect(result.value.skipped).toContain("GEMINI.md");
+			expect(result.value.skipped).toContain(".cursorrules");
+		}
+
+		expect(readFileSync(join(tmpDir, "CLAUDE.md"), "utf-8")).toBe(
+			"# My Custom CLAUDE.md\n",
+		);
+	});
+
+	// ── Workflow order in agent files ─────────────────────────────────────
+
+	test("AGENTS.md includes workflow order", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const content = readFileSync(join(tmpDir, "AGENTS.md"), "utf-8");
+		expect(content).toContain("Workflow Order");
+		expect(content).toContain("brainstorm");
+		expect(content).toContain("ticket");
+		expect(content).toContain("implement");
+		expect(content).toContain("verify");
+	});
+
+	test("copilot instructions include workflow order", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const content = readFileSync(
+			join(tmpDir, ".github", "copilot-instructions.md"),
+			"utf-8",
+		);
+		expect(content).toContain("Workflow Order");
+		expect(content).toContain("brainstorm");
+	});
+
+	// ── MCP tools in agent files ──────────────────────────────────────────
+
+	test("AGENTS.md includes MCP tools table", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const content = readFileSync(join(tmpDir, "AGENTS.md"), "utf-8");
+		expect(content).toContain("MCP Tools");
+		expect(content).toContain("getContext");
+		expect(content).toContain("checkSlop");
+		expect(content).toContain("reviewCode");
+		expect(content).toContain("suggestTests");
+		expect(content).toContain("explainModule");
+		expect(content).toContain("analyzeFeature");
+	});
+
+	// ── aiGenerate option ─────────────────────────────────────────────────
+
+	test("aiGenerate defaults to false (backward compatible)", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			// Without aiGenerate, should not have AI-generated constitution
+			expect(result.value.aiGenerated).toBeFalsy();
+		}
+	});
+
+	test("aiGenerate falls back to static template when AI unavailable", async () => {
+		// No API key in env, AI will fail
+		const result = await bootstrap(tmpDir, { aiGenerate: true });
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			// Constitution should still be created (fallback to static)
+			expect(result.value.created).toContain(".maina/constitution.md");
+			const content = readFileSync(
+				join(tmpDir, ".maina", "constitution.md"),
+				"utf-8",
+			);
+			expect(content).toContain("# Project Constitution");
+		}
+	});
+
+	// ── Complete file manifest ────────────────────────────────────────────
+
+	test("creates all expected files in fresh directory", async () => {
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			const expectedFiles = [
+				".maina/constitution.md",
+				".maina/prompts/review.md",
+				".maina/prompts/commit.md",
+				"AGENTS.md",
+				".github/workflows/maina-ci.yml",
+				".github/copilot-instructions.md",
+				".mcp.json",
+				"CLAUDE.md",
+				"GEMINI.md",
+				".cursorrules",
+			];
+			for (const f of expectedFiles) {
+				expect(result.value.created).toContain(f);
+			}
+		}
+	});
 });

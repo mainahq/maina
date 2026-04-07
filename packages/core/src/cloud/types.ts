@@ -77,6 +77,26 @@ export interface TokenResponse {
 	refreshToken?: string;
 	/** Seconds until the access token expires. */
 	expiresIn: number;
+	/** True when the user has no email set (first-time signup). */
+	firstTime?: boolean;
+}
+
+// ── Profile ────────────────────────────────────────────────────────────────
+
+export interface ProfileUpdatePayload {
+	/** User email address. */
+	email: string;
+	/** User display name. */
+	name: string;
+}
+
+export interface ProfileUpdateResponse {
+	/** Updated email. */
+	email: string;
+	/** Updated name. */
+	name: string;
+	/** Whether onboarding is complete. */
+	isOnboarded: boolean;
 }
 
 // ── API Envelope ────────────────────────────────────────────────────────────

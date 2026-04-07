@@ -325,8 +325,11 @@ export {
 export {
 	detectTool,
 	detectTools,
+	getToolsForLanguages,
 	isToolAvailable,
 	TOOL_REGISTRY,
+	type ToolRegistryEntry,
+	type ToolTier,
 } from "./verify/detect";
 export {
 	filterByDiff,

@@ -3,7 +3,7 @@
  * `maina logout` — Clear saved credentials.
  */
 
-import { intro, log, outro, spinner } from "@clack/prompts";
+import { intro, log, outro, spinner, text } from "@clack/prompts";
 import {
 	clearAuthConfig,
 	createCloudClient,
@@ -76,6 +76,7 @@ export async function loginAction(): Promise<LoginActionResult> {
 		accessToken,
 		refreshToken,
 		expiresIn: tokenExpiry,
+		firstTime,
 	} = tokenResult.value;
 	const expiresAt = new Date(Date.now() + tokenExpiry * 1000).toISOString();
 
@@ -85,12 +86,60 @@ export async function loginAction(): Promise<LoginActionResult> {
 		return { loggedIn: false, reason: saveResult.error };
 	}
 
-	// Verify token works
 	const client = createCloudClient({
 		baseUrl: DEFAULT_CLOUD_URL,
 		token: accessToken,
 	});
 
+	// First-time user onboarding: collect email and name
+	if (firstTime) {
+		log.info("Welcome to Maina Cloud! Let's set up your profile.");
+
+		const email = await text({
+			message: "Your email:",
+			validate: (value) => {
+				if (!value?.trim()) return "Email is required";
+				if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()))
+					return "Please enter a valid email";
+			},
+		});
+
+		if (typeof email === "symbol") {
+			log.warning(
+				"Skipped profile setup. You can set it later in the dashboard.",
+			);
+			return { loggedIn: true };
+		}
+
+		const name = await text({
+			message: "Your name:",
+			validate: (value) => {
+				if (!value?.trim()) return "Name is required";
+			},
+		});
+
+		if (typeof name === "symbol") {
+			log.warning(
+				"Skipped profile setup. You can set it later in the dashboard.",
+			);
+			return { loggedIn: true };
+		}
+
+		const profileResult = await client.updateProfile({
+			email: email.trim(),
+			name: name.trim(),
+		});
+
+		if (profileResult.ok) {
+			log.success(`Profile set: ${name.trim()} <${email.trim()}>`);
+		} else {
+			log.warning(
+				`Could not save profile: ${profileResult.error}. You can set it later in the dashboard.`,
+			);
+		}
+	}
+
+	// Verify token works
 	const healthResult = await client.health();
 	if (healthResult.ok) {
 		log.success("Connected to maina cloud.");

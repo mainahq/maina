@@ -229,6 +229,7 @@ export async function pollForToken(
 				accessToken: (d.accessToken ?? d.access_token) as string,
 				refreshToken: (d.refreshToken ?? d.refresh_token) as string | undefined,
 				expiresIn: (d.expiresIn ?? d.expires_in ?? 0) as number,
+				firstTime: (d.firstTime ?? d.first_time ?? false) as boolean,
 			});
 		} catch (e) {
 			// Network errors during polling are transient — keep trying

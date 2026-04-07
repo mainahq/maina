@@ -1,0 +1,127 @@
+---
+interface Props {
+  chart: string;
+}
+
+const { chart } = Astro.props;
+---
+
+<div class="mermaid-wrapper">
+  <pre class="mermaid" set:text={chart} />
+</div>
+
+<script>
+  async function initMermaid() {
+    // @ts-ignore - loaded from CDN
+    const mermaid = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+
+    function getTheme(): string {
+      const isDark = document.documentElement.dataset.theme === 'dark' ||
+        document.documentElement.classList.contains('dark') ||
+        (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches &&
+          !document.documentElement.dataset.theme);
+      return isDark ? 'dark' : 'default';
+    }
+
+    async function render() {
+      const theme = getTheme();
+      mermaid.default.initialize({
+        startOnLoad: false,
+        theme,
+        themeVariables: theme === 'dark' ? {
+          primaryColor: '#1e3a5f',
+          primaryTextColor: '#e2e8f0',
+          primaryBorderColor: '#3b82f6',
+          lineColor: '#64748b',
+          secondaryColor: '#3b1f5e',
+          tertiaryColor: '#1a3a2a',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          fontSize: '14px',
+        } : {
+          primaryColor: '#dbeafe',
+          primaryTextColor: '#1e293b',
+          primaryBorderColor: '#3b82f6',
+          lineColor: '#94a3b8',
+          secondaryColor: '#ede9fe',
+          tertiaryColor: '#dcfce7',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          fontSize: '14px',
+        },
+      });
+
+      // Clear previous renders and re-render
+      const elements = document.querySelectorAll('.mermaid');
+      for (const el of elements) {
+        const svgEl = el.querySelector('svg');
+        if (svgEl) {
+          // Already rendered — store original text and re-render
+          const original = el.getAttribute('data-original');
+          if (original) {
+            el.removeAttribute('data-processed');
+            el.innerHTML = original;
+          }
+        } else {
+          // First render — store original text
+          el.setAttribute('data-original', el.textContent || '');
+        }
+      }
+
+      await mermaid.default.run({ nodes: elements });
+    }
+
+    await render();
+
+    // Watch for Starlight theme changes
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.attributeName === 'data-theme' || mutation.attributeName === 'class') {
+          render();
+          break;
+        }
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme', 'class'],
+    });
+  }
+
+  // Run on initial load and on Astro page transitions (View Transitions)
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMermaid);
+  } else {
+    initMermaid();
+  }
+  document.addEventListener('astro:after-swap', initMermaid);
+</script>
+
+<style>
+  .mermaid-wrapper {
+    margin: 1.5rem 0 2rem;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--sl-color-gray-5, #e7e5e4);
+    background: var(--sl-color-gray-7, #fafaf9);
+    overflow-x: auto;
+  }
+
+  :global([data-theme='dark']) .mermaid-wrapper {
+    border-color: var(--sl-color-gray-5, #44403c);
+    background: var(--sl-color-gray-7, #1c1917);
+  }
+
+  .mermaid {
+    display: flex;
+    justify-content: center;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .mermaid :global(svg) {
+    max-width: 100%;
+    height: auto;
+  }
+</style>

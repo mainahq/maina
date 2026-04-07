@@ -37,29 +37,154 @@ export interface DetectedTool {
 	available: boolean;
 }
 
-export const TOOL_REGISTRY: Record<
-	ToolName,
-	{ command: string; versionFlag: string }
-> = {
-	biome: { command: "biome", versionFlag: "--version" },
-	semgrep: { command: "semgrep", versionFlag: "--version" },
-	trivy: { command: "trivy", versionFlag: "--version" },
-	secretlint: { command: "secretlint", versionFlag: "--version" },
-	sonarqube: { command: "sonar-scanner", versionFlag: "--version" },
-	stryker: { command: "stryker", versionFlag: "--version" },
-	"diff-cover": { command: "diff-cover", versionFlag: "--version" },
-	ruff: { command: "ruff", versionFlag: "--version" },
-	"golangci-lint": { command: "golangci-lint", versionFlag: "--version" },
-	"cargo-clippy": { command: "cargo", versionFlag: "clippy --version" },
-	"cargo-audit": { command: "cargo-audit", versionFlag: "--version" },
-	playwright: { command: "npx", versionFlag: "playwright --version" },
-	"dotnet-format": { command: "dotnet", versionFlag: "format --version" },
-	checkstyle: { command: "checkstyle", versionFlag: "--version" },
-	spotbugs: { command: "spotbugs", versionFlag: "-version" },
-	pmd: { command: "pmd", versionFlag: "--version" },
-	zap: { command: "docker", versionFlag: "--version" },
-	lighthouse: { command: "lighthouse", versionFlag: "--version" },
+export type ToolTier = "essential" | "recommended" | "optional";
+
+export interface ToolRegistryEntry {
+	command: string;
+	versionFlag: string;
+	languages: string[];
+	tier: ToolTier;
+}
+
+export const TOOL_REGISTRY: Record<ToolName, ToolRegistryEntry> = {
+	biome: {
+		command: "biome",
+		versionFlag: "--version",
+		languages: ["typescript", "javascript"],
+		tier: "essential",
+	},
+	semgrep: {
+		command: "semgrep",
+		versionFlag: "--version",
+		languages: ["*"],
+		tier: "recommended",
+	},
+	trivy: {
+		command: "trivy",
+		versionFlag: "--version",
+		languages: ["*"],
+		tier: "recommended",
+	},
+	secretlint: {
+		command: "secretlint",
+		versionFlag: "--version",
+		languages: ["*"],
+		tier: "recommended",
+	},
+	sonarqube: {
+		command: "sonar-scanner",
+		versionFlag: "--version",
+		languages: ["*"],
+		tier: "optional",
+	},
+	stryker: {
+		command: "stryker",
+		versionFlag: "--version",
+		languages: ["typescript", "javascript"],
+		tier: "optional",
+	},
+	"diff-cover": {
+		command: "diff-cover",
+		versionFlag: "--version",
+		languages: ["*"],
+		tier: "optional",
+	},
+	ruff: {
+		command: "ruff",
+		versionFlag: "--version",
+		languages: ["python"],
+		tier: "essential",
+	},
+	"golangci-lint": {
+		command: "golangci-lint",
+		versionFlag: "--version",
+		languages: ["go"],
+		tier: "essential",
+	},
+	"cargo-clippy": {
+		command: "cargo",
+		versionFlag: "clippy --version",
+		languages: ["rust"],
+		tier: "essential",
+	},
+	"cargo-audit": {
+		command: "cargo-audit",
+		versionFlag: "--version",
+		languages: ["rust"],
+		tier: "recommended",
+	},
+	playwright: {
+		command: "npx",
+		versionFlag: "playwright --version",
+		languages: ["typescript", "javascript"],
+		tier: "optional",
+	},
+	"dotnet-format": {
+		command: "dotnet",
+		versionFlag: "format --version",
+		languages: ["dotnet"],
+		tier: "essential",
+	},
+	checkstyle: {
+		command: "checkstyle",
+		versionFlag: "--version",
+		languages: ["java"],
+		tier: "essential",
+	},
+	spotbugs: {
+		command: "spotbugs",
+		versionFlag: "-version",
+		languages: ["java"],
+		tier: "recommended",
+	},
+	pmd: {
+		command: "pmd",
+		versionFlag: "--version",
+		languages: ["java"],
+		tier: "recommended",
+	},
+	zap: {
+		command: "docker",
+		versionFlag: "--version",
+		languages: ["*"],
+		tier: "optional",
+	},
+	lighthouse: {
+		command: "lighthouse",
+		versionFlag: "--version",
+		languages: ["typescript", "javascript"],
+		tier: "optional",
+	},
 };
+
+/**
+ * Filter the tool registry by project languages.
+ * Universal tools (languages: ["*"]) are always included.
+ * If ["unknown"] is passed, returns all tools (no filtering).
+ * Returns an array of { name, ...ToolRegistryEntry } objects.
+ */
+export function getToolsForLanguages(
+	languages: string[],
+): (ToolRegistryEntry & { name: ToolName })[] {
+	const entries = Object.entries(TOOL_REGISTRY) as [
+		ToolName,
+		ToolRegistryEntry,
+	][];
+
+	// unknown → return everything
+	if (languages.includes("unknown")) {
+		return entries.map(([name, entry]) => ({ name, ...entry }));
+	}
+
+	return entries
+		.filter(([_, entry]) => {
+			// Universal tools always included
+			if (entry.languages.includes("*")) return true;
+			// Include if any of the tool's languages match the project's languages
+			return entry.languages.some((lang) => languages.includes(lang));
+		})
+		.map(([name, entry]) => ({ name, ...entry }));
+}
 
 /**
  * Parse a version string from command output.
@@ -165,11 +290,23 @@ export async function detectTool(name: ToolName): Promise<DetectedTool> {
 }
 
 /**
- * Detect all registered tools in parallel.
+ * Detect registered tools in parallel.
+ * When `languages` is provided, only tools relevant to those languages are detected.
+ * When omitted, all registered tools are detected (backward compatible).
  * Returns an array of DetectedTool in registry order.
  */
-export async function detectTools(): Promise<DetectedTool[]> {
-	const names = Object.keys(TOOL_REGISTRY) as ToolName[];
+export async function detectTools(
+	languages?: string[],
+): Promise<DetectedTool[]> {
+	let names: ToolName[];
+
+	if (languages) {
+		const filtered = getToolsForLanguages(languages);
+		names = filtered.map((t) => t.name);
+	} else {
+		names = Object.keys(TOOL_REGISTRY) as ToolName[];
+	}
+
 	const results = await Promise.all(names.map((name) => detectTool(name)));
 	return results;
 }

@@ -70,8 +70,8 @@ describe("git operations", () => {
 		if (slug !== "unknown" && slug.includes("/")) {
 			const parts = slug.split("/");
 			expect(parts).toHaveLength(2);
-			expect(parts[0]!.length).toBeGreaterThan(0);
-			expect(parts[1]!.length).toBeGreaterThan(0);
+			expect(parts[0]?.length).toBeGreaterThan(0);
+			expect(parts[1]?.length).toBeGreaterThan(0);
 		}
 	});
 });

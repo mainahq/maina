@@ -15,6 +15,8 @@ import type {
 	EpisodicCloudEntry,
 	FeedbackEvent,
 	FeedbackImprovementsResponse,
+	ProfileUpdatePayload,
+	ProfileUpdateResponse,
 	PromptRecord,
 	SubmitVerifyPayload,
 	TeamInfo,
@@ -55,6 +57,11 @@ function sleep(ms: number): Promise<void> {
 export interface CloudClient {
 	/** Check API availability. */
 	health(): Promise<Result<{ status: string }, string>>;
+
+	/** Update user profile (email, name) during onboarding. */
+	updateProfile(
+		payload: ProfileUpdatePayload,
+	): Promise<Result<ProfileUpdateResponse, string>>;
 
 	/** Download team prompts. */
 	getPrompts(): Promise<Result<PromptRecord[], string>>;
@@ -222,6 +229,18 @@ export function createCloudClient(config: CloudConfig): CloudClient {
 
 	return {
 		health: () => request<{ status: string }>("GET", "/health"),
+
+		updateProfile: async (payload) => {
+			// biome-ignore lint/suspicious/noExplicitAny: snake_case API mapping
+			const result = await request<any>("PATCH", "/auth/profile", payload);
+			if (!result.ok) return result;
+			const d = result.value;
+			return ok({
+				email: d.email,
+				name: d.name,
+				isOnboarded: d.isOnboarded ?? d.is_onboarded ?? false,
+			});
+		},
 
 		getPrompts: () => request<PromptRecord[]>("GET", "/prompts"),
 
