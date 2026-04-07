@@ -1,5 +1,11 @@
 # @mainahq/core
 
+## 1.0.3
+
+### Patch Changes
+
+- Graceful AI failure messages, built-in verify checks (7 checks without external linters), merge maina sections into existing agent files, and AI status in maina doctor.
+
 ## 1.0.2
 
 ### Patch Changes

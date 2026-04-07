@@ -1,6 +1,6 @@
 {
   "name": "@mainahq/core",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "license": "Apache-2.0",
   "description": "Maina core engines — Context, Prompt, and Verify for verification-first development",
