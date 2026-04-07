@@ -22,22 +22,20 @@
     },
     "packages/cli": {
       "name": "@mainahq/cli",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "bin": {
         "maina": "dist/index.js",
       },
       "dependencies": {
         "@clack/prompts": "^1.2.0",
-        "commander": "^14.0.3",
-      },
-      "devDependencies": {
         "@mainahq/core": "workspace:^",
         "@mainahq/mcp": "workspace:^",
+        "commander": "^14.0.3",
       },
     },
     "packages/core": {
       "name": "@mainahq/core",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "dependencies": {
         "@ai-sdk/openai": "^3.0.50",
         "@orama/orama": "^3.1.18",
@@ -64,16 +62,16 @@
     },
     "packages/mcp": {
       "name": "@mainahq/mcp",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "dependencies": {
-        "@mainahq/core": "^0.2.0",
+        "@mainahq/core": "^1.1.2",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "zod": "^4.3.6",
       },
     },
     "packages/skills": {
       "name": "@mainahq/skills",
-      "version": "1.1.1",
+      "version": "1.1.2",
     },
   },
   "packages": {
