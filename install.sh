@@ -1,6 +1,6 @@
 #!/bin/bash
 # Maina — verification-first developer OS
-# Install: curl -fsSL https://mainahq.com/install | bash
+# Install: curl -fsSL https://api.mainahq.com/install | bash
 #
 # This script:
 # 1. Detects your OS and package manager
