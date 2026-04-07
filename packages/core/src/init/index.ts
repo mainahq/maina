@@ -41,6 +41,14 @@ export interface DetectedStack {
 	testRunner: string;
 	linter: string;
 	framework: string;
+	/** package.json scripts (e.g. { test: "vitest", build: "tsc" }) */
+	scripts: Record<string, string>;
+	/** Build tool detected (e.g. "vite", "webpack", "tsup", "bunup", "esbuild") */
+	buildTool: string;
+	/** Whether this is a monorepo (workspaces detected) */
+	monorepo: boolean;
+	/** Inferred conventions from project context */
+	conventions: string[];
 }
 
 // ── Project Detection ───────────────────────────────────────────────────────
@@ -53,6 +61,10 @@ function detectStack(repoRoot: string): DetectedStack {
 		testRunner: "unknown",
 		linter: "unknown",
 		framework: "none",
+		scripts: {},
+		buildTool: "unknown",
+		monorepo: false,
+		conventions: [],
 	};
 
 	// ── Multi-language detection (file-marker based) ─────────────────────
@@ -118,6 +130,16 @@ function detectStack(repoRoot: string): DetectedStack {
 				...(pkg.devDependencies as Record<string, string> | undefined),
 				...(pkg.peerDependencies as Record<string, string> | undefined),
 			};
+
+			// Extract scripts
+			if (pkg.scripts && typeof pkg.scripts === "object") {
+				stack.scripts = pkg.scripts as Record<string, string>;
+			}
+
+			// Detect monorepo (workspaces)
+			if (pkg.workspaces) {
+				stack.monorepo = true;
+			}
 		} catch {
 			// Malformed package.json — skip
 		}
@@ -187,7 +209,107 @@ function detectStack(repoRoot: string): DetectedStack {
 		} else if (allDeps.svelte) {
 			stack.framework = "svelte";
 		}
+
+		// Build tool detection
+		if (allDeps.bunup) {
+			stack.buildTool = "bunup";
+		} else if (allDeps.tsup) {
+			stack.buildTool = "tsup";
+		} else if (allDeps.vite) {
+			stack.buildTool = "vite";
+		} else if (allDeps.webpack) {
+			stack.buildTool = "webpack";
+		} else if (allDeps.esbuild) {
+			stack.buildTool = "esbuild";
+		} else if (allDeps.rollup) {
+			stack.buildTool = "rollup";
+		} else if (allDeps.turbo) {
+			stack.buildTool = "turborepo";
+		}
+
+		// Also check for monorepo tools
+		if (
+			allDeps.turbo ||
+			allDeps.nx ||
+			allDeps.lerna ||
+			existsSync(join(repoRoot, "pnpm-workspace.yaml"))
+		) {
+			stack.monorepo = true;
+		}
 	}
+
+	// ── Infer conventions from project context ───────────────────────────
+	const conventions: string[] = [];
+
+	// Check for conventional commits
+	if (
+		existsSync(join(repoRoot, "commitlint.config.js")) ||
+		existsSync(join(repoRoot, "commitlint.config.ts")) ||
+		existsSync(join(repoRoot, ".commitlintrc.json")) ||
+		existsSync(join(repoRoot, ".commitlintrc.yml"))
+	) {
+		conventions.push("Conventional commits enforced via commitlint");
+	}
+
+	// Check for git hooks
+	if (existsSync(join(repoRoot, "lefthook.yml"))) {
+		conventions.push("Git hooks via lefthook");
+	} else if (existsSync(join(repoRoot, ".husky"))) {
+		conventions.push("Git hooks via husky");
+	}
+
+	// Check for strict TypeScript
+	if (existsSync(join(repoRoot, "tsconfig.json"))) {
+		try {
+			const tsconfig = readFileSync(join(repoRoot, "tsconfig.json"), "utf-8");
+			if (tsconfig.includes('"strict"') && tsconfig.includes("true")) {
+				conventions.push("TypeScript strict mode enabled");
+			}
+		} catch {
+			// ignore
+		}
+	}
+
+	// Check for Docker
+	if (
+		existsSync(join(repoRoot, "Dockerfile")) ||
+		existsSync(join(repoRoot, "docker-compose.yml")) ||
+		existsSync(join(repoRoot, "docker-compose.yaml"))
+	) {
+		conventions.push("Docker containerization");
+	}
+
+	// Check for CI
+	if (existsSync(join(repoRoot, ".github/workflows"))) {
+		conventions.push("GitHub Actions CI/CD");
+	} else if (existsSync(join(repoRoot, ".gitlab-ci.yml"))) {
+		conventions.push("GitLab CI/CD");
+	} else if (existsSync(join(repoRoot, ".circleci"))) {
+		conventions.push("CircleCI");
+	}
+
+	// Check for env management
+	if (existsSync(join(repoRoot, ".env.example"))) {
+		conventions.push("Environment variables documented in .env.example");
+	}
+
+	// Infer from package.json scripts
+	if (stack.scripts.lint || stack.scripts["lint:fix"]) {
+		conventions.push(
+			`Lint command: \`${stack.runtime === "bun" ? "bun" : "npm"} run lint\``,
+		);
+	}
+	if (stack.scripts.test) {
+		conventions.push(`Test command: \`${stack.scripts.test}\``);
+	}
+	if (stack.scripts.build) {
+		conventions.push(`Build command: \`${stack.scripts.build}\``);
+	}
+	if (stack.scripts.typecheck || stack.scripts["type-check"]) {
+		conventions.push("Type checking enforced");
+	}
+
+	stack.conventions = conventions;
 
 	// If no languages detected, mark as unknown
 	stack.languages = languages.length > 0 ? languages : ["unknown"];
@@ -237,6 +359,53 @@ function buildConstitution(stack: DetectedStack): string {
 	const frameworkLine =
 		stack.framework !== "none" ? `- Framework: ${stack.framework}\n` : "";
 
+	const buildLine =
+		stack.buildTool !== "unknown" ? `- Build: ${stack.buildTool}\n` : "";
+
+	const monorepoLine = stack.monorepo ? "- Monorepo: yes (workspaces)\n" : "";
+
+	// Build architecture section from context
+	const archLines: string[] = [];
+	if (stack.monorepo) {
+		archLines.push("- Monorepo with shared packages");
+	}
+	if (stack.framework !== "none") {
+		archLines.push(`- ${stack.framework} application`);
+	}
+	if (stack.languages.length > 1) {
+		archLines.push(`- Multi-language: ${stack.languages.join(", ")}`);
+	}
+	const archSection =
+		archLines.length > 0
+			? archLines.join("\n")
+			: "- [NEEDS CLARIFICATION] Define architectural constraints.";
+
+	// Build verification section from scripts
+	const verifyLines: string[] = [];
+	const runCmd = stack.runtime === "bun" ? "bun" : "npm";
+	if (stack.scripts.lint || stack.linter !== "unknown") {
+		verifyLines.push(
+			`- Lint: \`${stack.scripts.lint ?? `${runCmd} run lint`}\``,
+		);
+	}
+	if (stack.language === "typescript") {
+		verifyLines.push(
+			`- Typecheck: \`${stack.scripts.typecheck ?? stack.scripts["type-check"] ?? `${runCmd} run typecheck`}\``,
+		);
+	}
+	if (stack.scripts.test) {
+		verifyLines.push(`- Test: \`${stack.scripts.test}\``);
+	} else if (stack.testRunner !== "unknown") {
+		verifyLines.push(`- Test: \`${runCmd} test\``);
+	}
+	verifyLines.push("- Diff-only: only report findings on changed lines");
+
+	// Build conventions section from detected conventions
+	const conventionLines =
+		stack.conventions.length > 0
+			? stack.conventions.map((c) => `- ${c}`).join("\n")
+			: "- [NEEDS CLARIFICATION] Add project-specific conventions.";
+
 	return `# Project Constitution
 
 Non-negotiable rules. Injected into every AI call.
@@ -246,16 +415,15 @@ ${runtimeLine}
 ${langLine}
 ${lintLine}
 ${testLine}
-${frameworkLine}
+${frameworkLine}${buildLine}${monorepoLine}
 ## Architecture
-- [NEEDS CLARIFICATION] Define architectural constraints.
+${archSection}
 
 ## Verification
-- All commits pass: lint + typecheck + test
-- Diff-only: only report findings on changed lines
+${verifyLines.join("\n")}
 
 ## Conventions
-- [NEEDS CLARIFICATION] Add project-specific conventions.
+${conventionLines}
 `;
 }
 
