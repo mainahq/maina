@@ -27,6 +27,7 @@ import { teamCommand } from "./commands/team";
 import { ticketCommand } from "./commands/ticket";
 import { verifyCommand } from "./commands/verify";
 import { visualCommand } from "./commands/visual";
+import { wikiCommand } from "./commands/wiki/index";
 
 export function createProgram(): Command {
 	const program = new Command();
@@ -62,5 +63,6 @@ export function createProgram(): Command {
 	program.addCommand(loginCommand());
 	program.addCommand(logoutCommand());
 	program.addCommand(visualCommand());
+	program.addCommand(wikiCommand());
 	return program;
 }
