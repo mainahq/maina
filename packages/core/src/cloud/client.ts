@@ -244,7 +244,17 @@ export function createCloudClient(config: CloudConfig): CloudClient {
 
 		getPrompts: () => request<PromptRecord[]>("GET", "/prompts"),
 
-		putPrompts: (prompts) => request<void>("PUT", "/prompts", { prompts }),
+		putPrompts: async (prompts) => {
+			for (const p of prompts) {
+				const result = await request<void>("PUT", "/prompts", {
+					name: p.id ?? p.path?.replace(/\.md$/, "") ?? "unknown",
+					content: p.content,
+					hash: p.hash,
+				});
+				if (!result.ok) return result;
+			}
+			return { ok: true as const, value: undefined };
+		},
 
 		getTeam: () => request<TeamInfo>("GET", "/team"),
 
