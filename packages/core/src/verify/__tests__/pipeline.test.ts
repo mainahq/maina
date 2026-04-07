@@ -272,8 +272,8 @@ describe("VerifyPipeline", () => {
 		expect(callOrder).toContain("runTrivy");
 		expect(callOrder).toContain("runSecretlint");
 
-		// 10 tool reports (slop + semgrep + trivy + secretlint + sonarqube + stryker + diff-cover + typecheck + consistency + ai-review)
-		expect(result.tools).toHaveLength(10);
+		// 11 tool reports (slop + semgrep + trivy + secretlint + sonarqube + stryker + diff-cover + typecheck + consistency + builtin + ai-review)
+		expect(result.tools).toHaveLength(11);
 		expect(result.findings).toHaveLength(3);
 	});
 

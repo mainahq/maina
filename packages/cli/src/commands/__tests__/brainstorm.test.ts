@@ -49,6 +49,7 @@ mock.module("@mainahq/core", () => ({
 	getCurrentBranch: async () => "feature/022-brainstorm-command",
 	getWorkflowId: () => "wf-022",
 	recordFeedbackAsync: () => {},
+	checkAIAvailability: () => ({ available: true, method: "host-delegation" }),
 }));
 
 afterAll(() => {

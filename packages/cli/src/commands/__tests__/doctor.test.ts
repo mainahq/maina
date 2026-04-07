@@ -253,7 +253,8 @@ describe("maina doctor", () => {
 	test("includes maina version", async () => {
 		const result = await doctorAction({ cwd: tmpDir });
 
-		expect(result.version).toBe("1.0.0");
+		// Version comes from package.json — match whatever is current
+		expect(result.version).toMatch(/^\d+\.\d+\.\d+/);
 	});
 
 	// ── AI Status ──────────────────────────────────────────────────────

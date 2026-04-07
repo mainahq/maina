@@ -74,6 +74,7 @@ mock.module("@mainahq/core", () => ({
 	runPipeline: async () => mockPipelineResult,
 	runHooks: async () => mockHookResult,
 	generateCommitMessage: async () => null, // no AI in tests by default
+	checkAIAvailability: () => ({ available: true, method: "host-delegation" }),
 	recordOutcome: (
 		mainaDir: string,
 		promptHash: string,

@@ -67,6 +67,7 @@ mock.module("@mainahq/core", () => ({
 	getCurrentBranch: async () => "feature/test-branch",
 	getWorkflowId: () => "abc123def456",
 	recordFeedbackAsync: () => {},
+	checkAIAvailability: () => ({ available: true, method: "host-delegation" }),
 }));
 
 afterAll(() => {
