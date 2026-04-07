@@ -34,13 +34,20 @@ dim() { echo -e "${DIM}$1${NC}"; }
 prompt_yn() {
   local message="$1"
   local default="${2:-y}"
+  # When piped (curl | bash), stdin is not a terminal — use defaults
+  if [ ! -t 0 ]; then
+    case "$default" in
+      [Yy]*) return 0 ;;
+      *) return 1 ;;
+    esac
+  fi
   local yn
   if [ "$default" = "y" ]; then
     printf "${BLUE}?${NC} %s ${DIM}[Y/n]${NC} " "$message"
   else
     printf "${BLUE}?${NC} %s ${DIM}[y/N]${NC} " "$message"
   fi
-  read -r yn
+  read -r yn </dev/tty
   yn="${yn:-$default}"
   case "$yn" in
     [Yy]*) return 0 ;;
@@ -52,6 +59,11 @@ prompt_select() {
   local message="$1"
   shift
   local options=("$@")
+  # When piped, default to "all"
+  if [ ! -t 0 ]; then
+    echo "all"
+    return
+  fi
   echo -e "${BLUE}?${NC} ${message}"
   local i=1
   for opt in "${options[@]}"; do
@@ -59,7 +71,7 @@ prompt_select() {
     ((i++))
   done
   printf "${DIM}Enter numbers (comma-separated, or 'all'):${NC} "
-  read -r selection
+  read -r selection </dev/tty
   echo "$selection"
 }
 
