@@ -294,12 +294,16 @@ export {
 	getLatest,
 	getSkipRate,
 	getStats,
+	getToolUsageStats,
 	getTrends,
 	recordSnapshot,
 	type SnapshotInput,
 	type StatsReport,
+	type ToolUsageInput,
+	type ToolUsageStats,
 	type TrendDirection,
 	type TrendsReport,
+	trackToolUsage,
 } from "./stats/tracker";
 // Ticket
 export {
