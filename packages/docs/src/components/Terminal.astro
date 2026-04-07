@@ -10,42 +10,43 @@
     </div>
     <div class="terminal-body">
       <div class="line">
-        <span class="prompt">$ </span><span class="cmd">bun add -g @mainahq/cli</span>
-      </div>
-      <div class="line">
-        <span class="pass">  installed</span> <span class="dim">@mainahq/cli@1.0.0</span>
+        <span class="prompt">$ </span><span class="cmd">curl -fsSL https://api.mainahq.com/install | bash</span>
       </div>
       <div class="line">&nbsp;</div>
       <div class="line">
-        <span class="prompt">$ </span><span class="cmd">maina init --install</span>
+        <span class="pass">  ✓</span> <span class="dim">OS: macOS (arm64)</span>
       </div>
       <div class="line">
-        <span class="dim">  Detecting project...</span>
+        <span class="pass">  ✓</span> <span class="dim">Package manager: bun</span>
       </div>
       <div class="line">
-        <span class="pass">  Stack:</span> <span class="accent">TypeScript + Bun</span>
+        <span class="pass">  ✓</span> <span class="accent">Claude Code</span> <span class="dim">· </span><span class="accent">Cursor</span> <span class="dim">· </span><span class="accent">VS Code</span>
       </div>
       <div class="line">
-        <span class="pass">  Tools:</span> <span class="accent">biome, semgrep, trivy, secretlint</span> <span class="dim">(4 installed)</span>
+        <span class="pass">  ✓</span> <span class="dim">MCP configured for 3 tools</span>
+      </div>
+      <div class="line">&nbsp;</div>
+      <div class="line">
+        <span class="prompt">$ </span><span class="cmd">maina wiki init</span>
       </div>
       <div class="line">
-        <span class="pass">  Ready.</span>
+        <span class="pass">  Compiled 370 articles</span> <span class="dim">in 195ms</span>
+      </div>
+      <div class="line">
+        <span class="dim">  Modules: 179 · Entities: 138 · Decisions: 12</span>
       </div>
       <div class="line">&nbsp;</div>
       <div class="line">
         <span class="prompt">$ </span><span class="cmd">maina commit</span>
       </div>
       <div class="line">
-        <span class="accent">  Syntax guard</span> <span class="pass">passed</span> <span class="dim">(0.3s)</span>
+        <span class="accent">  Syntax guard</span> <span class="pass">passed</span> <span class="dim">· </span><span class="accent">Semgrep</span> <span class="pass">passed</span> <span class="dim">· </span><span class="accent">Trivy</span> <span class="pass">passed</span>
       </div>
       <div class="line">
-        <span class="accent">  Semgrep</span> <span class="pass">passed</span> <span class="dim">· </span><span class="accent">Trivy</span> <span class="pass">passed</span> <span class="dim">· </span><span class="accent">Secretlint</span> <span class="pass">passed</span>
+        <span class="accent">  Wiki lint</span> <span class="pass">passed</span> <span class="dim">· </span><span class="accent">AI review</span> <span class="pass">passed</span>
       </div>
       <div class="line">
-        <span class="accent">  Slop detector</span> <span class="pass">passed</span> <span class="dim">· </span><span class="accent">AI review</span> <span class="pass">passed</span>
-      </div>
-      <div class="line">
-        <span class="pass">  Verification passed</span> <span class="dim">(8.9s, 8 tools)</span>
+        <span class="pass">  Verification passed</span> <span class="dim">(11.2s, 12 tools)</span>
       </div>
       <div class="line">
         <span class="pass">  Committed:</span> <span class="cmd">feat(core): add user authentication</span>
