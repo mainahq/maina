@@ -1,5 +1,11 @@
 # @mainahq/skills
 
+## 1.1.2
+
+### Patch Changes
+
+- [`10649d3`](https://github.com/mainahq/maina/commit/10649d3733a38a1530ff3a2eb09a6123455fe84d) Thanks [@beeeku](https://github.com/beeeku)! - Post-release fixes: Orama search, wiki-aware commands, 12-tool support, install script, delegation output suppression, cloud sync fix, non-interactive mode.
+
 ## 1.1.1
 
 ### Patch Changes
