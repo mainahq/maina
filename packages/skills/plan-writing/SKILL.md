@@ -29,7 +29,7 @@ When starting a new feature, refactor, or significant change. The planning workf
    - **Key Decisions:** Trade-offs made and why.
    - **Tasks:** Ordered task list (T001, T002, ...) with test tasks before implementation tasks (TDD).
    - **Failure Modes:** What can go wrong and how the design handles it.
-5. **Check consistency** with `maina analyze`. This verifies:
+5. **Check consistency** with `maina analyze` (or call the `analyzeFeature` MCP tool). This verifies:
    - Every acceptance criterion in spec.md is covered by at least one task in plan.md.
    - No TODO, TBD, PLACEHOLDER, or FIXME markers remain (except `[NEEDS CLARIFICATION]`).
    - Function and type names are used consistently across tasks.
@@ -67,3 +67,4 @@ maina spec
 - Feature directories are auto-numbered (F001, F002, ...) to maintain order.
 - The `maina analyze` check is also run automatically during `maina verify`.
 - Plans should have granular tasks: each task should be completable in a single focused session.
+- All commands are available as both CLI (`maina <command>` or `npx @mainahq/cli <command>`) and MCP tools when running inside an AI coding tool.

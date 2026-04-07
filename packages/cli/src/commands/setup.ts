@@ -5,7 +5,13 @@
  * checks tool health, and optionally initialises the wiki.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { confirm, intro, isCancel, log, outro, spinner } from "@clack/prompts";
 import { Command } from "commander";
@@ -17,7 +23,18 @@ import { initAction } from "./init";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type AgentEnvironment = "claude-code" | "cursor" | "copilot" | "generic";
+export type AgentEnvironment =
+	| "claude-code"
+	| "cursor"
+	| "windsurf"
+	| "cline"
+	| "continue"
+	| "copilot"
+	| "roo"
+	| "amazon-q"
+	| "zed"
+	| "aider"
+	| "generic";
 
 export interface SetupResult {
 	environment: AgentEnvironment;
@@ -76,6 +93,7 @@ const defaultDeps: SetupActionDeps = {
  */
 export function detectEnvironment(): AgentEnvironment {
 	const env = process.env;
+	const home = env.HOME ?? env.USERPROFILE ?? "";
 
 	if (env.CLAUDE_CODE || env.CLAUDE_PROJECT_DIR) {
 		return "claude-code";
@@ -87,12 +105,64 @@ export function detectEnvironment(): AgentEnvironment {
 		return "cursor";
 	}
 
+	// Windsurf: check for ~/.codeium/ directory or CODEIUM_* env vars
+	const hasCodeium = Object.keys(env).some((k) => k.startsWith("CODEIUM_"));
+	if (hasCodeium || existsSync(join(home, ".codeium"))) {
+		return "windsurf";
+	}
+
+	// Cline: check for VS Code extension saoudrizwan.claude-dev
+	const vscodeExtDirs = [
+		join(home, ".vscode", "extensions"),
+		join(home, ".vscode-server", "extensions"),
+	];
+	const hasCline = vscodeExtDirs.some((dir) => {
+		if (!existsSync(dir)) return false;
+		try {
+			return readdirSync(dir).some((e: string) =>
+				e.startsWith("saoudrizwan.claude-dev"),
+			);
+		} catch {
+			return false;
+		}
+	});
+	if (hasCline) {
+		return "cline";
+	}
+
+	// Continue.dev: check for .continue/ directory in cwd
+	if (existsSync(join(process.cwd(), ".continue"))) {
+		return "continue";
+	}
+
 	// Check for any GITHUB_COPILOT_* env var
 	const hasCopilot = Object.keys(env).some((k) =>
 		k.startsWith("GITHUB_COPILOT_"),
 	);
 	if (hasCopilot) {
 		return "copilot";
+	}
+
+	// Roo Code: check for .roo/ directory in cwd
+	if (existsSync(join(process.cwd(), ".roo"))) {
+		return "roo";
+	}
+
+	// Amazon Q: check for .amazonq/ directory or AWS_* env vars
+	const hasAws = Object.keys(env).some((k) => k.startsWith("AWS_"));
+	if (existsSync(join(process.cwd(), ".amazonq")) || hasAws) {
+		return "amazon-q";
+	}
+
+	// Zed: check for ~/.config/zed/ directory
+	if (existsSync(join(home, ".config", "zed"))) {
+		return "zed";
+	}
+
+	// Aider: check for AIDER_* env vars or .aider.conf.yml
+	const hasAider = Object.keys(env).some((k) => k.startsWith("AIDER_"));
+	if (hasAider || existsSync(join(process.cwd(), ".aider.conf.yml"))) {
+		return "aider";
 	}
 
 	return "generic";
@@ -162,8 +232,22 @@ function envLabel(env: AgentEnvironment): string {
 			return "Claude Code";
 		case "cursor":
 			return "Cursor";
+		case "windsurf":
+			return "Windsurf";
+		case "cline":
+			return "Cline";
+		case "continue":
+			return "Continue.dev";
 		case "copilot":
 			return "GitHub Copilot";
+		case "roo":
+			return "Roo Code";
+		case "amazon-q":
+			return "Amazon Q";
+		case "zed":
+			return "Zed";
+		case "aider":
+			return "Aider";
 		case "generic":
 			return "Generic";
 	}

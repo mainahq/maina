@@ -137,14 +137,18 @@ describe("detectEnvironment", () => {
 			saved[key] = process.env[key];
 			delete process.env[key];
 		}
-		// Also clear any CURSOR_ or GITHUB_COPILOT_ vars
-		const cursorKeys = Object.keys(process.env).filter((k) =>
-			k.startsWith("CURSOR_"),
+		// Also clear any CURSOR_, GITHUB_COPILOT_, CODEIUM_, AWS_, AIDER_ vars
+		const prefixes = [
+			"CURSOR_",
+			"GITHUB_COPILOT_",
+			"CODEIUM_",
+			"AWS_",
+			"AIDER_",
+		];
+		const envKeys = Object.keys(process.env).filter((k) =>
+			prefixes.some((p) => k.startsWith(p)),
 		);
-		const copilotKeys = Object.keys(process.env).filter((k) =>
-			k.startsWith("GITHUB_COPILOT_"),
-		);
-		for (const key of [...cursorKeys, ...copilotKeys]) {
+		for (const key of envKeys) {
 			saved[key] = process.env[key];
 			delete process.env[key];
 		}
@@ -157,6 +161,138 @@ describe("detectEnvironment", () => {
 				} else {
 					process.env[key] = val;
 				}
+			}
+		}
+	});
+
+	test("detects Windsurf from CODEIUM_* env var", () => {
+		const original = process.env.CODEIUM_WORKSPACE;
+		process.env.CODEIUM_WORKSPACE = "/tmp/test";
+		// Clear Claude vars to avoid priority conflict
+		const savedClaude = process.env.CLAUDE_CODE;
+		delete process.env.CLAUDE_CODE;
+		const savedClaudeDir = process.env.CLAUDE_PROJECT_DIR;
+		delete process.env.CLAUDE_PROJECT_DIR;
+		try {
+			expect(detectEnvironment()).toBe("windsurf");
+		} finally {
+			if (original === undefined) {
+				delete process.env.CODEIUM_WORKSPACE;
+			} else {
+				process.env.CODEIUM_WORKSPACE = original;
+			}
+			if (savedClaude !== undefined) process.env.CLAUDE_CODE = savedClaude;
+			if (savedClaudeDir !== undefined)
+				process.env.CLAUDE_PROJECT_DIR = savedClaudeDir;
+		}
+	});
+
+	test("detects Amazon Q from AWS_* env var", () => {
+		const original = process.env.AWS_REGION;
+		process.env.AWS_REGION = "us-east-1";
+		// Clear higher priority vars
+		const savedClaude = process.env.CLAUDE_CODE;
+		delete process.env.CLAUDE_CODE;
+		const savedClaudeDir = process.env.CLAUDE_PROJECT_DIR;
+		delete process.env.CLAUDE_PROJECT_DIR;
+		const cursorKeys = Object.keys(process.env).filter((k) =>
+			k.startsWith("CURSOR_"),
+		);
+		const savedCursor: Record<string, string | undefined> = {};
+		for (const k of cursorKeys) {
+			savedCursor[k] = process.env[k];
+			delete process.env[k];
+		}
+		const copilotKeys = Object.keys(process.env).filter((k) =>
+			k.startsWith("GITHUB_COPILOT_"),
+		);
+		const savedCopilot: Record<string, string | undefined> = {};
+		for (const k of copilotKeys) {
+			savedCopilot[k] = process.env[k];
+			delete process.env[k];
+		}
+		try {
+			expect(detectEnvironment()).toBe("amazon-q");
+		} finally {
+			if (original === undefined) {
+				delete process.env.AWS_REGION;
+			} else {
+				process.env.AWS_REGION = original;
+			}
+			if (savedClaude !== undefined) process.env.CLAUDE_CODE = savedClaude;
+			if (savedClaudeDir !== undefined)
+				process.env.CLAUDE_PROJECT_DIR = savedClaudeDir;
+			for (const [k, v] of Object.entries(savedCursor)) {
+				if (v !== undefined) process.env[k] = v;
+			}
+			for (const [k, v] of Object.entries(savedCopilot)) {
+				if (v !== undefined) process.env[k] = v;
+			}
+		}
+	});
+
+	test("detects Aider from AIDER_* env var", () => {
+		const original = process.env.AIDER_MODEL;
+		process.env.AIDER_MODEL = "gpt-4";
+		// Clear higher priority vars
+		const savedClaude = process.env.CLAUDE_CODE;
+		delete process.env.CLAUDE_CODE;
+		const savedClaudeDir = process.env.CLAUDE_PROJECT_DIR;
+		delete process.env.CLAUDE_PROJECT_DIR;
+		const cursorKeys = Object.keys(process.env).filter((k) =>
+			k.startsWith("CURSOR_"),
+		);
+		const savedCursor: Record<string, string | undefined> = {};
+		for (const k of cursorKeys) {
+			savedCursor[k] = process.env[k];
+			delete process.env[k];
+		}
+		const copilotKeys = Object.keys(process.env).filter((k) =>
+			k.startsWith("GITHUB_COPILOT_"),
+		);
+		const savedCopilot: Record<string, string | undefined> = {};
+		for (const k of copilotKeys) {
+			savedCopilot[k] = process.env[k];
+			delete process.env[k];
+		}
+		const codeiumKeys = Object.keys(process.env).filter((k) =>
+			k.startsWith("CODEIUM_"),
+		);
+		const savedCodeium: Record<string, string | undefined> = {};
+		for (const k of codeiumKeys) {
+			savedCodeium[k] = process.env[k];
+			delete process.env[k];
+		}
+		const awsKeys = Object.keys(process.env).filter((k) =>
+			k.startsWith("AWS_"),
+		);
+		const savedAws: Record<string, string | undefined> = {};
+		for (const k of awsKeys) {
+			savedAws[k] = process.env[k];
+			delete process.env[k];
+		}
+		try {
+			expect(detectEnvironment()).toBe("aider");
+		} finally {
+			if (original === undefined) {
+				delete process.env.AIDER_MODEL;
+			} else {
+				process.env.AIDER_MODEL = original;
+			}
+			if (savedClaude !== undefined) process.env.CLAUDE_CODE = savedClaude;
+			if (savedClaudeDir !== undefined)
+				process.env.CLAUDE_PROJECT_DIR = savedClaudeDir;
+			for (const [k, v] of Object.entries(savedCursor)) {
+				if (v !== undefined) process.env[k] = v;
+			}
+			for (const [k, v] of Object.entries(savedCopilot)) {
+				if (v !== undefined) process.env[k] = v;
+			}
+			for (const [k, v] of Object.entries(savedCodeium)) {
+				if (v !== undefined) process.env[k] = v;
+			}
+			for (const [k, v] of Object.entries(savedAws)) {
+				if (v !== undefined) process.env[k] = v;
 			}
 		}
 	});

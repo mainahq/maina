@@ -16,7 +16,7 @@ When you need to understand a codebase, explore how components relate, or gather
 
 ## Steps
 
-1. **Run context generation** with `maina context`. This activates all four retrieval layers and returns a structured context document.
+1. **Run context generation** with `maina context` (or call the `getContext` MCP tool). This activates all four retrieval layers and returns a structured context document.
 2. **Working layer** gathers immediate context: the current branch, staged/unstaged changes, and recently touched files. This is what you are actively working on.
 3. **Episodic layer** retrieves historical context: past commit summaries, PR review feedback, and related discussions. Older memories decay using Ebbinghaus forgetting curves, keeping recent and significant events prominent.
 4. **Semantic layer** builds structural understanding: tree-sitter parses source files into typed entities (functions, classes, interfaces), and a PageRank-scored dependency graph identifies the most connected and important modules.
@@ -61,3 +61,4 @@ maina context --mode explore
 - Each maina command declares its own context needs via a selector, so `maina review` and `maina plan` automatically request different context shapes.
 - The semantic layer uses tree-sitter for language-aware parsing, supporting TypeScript, Python, Go, Rust, C#, Java, PHP, and more.
 - When logged into Maina Cloud (`maina login`), the episodic layer merges team entries automatically -- reviews your teammates accepted feed into your context. Entries are deduplicated by content hash and decay naturally over time.
+- All commands are available as both CLI (`maina <command>` or `npx @mainahq/cli <command>`) and MCP tools when running inside an AI coding tool.
