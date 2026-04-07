@@ -1,0 +1,80 @@
+---
+title: Wiki
+description: Compile persistent codebase knowledge from code, plans, specs, ADRs, and workflow traces.
+---
+
+import { Tabs, TabItem, Steps, Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+Maina Wiki compiles your codebase into persistent, interlinked knowledge articles. Every plan, spec, ADR, and workflow trace becomes searchable, queryable context that compounds over time.
+
+## Quick Start
+
+<Steps>
+1. **Initialize**
+   ```bash
+   maina wiki init
+   ```
+   Compiles ~370 articles in under 200ms from your codebase.
+
+2. **Query**
+   ```bash
+   maina wiki query "how does the verify engine work?"
+   ```
+   AI-synthesized answer citing relevant articles.
+
+3. **Check health**
+   ```bash
+   maina wiki status
+   maina wiki lint
+   ```
+</Steps>
+
+## Article Types
+
+| Type | Source | Content |
+|------|--------|---------|
+| **Module** | Louvain clustering | Entities grouped by dependency, PageRank sorted |
+| **Entity** | Top 20% PageRank | Function/class details, callers, callees, related features |
+| **Feature** | .maina/features/ | Scope, spec assertions, task progress, status |
+| **Decision** | adr/ | Context, decision, rationale, alternatives rejected |
+| **Architecture** | Directory analysis | Three-engine pattern, monorepo structure, verify pipeline |
+
+## Commands
+
+| Command | Description |
+|---------|------------|
+| `wiki init` | Full compilation from all 6 sources |
+| `wiki compile` | Incremental (default) or `--full`. `--ai` for LLM enhancement |
+| `wiki query <q>` | AI search. `--save` persists answer |
+| `wiki status` | Dashboard: counts, coverage, staleness |
+| `wiki lint` | 9 checks: stale, orphan, broken links, spec drift, decision violations |
+| `wiki ingest <file>` | Add external docs |
+
+## Context Engine Layer 5
+
+Wiki articles are automatically loaded as context for every AI call:
+- 12% token budget allocation
+- Command-specific article selection
+- Ebbinghaus decay with type-specific half-lives
+- RL signals track article effectiveness
+
+## Wiki Lint (9 checks)
+
+| Check | Severity | What it catches |
+|-------|----------|----------------|
+| Stale article | warning | Code changed since last compile |
+| Missing article | info | Wiki not initialized |
+| Orphan article | warning | References deleted source |
+| Broken link | error | `[[entity:X]]` points nowhere |
+| Coverage gap | info | Low article coverage |
+| Spec drift | warning | Spec says `Result<T,E>`, code throws |
+| Decision violation | warning | ADR says JWT, code uses sessions |
+| Missing rationale | info | High-activity entity, no ADR |
+| Contradiction | warning | Wiki claims vs actual code |
+
+## MCP Tools
+
+| Tool | Description |
+|------|------------|
+| `wikiQuery` | Search and synthesize from wiki |
+| `wikiStatus` | Health dashboard |

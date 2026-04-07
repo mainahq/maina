@@ -1,6 +1,6 @@
 ---
 title: Commands
-description: All 28+ Maina commands organized by workflow phase -- Brainstorm, Define, Build, Verify, Cloud, and Meta.
+description: All 38+ Maina commands organized by workflow phase -- Brainstorm, Define, Build, Verify, Wiki, Cloud, and Meta.
 ---
 
 import Mermaid from '../../components/Mermaid.astro';
@@ -26,20 +26,33 @@ import Mermaid from '../../components/Mermaid.astro';
         review2["maina review"]
         pr["maina pr"]
     end
+    subgraph Wiki["Wiki"]
+        wikiInit["maina wiki init"]
+        wikiQuery["maina wiki query"]
+        wikiLint["maina wiki lint"]
+    end
 
     brainstorm --> ticket --> plan --> design --> spec
     spec --> implement --> verify --> review --> fix
     fix --> commit --> review2 --> pr
+    pr --> wikiInit --> wikiQuery --> wikiLint
 
     style Discovery fill:#1e3a5f,stroke:#3b82f6,color:#93c5fd
     style Planning fill:#3b1f5e,stroke:#8b5cf6,color:#c4b5fd
     style Execution fill:#1a3a2a,stroke:#22c55e,color:#86efac
     style Ship fill:#164e63,stroke:#22d3ee,color:#a5f3fc
+    style Wiki fill:#4a1942,stroke:#e879f9,color:#f0abfc
 `} />
 
-Maina has 28+ commands organized into six workflow phases. Every command draws from the three engines -- Context, Prompt, and Verify -- as needed.
+Maina has 38+ commands organized into seven workflow phases. Every command draws from the three engines -- Context, Prompt, and Verify -- as needed.
 
 Eight commands support `--json` for machine-readable output (JSON envelope with `{ data, error, meta }`): `analyze`, `commit`, `context`, `doctor`, `review`, `slop`, `stats`, and `verify`.
+
+## Setup Phase
+
+| Command | Description |
+|---------|------------|
+| `maina setup` | Guided first-time setup — detects IDE, configures MCP, runs init + doctor |
 
 ## Brainstorm Phase
 
@@ -72,7 +85,7 @@ Plan, specify, and commit.
 |---------|------------|---------------|
 | `maina plan` | Create a feature branch with auto-numbered directory and structured spec/plan/tasks. Resets workflow context. | Working + Semantic |
 | `maina spec` | Generate TDD test stubs from plan. Scores spec quality across clarity, testability, completeness. Use `--auto` for fully automated spec generation without prompts. | Working + Episodic |
-| `maina commit` | Run syntax guard, parallel verification (18+ tools), then git commit. Records stats + workflow step. | Working only (fast) |
+| `maina commit` | Run syntax guard, parallel verification (19+ tools), then git commit. Records stats + workflow step. | Working only (fast) |
 
 ## Verify Phase
 
@@ -80,7 +93,7 @@ Prove correctness before merge.
 
 | Command | Description | Context Needs |
 |---------|------------|---------------|
-| `maina verify` | Full verification pipeline (18+ tools). Diff-only by default. | Working + Semantic |
+| `maina verify` | Full verification pipeline (19+ tools). Diff-only by default. | Working + Semantic |
 | `maina verify --deep` | Add standard-tier AI semantic review (spec compliance, architecture). | Working + Semantic |
 | `maina verify --cloud` | Submit diff to Maina Cloud for hosted verification. No local tool installs required. | Working |
 | `maina verify --visual` | Add Playwright visual regression checks against baselines. | Working + Visual baselines |
@@ -102,6 +115,19 @@ Authenticate, sync prompts, and manage teams.
 | `maina team` | Show team info, members, and roles. |
 | `maina team invite <email>` | Send an invite to join the team. |
 
+## Wiki Phase
+
+Compile and query codebase knowledge.
+
+| Command | Description | Context Needs |
+|---------|------------|---------------|
+| `maina wiki init` | Compile codebase knowledge wiki from code, plans, specs, ADRs, workflows | Working, Semantic |
+| `maina wiki compile` | Incremental recompilation. `--full` for complete. `--ai` for LLM enhancement. `--dry-run` to preview. | Working |
+| `maina wiki query <question>` | AI-powered search across wiki articles. `--save` to persist answer. | Wiki (L5) |
+| `maina wiki status` | Health dashboard: articles by type, coverage, staleness, last compile | None |
+| `maina wiki lint` | Check wiki for stale articles, broken links, spec drift, decision violations | Working, Semantic |
+| `maina wiki ingest <source>` | Add external docs to wiki/raw/ for compilation | None |
+
 ## Meta
 
 Tune, learn, and diagnose.
@@ -114,12 +140,12 @@ Tune, learn, and diagnose.
 | `maina cache stats` | Show cache hit rate, total entries, tokens saved. |
 | `maina stats` | Show commit verification metrics, trends, and quality evolution. |
 | `maina benchmark` | Run verification benchmarks comparing tools. |
-| `maina doctor` | Check tool installation status (18+ tools) and engine health. |
+| `maina doctor` | Check tool installation status (19+ tools) and engine health. |
 | `maina status` | Show current workflow state, active feature branch, and verification summary. |
 
 ## Verification Pipeline
 
-Maina's verify pipeline runs 18+ tools in parallel:
+Maina's verify pipeline runs 19+ tools in parallel:
 
 | Tool | Type | Language |
 |------|------|----------|
@@ -189,7 +215,7 @@ maina doctor            # Verify tool health
 maina plan my-feature   # Start feature with structured planning
 maina spec              # Generate TDD test stubs
 # ... write code ...
-maina commit            # Verify (18+ tools) and commit
+maina commit            # Verify (19+ tools) and commit
 maina pr                # Create PR with verification proof
 ```
 
