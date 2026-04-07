@@ -22,7 +22,7 @@
     },
     "packages/cli": {
       "name": "@mainahq/cli",
-      "version": "1.0.3",
+      "version": "1.1.1",
       "bin": {
         "maina": "dist/index.js",
       },
@@ -37,9 +37,10 @@
     },
     "packages/core": {
       "name": "@mainahq/core",
-      "version": "1.0.3",
+      "version": "1.1.1",
       "dependencies": {
         "@ai-sdk/openai": "^3.0.50",
+        "@orama/orama": "^3.1.18",
         "ai": "^6.0.145",
         "drizzle-orm": "^0.45.2",
       },
@@ -63,7 +64,7 @@
     },
     "packages/mcp": {
       "name": "@mainahq/mcp",
-      "version": "1.0.3",
+      "version": "1.1.1",
       "dependencies": {
         "@mainahq/core": "^0.2.0",
         "@modelcontextprotocol/sdk": "^1.29.0",
@@ -72,7 +73,7 @@
     },
     "packages/skills": {
       "name": "@mainahq/skills",
-      "version": "1.0.1",
+      "version": "1.1.1",
     },
   },
   "packages": {
@@ -401,6 +402,8 @@
     "@nodelib/fs.walk": ["@nodelib/fs.walk@1.2.8", "", { "dependencies": { "@nodelib/fs.scandir": "2.1.5", "fastq": "^1.6.0" } }, "sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg=="],
 
     "@opentelemetry/api": ["@opentelemetry/api@1.9.0", "", {}, "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg=="],
+
+    "@orama/orama": ["@orama/orama@3.1.18", "", {}, "sha512-a61ljmRVVyG5MC/698C8/FfFDw5a8LOIvyOLW5fztgUXqUpc1jOfQzOitSCbge657OgXXThmY3Tk8fpiDb4UcA=="],
 
     "@oslojs/encoding": ["@oslojs/encoding@1.1.0", "", {}, "sha512-70wQhgYmndg4GCPxPPxPGevRKqTIJ2Nh4OkiMWmDAVYsTQ+Ta7Sq+rPevXyXGdzr30/qZBnyOalCszoMxlyldQ=="],
 

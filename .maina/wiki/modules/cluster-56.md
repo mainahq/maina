@@ -4,8 +4,8 @@
 
 ## Entities
 
-- **reviewDesignCommand** (function) — `packages/cli/src/commands/review-design.ts:165` [PR: 0.0015]
-- **reviewDesignAction** (function) — `packages/cli/src/commands/review-design.ts:53` [PR: 0.0010]
-- **ReviewDesignDeps** (interface) — `packages/cli/src/commands/review-design.ts:33` [PR: 0.0008]
-- **ReviewDesignActionResult** (interface) — `packages/cli/src/commands/review-design.ts:22` [PR: 0.0007]
-- **ReviewDesignActionOptions** (interface) — `packages/cli/src/commands/review-design.ts:17` [PR: 0.0006]
+- **reviewCommand** (function) — `packages/cli/src/commands/review.ts:179` [PR: 0.0014]
+- **reviewAction** (function) — `packages/cli/src/commands/review.ts:134` [PR: 0.0010]
+- **ReviewDeps** (interface) — `packages/cli/src/commands/review.ts:29` [PR: 0.0008]
+- **ReviewActionResult** (interface) — `packages/cli/src/commands/review.ts:23` [PR: 0.0006]
+- **ReviewActionOptions** (interface) — `packages/cli/src/commands/review.ts:16` [PR: 0.0005]

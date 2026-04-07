@@ -4,8 +4,5 @@
 
 ## Entities
 
-- **handleDeleteTodo** (function) — `examples/todo-api/src/routes.ts:73` [PR: 0.0015]
-- **handleUpdateTodo** (function) — `examples/todo-api/src/routes.ts:43` [PR: 0.0010]
-- **handleGetTodo** (function) — `examples/todo-api/src/routes.ts:33` [PR: 0.0008]
-- **handleCreateTodo** (function) — `examples/todo-api/src/routes.ts:23` [PR: 0.0007]
-- **handleListTodos** (function) — `examples/todo-api/src/routes.ts:19` [PR: 0.0006]
+- **closeDb** (function) — `examples/todo-api/src/db.ts:21` [PR: 0.0008]
+- **getDb** (function) — `examples/todo-api/src/db.ts:5` [PR: 0.0005]

@@ -4,5 +4,5 @@
 
 ## Entities
 
-- **closeDb** (function) — `examples/todo-api/src/db.ts:21` [PR: 0.0008]
-- **getDb** (function) — `examples/todo-api/src/db.ts:5` [PR: 0.0006]
+- **generateSpecQuestions** (function) — `packages/core/src/ai/spec-questions.ts:22` [PR: 0.0008]
+- **SpecQuestion** (interface) — `packages/core/src/ai/spec-questions.ts:4` [PR: 0.0005]

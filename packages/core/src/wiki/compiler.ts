@@ -1032,6 +1032,17 @@ export async function compile(
 			}
 		}
 
+		// ── Step 9b: Build and save search index ───────────────────────
+		if (!dryRun) {
+			try {
+				const { buildSearchIndex, saveSearchIndex } = await import("./search");
+				const searchIndex = await buildSearchIndex(wikiDir);
+				await saveSearchIndex(wikiDir, searchIndex);
+			} catch {
+				// Search index is optional — continue if Orama is unavailable
+			}
+		}
+
 		// ── Step 10: Save state ────────────────────────────────────────
 		const state = loadState(wikiDir) ?? createEmptyState();
 		state.lastFullCompile = new Date().toISOString();

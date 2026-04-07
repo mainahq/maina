@@ -4,6 +4,9 @@
 
 ## Entities
 
-- **detectCommunities** (function) — `packages/core/src/wiki/louvain.ts:81` [PR: 0.0010]
-- **LouvainResult** (interface) — `packages/core/src/wiki/louvain.ts:21` [PR: 0.0007]
-- **LouvainNode** (interface) — `packages/core/src/wiki/louvain.ts:16` [PR: 0.0006]
+- **logoutCommand** (function) — `packages/cli/src/commands/login.ts:190` [PR: 0.0016]
+- **loginCommand** (function) — `packages/cli/src/commands/login.ts:174` [PR: 0.0011]
+- **logoutAction** (function) — `packages/cli/src/commands/login.ts:162` [PR: 0.0009]
+- **LogoutActionResult** (interface) — `packages/cli/src/commands/login.ts:157` [PR: 0.0007]
+- **loginAction** (function) — `packages/cli/src/commands/login.ts:29` [PR: 0.0006]
+- **LoginActionResult** (interface) — `packages/cli/src/commands/login.ts:24` [PR: 0.0005]

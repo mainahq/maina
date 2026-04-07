@@ -4,4 +4,5 @@
 
 ## Entities
 
-_No entities detected._
+- **validateAIOutput** (function) — `packages/core/src/ai/validate.ts:42` [PR: 0.0008]
+- **AIValidationResult** (interface) — `packages/core/src/ai/validate.ts:8` [PR: 0.0005]

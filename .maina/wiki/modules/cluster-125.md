@@ -4,10 +4,8 @@
 
 ## Entities
 
-- **saveState** (function) — `packages/core/src/wiki/state.ts:57` [PR: 0.0011]
-- **loadState** (function) — `packages/core/src/wiki/state.ts:44` [PR: 0.0008]
-- **hashFile** (function) — `packages/core/src/cache/keys.ts:15` [PR: 0.0008]
-- **hashFile** (function) — `packages/core/src/wiki/state.ts:21` [PR: 0.0008]
-- **createEmptyState** (function) — `packages/core/src/wiki/state.ts:32` [PR: 0.0007]
-- **hashContent** (function) — `packages/core/src/cache/keys.ts:9` [PR: 0.0007]
-- **hashContent** (function) — `packages/core/src/wiki/state.ts:17` [PR: 0.0007]
+- **handleDeleteTodo** (function) — `examples/todo-api/src/routes.ts:73` [PR: 0.0014]
+- **handleUpdateTodo** (function) — `examples/todo-api/src/routes.ts:43` [PR: 0.0010]
+- **handleGetTodo** (function) — `examples/todo-api/src/routes.ts:33` [PR: 0.0008]
+- **handleCreateTodo** (function) — `examples/todo-api/src/routes.ts:23` [PR: 0.0006]
+- **handleListTodos** (function) — `examples/todo-api/src/routes.ts:19` [PR: 0.0005]

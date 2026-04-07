@@ -4,11 +4,7 @@
 
 ## Entities
 
-- **statsCommand** (function) — `packages/cli/src/commands/stats.ts:364` [PR: 0.0021]
-- **statsAction** (function) — `packages/cli/src/commands/stats.ts:154` [PR: 0.0014]
-- **StatsDeps** (interface) — `packages/cli/src/commands/stats.ts:60` [PR: 0.0011]
-- **StatsActionResult** (interface) — `packages/cli/src/commands/stats.ts:50` [PR: 0.0009]
-- **WikiMetrics** (interface) — `packages/cli/src/commands/stats.ts:39` [PR: 0.0008]
-- **SpecsResult** (interface) — `packages/cli/src/commands/stats.ts:33` [PR: 0.0007]
-- **SpecScore** (interface) — `packages/cli/src/commands/stats.ts:28` [PR: 0.0006]
-- **StatsActionOptions** (interface) — `packages/cli/src/commands/stats.ts:20` [PR: 0.0006]
+- **runSonar** (function) — `packages/core/src/verify/sonar.ts:106` [PR: 0.0012]
+- **parseSonarReport** (function) — `packages/core/src/verify/sonar.ts:62` [PR: 0.0009]
+- **SonarResult** (interface) — `packages/core/src/verify/sonar.ts:19` [PR: 0.0007]
+- **SonarOptions** (interface) — `packages/core/src/verify/sonar.ts:13` [PR: 0.0005]

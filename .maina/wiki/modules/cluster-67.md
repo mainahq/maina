@@ -4,8 +4,8 @@
 
 ## Entities
 
-- **statusCommand** (function) — `packages/cli/src/commands/status.ts:141` [PR: 0.0015]
-- **statusAction** (function) — `packages/cli/src/commands/status.ts:60` [PR: 0.0010]
-- **StatusDeps** (interface) — `packages/cli/src/commands/status.ts:24` [PR: 0.0008]
-- **StatusActionResult** (interface) — `packages/cli/src/commands/status.ts:12` [PR: 0.0007]
-- **StatusActionOptions** (interface) — `packages/cli/src/commands/status.ts:8` [PR: 0.0006]
+- **specCommand** (function) — `packages/cli/src/commands/spec.ts:272` [PR: 0.0014]
+- **specAction** (function) — `packages/cli/src/commands/spec.ts:111` [PR: 0.0010]
+- **SpecDeps** (interface) — `packages/cli/src/commands/spec.ts:38` [PR: 0.0008]
+- **SpecActionResult** (interface) — `packages/cli/src/commands/spec.ts:28` [PR: 0.0006]
+- **SpecActionOptions** (interface) — `packages/cli/src/commands/spec.ts:20` [PR: 0.0005]

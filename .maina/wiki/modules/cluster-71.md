@@ -4,8 +4,13 @@
 
 ## Entities
 
-- **teamCommand** (function) — `packages/cli/src/commands/team.ts:89` [PR: 0.0015]
-- **inviteAction** (function) — `packages/cli/src/commands/team.ts:68` [PR: 0.0010]
-- **InviteActionResult** (interface) — `packages/cli/src/commands/team.ts:63` [PR: 0.0008]
-- **teamAction** (function) — `packages/cli/src/commands/team.ts:22` [PR: 0.0007]
-- **TeamActionResult** (interface) — `packages/cli/src/commands/team.ts:17` [PR: 0.0006]
+- **isToolAvailable (packages)** (function) — `packages/core/src/context/retrieval.ts:19` [PR: 0.0023]
+- **isToolAvailable (packages)** (function) — `packages/core/src/verify/detect.ts:317` [PR: 0.0023]
+- **detectTools** (function) — `packages/core/src/verify/detect.ts:298` [PR: 0.0015]
+- **detectTool** (function) — `packages/core/src/verify/detect.ts:253` [PR: 0.0012]
+- **getToolsForLanguages** (function) — `packages/core/src/verify/detect.ts:166` [PR: 0.0010]
+- **TOOL_REGISTRY** (variable) — `packages/core/src/verify/detect.ts:49` [PR: 0.0008]
+- **ToolRegistryEntry** (interface) — `packages/core/src/verify/detect.ts:42` [PR: 0.0007]
+- **ToolTier** (type) — `packages/core/src/verify/detect.ts:40` [PR: 0.0007]
+- **DetectedTool** (interface) — `packages/core/src/verify/detect.ts:33` [PR: 0.0006]
+- **ToolName** (type) — `packages/core/src/verify/detect.ts:13` [PR: 0.0005]

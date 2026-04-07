@@ -10,6 +10,7 @@ import { intro, isCancel, log, outro, select, text } from "@clack/prompts";
 import {
 	appendWorkflowStep,
 	checkAIAvailability,
+	consultWikiForDesign,
 	getNextAdrNumber as coreGetNextAdrNumber,
 	listAdrs as coreListAdrs,
 	scaffoldAdr as coreScaffoldAdr,
@@ -38,6 +39,8 @@ export interface DesignActionResult {
 	adrNumber?: string;
 	path?: string;
 	approachSelected?: string;
+	wikiConflicts?: number;
+	wikiAlignments?: number;
 }
 
 export interface DesignDeps {
@@ -150,6 +153,24 @@ export async function designAction(
 		}
 
 		title = userTitle;
+	}
+
+	// Step 2b: Consult wiki for conflicts/alignments
+	const wikiDir = join(cwd, ".maina", "wiki");
+	const wikiConsult = consultWikiForDesign(wikiDir, title);
+
+	if (wikiConsult.conflicts.length > 0) {
+		for (const conflict of wikiConsult.conflicts) {
+			log.warning(
+				`Potential conflict with ${conflict.adr}: ${conflict.title} — ${conflict.reason}`,
+			);
+		}
+	}
+
+	if (wikiConsult.alignments.length > 0) {
+		for (const alignment of wikiConsult.alignments) {
+			log.info(`Aligns with ${alignment.adr}: ${alignment.title}`);
+		}
 	}
 
 	// Step 3: Scaffold the ADR
@@ -268,6 +289,8 @@ export async function designAction(
 		adrNumber,
 		path: filePath,
 		approachSelected,
+		wikiConflicts: wikiConsult.conflicts.length,
+		wikiAlignments: wikiConsult.alignments.length,
 	};
 }
 

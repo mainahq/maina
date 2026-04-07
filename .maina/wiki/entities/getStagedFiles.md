@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/git/index.ts`
 - **Line:** 97
 - **Exported:** yes
-- **PageRank:** 0.0015
+- **PageRank:** 0.0014

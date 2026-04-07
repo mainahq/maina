@@ -276,8 +276,34 @@ export async function queryWiki(
 		};
 	}
 
-	// Score and rank
-	const scored = scoreArticles(articles, question);
+	// Try Orama search first (BM25 + fuzzy matching), fall back to keyword matching
+	let scored: ScoredArticle[];
+	try {
+		const { searchWiki } = await import("./search");
+		const oramaResults = await searchWiki(wikiDir, question, {
+			limit: maxArticles,
+		});
+
+		if (oramaResults.length > 0) {
+			// Map Orama results back to ScoredArticle format for downstream compatibility
+			scored = oramaResults.map((r) => {
+				const article = articles.find((a) => a.path === r.path);
+				return {
+					path: r.path,
+					content: article?.content ?? "",
+					title: r.title,
+					score: r.score,
+					excerpt: r.excerpt,
+				};
+			});
+		} else {
+			scored = scoreArticles(articles, question);
+		}
+	} catch {
+		// Orama unavailable — fall back to keyword matching
+		scored = scoreArticles(articles, question);
+	}
+
 	if (scored.length === 0) {
 		return {
 			ok: true,

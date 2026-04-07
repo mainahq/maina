@@ -8,4 +8,4 @@
 - **File:** `packages/cli/src/commands/verify.ts`
 - **Line:** 481
 - **Exported:** yes
-- **PageRank:** 0.0017
+- **PageRank:** 0.0016

@@ -25,6 +25,7 @@ todos.db
 .maina/stats.db-wal
 .maina/benchmarks/*.json
 !.maina/benchmarks/stories/
+.maina/wiki/.search-index.json
 
 # Maina — shared files ARE tracked:
 # .maina/constitution.md

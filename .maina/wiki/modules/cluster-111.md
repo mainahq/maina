@@ -4,6 +4,5 @@
 
 ## Entities
 
-- **extractAcceptanceCriteria** (function) — `packages/core/src/utils.ts:58` [PR: 0.0010]
-- **STOP_WORDS** (variable) — `packages/core/src/utils.ts:29` [PR: 0.0007]
-- **toKebabCase** (function) — `packages/core/src/utils.ts:9` [PR: 0.0006]
+- **emitRejectSignal** (function) — `packages/core/src/feedback/signals.ts:40` [PR: 0.0008]
+- **emitAcceptSignal** (function) — `packages/core/src/feedback/signals.ts:12` [PR: 0.0005]

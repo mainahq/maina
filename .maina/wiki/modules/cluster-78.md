@@ -4,7 +4,7 @@
 
 ## Entities
 
-- **runTrivy** (function) — `packages/core/src/verify/trivy.ts:126` [PR: 0.0012]
-- **parseTrivyJson** (function) — `packages/core/src/verify/trivy.ts:66` [PR: 0.0009]
-- **TrivyResult** (interface) — `packages/core/src/verify/trivy.ts:21` [PR: 0.0007]
-- **TrivyOptions** (interface) — `packages/core/src/verify/trivy.ts:14` [PR: 0.0006]
+- **traceFeature** (function) — `packages/core/src/features/traceability.ts:201` [PR: 0.0012]
+- **TraceDeps** (interface) — `packages/core/src/features/traceability.ts:33` [PR: 0.0009]
+- **TraceabilityReport** (interface) — `packages/core/src/features/traceability.ts:22` [PR: 0.0007]
+- **TaskTrace** (interface) — `packages/core/src/features/traceability.ts:14` [PR: 0.0005]

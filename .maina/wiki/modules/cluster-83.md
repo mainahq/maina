@@ -4,9 +4,8 @@
 
 ## Entities
 
-- **verifyCommand** (function) — `packages/cli/src/commands/verify.ts:481` [PR: 0.0017]
-- **verifyAction** (function) — `packages/cli/src/commands/verify.ts:315` [PR: 0.0012]
-- **cloudVerifyAction** (function) — `packages/cli/src/commands/verify.ts:163` [PR: 0.0009]
-- **CloudVerifyResult** (interface) — `packages/cli/src/commands/verify.ts:148` [PR: 0.0007]
-- **VerifyActionResult** (interface) — `packages/cli/src/commands/verify.ts:40` [PR: 0.0006]
-- **VerifyActionOptions** (interface) — `packages/cli/src/commands/verify.ts:29` [PR: 0.0006]
+- **runTypecheck** (function) — `packages/core/src/verify/typecheck.ts:106` [PR: 0.0014]
+- **parseTscOutput** (function) — `packages/core/src/verify/typecheck.ts:82` [PR: 0.0010]
+- **getTypecheckCommand** (function) — `packages/core/src/verify/typecheck.ts:71` [PR: 0.0008]
+- **TypecheckCommand** (interface) — `packages/core/src/verify/typecheck.ts:23` [PR: 0.0006]
+- **TypecheckResult** (interface) — `packages/core/src/verify/typecheck.ts:16` [PR: 0.0005]

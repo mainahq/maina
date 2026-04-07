@@ -8,4 +8,4 @@
 - **File:** `packages/cli/src/commands/stats.ts`
 - **Line:** 364
 - **Exported:** yes
-- **PageRank:** 0.0021
+- **PageRank:** 0.0020

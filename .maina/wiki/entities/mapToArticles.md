@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/wiki/graph.ts`
 - **Line:** 388
 - **Exported:** yes
-- **PageRank:** 0.0017
+- **PageRank:** 0.0016

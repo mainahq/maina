@@ -1,11 +1,11 @@
 # Entity: doctorCommand
 
-> function in `packages/cli/src/commands/doctor.ts:362`
+> function in `packages/cli/src/commands/doctor.ts:442`
 
 ## Details
 
 - **Kind:** function
 - **File:** `packages/cli/src/commands/doctor.ts`
-- **Line:** 362
+- **Line:** 442
 - **Exported:** yes
-- **PageRank:** 0.0019
+- **PageRank:** 0.0020

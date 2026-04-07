@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/verify/proof.ts`
 - **Line:** 181
 - **Exported:** yes
-- **PageRank:** 0.0015
+- **PageRank:** 0.0014

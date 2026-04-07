@@ -4,5 +4,7 @@
 
 ## Entities
 
-- **validateAIOutput** (function) — `packages/core/src/ai/validate.ts:42` [PR: 0.0008]
-- **AIValidationResult** (interface) — `packages/core/src/ai/validate.ts:8` [PR: 0.0006]
+- **syncCommand** (function) — `packages/cli/src/commands/sync.ts:127` [PR: 0.0012]
+- **syncPullAction** (function) — `packages/cli/src/commands/sync.ts:91` [PR: 0.0009]
+- **syncPushAction** (function) — `packages/cli/src/commands/sync.ts:58` [PR: 0.0007]
+- **SyncActionResult** (interface) — `packages/cli/src/commands/sync.ts:52` [PR: 0.0005]

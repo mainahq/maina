@@ -4,5 +4,5 @@
 
 ## Entities
 
-- **storeCompressedReview** (function) — `packages/core/src/feedback/compress.ts:82` [PR: 0.0008]
-- **compressReview** (function) — `packages/core/src/feedback/compress.ts:12` [PR: 0.0006]
+- **startServer** (function) — `packages/mcp/src/server.ts:30` [PR: 0.0008]
+- **createMcpServer** (function) — `packages/mcp/src/server.ts:14` [PR: 0.0005]

@@ -1,3 +1,4 @@
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { confirm, intro, isCancel, log, outro, text } from "@clack/prompts";
 import {
@@ -78,6 +79,43 @@ function formatSyntaxErrors(
 	return errors
 		.map((e) => `  ${e.file}:${e.line}:${e.column} — ${e.message}`)
 		.join("\n");
+}
+
+// ── Wiki Feature Context ────────────────────────────────────────────────────
+
+/**
+ * Find a wiki feature article matching the current branch name.
+ * Returns the feature scope string if found, e.g. "034-v110-roundtrip-flywheel".
+ */
+function findFeatureScopeFromBranch(
+	mainaDir: string,
+	branch: string,
+): string | null {
+	const featuresDir = join(mainaDir, "wiki", "features");
+	if (!existsSync(featuresDir)) return null;
+
+	// Extract feature ID from branch name (e.g. "feature/034-foo" → "034")
+	const branchMatch = branch.match(/(?:feature\/)?((\d{3})-[a-z0-9-]+)/i);
+	if (!branchMatch?.[1]) return null;
+	const featurePrefix = branchMatch[1];
+
+	try {
+		const entries = readdirSync(featuresDir);
+		for (const entry of entries) {
+			if (!entry.endsWith(".md")) continue;
+			const entryBase = entry.replace(/\.md$/, "");
+			if (
+				entryBase === featurePrefix ||
+				entryBase.startsWith(`${branchMatch[2]}-`)
+			) {
+				return entryBase;
+			}
+		}
+	} catch {
+		// skip
+	}
+
+	return null;
 }
 
 // ── Git Commit Execution ─────────────────────────────────────────────────────
@@ -250,6 +288,18 @@ export async function commitAction(
 	// ── Step 4: Resolve commit message ────────────────────────────────────
 	let message = options.message;
 
+	// Resolve feature scope from wiki for commit message context
+	let featureScopeContext = "";
+	try {
+		const branch = await getCurrentBranch(cwd);
+		const featureScope = findFeatureScopeFromBranch(mainaDir, branch);
+		if (featureScope) {
+			featureScopeContext = `Feature: ${featureScope}\n`;
+		}
+	} catch {
+		// Feature scope lookup should never block commit
+	}
+
 	// Try AI-generated commit message before manual prompt
 	if (!message) {
 		const ai = checkAIAvailability();
@@ -275,7 +325,7 @@ export async function commitAction(
 				const { generateCommitMessage } = await import("@mainahq/core");
 				const diff = await getDiff(undefined, undefined, cwd);
 				const suggested = await generateCommitMessage(
-					diff,
+					`${featureScopeContext}${diff}`,
 					stagedFiles,
 					mainaDir,
 				);
@@ -296,7 +346,7 @@ export async function commitAction(
 				const { generateCommitMessage } = await import("@mainahq/core");
 				const diff = await getDiff(undefined, undefined, cwd);
 				const suggested = await generateCommitMessage(
-					diff,
+					`${featureScopeContext}${diff}`,
 					stagedFiles,
 					mainaDir,
 				);

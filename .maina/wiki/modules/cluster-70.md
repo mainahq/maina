@@ -4,8 +4,7 @@
 
 ## Entities
 
-- **scoreRelevance** (function) — `packages/core/src/context/relevance.ts:315` [PR: 0.0015]
-- **pageRank** (function) — `packages/core/src/context/relevance.ts:179` [PR: 0.0010]
-- **buildGraph** (function) — `packages/core/src/context/relevance.ts:122` [PR: 0.0008]
-- **TaskContext** (interface) — `packages/core/src/context/relevance.ts:9` [PR: 0.0007]
-- **DependencyGraph** (interface) — `packages/core/src/context/relevance.ts:4` [PR: 0.0006]
+- **syntaxGuard** (function) — `packages/core/src/verify/syntax-guard.ts:122` [PR: 0.0012]
+- **parseBiomeOutput** (function) — `packages/core/src/verify/syntax-guard.ts:87` [PR: 0.0009]
+- **SyntaxGuardResult** (type) — `packages/core/src/verify/syntax-guard.ts:30` [PR: 0.0007]
+- **SyntaxDiagnostic** (interface) — `packages/core/src/verify/syntax-guard.ts:22` [PR: 0.0005]

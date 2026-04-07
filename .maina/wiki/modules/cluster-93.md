@@ -4,11 +4,11 @@
 
 ## Entities
 
-- **persistSemanticContext** (function) — `packages/core/src/context/semantic.ts:282` [PR: 0.0018]
-- **assembleSemanticText** (function) — `packages/core/src/context/semantic.ts:205` [PR: 0.0012]
-- **getTopEntities** (function) — `packages/core/src/context/semantic.ts:192` [PR: 0.0010]
-- **buildSemanticContext** (function) — `packages/core/src/context/semantic.ts:135` [PR: 0.0008]
-- **loadCustomContext** (function) — `packages/core/src/context/semantic.ts:103` [PR: 0.0007]
-- **loadConstitution** (function) — `packages/core/src/context/semantic.ts:86` [PR: 0.0006]
-- **loadConstitution** (function) — `packages/core/src/prompts/loader.ts:7` [PR: 0.0006]
-- **SemanticContext** (interface) — `packages/core/src/context/semantic.ts:12` [PR: 0.0006]
+- **assembleEpisodicText** (function) — `packages/core/src/context/episodic.ts:237` [PR: 0.0020]
+- **decayAllEntries** (function) — `packages/core/src/context/episodic.ts:212` [PR: 0.0014]
+- **pruneEntries** (function) — `packages/core/src/context/episodic.ts:177` [PR: 0.0011]
+- **getEntries** (function) — `packages/core/src/context/episodic.ts:152` [PR: 0.0009]
+- **accessEntry** (function) — `packages/core/src/context/episodic.ts:115` [PR: 0.0008]
+- **addEntry** (function) — `packages/core/src/context/episodic.ts:67` [PR: 0.0007]
+- **calculateDecay** (function) — `packages/core/src/context/episodic.ts:55` [PR: 0.0006]
+- **EpisodicEntry** (interface) — `packages/core/src/context/episodic.ts:3` [PR: 0.0005]

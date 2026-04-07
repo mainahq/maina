@@ -4,5 +4,5 @@
 
 ## Entities
 
-- **scoreSpec** (function) — `packages/core/src/features/quality.ts:288` [PR: 0.0008]
-- **QualityScore** (interface) — `packages/core/src/features/quality.ts:45` [PR: 0.0006]
+- **runWikiLintTool** (function) — `packages/core/src/verify/tools/wiki-lint-runner.ts:22` [PR: 0.0008]
+- **WikiLintRunnerOptions** (interface) — `packages/core/src/verify/tools/wiki-lint-runner.ts:13` [PR: 0.0005]

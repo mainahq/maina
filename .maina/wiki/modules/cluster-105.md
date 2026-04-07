@@ -4,5 +4,5 @@
 
 ## Entities
 
-- **createCloudClient** (function) — `packages/core/src/cloud/client.ts:139` [PR: 0.0008]
-- **CloudClient** (interface) — `packages/core/src/cloud/client.ts:57` [PR: 0.0006]
+- **compile** (function) — `packages/core/src/wiki/compiler.ts:814` [PR: 0.0009]
+- **CompileOptions** (interface) — `packages/core/src/wiki/compiler.ts:56` [PR: 0.0006]

@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/features/numbering.ts`
 - **Line:** 379
 - **Exported:** yes
-- **PageRank:** 0.0015
+- **PageRank:** 0.0014

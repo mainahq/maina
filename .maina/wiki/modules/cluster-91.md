@@ -4,11 +4,11 @@
 
 ## Entities
 
-- **runZap** (function) — `packages/core/src/verify/zap.ts:149` [PR: 0.0012]
-- **parseZapJson** (function) — `packages/core/src/verify/zap.ts:76` [PR: 0.0009]
-- **ZapResult** (interface) — `packages/core/src/verify/zap.ts:21` [PR: 0.0007]
-- **ZapOptions** (interface) — `packages/core/src/verify/zap.ts:14` [PR: 0.0006]
-
-## Related Decisions
-
-- [[decision:0011-v040-polish-ci]] — v0.4.0 Polish + CI [accepted]
+- **assembleWorkingText** (function) — `packages/core/src/context/working.ts:159` [PR: 0.0020]
+- **resetWorkingContext** (function) — `packages/core/src/context/working.ts:150` [PR: 0.0014]
+- **setVerificationResult** (function) — `packages/core/src/context/working.ts:134` [PR: 0.0011]
+- **trackFile** (function) — `packages/core/src/context/working.ts:117` [PR: 0.0009]
+- **saveWorkingContext** (function) — `packages/core/src/context/working.ts:98` [PR: 0.0008]
+- **loadWorkingContext** (function) — `packages/core/src/context/working.ts:63` [PR: 0.0007]
+- **WorkingContext** (interface) — `packages/core/src/context/working.ts:14` [PR: 0.0006]
+- **VerificationResult** (interface) — `packages/core/src/context/working.ts:8` [PR: 0.0005]

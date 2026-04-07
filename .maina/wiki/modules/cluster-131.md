@@ -4,6 +4,10 @@
 
 ## Entities
 
-- **wikiLintToFindings** (function) — `packages/core/src/verify/tools/wiki-lint.ts:344` [PR: 0.0010]
-- **runWikiLint** (function) — `packages/core/src/verify/tools/wiki-lint.ts:295` [PR: 0.0007]
-- **WikiLintOptions** (interface) — `packages/core/src/verify/tools/wiki-lint.ts:17` [PR: 0.0006]
+- **wikiQueryCommand** (function) — `packages/cli/src/commands/wiki/query.ts:82` [PR: 0.0010]
+- **queryWiki** (function) — `packages/core/src/wiki/query.ts:249` [PR: 0.0007]
+- **wikiQueryAction** (function) — `packages/cli/src/commands/wiki/query.ts:31` [PR: 0.0007]
+- **WikiQueryOptions (packages)** (interface) — `packages/core/src/wiki/query.ts:21` [PR: 0.0007]
+- **WikiQueryOptions (packages)** (interface) — `packages/cli/src/commands/wiki/query.ts:23` [PR: 0.0007]
+- **WikiQueryResult (packages)** (interface) — `packages/core/src/wiki/query.ts:15` [PR: 0.0005]
+- **WikiQueryResult (packages)** (interface) — `packages/cli/src/commands/wiki/query.ts:17` [PR: 0.0005]

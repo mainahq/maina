@@ -4,7 +4,5 @@
 
 ## Entities
 
-- **syncCommand** (function) — `packages/cli/src/commands/sync.ts:127` [PR: 0.0012]
-- **syncPullAction** (function) — `packages/cli/src/commands/sync.ts:91` [PR: 0.0009]
-- **syncPushAction** (function) — `packages/cli/src/commands/sync.ts:58` [PR: 0.0007]
-- **SyncActionResult** (interface) — `packages/cli/src/commands/sync.ts:52` [PR: 0.0006]
+- **storeCompressedReview** (function) — `packages/core/src/feedback/compress.ts:82` [PR: 0.0008]
+- **compressReview** (function) — `packages/core/src/feedback/compress.ts:12` [PR: 0.0005]

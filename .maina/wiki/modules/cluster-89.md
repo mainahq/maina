@@ -4,7 +4,7 @@
 
 ## Entities
 
-- **wikiStatusCommand** (function) — `packages/cli/src/commands/wiki/status.ts:171` [PR: 0.0012]
-- **wikiStatusAction** (function) — `packages/cli/src/commands/wiki/status.ts:77` [PR: 0.0009]
-- **WikiStatusOptions** (interface) — `packages/cli/src/commands/wiki/status.ts:26` [PR: 0.0007]
-- **WikiStatusResult** (interface) — `packages/cli/src/commands/wiki/status.ts:17` [PR: 0.0006]
+- **wikiLintCommand** (function) — `packages/cli/src/commands/wiki/lint.ts:119` [PR: 0.0012]
+- **wikiLintAction** (function) — `packages/cli/src/commands/wiki/lint.ts:34` [PR: 0.0009]
+- **WikiLintCommandOptions** (interface) — `packages/cli/src/commands/wiki/lint.ts:27` [PR: 0.0007]
+- **WikiLintCommandResult** (interface) — `packages/cli/src/commands/wiki/lint.ts:15` [PR: 0.0005]

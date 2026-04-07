@@ -4,7 +4,7 @@
 
 ## Entities
 
-- **wikiInitCommand** (function) — `packages/cli/src/commands/wiki/init.ts:113` [PR: 0.0012]
-- **wikiInitAction** (function) — `packages/cli/src/commands/wiki/init.ts:35` [PR: 0.0009]
-- **WikiInitOptions** (interface) — `packages/cli/src/commands/wiki/init.ts:28` [PR: 0.0007]
-- **WikiInitResult** (interface) — `packages/cli/src/commands/wiki/init.ts:18` [PR: 0.0006]
+- **wikiIngestCommand** (function) — `packages/cli/src/commands/wiki/ingest.ts:90` [PR: 0.0012]
+- **wikiIngestAction** (function) — `packages/cli/src/commands/wiki/ingest.ts:40` [PR: 0.0009]
+- **WikiIngestOptions** (interface) — `packages/cli/src/commands/wiki/ingest.ts:23` [PR: 0.0007]
+- **WikiIngestResult** (interface) — `packages/cli/src/commands/wiki/ingest.ts:16` [PR: 0.0005]

@@ -4,7 +4,8 @@
 
 ## Entities
 
-- **runBenchmark** (function) — `packages/core/src/benchmark/runner.ts:42` [PR: 0.0012]
-- **parseTestOutput** (function) — `packages/core/src/benchmark/runner.ts:28` [PR: 0.0009]
-- **RunBenchmarkOptions** (interface) — `packages/core/src/benchmark/runner.ts:10` [PR: 0.0007]
-- **TestResult** (interface) — `packages/core/src/benchmark/runner.ts:4` [PR: 0.0006]
+- **scoreRelevance** (function) — `packages/core/src/context/relevance.ts:315` [PR: 0.0014]
+- **pageRank** (function) — `packages/core/src/context/relevance.ts:179` [PR: 0.0010]
+- **buildGraph** (function) — `packages/core/src/context/relevance.ts:122` [PR: 0.0008]
+- **TaskContext** (interface) — `packages/core/src/context/relevance.ts:9` [PR: 0.0006]
+- **DependencyGraph** (interface) — `packages/core/src/context/relevance.ts:4` [PR: 0.0005]

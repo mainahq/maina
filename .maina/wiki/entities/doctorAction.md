@@ -1,11 +1,11 @@
 # Entity: doctorAction
 
-> function in `packages/cli/src/commands/doctor.ts:300`
+> function in `packages/cli/src/commands/doctor.ts:365`
 
 ## Details
 
 - **Kind:** function
 - **File:** `packages/cli/src/commands/doctor.ts`
-- **Line:** 300
+- **Line:** 365
 - **Exported:** yes
-- **PageRank:** 0.0013
+- **PageRank:** 0.0014

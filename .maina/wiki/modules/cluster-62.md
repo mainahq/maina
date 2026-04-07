@@ -4,7 +4,7 @@
 
 ## Entities
 
-- **slopCommand** (function) — `packages/cli/src/commands/slop.ts:83` [PR: 0.0012]
-- **slopAction** (function) — `packages/cli/src/commands/slop.ts:43` [PR: 0.0009]
-- **SlopActionResult** (interface) — `packages/cli/src/commands/slop.ts:20` [PR: 0.0007]
-- **SlopActionOptions** (interface) — `packages/cli/src/commands/slop.ts:14` [PR: 0.0006]
+- **runSemgrep** (function) — `packages/core/src/verify/semgrep.ts:132` [PR: 0.0012]
+- **parseSarif** (function) — `packages/core/src/verify/semgrep.ts:53` [PR: 0.0009]
+- **SemgrepResult** (interface) — `packages/core/src/verify/semgrep.ts:23` [PR: 0.0007]
+- **SemgrepOptions** (interface) — `packages/core/src/verify/semgrep.ts:14` [PR: 0.0005]

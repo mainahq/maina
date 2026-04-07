@@ -4,5 +4,6 @@
 
 ## Entities
 
-- **runWikiLintTool** (function) — `packages/core/src/verify/tools/wiki-lint-runner.ts:22` [PR: 0.0008]
-- **WikiLintRunnerOptions** (interface) — `packages/core/src/verify/tools/wiki-lint-runner.ts:13` [PR: 0.0006]
+- **wikiLintToFindings** (function) — `packages/core/src/verify/tools/wiki-lint.ts:872` [PR: 0.0010]
+- **runWikiLint** (function) — `packages/core/src/verify/tools/wiki-lint.ts:814` [PR: 0.0007]
+- **WikiLintOptions** (interface) — `packages/core/src/verify/tools/wiki-lint.ts:19` [PR: 0.0005]

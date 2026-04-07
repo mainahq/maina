@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/config/index.ts`
 - **Line:** 191
 - **Exported:** yes
-- **PageRank:** 0.0023
+- **PageRank:** 0.0022

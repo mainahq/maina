@@ -4,7 +4,6 @@
 
 ## Entities
 
-- **formatTier3Comparison** (function) — `packages/core/src/benchmark/reporter.ts:250` [PR: 0.0012]
-- **buildTier3Report** (function) — `packages/core/src/benchmark/reporter.ts:192` [PR: 0.0009]
-- **formatComparison** (function) — `packages/core/src/benchmark/reporter.ts:52` [PR: 0.0007]
-- **buildReport** (function) — `packages/core/src/benchmark/reporter.ts:13` [PR: 0.0006]
+- **buildCacheKey** (function) — `packages/core/src/cache/keys.ts:39` [PR: 0.0011]
+- **hashFiles** (function) — `packages/core/src/cache/keys.ts:29` [PR: 0.0008]
+- **CacheKeyInput** (interface) — `packages/core/src/cache/keys.ts:1` [PR: 0.0005]

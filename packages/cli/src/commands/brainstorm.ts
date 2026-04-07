@@ -3,6 +3,7 @@ import { intro, isCancel, log, outro, select, text } from "@clack/prompts";
 import {
 	appendWorkflowStep,
 	checkAIAvailability,
+	consultWikiForBrainstorm,
 	getCurrentBranch,
 	getWorkflowId,
 	recordFeedbackAsync,
@@ -143,6 +144,19 @@ export async function brainstormAction(
 		return { created: false, reason: "AI not configured" };
 	}
 
+	// ── Step 0: Load wiki context for grounding ─────────────────────────
+	const wikiDir = join(cwd, ".maina", "wiki");
+	const wikiContext = consultWikiForBrainstorm(wikiDir);
+
+	if (wikiContext.moduleCount > 0 && !options.noInteractive) {
+		log.info(
+			`Wiki: ${wikiContext.moduleCount} modules, ${wikiContext.decisionCount} decisions`,
+		);
+		if (wikiContext.recentFeatures.length > 0) {
+			log.message(`  Recent: ${wikiContext.recentFeatures[0]}`);
+		}
+	}
+
 	// ── Step 1: Get the idea ──────────────────────────────────────────────
 	let title = options.title;
 
@@ -210,9 +224,24 @@ export async function brainstormAction(
 	}
 
 	// ── Step 3: Generate the issue body ──────────────────────────────────
-	const body = options.noInteractive
+	let body = options.noInteractive
 		? generateMinimalIssueBody(title)
 		: generateIssueBody(title, userType, problem, scope);
+
+	// Append wiki architecture context if available
+	if (wikiContext.architecture) {
+		const wikiSection = [
+			"\n## System Context (from wiki)\n",
+			`Modules: ${wikiContext.moduleCount} | Decisions: ${wikiContext.decisionCount}`,
+			"",
+			wikiContext.recentFeatures.length > 0
+				? `Recent features: ${wikiContext.recentFeatures.join(", ")}`
+				: "",
+		]
+			.filter(Boolean)
+			.join("\n");
+		body += `\n${wikiSection}\n`;
+	}
 
 	// ── Step 4: Create GitHub issue ───────────────────────────────────────
 	log.step("Creating GitHub issue...");

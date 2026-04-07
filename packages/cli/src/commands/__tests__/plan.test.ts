@@ -86,6 +86,12 @@ mock.module("@mainahq/core", () => ({
 		verifyPlanCalls.push({ planPath, specPath });
 		return mockVerifyResult;
 	},
+	consultWikiForPlan: () => ({
+		relatedModules: [],
+		relatedDecisions: [],
+		relatedFeatures: [],
+		suggestions: [],
+	}),
 	appendWorkflowStep: () => {},
 	resetWorkflowContext: () => {},
 	getCurrentBranch: async () => "feature/test-branch",

@@ -7,6 +7,9 @@
  * Deterministic checks only — no AI calls.
  */
 
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface ReviewStageResult {
@@ -28,6 +31,8 @@ export interface ReviewOptions {
 	planContent?: string | null;
 	conventions?: string | null;
 	mainaDir?: string; // enables AI review when provided
+	/** Accepted ADR summaries for spec compliance checking */
+	decisionSummaries?: string[] | null;
 }
 
 export interface ReviewResult {
@@ -171,6 +176,7 @@ function extractAddedLines(
 export function reviewSpecCompliance(
 	diff: string,
 	planContent: string | null,
+	decisionSummaries?: string[] | null,
 ): ReviewStageResult {
 	const findings: ReviewFinding[] = [];
 
@@ -226,6 +232,34 @@ export function reviewSpecCompliance(
 				message: `Possible over-building: "${file}" not mapped to any plan task`,
 				file,
 			});
+		}
+	}
+
+	// Check if changes align with accepted ADRs
+	if (decisionSummaries && decisionSummaries.length > 0) {
+		const addedLines = extractAddedLines(diff);
+		const addedText = addedLines.map((l) => l.text.toLowerCase()).join(" ");
+
+		for (const summary of decisionSummaries) {
+			// Extract tool/technology mentions from ADR summary
+			const summaryLower = summary.toLowerCase();
+			// Check for contradictions: if ADR mentions tool A but added code uses conflicting tool B
+			const knownConflicts: Array<[string, string]> = [
+				["biome", "eslint"],
+				["biome", "prettier"],
+				["bun:test", "jest"],
+				["bun:test", "vitest"],
+			];
+
+			for (const [preferred, rejected] of knownConflicts) {
+				if (summaryLower.includes(preferred) && addedText.includes(rejected)) {
+					findings.push({
+						stage: "spec-compliance",
+						severity: "warning",
+						message: `ADR requires ${preferred} but added code references ${rejected}: "${summary.slice(0, 80)}"`,
+					});
+				}
+			}
 		}
 	}
 
@@ -376,6 +410,51 @@ export async function reviewCodeQualityWithAI(
 	return deterministicResult;
 }
 
+// ── Decision Loader ─────────────────────────────────────────────────────────
+
+/**
+ * Load accepted ADR summaries from the wiki decisions directory.
+ * Returns an array of one-line summaries for each accepted decision.
+ */
+function loadDecisionSummaries(mainaDir: string): string[] | null {
+	const decisionsDir = join(mainaDir, "wiki", "decisions");
+	if (!existsSync(decisionsDir)) return null;
+
+	let entries: string[];
+	try {
+		entries = readdirSync(decisionsDir);
+	} catch {
+		return null;
+	}
+
+	const summaries: string[] = [];
+	for (const entry of entries) {
+		if (!entry.endsWith(".md")) continue;
+		try {
+			const content = readFileSync(join(decisionsDir, entry), "utf-8");
+			const statusMatch = content.match(/>\s*Status:\s*\*\*(\w+)\*\*/);
+			const status = statusMatch?.[1] ?? "";
+			if (status !== "accepted") continue;
+
+			const titleMatch = content.match(/^#\s+(.+)/);
+			const title =
+				titleMatch?.[1]?.replace(/^Decision:\s*/i, "").trim() ?? entry;
+
+			// Extract key constraint from decision section
+			const decisionMatch = content.match(
+				/## Decision\n\n([\s\S]*?)(?=\n## |\n---|$)/,
+			);
+			const decision = decisionMatch?.[1]?.trim().split("\n")[0] ?? "";
+
+			summaries.push(`${title}: ${decision}`);
+		} catch {
+			// skip unreadable files
+		}
+	}
+
+	return summaries.length > 0 ? summaries : null;
+}
+
 // ── Two-Stage Review ────────────────────────────────────────────────────────
 
 /**
@@ -388,9 +467,16 @@ export async function reviewCodeQualityWithAI(
 export async function runTwoStageReview(
 	options: ReviewOptions,
 ): Promise<ReviewResult> {
+	// Load decision summaries from wiki if mainaDir is provided
+	let decisionSummaries = options.decisionSummaries ?? null;
+	if (!decisionSummaries && options.mainaDir) {
+		decisionSummaries = loadDecisionSummaries(options.mainaDir);
+	}
+
 	const stage1 = reviewSpecCompliance(
 		options.diff,
 		options.planContent ?? null,
+		decisionSummaries,
 	);
 
 	if (!stage1.passed) {

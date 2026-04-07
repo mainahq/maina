@@ -63,6 +63,10 @@ mock.module("@mainahq/core", () => ({
 		ok: true,
 		value: mockDesignApproaches,
 	}),
+	consultWikiForDesign: () => ({
+		conflicts: [],
+		alignments: [],
+	}),
 	appendWorkflowStep: () => {},
 	getCurrentBranch: async () => "feature/test-branch",
 	getWorkflowId: () => "abc123def456",

@@ -4,7 +4,7 @@
 
 ## Entities
 
-- **runCoverage** (function) — `packages/core/src/verify/coverage.ts:98` [PR: 0.0012]
-- **parseDiffCoverJson** (function) — `packages/core/src/verify/coverage.ts:47` [PR: 0.0009]
-- **CoverageResult** (interface) — `packages/core/src/verify/coverage.ts:22` [PR: 0.0007]
-- **CoverageOptions** (interface) — `packages/core/src/verify/coverage.ts:14` [PR: 0.0006]
+- **assembleContext** (function) — `packages/core/src/context/engine.ts:332` [PR: 0.0012]
+- **ContextOptions** (interface) — `packages/core/src/context/engine.ts:44` [PR: 0.0009]
+- **AssembledContext** (interface) — `packages/core/src/context/engine.ts:36` [PR: 0.0007]
+- **LayerReport** (interface) — `packages/core/src/context/engine.ts:29` [PR: 0.0005]

@@ -4,7 +4,6 @@
 
 ## Entities
 
-- **assembleContext** (function) — `packages/core/src/context/engine.ts:332` [PR: 0.0012]
-- **ContextOptions** (interface) — `packages/core/src/context/engine.ts:44` [PR: 0.0009]
-- **AssembledContext** (interface) — `packages/core/src/context/engine.ts:36` [PR: 0.0007]
-- **LayerReport** (interface) — `packages/core/src/context/engine.ts:29` [PR: 0.0006]
+- **checkConsistency** (function) — `packages/core/src/verify/consistency.ts:145` [PR: 0.0010]
+- **ConsistencyResult** (interface) — `packages/core/src/verify/consistency.ts:26` [PR: 0.0007]
+- **ConsistencyRule** (interface) — `packages/core/src/verify/consistency.ts:21` [PR: 0.0005]

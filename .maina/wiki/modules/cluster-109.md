@@ -4,5 +4,9 @@
 
 ## Entities
 
-- **emitRejectSignal** (function) — `packages/core/src/feedback/signals.ts:31` [PR: 0.0008]
-- **emitAcceptSignal** (function) — `packages/core/src/feedback/signals.ts:10` [PR: 0.0006]
+- **deleteTodo** (function) — `examples/todo-api/src/repo.ts:65` [PR: 0.0016]
+- **updateTodo** (function) — `examples/todo-api/src/repo.ts:42` [PR: 0.0011]
+- **createTodo** (function) — `examples/todo-api/src/repo.ts:35` [PR: 0.0009]
+- **getTodo** (function) — `examples/todo-api/src/repo.ts:28` [PR: 0.0007]
+- **listTodos** (function) — `examples/todo-api/src/repo.ts:21` [PR: 0.0006]
+- **Todo** (interface) — `examples/todo-api/src/repo.ts:3` [PR: 0.0005]

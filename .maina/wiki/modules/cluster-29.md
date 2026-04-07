@@ -4,8 +4,10 @@
 
 ## Entities
 
-- **designCommand** (function) — `packages/cli/src/commands/design.ts:318` [PR: 0.0015]
-- **designAction** (function) — `packages/cli/src/commands/design.ts:82` [PR: 0.0010]
-- **DesignDeps** (interface) — `packages/cli/src/commands/design.ts:43` [PR: 0.0008]
-- **DesignActionResult** (interface) — `packages/cli/src/commands/design.ts:34` [PR: 0.0007]
-- **DesignActionOptions** (interface) — `packages/cli/src/commands/design.ts:26` [PR: 0.0006]
+- **validateArticleStructure** (function) — `packages/core/src/wiki/schema.ts:81` [PR: 0.0018]
+- **getLinkSyntax** (function) — `packages/core/src/wiki/schema.ts:72` [PR: 0.0013]
+- **getArticleMaxLength** (function) — `packages/core/src/wiki/schema.ts:68` [PR: 0.0010]
+- **DEFAULT_SCHEMA** (variable) — `packages/core/src/wiki/schema.ts:30` [PR: 0.0008]
+- **ValidationResult** (interface) — `packages/core/src/wiki/schema.ts:23` [PR: 0.0007]
+- **WikiSchema** (interface) — `packages/core/src/wiki/schema.ts:18` [PR: 0.0006]
+- **ArticleRule** (interface) — `packages/core/src/wiki/schema.ts:12` [PR: 0.0005]

@@ -4,11 +4,7 @@
 
 ## Entities
 
-- **runBuiltinChecks** (function) — `packages/core/src/verify/builtin.ts:340` [PR: 0.0021]
-- **checkAnyType** (function) — `packages/core/src/verify/builtin.ts:296` [PR: 0.0014]
-- **checkEmptyCatch** (function) — `packages/core/src/verify/builtin.ts:229` [PR: 0.0011]
-- **checkSecrets** (function) — `packages/core/src/verify/builtin.ts:196` [PR: 0.0009]
-- **checkFileSize** (function) — `packages/core/src/verify/builtin.ts:171` [PR: 0.0008]
-- **checkTodoComments** (function) — `packages/core/src/verify/builtin.ts:140` [PR: 0.0007]
-- **checkUnusedImports** (function) — `packages/core/src/verify/builtin.ts:76` [PR: 0.0006]
-- **checkConsoleLogs** (function) — `packages/core/src/verify/builtin.ts:46` [PR: 0.0006]
+- **captureResult** (function) — `packages/core/src/feedback/capture.ts:55` [PR: 0.0012]
+- **getCachedResult** (function) — `packages/core/src/feedback/capture.ts:30` [PR: 0.0009]
+- **buildToolCacheKey** (function) — `packages/core/src/feedback/capture.ts:22` [PR: 0.0007]
+- **CaptureInput** (interface) — `packages/core/src/feedback/capture.ts:12` [PR: 0.0005]

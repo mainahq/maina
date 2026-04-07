@@ -4,11 +4,7 @@
 
 ## Entities
 
-- **runSemgrep** (function) — `packages/core/src/verify/semgrep.ts:132` [PR: 0.0012]
-- **parseSarif** (function) — `packages/core/src/verify/semgrep.ts:53` [PR: 0.0009]
-- **SemgrepResult** (interface) — `packages/core/src/verify/semgrep.ts:23` [PR: 0.0007]
-- **SemgrepOptions** (interface) — `packages/core/src/verify/semgrep.ts:14` [PR: 0.0006]
-
-## Related Decisions
-
-- [[decision:0011-v040-polish-ci]] — v0.4.0 Polish + CI [accepted]
+- **runSecretlint** (function) — `packages/core/src/verify/secretlint.ts:133` [PR: 0.0012]
+- **parseSecretlintOutput** (function) — `packages/core/src/verify/secretlint.ts:64` [PR: 0.0009]
+- **SecretlintResult** (interface) — `packages/core/src/verify/secretlint.ts:21` [PR: 0.0007]
+- **SecretlintOptions** (interface) — `packages/core/src/verify/secretlint.ts:14` [PR: 0.0005]

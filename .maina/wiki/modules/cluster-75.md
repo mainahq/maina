@@ -4,12 +4,8 @@
 
 ## Entities
 
-- **formatVerificationProof** (function) — `packages/core/src/verify/proof.ts:181` [PR: 0.0015]
-- **gatherVerificationProof** (function) — `packages/core/src/verify/proof.ts:94` [PR: 0.0010]
-- **ProofOptions** (interface) — `packages/core/src/verify/proof.ts:42` [PR: 0.0008]
-- **VerificationProof** (interface) — `packages/core/src/verify/proof.ts:26` [PR: 0.0007]
-- **ToolProof** (interface) — `packages/core/src/verify/proof.ts:19` [PR: 0.0006]
-
-## Related Decisions
-
-- [[decision:0008-verification-proof-in-pr-body]] — Verification proof in PR body [proposed]
+- **ticketCommand** (function) — `packages/cli/src/commands/ticket.ts:144` [PR: 0.0014]
+- **ticketAction** (function) — `packages/cli/src/commands/ticket.ts:41` [PR: 0.0010]
+- **TicketDeps** (interface) — `packages/cli/src/commands/ticket.ts:25` [PR: 0.0008]
+- **TicketActionResult** (interface) — `packages/cli/src/commands/ticket.ts:19` [PR: 0.0006]
+- **TicketActionOptions** (interface) — `packages/cli/src/commands/ticket.ts:11` [PR: 0.0005]

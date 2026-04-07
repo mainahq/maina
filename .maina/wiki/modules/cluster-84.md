@@ -4,7 +4,6 @@
 
 ## Entities
 
-- **visualCommand** (function) — `packages/cli/src/commands/visual.ts:40` [PR: 0.0012]
-- **visualUpdateAction** (function) — `packages/cli/src/commands/visual.ts:20` [PR: 0.0009]
-- **VisualActionResult** (interface) — `packages/cli/src/commands/visual.ts:15` [PR: 0.0007]
-- **VisualActionOptions** (interface) — `packages/cli/src/commands/visual.ts:11` [PR: 0.0006]
+- **verifyPlan** (function) — `packages/core/src/features/checklist.ts:313` [PR: 0.0010]
+- **CheckResult** (interface) — `packages/core/src/features/checklist.ts:20` [PR: 0.0007]
+- **VerificationReport** (interface) — `packages/core/src/features/checklist.ts:15` [PR: 0.0005]

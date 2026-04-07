@@ -4,6 +4,5 @@
 
 ## Entities
 
-- **renderTemplate** (function) — `packages/core/src/prompts/loader.ts:61` [PR: 0.0011]
-- **mergePrompts** (function) — `packages/core/src/prompts/loader.ts:47` [PR: 0.0008]
-- **loadUserOverride** (function) — `packages/core/src/prompts/loader.ts:25` [PR: 0.0006]
+- **loadStory** (function) — `packages/core/src/benchmark/story-loader.ts:41` [PR: 0.0008]
+- **listStories** (function) — `packages/core/src/benchmark/story-loader.ts:10` [PR: 0.0005]

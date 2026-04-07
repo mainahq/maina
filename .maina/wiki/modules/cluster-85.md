@@ -4,8 +4,9 @@
 
 ## Entities
 
-- **calculateEbbinghausScore** (function) — `packages/core/src/wiki/signals.ts:170` [PR: 0.0015]
-- **getPromptEffectiveness** (function) — `packages/core/src/wiki/signals.ts:116` [PR: 0.0010]
-- **recordWikiUsage** (function) — `packages/core/src/wiki/signals.ts:83` [PR: 0.0008]
-- **CompilationPromptSignal** (interface) — `packages/core/src/wiki/signals.ts:26` [PR: 0.0007]
-- **WikiEffectivenessSignal** (interface) — `packages/core/src/wiki/signals.ts:19` [PR: 0.0006]
+- **verifyCommand** (function) — `packages/cli/src/commands/verify.ts:481` [PR: 0.0016]
+- **verifyAction** (function) — `packages/cli/src/commands/verify.ts:315` [PR: 0.0011]
+- **cloudVerifyAction** (function) — `packages/cli/src/commands/verify.ts:163` [PR: 0.0009]
+- **CloudVerifyResult** (interface) — `packages/cli/src/commands/verify.ts:148` [PR: 0.0007]
+- **VerifyActionResult** (interface) — `packages/cli/src/commands/verify.ts:40` [PR: 0.0006]
+- **VerifyActionOptions** (interface) — `packages/cli/src/commands/verify.ts:29` [PR: 0.0005]

@@ -4,8 +4,8 @@
 
 ## Entities
 
-- **ticketCommand** (function) — `packages/cli/src/commands/ticket.ts:144` [PR: 0.0015]
-- **ticketAction** (function) — `packages/cli/src/commands/ticket.ts:41` [PR: 0.0010]
-- **TicketDeps** (interface) — `packages/cli/src/commands/ticket.ts:25` [PR: 0.0008]
-- **TicketActionResult** (interface) — `packages/cli/src/commands/ticket.ts:19` [PR: 0.0007]
-- **TicketActionOptions** (interface) — `packages/cli/src/commands/ticket.ts:11` [PR: 0.0006]
+- **teamCommand** (function) — `packages/cli/src/commands/team.ts:89` [PR: 0.0014]
+- **inviteAction** (function) — `packages/cli/src/commands/team.ts:68` [PR: 0.0010]
+- **InviteActionResult** (interface) — `packages/cli/src/commands/team.ts:63` [PR: 0.0008]
+- **teamAction** (function) — `packages/cli/src/commands/team.ts:22` [PR: 0.0006]
+- **TeamActionResult** (interface) — `packages/cli/src/commands/team.ts:17` [PR: 0.0005]

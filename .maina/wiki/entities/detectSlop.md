@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/verify/slop.ts`
 - **Line:** 434
 - **Exported:** yes
-- **PageRank:** 0.0021
+- **PageRank:** 0.0020

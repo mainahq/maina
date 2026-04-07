@@ -2,8 +2,7 @@
 
 ## Scope
 
-- TODO(scope): Define what this feature does.
-- TODO(scope): Define what this feature explicitly does not do to prevent over-building.
+### In Scope -  ### Out of Scope -
 
 ## Status
 

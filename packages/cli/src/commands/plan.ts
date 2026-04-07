@@ -1,3 +1,4 @@
+import { appendFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import {
 	confirm,
@@ -10,6 +11,7 @@ import {
 } from "@clack/prompts";
 import {
 	appendWorkflowStep,
+	consultWikiForPlan,
 	createFeatureDir,
 	type DesignChoices,
 	getCurrentBranch,
@@ -21,6 +23,7 @@ import {
 	scaffoldFeatureWithContext,
 	toKebabCase,
 	verifyPlan,
+	type WikiConsultResult,
 } from "@mainahq/core";
 import { Command } from "commander";
 
@@ -41,6 +44,7 @@ export interface PlanActionResult {
 	featureNumber?: string;
 	branch?: string;
 	featureDir?: string;
+	wikiContext?: WikiConsultResult;
 }
 
 // ── Git Helpers ──────────────────────────────────────────────────────────────
@@ -300,6 +304,11 @@ export async function planAction(
 
 	const featureDir = dirResult.value;
 
+	// ── Step 2b: Consult wiki for related context ────────────────────────
+	const wikiDir = join(cwd, ".maina", "wiki");
+	const featureDescription = options.designChoices?.description ?? options.name;
+	const wikiContext = consultWikiForPlan(wikiDir, featureDescription);
+
 	// ── Step 3: Scaffold template files ──────────────────────────────────
 	const choices = options.designChoices;
 	const scaffoldResult = choices
@@ -312,6 +321,55 @@ export async function planAction(
 			created: false,
 			reason: `Failed to scaffold feature: ${scaffoldResult.error}`,
 		};
+	}
+
+	// ── Step 3b: Append wiki context to plan.md ──────────────────────────
+	const hasWikiContext =
+		wikiContext.relatedModules.length > 0 ||
+		wikiContext.relatedDecisions.length > 0 ||
+		wikiContext.relatedFeatures.length > 0;
+
+	if (hasWikiContext) {
+		const planPath = join(featureDir, "plan.md");
+		if (existsSync(planPath)) {
+			const sections: string[] = ["\n\n## Wiki Context\n"];
+
+			if (wikiContext.relatedModules.length > 0) {
+				sections.push("### Related Modules\n");
+				for (const mod of wikiContext.relatedModules) {
+					sections.push(
+						`- **${mod.name}** (${mod.entities} entities) — \`${mod.path}\``,
+					);
+				}
+				sections.push("");
+			}
+
+			if (wikiContext.relatedDecisions.length > 0) {
+				sections.push("### Related Decisions\n");
+				for (const dec of wikiContext.relatedDecisions) {
+					sections.push(`- ${dec.id}: ${dec.title} [${dec.status}]`);
+				}
+				sections.push("");
+			}
+
+			if (wikiContext.relatedFeatures.length > 0) {
+				sections.push("### Similar Features\n");
+				for (const feat of wikiContext.relatedFeatures) {
+					sections.push(`- ${feat.id}: ${feat.title}`);
+				}
+				sections.push("");
+			}
+
+			if (wikiContext.suggestions.length > 0) {
+				sections.push("### Suggestions\n");
+				for (const suggestion of wikiContext.suggestions) {
+					sections.push(`- ${suggestion}`);
+				}
+				sections.push("");
+			}
+
+			appendFileSync(planPath, sections.join("\n"));
+		}
 	}
 
 	// ── Step 4: Create and checkout git branch ───────────────────────────
@@ -389,6 +447,7 @@ export async function planAction(
 		featureNumber,
 		branch: branchName,
 		featureDir,
+		wikiContext: hasWikiContext ? wikiContext : undefined,
 	};
 }
 
@@ -424,6 +483,27 @@ export function planCommand(): Command {
 			});
 
 			if (result.created) {
+				// Display wiki context if available
+				if (result.wikiContext) {
+					log.info("Wiki context:");
+					for (const mod of result.wikiContext.relatedModules) {
+						log.message(
+							`  Related module: ${mod.name} (${mod.entities} entities)`,
+						);
+					}
+					for (const dec of result.wikiContext.relatedDecisions) {
+						log.message(
+							`  Related decision: ${dec.id} — ${dec.title} [${dec.status}]`,
+						);
+					}
+					for (const feat of result.wikiContext.relatedFeatures) {
+						log.message(`  Similar feature: ${feat.id} — ${feat.title}`);
+					}
+					for (const suggestion of result.wikiContext.suggestions) {
+						log.message(`  ${suggestion}`);
+					}
+				}
+
 				log.success(`Feature ${result.featureNumber} created`);
 				log.info(`Branch: ${result.branch}`);
 				log.info(`Directory: ${result.featureDir}`);

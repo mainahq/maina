@@ -50,6 +50,12 @@ mock.module("@mainahq/core", () => ({
 	getWorkflowId: () => "wf-022",
 	recordFeedbackAsync: () => {},
 	checkAIAvailability: () => ({ available: true, method: "host-delegation" }),
+	consultWikiForBrainstorm: () => ({
+		architecture: "",
+		moduleCount: 0,
+		decisionCount: 0,
+		recentFeatures: [],
+	}),
 }));
 
 afterAll(() => {

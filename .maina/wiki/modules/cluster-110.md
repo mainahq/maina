@@ -4,7 +4,6 @@
 
 ## Entities
 
-- **exportEpisodicForCloud** (function) — `packages/core/src/feedback/sync.ts:130` [PR: 0.0012]
-- **exportWorkflowStats** (function) — `packages/core/src/feedback/sync.ts:73` [PR: 0.0009]
-- **WorkflowStats** (interface) — `packages/core/src/feedback/sync.ts:59` [PR: 0.0007]
-- **exportFeedbackForCloud** (function) — `packages/core/src/feedback/sync.ts:28` [PR: 0.0006]
+- **detectFileLanguage** (function) — `packages/core/src/language/detect.ts:91` [PR: 0.0010]
+- **getPrimaryLanguage** (function) — `packages/core/src/language/detect.ts:82` [PR: 0.0007]
+- **detectLanguages** (function) — `packages/core/src/language/detect.ts:30` [PR: 0.0005]

@@ -4,5 +4,6 @@
 
 ## Entities
 
-- **extractDecisions** (function) — `packages/core/src/wiki/extractors/decision.ts:193` [PR: 0.0008]
-- **extractSingleDecision** (function) — `packages/core/src/wiki/extractors/decision.ts:133` [PR: 0.0006]
+- **extractAcceptanceCriteria** (function) — `packages/core/src/utils.ts:58` [PR: 0.0010]
+- **STOP_WORDS** (variable) — `packages/core/src/utils.ts:29` [PR: 0.0007]
+- **toKebabCase** (function) — `packages/core/src/utils.ts:9` [PR: 0.0005]

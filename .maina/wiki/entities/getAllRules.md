@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/cache/ttl.ts`
 - **Line:** 75
 - **Exported:** yes
-- **PageRank:** 0.0015
+- **PageRank:** 0.0014

@@ -4,11 +4,11 @@
 
 ## Entities
 
-- **syntaxGuard** (function) — `packages/core/src/verify/syntax-guard.ts:122` [PR: 0.0012]
-- **parseBiomeOutput** (function) — `packages/core/src/verify/syntax-guard.ts:87` [PR: 0.0009]
-- **SyntaxGuardResult** (type) — `packages/core/src/verify/syntax-guard.ts:30` [PR: 0.0007]
-- **SyntaxDiagnostic** (interface) — `packages/core/src/verify/syntax-guard.ts:22` [PR: 0.0006]
-
-## Related Decisions
-
-- [[decision:0002-multi-language-verify-pipeline]] — Multi-language verify pipeline [accepted]
+- **statsCommand** (function) — `packages/cli/src/commands/stats.ts:364` [PR: 0.0020]
+- **statsAction** (function) — `packages/cli/src/commands/stats.ts:154` [PR: 0.0014]
+- **StatsDeps** (interface) — `packages/cli/src/commands/stats.ts:60` [PR: 0.0011]
+- **StatsActionResult** (interface) — `packages/cli/src/commands/stats.ts:50` [PR: 0.0009]
+- **WikiMetrics** (interface) — `packages/cli/src/commands/stats.ts:39` [PR: 0.0008]
+- **SpecsResult** (interface) — `packages/cli/src/commands/stats.ts:33` [PR: 0.0007]
+- **SpecScore** (interface) — `packages/cli/src/commands/stats.ts:28` [PR: 0.0006]
+- **StatsActionOptions** (interface) — `packages/cli/src/commands/stats.ts:20` [PR: 0.0005]

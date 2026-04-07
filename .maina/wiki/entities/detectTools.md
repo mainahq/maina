@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/verify/detect.ts`
 - **Line:** 298
 - **Exported:** yes
-- **PageRank:** 0.0016
+- **PageRank:** 0.0015

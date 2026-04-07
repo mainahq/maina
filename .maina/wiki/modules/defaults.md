@@ -4,5 +4,5 @@
 
 ## Entities
 
-- **loadDefault** (function) — `packages/core/src/prompts/defaults/index.ts:31` [PR: 0.0008]
-- **PromptTask** (type) — `packages/core/src/prompts/defaults/index.ts:3` [PR: 0.0006]
+- **loadDefault** (function) — `packages/core/src/prompts/defaults/index.ts:32` [PR: 0.0008]
+- **PromptTask** (type) — `packages/core/src/prompts/defaults/index.ts:3` [PR: 0.0005]

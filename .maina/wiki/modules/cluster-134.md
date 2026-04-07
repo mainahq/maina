@@ -4,5 +4,5 @@
 
 ## Entities
 
-- **startServer** (function) — `packages/mcp/src/server.ts:30` [PR: 0.0008]
-- **createMcpServer** (function) — `packages/mcp/src/server.ts:14` [PR: 0.0006]
+- **scoreSpec** (function) — `packages/core/src/features/quality.ts:288` [PR: 0.0008]
+- **QualityScore** (interface) — `packages/core/src/features/quality.ts:45` [PR: 0.0005]

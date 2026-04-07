@@ -4,5 +4,5 @@
 
 ## Entities
 
-- **generateLinks** (function) — `packages/core/src/wiki/linker.ts:69` [PR: 0.0008]
-- **LinkResult** (interface) — `packages/core/src/wiki/linker.ts:13` [PR: 0.0006]
+- **generateDesignApproaches** (function) — `packages/core/src/ai/design-approaches.ts:23` [PR: 0.0008]
+- **DesignApproach** (interface) — `packages/core/src/ai/design-approaches.ts:4` [PR: 0.0005]

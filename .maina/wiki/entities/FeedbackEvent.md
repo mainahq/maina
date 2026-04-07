@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/cloud/types.ts`
 - **Line:** 210
 - **Exported:** yes
-- **PageRank:** 0.0025
+- **PageRank:** 0.0024

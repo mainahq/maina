@@ -4,5 +4,5 @@
 
 ## Entities
 
-- **generateDesignApproaches** (function) — `packages/core/src/ai/design-approaches.ts:23` [PR: 0.0008]
-- **DesignApproach** (interface) — `packages/core/src/ai/design-approaches.ts:4` [PR: 0.0006]
+- **extractFeatures** (function) — `packages/core/src/wiki/extractors/feature.ts:177` [PR: 0.0008]
+- **extractSingleFeature** (function) — `packages/core/src/wiki/extractors/feature.ts:124` [PR: 0.0005]

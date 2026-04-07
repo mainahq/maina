@@ -444,6 +444,15 @@ export {
 	type CompileOptions as WikiCompileOptions,
 	compile as compileWiki,
 } from "./wiki/compiler";
+// Wiki — Consult
+export {
+	consultWikiForBrainstorm,
+	consultWikiForDesign,
+	consultWikiForPlan,
+	type WikiBrainstormContext,
+	type WikiConsultResult,
+	type WikiDesignConsultResult,
+} from "./wiki/consult";
 export { type CodeEntity, extractCodeEntities } from "./wiki/extractors/code";
 export {
 	extractDecisions,
@@ -486,6 +495,15 @@ export {
 	validateArticleStructure,
 	type WikiSchema,
 } from "./wiki/schema";
+// Wiki — Search
+export {
+	buildSearchIndex,
+	loadSearchIndex,
+	saveSearchIndex,
+	searchWiki,
+	type WikiSearchIndex,
+	type WikiSearchResult,
+} from "./wiki/search";
 // Wiki — Signals
 export {
 	type ArticleLoadSignal,

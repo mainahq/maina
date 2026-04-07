@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/verify/typecheck.ts`
 - **Line:** 106
 - **Exported:** yes
-- **PageRank:** 0.0015
+- **PageRank:** 0.0014
