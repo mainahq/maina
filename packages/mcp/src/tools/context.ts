@@ -26,12 +26,29 @@ export function registerContextTools(server: McpServer): void {
 		{ command: z.enum(COMMANDS) },
 		async ({ command }) => {
 			try {
-				const { assembleContext } = await import("@mainahq/core");
+				const { assembleContext, captureResult } = await import(
+					"@mainahq/core"
+				);
+				const mainaDir = join(process.cwd(), ".maina");
+
+				const start = Date.now();
 				const result = await assembleContext(command, {
 					repoRoot: process.cwd(),
-					mainaDir: join(process.cwd(), ".maina"),
+					mainaDir,
 				});
-				return { content: [{ type: "text" as const, text: result.text }] };
+				const durationMs = Date.now() - start;
+
+				captureResult({
+					tool: "getContext",
+					input: { command },
+					output: result.text,
+					durationMs,
+					mainaDir,
+				});
+
+				return {
+					content: [{ type: "text" as const, text: result.text }],
+				};
 			} catch (e) {
 				return {
 					content: [
@@ -52,10 +69,26 @@ export function registerContextTools(server: McpServer): void {
 		{},
 		async () => {
 			try {
-				const { buildSystemPrompt } = await import("@mainahq/core");
+				const { buildSystemPrompt, captureResult } = await import(
+					"@mainahq/core"
+				);
 				const mainaDir = join(process.cwd(), ".maina");
+
+				const start = Date.now();
 				const built = await buildSystemPrompt("review", mainaDir, {});
-				return { content: [{ type: "text" as const, text: built.prompt }] };
+				const durationMs = Date.now() - start;
+
+				captureResult({
+					tool: "getConventions",
+					input: {},
+					output: built.prompt,
+					durationMs,
+					mainaDir,
+				});
+
+				return {
+					content: [{ type: "text" as const, text: built.prompt }],
+				};
 			} catch (e) {
 				return {
 					content: [
