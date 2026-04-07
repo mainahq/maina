@@ -1,4 +1,15 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	setDefaultTimeout,
+	test,
+} from "bun:test";
+
+// bootstrap() spawns tool-detection processes — CI needs more time
+setDefaultTimeout(15_000);
+
 import {
 	existsSync,
 	mkdirSync,
