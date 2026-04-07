@@ -4,10 +4,10 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
 ---
 
 <section class="hero">
-  <img src={`${base}/favicon.svg`} alt="Maina" width="100" height="125" class="hero-logo" />
-  <h1>AI writes 41% of your code. Who's checking it?</h1>
+  <div class="hero-prompt">~/project $</div>
+  <h1>AI writes 41% of your code.<br><span class="accent">Who's checking it?</span></h1>
   <p class="hero-subtitle">
-    Maina is the verification layer that proves every AI-generated change is correct before it merges. 18 tools. 7 languages. One command. Zero config.
+    18 tools &middot; 7 languages &middot; 1 command &middot; 0 config
   </p>
   <div class="hero-actions">
     <a href={`${base}/getting-started`} class="btn-primary">Get Started</a>
@@ -19,7 +19,7 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
   <div class="metrics">
     <div class="metric">
       <div class="metric-value">18+</div>
-      <div class="metric-label">verification tools</div>
+      <div class="metric-label">tools</div>
     </div>
     <div class="metric">
       <div class="metric-value">7</div>
@@ -27,31 +27,11 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
     </div>
     <div class="metric">
       <div class="metric-value">1,167+</div>
-      <div class="metric-label">tests passing</div>
+      <div class="metric-label">tests</div>
     </div>
     <div class="metric">
       <div class="metric-value">0</div>
-      <div class="metric-label">config needed</div>
+      <div class="metric-label">config</div>
     </div>
   </div>
 </section>
-
-<style>
-  .install-cmd {
-    margin-top: 1rem;
-    padding: 0.5rem 1rem;
-    background: var(--sl-color-gray-6, #f3f4f6);
-    border-radius: 0.5rem;
-    display: inline-block;
-  }
-  .install-cmd code {
-    font-size: 0.875rem;
-    color: var(--sl-color-gray-1, #374151);
-  }
-  :global([data-theme='dark']) .install-cmd {
-    background: var(--sl-color-gray-5, #1f2937);
-  }
-  :global([data-theme='dark']) .install-cmd code {
-    color: var(--sl-color-gray-1, #e5e7eb);
-  }
-</style>
