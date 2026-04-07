@@ -42,6 +42,13 @@ let mockCacheStats = {
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
+let mockApiKey: string | null = null;
+let mockHostMode = false;
+let mockFeedbackDbResult: { ok: boolean; value?: unknown; error?: string } = {
+	ok: false,
+	error: "no db",
+};
+
 mock.module("@mainahq/core", () => ({
 	detectTools: async () => mockDetectedTools,
 	createCacheManager: () => ({
@@ -52,6 +59,9 @@ mock.module("@mainahq/core", () => ({
 		invalidate: () => {},
 		clear: () => {},
 	}),
+	getApiKey: () => mockApiKey,
+	isHostMode: () => mockHostMode,
+	getFeedbackDb: () => mockFeedbackDbResult,
 }));
 
 mock.module("@clack/prompts", () => ({
@@ -118,6 +128,10 @@ beforeEach(() => {
 		entriesL1: 8,
 		entriesL2: 30,
 	};
+
+	mockApiKey = null;
+	mockHostMode = false;
+	mockFeedbackDbResult = { ok: false, error: "no db" };
 });
 
 afterEach(() => {
@@ -240,5 +254,73 @@ describe("maina doctor", () => {
 		const result = await doctorAction({ cwd: tmpDir });
 
 		expect(result.version).toBe("1.0.0");
+	});
+
+	// ── AI Status ──────────────────────────────────────────────────────
+
+	test("reports no API key when none set", async () => {
+		mockApiKey = null;
+		mockHostMode = false;
+
+		const result = await doctorAction({ cwd: tmpDir });
+
+		expect(result.aiStatus.apiKey).toBe(false);
+		expect(result.aiStatus.hostMode).toBe(false);
+	});
+
+	test("reports API key when set", async () => {
+		mockApiKey = "sk-or-v1-test";
+
+		const result = await doctorAction({ cwd: tmpDir });
+
+		expect(result.aiStatus.apiKey).toBe(true);
+	});
+
+	test("reports host mode when detected", async () => {
+		mockHostMode = true;
+
+		const result = await doctorAction({ cwd: tmpDir });
+
+		expect(result.aiStatus.hostMode).toBe(true);
+	});
+
+	test("reports feedback stats when db available", async () => {
+		// Create a mock db with query method
+		const mockDb = {
+			query: () => ({
+				get: () => ({ total: 83, accepted: 54 }),
+			}),
+		};
+		mockFeedbackDbResult = { ok: true, value: { db: mockDb } };
+
+		const result = await doctorAction({ cwd: tmpDir });
+
+		expect(result.aiStatus.feedbackTotal).toBe(83);
+		expect(result.aiStatus.feedbackAcceptRate).toBeCloseTo(54 / 83, 2);
+	});
+
+	test("reports zero feedback when db unavailable", async () => {
+		mockFeedbackDbResult = { ok: false, error: "no db" };
+
+		const result = await doctorAction({ cwd: tmpDir });
+
+		expect(result.aiStatus.feedbackTotal).toBe(0);
+		expect(result.aiStatus.feedbackAcceptRate).toBe(0);
+	});
+
+	test("reports cache stats in AI status from existing cache", async () => {
+		mkdirSync(join(tmpDir, ".maina", "cache"), { recursive: true });
+
+		const result = await doctorAction({ cwd: tmpDir });
+
+		expect(result.aiStatus.cacheEntries).toBe(38); // l1 (8) + l2 (30)
+		expect(result.aiStatus.cacheHitRate).toBeCloseTo(35 / 40, 2); // (10 + 25) / 40
+	});
+
+	test("reports empty cache in AI status when no cache dir", async () => {
+		const result = await doctorAction({ cwd: tmpDir });
+
+		expect(result.aiStatus.cacheEntries).toBe(0);
+		expect(result.aiStatus.cacheHitRate).toBe(0);
 	});
 });

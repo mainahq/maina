@@ -2,7 +2,13 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
 import type { CacheStats, DetectedTool } from "@mainahq/core";
-import { createCacheManager, detectTools } from "@mainahq/core";
+import {
+	createCacheManager,
+	detectTools,
+	getApiKey,
+	getFeedbackDb,
+	isHostMode,
+} from "@mainahq/core";
 import { Command } from "commander";
 import pkg from "../../package.json";
 import { EXIT_PASSED, outputJson } from "../json";
@@ -20,11 +26,21 @@ export interface EngineHealth {
 	verify: string;
 }
 
+export interface AIStatus {
+	apiKey: boolean;
+	hostMode: boolean;
+	feedbackTotal: number;
+	feedbackAcceptRate: number;
+	cacheEntries: number;
+	cacheHitRate: number;
+}
+
 export interface DoctorActionResult {
 	version: string;
 	tools: DetectedTool[];
 	engines: EngineHealth;
 	cacheStats: CacheStats | null;
+	aiStatus: AIStatus;
 }
 
 // ── Formatting Helpers ───────────────────────────────────────────────────────
@@ -63,6 +79,98 @@ function formatCacheStats(stats: CacheStats): string {
 		`  ${"L2 Entries".padEnd(16)} ${stats.entriesL2}`,
 	];
 	return [header, separator, ...rows].join("\n");
+}
+
+function formatAIStatus(status: AIStatus): string {
+	const lines: string[] = [];
+
+	// API Key
+	if (status.apiKey) {
+		lines.push("  API Key        \u2713  OPENROUTER_API_KEY set");
+	} else {
+		lines.push("  API Key        \u2717  No API key found");
+	}
+
+	// Host Mode
+	if (status.hostMode) {
+		lines.push("  Host Mode      \u2713  AI agent detected");
+	} else {
+		lines.push("  Host Mode      \u2717  Not in AI agent");
+	}
+
+	// Feedback
+	if (status.feedbackTotal > 0) {
+		const rate = Math.round(status.feedbackAcceptRate * 100);
+		lines.push(
+			`  Feedback       ${status.feedbackTotal} outcomes, ${rate}% accept rate`,
+		);
+	} else {
+		lines.push("  Feedback       \u2014  No data");
+	}
+
+	// Cache
+	if (status.cacheEntries > 0) {
+		const rate = Math.round(status.cacheHitRate * 100);
+		lines.push(
+			`  Cache          ${status.cacheEntries} entries, ${rate}% hit rate`,
+		);
+	} else {
+		lines.push("  Cache          \u2014  Empty");
+	}
+
+	return lines.join("\n");
+}
+
+// ── AI Status Check ────────────────────────────────────────────────────────
+
+function checkAIStatus(cwd: string, cacheStats: CacheStats | null): AIStatus {
+	const mainaDir = join(cwd, ".maina");
+
+	// API Key
+	const apiKey = getApiKey() !== null;
+
+	// Host Mode
+	const hostMode = isHostMode();
+
+	// Feedback stats
+	let feedbackTotal = 0;
+	let feedbackAcceptRate = 0;
+	const fbResult = getFeedbackDb(mainaDir);
+	if (fbResult.ok) {
+		try {
+			const row = fbResult.value.db
+				.query(
+					"SELECT COUNT(*) as total, SUM(CASE WHEN accepted = 1 THEN 1 ELSE 0 END) as accepted FROM feedback",
+				)
+				.get() as { total: number; accepted: number } | null;
+			if (row && row.total > 0) {
+				feedbackTotal = row.total;
+				feedbackAcceptRate = row.accepted / row.total;
+			}
+		} catch {
+			// Table may not exist yet
+		}
+	}
+
+	// Cache stats
+	let cacheEntries = 0;
+	let cacheHitRate = 0;
+	if (cacheStats) {
+		cacheEntries = cacheStats.entriesL1 + cacheStats.entriesL2;
+		const totalQueries = cacheStats.totalQueries;
+		if (totalQueries > 0) {
+			cacheHitRate = (cacheStats.l1Hits + cacheStats.l2Hits) / totalQueries;
+		}
+	}
+
+	return {
+		apiKey,
+		hostMode,
+		feedbackTotal,
+		feedbackAcceptRate,
+		cacheEntries,
+		cacheHitRate,
+	};
 }
 
 // ── Engine Health Check ─────────────────────────────────────────────────────
@@ -144,7 +252,18 @@ export async function doctorAction(
 		}
 	}
 
-	return { version, tools, engines, cacheStats };
+	// ── Step 5: AI Status ───────────────────────────────────────────────
+	const aiStatus = checkAIStatus(cwd, cacheStats);
+	if (!jsonMode) {
+		log.step("AI Status:");
+		log.message(formatAIStatus(aiStatus));
+		if (!aiStatus.apiKey && !aiStatus.hostMode) {
+			log.message("");
+			log.message("  \u2192 Run `maina init` to set up AI features");
+		}
+	}
+
+	return { version, tools, engines, cacheStats, aiStatus };
 }
 
 // ── Commander Command ────────────────────────────────────────────────────────
