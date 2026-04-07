@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { calculateTokens } from "../budget";
@@ -265,6 +271,34 @@ describe("loadWikiContext", () => {
 		expect(result).not.toBeNull();
 		expect(result?.text).toContain("Decision");
 		expect(result?.text).toContain("Feature");
+	});
+
+	it("records loaded articles to signals file for RL tracking", () => {
+		writeWikiFile(wikiDir, "index.md", "# Index");
+		writeWikiFile(
+			wikiDir,
+			"decisions/adr-001.md",
+			"# ADR-001\nDecision content.",
+		);
+		writeWikiFile(
+			wikiDir,
+			"modules/context-engine.md",
+			"# Context Engine\nEngine docs.",
+		);
+
+		const result = loadWikiContext({ wikiDir, command: "review" });
+		expect(result).not.toBeNull();
+
+		// Check that the signals file was created
+		const signalsPath = join(wikiDir, ".signals.json");
+		expect(existsSync(signalsPath)).toBe(true);
+
+		const raw = readFileSync(signalsPath, "utf-8");
+		const parsed = JSON.parse(raw);
+		expect(parsed.loadSignals).toBeDefined();
+		expect(parsed.loadSignals.length).toBeGreaterThan(0);
+		expect(parsed.loadSignals[0].command).toBe("review");
+		expect(Array.isArray(parsed.loadSignals[0].articles)).toBe(true);
 	});
 });
 

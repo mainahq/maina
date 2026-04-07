@@ -15,6 +15,7 @@
 
 import { mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
+import type { TryAIResult } from "../ai/try-generate";
 import type { Result } from "../db/index";
 import type { CodeEntity } from "./extractors/code";
 import { extractCodeEntities } from "./extractors/code";
@@ -58,6 +59,45 @@ export interface CompileOptions {
 	wikiDir: string;
 	full?: boolean;
 	dryRun?: boolean;
+	useAI?: boolean;
+}
+
+// ─── AI Enhancement ─────────────────────────────────────────────────────
+
+/**
+ * Enhance a wiki article with AI-generated natural language descriptions.
+ * Falls back to the original content if AI is unavailable or fails.
+ */
+async function enhanceWithAI(
+	article: WikiArticle,
+	context: string,
+	mainaDir: string,
+): Promise<string> {
+	try {
+		const { tryAIGenerate } = await import("../ai/try-generate");
+		const userPrompt = [
+			"## Article to Enhance",
+			"",
+			article.content,
+			"",
+			"## Surrounding Context",
+			"",
+			context,
+		].join("\n");
+
+		const result: TryAIResult = await tryAIGenerate(
+			"wiki-compile",
+			mainaDir,
+			{ task: "wiki-compile" },
+			userPrompt,
+		);
+
+		// If AI returned text, use it; otherwise fall back to original
+		return result.text ?? article.content;
+	} catch {
+		// AI failure — silently fall back to template-only
+		return article.content;
+	}
 }
 
 // ─── File Discovery ─────────────────────────────────────────────────────
@@ -896,6 +936,31 @@ export async function compile(
 		// Architecture articles (from directory structure analysis)
 		const archArticles = generateArchitectureArticles(repoRoot);
 		articles.push(...archArticles);
+
+		// ── Step 6b: AI enhancement (optional) ────────────────────────
+		if (options.useAI) {
+			const contextSummary = [
+				`Repository: ${repoRoot}`,
+				`Entities: ${codeEntities.length}`,
+				`Features: ${features.length}`,
+				`Decisions: ${decisions.length}`,
+			].join("\n");
+
+			for (const article of articles) {
+				// Only enhance module and entity articles — features/decisions are already rich
+				if (article.type === "module" || article.type === "entity") {
+					const enhanced = await enhanceWithAI(
+						article,
+						contextSummary,
+						mainaDir,
+					);
+					if (enhanced !== article.content) {
+						article.content = enhanced;
+						article.contentHash = hashContent(enhanced);
+					}
+				}
+			}
+		}
 
 		// ── Step 7: Generate wikilinks ─────────────────────────────────
 		const linkResult = generateLinks(graph, articleMap);

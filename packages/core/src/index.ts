@@ -488,10 +488,14 @@ export {
 } from "./wiki/schema";
 // Wiki — Signals
 export {
+	type ArticleLoadSignal,
 	type CompilationPromptSignal,
 	calculateEbbinghausScore,
 	getPromptEffectiveness,
+	getWikiEffectivenessReport,
+	recordArticlesLoaded,
 	recordWikiUsage,
+	type WikiEffectivenessReport,
 	type WikiEffectivenessSignal,
 } from "./wiki/signals";
 export {
@@ -502,6 +506,11 @@ export {
 	loadState as loadWikiState,
 	saveState as saveWikiState,
 } from "./wiki/state";
+// Wiki — Tracking
+export {
+	trackWikiRefsRead,
+	trackWikiRefsWritten,
+} from "./wiki/tracking";
 // Wiki
 export type {
 	ArticleType,
@@ -523,6 +532,7 @@ export type {
 export { DECAY_HALF_LIVES } from "./wiki/types";
 // Workflow
 export {
+	appendWikiRefs,
 	appendWorkflowStep,
 	loadWorkflowContext,
 	resetWorkflowContext,

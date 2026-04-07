@@ -29,9 +29,32 @@ export interface CompilationPromptSignal {
 	indirectAcceptRate: number;
 }
 
+export interface ArticleLoadSignal {
+	articles: string[];
+	command: string;
+	timestamp: string;
+}
+
+export interface WikiEffectivenessReport {
+	totalLoads: number;
+	totalAccepts: number;
+	totalRejects: number;
+	acceptRate: number;
+	articleStats: Array<{
+		article: string;
+		loads: number;
+		accepts: number;
+		rejects: number;
+		effectivenessScore: number; // accepts / loads
+	}>;
+	negativeArticles: string[]; // articles with < 50% accept rate
+	dormantArticles: string[]; // ebbinghaus score < 0.2
+}
+
 interface SignalsStore {
 	usageSignals: WikiEffectivenessSignal[];
 	promptSignals: CompilationPromptSignal[];
+	loadSignals?: ArticleLoadSignal[];
 }
 
 // ─── Storage ─────────────────────────────────────────────────────────────
@@ -183,4 +206,163 @@ export function calculateEbbinghausScore(
 	// Combine and clamp to [0, 1]
 	const raw = decayComponent + reinforcementComponent;
 	return Math.min(1, Math.max(0, raw));
+}
+
+// ─── Signal 4: Articles Loaded Tracking ─────────────────────────────────
+
+/**
+ * Record which wiki articles were loaded for a command.
+ *
+ * Non-blocking: never throws. Used by the context engine (L5) to record
+ * which articles were included as context, so the RL flywheel can later
+ * correlate them with accept/reject outcomes.
+ *
+ * @param signalsPath - Path to the .signals.json file
+ * @param articles - Relative paths of articles loaded
+ * @param command - The maina command that triggered the load
+ */
+export function recordArticlesLoaded(
+	signalsPath: string,
+	articles: string[],
+	command: string,
+): void {
+	try {
+		if (articles.length === 0) return;
+
+		const wikiDir = dirname(signalsPath);
+		const store = loadSignals(wikiDir);
+
+		if (!store.loadSignals) {
+			store.loadSignals = [];
+		}
+
+		store.loadSignals.push({
+			articles,
+			command,
+			timestamp: new Date().toISOString(),
+		});
+
+		saveSignals(wikiDir, store);
+	} catch {
+		// Non-blocking — never throw from signal recording
+	}
+}
+
+// ─── Signal 5: Wiki Effectiveness Report ────────────────────────────────
+
+/**
+ * Compute a comprehensive effectiveness report for wiki articles.
+ *
+ * Aggregates usage signals to determine which articles contribute to
+ * accepted outputs and which are negatively correlated. Also identifies
+ * dormant articles via Ebbinghaus decay scoring.
+ *
+ * @param signalsPath - Path to the .signals.json file
+ * @returns Effectiveness report with per-article stats
+ */
+export function getWikiEffectivenessReport(
+	signalsPath: string,
+): WikiEffectivenessReport {
+	const emptyReport: WikiEffectivenessReport = {
+		totalLoads: 0,
+		totalAccepts: 0,
+		totalRejects: 0,
+		acceptRate: 0,
+		articleStats: [],
+		negativeArticles: [],
+		dormantArticles: [],
+	};
+
+	try {
+		const wikiDir = dirname(signalsPath);
+		const store = loadSignals(wikiDir);
+		const { usageSignals } = store;
+
+		if (usageSignals.length === 0) {
+			return emptyReport;
+		}
+
+		// Aggregate per-article stats
+		const statsMap = new Map<
+			string,
+			{ loads: number; accepts: number; rejects: number }
+		>();
+
+		for (const signal of usageSignals) {
+			const existing = statsMap.get(signal.articlePath) ?? {
+				loads: 0,
+				accepts: 0,
+				rejects: 0,
+			};
+			existing.loads += 1;
+			if (signal.accepted) {
+				existing.accepts += 1;
+			} else {
+				existing.rejects += 1;
+			}
+			statsMap.set(signal.articlePath, existing);
+		}
+
+		const totalAccepts = usageSignals.filter((s) => s.accepted).length;
+		const totalRejects = usageSignals.length - totalAccepts;
+
+		const articleStats = Array.from(statsMap.entries())
+			.map(([article, stats]) => ({
+				article,
+				loads: stats.loads,
+				accepts: stats.accepts,
+				rejects: stats.rejects,
+				effectivenessScore: stats.loads > 0 ? stats.accepts / stats.loads : 0,
+			}))
+			.sort((a, b) => b.effectivenessScore - a.effectivenessScore);
+
+		// Negative articles: < 50% accept rate with at least 1 load
+		const negativeArticles = articleStats
+			.filter((s) => s.loads > 0 && s.effectivenessScore < 0.5)
+			.map((s) => s.article);
+
+		// Dormant articles: ebbinghaus score < 0.2 based on last usage timestamp
+		const dormantArticles: string[] = [];
+		for (const signal of usageSignals) {
+			const daysSinceAccess =
+				(Date.now() - new Date(signal.timestamp).getTime()) /
+				(1000 * 60 * 60 * 24);
+
+			// Determine article type from path prefix
+			const articleType = inferArticleType(signal.articlePath);
+			const score = calculateEbbinghausScore(articleType, daysSinceAccess, 0);
+			if (score < 0.2 && !dormantArticles.includes(signal.articlePath)) {
+				dormantArticles.push(signal.articlePath);
+			}
+		}
+
+		return {
+			totalLoads: usageSignals.length,
+			totalAccepts: totalAccepts,
+			totalRejects: totalRejects,
+			acceptRate:
+				usageSignals.length > 0 ? totalAccepts / usageSignals.length : 0,
+			articleStats,
+			negativeArticles,
+			dormantArticles,
+		};
+	} catch {
+		return emptyReport;
+	}
+}
+
+/**
+ * Infer article type from its relative path.
+ * Falls back to "raw" if the directory prefix is unrecognized.
+ */
+function inferArticleType(articlePath: string): ArticleType {
+	const firstSegment = articlePath.split("/")[0] ?? "";
+	const typeMap: Record<string, ArticleType> = {
+		modules: "module",
+		entities: "entity",
+		features: "feature",
+		decisions: "decision",
+		architecture: "architecture",
+	};
+	return typeMap[firstSegment] ?? "raw";
 }

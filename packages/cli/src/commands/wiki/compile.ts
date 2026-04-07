@@ -34,6 +34,7 @@ export interface CompilationResult {
 export interface WikiCompileOptions {
 	full?: boolean;
 	dryRun?: boolean;
+	ai?: boolean;
 	json?: boolean;
 	cwd?: string;
 }
@@ -66,6 +67,7 @@ export async function wikiCompileAction(
 		wikiDir,
 		full: mode === "full",
 		dryRun,
+		useAI: options.ai ?? false,
 	});
 
 	if (!result.ok) {
@@ -109,6 +111,7 @@ export function wikiCompileCommand(parent: Command): void {
 		.description("Compile wiki articles (incremental by default)")
 		.option("--full", "Force full recompilation")
 		.option("--dry-run", "Show what would change without writing")
+		.option("--ai", "Enhance articles with AI-generated descriptions")
 		.option("--json", "Output JSON for CI")
 		.action(async (options) => {
 			const jsonMode = options.json ?? false;
@@ -125,6 +128,7 @@ export function wikiCompileCommand(parent: Command): void {
 			const result = await wikiCompileAction({
 				full: options.full,
 				dryRun: options.dryRun,
+				ai: options.ai,
 				json: jsonMode,
 			});
 

@@ -1,4 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { confirm, intro, log, outro, select, spinner } from "@clack/prompts";
 import {
@@ -8,6 +7,7 @@ import {
 	createCandidate,
 	createCloudClient,
 	exportFeedbackForCloud,
+	getWikiEffectivenessReport,
 	loadAuthConfig,
 	type PromptTask,
 	resolveABTests,
@@ -114,30 +114,60 @@ export function learnCommand(): Command {
 
 			// Wiki effectiveness
 			const signalsFile = join(mainaDir, "wiki", ".signals.json");
-			if (existsSync(signalsFile)) {
-				try {
-					const signals = JSON.parse(readFileSync(signalsFile, "utf-8"));
-					const loaded =
-						typeof signals.articlesLoaded === "number"
-							? signals.articlesLoaded
-							: 0;
-					const acceptRate =
-						typeof signals.acceptRate === "number"
-							? `${Math.round(signals.acceptRate * 100)}%`
-							: "N/A";
-					const dormant =
-						typeof signals.dormantCount === "number" ? signals.dormantCount : 0;
+			const wikiReport = getWikiEffectivenessReport(signalsFile);
+			if (wikiReport.totalLoads > 0) {
+				const uniqueCommands = new Set(
+					wikiReport.articleStats.map((a) => a.article),
+				).size;
+				log.step("Wiki Effectiveness:");
+				log.message(
+					[
+						`  Articles loaded: ${wikiReport.totalLoads} (across ${uniqueCommands} article(s))`,
+						`  Accept rate: ${Math.round(wikiReport.acceptRate * 100)}%`,
+					].join("\n"),
+				);
 
-					log.step("Wiki Effectiveness:");
+				// Top effective articles (top 5 with at least 2 loads)
+				const topArticles = wikiReport.articleStats
+					.filter((a) => a.loads >= 2)
+					.slice(0, 5);
+				if (topArticles.length > 0) {
+					const topLines = topArticles.map(
+						(a) =>
+							`    ${a.article} — ${Math.round(a.effectivenessScore * 100)}% (${a.accepts}/${a.loads})`,
+					);
+					log.message(
+						["", "  Top effective articles:", ...topLines].join("\n"),
+					);
+				}
+
+				// Negative-signal articles
+				if (wikiReport.negativeArticles.length > 0) {
+					const negLines = wikiReport.negativeArticles
+						.slice(0, 5)
+						.map((art) => {
+							const stat = wikiReport.articleStats.find(
+								(a) => a.article === art,
+							);
+							const detail = stat
+								? ` — ${Math.round(stat.effectivenessScore * 100)}% (${stat.accepts}/${stat.loads})`
+								: "";
+							return `    ${art}${detail}`;
+						});
 					log.message(
 						[
-							`  Articles loaded: ${loaded}`,
-							`  Accept rate: ${acceptRate}`,
-							`  Dormant articles (<0.2 score): ${dormant}`,
+							"",
+							"  Negative-signal articles (flag for recompilation):",
+							...negLines,
 						].join("\n"),
 					);
-				} catch {
-					// ignore parse errors
+				}
+
+				// Dormant articles
+				if (wikiReport.dormantArticles.length > 0) {
+					log.message(
+						`\n  Dormant articles (ebbinghaus < 0.2): ${wikiReport.dormantArticles.length}`,
+					);
 				}
 			}
 

@@ -26,6 +26,7 @@ export interface WikiInitResult {
 }
 
 export interface WikiInitOptions {
+	ai?: boolean;
 	json?: boolean;
 	cwd?: string;
 }
@@ -66,6 +67,7 @@ export async function wikiInitAction(
 		mainaDir,
 		wikiDir,
 		full: true,
+		useAI: options.ai ?? false,
 	});
 
 	if (!result.ok) {
@@ -114,6 +116,7 @@ export function wikiInitCommand(parent: Command): void {
 	parent
 		.command("init")
 		.description("Initialize wiki and run first compilation")
+		.option("--ai", "Enhance articles with AI-generated descriptions")
 		.option("--json", "Output JSON for CI")
 		.action(async (options) => {
 			const jsonMode = options.json ?? false;
@@ -127,7 +130,7 @@ export function wikiInitCommand(parent: Command): void {
 				s.start("Initializing wiki...");
 			}
 
-			const result = await wikiInitAction({ json: jsonMode });
+			const result = await wikiInitAction({ ai: options.ai, json: jsonMode });
 
 			if (!jsonMode) {
 				s.stop("Wiki initialized.");

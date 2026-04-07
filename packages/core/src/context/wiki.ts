@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join, relative } from "node:path";
+import { recordArticlesLoaded } from "../wiki/signals";
 import { calculateTokens, type LayerContent } from "./budget";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -247,6 +248,13 @@ export function loadWikiContext(
 	// Assemble text
 	const text = assembleWikiText(indexContent, filteredArticles);
 	const tokens = calculateTokens(text);
+
+	// Record which articles were loaded for RL tracking (non-blocking)
+	if (filteredArticles.length > 0) {
+		const signalsPath = join(wikiDir, ".signals.json");
+		const loadedArticlePaths = filteredArticles.map((a) => a.path);
+		recordArticlesLoaded(signalsPath, loadedArticlePaths, command ?? "unknown");
+	}
 
 	return {
 		name: "wiki",

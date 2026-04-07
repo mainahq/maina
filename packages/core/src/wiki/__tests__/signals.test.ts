@@ -5,6 +5,8 @@ import { join } from "node:path";
 import {
 	calculateEbbinghausScore,
 	getPromptEffectiveness,
+	getWikiEffectivenessReport,
+	recordArticlesLoaded,
 	recordWikiUsage,
 } from "../signals";
 import { DECAY_HALF_LIVES } from "../types";
@@ -230,5 +232,243 @@ describe("getPromptEffectiveness", () => {
 		// auth.md: 2 accepted out of 3 = 0.67
 		expect(result.acceptRate).toBeCloseTo(0.67, 2);
 		expect(result.sampleSize).toBe(3);
+	});
+});
+
+// ─── recordArticlesLoaded ───────────────────────────────────────────────
+
+describe("recordArticlesLoaded", () => {
+	it("should write load signals to the signals file", () => {
+		const { existsSync, readFileSync } = require("node:fs");
+		const sp = join(wikiDir, ".signals.json");
+
+		expect(existsSync(sp)).toBe(false);
+		recordArticlesLoaded(
+			sp,
+			["modules/auth.md", "decisions/adr-001.md"],
+			"review",
+		);
+		expect(existsSync(sp)).toBe(true);
+
+		const raw = readFileSync(sp, "utf-8");
+		const parsed = JSON.parse(raw);
+
+		expect(parsed.loadSignals).toHaveLength(1);
+		expect(parsed.loadSignals[0].articles).toEqual([
+			"modules/auth.md",
+			"decisions/adr-001.md",
+		]);
+		expect(parsed.loadSignals[0].command).toBe("review");
+		expect(typeof parsed.loadSignals[0].timestamp).toBe("string");
+	});
+
+	it("should append to existing signals without losing data", () => {
+		const { readFileSync } = require("node:fs");
+		const sp = join(wikiDir, ".signals.json");
+
+		// First write
+		recordArticlesLoaded(sp, ["modules/auth.md"], "review");
+		// Second write
+		recordArticlesLoaded(sp, ["features/wiki.md"], "commit");
+
+		const raw = readFileSync(sp, "utf-8");
+		const parsed = JSON.parse(raw);
+
+		expect(parsed.loadSignals).toHaveLength(2);
+		expect(parsed.loadSignals[0].articles).toEqual(["modules/auth.md"]);
+		expect(parsed.loadSignals[1].articles).toEqual(["features/wiki.md"]);
+	});
+
+	it("should not throw on empty articles array", () => {
+		const { existsSync } = require("node:fs");
+		const sp = join(wikiDir, ".signals.json");
+
+		recordArticlesLoaded(sp, [], "review");
+		// Should not create the file for empty articles
+		expect(existsSync(sp)).toBe(false);
+	});
+});
+
+// ─── getWikiEffectivenessReport ─────────────────────────────────────────
+
+describe("getWikiEffectivenessReport", () => {
+	it("should return empty report when no signals exist", () => {
+		const sp = join(wikiDir, ".signals.json");
+		const report = getWikiEffectivenessReport(sp);
+
+		expect(report.totalLoads).toBe(0);
+		expect(report.totalAccepts).toBe(0);
+		expect(report.totalRejects).toBe(0);
+		expect(report.acceptRate).toBe(0);
+		expect(report.articleStats).toHaveLength(0);
+		expect(report.negativeArticles).toHaveLength(0);
+		expect(report.dormantArticles).toHaveLength(0);
+	});
+
+	it("should compute correct rates from usage signals", () => {
+		const { writeFileSync } = require("node:fs");
+		const sp = join(wikiDir, ".signals.json");
+		const now = new Date().toISOString();
+
+		const store = {
+			usageSignals: [
+				{
+					articlePath: "modules/auth.md",
+					command: "commit",
+					accepted: true,
+					timestamp: now,
+				},
+				{
+					articlePath: "modules/auth.md",
+					command: "review",
+					accepted: true,
+					timestamp: now,
+				},
+				{
+					articlePath: "modules/auth.md",
+					command: "verify",
+					accepted: false,
+					timestamp: now,
+				},
+				{
+					articlePath: "decisions/adr-001.md",
+					command: "commit",
+					accepted: true,
+					timestamp: now,
+				},
+				{
+					articlePath: "decisions/adr-001.md",
+					command: "review",
+					accepted: true,
+					timestamp: now,
+				},
+			],
+			promptSignals: [],
+		};
+		writeFileSync(sp, JSON.stringify(store));
+
+		const report = getWikiEffectivenessReport(sp);
+
+		expect(report.totalLoads).toBe(5);
+		expect(report.totalAccepts).toBe(4);
+		expect(report.totalRejects).toBe(1);
+		expect(report.acceptRate).toBeCloseTo(0.8, 2);
+		expect(report.articleStats).toHaveLength(2);
+
+		// decisions/adr-001.md has 100% (2/2), should be first
+		const adrStat = report.articleStats.find(
+			(s) => s.article === "decisions/adr-001.md",
+		);
+		expect(adrStat?.effectivenessScore).toBeCloseTo(1.0, 2);
+		expect(adrStat?.loads).toBe(2);
+		expect(adrStat?.accepts).toBe(2);
+
+		// modules/auth.md has 67% (2/3)
+		const authStat = report.articleStats.find(
+			(s) => s.article === "modules/auth.md",
+		);
+		expect(authStat?.effectivenessScore).toBeCloseTo(0.667, 2);
+		expect(authStat?.loads).toBe(3);
+		expect(authStat?.accepts).toBe(2);
+		expect(authStat?.rejects).toBe(1);
+	});
+
+	it("should identify negative articles with < 50% accept rate", () => {
+		const { writeFileSync } = require("node:fs");
+		const sp = join(wikiDir, ".signals.json");
+		const now = new Date().toISOString();
+
+		const store = {
+			usageSignals: [
+				{
+					articlePath: "entities/oldFunction.md",
+					command: "commit",
+					accepted: false,
+					timestamp: now,
+				},
+				{
+					articlePath: "entities/oldFunction.md",
+					command: "review",
+					accepted: false,
+					timestamp: now,
+				},
+				{
+					articlePath: "entities/oldFunction.md",
+					command: "verify",
+					accepted: true,
+					timestamp: now,
+				},
+				{
+					articlePath: "modules/auth.md",
+					command: "commit",
+					accepted: true,
+					timestamp: now,
+				},
+				{
+					articlePath: "modules/auth.md",
+					command: "review",
+					accepted: true,
+					timestamp: now,
+				},
+			],
+			promptSignals: [],
+		};
+		writeFileSync(sp, JSON.stringify(store));
+
+		const report = getWikiEffectivenessReport(sp);
+
+		// entities/oldFunction.md: 1/3 = 33% -> negative
+		expect(report.negativeArticles).toContain("entities/oldFunction.md");
+		// modules/auth.md: 2/2 = 100% -> not negative
+		expect(report.negativeArticles).not.toContain("modules/auth.md");
+	});
+
+	it("should identify dormant articles from ebbinghaus score", () => {
+		const { writeFileSync } = require("node:fs");
+		const sp = join(wikiDir, ".signals.json");
+
+		// Create a signal from 500 days ago
+		const oldDate = new Date(
+			Date.now() - 500 * 24 * 60 * 60 * 1000,
+		).toISOString();
+		const recentDate = new Date().toISOString();
+
+		const store = {
+			usageSignals: [
+				{
+					articlePath: "features/old-feature.md",
+					command: "commit",
+					accepted: true,
+					timestamp: oldDate,
+				},
+				{
+					articlePath: "modules/recent.md",
+					command: "commit",
+					accepted: true,
+					timestamp: recentDate,
+				},
+			],
+			promptSignals: [],
+		};
+		writeFileSync(sp, JSON.stringify(store));
+
+		const report = getWikiEffectivenessReport(sp);
+
+		// features/old-feature.md accessed 500 days ago with feature halfLife=60
+		expect(report.dormantArticles).toContain("features/old-feature.md");
+		// modules/recent.md accessed just now -> not dormant
+		expect(report.dormantArticles).not.toContain("modules/recent.md");
+	});
+
+	it("should handle empty usage signals array", () => {
+		const { writeFileSync } = require("node:fs");
+		const sp = join(wikiDir, ".signals.json");
+
+		writeFileSync(sp, JSON.stringify({ usageSignals: [], promptSignals: [] }));
+
+		const report = getWikiEffectivenessReport(sp);
+		expect(report.totalLoads).toBe(0);
+		expect(report.acceptRate).toBe(0);
+		expect(report.articleStats).toHaveLength(0);
 	});
 });

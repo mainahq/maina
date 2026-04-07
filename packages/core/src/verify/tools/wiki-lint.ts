@@ -8,6 +8,8 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { extractDecisions } from "../../wiki/extractors/decision";
+import { extractFeatures } from "../../wiki/extractors/feature";
 import { hashFile, loadState } from "../../wiki/state";
 import type { WikiLintFinding, WikiLintResult } from "../../wiki/types";
 import type { Finding } from "../diff-filter";
@@ -17,6 +19,8 @@ import type { Finding } from "../diff-filter";
 export interface WikiLintOptions {
 	wikiDir: string;
 	repoRoot: string;
+	featuresDir?: string;
+	adrDir?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -285,6 +289,521 @@ function calculateCoverage(
 	return { coveragePercent, finding };
 }
 
+// ─── Check 6: Spec Drift Detection ──────────────────────────────────────
+
+/** Recursively collect source files (.ts, .js, .tsx, .jsx) under a directory. */
+function collectSourceFiles(dir: string): string[] {
+	const results: string[] = [];
+	if (!existsSync(dir)) return results;
+	try {
+		const entries = readdirSync(dir, { withFileTypes: true });
+		for (const entry of entries) {
+			const full = join(dir, entry.name);
+			if (entry.isDirectory()) {
+				// Skip node_modules, dist, .git
+				if (
+					entry.name === "node_modules" ||
+					entry.name === "dist" ||
+					entry.name === ".git"
+				) {
+					continue;
+				}
+				results.push(...collectSourceFiles(full));
+			} else if (/\.(ts|js|tsx|jsx)$/.test(entry.name)) {
+				results.push(full);
+			}
+		}
+	} catch {
+		// Directory read failure — skip gracefully
+	}
+	return results;
+}
+
+/**
+ * Check 6: Spec Drift — detect when spec assertions conflict with code.
+ *
+ * Deterministic: pattern-matches spec assertions for "Result" / "never throw"
+ * patterns, then scans feature source files for `throw` statements.
+ */
+function checkSpecDrift(
+	featuresDir: string,
+	repoRoot: string,
+): WikiLintFinding[] {
+	if (!existsSync(featuresDir)) return [];
+
+	const result = extractFeatures(featuresDir);
+	if (!result.ok) return [];
+
+	const findings: WikiLintFinding[] = [];
+	const resultPattern = /result\s*<|never\s+throw/i;
+	const throwPattern = /\bthrow\s+/;
+
+	for (const feature of result.value) {
+		// Check if any spec assertion mentions Result pattern or "never throw"
+		const hasResultAssertion = feature.specAssertions.some((a) =>
+			resultPattern.test(a),
+		);
+
+		if (!hasResultAssertion) continue;
+
+		// Scan source files for throw statements
+		// If feature has entitiesModified, use those; otherwise scan repo src/
+		const filesToScan: string[] = [];
+
+		if (feature.entitiesModified.length > 0) {
+			for (const entity of feature.entitiesModified) {
+				const fullPath = join(repoRoot, entity);
+				if (existsSync(fullPath)) {
+					filesToScan.push(fullPath);
+				}
+			}
+		} else {
+			// Scan src/ directory under repoRoot for a broad check
+			const srcDir = join(repoRoot, "src");
+			if (existsSync(srcDir)) {
+				filesToScan.push(...collectSourceFiles(srcDir));
+			}
+		}
+
+		for (const filePath of filesToScan) {
+			try {
+				const content = readFileSync(filePath, "utf-8");
+				const lines = content.split("\n");
+				for (let i = 0; i < lines.length; i++) {
+					const line = lines[i] ?? "";
+					// Skip comments
+					const trimmed = line.trim();
+					if (trimmed.startsWith("//") || trimmed.startsWith("*")) continue;
+					if (throwPattern.test(line)) {
+						const relPath = relative(repoRoot, filePath);
+						findings.push({
+							check: "spec_drift",
+							severity: "warning",
+							article: feature.id,
+							message: `Spec drift: feature "${feature.id}" asserts Result/never-throw pattern, but "${relPath}" line ${i + 1} uses throw`,
+							source: filePath,
+						});
+						// One finding per file is enough
+						break;
+					}
+				}
+			} catch {
+				// File read error — skip
+			}
+		}
+	}
+
+	return findings;
+}
+
+// ─── Check 7: Decision Violation Detection ──────────────────────────────
+
+/** Known technology constraint patterns extracted from ADR text. */
+interface TechConstraint {
+	keyword: string;
+	violations: { pattern: RegExp; description: string }[];
+}
+
+const TECH_CONSTRAINTS: TechConstraint[] = [
+	{
+		keyword: "bun:test",
+		violations: [
+			{
+				pattern: /from\s+["'](?:jest|vitest|mocha|chai)["']/,
+				description: "imports from jest/vitest/mocha/chai",
+			},
+			{
+				pattern: /require\s*\(\s*["'](?:jest|vitest|mocha|chai)["']\s*\)/,
+				description: "requires jest/vitest/mocha/chai",
+			},
+		],
+	},
+	{
+		keyword: "biome",
+		violations: [
+			{
+				pattern: /\.eslintrc|eslint\.config/,
+				description: "uses ESLint configuration",
+			},
+			{
+				pattern: /\.prettierrc|prettier\.config/,
+				description: "uses Prettier configuration",
+			},
+		],
+	},
+	{
+		keyword: "jwt",
+		violations: [
+			{
+				pattern: /from\s+["']express-session["']/,
+				description: "imports express-session instead of JWT",
+			},
+		],
+	},
+	{
+		keyword: "result<",
+		violations: [
+			{
+				pattern: /\bthrow\s+new\b/,
+				description: "throws instead of returning Result",
+			},
+		],
+	},
+	{
+		keyword: "never throw",
+		violations: [
+			{
+				pattern: /\bthrow\s+/,
+				description: "uses throw despite never-throw policy",
+			},
+		],
+	},
+];
+
+/**
+ * Check 7: Decision Violations — detect code that contradicts ADR decisions.
+ *
+ * Deterministic: extracts technology keywords from accepted ADRs,
+ * then scans source files for contradicting imports/configs.
+ */
+function checkDecisionViolations(
+	adrDir: string,
+	repoRoot: string,
+): WikiLintFinding[] {
+	if (!existsSync(adrDir)) return [];
+
+	const result = extractDecisions(adrDir);
+	if (!result.ok) return [];
+
+	const findings: WikiLintFinding[] = [];
+
+	// Collect accepted decisions and their applicable constraints
+	const activeConstraints: {
+		decisionId: string;
+		constraint: TechConstraint;
+	}[] = [];
+
+	for (const decision of result.value) {
+		if (decision.status !== "accepted") continue;
+
+		const fullText =
+			`${decision.decision} ${decision.context} ${decision.rationale}`.toLowerCase();
+
+		for (const constraint of TECH_CONSTRAINTS) {
+			if (fullText.includes(constraint.keyword)) {
+				activeConstraints.push({
+					decisionId: decision.id,
+					constraint,
+				});
+			}
+		}
+	}
+
+	if (activeConstraints.length === 0) return [];
+
+	// Collect source files to scan
+	const sourceFiles = collectSourceFiles(repoRoot);
+
+	// Also check for config files at repo root for Biome/ESLint checks
+	const configFiles: string[] = [];
+	try {
+		const rootEntries = readdirSync(repoRoot);
+		for (const entry of rootEntries) {
+			if (
+				entry.startsWith(".eslintrc") ||
+				entry.startsWith("eslint.config") ||
+				entry.startsWith(".prettierrc") ||
+				entry.startsWith("prettier.config")
+			) {
+				configFiles.push(join(repoRoot, entry));
+			}
+		}
+	} catch {
+		// Root dir read failure — skip
+	}
+
+	// Check config file names against constraints
+	for (const configFile of configFiles) {
+		const fileName = relative(repoRoot, configFile);
+		for (const { decisionId, constraint } of activeConstraints) {
+			for (const violation of constraint.violations) {
+				if (violation.pattern.test(fileName)) {
+					findings.push({
+						check: "decision_violation",
+						severity: "error",
+						article: decisionId,
+						message: `Decision violation: ADR "${decisionId}" requires ${constraint.keyword}, but "${fileName}" ${violation.description}`,
+						source: configFile,
+					});
+				}
+			}
+		}
+	}
+
+	// Check source file contents
+	for (const filePath of sourceFiles) {
+		try {
+			const content = readFileSync(filePath, "utf-8");
+			const relPath = relative(repoRoot, filePath);
+
+			for (const { decisionId, constraint } of activeConstraints) {
+				for (const violation of constraint.violations) {
+					if (violation.pattern.test(content)) {
+						findings.push({
+							check: "decision_violation",
+							severity: "error",
+							article: decisionId,
+							message: `Decision violation: ADR "${decisionId}" requires ${constraint.keyword}, but "${relPath}" ${violation.description}`,
+							source: filePath,
+						});
+						// One finding per file per constraint is enough
+						break;
+					}
+				}
+			}
+		} catch {
+			// File read error — skip
+		}
+	}
+
+	return findings;
+}
+
+// ─── Check 8: Missing Rationale ─────────────────────────────────────────
+
+/**
+ * Count commits for a file using git log.
+ * Uses Bun.spawnSync for synchronous operation.
+ * Returns 0 if git is unavailable or fails.
+ */
+function countFileCommits(filePath: string, repoRoot: string): number {
+	try {
+		const proc = Bun.spawnSync(
+			["git", "log", "--oneline", "--follow", "--", filePath],
+			{ cwd: repoRoot, stdout: "pipe", stderr: "pipe" },
+		);
+		if (proc.exitCode !== 0) return 0;
+		const output = new TextDecoder().decode(proc.stdout);
+		return output.split("\n").filter((line) => line.trim().length > 0).length;
+	} catch {
+		return 0;
+	}
+}
+
+/**
+ * Check 8: Missing Rationale — flag high-activity files without an ADR.
+ *
+ * Deterministic: counts commits per tracked source file via git log,
+ * then checks if any decision mentions that file path.
+ */
+function checkMissingRationale(
+	wikiDir: string,
+	adrDir: string,
+	repoRoot: string,
+): WikiLintFinding[] {
+	const findings: WikiLintFinding[] = [];
+
+	// Load wiki state to get tracked files
+	const state = loadState(wikiDir);
+	if (!state) return [];
+
+	const trackedFiles = Object.keys(state.fileHashes);
+	if (trackedFiles.length === 0) return [];
+
+	// Load decisions and collect all mentioned entity paths
+	const mentionedPaths = new Set<string>();
+	if (existsSync(adrDir)) {
+		const decisionResult = extractDecisions(adrDir);
+		if (decisionResult.ok) {
+			for (const decision of decisionResult.value) {
+				for (const mention of decision.entityMentions) {
+					mentionedPaths.add(mention);
+				}
+			}
+		}
+	}
+
+	const COMMIT_THRESHOLD = 5;
+
+	for (const file of trackedFiles) {
+		// Check if any decision mentions this file path
+		const hasMention =
+			mentionedPaths.has(file) ||
+			[...mentionedPaths].some((m) => file.includes(m) || m.includes(file));
+
+		if (hasMention) continue;
+
+		const commitCount = countFileCommits(file, repoRoot);
+		if (commitCount >= COMMIT_THRESHOLD) {
+			findings.push({
+				check: "missing_rationale",
+				severity: "info",
+				article: file,
+				message: `Missing rationale: "${file}" changed in ${commitCount} commits, no architecture decision recorded`,
+				source: join(repoRoot, file),
+			});
+		}
+	}
+
+	return findings;
+}
+
+// ─── Check 9: Contradiction Detection ───────────────────────────────────
+
+/**
+ * Check 9: Contradictions — detect wiki articles that contradict code.
+ *
+ * Deterministic:
+ * - Entity articles: check if the entity still exists at file:line
+ * - Module articles: check if listed entities still exist
+ * - Feature articles: check if task status matches tasks.md
+ */
+function checkContradictions(
+	wikiDir: string,
+	repoRoot: string,
+	featuresDir: string,
+): WikiLintFinding[] {
+	const findings: WikiLintFinding[] = [];
+	const articlePaths = collectMarkdownFiles(wikiDir);
+
+	for (const articlePath of articlePaths) {
+		const type = getArticleTypeFromPath(articlePath, wikiDir);
+
+		try {
+			const content = readFileSync(articlePath, "utf-8");
+			const rel = relative(wikiDir, articlePath);
+
+			if (type === "entity") {
+				// Check entity location references: "<!-- source: path/to/file.ts:42 -->"
+				const sourceLinePattern = /<!--\s*source:\s*([^:]+):(\d+)\s*-->/g;
+				let match: RegExpExecArray | null = null;
+				match = sourceLinePattern.exec(content);
+				while (match !== null) {
+					const sourcePath = match[1]?.trim() ?? "";
+					const lineNum = Number.parseInt(match[2] ?? "0", 10);
+					const fullPath = join(repoRoot, sourcePath);
+
+					if (!existsSync(fullPath)) {
+						findings.push({
+							check: "contradiction",
+							severity: "warning",
+							article: rel,
+							message: `Contradiction: entity article references "${sourcePath}" which no longer exists`,
+							source: articlePath,
+						});
+					} else if (lineNum > 0) {
+						// Check if the file has enough lines
+						try {
+							const sourceContent = readFileSync(fullPath, "utf-8");
+							const totalLines = sourceContent.split("\n").length;
+							if (lineNum > totalLines) {
+								findings.push({
+									check: "contradiction",
+									severity: "warning",
+									article: rel,
+									message: `Contradiction: entity article references "${sourcePath}:${lineNum}" but file only has ${totalLines} lines`,
+									source: articlePath,
+								});
+							}
+						} catch {
+							// File read error — skip
+						}
+					}
+					match = sourceLinePattern.exec(content);
+				}
+			}
+
+			if (type === "module") {
+				// Check entity list references: "- [[entity:foo]]" or "<!-- entity: path -->"
+				const entityRefPattern = /<!--\s*entity:\s*(.+?)\s*-->/g;
+				let match: RegExpExecArray | null = null;
+				match = entityRefPattern.exec(content);
+				while (match !== null) {
+					const entityPath = match[1]?.trim() ?? "";
+					if (entityPath && !existsSync(join(repoRoot, entityPath))) {
+						findings.push({
+							check: "contradiction",
+							severity: "warning",
+							article: rel,
+							message: `Contradiction: module article lists entity "${entityPath}" which no longer exists`,
+							source: articlePath,
+						});
+					}
+					match = entityRefPattern.exec(content);
+				}
+			}
+
+			if (type === "feature") {
+				// Check if feature tasks.md has different completion status
+				checkFeatureTaskContradiction(
+					content,
+					rel,
+					articlePath,
+					featuresDir,
+					findings,
+				);
+			}
+		} catch {
+			// File read error — skip
+		}
+	}
+
+	return findings;
+}
+
+/**
+ * Compare task completion status in wiki feature article vs tasks.md.
+ */
+function checkFeatureTaskContradiction(
+	articleContent: string,
+	articleRel: string,
+	articlePath: string,
+	featuresDir: string,
+	findings: WikiLintFinding[],
+): void {
+	// Extract feature ID from article — look for "<!-- feature: 001-foo -->"
+	const featureIdMatch = articleContent.match(/<!--\s*feature:\s*(\S+)\s*-->/);
+	if (!featureIdMatch?.[1]) return;
+
+	const featureId = featureIdMatch[1];
+	const featureDir = join(featuresDir, featureId);
+	if (!existsSync(featureDir)) return;
+
+	const featureResult = extractFeatures(featuresDir);
+	if (!featureResult.ok) return;
+
+	const feature = featureResult.value.find((f) => f.id === featureId);
+	if (!feature) return;
+
+	// Extract task completion from article content
+	const articleTasks = new Map<string, boolean>();
+	const taskPattern = /(?:- \[([ xX])\]\s+(T\d+))/g;
+	let match: RegExpExecArray | null = null;
+	match = taskPattern.exec(articleContent);
+	while (match !== null) {
+		const completed = match[1] !== " ";
+		const taskId = match[2] ?? "";
+		if (taskId) {
+			articleTasks.set(taskId, completed);
+		}
+		match = taskPattern.exec(articleContent);
+	}
+
+	// Compare with actual tasks
+	for (const task of feature.tasks) {
+		const articleCompleted = articleTasks.get(task.id);
+		if (articleCompleted !== undefined && articleCompleted !== task.completed) {
+			findings.push({
+				check: "contradiction",
+				severity: "warning",
+				article: articleRel,
+				message: `Contradiction: wiki says task ${task.id} is ${articleCompleted ? "completed" : "incomplete"} but tasks.md says ${task.completed ? "completed" : "incomplete"}`,
+				source: articlePath,
+			});
+		}
+	}
+}
+
 // ─── Main ────────────────────────────────────────────────────────────────
 
 /**
@@ -294,6 +813,9 @@ function calculateCoverage(
  */
 export function runWikiLint(options: WikiLintOptions): WikiLintResult {
 	const { wikiDir, repoRoot } = options;
+	const featuresDir =
+		options.featuresDir ?? join(repoRoot, ".maina", "features");
+	const adrDir = options.adrDir ?? join(repoRoot, "adr");
 
 	// Auto-skip: wiki directory doesn't exist
 	if (!existsSync(wikiDir)) {
@@ -305,7 +827,7 @@ export function runWikiLint(options: WikiLintOptions): WikiLintResult {
 		(p) => !p.endsWith(".state.json") && !p.endsWith(".signals.json"),
 	);
 
-	// Run all checks
+	// Run original checks (1-5)
 	const stale = checkStale(articlePaths, wikiDir, repoRoot);
 	const gaps = checkMissing(articlePaths);
 	const orphans = checkOrphans(articlePaths, repoRoot);
@@ -321,15 +843,21 @@ export function runWikiLint(options: WikiLintOptions): WikiLintResult {
 		allGaps.push(coverageFinding);
 	}
 
+	// Run advanced checks (6-9)
+	const specDrift = checkSpecDrift(featuresDir, repoRoot);
+	const decisionViolations = checkDecisionViolations(adrDir, repoRoot);
+	const missingRationale = checkMissingRationale(wikiDir, adrDir, repoRoot);
+	const contradictions = checkContradictions(wikiDir, repoRoot, featuresDir);
+
 	return {
 		stale,
 		orphans,
 		gaps: allGaps,
 		brokenLinks,
-		contradictions: [],
-		specDrift: [],
-		decisionViolations: [],
-		missingRationale: [],
+		contradictions,
+		specDrift,
+		decisionViolations,
+		missingRationale,
 		coveragePercent,
 	};
 }

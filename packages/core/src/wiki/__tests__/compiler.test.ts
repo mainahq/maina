@@ -347,6 +347,23 @@ describe("Wiki Compiler", () => {
 			}
 		});
 
+		it("should pass useAI flag through without crashing", async () => {
+			// useAI: true should be accepted — AI will silently fall back since no key is set
+			const result = await compile(makeOptions({ useAI: true }));
+			expect(result.ok).toBe(true);
+			if (!result.ok) return;
+
+			expect(result.value.articles.length).toBeGreaterThan(0);
+		});
+
+		it("should compile normally when useAI is false", async () => {
+			const result = await compile(makeOptions({ useAI: false }));
+			expect(result.ok).toBe(true);
+			if (!result.ok) return;
+
+			expect(result.value.articles.length).toBeGreaterThan(0);
+		});
+
 		it("should skip test files and .d.ts files during extraction", async () => {
 			// Create a test file and a .d.ts file
 			writeFileSync(
