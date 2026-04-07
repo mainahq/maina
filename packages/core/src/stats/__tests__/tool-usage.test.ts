@@ -57,9 +57,9 @@ describe("trackToolUsage", () => {
 		expect(rows).toHaveLength(1);
 		const row = rows[0];
 		expect(row).toBeDefined();
-		expect(row!.tool).toBe("reviewCode");
-		expect(row!.duration_ms).toBe(150);
-		expect(row!.cache_hit).toBe(0);
+		expect(row?.tool).toBe("reviewCode");
+		expect(row?.duration_ms).toBe(150);
+		expect(row?.cache_hit).toBe(0);
 	});
 
 	test("tracks cache hit", () => {
@@ -119,10 +119,10 @@ describe("getToolUsageStats", () => {
 		expect(stats.cacheHits).toBe(1);
 		expect(stats.cacheHitRate).toBeCloseTo(1 / 3, 2);
 		expect(stats.byTool.reviewCode).toBeDefined();
-		expect(stats.byTool.reviewCode!.calls).toBe(2);
-		expect(stats.byTool.reviewCode!.cacheHits).toBe(1);
+		expect(stats.byTool.reviewCode?.calls).toBe(2);
+		expect(stats.byTool.reviewCode?.cacheHits).toBe(1);
 		expect(stats.byTool.verify).toBeDefined();
-		expect(stats.byTool.verify!.calls).toBe(1);
+		expect(stats.byTool.verify?.calls).toBe(1);
 	});
 
 	test("returns empty stats when no data", () => {
