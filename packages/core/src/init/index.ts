@@ -22,6 +22,7 @@ import { detectTools } from "../verify/detect";
 
 export interface InitOptions {
 	force?: boolean;
+	aiGenerate?: boolean;
 }
 
 export interface InitReport {
@@ -30,6 +31,7 @@ export interface InitReport {
 	directory: string;
 	detectedStack: DetectedStack;
 	detectedTools: DetectedTool[];
+	aiGenerated?: boolean;
 }
 
 export interface DetectedStack {
@@ -193,6 +195,22 @@ function detectStack(repoRoot: string): DetectedStack {
 	return stack;
 }
 
+// ── Constants (shared across agent files) ───────────────────────────────────
+
+const WORKFLOW_ORDER =
+	"brainstorm -> ticket -> plan -> design -> spec -> implement -> verify -> review -> fix -> commit -> review -> pr";
+
+const MCP_TOOLS_TABLE = `| Tool | When to use |
+|------|-------------|
+| \`getContext\` | Before starting — understand branch state and verification status |
+| \`verify\` | After changes — run the full verification pipeline |
+| \`checkSlop\` | On changed files — detect AI-generated slop patterns |
+| \`reviewCode\` | On your diff — two-stage review (spec compliance + code quality) |
+| \`suggestTests\` | When implementing — generate TDD test stubs |
+| \`getConventions\` | Understand project coding conventions |
+| \`explainModule\` | Understand a module's purpose and dependencies |
+| \`analyzeFeature\` | Analyze a feature directory for consistency |`;
+
 // ── Templates ────────────────────────────────────────────────────────────────
 
 function buildConstitution(stack: DetectedStack): string {
@@ -249,6 +267,11 @@ function buildAgentsMd(stack: DetectedStack): string {
 
 This repo uses [Maina](https://github.com/mainahq/maina) for verification-first development.
 
+## Workflow Order
+
+Follow this order for every feature:
+\`${WORKFLOW_ORDER}\`
+
 ## Quick Start
 \`\`\`bash
 ${installCmd}
@@ -269,6 +292,10 @@ maina commit    # verify + commit
 | \`maina stats\` | Show verification metrics |
 | \`maina doctor\` | Check tool health |
 
+## MCP Tools
+
+${MCP_TOOLS_TABLE}
+
 ## Config Files
 | File | Purpose | Who Edits |
 |------|---------|-----------|
@@ -276,6 +303,9 @@ maina commit    # verify + commit
 | \`AGENTS.md\` | Agent instructions — commands, conventions | Team |
 | \`.github/copilot-instructions.md\` | Copilot agent instructions + MCP tools | Team |
 | \`CLAUDE.md\` | Claude Code specific instructions | Optional, Claude Code users |
+| \`GEMINI.md\` | Gemini CLI specific instructions | Optional, Gemini CLI users |
+| \`.cursorrules\` | Cursor specific instructions | Optional, Cursor users |
+| \`.mcp.json\` | MCP server configuration | Team |
 | \`.maina/prompts/*.md\` | Prompt overrides for review/commit/etc | Maina (via \`maina learn\`) |
 
 ## Runtime
@@ -290,7 +320,12 @@ function buildCopilotInstructions(stack: DetectedStack): string {
 
 You are working on a codebase verified by [Maina](https://mainahq.com), the verification-first developer OS. Maina MCP tools are available — use them.
 
-## Workflow
+## Workflow Order
+
+Follow this order for every feature:
+\`${WORKFLOW_ORDER}\`
+
+## Step-by-step
 
 1. **Get context** — call \`maina getContext\` to understand codebase state
 2. **Write tests first** — TDD always. Write failing tests, then implement
@@ -300,14 +335,7 @@ You are working on a codebase verified by [Maina](https://mainahq.com), the veri
 
 ## Available MCP Tools
 
-| Tool | When to use |
-|------|-------------|
-| \`getContext\` | Before starting — understand branch state and verification status |
-| \`verify\` | After changes — run the full verification pipeline |
-| \`checkSlop\` | On changed files — detect AI-generated slop patterns |
-| \`reviewCode\` | On your diff — two-stage review (spec compliance + code quality) |
-| \`suggestTests\` | When implementing — generate TDD test stubs |
-| \`getConventions\` | Understand project coding conventions |
+${MCP_TOOLS_TABLE}
 
 ## Conventions
 
@@ -321,6 +349,242 @@ You are working on a codebase verified by [Maina](https://mainahq.com), the veri
 
 Issues labeled \`audit\` come from maina's daily verification. Fix the specific findings listed — don't refactor unrelated code.
 `;
+}
+
+// ── .mcp.json ───────────────────────────────────────────────────────────────
+
+function buildMcpJson(): string {
+	return JSON.stringify(
+		{
+			mcpServers: {
+				maina: {
+					command: "maina",
+					args: ["--mcp"],
+				},
+			},
+		},
+		null,
+		2,
+	);
+}
+
+// ── Agent Instruction Files ─────────────────────────────────────────────────
+
+function buildClaudeMd(stack: DetectedStack): string {
+	const runCmd = stack.runtime === "bun" ? "bun" : "npm";
+	return `# CLAUDE.md
+
+This repo uses [Maina](https://mainahq.com) for verification-first development.
+Read \`.maina/constitution.md\` for project DNA — stack rules, conventions, and gates.
+
+## Maina Workflow
+
+Follow this order for every feature:
+\`${WORKFLOW_ORDER}\`
+
+## MCP Tools
+
+Maina exposes MCP tools — use them in every session:
+
+${MCP_TOOLS_TABLE}
+
+## Commands
+
+\`\`\`bash
+maina verify    # run full verification pipeline
+maina commit    # verify + commit
+maina review    # two-stage code review
+maina context   # generate focused codebase context
+maina doctor    # check tool health
+maina plan      # create feature with spec/plan/tasks
+maina stats     # show verification metrics
+\`\`\`
+
+## Conventions
+
+- Runtime: ${stack.runtime}
+- Test: \`${runCmd} test\`
+- Conventional commits (feat, fix, refactor, test, docs, chore)
+- No \`console.log\` in production code
+- Diff-only: only fix issues on changed lines
+- TDD always — write tests first
+`;
+}
+
+function buildGeminiMd(stack: DetectedStack): string {
+	const runCmd = stack.runtime === "bun" ? "bun" : "npm";
+	return `# GEMINI.md
+
+Instructions for Gemini CLI when working in this repository.
+
+This repo uses [Maina](https://mainahq.com) for verification-first development.
+Read \`.maina/constitution.md\` for project DNA — stack rules, conventions, and gates.
+
+## Maina Workflow
+
+Follow this order for every feature:
+\`${WORKFLOW_ORDER}\`
+
+## MCP Tools
+
+Maina exposes MCP tools via \`.mcp.json\`. Use them:
+
+${MCP_TOOLS_TABLE}
+
+## Key Commands
+
+- \`maina verify\` — run full verification pipeline
+- \`maina commit\` — verify + commit
+- \`maina review\` — two-stage code review
+- \`maina context\` — generate focused codebase context
+- \`maina doctor\` — check tool health
+
+## Rules
+
+- Runtime: ${stack.runtime}
+- Test: \`${runCmd} test\`
+- Conventional commits (feat, fix, refactor, test, docs, chore)
+- No \`console.log\` in production code
+- Diff-only: only report findings on changed lines
+- TDD always — write tests first
+`;
+}
+
+function buildCursorRules(stack: DetectedStack): string {
+	const runCmd = stack.runtime === "bun" ? "bun" : "npm";
+	return `# Cursor Rules
+
+This repo uses Maina for verification-first development.
+Read \`.maina/constitution.md\` for project DNA.
+
+## Workflow Order
+${WORKFLOW_ORDER}
+
+## MCP Tools (via .mcp.json)
+${MCP_TOOLS_TABLE}
+
+## Commands
+- maina verify — run full verification pipeline
+- maina commit — verify + commit
+- maina review — two-stage code review
+- maina context — generate focused codebase context
+
+## Conventions
+- Runtime: ${stack.runtime}
+- Test: ${runCmd} test
+- Conventional commits
+- No console.log in production
+- Diff-only: only report findings on changed lines
+- TDD: write tests first, then implement
+`;
+}
+
+// ── AI-Generated Constitution ───────────────────────────────────────────────
+
+function buildProjectSummary(repoRoot: string, stack: DetectedStack): string {
+	const parts: string[] = [];
+	parts.push("## Detected Project Stack");
+	parts.push(`- Runtime: ${stack.runtime}`);
+	parts.push(`- Primary language: ${stack.language}`);
+	parts.push(`- All languages: ${stack.languages.join(", ")}`);
+	parts.push(`- Test runner: ${stack.testRunner}`);
+	parts.push(`- Linter: ${stack.linter}`);
+	parts.push(`- Framework: ${stack.framework}`);
+
+	// Read package.json for extra context
+	const pkgPath = join(repoRoot, "package.json");
+	if (existsSync(pkgPath)) {
+		try {
+			const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as Record<
+				string,
+				unknown
+			>;
+			const deps = Object.keys(
+				(pkg.dependencies as Record<string, string>) ?? {},
+			);
+			const devDeps = Object.keys(
+				(pkg.devDependencies as Record<string, string>) ?? {},
+			);
+			if (deps.length > 0) {
+				parts.push(`\n## Dependencies\n${deps.join(", ")}`);
+			}
+			if (devDeps.length > 0) {
+				parts.push(`\n## Dev Dependencies\n${devDeps.join(", ")}`);
+			}
+			if (pkg.description) {
+				parts.push(`\n## Project Description\n${pkg.description}`);
+			}
+		} catch {
+			// Ignore parse errors
+		}
+	}
+
+	// Check for common config files
+	const configFiles: string[] = [];
+	const checks = [
+		"tsconfig.json",
+		"biome.json",
+		".eslintrc.json",
+		"jest.config.ts",
+		"vitest.config.ts",
+		"Dockerfile",
+		"docker-compose.yml",
+		".env.example",
+		"Makefile",
+	];
+	for (const f of checks) {
+		if (existsSync(join(repoRoot, f))) {
+			configFiles.push(f);
+		}
+	}
+	if (configFiles.length > 0) {
+		parts.push(`\n## Config Files Found\n${configFiles.join(", ")}`);
+	}
+
+	return parts.join("\n");
+}
+
+async function tryGenerateConstitution(
+	repoRoot: string,
+	stack: DetectedStack,
+): Promise<string | null> {
+	try {
+		const { tryAIGenerate } = await import("../ai/try-generate");
+		const mainaDir = join(repoRoot, ".maina");
+		const summary = buildProjectSummary(repoRoot, stack);
+
+		const result = await tryAIGenerate(
+			"init-constitution",
+			mainaDir,
+			{
+				stack_runtime: stack.runtime,
+				stack_language: stack.language,
+				stack_languages: stack.languages.join(", "),
+				stack_testRunner: stack.testRunner,
+				stack_linter: stack.linter,
+				stack_framework: stack.framework,
+			},
+			`Generate a project constitution for this software project based on the detected stack information below.
+
+A constitution defines non-negotiable rules injected into every AI call. It should include:
+1. Stack section — runtime, language, linter, test runner, framework
+2. Architecture section — key architectural constraints (infer from the stack)
+3. Verification section — what must pass before code merges
+4. Conventions section — coding conventions (infer from the stack)
+
+Replace [NEEDS CLARIFICATION] placeholders with reasonable defaults based on the stack.
+Keep it concise (under 50 lines). Use markdown format starting with "# Project Constitution".
+
+${summary}`,
+		);
+
+		if (result.fromAI && result.text) {
+			return result.text;
+		}
+	} catch {
+		// AI unavailable — fall back to static template
+	}
+	return null;
 }
 
 const REVIEW_PROMPT_TEMPLATE = `# Review Prompt
@@ -376,11 +640,14 @@ interface FileEntry {
 	content: string;
 }
 
-function getFileManifest(stack: DetectedStack): FileEntry[] {
+function getFileManifest(
+	stack: DetectedStack,
+	constitutionOverride?: string,
+): FileEntry[] {
 	return [
 		{
 			relativePath: ".maina/constitution.md",
-			content: buildConstitution(stack),
+			content: constitutionOverride ?? buildConstitution(stack),
 		},
 		{
 			relativePath: ".maina/prompts/review.md",
@@ -401,6 +668,22 @@ function getFileManifest(stack: DetectedStack): FileEntry[] {
 		{
 			relativePath: ".github/copilot-instructions.md",
 			content: buildCopilotInstructions(stack),
+		},
+		{
+			relativePath: ".mcp.json",
+			content: buildMcpJson(),
+		},
+		{
+			relativePath: "CLAUDE.md",
+			content: buildClaudeMd(stack),
+		},
+		{
+			relativePath: "GEMINI.md",
+			content: buildGeminiMd(stack),
+		},
+		{
+			relativePath: ".cursorrules",
+			content: buildCursorRules(stack),
 		},
 	];
 }
@@ -455,6 +738,7 @@ export async function bootstrap(
 	options?: InitOptions,
 ): Promise<Result<InitReport>> {
 	const force = options?.force ?? false;
+	const aiGenerate = options?.aiGenerate ?? false;
 	const mainaDir = join(repoRoot, ".maina");
 	const created: string[] = [];
 	const skipped: string[] = [];
@@ -474,8 +758,22 @@ export async function bootstrap(
 			mkdirSync(join(repoRoot, dir), { recursive: true });
 		}
 
+		// Try AI-generated constitution when requested
+		let constitutionOverride: string | undefined;
+		let aiGenerated = false;
+		if (aiGenerate) {
+			const aiConstitution = await tryGenerateConstitution(
+				repoRoot,
+				detectedStack,
+			);
+			if (aiConstitution) {
+				constitutionOverride = aiConstitution;
+				aiGenerated = true;
+			}
+		}
+
 		// Scaffold each file with stack-aware templates
-		const manifest = getFileManifest(detectedStack);
+		const manifest = getFileManifest(detectedStack, constitutionOverride);
 		for (const entry of manifest) {
 			const fullPath = join(repoRoot, entry.relativePath);
 			const dirPath = join(fullPath, "..");
@@ -510,6 +808,7 @@ export async function bootstrap(
 				directory: mainaDir,
 				detectedStack,
 				detectedTools: detectedToolsList,
+				aiGenerated,
 			},
 		};
 	} catch (e) {
