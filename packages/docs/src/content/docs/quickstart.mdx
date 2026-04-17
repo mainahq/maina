@@ -1,0 +1,38 @@
+---
+title: Quickstart
+description: Install Maina and verify your first commit in under 60 seconds.
+---
+
+import { Steps, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+<Steps>
+
+1. **Install**
+
+   ```bash
+   curl -fsSL https://api.mainahq.com/install | bash
+   ```
+
+2. **Initialize your project**
+
+   ```bash
+   maina init --install
+   ```
+
+3. **Commit with verification**
+
+   ```bash
+   maina commit
+   ```
+
+</Steps>
+
+That's it. Maina detects your stack, installs verification tools, and runs the full pipeline on every commit.
+
+## Next steps
+
+<CardGrid>
+  <LinkCard title="Set up MCP" description="Add Maina to Claude Code, Cursor, or Windsurf" href="/mcp" />
+  <LinkCard title="Add to CI" description="Run verification on every pull request" href="/ci" />
+  <LinkCard title="Full setup guide" description="Languages, zero-friction layers, cloud, and more" href="/full-setup" />
+</CardGrid>
