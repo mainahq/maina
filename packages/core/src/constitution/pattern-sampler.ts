@@ -5,7 +5,13 @@
  * emits medium-confidence constitution rules.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import {
+	existsSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+	statSync,
+} from "node:fs";
 import { join } from "node:path";
 import type { ConstitutionRule } from "./git-analyzer";
 
@@ -17,6 +23,7 @@ import type { ConstitutionRule } from "./git-analyzer";
  */
 export function sampleFiles(dir: string, maxFiles = 100): string[] {
 	const files: string[] = [];
+	const visited = new Set<string>();
 	const skipDirs = new Set([
 		"node_modules",
 		"dist",
@@ -29,6 +36,14 @@ export function sampleFiles(dir: string, maxFiles = 100): string[] {
 
 	function walk(current: string): void {
 		if (files.length >= maxFiles) return;
+		// Guard against symlink cycles
+		try {
+			const realPath = realpathSync(current);
+			if (visited.has(realPath)) return;
+			visited.add(realPath);
+		} catch {
+			return;
+		}
 		try {
 			const entries = readdirSync(current).sort();
 			for (const entry of entries) {
@@ -42,8 +57,11 @@ export function sampleFiles(dir: string, maxFiles = 100): string[] {
 						stat.isFile() &&
 						(entry.endsWith(".ts") || entry.endsWith(".tsx")) &&
 						!entry.endsWith(".test.ts") &&
+						!entry.endsWith(".test.tsx") &&
 						!entry.endsWith(".spec.ts") &&
-						!entry.endsWith(".d.ts")
+						!entry.endsWith(".spec.tsx") &&
+						!entry.endsWith(".d.ts") &&
+						!entry.endsWith(".d.tsx")
 					) {
 						files.push(full);
 					}
@@ -125,7 +143,7 @@ export function detectFunctionStyle(
 ): ConstitutionRule | null {
 	const counts = countPatterns(
 		contents,
-		/(?:const|let|var)\s+\w+\s*=\s*(?:async\s*)?\(/g,
+		/(?:const|let|var)\s+\w+\s*=\s*(?:async\s*)?(?:\([^)]*\)|[a-zA-Z_]\w*)\s*=>/g,
 		/\bfunction\s+\w+/g,
 	);
 

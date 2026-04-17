@@ -1,8 +1,8 @@
-# Feature: Tree-sitter pattern sampler (TS, Python)
+# Feature: Pattern sampler (TS — regex-based V1)
 
 ## Problem Statement
 
-Constitution rules about coding style (async/await vs .then, arrow vs declaration, named vs default imports) can't be detected from config files. They need AST analysis. Sampling <=100 files per language with tree-sitter detects these patterns and proposes them as medium-confidence rules.
+Constitution rules about coding style (async/await vs .then, arrow vs declaration, named vs default imports) can't be detected from config files. They need code analysis. V1 uses regex-based detection on sampled files (<=100 per language) — sufficient for the target patterns. Tree-sitter AST can be added in V2 for complex patterns.
 
 ## Target User
 
