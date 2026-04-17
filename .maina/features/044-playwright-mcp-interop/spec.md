@@ -1,45 +1,20 @@
-# Feature: [Name]
+# Feature: Ship Maina as a Playwright MCP interop partner
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
-
-## Target User
-
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
-
-## User Stories
-
-- As a [role], I want [capability] so that [benefit].
+Playwright MCP (`@playwright/mcp`, Microsoft, Apache-2.0) is gaining traction. Maina's verify engine can consume Playwright results. Publishing "Maina works with Playwright MCP" gives free distribution via Microsoft's MCP directory.
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [ ] Docs page: "Using Maina with Playwright MCP" in cookbooks
+- [ ] Example flow: Claude Code agent → Playwright MCP → Maina verify → report
 
 ## Scope
 
 ### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
+- Cookbook docs page showing the interop flow
+- Example MCP config combining both servers
 
 ### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- Direct Playwright MCP SDK dependency (they're independent MCP servers)
+- MCP registry submission (future marketing task)

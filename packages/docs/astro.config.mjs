@@ -58,6 +58,7 @@ export default defineConfig({
             { slug: 'cookbooks/claude-code-self-check' },
             { slug: 'cookbooks/coderabbit-integration' },
             { slug: 'cookbooks/constitution-required-check' },
+            { slug: 'cookbooks/playwright-mcp' },
           ],
         },
         {

@@ -1,0 +1,74 @@
+---
+title: Using Maina with Playwright MCP
+description: Combine Maina verification with Playwright MCP for AI-driven browser testing.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Maina and [Playwright MCP](https://github.com/microsoft/playwright-mcp) (`@playwright/mcp`, Microsoft, Apache-2.0) work together: Playwright drives the browser, Maina verifies the results.
+
+## Setup
+
+<Steps>
+
+1. **Configure both MCP servers**
+
+   ```json title=".mcp.json"
+   {
+     "mcpServers": {
+       "maina": {
+         "command": "maina",
+         "args": ["--mcp"]
+       },
+       "playwright": {
+         "command": "npx",
+         "args": ["@playwright/mcp@latest"]
+       }
+     }
+   }
+   ```
+
+2. **Tell your agent how to use them together**
+
+   Add to your `CLAUDE.md` or agent instructions:
+
+   ```markdown
+   ## Testing workflow
+   1. Use Playwright MCP to navigate and interact with the app
+   2. Use Maina `verify` to run the full verification pipeline
+   3. Use Maina `reviewCode` to review any changes
+   4. Capture screenshots with Playwright for visual regression
+   ```
+
+3. **Example flow**
+
+   The agent can now:
+   - Navigate to `localhost:3000` via Playwright MCP
+   - Fill forms, click buttons, verify page content
+   - Call Maina `verify` to check code quality
+   - Call Maina `checkSlop` on changed files
+   - Call Maina `reviewCode` with the diff
+
+</Steps>
+
+## How it works
+
+Playwright MCP and Maina MCP are independent servers that share the same host agent context:
+
+```
+Claude Code / Cursor / Windsurf
+  ├── Playwright MCP  → browser automation, screenshots, DOM inspection
+  └── Maina MCP       → verification, code review, slop detection, wiki
+```
+
+The agent orchestrates both: use Playwright for browser interactions, use Maina for code verification. They don't talk to each other directly — the agent is the glue.
+
+<Aside type="tip">
+This pattern works with any MCP-compatible host: Claude Code, Cursor, Windsurf, Copilot, Cline, and more.
+</Aside>
+
+## When to use this
+
+- **E2E testing**: Agent writes code, tests it with Playwright, verifies with Maina
+- **Visual regression**: Playwright captures screenshots, Maina verifies the code that generated them
+- **Feature development**: Build → test in browser → verify code quality → commit
