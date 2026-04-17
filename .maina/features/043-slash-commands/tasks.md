@@ -2,22 +2,18 @@
 
 ## Tasks
 
-Each task should be completable in one commit. Test tasks precede implementation tasks.
-
-- [ ] [NEEDS CLARIFICATION] Define tasks.
+- [x] T1: Write TDD test stubs (15 red confirmed)
+- [x] T2: Define `SlashCommand` type with retry/explain/approve variants
+- [x] T3: Implement `parseSlashCommand(text)` — regex parser (13 tests green)
+- [x] T4: Implement `isAuthorized()` — PR author + write perm ACL
+- [x] T5: `maina verify` + `maina review` + `maina analyze`
 
 ## Dependencies
 
-Which tasks block which? Draw the critical path.
-
-- [NEEDS CLARIFICATION]
+None — standalone pure functions.
 
 ## Definition of Done
 
-How do we know this feature is complete?
-
-- [ ] All tests pass
-- [ ] Biome lint clean
-- [ ] TypeScript compiles
-- [ ] maina analyze shows no errors
-- [ ] [NEEDS CLARIFICATION] Feature-specific criteria
+- [ ] All tests pass (red → green)
+- [ ] Biome lint + TypeScript clean
+- [ ] maina verify + slop + review pass

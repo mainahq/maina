@@ -1,45 +1,31 @@
-# Feature: [Name]
+# Feature: Slash commands parser for PR comments
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
+Users want to interact with Maina from PR comments: retry verification, get explanations for specific findings, or approve warnings. A slash command parser extracts `/maina <cmd>` from comment text and returns structured command data.
 
 ## Target User
 
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
-
-## User Stories
-
-- As a [role], I want [capability] so that [benefit].
+- Primary: Developers reviewing PRs who want to interact with Maina inline
+- Secondary: CI automation triggering actions from PR comments
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [ ] `parseSlashCommand(text)` extracts command from comment text
+- [ ] Supports: `retry`, `explain`, `approve`
+- [ ] Returns null for non-matching comments
+- [ ] Handles `/maina` with no subcommand gracefully
+- [ ] Handles extra whitespace and case variations
+- [ ] Unit tests for all commands and edge cases
 
 ## Scope
 
 ### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
+- Command parser (pure function: text → parsed command or null)
+- Command types and validation
+- ACL check helper (PR author + write permission)
 
 ### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- Webhook handler (maina-cloud repo)
+- GitHub API calls (separate module)
+- Bot emoji reactions (maina-cloud repo)
