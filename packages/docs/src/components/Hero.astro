@@ -16,4 +16,60 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
   <div class="install-cmd">
     <code>curl -fsSL https://api.mainahq.com/install | bash</code>
   </div>
+  <div class="mcp-badges">
+    <button class="mcp-badge" data-action="claude" title="Add Maina MCP to Claude Code">
+      <span class="mcp-badge-icon">&#x2728;</span> Add to Claude Code
+    </button>
+    <a class="mcp-badge" id="cursor-badge" href="#" title="Add Maina MCP to Cursor">
+      <span class="mcp-badge-icon">&#x1F4DD;</span> Add to Cursor
+    </a>
+    <button class="mcp-badge" data-action="windsurf" title="Add Maina MCP to Windsurf">
+      <span class="mcp-badge-icon">&#x1F3C4;</span> Add to Windsurf
+    </button>
+  </div>
+  <div class="mcp-toast" id="mcp-toast" aria-live="polite"></div>
 </section>
+
+<script is:inline>
+(function() {
+  var mcpConfig = JSON.stringify({"command":"maina","args":["--mcp"]});
+
+  // Cursor deeplink: base64-encode the MCP config
+  var cursorConfig = btoa(JSON.stringify({mcpServers:{maina:{command:"maina",args:["--mcp"]}}}));
+  var cursorBadge = document.getElementById('cursor-badge');
+  if (cursorBadge) {
+    cursorBadge.href = 'cursor://anysphere.cursor-deeplink/mcp/install?name=maina&config=' + cursorConfig;
+  }
+
+  // Badge click handlers
+  document.querySelectorAll('.mcp-badge[data-action]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var action = btn.getAttribute('data-action');
+      var text = '';
+      var msg = '';
+
+      if (action === 'claude') {
+        text = "claude mcp add-json maina '" + mcpConfig + "'";
+        msg = 'Claude Code command copied!';
+      } else if (action === 'windsurf') {
+        text = JSON.stringify({mcpServers:{maina:{command:"maina",args:["--mcp"]}}}, null, 2);
+        msg = 'Windsurf MCP config copied! Paste into ~/.codeium/windsurf/mcp_config.json';
+      }
+
+      if (text) {
+        navigator.clipboard.writeText(text).then(function() {
+          showToast(msg);
+        });
+      }
+    });
+  });
+
+  function showToast(msg) {
+    var toast = document.getElementById('mcp-toast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.classList.add('visible');
+    setTimeout(function() { toast.classList.remove('visible'); }, 3000);
+  }
+})();
+</script>
