@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import tailwindcss from '@tailwindcss/vite';
+import starlightLlmsTxt from 'starlight-llms-txt';
 
 export default defineConfig({
   site: 'https://mainahq.com',
@@ -8,6 +9,13 @@ export default defineConfig({
   vite: { plugins: [tailwindcss()] },
   integrations: [
     starlight({
+      plugins: [
+        starlightLlmsTxt({
+          projectName: 'Maina',
+          description:
+            'Verification-first developer OS. CLI + MCP server + skills package that proves AI-generated code is correct before it merges.',
+        }),
+      ],
       title: 'Maina',
       logo: {
         src: './src/assets/mynah.svg',
