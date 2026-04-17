@@ -200,3 +200,27 @@ describe("truncateToFit", () => {
 		expect(priorities).toEqual(sorted);
 	});
 });
+
+describe("assembleBudget with custom context window", () => {
+	test("respects custom modelContextWindow for MCP", () => {
+		const small = assembleBudget("focused", 30_000);
+		expect(small.total).toBe(30_000);
+		// focused mode = 40% of 30K = 12K usable
+		const usable = Math.floor(30_000 * 0.4);
+		expect(small.working).toBe(Math.floor(usable * 0.12));
+		expect(small.headroom).toBe(30_000 - usable);
+	});
+
+	test("default context window is 200K", () => {
+		const full = assembleBudget("default");
+		expect(full.total).toBe(200_000);
+	});
+
+	test("smaller window produces proportionally smaller layer budgets", () => {
+		const full = assembleBudget("default");
+		const small = assembleBudget("default", 30_000);
+		expect(small.working).toBeLessThan(full.working);
+		expect(small.semantic).toBeLessThan(full.semantic);
+		expect(small.retrieval).toBeLessThan(full.retrieval);
+	});
+});

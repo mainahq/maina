@@ -1,5 +1,9 @@
 /**
  * Context tools — assembles codebase context and conventions for MCP clients.
+ *
+ * MCP tool results must fit within the host's context window alongside the
+ * conversation. We use a smaller budget (30K tokens) and hard-cap output
+ * at MAX_MCP_OUTPUT_CHARS to prevent token limit errors.
  */
 
 import { join } from "node:path";
@@ -19,6 +23,30 @@ const COMMANDS = [
 	"pr",
 ] as const;
 
+/**
+ * Hard cap on MCP tool output in characters. MCP results are injected into
+ * the host's conversation context, so they must be much smaller than the
+ * full model context window. 50K chars ≈ 14K tokens.
+ */
+const MAX_MCP_OUTPUT_CHARS = 50_000;
+
+/**
+ * Context window budget for MCP calls (in tokens). Much smaller than the
+ * default 200K since MCP output shares space with the conversation.
+ */
+const MCP_CONTEXT_WINDOW = 30_000;
+
+function truncateForMcp(text: string): string {
+	if (text.length <= MAX_MCP_OUTPUT_CHARS) return text;
+	const truncated = text.slice(0, MAX_MCP_OUTPUT_CHARS);
+	const lastNewline = truncated.lastIndexOf("\n");
+	const cutPoint =
+		lastNewline > MAX_MCP_OUTPUT_CHARS * 0.8
+			? lastNewline
+			: MAX_MCP_OUTPUT_CHARS;
+	return `${truncated.slice(0, cutPoint)}\n\n[… truncated — output exceeded ${MAX_MCP_OUTPUT_CHARS} character MCP limit]`;
+}
+
 export function registerContextTools(server: McpServer): void {
 	server.tool(
 		"getContext",
@@ -35,19 +63,23 @@ export function registerContextTools(server: McpServer): void {
 				const result = await assembleContext(command, {
 					repoRoot: process.cwd(),
 					mainaDir,
+					modeOverride: "focused",
+					modelContextWindow: MCP_CONTEXT_WINDOW,
 				});
 				const durationMs = Date.now() - start;
+
+				const output = truncateForMcp(result.text);
 
 				captureResult({
 					tool: "getContext",
 					input: { command },
-					output: result.text,
+					output,
 					durationMs,
 					mainaDir,
 				});
 
 				return {
-					content: [{ type: "text" as const, text: result.text }],
+					content: [{ type: "text" as const, text: output }],
 				};
 			} catch (e) {
 				return {
@@ -78,16 +110,18 @@ export function registerContextTools(server: McpServer): void {
 				const built = await buildSystemPrompt("review", mainaDir, {});
 				const durationMs = Date.now() - start;
 
+				const output = truncateForMcp(built.prompt);
+
 				captureResult({
 					tool: "getConventions",
 					input: {},
-					output: built.prompt,
+					output,
 					durationMs,
 					mainaDir,
 				});
 
 				return {
-					content: [{ type: "text" as const, text: built.prompt }],
+					content: [{ type: "text" as const, text: output }],
 				};
 			} catch (e) {
 				return {

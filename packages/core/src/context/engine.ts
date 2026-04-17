@@ -47,6 +47,7 @@ export interface ContextOptions {
 	searchQuery?: string; // for retrieval layer
 	scope?: string; // limit to specific directory
 	modeOverride?: BudgetMode; // override the command-derived budget mode
+	modelContextWindow?: number; // override default 200K token context window
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -338,7 +339,7 @@ export async function assembleContext(
 
 	const needs = getContextNeeds(command);
 	const mode = options.modeOverride ?? getBudgetMode(command);
-	const budget = assembleBudget(mode);
+	const budget = assembleBudget(mode, options.modelContextWindow);
 
 	// Determine which layers to build
 	const layerPromises: Promise<LayerContent>[] = [];
