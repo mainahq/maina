@@ -83,6 +83,14 @@ Between steps, use MCP tools for continuous checks:
 - Self-improvement: after each commit run stats + review + context check
 - No console.log in production code
 
+## Scaffold Rules (learned from CodeRabbit RL feedback, 2026-04-17)
+- **Always fill spec.md, plan.md, tasks.md** before PR — never commit placeholder scaffolds
+- **Plan must match implementation** — if plan says "Bun.Glob" but code uses custom regex, fix the plan
+- **Remove spec-tests.ts** after writing real tests — placeholder `expect(true).toBe(false)` fails CI
+- **ADR paths use `adr/` directory** — not `docs/decisions/`. Reference correctly in specs.
+- **Context engine has 4 layers** (Working, Episodic, Semantic, Retrieval) — wiki is a view, not a layer
+- **Mark tasks as [x] done** in tasks.md before PR — don't leave them as [ ] when implemented
+
 ## Related Projects
 
 Cross-repo dogfooding flywheel. Report issues to each other with `maina ticket --repo <name>`.
