@@ -2,22 +2,21 @@
 
 ## Tasks
 
-Each task should be completable in one commit. Test tasks precede implementation tasks.
-
-- [ ] [NEEDS CLARIFICATION] Define tasks.
+- [x] T1: Write TDD test stubs (23 red confirmed)
+- [x] T2: Implement `formatSignature()` — kind labels, export status
+- [x] T3: Implement `formatLocation()` — file:line
+- [x] T4: Implement `formatRefs()` — inbound/outbound, cap at 20
+- [x] T5: Implement `formatMermaidDiagram()` — graph LR with arrow directions
+- [x] T6: Implement `generateSymbolPage()` — combined (13 tests green)
+- [x] T7: `maina verify` + `maina review` + `maina analyze`
 
 ## Dependencies
 
-Which tasks block which? Draw the critical path.
-
-- [NEEDS CLARIFICATION]
+- Uses `CodeEntity` from `packages/core/src/wiki/extractors/code.ts`
 
 ## Definition of Done
 
-How do we know this feature is complete?
-
-- [ ] All tests pass
-- [ ] Biome lint clean
-- [ ] TypeScript compiles
-- [ ] maina analyze shows no errors
-- [ ] [NEEDS CLARIFICATION] Feature-specific criteria
+- [ ] All tests pass (red → green)
+- [ ] Biome lint + TypeScript clean
+- [ ] maina verify + slop + review + analyze pass
+- [ ] Mermaid diagrams render in GitHub markdown

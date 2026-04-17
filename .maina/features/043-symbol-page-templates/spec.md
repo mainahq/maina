@@ -1,45 +1,31 @@
-# Feature: [Name]
+# Feature: Symbol page templates
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
+Wiki entity articles show raw function/class names but lack structured symbol documentation. Per-symbol pages should have: signature block, file + line, refs (inbound + outbound), and a Mermaid diagram for call relationships. This makes the wiki navigable as a code reference.
 
 ## Target User
 
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
-
-## User Stories
-
-- As a [role], I want [capability] so that [benefit].
+- Primary: Developers using `maina wiki query` or browsing wiki articles to understand codebase
+- Secondary: New team members onboarding through wiki
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [ ] `generateSymbolPage(entity, refs)` produces structured markdown with signature, location, refs, diagram
+- [ ] Signature block extracted from entity metadata
+- [ ] File + line with repo-relative path
+- [ ] Refs section with inbound (callers) and outbound (callees) links
+- [ ] Mermaid diagram for call relationships (renders without JS in markdown)
+- [ ] Content-hash-keyed caching for deterministic output
+- [ ] Unit tests for all template sections
 
 ## Scope
 
 ### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
+- Symbol page template generator in wiki compiler
+- Mermaid diagram generation from entity refs
+- Deterministic output (same entity → same page)
 
 ### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- LLM-generated prose descriptions (future — needs AI integration)
+- Interactive graph navigation (future — needs frontend)

@@ -4,61 +4,27 @@
 
 ## Architecture
 
-What is the technical approach? How does it fit into existing architecture?
-Where are the integration points with existing code?
-
-- Pattern: [NEEDS CLARIFICATION]
-- Integration points: [NEEDS CLARIFICATION]
+New module `packages/core/src/wiki/symbol-page.ts`. Pure function: `(CodeEntity, refs) → string`. Uses the existing `CodeEntity` type from extractors. Mermaid diagrams generated as code blocks.
 
 ## Key Technical Decisions
 
-What libraries, patterns, or approaches? WHY these and not alternatives?
-
-- [NEEDS CLARIFICATION]
+- Template-based (no AI) — deterministic, fast, cacheable
+- Mermaid `graph LR` for call diagrams — renders in GitHub, docs, any markdown viewer
+- Content hash = `hash(entity.name + entity.file + entity.line + refs)` for cache key
 
 ## Files
 
 | File | Purpose | New/Modified |
 |------|---------|-------------|
-| [NEEDS CLARIFICATION] | | |
+| `packages/core/src/wiki/symbol-page.ts` | Symbol page template generator | New |
+| `packages/core/src/wiki/__tests__/symbol-page.test.ts` | TDD tests | New |
 
 ## Tasks
 
-TDD: every implementation task must have a preceding test task.
-
-- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.
-
-## Failure Modes
-
-What can go wrong? How do we handle it gracefully?
-
-- [NEEDS CLARIFICATION]
-
-## Testing Strategy
-
-Unit tests, integration tests, or both? What mocks are needed?
-
-- [NEEDS CLARIFICATION]
-
-
-## Wiki Context
-
-### Related Decisions
-
-- 0007-visual-verification-with-playwright: Visual verification with Playwright [proposed]
-- 0010-v03x-hardening-verify-gaps-rl-loop-hldlld: v0.3.x Hardening: Verify Gaps + RL Loop + HLD/LLD [accepted]
-
-### Similar Features
-
-- 031-landing-light-mode: Feature 031: Landing Page Full Light Mode
-- 027-v10-launch: Implementation Plan
-- 026-v07-rl-flywheel: Implementation Plan
-- 009-interactive-design: Implementation Plan
-
-### Suggestions
-
-- Feature 031-landing-light-mode did something similar — check wiki/features/031-landing-light-mode.md
-- Feature 027-v10-launch did something similar — check wiki/features/027-v10-launch.md
-- Feature 026-v07-rl-flywheel did something similar — check wiki/features/026-v07-rl-flywheel.md
-- Feature 009-interactive-design did something similar — check wiki/features/009-interactive-design.md
-- ADR 0010-v03x-hardening-verify-gaps-rl-loop-hldlld (v0.3.x Hardening: Verify Gaps + RL Loop + HLD/LLD) is accepted — ensure compatibility
+- [ ] T1: Write TDD test stubs (red phase)
+- [ ] T2: Implement `formatSignature()` — entity kind + name + exported status
+- [ ] T3: Implement `formatLocation()` — file:line as repo-relative link
+- [ ] T4: Implement `formatRefs()` — inbound/outbound ref lists with links
+- [ ] T5: Implement `formatMermaidDiagram()` — call graph as Mermaid code block
+- [ ] T6: Implement `generateSymbolPage()` — combined template
+- [ ] T7: `maina verify` + `maina review` + `maina analyze`
