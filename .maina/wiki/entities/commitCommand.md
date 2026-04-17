@@ -1,11 +1,11 @@
 # Entity: commitCommand
 
-> function in `packages/cli/src/commands/commit.ts:500`
+> function in `packages/cli/src/commands/commit.ts:550`
 
 ## Details
 
 - **Kind:** function
 - **File:** `packages/cli/src/commands/commit.ts`
-- **Line:** 500
+- **Line:** 550
 - **Exported:** yes
-- **PageRank:** 0.0015
+- **PageRank:** 0.0013

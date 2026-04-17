@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/wiki/signals.ts`
 - **Line:** 224
 - **Exported:** yes
-- **PageRank:** 0.0015
+- **PageRank:** 0.0013

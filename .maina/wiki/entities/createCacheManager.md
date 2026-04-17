@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/cache/manager.ts`
 - **Line:** 69
 - **Exported:** yes
-- **PageRank:** 0.0012
+- **PageRank:** 0.0010

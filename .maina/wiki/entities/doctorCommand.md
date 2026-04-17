@@ -8,4 +8,4 @@
 - **File:** `packages/cli/src/commands/doctor.ts`
 - **Line:** 442
 - **Exported:** yes
-- **PageRank:** 0.0020
+- **PageRank:** 0.0017

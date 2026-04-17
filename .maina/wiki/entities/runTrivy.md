@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/verify/trivy.ts`
 - **Line:** 126
 - **Exported:** yes
-- **PageRank:** 0.0012
+- **PageRank:** 0.0010

@@ -8,4 +8,4 @@
 - **File:** `packages/cli/src/commands/team.ts`
 - **Line:** 89
 - **Exported:** yes
-- **PageRank:** 0.0014
+- **PageRank:** 0.0012

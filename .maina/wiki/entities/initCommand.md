@@ -1,11 +1,11 @@
 # Entity: initCommand
 
-> function in `packages/cli/src/commands/init.ts:368`
+> function in `packages/cli/src/commands/init.ts:373`
 
 ## Details
 
 - **Kind:** function
 - **File:** `packages/cli/src/commands/init.ts`
-- **Line:** 368
+- **Line:** 373
 - **Exported:** yes
-- **PageRank:** 0.0018
+- **PageRank:** 0.0016

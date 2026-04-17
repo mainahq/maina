@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/design/review.ts`
 - **Line:** 228
 - **Exported:** yes
-- **PageRank:** 0.0015
+- **PageRank:** 0.0013

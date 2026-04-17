@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/stats/tracker.ts`
 - **Line:** 536
 - **Exported:** yes
-- **PageRank:** 0.0035
+- **PageRank:** 0.0030

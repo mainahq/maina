@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/verify/secretlint.ts`
 - **Line:** 133
 - **Exported:** yes
-- **PageRank:** 0.0012
+- **PageRank:** 0.0010

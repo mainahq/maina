@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/wiki/types.ts`
 - **Line:** 140
 - **Exported:** yes
-- **PageRank:** 0.0019
+- **PageRank:** 0.0016

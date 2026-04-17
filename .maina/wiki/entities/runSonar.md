@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/verify/sonar.ts`
 - **Line:** 106
 - **Exported:** yes
-- **PageRank:** 0.0012
+- **PageRank:** 0.0010

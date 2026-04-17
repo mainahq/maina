@@ -8,4 +8,4 @@
 - **File:** `packages/cli/src/commands/setup.ts`
 - **Line:** 440
 - **Exported:** yes
-- **PageRank:** 0.0022
+- **PageRank:** 0.0019

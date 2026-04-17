@@ -4,10 +4,10 @@
 
 ## Entities
 
-- **getStatsDb** (function) — `packages/core/src/db/index.ts:221` [PR: 0.0018]
-- **getFeedbackDb** (function) — `packages/core/src/db/index.ts:213` [PR: 0.0013]
-- **getCacheDb** (function) — `packages/core/src/db/index.ts:205` [PR: 0.0010]
-- **getContextDb** (function) — `packages/core/src/db/index.ts:194` [PR: 0.0008]
-- **initDatabase** (function) — `packages/core/src/db/index.ts:172` [PR: 0.0007]
-- **Result** (type) — `packages/core/src/db/index.ts:12` [PR: 0.0006]
-- **DbHandle** (type) — `packages/core/src/db/index.ts:7` [PR: 0.0005]
+- **promptVersions** (variable) — `packages/core/src/db/schema.ts:75` [PR: 0.0016]
+- **commitSnapshots** (variable) — `packages/core/src/db/schema.ts:54` [PR: 0.0011]
+- **feedback** (variable) — `packages/core/src/db/schema.ts:45` [PR: 0.0009]
+- **cacheEntries** (variable) — `packages/core/src/db/schema.ts:34` [PR: 0.0007]
+- **dependencyEdges** (variable) — `packages/core/src/db/schema.ts:26` [PR: 0.0006]
+- **semanticEntities** (variable) — `packages/core/src/db/schema.ts:14` [PR: 0.0005]
+- **episodicEntries** (variable) — `packages/core/src/db/schema.ts:3` [PR: 0.0005]

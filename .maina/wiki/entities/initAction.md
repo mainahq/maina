@@ -8,4 +8,4 @@
 - **File:** `packages/cli/src/commands/init.ts`
 - **Line:** 115
 - **Exported:** yes
-- **PageRank:** 0.0013
+- **PageRank:** 0.0011

@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/benchmark/types.ts`
 - **Line:** 69
 - **Exported:** yes
-- **PageRank:** 0.0013
+- **PageRank:** 0.0011

@@ -4,10 +4,5 @@
 
 ## Entities
 
-- **Tier3Results** (interface) — `packages/core/src/benchmark/types.ts:82` [PR: 0.0018]
-- **Tier3Totals** (interface) — `packages/core/src/benchmark/types.ts:69` [PR: 0.0013]
-- **StepMetrics** (interface) — `packages/core/src/benchmark/types.ts:51` [PR: 0.0010]
-- **LoadedStory** (interface) — `packages/core/src/benchmark/types.ts:44` [PR: 0.0008]
-- **BenchmarkReport** (interface) — `packages/core/src/benchmark/types.ts:36` [PR: 0.0007]
-- **BenchmarkMetrics** (interface) — `packages/core/src/benchmark/types.ts:17` [PR: 0.0006]
-- **StoryConfig** (interface) — `packages/core/src/benchmark/types.ts:1` [PR: 0.0005]
+- **loadStory** (function) — `packages/core/src/benchmark/story-loader.ts:41` [PR: 0.0007]
+- **listStories** (function) — `packages/core/src/benchmark/story-loader.ts:10` [PR: 0.0005]

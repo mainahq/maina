@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/wiki/schema.ts`
 - **Line:** 81
 - **Exported:** yes
-- **PageRank:** 0.0018
+- **PageRank:** 0.0016

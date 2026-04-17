@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/context/budget.ts`
 - **Line:** 88
 - **Exported:** yes
-- **PageRank:** 0.0018
+- **PageRank:** 0.0016

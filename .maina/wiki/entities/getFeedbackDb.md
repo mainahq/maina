@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/db/index.ts`
 - **Line:** 213
 - **Exported:** yes
-- **PageRank:** 0.0013
+- **PageRank:** 0.0011

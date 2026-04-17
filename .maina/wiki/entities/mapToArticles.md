@@ -1,11 +1,11 @@
 # Entity: mapToArticles
 
-> function in `packages/core/src/wiki/graph.ts:388`
+> function in `packages/core/src/wiki/graph.ts:415`
 
 ## Details
 
 - **Kind:** function
 - **File:** `packages/core/src/wiki/graph.ts`
-- **Line:** 388
+- **Line:** 415
 - **Exported:** yes
-- **PageRank:** 0.0016
+- **PageRank:** 0.0014

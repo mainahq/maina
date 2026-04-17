@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/context/treesitter.ts`
 - **Line:** 207
 - **Exported:** yes
-- **PageRank:** 0.0020
+- **PageRank:** 0.0017

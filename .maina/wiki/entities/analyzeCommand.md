@@ -8,4 +8,4 @@
 - **File:** `packages/cli/src/commands/analyze.ts`
 - **Line:** 266
 - **Exported:** yes
-- **PageRank:** 0.0014
+- **PageRank:** 0.0012

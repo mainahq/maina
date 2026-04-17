@@ -7,6 +7,7 @@
 - **registerWikiTools** (function) — `packages/mcp/src/tools/wiki.ts:134` [PR: 0.0005]
 - **registerExplainTools** (function) — `packages/mcp/src/tools/explain.ts:9` [PR: 0.0005]
 - **registerVerifyTools** (function) — `packages/mcp/src/tools/verify.ts:9` [PR: 0.0005]
-- **registerContextTools** (function) — `packages/mcp/src/tools/context.ts:22` [PR: 0.0005]
+- **registerDeepWikiTools** (function) — `packages/mcp/src/tools/deepwiki.ts:16` [PR: 0.0005]
+- **registerContextTools** (function) — `packages/mcp/src/tools/context.ts:50` [PR: 0.0005]
 - **registerReviewTools** (function) — `packages/mcp/src/tools/review.ts:9` [PR: 0.0005]
 - **registerFeatureTools** (function) — `packages/mcp/src/tools/features.ts:9` [PR: 0.0005]

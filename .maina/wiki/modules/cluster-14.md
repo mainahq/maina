@@ -4,8 +4,4 @@
 
 ## Entities
 
-- **analyzeCommand** (function) — `packages/cli/src/commands/analyze.ts:266` [PR: 0.0014]
-- **analyzeAction** (function) — `packages/cli/src/commands/analyze.ts:128` [PR: 0.0010]
-- **AnalyzeDeps** (interface) — `packages/cli/src/commands/analyze.ts:29` [PR: 0.0008]
-- **AnalyzeActionResult** (interface) — `packages/cli/src/commands/analyze.ts:17` [PR: 0.0006]
-- **AnalyzeActionOptions** (interface) — `packages/cli/src/commands/analyze.ts:10` [PR: 0.0005]
+_No entities detected._

@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/context/relevance.ts`
 - **Line:** 315
 - **Exported:** yes
-- **PageRank:** 0.0014
+- **PageRank:** 0.0012

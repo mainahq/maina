@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/verify/visual.ts`
 - **Line:** 269
 - **Exported:** yes
-- **PageRank:** 0.0018
+- **PageRank:** 0.0015

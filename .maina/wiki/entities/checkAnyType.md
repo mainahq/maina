@@ -1,11 +1,11 @@
 # Entity: checkAnyType
 
-> function in `packages/core/src/verify/builtin.ts:296`
+> function in `packages/core/src/verify/builtin.ts:303`
 
 ## Details
 
 - **Kind:** function
 - **File:** `packages/core/src/verify/builtin.ts`
-- **Line:** 296
+- **Line:** 303
 - **Exported:** yes
-- **PageRank:** 0.0014
+- **PageRank:** 0.0012

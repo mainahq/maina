@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/db/schema.ts`
 - **Line:** 54
 - **Exported:** yes
-- **PageRank:** 0.0013
+- **PageRank:** 0.0011

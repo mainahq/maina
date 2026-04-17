@@ -2,35 +2,124 @@
 
 > Auto-generated architecture article describing the monorepo layout.
 
-Maina is organized as a monorepo under `packages/`.
+This monorepo contains 22 packages across `packages/cli/`, `packages/core/`, `packages/mcp/`, `packages/skills/`, `packages/docs/`.
 
-## Packages
+## packages/cli/
 
-### cli
+### dist
 
-- **Path:** `packages/cli/`
-- **Description:** Commander entrypoint, commands (thin wrappers over engines), terminal UI
-- **Modules:** __tests__, commands
+- **Path:** `packages/cli/dist/`
+- **Description:** _No description available for dist._
 
-### core
+### node_modules
 
-- **Path:** `packages/core/`
-- **Description:** Three engines + cache + AI + git + DB + hooks
-- **Modules:** ai, benchmark, cache, cloud, config, context, db, design, explain, features, feedback, git, hooks, init, language, prompts, review, stats, ticket, verify, wiki, workflow
+- **Path:** `packages/cli/node_modules/`
+- **Description:** _No description available for node_modules._
 
-### docs
+### src
 
-- **Path:** `packages/docs/`
-- **Description:** Documentation site
-- **Modules:** assets, components, content, pages, styles
+- **Path:** `packages/cli/src/`
+- **Description:** _No description available for src._
 
-### mcp
+## packages/core/
 
-- **Path:** `packages/mcp/`
-- **Description:** MCP server (delegates to engines)
-- **Modules:** __tests__, tools
+### node_modules
 
-### skills
+- **Path:** `packages/core/node_modules/`
+- **Description:** _No description available for node_modules._
 
-- **Path:** `packages/skills/`
-- **Description:** Cross-platform skills (Claude Code, Cursor, Codex, Gemini CLI)
+### src
+
+- **Path:** `packages/core/src/`
+- **Description:** _No description available for src._
+
+## packages/mcp/
+
+### node_modules
+
+- **Path:** `packages/mcp/node_modules/`
+- **Description:** _No description available for node_modules._
+
+### src
+
+- **Path:** `packages/mcp/src/`
+- **Description:** _No description available for src._
+
+## packages/skills/
+
+### __tests__
+
+- **Path:** `packages/skills/__tests__/`
+- **Description:** _No description available for __tests__._
+
+### cloud-workflow
+
+- **Path:** `packages/skills/cloud-workflow/`
+- **Description:** _No description available for cloud-workflow._
+
+### code-review
+
+- **Path:** `packages/skills/code-review/`
+- **Description:** _No description available for code-review._
+
+### context-generation
+
+- **Path:** `packages/skills/context-generation/`
+- **Description:** _No description available for context-generation._
+
+### onboarding
+
+- **Path:** `packages/skills/onboarding/`
+- **Description:** _No description available for onboarding._
+
+### plan-writing
+
+- **Path:** `packages/skills/plan-writing/`
+- **Description:** _No description available for plan-writing._
+
+### tdd
+
+- **Path:** `packages/skills/tdd/`
+- **Description:** _No description available for tdd._
+
+### verification-workflow
+
+- **Path:** `packages/skills/verification-workflow/`
+- **Description:** _No description available for verification-workflow._
+
+### wiki-workflow
+
+- **Path:** `packages/skills/wiki-workflow/`
+- **Description:** _No description available for wiki-workflow._
+
+## packages/docs/
+
+### .astro
+
+- **Path:** `packages/docs/.astro/`
+- **Description:** _No description available for .astro._
+
+### dist
+
+- **Path:** `packages/docs/dist/`
+- **Description:** _No description available for dist._
+
+### node_modules
+
+- **Path:** `packages/docs/node_modules/`
+- **Description:** _No description available for node_modules._
+
+### public
+
+- **Path:** `packages/docs/public/`
+- **Description:** _No description available for public._
+
+### scripts
+
+- **Path:** `packages/docs/scripts/`
+- **Description:** _No description available for scripts._
+
+### src
+
+- **Path:** `packages/docs/src/`
+- **Description:** _No description available for src._

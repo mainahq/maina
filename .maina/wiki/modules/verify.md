@@ -4,14 +4,11 @@
 
 ## Entities
 
-- **updateBaselines** (function) — `packages/core/src/verify/visual.ts:425` [PR: 0.0026]
-- **runVisualVerification** (function) — `packages/core/src/verify/visual.ts:269` [PR: 0.0018]
-- **compareImages** (function) — `packages/core/src/verify/visual.ts:222` [PR: 0.0014]
-- **captureScreenshot** (function) — `packages/core/src/verify/visual.ts:160` [PR: 0.0012]
-- **loadVisualConfig** (function) — `packages/core/src/verify/visual.ts:123` [PR: 0.0010]
-- **detectWebProject** (function) — `packages/core/src/verify/visual.ts:88` [PR: 0.0009]
-- **VisualVerifyResult** (interface) — `packages/core/src/verify/visual.ts:39` [PR: 0.0008]
-- **VisualDiffResult** (interface) — `packages/core/src/verify/visual.ts:33` [PR: 0.0007]
-- **ScreenshotResult** (interface) — `packages/core/src/verify/visual.ts:26` [PR: 0.0006]
-- **ScreenshotOptions** (interface) — `packages/core/src/verify/visual.ts:21` [PR: 0.0006]
-- **VisualConfig** (interface) — `packages/core/src/verify/visual.ts:15` [PR: 0.0005]
+- **runBuiltinChecks** (function) — `packages/core/src/verify/builtin.ts:347` [PR: 0.0017]
+- **checkAnyType** (function) — `packages/core/src/verify/builtin.ts:303` [PR: 0.0012]
+- **checkEmptyCatch** (function) — `packages/core/src/verify/builtin.ts:236` [PR: 0.0009]
+- **checkSecrets** (function) — `packages/core/src/verify/builtin.ts:196` [PR: 0.0008]
+- **checkFileSize** (function) — `packages/core/src/verify/builtin.ts:171` [PR: 0.0007]
+- **checkTodoComments** (function) — `packages/core/src/verify/builtin.ts:140` [PR: 0.0006]
+- **checkUnusedImports** (function) — `packages/core/src/verify/builtin.ts:76` [PR: 0.0005]
+- **checkConsoleLogs** (function) — `packages/core/src/verify/builtin.ts:46` [PR: 0.0005]

@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/verify/lighthouse.ts`
 - **Line:** 132
 - **Exported:** yes
-- **PageRank:** 0.0012
+- **PageRank:** 0.0010

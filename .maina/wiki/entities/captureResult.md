@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/feedback/capture.ts`
 - **Line:** 55
 - **Exported:** yes
-- **PageRank:** 0.0012
+- **PageRank:** 0.0010

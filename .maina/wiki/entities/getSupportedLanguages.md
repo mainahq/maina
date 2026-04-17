@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/language/profile.ts`
 - **Line:** 173
 - **Exported:** yes
-- **PageRank:** 0.0028
+- **PageRank:** 0.0024

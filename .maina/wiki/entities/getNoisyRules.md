@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/feedback/preferences.ts`
 - **Line:** 102
 - **Exported:** yes
-- **PageRank:** 0.0018
+- **PageRank:** 0.0016

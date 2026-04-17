@@ -1,11 +1,11 @@
 # Entity: bootstrap
 
-> function in `packages/core/src/init/index.ts:1290`
+> function in `packages/core/src/init/index.ts:1401`
 
 ## Details
 
 - **Kind:** function
 - **File:** `packages/core/src/init/index.ts`
-- **Line:** 1290
+- **Line:** 1401
 - **Exported:** yes
-- **PageRank:** 0.0014
+- **PageRank:** 0.0012

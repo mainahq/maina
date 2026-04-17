@@ -4,9 +4,4 @@
 
 ## Entities
 
-- **runAIReview** (function) — `packages/core/src/verify/ai-review.ts:182` [PR: 0.0016]
-- **resolveReferencedFunctions** (function) — `packages/core/src/verify/ai-review.ts:56` [PR: 0.0011]
-- **AIReviewResult** (interface) — `packages/core/src/verify/ai-review.ts:40` [PR: 0.0009]
-- **AIReviewOptions** (interface) — `packages/core/src/verify/ai-review.ts:31` [PR: 0.0007]
-- **EntityWithBody** (interface) — `packages/core/src/verify/ai-review.ts:22` [PR: 0.0006]
-- **ReferencedFunction** (interface) — `packages/core/src/verify/ai-review.ts:16` [PR: 0.0005]
+_No entities detected._

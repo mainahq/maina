@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/feedback/collector.ts`
 - **Line:** 187
 - **Exported:** yes
-- **PageRank:** 0.0016
+- **PageRank:** 0.0014

@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/benchmark/reporter.ts`
 - **Line:** 250
 - **Exported:** yes
-- **PageRank:** 0.0012
+- **PageRank:** 0.0010

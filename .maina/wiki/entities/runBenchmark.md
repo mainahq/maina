@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/benchmark/runner.ts`
 - **Line:** 42
 - **Exported:** yes
-- **PageRank:** 0.0012
+- **PageRank:** 0.0010

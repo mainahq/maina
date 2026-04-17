@@ -8,4 +8,4 @@
 - **File:** `packages/core/src/verify/ai-review.ts`
 - **Line:** 182
 - **Exported:** yes
-- **PageRank:** 0.0016
+- **PageRank:** 0.0014
