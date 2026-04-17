@@ -32,10 +32,12 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
 
 <script is:inline>
 (function() {
-  var mcpConfig = JSON.stringify({"command":"maina","args":["--mcp"]});
+  var serverConfig = {command:"bunx",args:["@mainahq/cli","--mcp"]};
+  var mcpConfig = JSON.stringify(serverConfig);
 
-  // Cursor deeplink: base64-encode the MCP config
-  var cursorConfig = btoa(JSON.stringify({mcpServers:{maina:{command:"maina",args:["--mcp"]}}}));
+  // Cursor deeplink: base64-encode just the server config (name param identifies the server).
+  // Percent-encode the base64 because +, /, = are reserved in query strings.
+  var cursorConfig = encodeURIComponent(btoa(mcpConfig));
   var cursorBadge = document.getElementById('cursor-badge');
   if (cursorBadge) {
     cursorBadge.href = 'cursor://anysphere.cursor-deeplink/mcp/install?name=maina&config=' + cursorConfig;
@@ -52,7 +54,7 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
         text = "claude mcp add-json maina '" + mcpConfig + "'";
         msg = 'Claude Code command copied!';
       } else if (action === 'windsurf') {
-        text = JSON.stringify({mcpServers:{maina:{command:"maina",args:["--mcp"]}}}, null, 2);
+        text = JSON.stringify({mcpServers:{maina:serverConfig}}, null, 2);
         msg = 'Windsurf MCP config copied! Paste into ~/.codeium/windsurf/mcp_config.json';
       }
 
