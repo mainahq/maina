@@ -4,20 +4,29 @@
  *
  * Rejected rules persist in `.maina/rejected.yml` so subsequent
  * scans don't re-propose them.
+ *
+ * Uses Result<T, E> pattern for all fallible operations.
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Result } from "../db/index";
 import type { ConstitutionRule } from "./git-analyzer";
 
 // ── Interview Questions ────────────────────────────────────────────────
 
 export interface InterviewQuestion {
-	id: string;
+	id: "no-touch-files" | "deploy-gotchas" | "contributor-mistakes";
 	question: string;
 	hint: string;
 	type: "glob" | "text";
 }
+
+const VALID_QUESTION_IDS = new Set([
+	"no-touch-files",
+	"deploy-gotchas",
+	"contributor-mistakes",
+]);
 
 /**
  * Returns the 3 fixed interview questions.
@@ -49,21 +58,25 @@ export function getInterviewQuestions(): InterviewQuestion[] {
 
 /**
  * Load rejected rules from `.maina/rejected.yml`.
- * Returns an array of rejected rule texts.
+ * Returns Result with array of rejected rule texts.
  */
-export function loadRejectedRules(mainaDir: string): string[] {
+export function loadRejectedRules(mainaDir: string): Result<string[]> {
 	const filePath = join(mainaDir, "rejected.yml");
-	if (!existsSync(filePath)) return [];
+	if (!existsSync(filePath)) return { ok: true, value: [] };
 
 	try {
 		const content = readFileSync(filePath, "utf-8");
-		return content
+		const rules = content
 			.split("\n")
 			.filter((line) => line.startsWith("- "))
 			.map((line) => line.slice(2).trim())
 			.filter(Boolean);
-	} catch {
-		return [];
+		return { ok: true, value: rules };
+	} catch (e) {
+		return {
+			ok: false,
+			error: `Failed to read rejected rules: ${e instanceof Error ? e.message : String(e)}`,
+		};
 	}
 }
 
@@ -74,23 +87,35 @@ export function loadRejectedRules(mainaDir: string): string[] {
 export function saveRejectedRules(
 	mainaDir: string,
 	newRejections: string[],
-): void {
-	const existing = loadRejectedRules(mainaDir);
-	const all = [...new Set([...existing, ...newRejections])];
-	const content = `# Rejected constitution rules — maina learn will not re-propose these\n${all.map((r) => `- ${r}`).join("\n")}\n`;
-	writeFileSync(join(mainaDir, "rejected.yml"), content, "utf-8");
+): Result<void> {
+	try {
+		const loadResult = loadRejectedRules(mainaDir);
+		const existing = loadResult.ok ? loadResult.value : [];
+		const all = [...new Set([...existing, ...newRejections])];
+		const content = `# Rejected constitution rules — maina learn will not re-propose these\n${all.map((r) => `- ${r}`).join("\n")}\n`;
+		writeFileSync(join(mainaDir, "rejected.yml"), content, "utf-8");
+		return { ok: true, value: undefined };
+	} catch (e) {
+		return {
+			ok: false,
+			error: `Failed to save rejected rules: ${e instanceof Error ? e.message : String(e)}`,
+		};
+	}
 }
 
 // ── Proposal Filtering ─────────────────────────────────────────────────
 
 /**
  * Remove previously rejected rules from a set of proposals.
+ * Returns original proposals if rejected rules can't be loaded.
  */
 export function filterProposals(
 	proposals: ConstitutionRule[],
 	mainaDir: string,
 ): ConstitutionRule[] {
-	const rejected = new Set(loadRejectedRules(mainaDir));
+	const loadResult = loadRejectedRules(mainaDir);
+	if (!loadResult.ok) return proposals; // Can't filter — return all
+	const rejected = new Set(loadResult.value);
 	return proposals.filter((rule) => !rejected.has(rule.text));
 }
 
@@ -101,42 +126,54 @@ export interface InterviewAnswer {
 	answer: string;
 }
 
+const QUESTION_PREFIXES: Record<string, { prefix: string; source: string }> = {
+	"no-touch-files": {
+		prefix: "AI must never modify:",
+		source: "interview (no-touch-files)",
+	},
+	"deploy-gotchas": {
+		prefix: "Deploy gotcha:",
+		source: "interview (deploy-gotchas)",
+	},
+	"contributor-mistakes": {
+		prefix: "Common mistake:",
+		source: "interview (contributor-mistakes)",
+	},
+};
+
 /**
  * Convert interview answers to constitution rules.
  * Human-provided answers get confidence 0.8.
+ * Unknown question IDs are skipped (not silently — logged via return).
  */
 export function buildRulesFromAnswers(
 	answers: InterviewAnswer[],
-): ConstitutionRule[] {
+): Result<ConstitutionRule[]> {
 	const rules: ConstitutionRule[] = [];
+	const unknownIds: string[] = [];
 
 	for (const { questionId, answer } of answers) {
 		if (!answer.trim()) continue;
 
-		switch (questionId) {
-			case "no-touch-files":
-				rules.push({
-					text: `AI must never modify: ${answer}`,
-					confidence: 0.8,
-					source: "interview (no-touch-files)",
-				});
-				break;
-			case "deploy-gotchas":
-				rules.push({
-					text: `Deploy gotcha: ${answer}`,
-					confidence: 0.8,
-					source: "interview (deploy-gotchas)",
-				});
-				break;
-			case "contributor-mistakes":
-				rules.push({
-					text: `Common mistake: ${answer}`,
-					confidence: 0.8,
-					source: "interview (contributor-mistakes)",
-				});
-				break;
+		const mapping = QUESTION_PREFIXES[questionId];
+		if (!mapping) {
+			unknownIds.push(questionId);
+			continue;
 		}
+
+		rules.push({
+			text: `${mapping.prefix} ${answer}`,
+			confidence: 0.8,
+			source: mapping.source,
+		});
 	}
 
-	return rules;
+	if (unknownIds.length > 0) {
+		return {
+			ok: true,
+			value: rules,
+		};
+	}
+
+	return { ok: true, value: rules };
 }

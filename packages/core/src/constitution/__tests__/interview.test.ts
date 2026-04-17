@@ -1,11 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import {
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ConstitutionRule } from "../git-analyzer";
@@ -56,27 +50,43 @@ describe("getInterviewQuestions", () => {
 // ── loadRejectedRules / saveRejectedRules ───────────────────────────────
 
 describe("rejected rules persistence", () => {
-	test("returns empty for missing file", () => {
-		expect(loadRejectedRules(tmpDir)).toEqual([]);
+	test("returns ok with empty array for missing file", () => {
+		const result = loadRejectedRules(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.value).toEqual([]);
 	});
 
 	test("saves and loads rules", () => {
-		saveRejectedRules(tmpDir, ["Use tabs not spaces", "No console.log"]);
-		const loaded = loadRejectedRules(tmpDir);
-		expect(loaded).toContain("Use tabs not spaces");
-		expect(loaded).toContain("No console.log");
+		const saveResult = saveRejectedRules(tmpDir, [
+			"Use tabs not spaces",
+			"No console.log",
+		]);
+		expect(saveResult.ok).toBe(true);
+
+		const loadResult = loadRejectedRules(tmpDir);
+		expect(loadResult.ok).toBe(true);
+		if (loadResult.ok) {
+			expect(loadResult.value).toContain("Use tabs not spaces");
+			expect(loadResult.value).toContain("No console.log");
+		}
 	});
 
 	test("appends without duplicates", () => {
 		saveRejectedRules(tmpDir, ["Rule A"]);
 		saveRejectedRules(tmpDir, ["Rule A", "Rule B"]);
-		const loaded = loadRejectedRules(tmpDir);
-		expect(loaded).toHaveLength(2);
+		const result = loadRejectedRules(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.value).toHaveLength(2);
 	});
 
 	test("file exists after save", () => {
 		saveRejectedRules(tmpDir, ["test"]);
 		expect(existsSync(join(tmpDir, "rejected.yml"))).toBe(true);
+	});
+
+	test("returns error for unwritable directory", () => {
+		const result = saveRejectedRules("/nonexistent/path", ["test"]);
+		expect(result.ok).toBe(false);
 	});
 });
 
@@ -111,38 +121,60 @@ describe("filterProposals", () => {
 
 describe("buildRulesFromAnswers", () => {
 	test("converts answers to rules with confidence 0.8", () => {
-		const rules = buildRulesFromAnswers([
+		const result = buildRulesFromAnswers([
 			{ questionId: "no-touch-files", answer: "migrations/**, *.lock" },
 			{ questionId: "deploy-gotchas", answer: "Run migrations first" },
 		]);
 
-		expect(rules).toHaveLength(2);
-		expect(rules[0]?.text).toContain("migrations/**");
-		expect(rules[0]?.confidence).toBe(0.8);
-		expect(rules[1]?.text).toContain("Run migrations first");
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toHaveLength(2);
+			expect(result.value[0]?.text).toContain("migrations/**");
+			expect(result.value[0]?.confidence).toBe(0.8);
+			expect(result.value[1]?.text).toContain("Run migrations first");
+		}
 	});
 
 	test("skips empty answers", () => {
-		const rules = buildRulesFromAnswers([
+		const result = buildRulesFromAnswers([
 			{ questionId: "no-touch-files", answer: "" },
 			{ questionId: "deploy-gotchas", answer: "   " },
 			{ questionId: "contributor-mistakes", answer: "Forget to install deps" },
 		]);
 
-		expect(rules).toHaveLength(1);
-		expect(rules[0]?.text).toContain("Forget to install deps");
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toHaveLength(1);
+			expect(result.value[0]?.text).toContain("Forget to install deps");
+		}
 	});
 
 	test("handles all question types", () => {
-		const rules = buildRulesFromAnswers([
+		const result = buildRulesFromAnswers([
 			{ questionId: "no-touch-files", answer: "*.env" },
 			{ questionId: "deploy-gotchas", answer: "CDN cache" },
 			{ questionId: "contributor-mistakes", answer: "Wrong branch" },
 		]);
 
-		expect(rules).toHaveLength(3);
-		expect(rules[0]?.source).toContain("no-touch-files");
-		expect(rules[1]?.source).toContain("deploy-gotchas");
-		expect(rules[2]?.source).toContain("contributor-mistakes");
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toHaveLength(3);
+			expect(result.value[0]?.source).toContain("no-touch-files");
+			expect(result.value[1]?.source).toContain("deploy-gotchas");
+			expect(result.value[2]?.source).toContain("contributor-mistakes");
+		}
+	});
+
+	test("skips unknown question IDs gracefully", () => {
+		const result = buildRulesFromAnswers([
+			{ questionId: "unknown-question", answer: "some answer" },
+			{ questionId: "no-touch-files", answer: "*.lock" },
+		]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toHaveLength(1);
+			expect(result.value[0]?.text).toContain("*.lock");
+		}
 	});
 });
