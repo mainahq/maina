@@ -1,45 +1,22 @@
-# Feature: [Name]
+# Feature: Reposition wiki as "a view of the Context engine"
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
-
-## Target User
-
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
-
-## User Stories
-
-- As a [role], I want [capability] so that [benefit].
+Current messaging treats the wiki as a separate product surface. But the wiki is a *view*, the Context engine is the product. Fix across README, docs IA, and internal vocabulary.
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [ ] README rewritten: wiki under "Context engine → views"
+- [ ] `docs/decisions/0010-wiki-is-a-view.md` ADR written
+- [ ] Glossary: Context engine (core) → wiki (view), blast radius (view), symbol graph (view)
 
 ## Scope
 
 ### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
+- README architecture section update
+- ADR documenting the positioning decision
+- Consistent vocabulary in docs
 
 ### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- Website nav restructure (separate issue)
+- Code changes (none needed — it's already structured correctly)
