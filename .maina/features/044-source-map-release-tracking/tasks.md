@@ -2,22 +2,17 @@
 
 ## Tasks
 
-Each task should be completable in one commit. Test tasks precede implementation tasks.
-
-- [ ] [NEEDS CLARIFICATION] Define tasks.
+- [ ] T1: Create `.github/workflows/release-sourcemaps.yml`
+- [ ] T2: Enable sourcemap in build config if not already
+- [ ] T3: Add version extraction step
+- [ ] T4: maina verify + review
 
 ## Dependencies
 
-Which tasks block which? Draw the critical path.
-
-- [NEEDS CLARIFICATION]
+- Depends on PostHog ADR (#89) for knowing where to upload
 
 ## Definition of Done
 
-How do we know this feature is complete?
-
-- [ ] All tests pass
-- [ ] Biome lint clean
-- [ ] TypeScript compiles
-- [ ] maina analyze shows no errors
-- [ ] [NEEDS CLARIFICATION] Feature-specific criteria
+- [ ] Workflow runs on tag push
+- [ ] Source maps generated alongside dist
+- [ ] Version tag in workflow output matches package.json

@@ -1,45 +1,29 @@
-# Feature: [Name]
+# Feature: Source map + release tracking in CI
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
+Without source maps, stack traces from error reporting (PostHog) are unreadable minified garbage. Without release tracking, errors can't be bucketed by Maina version.
 
 ## Target User
 
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
-
-## User Stories
-
-- As a [role], I want [capability] so that [benefit].
+- Primary: Maina maintainers debugging crash reports
+- Secondary: Contributors investigating error patterns across releases
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [ ] GitHub Actions workflow step uploads source maps on tag push
+- [ ] Release version tag in every error event matches package.json
+- [ ] Stack traces link back to GitHub source at the exact commit
+- [ ] Covers @mainahq/cli, MCP server, any TS/Node modules
+- [ ] CI workflow added to `.github/workflows/release.yml`
 
 ## Scope
 
 ### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
+- CI workflow for source map upload on release tags
+- Version extraction from package.json in CI
+- Source map generation enabled in build config
 
 ### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- PostHog source map processing (PostHog handles this server-side)
+- Python components (no Python in maina)

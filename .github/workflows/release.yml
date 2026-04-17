@@ -30,6 +30,7 @@ jobs:
         run: bun run build
 
       - name: Create release PR or publish
+        id: changesets
         uses: changesets/action@v1
         with:
           publish: bun run release
@@ -39,3 +40,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Source maps + release tracking for error reporting
+      - name: Extract version from package.json
+        if: steps.changesets.outputs.published == 'true'
+        id: version
+        run: echo "version=$(jq -r '.version' packages/cli/package.json)" >> $GITHUB_OUTPUT
+
+      - name: Upload source maps as release artifact
+        if: steps.changesets.outputs.published == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sourcemaps-${{ steps.version.outputs.version }}
+          path: |
+            packages/cli/dist/**/*.map
+            packages/core/dist/**/*.map
+            packages/mcp/dist/**/*.map
+          retention-days: 90
+
+      - name: Create GitHub release with source maps
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          echo "Published version: $VERSION"
+          echo "Source maps uploaded as artifact: sourcemaps-$VERSION"
