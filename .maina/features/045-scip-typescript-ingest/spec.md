@@ -1,45 +1,25 @@
-# Feature: [Name]
+# Feature: Run scip-typescript in ingest
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
-
-## Target User
-
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
-
-## User Stories
-
-- As a [role], I want [capability] so that [benefit].
+Custom parsers (regex-based entity extraction) don't scale and miss complex relationships. SCIP (Sourcegraph, Apache-2.0) gives precise code intelligence: every symbol with file, kind, refs, and cross-file relationships. Running `scip-typescript` in the wiki ingest path enables accurate symbol pages.
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [ ] `runScipTypescript(repoRoot)` spawns scip-typescript and parses output
+- [ ] Handles monorepos with multiple tsconfig.json
+- [ ] Returns structured symbol data (name, kind, file, line, refs)
+- [ ] Graceful fallback when scip-typescript is not installed
+- [ ] Unit tests with mock subprocess output
 
 ## Scope
 
 ### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
+- Subprocess invocation of scip-typescript
+- Output parsing (SCIP protobuf → internal types)
+- Monorepo support (find all tsconfig.json)
+- Availability check + graceful fallback
 
 ### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- Wiki article generation from SCIP data (uses existing symbol-page.ts)
+- Installing scip-typescript (user responsibility or maina doctor recommendation)

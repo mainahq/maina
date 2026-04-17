@@ -2,22 +2,19 @@
 
 ## Tasks
 
-Each task should be completable in one commit. Test tasks precede implementation tasks.
-
-- [ ] [NEEDS CLARIFICATION] Define tasks.
+- [x] T1: Write TDD test stubs (19 red confirmed)
+- [x] T2: Implement `isScipAvailable()` — PATH check
+- [x] T3: Implement `findTsConfigs()` — monorepo glob with depth limit
+- [x] T4: Implement `runScipTypescript()` — spawn + parse
+- [x] T5: Implement `parseScipOutput()` — JSON → ScipSymbol[] (11 tests green)
+- [x] T6: maina verify + review
 
 ## Dependencies
 
-Which tasks block which? Draw the critical path.
-
-- [NEEDS CLARIFICATION]
+- scip-typescript must be installed for integration tests (unit tests use mocks)
 
 ## Definition of Done
 
-How do we know this feature is complete?
-
-- [ ] All tests pass
-- [ ] Biome lint clean
-- [ ] TypeScript compiles
-- [ ] maina analyze shows no errors
-- [ ] [NEEDS CLARIFICATION] Feature-specific criteria
+- [ ] All tests pass (red → green)
+- [ ] Graceful fallback when scip-typescript not installed
+- [ ] maina verify + slop + review pass
