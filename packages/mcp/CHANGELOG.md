@@ -1,5 +1,21 @@
 # @mainahq/mcp
 
+## 1.1.5
+
+### Patch Changes
+
+- [#84](https://github.com/mainahq/maina/pull/84) [`4ba53e6`](https://github.com/mainahq/maina/commit/4ba53e64e688ea1e6e53149211d9b285bfcfe126) Thanks [@beeeku](https://github.com/beeeku)! - Fix init, wiki, and MCP issues:
+
+  - fix(core): CI workflow template uses actual package.json script names instead of hardcoded `bun run check` ([#79](https://github.com/mainahq/maina/issues/79))
+  - feat(core): CI workflow uses `maina verify` with cloud and fallback options ([#82](https://github.com/mainahq/maina/issues/82))
+  - feat(core): constitution architecture section includes workspace layout, package names, and project description for monorepos ([#83](https://github.com/mainahq/maina/issues/83))
+  - fix(core): wiki architecture article reads descriptions from package.json with README fallback instead of hardcoded dictionary ([#81](https://github.com/mainahq/maina/issues/81))
+  - fix(core): wiki module articles use meaningful names derived from file paths instead of generic cluster-N ([#80](https://github.com/mainahq/maina/issues/80))
+  - fix(mcp): cap getContext output at 50K characters and use focused budget to prevent MCP token limit errors
+
+- Updated dependencies [[`4ba53e6`](https://github.com/mainahq/maina/commit/4ba53e64e688ea1e6e53149211d9b285bfcfe126)]:
+  - @mainahq/core@1.1.5
+
 ## 1.1.3
 
 ### Patch Changes

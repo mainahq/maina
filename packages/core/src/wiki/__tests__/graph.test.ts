@@ -341,4 +341,57 @@ describe("Knowledge Graph", () => {
 			}
 		});
 	});
+
+	// ── Community naming uses meaningful names (#80) ─────────────────
+
+	describe("community naming", () => {
+		it("should derive module names from entity file paths when no module node exists", () => {
+			const entities: CodeEntity[] = [
+				{
+					name: "login",
+					kind: "function",
+					file: "packages/auth/src/login.ts",
+					line: 1,
+					exported: true,
+				},
+				{
+					name: "logout",
+					kind: "function",
+					file: "packages/auth/src/logout.ts",
+					line: 1,
+					exported: true,
+				},
+				{
+					name: "getCache",
+					kind: "function",
+					file: "packages/cache/src/index.ts",
+					line: 1,
+					exported: true,
+				},
+			];
+			const features: ExtractedFeature[] = [];
+			const decisions: ExtractedDecision[] = [];
+			const traces: ExtractedWorkflowTrace[] = [];
+
+			const graph = buildKnowledgeGraph(entities, features, decisions, traces);
+			computePageRank(graph);
+
+			// Simulate communities where auth entities are together
+			const communities = new Map<number, string[]>([
+				[0, ["entity:login", "entity:logout"]],
+				[1, ["entity:getCache"]],
+			]);
+
+			const articleMap = mapToArticles(graph, communities);
+
+			// Should use directory name, not cluster-N
+			const paths = [...articleMap.values()];
+			const modulePaths = paths.filter((p) => p.includes("modules/"));
+			for (const p of modulePaths) {
+				expect(p).not.toContain("cluster-");
+			}
+			// Auth entities should map to an auth-related module
+			expect(modulePaths.some((p) => p.includes("auth"))).toBe(true);
+		});
+	});
 });

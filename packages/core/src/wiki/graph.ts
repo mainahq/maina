@@ -63,17 +63,44 @@ function addEdge(graph: KnowledgeGraph, edge: GraphEdge): void {
 }
 
 /**
- * Derive a module name from a file path.
+ * Derive a meaningful module name from a file path (#80).
+ *
+ * Skips generic directories (src, lib, dist, etc.) to find a
+ * semantically meaningful name. For monorepo paths like
+ * "packages/auth/src/jwt.ts", returns "auth" instead of "src".
+ *
+ * "packages/auth/src/jwt.ts"     -> "auth"
  * "packages/core/src/wiki/state.ts" -> "wiki"
- * "src/auth/jwt.ts" -> "auth"
+ * "src/auth/jwt.ts"              -> "auth"
+ * "src/index.ts"                 -> "src"
  */
 function deriveModule(file: string): string {
 	const parts = file.replace(/\\/g, "/").split("/");
-	// Find the directory containing the file
-	if (parts.length >= 2) {
-		return parts[parts.length - 2] ?? "root";
+	if (parts.length < 2) return "root";
+
+	const genericDirs = new Set([
+		"src",
+		"lib",
+		"dist",
+		"build",
+		"test",
+		"tests",
+		"__tests__",
+		"__mocks__",
+	]);
+
+	// Directories only (drop filename)
+	const dirs = parts.slice(0, -1);
+
+	// Walk from deepest to shallowest, return first non-generic name
+	for (let i = dirs.length - 1; i >= 0; i--) {
+		const dir = dirs[i];
+		if (dir && !genericDirs.has(dir)) {
+			return dir;
+		}
 	}
-	return "root";
+
+	return dirs[dirs.length - 1] ?? "root";
 }
 
 function addCodeEntities(graph: KnowledgeGraph, entities: CodeEntity[]): void {
@@ -411,16 +438,53 @@ export function mapToArticles(
 		}
 	}
 
-	// Map Louvain clusters to module articles
+	// Map Louvain clusters to module articles (#80)
 	for (const [commId, members] of communities) {
-		// Find a representative label for the community
 		const moduleNodes = members.filter(
 			(m) => graph.nodes.get(m)?.type === "module",
 		);
-		const label =
-			moduleNodes.length > 0
-				? (graph.nodes.get(moduleNodes[0] ?? "")?.label ?? `cluster-${commId}`)
-				: `cluster-${commId}`;
+		let label: string;
+		if (
+			moduleNodes.length > 0 &&
+			graph.nodes.get(moduleNodes[0] ?? "")?.label
+		) {
+			label = graph.nodes.get(moduleNodes[0] ?? "")?.label ?? "";
+		} else {
+			// Derive from entity file paths — find the most common non-generic dir
+			const entityMembers = members
+				.filter((m) => graph.nodes.get(m)?.type === "entity")
+				.map((m) => graph.nodes.get(m));
+			const dirCounts = new Map<string, number>();
+			const genericDirs = new Set([
+				"src",
+				"lib",
+				"dist",
+				"build",
+				"test",
+				"tests",
+				"__tests__",
+			]);
+			for (const node of entityMembers) {
+				if (!node?.file) continue;
+				const parts = node.file.replace(/\\/g, "/").split("/");
+				for (let i = parts.length - 2; i >= 0; i--) {
+					const dir = parts[i];
+					if (dir && !genericDirs.has(dir)) {
+						dirCounts.set(dir, (dirCounts.get(dir) ?? 0) + 1);
+						break;
+					}
+				}
+			}
+			let bestDir = "";
+			let bestCount = 0;
+			for (const [dir, count] of dirCounts) {
+				if (count > bestCount) {
+					bestDir = dir;
+					bestCount = count;
+				}
+			}
+			label = bestDir || `cluster-${commId}`;
+		}
 		const safeName = label.replace(/[^a-zA-Z0-9_-]/g, "-");
 		articleMap.set(`community:${commId}`, `wiki/modules/${safeName}.md`);
 	}

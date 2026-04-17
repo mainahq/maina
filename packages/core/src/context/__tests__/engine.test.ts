@@ -161,4 +161,22 @@ describe("assembleContext", () => {
 		expect(typeof result.budget.headroom).toBe("number");
 		expect(result.budget.total).toBeGreaterThan(0);
 	});
+
+	test("modelContextWindow option reduces output budget", async () => {
+		const fullResult = await assembleContext("commit", {
+			repoRoot,
+			mainaDir: tempMainaDir,
+		});
+
+		const smallResult = await assembleContext("commit", {
+			repoRoot,
+			mainaDir: tempMainaDir,
+			modelContextWindow: 30_000,
+		});
+
+		// Smaller context window should produce a smaller budget
+		expect(smallResult.budget.total).toBe(30_000);
+		expect(smallResult.budget.total).toBeLessThan(fullResult.budget.total);
+		expect(smallResult.tokens).toBeLessThanOrEqual(30_000);
+	});
 });

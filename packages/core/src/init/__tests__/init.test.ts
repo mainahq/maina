@@ -70,7 +70,7 @@ describe("bootstrap", () => {
 		expect(content).toContain("constitution.md");
 	});
 
-	test("creates CI workflow", async () => {
+	test("creates CI workflow with maina verify and fallback", async () => {
 		const result = await bootstrap(tmpDir);
 		expect(result.ok).toBe(true);
 
@@ -80,7 +80,13 @@ describe("bootstrap", () => {
 		const content = readFileSync(ciPath, "utf-8");
 		expect(content).toContain("name: Maina CI");
 		expect(content).toContain("actions/checkout@v4");
-	});
+		// Primary job uses maina verify (#82)
+		expect(content).toContain("maina verify");
+		// Cloud option is commented out for user to enable
+		expect(content).toContain("mainahq/verify-action@v1");
+		// Fallback raw commands are present but disabled
+		expect(content).toContain("verify-fallback");
+	}, 30_000);
 
 	test("detects bun stack from package.json", async () => {
 		// Create a Bun project
@@ -104,6 +110,67 @@ describe("bootstrap", () => {
 			expect(ci).toContain("bun install");
 		}
 	});
+
+	// ── CI workflow uses actual script names (#79) ───────────────────────
+
+	test("CI workflow uses 'bun run lint' when project has lint script but no check script", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({
+				devDependencies: { "@types/bun": "latest" },
+				scripts: { lint: "biome check .", test: "bun test" },
+			}),
+		);
+		writeFileSync(join(tmpDir, "tsconfig.json"), "{}");
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const ci = readFileSync(
+			join(tmpDir, ".github", "workflows", "maina-ci.yml"),
+			"utf-8",
+		);
+		expect(ci).toContain("bun run lint");
+		expect(ci).not.toContain("bun run check");
+	}, 30_000);
+
+	test("CI workflow uses 'bun run check' when project has check script", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({
+				devDependencies: { "@types/bun": "latest" },
+				scripts: { check: "biome check .", lint: "biome lint ." },
+			}),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const ci = readFileSync(
+			join(tmpDir, ".github", "workflows", "maina-ci.yml"),
+			"utf-8",
+		);
+		expect(ci).toContain("bun run check");
+	}, 30_000);
+
+	test("CI workflow uses 'npm run lint' for node projects with lint script", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({
+				dependencies: { express: "^4" },
+				scripts: { lint: "eslint .", test: "jest" },
+			}),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+
+		const ci = readFileSync(
+			join(tmpDir, ".github", "workflows", "maina-ci.yml"),
+			"utf-8",
+		);
+		expect(ci).toContain("npm run lint");
+	}, 30_000);
 
 	test("creates prompts directory with defaults", async () => {
 		const result = await bootstrap(tmpDir);
@@ -494,6 +561,89 @@ describe("bootstrap", () => {
 		expect(content).toContain("explainModule");
 		expect(content).toContain("analyzeFeature");
 	});
+
+	// ── Constitution architecture for monorepos (#83) ───────────────────
+
+	test("constitution includes workspace layout and package names for monorepos", async () => {
+		// Create a monorepo with workspace packages
+		mkdirSync(join(tmpDir, "packages", "auth"), { recursive: true });
+		mkdirSync(join(tmpDir, "packages", "cache"), { recursive: true });
+		mkdirSync(join(tmpDir, "apps", "web"), { recursive: true });
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({
+				name: "my-toolkit",
+				description: "Cloudflare Workers toolkit",
+				workspaces: ["packages/*", "apps/*"],
+				devDependencies: { "@types/bun": "latest" },
+			}),
+		);
+		writeFileSync(
+			join(tmpDir, "packages", "auth", "package.json"),
+			JSON.stringify({ name: "@toolkit/auth" }),
+		);
+		writeFileSync(
+			join(tmpDir, "packages", "cache", "package.json"),
+			JSON.stringify({ name: "@toolkit/cache" }),
+		);
+		writeFileSync(
+			join(tmpDir, "apps", "web", "package.json"),
+			JSON.stringify({ name: "@toolkit/web" }),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.detectedStack.monorepo).toBe(true);
+			expect(result.value.detectedStack.workspacePatterns).toEqual([
+				"packages/*",
+				"apps/*",
+			]);
+			expect(result.value.detectedStack.workspacePackages).toContain(
+				"@toolkit/auth",
+			);
+			expect(result.value.detectedStack.workspacePackages).toContain(
+				"@toolkit/cache",
+			);
+			expect(result.value.detectedStack.workspacePackages).toContain(
+				"@toolkit/web",
+			);
+
+			const constitution = readFileSync(
+				join(tmpDir, ".maina", "constitution.md"),
+				"utf-8",
+			);
+			expect(constitution).toContain("packages/*");
+			expect(constitution).toContain("apps/*");
+			expect(constitution).toContain("@toolkit/auth");
+			expect(constitution).toContain("Cloudflare Workers toolkit");
+		}
+	}, 30_000);
+
+	test("constitution works for non-monorepo projects", async () => {
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({
+				name: "my-app",
+				description: "My cool app",
+				dependencies: { express: "^4" },
+			}),
+		);
+
+		const result = await bootstrap(tmpDir);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.detectedStack.monorepo).toBe(false);
+			expect(result.value.detectedStack.workspacePatterns).toEqual([]);
+
+			const constitution = readFileSync(
+				join(tmpDir, ".maina", "constitution.md"),
+				"utf-8",
+			);
+			expect(constitution).toContain("My cool app");
+			expect(constitution).not.toContain("Monorepo layout");
+		}
+	}, 30_000);
 
 	// ── aiGenerate option ─────────────────────────────────────────────────
 
