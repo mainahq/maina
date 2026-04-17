@@ -20,10 +20,19 @@ describe("createMcpServer", () => {
 		expect(typeof server.close).toBe("function");
 	});
 
-	test("registers all 10 tools", () => {
+	test("default mode registers all tools plus list_tools meta-tool", () => {
 		const server = createMcpServer();
 		const names = getRegisteredToolNames(server);
+		// 10 tools + list_tools = 11
+		expect(names).toHaveLength(11);
+		expect(names).toContain("list_tools");
+	});
+
+	test("allTools mode registers 10 tools without list_tools", () => {
+		const server = createMcpServer({ allTools: true });
+		const names = getRegisteredToolNames(server);
 		expect(names).toHaveLength(10);
+		expect(names).not.toContain("list_tools");
 	});
 
 	test("registers context tools", () => {
@@ -73,6 +82,25 @@ function getToolCallback(
 	const registered = internal._registeredTools?.[toolName];
 	return registered?.handler;
 }
+
+describe("list_tools meta-tool", () => {
+	test("returns all tool descriptions", async () => {
+		const server = createMcpServer();
+		const cb = getToolCallback(server, "list_tools");
+		expect(cb).toBeDefined();
+		if (!cb) return;
+
+		const result = await cb({}, {});
+		const parsed = JSON.parse(result.content[0].text);
+		expect(parsed.data.tools.length).toBe(10);
+		expect(parsed.data.total).toBe(10);
+
+		const toolNames = parsed.data.tools.map((t: { name: string }) => t.name);
+		expect(toolNames).toContain("verify");
+		expect(toolNames).toContain("reviewCode");
+		expect(toolNames).toContain("wikiQuery");
+	});
+});
 
 describe("tool handlers return error on missing dependencies", () => {
 	// These tests verify that each tool handler catches errors gracefully
