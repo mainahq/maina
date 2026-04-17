@@ -9,6 +9,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerContextTools } from "./tools/context";
+import { registerDeepWikiTools } from "./tools/deepwiki";
 import { registerExplainTools } from "./tools/explain";
 import { registerFeatureTools } from "./tools/features";
 import { registerReviewTools } from "./tools/review";
@@ -63,6 +64,20 @@ const ALL_TOOL_DESCRIPTIONS = [
 		name: "wikiStatus",
 		description: "Wiki health check — article counts, staleness, coverage",
 	},
+	{
+		name: "ask_question",
+		description:
+			"DeepWiki-compatible: ask a question about the codebase, get a synthesized answer",
+	},
+	{
+		name: "read_wiki_structure",
+		description:
+			"DeepWiki-compatible: list all wiki articles with paths and types",
+	},
+	{
+		name: "read_wiki_contents",
+		description: "DeepWiki-compatible: read a specific wiki article's content",
+	},
 ];
 
 function registerListToolsMeta(server: McpServer): void {
@@ -108,6 +123,7 @@ function registerExtendedTools(server: McpServer): void {
 	registerFeatureTools(server); // suggestTests, analyzeFeature
 	registerExplainTools(server); // explainModule
 	registerWikiTools(server); // wikiQuery, wikiStatus
+	registerDeepWikiTools(server); // ask_question, read_wiki_structure, read_wiki_contents
 }
 
 export function createMcpServer(options?: McpServerOptions): McpServer {
