@@ -1,0 +1,43 @@
+---
+title: Integrate Maina with CodeRabbit
+description: Run Maina verification alongside CodeRabbit reviews for comprehensive PR quality.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Maina and CodeRabbit complement each other — Maina handles deterministic verification (linting, security, slop detection) while CodeRabbit handles AI-powered code review.
+
+<Steps>
+
+1. **Set up Maina CI**
+
+   Add the Maina verification workflow (see [Verify a PR in CI](/cookbooks/verify-pr-in-ci)).
+
+2. **Configure CodeRabbit**
+
+   CodeRabbit runs automatically on PRs via GitHub App. No extra config needed — it coexists with Maina.
+
+3. **How they work together**
+
+   On every PR:
+   - **Maina** runs 25+ deterministic tools (Biome, Semgrep, Trivy, slop detection, etc.) and posts inline findings
+   - **CodeRabbit** runs AI-powered review and posts its own inline comments
+   - Both appear as separate review threads — no conflict
+
+4. **Feed Maina results into CodeRabbit context**
+
+   Add to your `.coderabbitai.yaml`:
+
+   ```yaml title=".coderabbitai.yaml"
+   reviews:
+     instructions: |
+       This repo uses Maina for verification. Check .maina/constitution.md
+       for project conventions. Maina handles linting and security — focus
+       your review on architecture, logic, and design decisions.
+   ```
+
+</Steps>
+
+<Aside type="tip">
+Maina is deterministic (same code = same findings). CodeRabbit is AI-powered (nuanced review). Together they cover both the "is it correct?" and "is it good?" dimensions.
+</Aside>

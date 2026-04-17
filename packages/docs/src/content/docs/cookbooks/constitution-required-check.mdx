@@ -1,0 +1,54 @@
+---
+title: Enforce constitution.md as a required check
+description: Use Maina's verification pipeline as a required GitHub status check to enforce your project's constitution.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Make Maina verification a required check — PRs can't merge until the constitution is satisfied.
+
+<Steps>
+
+1. **Set up Maina CI**
+
+   Add the verification workflow (see [Verify a PR in CI](/cookbooks/verify-pr-in-ci)).
+
+2. **Define your constitution**
+
+   ```markdown title=".maina/constitution.md"
+   # Project Constitution
+
+   ## Stack
+   - Runtime: Bun
+   - Language: TypeScript strict mode
+   - Lint/Format: Biome
+
+   ## Verification
+   - Lint: `bun run check`
+   - Typecheck: `bun run typecheck`
+   - Test: `bun test`
+   - Diff-only: only report findings on changed lines
+
+   ## Conventions
+   - Conventional commits enforced
+   - No console.log in production code
+   - TDD: write tests first
+   ```
+
+3. **Make it a required check**
+
+   In GitHub repo settings:
+   - Go to **Settings → Branches → Branch protection rules**
+   - Add rule for `main` / `master`
+   - Under **Require status checks**, add `Maina CI` (or your workflow name)
+   - Enable **Require branches to be up to date**
+
+4. **Result**
+
+   PRs that violate the constitution (lint failures, missing tests, slop patterns, security findings) can't merge until fixed.
+
+</Steps>
+
+<Aside>
+The constitution is injected into every AI call too — so Claude Code, Cursor, and other MCP clients will respect the same rules when generating code.
+</Aside>
