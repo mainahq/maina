@@ -2,22 +2,20 @@
 
 ## Tasks
 
-Each task should be completable in one commit. Test tasks precede implementation tasks.
-
-- [ ] [NEEDS CLARIFICATION] Define tasks.
+- [x] T1: Write TDD test stubs (18 red confirmed)
+- [x] T2: Implement `CloudErrorContext` type with user_id, org_id, plan_tier
+- [x] T3: Implement `buildCloudErrorEvent()` extending base event (PII scrubbed)
+- [x] T4: Implement `isCloudReportingEnabled()` — default true, opt-out
+- [x] T5: Implement `reportCloudError()` — consent-gated with Result (10 tests green)
+- [x] T6: Also fixed scrubStackTrace to scrub emails/secrets in stack lines
 
 ## Dependencies
 
-Which tasks block which? Draw the critical path.
-
-- [NEEDS CLARIFICATION]
+- Extends `buildErrorEvent()` from `packages/core/src/telemetry/reporter.ts`
 
 ## Definition of Done
 
-How do we know this feature is complete?
-
-- [ ] All tests pass
-- [ ] Biome lint clean
-- [ ] TypeScript compiles
-- [ ] maina analyze shows no errors
-- [ ] [NEEDS CLARIFICATION] Feature-specific criteria
+- [ ] All tests pass (red → green)
+- [ ] Biome lint + TypeScript clean
+- [ ] maina verify + slop + review + analyze pass
+- [ ] Events never include email or name

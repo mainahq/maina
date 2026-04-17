@@ -1,45 +1,30 @@
-# Feature: [Name]
+# Feature: Cloud error reporting — opt-out, account-linked
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
+Cloud users need error reporting linked to their account (user_id, org_id, plan_tier) so support can triage. Default-on with opt-out. Extends the OSS reporter (#121) with cloud-specific metadata.
 
 ## Target User
 
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
-
-## User Stories
-
-- As a [role], I want [capability] so that [benefit].
+- Primary: Maina Cloud support team triaging customer issues
+- Secondary: Cloud customers wanting visibility into their error history
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [ ] `buildCloudErrorEvent(error, context, cloudContext)` extends base error event with user_id, org_id, plan_tier
+- [ ] `isCloudReportingEnabled(cloudContext)` defaults to true, respects opt-out
+- [ ] `reportCloudError(error, context, cloudContext)` consent-gated cloud reporter
+- [ ] Events never include email or name — only IDs and plan tier
+- [ ] Unit tests for cloud metadata, opt-out, PII exclusion
 
 ## Scope
 
 ### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
+- Cloud error event builder extending OSS reporter
+- Opt-out check from cloud user settings
+- Cloud-specific metadata (user_id, org_id, plan_tier)
 
 ### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- Dashboard UI for error history (maina-cloud repo)
+- GDPR purge endpoint (maina-cloud repo)
+- PostHog SDK integration (future)
