@@ -9,7 +9,7 @@ Extend the existing `loadConstitution()` in `packages/core/src/prompts/loader.ts
 ## Key Technical Decisions
 
 - Simple frontmatter parsing (regex, no YAML library needed — format is just `applies_to: [...]`)
-- Bun.Glob for glob matching (built-in, no dependency)
+- Custom `matchGlob()` using regex (lightweight, no dependency — supports `*` and `**` patterns)
 - Deterministic merge: alphabetical sort of shard filenames
 
 ## Files
