@@ -2,22 +2,19 @@
 
 ## Tasks
 
-Each task should be completable in one commit. Test tasks precede implementation tasks.
-
-- [ ] [NEEDS CLARIFICATION] Define tasks.
+- [x] T1: Write TDD test stubs from spec (18 red, confirmed failing)
+- [x] T2: Implement `getInterviewQuestions()` — 3 fixed questions
+- [x] T3: Implement `loadRejectedRules()` / `saveRejectedRules()` — persistence with dedup
+- [x] T4: Implement `filterProposals()` — remove rejected from proposals
+- [x] T5: Implement `buildRulesFromAnswers()` — answers → ConstitutionRule[] (12 tests green)
+- [x] T6: `maina verify` + `maina review` + `maina analyze`
 
 ## Dependencies
 
-Which tasks block which? Draw the critical path.
-
-- [NEEDS CLARIFICATION]
+- Reuses `ConstitutionRule` type from `git-analyzer.ts`
 
 ## Definition of Done
 
-How do we know this feature is complete?
-
-- [ ] All tests pass
-- [ ] Biome lint clean
-- [ ] TypeScript compiles
-- [ ] maina analyze shows no errors
-- [ ] [NEEDS CLARIFICATION] Feature-specific criteria
+- [ ] All tests pass (red → green)
+- [ ] Biome lint + TypeScript clean
+- [ ] maina verify + slop + review + analyze pass

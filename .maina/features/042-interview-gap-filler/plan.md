@@ -4,45 +4,26 @@
 
 ## Architecture
 
-What is the technical approach? How does it fit into existing architecture?
-Where are the integration points with existing code?
-
-- Pattern: [NEEDS CLARIFICATION]
-- Integration points: [NEEDS CLARIFICATION]
+New module `packages/core/src/constitution/interview.ts`. Pure functions for question generation, rejected rule persistence (YAML-like format in `.maina/rejected.yml`), and proposal filtering. No interactive UI — that's the CLI layer's job.
 
 ## Key Technical Decisions
 
-What libraries, patterns, or approaches? WHY these and not alternatives?
-
-- [NEEDS CLARIFICATION]
+- Simple key-value YAML format for rejected.yml (no external YAML parser needed)
+- 3 fixed questions — not AI-generated (deterministic, fast)
+- `ConstitutionRule` type reused from git-analyzer.ts with confidence 0.8 (human-provided)
 
 ## Files
 
 | File | Purpose | New/Modified |
 |------|---------|-------------|
-| [NEEDS CLARIFICATION] | | |
+| `packages/core/src/constitution/interview.ts` | Interview questions + rejected rules | New |
+| `packages/core/src/constitution/__tests__/interview.test.ts` | TDD tests | New |
 
 ## Tasks
 
-TDD: every implementation task must have a preceding test task.
-
-- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.
-
-## Failure Modes
-
-What can go wrong? How do we handle it gracefully?
-
-- [NEEDS CLARIFICATION]
-
-## Testing Strategy
-
-Unit tests, integration tests, or both? What mocks are needed?
-
-- [NEEDS CLARIFICATION]
-
-
-## Wiki Context
-
-### Related Decisions
-
-- 0007-visual-verification-with-playwright: Visual verification with Playwright [proposed]
+- [ ] T1: Write TDD test stubs from spec (red phase)
+- [ ] T2: Implement `getInterviewQuestions()` — 3 fixed questions
+- [ ] T3: Implement `loadRejectedRules()` / `saveRejectedRules()` — persistence
+- [ ] T4: Implement `filterProposals()` — remove rejected from proposals
+- [ ] T5: Implement `buildRulesFromAnswers()` — answers → ConstitutionRule[]
+- [ ] T6: `maina verify` + `maina review` + `maina analyze`

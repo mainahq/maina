@@ -1,45 +1,36 @@
-# Feature: [Name]
+# Feature: Interview gap-filler + interactive confirm
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
+After scanning configs, git history, and code patterns, some conventions can't be auto-detected — they need human input. Questions like "Files AI should never touch?", "Deploy-time gotchas?", "What does every new contributor get wrong?" fill gaps that scanners miss. Rejected rules should persist so subsequent scans don't re-propose them.
 
 ## Target User
 
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
+- Primary: Developers running `maina learn` to build their constitution
+- Secondary: Teams onboarding new repos
 
 ## User Stories
 
-- As a [role], I want [capability] so that [benefit].
+- As a developer, I want `maina learn` to ask me about things it couldn't detect so the constitution is complete.
+- As a team lead, I want rejected rules remembered so I'm not asked the same question twice.
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [ ] `interviewGapFiller()` returns 3 fixed questions with structured answers
+- [ ] `loadRejectedRules()` reads from `.maina/rejected.yml`
+- [ ] `saveRejectedRules()` persists rejected rules
+- [ ] `filterProposals()` removes previously rejected rules from new proposals
+- [ ] Non-TTY mode writes draft without interaction (returns questions + defaults)
+- [ ] Unit tests for all functions
 
 ## Scope
 
 ### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
+- 3 fixed interview questions
+- Rejected rules persistence in `.maina/rejected.yml`
+- Filtering logic for `maina learn --update`
+- Non-TTY mode support
 
 ### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- Interactive UI (clack prompts) — that's in the CLI command layer
+- AI-generated follow-up questions
