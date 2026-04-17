@@ -283,7 +283,8 @@ describe("Decision Extractor", () => {
 			expect(result.ok).toBe(true);
 			if (!result.ok) return;
 
-			expect(result.value).toHaveLength(12);
+			// Dynamic count: we keep adding ADRs, so just check we find at least 12
+			expect(result.value.length).toBeGreaterThanOrEqual(12);
 			for (const d of result.value) {
 				expect(d.id).toBeTruthy();
 				expect(d.title).toBeTruthy();
