@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-	formatImportedRules,
-	importExistingRules,
 	loadConstitution,
+	loadConstitutionShards,
+	loadScopedConstitution,
 	loadUserOverride,
 	mergePrompts,
 	renderTemplate,
@@ -106,83 +106,116 @@ describe("renderTemplate", () => {
 	});
 });
 
-// ── importExistingRules ─────────────────────────────────────────────
+// ── loadConstitutionShards ──────────────────────────────────────────────
 
-describe("importExistingRules", () => {
-	test("reads CLAUDE.md and AGENTS.md from repo root", async () => {
-		writeFileSync(join(tmpDir, "CLAUDE.md"), "# Claude Rules\nUse TypeScript.");
-		writeFileSync(join(tmpDir, "AGENTS.md"), "# Agent Rules\nRun tests.");
-
-		const rules = await importExistingRules(tmpDir, "");
-		expect(rules.length).toBe(2);
-		expect(rules.some((r) => r.source === "CLAUDE.md")).toBe(true);
-		expect(rules.some((r) => r.source === "AGENTS.md")).toBe(true);
-	});
-
-	test("reads .cursorrules", async () => {
-		writeFileSync(join(tmpDir, ".cursorrules"), "Use arrow functions.");
-
-		const rules = await importExistingRules(tmpDir, "");
-		expect(rules.length).toBe(1);
-		expect(rules[0]?.source).toBe(".cursorrules");
-		expect(rules[0]?.content).toContain("arrow functions");
-	});
-
-	test("skips files already imported (provenance marker in constitution)", async () => {
-		writeFileSync(join(tmpDir, "CLAUDE.md"), "# Claude Rules");
-		const constitution = "## Imported Rules\n<!-- imported_from: CLAUDE.md -->";
-
-		const rules = await importExistingRules(tmpDir, constitution);
-		expect(rules.length).toBe(0);
-	});
-
-	test("skips empty files", async () => {
-		writeFileSync(join(tmpDir, "CLAUDE.md"), "");
-		writeFileSync(join(tmpDir, ".cursorrules"), "   \n  ");
-
-		const rules = await importExistingRules(tmpDir, "");
-		expect(rules.length).toBe(0);
-	});
-
-	test("skips missing files without error", async () => {
-		const rules = await importExistingRules(tmpDir, "");
-		expect(rules.length).toBe(0);
-	});
-
-	test("extracts only relevant sections from CONTRIBUTING.md", async () => {
+describe("loadConstitutionShards", () => {
+	test("reads shards from constitution.d/ sorted alphabetically", async () => {
+		const shardsDir = join(tmpDir, "constitution.d");
+		mkdirSync(shardsDir, { recursive: true });
 		writeFileSync(
-			join(tmpDir, "CONTRIBUTING.md"),
-			[
-				"# Contributing",
-				"Thanks for contributing!",
-				"## Code Style",
-				"Use tabs, not spaces.",
-				"## How to Submit",
-				"Open a PR on GitHub.",
-				"## Testing",
-				"Write tests first.",
-			].join("\n"),
+			join(shardsDir, "frontend.md"),
+			'---\napplies_to: ["apps/web/**"]\n---\nUse React.',
+		);
+		writeFileSync(
+			join(shardsDir, "api.md"),
+			'---\napplies_to: ["apps/api/**"]\n---\nUse Hono.',
 		);
 
-		const rules = await importExistingRules(tmpDir, "");
-		expect(rules.length).toBe(1);
-		expect(rules[0]?.content).toContain("Code Style");
-		expect(rules[0]?.content).toContain("Testing");
-		expect(rules[0]?.content).not.toContain("How to Submit");
+		const shards = await loadConstitutionShards(tmpDir);
+		expect(shards.length).toBe(2);
+		// Sorted: api.md before frontend.md
+		expect(shards[0]?.filename).toBe("api.md");
+		expect(shards[0]?.content).toBe("Use Hono.");
+		expect(shards[0]?.appliesTo).toEqual(["apps/api/**"]);
+		expect(shards[1]?.filename).toBe("frontend.md");
+		expect(shards[1]?.content).toBe("Use React.");
+	});
+
+	test("returns empty when constitution.d/ does not exist", async () => {
+		const shards = await loadConstitutionShards(tmpDir);
+		expect(shards).toEqual([]);
+	});
+
+	test("handles shards without applies_to (global shards)", async () => {
+		const shardsDir = join(tmpDir, "constitution.d");
+		mkdirSync(shardsDir, { recursive: true });
+		writeFileSync(join(shardsDir, "global.md"), "No frontmatter here.");
+
+		const shards = await loadConstitutionShards(tmpDir);
+		expect(shards.length).toBe(1);
+		expect(shards[0]?.appliesTo).toEqual([]);
+		expect(shards[0]?.content).toBe("No frontmatter here.");
 	});
 });
 
-describe("formatImportedRules", () => {
-	test("formats rules with provenance comments", () => {
-		const result = formatImportedRules([
-			{ source: "CLAUDE.md", content: "Use TypeScript." },
-		]);
-		expect(result).toContain("## Imported Rules");
-		expect(result).toContain("<!-- imported_from: CLAUDE.md -->");
-		expect(result).toContain("Use TypeScript.");
+// ── loadScopedConstitution ──────────────────────────────────────────────
+
+describe("loadScopedConstitution", () => {
+	test("returns only root when no constitution.d/ exists (backward compat)", async () => {
+		writeFileSync(join(tmpDir, "constitution.md"), "# Root rules");
+
+		const result = await loadScopedConstitution(tmpDir);
+		expect(result).toBe("# Root rules");
 	});
 
-	test("returns empty string for no rules", () => {
-		expect(formatImportedRules([])).toBe("");
+	test("merges root + all shards when no filePath given", async () => {
+		writeFileSync(join(tmpDir, "constitution.md"), "# Root");
+		const shardsDir = join(tmpDir, "constitution.d");
+		mkdirSync(shardsDir, { recursive: true });
+		writeFileSync(
+			join(shardsDir, "extra.md"),
+			'---\napplies_to: ["src/**"]\n---\nExtra rule.',
+		);
+
+		const result = await loadScopedConstitution(tmpDir);
+		expect(result).toContain("# Root");
+		expect(result).toContain("Extra rule.");
+		expect(result).toContain("constitution.d/extra.md");
+	});
+
+	test("filters shards by filePath glob", async () => {
+		writeFileSync(join(tmpDir, "constitution.md"), "# Root");
+		const shardsDir = join(tmpDir, "constitution.d");
+		mkdirSync(shardsDir, { recursive: true });
+		writeFileSync(
+			join(shardsDir, "frontend.md"),
+			'---\napplies_to: ["apps/web/**"]\n---\nReact rules.',
+		);
+		writeFileSync(
+			join(shardsDir, "api.md"),
+			'---\napplies_to: ["apps/api/**"]\n---\nHono rules.',
+		);
+
+		const webResult = await loadScopedConstitution(
+			tmpDir,
+			"apps/web/src/App.tsx",
+		);
+		expect(webResult).toContain("React rules.");
+		expect(webResult).not.toContain("Hono rules.");
+
+		const apiResult = await loadScopedConstitution(
+			tmpDir,
+			"apps/api/src/index.ts",
+		);
+		expect(apiResult).toContain("Hono rules.");
+		expect(apiResult).not.toContain("React rules.");
+	});
+
+	test("includes global shards (no applies_to) for any filePath", async () => {
+		writeFileSync(join(tmpDir, "constitution.md"), "# Root");
+		const shardsDir = join(tmpDir, "constitution.d");
+		mkdirSync(shardsDir, { recursive: true });
+		writeFileSync(join(shardsDir, "global.md"), "Global rule for all.");
+		writeFileSync(
+			join(shardsDir, "scoped.md"),
+			'---\napplies_to: ["apps/web/**"]\n---\nWeb only.',
+		);
+
+		const result = await loadScopedConstitution(
+			tmpDir,
+			"packages/core/src/index.ts",
+		);
+		expect(result).toContain("Global rule for all.");
+		expect(result).not.toContain("Web only.");
 	});
 });
