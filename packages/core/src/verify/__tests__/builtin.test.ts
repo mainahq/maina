@@ -144,6 +144,38 @@ describe("checkSecrets", () => {
 		const findings = checkSecrets("src/config.ts", content);
 		expect(findings).toHaveLength(1);
 	});
+
+	it("skips test files entirely (#85)", () => {
+		const content = `const token = "real-looking-token-abc123";\n`;
+		expect(checkSecrets("src/__tests__/auth.test.ts", content)).toHaveLength(0);
+		expect(checkSecrets("tests/config.spec.ts", content)).toHaveLength(0);
+		expect(checkSecrets("src/auth.test.js", content)).toHaveLength(0);
+	});
+
+	it("ignores obvious test fixture values (#85)", () => {
+		const content = `apiKey: "test-key-not-real";\n`;
+		expect(checkSecrets("src/config.ts", content)).toHaveLength(0);
+	});
+
+	it("ignores values starting with test/fake/mock/dummy/placeholder", () => {
+		const fixtures = [
+			`token = "test-token-abc"`,
+			`apikey = "fake-api-key"`,
+			`secret = "mock-secret-123"`,
+			`password = "dummy-password"`,
+			`api_key = "placeholder-key"`,
+			`token = "xxx"`,
+			`secret = "your-secret-here"`,
+		];
+		for (const line of fixtures) {
+			expect(checkSecrets("src/config.ts", line)).toHaveLength(0);
+		}
+	});
+
+	it("still flags real-looking secrets in non-test files", () => {
+		const content = `const apikey = "sk_live_abc123def456";\n`;
+		expect(checkSecrets("src/config.ts", content)).toHaveLength(1);
+	});
 });
 
 // ─── checkEmptyCatch ─────────────────────────────────────────────────────

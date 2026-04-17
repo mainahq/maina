@@ -194,6 +194,9 @@ export function checkFileSize(filePath: string, content: string): Finding[] {
  * followed by a quoted or literal non-empty value (not a variable reference).
  */
 export function checkSecrets(filePath: string, content: string): Finding[] {
+	// Skip test files — they use fake credentials by definition
+	if (isTestFile(filePath)) return [];
+
 	const findings: Finding[] = [];
 	const lines = content.split("\n");
 
@@ -202,9 +205,13 @@ export function checkSecrets(filePath: string, content: string): Finding[] {
 	const secretPattern =
 		/\b(password|secret|token|api_key|apikey|api_secret|private_key|auth_token)\s*[=:]\s*["'`]([^"'`\s$]{2,})["'`]/i;
 
+	// Values that are obviously test fixtures, not real secrets
+	const testValuePattern =
+		/^(test|fake|mock|dummy|example|placeholder|xxx|changeme|TODO|your-|my-|not-real|sk-test|pk-test)/i;
+
 	for (const [i, line] of lines.entries()) {
 		const match = line.match(secretPattern);
-		if (match) {
+		if (match && match[2] && !testValuePattern.test(match[2])) {
 			findings.push({
 				tool: "builtin",
 				file: filePath,
