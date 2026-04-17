@@ -1,4 +1,4 @@
-# 0016. Error reporting backend (Sentry / GlitchTip)
+# 0016. Error and telemetry backend (PostHog)
 
 Date: 2026-04-17
 
@@ -8,65 +8,93 @@ Accepted
 
 ## Context
 
-Maina needs crash/error reporting for both the open-source CLI and the Cloud service. Without it, bugs ship blind — users file vague "it didn't work" issues and maintainers can't reproduce.
+Maina needs crash reporting, usage telemetry, and product analytics for both the open-source CLI and the Cloud service. Requirements:
 
-Requirements:
 - OSS: opt-in, aggressive PII scrubbing, zero data until consent
 - Cloud: opt-out (default on), account-linked for support triage
-- Both paths must use the same SDK to avoid maintaining two integrations
+- Single platform preferred over stitching multiple backends together
 
 ## Decision
 
-Use **Sentry managed** for Cloud and **GlitchTip self-hosted** for OSS. Both speak the Sentry SDK protocol — one SDK in code (`@sentry/node`), different DSN per build target, zero lock-in.
+Use **PostHog** as the single backend for errors, usage telemetry, and product analytics.
 
-### Cost Model
+- **Cloud**: PostHog Cloud (EU hosting available, generous free tier — 1M events/mo)
+- **OSS**: PostHog Cloud with aggressive client-side scrubbing (same SDK, same project, scrubbed before send)
+- **One SDK**: `posthog-node` for all server-side events
+- **Fallback**: If PostHog's error tracking proves insufficient for stack trace depth or source map support, evaluate adding Sentry alongside — but start with one platform
 
-| Scale | Sentry (managed) | GlitchTip (self-hosted) |
-|-------|-------------------|-------------------------|
-| 10k events/mo | Free tier (5k free + $26/mo for 10k) | ~$10/mo (small VM) |
-| 100k events/mo | ~$89/mo (Team plan) | ~$25/mo (medium VM) |
+### Why PostHog Over Sentry + Separate Analytics
 
-### Why Not Just Sentry Everywhere
+| Concern | PostHog | Sentry + PostHog/Mixpanel |
+|---------|---------|---------------------------|
+| Backends to maintain | 1 | 2-3 |
+| SDKs in code | 1 (`posthog-node`) | 2+ (`@sentry/node` + `posthog-node`) |
+| Error tracking | Good (newer, improving) | Best-in-class (Sentry) |
+| Usage analytics | Built-in (funnels, retention) | Need separate tool |
+| Feature flags | Built-in | Need separate tool |
+| Free tier | 1M events/mo | Sentry 5k + PostHog 1M |
+| Self-hostable | Yes (MIT, Docker) | Sentry is heavy (Kafka, ClickHouse) |
+| Cost at 100k errors + 500k events/mo | Free tier | ~$89/mo (Sentry) + free (PostHog) |
 
-- OSS users may distrust sending data to a SaaS service
-- GlitchTip is fully open-source, Sentry-SDK-compatible, lightweight
-- OSS builds ship with GlitchTip DSN (self-hosted), Cloud builds ship with Sentry DSN
-- Same SDK, same API, different backend — zero code divergence
+**One platform beats two.** PostHog's error tracking is good enough to start. If we outgrow it, Sentry is a clean add — but we don't pay the complexity tax upfront.
 
-### Why Not Just GlitchTip Everywhere
+### Events Schema
 
-- Sentry's managed service has superior DX: release tracking, source maps, performance monitoring, Slack/PagerDuty integrations
-- For Cloud (paid product), the ops cost of self-hosting GlitchTip exceeds Sentry's managed price
-- Sentry's free tier covers early Cloud usage
+**Error events** (crash reports):
+- `maina.error` — error class, scrubbed message, scrubbed stack trace, command, OS, Maina version, anonymized agent identifier
+
+**Usage events** (telemetry):
+- `maina.install` — OS, runtime, Maina version
+- `maina.verify.started` / `.completed` — tool count, duration, pass/fail
+- `maina.learn.ran` — rules proposed, rules accepted
+- `maina.commit` — verify pass/fail, tool count
+
+All events are anonymous. PII scrubbing runs client-side before network send.
+
+### Consent Model
+
+- **OSS**: Single prompt at first run — "Share anonymous usage data to help improve Maina? [y/N]". Stored in `~/.maina/config.yml`. `maina telemetry off` permanently disables.
+- **Cloud**: Default on. Opt-out via dashboard settings. Opt-out is immediate.
+- Error reporting and usage telemetry share one consent toggle (one backend = one toggle).
+
+## Cost Model
+
+| Scale | PostHog Cloud |
+|-------|---------------|
+| Early (< 1M events/mo) | Free |
+| Growth (1M-5M events/mo) | ~$0-450/mo (usage-based) |
+| Scale (10M+ events/mo) | Self-hosted option available |
 
 ## Alternatives Considered
 
-| Option | Pros | Cons | Verdict |
-|--------|------|------|---------|
-| Sentry (managed only) | Best DX, polyglot SDKs | SaaS dependency for OSS users | Rejected for OSS |
-| Sentry (self-hosted only) | Full control | Heavy ops (PostgreSQL, Redis, Kafka, ClickHouse) | Rejected — overengineered |
-| GlitchTip (self-hosted only) | Lightweight, free | Smaller ecosystem, no managed option | Rejected for Cloud |
-| **Hybrid: Sentry Cloud + GlitchTip OSS** | Best of both, one SDK | Two backends to monitor | **Accepted** |
-| Highlight.io | Modern, open-source | Newer, smaller community | Not evaluated in depth |
+| Option | Verdict |
+|--------|---------|
+| Sentry (managed) | Best error tracking but 5k free tier, need separate analytics tool — rejected as primary |
+| Sentry + PostHog | Two backends, two SDKs, more ops — rejected for now, Sentry as fallback if needed |
+| GlitchTip | Never used, smaller ecosystem, error-only — rejected |
+| Highlight.io | Newer, smaller community — not evaluated |
+| **PostHog (unified)** | **Accepted** — one platform for errors + analytics + feature flags |
 
 ## Implementation
 
-1. `@sentry/node` SDK in `packages/core/src/errors/`
-2. DSN set at build time via environment variable
-3. PII scrubbing library runs client-side before any network send (see #120)
-4. OSS: consent prompt at first run, stored in `~/.maina/config.yml`
-5. Cloud: default on, opt-out via dashboard settings
+1. `posthog-node` SDK in `packages/core/src/telemetry/`
+2. Project token set at build time via environment variable
+3. PII scrubbing library runs client-side before any event send (see #120)
+4. OSS: consent prompt at first run, `~/.maina/config.yml`
+5. Cloud: default on, opt-out via dashboard + API
+6. Feature flags via PostHog for experiment gating (#126, #127)
 
 ## Consequences
 
 ### Positive
 
-- One SDK, two backends — no code divergence
-- OSS users get privacy-first error reporting
-- Cloud gets enterprise-grade observability
-- Zero vendor lock-in (both backends speak Sentry protocol)
+- One platform, one SDK, one consent toggle — minimal complexity
+- 1M events/mo free tier covers early growth
+- Product analytics (funnels, retention) enable data-driven onboarding improvements
+- Feature flags built-in — useful for experiment gating (Stagehand, Orama)
+- Self-hostable if needed later
 
 ### Negative
 
-- Two backends to monitor (mitigated: GlitchTip is low-maintenance)
-- GlitchTip ecosystem is smaller than Sentry (mitigated: SDK is identical)
+- PostHog's error tracking is less mature than Sentry (acceptable tradeoff — start simple, upgrade if needed)
+- Stack trace / source map support not as deep as Sentry (mitigated: most errors are in JS/TS where PostHog is adequate)
