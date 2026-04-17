@@ -1,45 +1,23 @@
-# Feature: [Name]
+# Feature: PII and code-content scrubbing library
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
-
-## Target User
-
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
-
-## User Stories
-
-- As a [role], I want [capability] so that [benefit].
+Error reporting (PostHog) must never leak PII or code content. Both OSS and Cloud paths depend on a client-side scrubber that runs before any network send.
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [x] Redacts: absolute file paths, code snippets in stack frames, env variable values, usernames/emails/IPs, API keys/tokens, repo names, commit messages, branch names
+- [x] Keeps: error class, scrubbed message, stack trace structure/line numbers/function names, OS/Maina version
+- [x] 20+ adversarial unit tests (leaked keys, user paths, code snippets)
+- [x] Runs on client, pure function, no side effects
 
 ## Scope
 
 ### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
+- `scrubPii(text)` — general text scrubber
+- `scrubStackTrace(stack)` — stack-trace-specific scrubber
+- `scrubErrorEvent(event)` — full event scrubber for PostHog/Sentry payloads
 
 ### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- Server-side scrubbing (client-only by design)
+- Fuzz testing (future enhancement)

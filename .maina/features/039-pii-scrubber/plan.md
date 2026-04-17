@@ -4,38 +4,20 @@
 
 ## Architecture
 
-What is the technical approach? How does it fit into existing architecture?
-Where are the integration points with existing code?
-
-- Pattern: [NEEDS CLARIFICATION]
-- Integration points: [NEEDS CLARIFICATION]
-
-## Key Technical Decisions
-
-What libraries, patterns, or approaches? WHY these and not alternatives?
-
-- [NEEDS CLARIFICATION]
+New module `packages/core/src/telemetry/scrubber.ts`. Pure functions with regex-based pattern matching. No external dependencies.
 
 ## Files
 
 | File | Purpose | New/Modified |
 |------|---------|-------------|
-| [NEEDS CLARIFICATION] | | |
+| `packages/core/src/telemetry/scrubber.ts` | PII scrubbing functions | New |
+| `packages/core/src/telemetry/__tests__/scrubber.test.ts` | Adversarial tests | New |
 
 ## Tasks
 
-TDD: every implementation task must have a preceding test task.
-
-- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.
-
-## Failure Modes
-
-What can go wrong? How do we handle it gracefully?
-
-- [NEEDS CLARIFICATION]
-
-## Testing Strategy
-
-Unit tests, integration tests, or both? What mocks are needed?
-
-- [NEEDS CLARIFICATION]
+- [x] T1: Implement `scrubFilePaths()` — absolute paths → repo-relative
+- [x] T2: Implement `scrubSecrets()` — API keys, tokens, passwords
+- [x] T3: Implement `scrubPersonalInfo()` — emails, IPs, usernames
+- [x] T4: Implement `scrubCodeContent()` — code snippets in stack frames
+- [x] T5: Implement `scrubPii()` — combined scrubber
+- [x] T6: Write 20+ adversarial tests
