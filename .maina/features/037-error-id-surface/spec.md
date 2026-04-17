@@ -1,45 +1,25 @@
-# Feature: [Name]
+# Feature: Error ID surface (CLI, MCP, PR comments)
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
-
-## Target User
-
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
-
-## User Stories
-
-- As a [role], I want [capability] so that [benefit].
+When maina crashes, users have no quick way to reference the error in a bug report. Maintainers can't correlate "it didn't work" with a specific stack trace. Error IDs give every captured error a short, unique, user-quotable identifier.
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [ ] IDs are 6-8 chars, no ambiguous chars (O/0, I/l)
+- [ ] `generateErrorId()` is deterministic for the same error (same class + message = same ID)
+- [ ] `formatErrorWithId()` produces CLI-ready and MCP-ready output
+- [ ] Unit tests cover ID generation, formatting, and ambiguous char exclusion
 
 ## Scope
 
 ### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
+- Error ID generation function
+- CLI stderr format: `Error ERR-ab12cd. Report at github.com/mainahq/maina/issues`
+- MCP error format: `{ "error": "...", "error_id": "ERR-ab12cd" }`
+- Recent error ID storage (last 5, for `maina doctor`)
 
 ### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- Wiring into every CLI command (incremental, per-command)
+- PostHog integration (separate issue)
+- GitHub issue template (separate issue)

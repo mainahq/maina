@@ -4,65 +4,19 @@
 
 ## Architecture
 
-What is the technical approach? How does it fit into existing architecture?
-Where are the integration points with existing code?
-
-- Pattern: [NEEDS CLARIFICATION]
-- Integration points: [NEEDS CLARIFICATION]
-
-## Key Technical Decisions
-
-What libraries, patterns, or approaches? WHY these and not alternatives?
-
-- [NEEDS CLARIFICATION]
+New module `packages/core/src/errors/error-id.ts`. Pure functions, no side effects. ID generated from hash of error class + message, encoded in base32 without ambiguous chars.
 
 ## Files
 
 | File | Purpose | New/Modified |
 |------|---------|-------------|
-| [NEEDS CLARIFICATION] | | |
+| `packages/core/src/errors/error-id.ts` | ID generation + formatting | New |
+| `packages/core/src/errors/__tests__/error-id.test.ts` | Tests | New |
+| `packages/core/src/index.ts` | Export new functions | Modified |
 
 ## Tasks
 
-TDD: every implementation task must have a preceding test task.
-
-- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.
-
-## Failure Modes
-
-What can go wrong? How do we handle it gracefully?
-
-- [NEEDS CLARIFICATION]
-
-## Testing Strategy
-
-Unit tests, integration tests, or both? What mocks are needed?
-
-- [NEEDS CLARIFICATION]
-
-
-## Wiki Context
-
-### Related Modules
-
-- **src** (9 entities) — `modules/src.md`
-- **cluster-130** (3 entities) — `modules/cluster-130.md`
-
-### Related Decisions
-
-- 0011-v040-polish-ci: v0.4.0 Polish + CI [accepted]
-- 0003-fix-host-delegation-for-cli-ai-tasks: Fix host delegation for CLI AI tasks [proposed]
-
-### Similar Features
-
-- 002-ticket: Implementation Plan
-- 007-todo-api-crud: Implementation Plan
-- 024-v05-cloud-client: Implementation Plan — v0.5.0 Cloud Client + maina-cloud
-
-### Suggestions
-
-- Module 'src' already has 9 entities — consider extending it
-- Feature 002-ticket did something similar — check wiki/features/002-ticket.md
-- Feature 007-todo-api-crud did something similar — check wiki/features/007-todo-api-crud.md
-- Feature 024-v05-cloud-client did something similar — check wiki/features/024-v05-cloud-client.md
-- ADR 0011-v040-polish-ci (v0.4.0 Polish + CI) is accepted — ensure compatibility
+- [ ] T1: Write tests for ID generation, formatting, ambiguous char exclusion
+- [ ] T2: Implement `generateErrorId(error)` using Bun's hash
+- [ ] T3: Implement `formatErrorForCli(error)` and `formatErrorForMcp(error)`
+- [ ] T4: maina verify + maina slop
