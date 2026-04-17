@@ -23,15 +23,18 @@ describe("createMcpServer", () => {
 	test("default mode registers all tools plus list_tools meta-tool", () => {
 		const server = createMcpServer();
 		const names = getRegisteredToolNames(server);
-		// 10 tools + list_tools = 11
-		expect(names).toHaveLength(11);
+		// 13 tools + list_tools = 14 (10 original + 3 deepwiki)
+		expect(names).toHaveLength(14);
 		expect(names).toContain("list_tools");
+		expect(names).toContain("ask_question");
+		expect(names).toContain("read_wiki_structure");
+		expect(names).toContain("read_wiki_contents");
 	});
 
-	test("allTools mode registers 10 tools without list_tools", () => {
+	test("allTools mode registers 13 tools without list_tools", () => {
 		const server = createMcpServer({ allTools: true });
 		const names = getRegisteredToolNames(server);
-		expect(names).toHaveLength(10);
+		expect(names).toHaveLength(13);
 		expect(names).not.toContain("list_tools");
 	});
 
@@ -92,13 +95,16 @@ describe("list_tools meta-tool", () => {
 
 		const result = await cb({}, {});
 		const parsed = JSON.parse(result.content[0].text);
-		expect(parsed.data.tools.length).toBe(10);
-		expect(parsed.data.total).toBe(10);
+		expect(parsed.data.tools.length).toBe(13);
+		expect(parsed.data.total).toBe(13);
 
 		const toolNames = parsed.data.tools.map((t: { name: string }) => t.name);
 		expect(toolNames).toContain("verify");
 		expect(toolNames).toContain("reviewCode");
 		expect(toolNames).toContain("wikiQuery");
+		expect(toolNames).toContain("ask_question");
+		expect(toolNames).toContain("read_wiki_structure");
+		expect(toolNames).toContain("read_wiki_contents");
 	});
 });
 

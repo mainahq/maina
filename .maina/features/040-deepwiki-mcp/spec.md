@@ -1,45 +1,24 @@
-# Feature: [Name]
+# Feature: DeepWiki-compatible MCP server
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
-
-## Target User
-
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
-
-## User Stories
-
-- As a [role], I want [capability] so that [benefit].
+DeepWiki is gaining traction for codebase Q&A. Maina's wiki engine already does the same thing better (verification-aware, blast radius). By exposing 3 DeepWiki-compatible tools, any client that speaks DeepWiki gets instant Maina interop.
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [x] `ask_question(repo, question)` — delegates to wikiQuery
+- [x] `read_wiki_structure(repo)` — returns wiki article index
+- [x] `read_wiki_contents(repo, page)` — returns article content
+- [x] All 3 tools registered in the MCP server
+- [x] Unit tests for each tool
 
 ## Scope
 
 ### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
+- 3 new MCP tools matching DeepWiki's surface
+- Delegation to existing wiki engine functions
+- Registered alongside existing Maina tools
 
 ### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- Standalone `maina-wiki-mcp` package (future)
+- Full DeepWiki test harness compatibility
