@@ -78,17 +78,31 @@ export function registerContextTools(server: McpServer): void {
 					mainaDir,
 				});
 
+				const response = JSON.stringify({
+					data: {
+						context: output,
+						tokens: result.tokens,
+						mode: result.mode,
+						layers: result.layers,
+					},
+					error: null,
+					meta: {
+						durationMs,
+						command,
+						truncated: output.length < result.text.length,
+					},
+				});
 				return {
-					content: [{ type: "text" as const, text: output }],
+					content: [{ type: "text" as const, text: response }],
 				};
 			} catch (e) {
+				const response = JSON.stringify({
+					data: null,
+					error: e instanceof Error ? e.message : String(e),
+					meta: { command },
+				});
 				return {
-					content: [
-						{
-							type: "text" as const,
-							text: `Error: ${e instanceof Error ? e.message : String(e)}`,
-						},
-					],
+					content: [{ type: "text" as const, text: response }],
 					isError: true,
 				};
 			}
@@ -120,17 +134,22 @@ export function registerContextTools(server: McpServer): void {
 					mainaDir,
 				});
 
+				const response = JSON.stringify({
+					data: { conventions: output, promptHash: built.hash },
+					error: null,
+					meta: { durationMs, truncated: output.length < built.prompt.length },
+				});
 				return {
-					content: [{ type: "text" as const, text: output }],
+					content: [{ type: "text" as const, text: response }],
 				};
 			} catch (e) {
+				const response = JSON.stringify({
+					data: null,
+					error: e instanceof Error ? e.message : String(e),
+					meta: {},
+				});
 				return {
-					content: [
-						{
-							type: "text" as const,
-							text: `Error: ${e instanceof Error ? e.message : String(e)}`,
-						},
-					],
+					content: [{ type: "text" as const, text: response }],
 					isError: true,
 				};
 			}
