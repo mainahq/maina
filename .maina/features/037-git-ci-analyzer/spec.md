@@ -1,45 +1,25 @@
-# Feature: [Name]
+# Feature: Git-log + CI analyzer for constitution rules
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
-
-## Target User
-
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
-
-## User Stories
-
-- As a [role], I want [capability] so that [benefit].
+Constitution rules today are manually authored. Git history and CI config contain implicit conventions (commit format, CI checks, code ownership) that should be auto-detected and proposed as rules.
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [x] Detects conventional commit usage rate + common scopes
+- [x] Finds top 20 churn files from recent history
+- [x] Extracts CI workflow names from `.github/workflows/*.yml`
+- [x] Detects CODEOWNERS rules
+- [x] Runs in under 5 seconds on repos up to 10k commits
+- [x] Graceful degradation on non-git directories and shallow clones
 
 ## Scope
 
 ### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
+- `analyzeCommitConventions()`, `analyzeHotPaths()`, `analyzeCiWorkflows()`, `analyzeCodeowners()`
+- Combined `analyzeGitAndCi()` running all in parallel
+- Each rule has `{ text, confidence, source }`
 
 ### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+- Interactive propose/accept flow (separate issue #117)
+- Writing rules to constitution.md (consumer responsibility)

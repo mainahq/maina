@@ -2,22 +2,9 @@
 
 ## Tasks
 
-Each task should be completable in one commit. Test tasks precede implementation tasks.
-
-- [ ] [NEEDS CLARIFICATION] Define tasks.
-
-## Dependencies
-
-Which tasks block which? Draw the critical path.
-
-- [NEEDS CLARIFICATION]
-
-## Definition of Done
-
-How do we know this feature is complete?
-
-- [ ] All tests pass
-- [ ] Biome lint clean
-- [ ] TypeScript compiles
-- [ ] maina analyze shows no errors
-- [ ] [NEEDS CLARIFICATION] Feature-specific criteria
+- [x] T1: Implement analyzeCommitConventions (conventional commit regex, scope extraction)
+- [x] T2: Implement analyzeHotPaths (git log --name-only, top N churn)
+- [x] T3: Implement analyzeCiWorkflows (read .github/workflows/*.yml)
+- [x] T4: Implement analyzeCodeowners (check 3 paths: root, .github/, docs/)
+- [x] T5: Implement analyzeGitAndCi (parallel combination)
+- [x] T6: Write tests (9 tests: CI workflows, CODEOWNERS, commit conventions, hot paths, combined)

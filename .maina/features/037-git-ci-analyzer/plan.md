@@ -4,63 +4,20 @@
 
 ## Architecture
 
-What is the technical approach? How does it fit into existing architecture?
-Where are the integration points with existing code?
-
-- Pattern: [NEEDS CLARIFICATION]
-- Integration points: [NEEDS CLARIFICATION]
-
-## Key Technical Decisions
-
-What libraries, patterns, or approaches? WHY these and not alternatives?
-
-- [NEEDS CLARIFICATION]
+New module `packages/core/src/constitution/git-analyzer.ts`. Uses `Bun.spawn` for git commands, `fs` for CI/CODEOWNERS. All analyzers run in parallel via `Promise.all`.
 
 ## Files
 
 | File | Purpose | New/Modified |
 |------|---------|-------------|
-| [NEEDS CLARIFICATION] | | |
+| `packages/core/src/constitution/git-analyzer.ts` | All 4 analyzers + combined runner | New |
+| `packages/core/src/constitution/__tests__/git-analyzer.test.ts` | 9 tests | New |
 
 ## Tasks
 
-TDD: every implementation task must have a preceding test task.
-
-- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.
-
-## Failure Modes
-
-What can go wrong? How do we handle it gracefully?
-
-- [NEEDS CLARIFICATION]
-
-## Testing Strategy
-
-Unit tests, integration tests, or both? What mocks are needed?
-
-- [NEEDS CLARIFICATION]
-
-
-## Wiki Context
-
-### Related Modules
-
-- **git** (11 entities) — `modules/git.md`
-- **cluster-14** (5 entities) — `modules/cluster-14.md`
-- **cluster-13** (3 entities) — `modules/cluster-13.md`
-
-### Related Decisions
-
-- 0006-post-workflow-rl-self-improvement-loop: Post-workflow RL self-improvement loop [proposed]
-- 0005-background-rl-feedback-at-each-workflow-step: Background RL feedback at each workflow step [proposed]
-- 0007-visual-verification-with-playwright: Visual verification with Playwright [proposed]
-- 0001-karpathy-principled-spec-quality-system: Karpathy-Principled Spec Quality System [proposed]
-
-### Similar Features
-
-- 008-benchmark-comparison: Benchmark: Claude + Superpowers vs Claude + Maina
-
-### Suggestions
-
-- Module 'git' already has 11 entities — consider extending it
-- Feature 008-benchmark-comparison did something similar — check wiki/features/008-benchmark-comparison.md
+- [x] T1: Implement `analyzeCommitConventions()` with conventional commit regex
+- [x] T2: Implement `analyzeHotPaths()` with git log --name-only
+- [x] T3: Implement `analyzeCiWorkflows()` reading .github/workflows/*.yml
+- [x] T4: Implement `analyzeCodeowners()` checking 3 possible paths
+- [x] T5: Implement `analyzeGitAndCi()` combining all in parallel
+- [x] T6: Write 9 tests covering real repo + temp dir scenarios
