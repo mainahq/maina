@@ -1,0 +1,51 @@
+---
+title: Verify a PR in CI
+description: Run maina verification on every pull request with GitHub Actions.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Run the full verification pipeline on every PR automatically.
+
+<Steps>
+
+1. **Add the workflow**
+
+   ```yaml title=".github/workflows/maina-ci.yml"
+   name: Maina CI
+   on: [pull_request]
+   jobs:
+     verify:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v4
+         - uses: oven-sh/setup-bun@v2
+         - run: bun install
+         - run: bun add -d @mainahq/cli
+         - run: bunx maina verify
+   ```
+
+2. **Or use the cloud action**
+
+   ```yaml title=".github/workflows/maina-cloud.yml"
+   name: Maina Cloud
+   on: [pull_request]
+   jobs:
+     verify:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v4
+         - uses: mainahq/verify-action@v1
+           with:
+             token: ${{ secrets.MAINA_TOKEN }}
+   ```
+
+3. **Review results**
+
+   Findings appear as inline PR review comments. Cloud runs also get a verification permalink.
+
+</Steps>
+
+<Aside type="tip">
+The local option installs all tools on the runner. The cloud option runs the pipeline server-side — no tool installs needed.
+</Aside>

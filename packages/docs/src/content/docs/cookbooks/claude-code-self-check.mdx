@@ -1,0 +1,42 @@
+---
+title: Claude Code self-check before committing
+description: Let Claude Code verify its own changes using Maina MCP tools before committing.
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+Claude Code can use Maina's MCP tools to verify its own work before committing.
+
+<Steps>
+
+1. **Ensure MCP is configured**
+
+   `maina init` creates `.claude/settings.json` automatically. Or add manually:
+
+   ```json title=".claude/settings.json"
+   {
+     "mcpServers": {
+       "maina": { "command": "maina", "args": ["--mcp"] }
+     }
+   }
+   ```
+
+2. **Add instructions to CLAUDE.md**
+
+   ```markdown title="CLAUDE.md"
+   Before committing, always:
+   1. Call `verify` to run the full verification pipeline
+   2. Call `checkSlop` on changed files
+   3. Call `reviewCode` with your diff
+   4. Fix any findings before committing
+   ```
+
+3. **Use `maina commit` instead of `git commit`**
+
+   Tell Claude Code to use `maina commit` — it runs verification automatically and only commits if everything passes.
+
+</Steps>
+
+<Aside>
+The MCP tools (`verify`, `checkSlop`, `reviewCode`) give Claude Code the same verification pipeline humans get, with zero extra setup.
+</Aside>

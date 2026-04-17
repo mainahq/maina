@@ -52,6 +52,15 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Cookbooks',
+          items: [
+            { slug: 'cookbooks/verify-pr-in-ci' },
+            { slug: 'cookbooks/claude-code-self-check' },
+            { slug: 'cookbooks/coderabbit-integration' },
+            { slug: 'cookbooks/constitution-required-check' },
+          ],
+        },
+        {
           label: 'Roadmap',
           items: [
             { slug: 'roadmap' },
