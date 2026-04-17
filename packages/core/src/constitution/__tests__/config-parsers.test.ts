@@ -120,11 +120,35 @@ describe("parsePackageJson", () => {
 	});
 });
 
+describe("parsePrettierConfig", () => {
+	test("detects .prettierrc", () => {
+		writeFileSync(join(tmpDir, ".prettierrc"), '{"tabWidth": 4}');
+		const { parsePrettierConfig } = require("../config-parsers");
+		const rules = parsePrettierConfig(tmpDir);
+		expect(rules.length).toBe(1);
+		expect(rules[0]?.text).toContain("Prettier");
+	});
+});
+
 describe("parseAllConfigs", () => {
-	test("runs on maina repo and extracts real rules", () => {
-		const rules = parseAllConfigs(process.cwd());
+	test("combines all parsers on fixture directory", () => {
+		writeFileSync(
+			join(tmpDir, "biome.json"),
+			JSON.stringify({ linter: { rules: { recommended: true } } }),
+		);
+		writeFileSync(
+			join(tmpDir, "tsconfig.json"),
+			JSON.stringify({ compilerOptions: { strict: true } }),
+		);
+		writeFileSync(
+			join(tmpDir, "package.json"),
+			JSON.stringify({ type: "module", scripts: { test: "bun test" } }),
+		);
+
+		const rules = parseAllConfigs(tmpDir);
 		expect(rules.length).toBeGreaterThanOrEqual(3);
-		// Maina has biome.json + tsconfig.json + package.json
 		expect(rules.some((r) => r.text.includes("Biome"))).toBe(true);
+		expect(rules.some((r) => r.text.includes("strict"))).toBe(true);
+		expect(rules.some((r) => r.text.includes("ESM"))).toBe(true);
 	});
 });

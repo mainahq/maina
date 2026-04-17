@@ -2,22 +2,22 @@
 
 ## Tasks
 
-Each task should be completable in one commit. Test tasks precede implementation tasks.
-
-- [ ] [NEEDS CLARIFICATION] Define tasks.
+- [x] T1: Implement parseBiomeConfig (lint rules, formatter settings)
+- [x] T2: Implement parseEslintConfig (detect config variant)
+- [x] T3: Implement parseTsConfig (strict, target, paths)
+- [x] T4: Implement parseEditorConfig (indent, charset)
+- [x] T5: Implement parsePrettierConfig (detect config variant)
+- [x] T6: Implement parsePackageJson (type, engines, scripts)
+- [x] T7: Implement parseAllConfigs (combined runner)
+- [x] T8: Write tests with tmpDir fixtures
 
 ## Dependencies
 
-Which tasks block which? Draw the critical path.
-
-- [NEEDS CLARIFICATION]
+None — standalone module.
 
 ## Definition of Done
 
-How do we know this feature is complete?
-
-- [ ] All tests pass
-- [ ] Biome lint clean
-- [ ] TypeScript compiles
-- [ ] maina analyze shows no errors
-- [ ] [NEEDS CLARIFICATION] Feature-specific criteria
+- [x] All tests pass
+- [x] Biome lint clean
+- [x] TypeScript compiles
+- [x] maina verify + maina slop clean

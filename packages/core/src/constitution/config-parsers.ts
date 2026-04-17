@@ -228,6 +228,35 @@ export function parsePackageJson(repoRoot: string): ConstitutionRule[] {
 }
 
 /**
+ * Parse .prettierrc* for Prettier config.
+ */
+export function parsePrettierConfig(repoRoot: string): ConstitutionRule[] {
+	const candidates = [
+		".prettierrc",
+		".prettierrc.json",
+		".prettierrc.yml",
+		".prettierrc.yaml",
+		".prettierrc.js",
+		"prettier.config.js",
+		"prettier.config.mjs",
+	];
+
+	for (const candidate of candidates) {
+		if (existsSync(join(repoRoot, candidate))) {
+			return [
+				{
+					text: `Formatter: Prettier (config: ${candidate})`,
+					confidence: 1.0,
+					source: candidate,
+				},
+			];
+		}
+	}
+
+	return [];
+}
+
+/**
  * Run all config parsers and return combined rules.
  */
 export function parseAllConfigs(repoRoot: string): ConstitutionRule[] {
@@ -236,6 +265,7 @@ export function parseAllConfigs(repoRoot: string): ConstitutionRule[] {
 		...parseEslintConfig(repoRoot),
 		...parseTsConfig(repoRoot),
 		...parseEditorConfig(repoRoot),
+		...parsePrettierConfig(repoRoot),
 		...parsePackageJson(repoRoot),
 	];
 }
