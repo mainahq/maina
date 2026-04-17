@@ -27,8 +27,9 @@ export default defineConfig({
         {
           label: 'Start Here',
           items: [
-            { slug: 'getting-started' },
+            { slug: 'quickstart' },
             { slug: 'commands' },
+            { slug: 'full-setup' },
           ],
         },
         {
