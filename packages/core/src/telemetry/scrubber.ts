@@ -88,12 +88,10 @@ export function scrubStackTrace(stack: string): string {
 	const lines = stack.split("\n");
 	return lines
 		.map((line) => {
-			// Keep "at FunctionName (file:line:col)" structure
-			if (/^\s+at\s/.test(line)) {
-				return scrubFilePaths(line);
-			}
-			// Keep error message line but scrub paths in it
-			return scrubFilePaths(line);
+			let scrubbed = scrubFilePaths(line);
+			scrubbed = scrubSecrets(scrubbed);
+			scrubbed = scrubPersonalInfo(scrubbed);
+			return scrubbed;
 		})
 		.join("\n");
 }
