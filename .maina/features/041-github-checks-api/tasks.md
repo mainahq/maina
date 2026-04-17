@@ -2,22 +2,23 @@
 
 ## Tasks
 
-Each task should be completable in one commit. Test tasks precede implementation tasks.
-
-- [ ] [NEEDS CLARIFICATION] Define tasks.
+- [x] T1: Write TDD test stubs from spec criteria (16 tests, red phase confirmed)
+- [x] T2: Implement `formatAnnotations()` — Finding[] → GitHub annotation format
+- [x] T3: Implement `determineConclusion()` — findings → success/failure/neutral
+- [x] T4: Implement `createCheckRun()` — POST to GitHub Checks API
+- [x] T5: Run `maina verify` + `maina review` + `maina analyze`
 
 ## Dependencies
 
-Which tasks block which? Draw the critical path.
-
-- [NEEDS CLARIFICATION]
+- Depends on `Finding` type from `packages/core/src/verify/diff-filter.ts`
+- Depends on `Result` type from `packages/core/src/db/index.ts`
+- Same auth pattern as `packages/core/src/github/sticky-comment.ts`
 
 ## Definition of Done
 
-How do we know this feature is complete?
-
-- [ ] All tests pass
-- [ ] Biome lint clean
-- [ ] TypeScript compiles
-- [ ] maina analyze shows no errors
-- [ ] [NEEDS CLARIFICATION] Feature-specific criteria
+- [x] All 16 tests pass (green phase)
+- [x] Biome lint clean
+- [x] TypeScript compiles
+- [x] maina verify passes
+- [x] maina slop clean
+- [x] maina review: READY verdict

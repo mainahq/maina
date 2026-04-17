@@ -4,82 +4,41 @@
 
 ## Architecture
 
-What is the technical approach? How does it fit into existing architecture?
-Where are the integration points with existing code?
-
-- Pattern: [NEEDS CLARIFICATION]
-- Integration points: [NEEDS CLARIFICATION]
+New module `packages/core/src/github/checks.ts`. Uses `fetch` directly against the GitHub Checks API (`POST /repos/{owner}/{repo}/check-runs`). Reuses the `Result<T, E>` pattern from the codebase. Same auth pattern as `sticky-comment.ts`.
 
 ## Key Technical Decisions
 
-What libraries, patterns, or approaches? WHY these and not alternatives?
-
-- [NEEDS CLARIFICATION]
+- Direct `fetch` — no Octokit dependency, consistent with sticky-comment.ts
+- `Finding` type from verify pipeline maps to GitHub annotation format
+- Max 50 annotations per API call (GitHub limit)
+- Conclusion mapping: errors → failure, warnings-only → neutral, clean → success
 
 ## Files
 
 | File | Purpose | New/Modified |
 |------|---------|-------------|
-| [NEEDS CLARIFICATION] | | |
+| `packages/core/src/github/checks.ts` | Check Run creation + annotation formatting | New |
+| `packages/core/src/github/__tests__/checks.test.ts` | Tests with mock fetch | New |
 
 ## Tasks
 
-TDD: every implementation task must have a preceding test task.
+TDD: write tests first from spec stubs, then implement.
 
-- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.
+- [ ] T1: Write test stubs from spec criteria (red phase)
+- [ ] T2: Implement `formatAnnotations()` — Finding[] → GitHub annotation format
+- [ ] T3: Implement `determineConclusion()` — findings → success/failure/neutral
+- [ ] T4: Implement `createCheckRun()` — POST to GitHub Checks API
+- [ ] T5: Run `maina verify` + `maina review` + `maina analyze`
 
 ## Failure Modes
 
-What can go wrong? How do we handle it gracefully?
-
-- [NEEDS CLARIFICATION]
+- GitHub token lacks `checks:write` → return error Result with clear message
+- More than 50 findings → truncate annotations, note in summary
+- API rate limit → return error Result
 
 ## Testing Strategy
 
-Unit tests, integration tests, or both? What mocks are needed?
-
-- [NEEDS CLARIFICATION]
-
-
-## Wiki Context
-
-### Related Modules
-
-- **git** (11 entities) — `modules/git.md`
-
-### Related Decisions
-
-- 0012-v050-cloud-client-maina-cloud: v0.5.0 Cloud Client + maina-cloud [accepted]
-- 0011-v040-polish-ci: v0.4.0 Polish + CI [accepted]
-- 0009-ai-delegation-protocol-for-host-agents: AI delegation protocol for host agents [proposed]
-- 0007-visual-verification-with-playwright: Visual verification with Playwright [proposed]
-- 0008-verification-proof-in-pr-body: Verification proof in PR body [proposed]
-- 0001-karpathy-principled-spec-quality-system: Karpathy-Principled Spec Quality System [proposed]
-- 0003-fix-host-delegation-for-cli-ai-tasks: Fix host delegation for CLI AI tasks [proposed]
-- 0010-v03x-hardening-verify-gaps-rl-loop-hldlld: v0.3.x Hardening: Verify Gaps + RL Loop + HLD/LLD [accepted]
-
-### Similar Features
-
-- 027-v10-launch: Implementation Plan
-- 025-v06-hosted-verification: Implementation Plan
-- 026-v07-rl-flywheel: Implementation Plan
-- 003-pr-and-init: Implementation Plan
-- 002-ticket: Implementation Plan
-- 024-v05-cloud-client: Implementation Plan — v0.5.0 Cloud Client + maina-cloud
-- 008-benchmark-comparison: Benchmark: Claude + Superpowers vs Claude + Maina
-- 024-v04-polish-ci: Implementation Plan — v0.4.0 Polish + CI
-
-### Suggestions
-
-- Module 'git' already has 11 entities — consider extending it
-- Feature 027-v10-launch did something similar — check wiki/features/027-v10-launch.md
-- Feature 025-v06-hosted-verification did something similar — check wiki/features/025-v06-hosted-verification.md
-- Feature 026-v07-rl-flywheel did something similar — check wiki/features/026-v07-rl-flywheel.md
-- Feature 003-pr-and-init did something similar — check wiki/features/003-pr-and-init.md
-- Feature 002-ticket did something similar — check wiki/features/002-ticket.md
-- Feature 024-v05-cloud-client did something similar — check wiki/features/024-v05-cloud-client.md
-- Feature 008-benchmark-comparison did something similar — check wiki/features/008-benchmark-comparison.md
-- Feature 024-v04-polish-ci did something similar — check wiki/features/024-v04-polish-ci.md
-- ADR 0012-v050-cloud-client-maina-cloud (v0.5.0 Cloud Client + maina-cloud) is accepted — ensure compatibility
-- ADR 0011-v040-polish-ci (v0.4.0 Polish + CI) is accepted — ensure compatibility
-- ADR 0010-v03x-hardening-verify-gaps-rl-loop-hldlld (v0.3.x Hardening: Verify Gaps + RL Loop + HLD/LLD) is accepted — ensure compatibility
+- Mock `fetch` for all API calls (same pattern as sticky-comment tests)
+- Test all 3 conclusion states: success, failure, neutral
+- Test annotation formatting with various finding types
+- Test auth header handling

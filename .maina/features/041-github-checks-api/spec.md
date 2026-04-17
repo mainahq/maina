@@ -1,45 +1,41 @@
-# Feature: [Name]
+# Feature: GitHub Checks API integration
 
 ## Problem Statement
 
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
+Maina's verify-action posts inline review comments but doesn't create a GitHub Check Run. Without a Check Run, teams can't use GitHub's "required status checks" to gate merges on Maina verification. There's also no summary view — users must scroll through individual comments.
 
 ## Target User
 
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
+- Primary: Teams using Maina CI who want merge gating
+- Secondary: Developers wanting a quick pass/fail summary in the PR status box
 
 ## User Stories
 
-- As a [role], I want [capability] so that [benefit].
+- As a team lead, I want Maina verification as a required check so broken code can't merge.
+- As a developer, I want a quick "18/20 passed · 2 warnings" summary without reading every comment.
 
 ## Success Criteria
 
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
+- [ ] `createCheckRun(options)` creates a GitHub Check Run with conclusion, summary, annotations
+- [ ] Conclusion: success / failure / neutral based on findings
+- [ ] Summary format: "18/20 passed · 2 warnings"
+- [ ] Details URL points to `mainahq.com/r/<run-id>` when available
+- [ ] Up to 50 line annotations for failing assertions
+- [ ] Works under both GITHUB_TOKEN and GitHub App auth
+- [ ] Unit tests cover all conclusion states, annotation formatting, auth handling
 
 ## Scope
 
 ### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
+- `packages/core/src/github/checks.ts` — Check Run creation
+- Annotation formatting from verify findings
+- Auth header handling (token vs app)
 
 ### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
+- Re-run action button (needs workflow_dispatch, separate issue)
+- Required-check rule configuration docs (separate)
+- Actual GitHub Action changes (verify-action repo)
 
 ## Design Decisions
 
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
+See plan.md and ADR 0025 for implementation decisions.
