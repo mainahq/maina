@@ -13,7 +13,14 @@
  * 9. Write all articles to disk
  */
 
-import { mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { dirname, join, relative } from "node:path";
 import type { TryAIResult } from "../ai/try-generate";
 import type { Result } from "../db/index";
@@ -547,32 +554,152 @@ function generateThreeEnginesArticle(
 }
 
 /**
- * Describe the monorepo structure by inspecting packages/ layout.
+ * Read description from a package directory's package.json.
+ * Falls back to README first line, then directory name.
  */
-function generateMonorepoArticle(repoRoot: string): ArchitectureArticle | null {
-	const packagesDir = join(repoRoot, "packages");
-	let packageNames: string[];
-	try {
-		packageNames = readdirSync(packagesDir).filter((name) => {
-			try {
-				return statSync(join(packagesDir, name)).isDirectory();
-			} catch {
-				return false;
+function readPackageDescription(pkgDir: string, dirName: string): string {
+	// 1. Try package.json description
+	const pkgJsonPath = join(pkgDir, "package.json");
+	if (existsSync(pkgJsonPath)) {
+		try {
+			const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf-8"));
+			if (typeof pkg.description === "string" && pkg.description.length > 0) {
+				return pkg.description;
 			}
-		});
-	} catch {
-		return null;
+		} catch {
+			// parse error — try next source
+		}
 	}
 
-	if (packageNames.length === 0) return null;
+	// 2. Try first non-empty line of README.md (skip heading marker)
+	const readmePath = join(pkgDir, "README.md");
+	if (existsSync(readmePath)) {
+		try {
+			const readme = readFileSync(readmePath, "utf-8");
+			const firstLine = readme
+				.split("\n")
+				.map((l) => l.replace(/^#+\s*/, "").trim())
+				.find((l) => l.length > 0);
+			if (firstLine) return firstLine;
+		} catch {
+			// read error — try next source
+		}
+	}
 
-	const descriptions: Record<string, string> = {
-		cli: "Commander entrypoint, commands (thin wrappers over engines), terminal UI",
-		core: "Three engines + cache + AI + git + DB + hooks",
-		mcp: "MCP server (delegates to engines)",
-		skills: "Cross-platform skills (Claude Code, Cursor, Codex, Gemini CLI)",
-		docs: "Documentation site",
-	};
+	return `_No description available for ${dirName}._`;
+}
+
+/**
+ * Discover workspace directories by reading package.json workspaces field.
+ * Falls back to just "packages" if no workspaces defined.
+ */
+function discoverWorkspaceDirs(
+	repoRoot: string,
+): { dir: string; label: string }[] {
+	const pkgJsonPath = join(repoRoot, "package.json");
+	let patterns: string[] = [];
+
+	if (existsSync(pkgJsonPath)) {
+		try {
+			const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf-8"));
+			if (Array.isArray(pkg.workspaces)) {
+				patterns = pkg.workspaces as string[];
+			} else if (pkg.workspaces && Array.isArray(pkg.workspaces.packages)) {
+				patterns = pkg.workspaces.packages as string[];
+			}
+		} catch {
+			// parse error
+		}
+	}
+
+	if (patterns.length === 0) {
+		// Default: check if "packages" directory exists
+		if (existsSync(join(repoRoot, "packages"))) {
+			patterns = ["packages/*"];
+		}
+	}
+
+	const dirs: { dir: string; label: string }[] = [];
+	for (const pattern of patterns) {
+		const base = pattern.replace(/\/?\*$/, "");
+		const fullPath = join(repoRoot, base);
+		if (existsSync(fullPath)) {
+			dirs.push({ dir: fullPath, label: base });
+		}
+	}
+	return dirs;
+}
+
+/**
+ * Describe the monorepo structure by inspecting workspace layout (#81).
+ * Reads descriptions from package.json, README, or infers from exports.
+ */
+function generateMonorepoArticle(repoRoot: string): ArchitectureArticle | null {
+	const workspaceDirs = discoverWorkspaceDirs(repoRoot);
+	if (workspaceDirs.length === 0) return null;
+
+	// Collect all packages across workspace directories
+	const allPackages: {
+		name: string;
+		label: string;
+		dir: string;
+		desc: string;
+	}[] = [];
+
+	for (const { dir, label } of workspaceDirs) {
+		try {
+			const entries = readdirSync(dir).filter((name) => {
+				try {
+					return statSync(join(dir, name)).isDirectory();
+				} catch {
+					return false;
+				}
+			});
+			for (const name of entries) {
+				const pkgDir = join(dir, name);
+				const desc = readPackageDescription(pkgDir, name);
+
+				// Try to get the npm package name
+				let displayName = name;
+				const pkgJsonPath = join(pkgDir, "package.json");
+				if (existsSync(pkgJsonPath)) {
+					try {
+						const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf-8"));
+						if (typeof pkg.name === "string") {
+							displayName = pkg.name;
+						}
+					} catch {
+						// use dir name
+					}
+				}
+
+				allPackages.push({
+					name: displayName,
+					label,
+					dir: `${label}/${name}`,
+					desc,
+				});
+			}
+		} catch {
+			// directory not readable
+		}
+	}
+
+	if (allPackages.length === 0) return null;
+
+	// Read root project description
+	let projectDesc = "";
+	const rootPkgPath = join(repoRoot, "package.json");
+	if (existsSync(rootPkgPath)) {
+		try {
+			const pkg = JSON.parse(readFileSync(rootPkgPath, "utf-8"));
+			if (typeof pkg.description === "string") {
+				projectDesc = pkg.description;
+			}
+		} catch {
+			// ignore
+		}
+	}
 
 	const lines: string[] = [];
 	lines.push("# Architecture: Monorepo Structure");
@@ -581,35 +708,52 @@ function generateMonorepoArticle(repoRoot: string): ArchitectureArticle | null {
 		"> Auto-generated architecture article describing the monorepo layout.",
 	);
 	lines.push("");
-	lines.push("Maina is organized as a monorepo under `packages/`.");
-	lines.push("");
-	lines.push("## Packages");
-	lines.push("");
-
-	for (const name of packageNames.sort()) {
-		const desc = descriptions[name] ?? "_No description available._";
-		lines.push(`### ${name}`);
+	if (projectDesc) {
+		lines.push(`**${projectDesc}**`);
 		lines.push("");
-		lines.push(`- **Path:** \`packages/${name}/\``);
-		lines.push(`- **Description:** ${desc}`);
+	}
+	const dirLabels = workspaceDirs.map((d) => `\`${d.label}/\``).join(", ");
+	lines.push(
+		`This monorepo contains ${allPackages.length} packages across ${dirLabels}.`,
+	);
+	lines.push("");
 
-		// List top-level src files if present
-		const srcDir = join(packagesDir, name, "src");
-		try {
-			const srcEntries = readdirSync(srcDir).filter((e) => {
-				try {
-					return statSync(join(srcDir, e)).isDirectory();
-				} catch {
-					return false;
+	// Group by workspace directory
+	const grouped = new Map<string, typeof allPackages>();
+	for (const pkg of allPackages) {
+		const existing = grouped.get(pkg.label) ?? [];
+		existing.push(pkg);
+		grouped.set(pkg.label, existing);
+	}
+
+	for (const [label, packages] of grouped) {
+		lines.push(`## ${label}/`);
+		lines.push("");
+
+		for (const pkg of packages.sort((a, b) => a.name.localeCompare(b.name))) {
+			lines.push(`### ${pkg.name}`);
+			lines.push("");
+			lines.push(`- **Path:** \`${pkg.dir}/\``);
+			lines.push(`- **Description:** ${pkg.desc}`);
+
+			// List top-level src directories if present
+			const srcDir = join(repoRoot, pkg.dir, "src");
+			try {
+				const srcEntries = readdirSync(srcDir).filter((e) => {
+					try {
+						return statSync(join(srcDir, e)).isDirectory();
+					} catch {
+						return false;
+					}
+				});
+				if (srcEntries.length > 0) {
+					lines.push(`- **Modules:** ${srcEntries.sort().join(", ")}`);
 				}
-			});
-			if (srcEntries.length > 0) {
-				lines.push(`- **Modules:** ${srcEntries.sort().join(", ")}`);
+			} catch {
+				// no src directory
 			}
-		} catch {
-			// no src directory
+			lines.push("");
 		}
-		lines.push("");
 	}
 
 	return {

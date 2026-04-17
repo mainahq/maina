@@ -386,4 +386,72 @@ describe("Wiki Compiler", () => {
 			expect(hasTestHelper).toBe(false);
 		});
 	});
+
+	// ── Monorepo architecture article reads package.json descriptions (#81) ──
+
+	describe("monorepo architecture article", () => {
+		it("should read descriptions from package.json instead of hardcoded values", async () => {
+			// Set up a monorepo layout
+			mkdirSync(join(repoRoot, "packages", "auth", "src"), {
+				recursive: true,
+			});
+			mkdirSync(join(repoRoot, "packages", "cache"), {
+				recursive: true,
+			});
+
+			// Root package.json with workspaces
+			writeFileSync(
+				join(repoRoot, "package.json"),
+				JSON.stringify({
+					name: "my-monorepo",
+					description: "My awesome toolkit",
+					workspaces: ["packages/*"],
+				}),
+			);
+
+			// Package with description
+			writeFileSync(
+				join(repoRoot, "packages", "auth", "package.json"),
+				JSON.stringify({
+					name: "@my/auth",
+					description: "Authentication and authorization library",
+				}),
+			);
+			writeFileSync(
+				join(repoRoot, "packages", "auth", "src", "index.ts"),
+				"export function login() {}",
+			);
+
+			// Package without description but with README
+			writeFileSync(
+				join(repoRoot, "packages", "cache", "package.json"),
+				JSON.stringify({ name: "@my/cache" }),
+			);
+			writeFileSync(
+				join(repoRoot, "packages", "cache", "README.md"),
+				"# Cache\n\nA fast caching layer.\n",
+			);
+
+			const result = await compile(makeOptions());
+			expect(result.ok).toBe(true);
+			if (!result.ok) return;
+
+			const archArticle = result.value.articles.find((a) =>
+				a.path.includes("monorepo-structure"),
+			);
+			expect(archArticle).toBeDefined();
+			if (!archArticle) return;
+
+			// Should use package.json description
+			expect(archArticle.content).toContain(
+				"Authentication and authorization library",
+			);
+			// Should use README fallback (first heading line)
+			expect(archArticle.content).toContain("Cache");
+			// Should NOT contain hardcoded placeholder
+			expect(archArticle.content).not.toContain("_No description available._");
+			// Should contain project description
+			expect(archArticle.content).toContain("My awesome toolkit");
+		}, 30_000);
+	});
 });
