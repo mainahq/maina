@@ -195,7 +195,9 @@ describe("createCloudClient", () => {
 		const requestInit = call[1] as RequestInit;
 		expect(requestInit.method).toBe("PUT");
 		const body = JSON.parse(requestInit.body as string);
-		expect(body.prompts).toHaveLength(1);
+		expect(body.name).toBe("p1");
+		expect(body.content).toBe("# Commit");
+		expect(body.hash).toBe("abc");
 	});
 
 	test("inviteTeamMember sends email and role", async () => {
