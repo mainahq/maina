@@ -16,7 +16,7 @@ New module `packages/core/src/errors/error-id.ts`. Pure functions, no side effec
 
 ## Tasks
 
-- [ ] T1: Write tests for ID generation, formatting, ambiguous char exclusion
-- [ ] T2: Implement `generateErrorId(error)` using Bun's hash
-- [ ] T3: Implement `formatErrorForCli(error)` and `formatErrorForMcp(error)`
-- [ ] T4: maina verify + maina slop
+- [x] T1: Write tests for ID generation, formatting, ambiguous char exclusion
+- [x] T2: Implement `generateErrorId(error)` using DJB2 hash (fast, deterministic, no dependency)
+- [x] T3: Implement `formatErrorForCli(error)` and `formatErrorForMcp(error)`
+- [x] T4: maina verify + maina slop

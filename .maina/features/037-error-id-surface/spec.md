@@ -8,7 +8,7 @@ When maina crashes, users have no quick way to reference the error in a bug repo
 
 - [ ] IDs are 6-8 chars, no ambiguous chars (O/0, I/l)
 - [ ] `generateErrorId()` is deterministic for the same error (same class + message = same ID)
-- [ ] `formatErrorWithId()` produces CLI-ready and MCP-ready output
+- [ ] `formatErrorForCli()` and `formatErrorForMcp()` produce CLI-ready and MCP-ready output
 - [ ] Unit tests cover ID generation, formatting, and ambiguous char exclusion
 
 ## Scope

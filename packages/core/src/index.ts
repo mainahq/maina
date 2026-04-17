@@ -121,6 +121,13 @@ export {
 	type ReviewResult,
 	reviewDesign,
 } from "./design/review";
+// Errors
+export {
+	formatErrorForCli,
+	formatErrorForMcp,
+	generateErrorId,
+	generateErrorIdFromString,
+} from "./errors/error-id";
 // Explain
 export {
 	type DiagramOptions,
