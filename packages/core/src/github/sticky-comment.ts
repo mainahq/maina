@@ -5,8 +5,8 @@
  * If found: updates the existing comment (preserves reactions).
  * If not found: creates a new comment.
  *
- * Race-safe: concurrent CI runs on the same PR will find and update
- * the same comment via the marker, not create duplicates.
+ * Race mitigation: create-then-deduplicate. After creating, re-list to check
+ * for duplicates and delete ours if another run created one first.
  */
 
 import type { Result } from "../db/index";
@@ -22,7 +22,7 @@ export interface StickyCommentOptions {
 	repo: string;
 	/** Pull request number */
 	prNumber: number;
-	/** Comment body (must include the marker) */
+	/** Comment body (marker will be prepended if missing) */
 	body: string;
 	/** GitHub API base URL (default: https://api.github.com) */
 	apiBase?: string;
@@ -44,10 +44,20 @@ export function buildCommentBody(content: string, runId?: string): string {
 }
 
 /**
+ * Ensure the body contains the marker. Prepends it if missing.
+ */
+function ensureMarker(body: string): string {
+	if (body.includes("<!-- maina:run")) return body;
+	return `${MARKER}\n${body}`;
+}
+
+/**
  * Find or create a sticky Maina comment on a PR.
  *
- * Gracefully handles missing `issues:write` permission by returning
- * an error result instead of throwing.
+ * Race mitigation: if we create a comment, we re-list and delete ours if
+ * another run's comment has a lower ID (first writer wins).
+ *
+ * Gracefully handles missing `issues:write` permission.
  */
 export async function upsertStickyComment(
 	options: StickyCommentOptions,
@@ -57,9 +67,9 @@ export async function upsertStickyComment(
 		owner,
 		repo,
 		prNumber,
-		body,
 		apiBase = "https://api.github.com",
 	} = options;
+	const body = ensureMarker(options.body);
 
 	const headers = {
 		Authorization: `token ${token}`,
@@ -70,7 +80,7 @@ export async function upsertStickyComment(
 
 	try {
 		// Search existing comments for the marker
-		const existingId = await findMarkerComment(
+		const findResult = await findMarkerComment(
 			apiBase,
 			owner,
 			repo,
@@ -78,8 +88,13 @@ export async function upsertStickyComment(
 			headers,
 		);
 
-		if (existingId !== null) {
+		if (!findResult.ok) {
+			return { ok: false, error: findResult.error };
+		}
+
+		if (findResult.value !== null) {
 			// Update existing comment
+			const existingId = findResult.value;
 			const url = `${apiBase}/repos/${owner}/${repo}/issues/comments/${existingId}`;
 			const res = await fetch(url, {
 				method: "PATCH",
@@ -101,15 +116,15 @@ export async function upsertStickyComment(
 		}
 
 		// Create new comment
-		const url = `${apiBase}/repos/${owner}/${repo}/issues/${prNumber}/comments`;
-		const res = await fetch(url, {
+		const createUrl = `${apiBase}/repos/${owner}/${repo}/issues/${prNumber}/comments`;
+		const createRes = await fetch(createUrl, {
 			method: "POST",
 			headers,
 			body: JSON.stringify({ body }),
 		});
 
-		if (!res.ok) {
-			const status = res.status;
+		if (!createRes.ok) {
+			const status = createRes.status;
 			if (status === 403 || status === 404) {
 				return {
 					ok: false,
@@ -118,14 +133,39 @@ export async function upsertStickyComment(
 			}
 			return {
 				ok: false,
-				error: `Failed to create comment: ${status} ${res.statusText}`,
+				error: `Failed to create comment: ${status} ${createRes.statusText}`,
 			};
 		}
 
-		const data = (await res.json()) as { id: number };
+		const created = (await createRes.json()) as { id: number };
+
+		// Race mitigation: re-list to deduplicate
+		const dedup = await findMarkerComment(
+			apiBase,
+			owner,
+			repo,
+			prNumber,
+			headers,
+		);
+		if (dedup.ok && dedup.value !== null && dedup.value < created.id) {
+			// Another run created a comment with a lower ID — delete ours, update theirs
+			await fetch(
+				`${apiBase}/repos/${owner}/${repo}/issues/comments/${created.id}`,
+				{ method: "DELETE", headers },
+			);
+			await fetch(
+				`${apiBase}/repos/${owner}/${repo}/issues/comments/${dedup.value}`,
+				{ method: "PATCH", headers, body: JSON.stringify({ body }) },
+			);
+			return {
+				ok: true,
+				value: { commentId: dedup.value, action: "updated" },
+			};
+		}
+
 		return {
 			ok: true,
-			value: { commentId: data.id, action: "created" },
+			value: { commentId: created.id, action: "created" },
 		};
 	} catch (e) {
 		return {
@@ -137,7 +177,8 @@ export async function upsertStickyComment(
 
 /**
  * Search PR comments for the maina:run marker. Returns the comment ID
- * if found, null otherwise. Paginates through all comments.
+ * if found, or null if no marker comment exists.
+ * Returns an error Result on API failures instead of hiding them.
  */
 async function findMarkerComment(
 	apiBase: string,
@@ -145,28 +186,34 @@ async function findMarkerComment(
 	repo: string,
 	prNumber: number,
 	headers: Record<string, string>,
-): Promise<number | null> {
+): Promise<Result<number | null>> {
 	let page = 1;
 	const perPage = 100;
 
 	while (true) {
 		const url = `${apiBase}/repos/${owner}/${repo}/issues/${prNumber}/comments?per_page=${perPage}&page=${page}`;
 		const res = await fetch(url, { headers });
-		if (!res.ok) return null;
+
+		if (!res.ok) {
+			return {
+				ok: false,
+				error: `Failed to list PR comments: ${res.status} ${res.statusText}`,
+			};
+		}
 
 		const comments = (await res.json()) as Array<{
 			id: number;
 			body: string;
 		}>;
-		if (comments.length === 0) return null;
+		if (comments.length === 0) return { ok: true, value: null };
 
 		for (const comment of comments) {
 			if (comment.body.includes("<!-- maina:run")) {
-				return comment.id;
+				return { ok: true, value: comment.id };
 			}
 		}
 
-		if (comments.length < perPage) return null;
+		if (comments.length < perPage) return { ok: true, value: null };
 		page++;
 	}
 }
