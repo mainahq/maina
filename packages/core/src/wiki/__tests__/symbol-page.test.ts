@@ -130,8 +130,10 @@ describe("formatMermaidDiagram", () => {
 // ── generateSymbolPage ──────────────────────────────────────────────────
 
 describe("generateSymbolPage", () => {
-	test("combines all sections", () => {
-		const page = generateSymbolPage(sampleEntity, sampleRefs);
+	test("combines all sections", async () => {
+		const page = await generateSymbolPage(sampleEntity, sampleRefs, {
+			skipProse: true,
+		});
 		expect(page).toContain("## runPipeline");
 		expect(page).toContain("Function");
 		expect(page).toContain("pipeline.ts:42");
@@ -139,16 +141,26 @@ describe("generateSymbolPage", () => {
 		expect(page).toContain("```mermaid");
 	});
 
-	test("works with no refs", () => {
-		const page = generateSymbolPage(sampleEntity);
+	test("works with no refs", async () => {
+		const page = await generateSymbolPage(sampleEntity, [], {
+			skipProse: true,
+		});
 		expect(page).toContain("## runPipeline");
 		expect(page).toContain("No references found");
 		expect(page).not.toContain("```mermaid");
 	});
 
-	test("output is deterministic", () => {
-		const page1 = generateSymbolPage(sampleEntity, sampleRefs);
-		const page2 = generateSymbolPage(sampleEntity, sampleRefs);
+	test("output is deterministic without prose", async () => {
+		const opts = { skipProse: true };
+		const page1 = await generateSymbolPage(sampleEntity, sampleRefs, opts);
+		const page2 = await generateSymbolPage(sampleEntity, sampleRefs, opts);
 		expect(page1).toBe(page2);
+	});
+
+	test("works without mainaDir (no prose)", async () => {
+		const page = await generateSymbolPage(sampleEntity, sampleRefs);
+		expect(page).toContain("## runPipeline");
+		// No prose section without mainaDir
+		expect(page).toContain("Callers");
 	});
 });

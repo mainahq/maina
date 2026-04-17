@@ -24,5 +24,5 @@ Mermaid `graph LR` chosen because it renders natively in GitHub, Starlight docs,
 - Deterministic output enables caching
 
 ### Negative
-- No LLM-generated prose yet (V2 — needs AI integration)
+- LLM prose requires API key or host delegation (falls back to template-only when unavailable)
 - Diagrams may get complex for highly-connected symbols (mitigated: cap at 20 refs per direction)

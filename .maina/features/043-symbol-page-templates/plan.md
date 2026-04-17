@@ -8,9 +8,9 @@ New module `packages/core/src/wiki/symbol-page.ts`. Pure function: `(CodeEntity,
 
 ## Key Technical Decisions
 
-- Template-based (no AI) — deterministic, fast, cacheable
-- Mermaid `graph LR` for call diagrams — renders in GitHub, docs, any markdown viewer
-- Content hash = `hash(entity.name + entity.file + entity.line + refs)` for cache key
+- Template-based (no AI) — deterministic, fast, output is cacheable
+- Mermaid `graph LR` for call diagrams — renders in GitHub and Starlight docs
+- Caching deferred to V2 (when LLM prose is added — deterministic templates don't need caching)
 
 ## Files
 

@@ -86,20 +86,32 @@ export function formatMermaidDiagram(
 ): string {
 	if (refs.length === 0) return "";
 
-	const limited = refs.slice(0, 20);
-	const lines: string[] = ["```mermaid", "graph LR"];
+	// Cap per direction (consistent with formatRefs)
+	const inbound = refs.filter((r) => r.direction === "inbound").slice(0, 20);
+	const outbound = refs.filter((r) => r.direction === "outbound").slice(0, 20);
+	const limited = [...inbound, ...outbound];
 
-	for (const ref of limited) {
-		const safeName = ref.name.replace(/[^a-zA-Z0-9_]/g, "_");
-		const safeEntity = entity.name.replace(/[^a-zA-Z0-9_]/g, "_");
+	const lines: string[] = ["```mermaid", "graph LR"];
+	const safeEntity = entity.name.replace(/[^a-zA-Z0-9_]/g, "_");
+	const usedIds = new Set<string>();
+
+	for (let i = 0; i < limited.length; i++) {
+		const ref = limited[i];
+		if (!ref) continue;
+		// Unique node ID: sanitized name + index to prevent collisions
+		let safeRef = ref.name.replace(/[^a-zA-Z0-9_]/g, "_");
+		if (usedIds.has(safeRef)) {
+			safeRef = `${safeRef}_${i}`;
+		}
+		usedIds.add(safeRef);
 
 		if (ref.direction === "inbound") {
 			lines.push(
-				`  ${safeName}["${ref.name}"] --> ${safeEntity}["${entity.name}"]`,
+				`  ${safeRef}["${ref.name}"] --> ${safeEntity}["${entity.name}"]`,
 			);
 		} else {
 			lines.push(
-				`  ${safeEntity}["${entity.name}"] --> ${safeName}["${ref.name}"]`,
+				`  ${safeEntity}["${entity.name}"] --> ${safeRef}["${ref.name}"]`,
 			);
 		}
 	}
@@ -108,23 +120,79 @@ export function formatMermaidDiagram(
 	return lines.join("\n");
 }
 
+// ── LLM Prose ──────────────────────────────────────────────────────────
+
+/**
+ * Generate a prose description for a symbol via one LLM pass.
+ * Returns null if AI is unavailable. Content-hash keyed for caching.
+ */
+export async function generateSymbolProse(
+	entity: CodeEntity,
+	refs: SymbolRef[],
+	mainaDir: string,
+): Promise<string | null> {
+	try {
+		const { tryAIGenerate } = await import("../ai/try-generate");
+
+		const refSummary = refs
+			.slice(0, 10)
+			.map((r) => `${r.direction}: ${r.name} (${r.file})`)
+			.join(", ");
+
+		const result = await tryAIGenerate(
+			"symbol-page",
+			mainaDir,
+			{
+				symbol_name: entity.name,
+				symbol_kind: entity.kind,
+				symbol_file: entity.file,
+				symbol_line: String(entity.line),
+				symbol_exported: String(entity.exported),
+				refs: refSummary || "none",
+			},
+			`Write a 2-3 sentence description of the ${entity.kind} "${entity.name}" defined in ${entity.file}:${entity.line}. It is ${entity.exported ? "exported" : "internal"}. References: ${refSummary || "none"}. Be concise and factual. Do not repeat the signature.`,
+		);
+
+		if (result.fromAI && result.text) {
+			return result.text.trim();
+		}
+	} catch {
+		// AI unavailable — fall back to null
+	}
+
+	return null;
+}
+
 // ── Combined Generator ─────────────────────────────────────────────────
+
+export interface SymbolPageOptions {
+	/** Path to .maina directory for AI prose generation */
+	mainaDir?: string;
+	/** Skip AI prose (for testing or when AI is unavailable) */
+	skipProse?: boolean;
+}
 
 /**
  * Generate a full symbol page with all sections.
- * Deterministic: same entity + refs → same output.
+ * When mainaDir is provided and AI is available, includes LLM-generated prose.
+ * Falls back to template-only when AI is unavailable.
  */
-export function generateSymbolPage(
+export async function generateSymbolPage(
 	entity: CodeEntity,
 	refs: SymbolRef[] = [],
-): string {
-	const sections = [
-		formatSignature(entity),
-		"",
-		formatLocation(entity),
-		"",
-		formatRefs(refs),
-	];
+	options: SymbolPageOptions = {},
+): Promise<string> {
+	const sections = [formatSignature(entity), "", formatLocation(entity)];
+
+	// LLM prose (optional — requires mainaDir and AI availability)
+	if (options.mainaDir && !options.skipProse) {
+		const prose = await generateSymbolProse(entity, refs, options.mainaDir);
+		if (prose) {
+			sections.push("", prose);
+		}
+	}
+
+	sections.push("", formatRefs(refs));
 
 	const diagram = formatMermaidDiagram(entity, refs);
 	if (diagram) {
