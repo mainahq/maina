@@ -19,7 +19,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, win32 as winPath } from "node:path";
 import { scrubPii, scrubStackTrace } from "./scrubber";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -76,12 +76,27 @@ export function isCliTelemetryOptedOut(): boolean {
 
 /**
  * Best-effort derivation of the command name from argv.
- * `bun /path/to/cli.js sync pull --flag` → `"sync pull"`.
+ *
+ * Stops at the first flag so a call like `maina commit -m "secret msg"` is
+ * reported as `"commit"`, not `"commit secret"` — option VALUES must never
+ * leak into telemetry.
  */
 function deriveCommand(argv: string[]): string {
-	const positional = argv.slice(2).filter((a) => !a.startsWith("-"));
+	const positional: string[] = [];
+	for (const arg of argv.slice(2)) {
+		if (arg.startsWith("-")) break;
+		positional.push(arg);
+	}
 	return positional.slice(0, 2).join(" ") || "(unknown)";
 }
+
+/**
+ * Unix roots whose contents are always filesystem paths (and never valid
+ * API-route or URL-path tokens). Anything else is left alone to avoid
+ * mangling strings like `/v1/cli/errors`.
+ */
+const UNIX_FILESYSTEM_ROOT =
+	/^\/(?:tmp|var|opt|etc|usr|bin|sbin|lib|srv|run|mnt|proc|sys|private|Volumes|dev|root)(?:\/|$)/;
 
 /**
  * Rewrite any absolute-looking path tokens to basenames. Runs AFTER the
@@ -91,16 +106,29 @@ function deriveCommand(argv: string[]): string {
 function pathsToBasenames(text: string): string {
 	return text.replace(
 		/(?:\/[A-Za-z0-9_.-][^\s:()"'<>]*|[A-Z]:\\[A-Za-z0-9_.-][^\s:()"'<>]*)/g,
-		(match) => {
-			// Leave already-scrubbed markers alone
+		(match, offset: number, source: string) => {
+			// Leave already-scrubbed markers alone, including repo-relative
+			// segments where the existing scrubber produced `<repo>/path/...`:
+			// the inner regex matches `/path/...` which doesn't contain `<repo>`.
 			if (match.includes("<repo>") || match.includes("<redacted")) return match;
-			// Only rewrite tokens that actually look like paths: either ending in
-			// a file extension, or containing two or more separators. This avoids
-			// mangling fractions like `5/10` in error messages.
+			if (source.slice(Math.max(0, offset - 6), offset) === "<repo>") {
+				return match;
+			}
+
+			const isWindowsPath = /^[A-Z]:\\/.test(match);
+			const isUnixFilesystemPath = UNIX_FILESYSTEM_ROOT.test(match);
+
+			// Only rewrite tokens that look like real filesystem paths. Leaves
+			// API routes (`/v1/cli/errors`), URLs (`http://...` — already skipped
+			// by leading slash check), and other slash-delimited non-paths alone.
+			if (!isWindowsPath && !isUnixFilesystemPath) return match;
+
+			// Secondary guard against short non-path tokens like `5/10`.
 			const hasExtension = /\.[A-Za-z]{1,10}$/.test(match);
 			const hasTwoSeparators = /[/\\].+[/\\]/.test(match);
 			if (!hasExtension && !hasTwoSeparators) return match;
-			return basename(match);
+
+			return isWindowsPath ? winPath.basename(match) : basename(match);
 		},
 	);
 }

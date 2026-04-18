@@ -198,7 +198,7 @@ describe("createCloudClient", () => {
 		}
 	});
 
-	test("getTeam falls back to 'free' when plan is missing", async () => {
+	test("getTeam falls back to plan='free' + derives planDisplay='Free' when server omits both", async () => {
 		mockFetch.mockImplementation(() =>
 			Promise.resolve(
 				jsonResponse({
@@ -217,7 +217,31 @@ describe("createCloudClient", () => {
 		expect(result.ok).toBe(true);
 		if (result.ok) {
 			expect(result.value.plan).toBe("free");
-			expect(result.value.planDisplay).toBeUndefined();
+			// Derived so the CLI always renders `Plan: Free`, never `Plan: free`.
+			expect(result.value.planDisplay).toBe("Free");
+		}
+	});
+
+	test("getTeam derives planDisplay from plan when server omits plan_display", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(
+				jsonResponse({
+					data: {
+						id: "team_1",
+						name: "Acme",
+						plan: "team",
+						seats: { used: 3, total: 5 },
+					},
+				}),
+			),
+		);
+
+		const client = setupClient();
+		const result = await client.getTeam();
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.planDisplay).toBe("Team");
 		}
 	});
 

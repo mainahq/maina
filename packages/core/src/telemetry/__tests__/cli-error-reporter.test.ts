@@ -10,9 +10,16 @@ import {
 
 // ── Env hygiene ─────────────────────────────────────────────────────────────
 
-const ORIGINAL_ENV = { ...process.env };
+// Only capture and restore the specific keys this suite touches — assigning to
+// `process.env` wholesale isn't portable across runtimes and flakes in CI.
+const MANAGED_ENV_KEYS = [
+	"MAINA_TELEMETRY",
+	"DO_NOT_TRACK",
+	"CI",
+	"HOME",
+] as const;
+const savedEnv: Record<string, string | undefined> = {};
 const originalFetch = globalThis.fetch;
-const originalHome = process.env.HOME;
 
 function makeTempHome(): string {
 	const dir = join(
@@ -24,6 +31,9 @@ function makeTempHome(): string {
 }
 
 beforeEach(() => {
+	for (const key of MANAGED_ENV_KEYS) {
+		savedEnv[key] = process.env[key];
+	}
 	delete process.env.MAINA_TELEMETRY;
 	delete process.env.DO_NOT_TRACK;
 	delete process.env.CI;
@@ -31,12 +41,14 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-	if (originalHome === undefined) {
-		delete process.env.HOME;
-	} else {
-		process.env.HOME = originalHome;
+	for (const key of MANAGED_ENV_KEYS) {
+		const prev = savedEnv[key];
+		if (prev === undefined) {
+			delete process.env[key];
+		} else {
+			process.env[key] = prev;
+		}
 	}
-	process.env = { ...ORIGINAL_ENV };
 	globalThis.fetch = originalFetch;
 });
 
@@ -112,6 +124,25 @@ describe("buildCliErrorPayload", () => {
 			command: "verify",
 		});
 		expect(payload.errorMessage).toContain("5/10");
+	});
+
+	test("leaves API routes like /v1/cli/errors intact", () => {
+		const err = new Error("POST /v1/cli/errors returned 502");
+		const payload = buildCliErrorPayload(err, {
+			mainaVersion: "1.5.1",
+			command: "verify",
+		});
+		expect(payload.errorMessage).toContain("/v1/cli/errors");
+	});
+
+	test("stops command derivation at the first flag so option VALUES don't leak", () => {
+		const payload = buildCliErrorPayload(new Error("boom"), {
+			mainaVersion: "1.5.1",
+			argv: ["bun", "/path/cli.js", "commit", "-m", "secret message"],
+		});
+		// Must not include "secret" from the -m value
+		expect(payload.command).toBe("commit");
+		expect(payload.command).not.toContain("secret");
 	});
 
 	test("wraps non-Error throws", () => {

@@ -24,16 +24,31 @@ function printAndReport(err: unknown, origin: string): void {
 		);
 	}
 
-	// Fire-and-forget; swallow everything so the crash path isn't blocked.
+	// Preserve the original failure code when one is available: a numeric
+	// `err.code`, or whatever the app has already set on `process.exitCode`.
+	// Fall back to 1.
+	const existing = process.exitCode;
+	const exitCode =
+		typeof code === "number"
+			? code
+			: typeof existing === "number" && existing !== 0
+				? existing
+				: 1;
+	process.exitCode = exitCode;
+
+	// Fire-and-forget; never block the crash path on the network call.
+	// `sendCliErrorReport` already swallows its own errors and times out at 1s.
 	void sendCliErrorReport(e, {
 		mainaVersion: pkg.version,
 		argv: process.argv,
 	}).finally(() => {
-		process.exit(1);
+		process.exit(exitCode);
 	});
 
-	// Safety net: if telemetry somehow hangs past its timeout, force exit.
-	setTimeout(() => process.exit(1), 1500).unref?.();
+	// Safety net: if telemetry somehow hangs past its own timeout, force exit
+	// with the preserved code. `.unref()` lets Node terminate early if the
+	// telemetry promise resolved first.
+	setTimeout(() => process.exit(exitCode), 1500).unref?.();
 }
 
 process.on("uncaughtException", (err) =>
