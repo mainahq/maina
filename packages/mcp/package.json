@@ -1,6 +1,6 @@
 {
   "name": "@mainahq/mcp",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "type": "module",
   "license": "Apache-2.0",
   "description": "Maina MCP server — Model Context Protocol bridge for AI host agents",
@@ -30,7 +30,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mainahq/core": "^1.2.0",
+    "@mainahq/core": "^1.3.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^4.3.6"
   },
