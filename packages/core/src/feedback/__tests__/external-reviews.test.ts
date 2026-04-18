@@ -196,6 +196,11 @@ describe("isAutoSummaryComment", () => {
 	test("does not match unrelated HTML comments", () => {
 		expect(isAutoSummaryComment("<!-- TODO: refactor -->\nbody")).toBe(false);
 	});
+
+	test("does not match empty / whitespace-only bodies", () => {
+		expect(isAutoSummaryComment("")).toBe(false);
+		expect(isAutoSummaryComment("   \n\n\t")).toBe(false);
+	});
 });
 
 describe("ingestComments", () => {

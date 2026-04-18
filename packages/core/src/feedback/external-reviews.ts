@@ -221,8 +221,8 @@ export function getTopCategoriesByFile(
  * actionable signal but trip our keyword categoriser (CodeRabbit's summary
  * header contains words like "auto-generated" and substrings the
  * `security` / `style` rules grab onto). These are issue-level (no
- * `path`), so they show up in the DB as 10 false-positive `security`
- * findings per session.
+ * `path`), so they show up in the DB as a steady stream of false-positive
+ * `security` findings — roughly one per merged PR with a CodeRabbit run.
  *
  * Marker source: CodeRabbit emits these literal HTML comments at the top
  * of every summary it posts. The list is intentionally narrow — only
