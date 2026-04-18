@@ -529,7 +529,8 @@ export async function setupAction(
 			baseEmitter.done(event);
 		},
 	};
-	const baseDeps = depsArg ?? options.deps ?? defaultDeps;
+	const baseDeps: SetupActionDeps =
+		depsArg ?? options.deps ?? ({} as SetupActionDeps);
 	const deps: Required<
 		Pick<
 			SetupActionDeps,
@@ -548,8 +549,8 @@ export async function setupAction(
 			| "seedWiki"
 		>
 	> = {
-		intro: baseDeps.intro ?? (() => {}),
-		outro: baseDeps.outro ?? (() => {}),
+		intro: baseDeps.intro ?? (ciOrJson ? () => {} : intro),
+		outro: baseDeps.outro ?? (ciOrJson ? () => {} : outro),
 		log: baseDeps.log ?? (ciOrJson ? NOOP_LOGGER : log),
 		spinner: baseDeps.spinner ?? (ciOrJson ? NOOP_SPINNER : spinner),
 		isGitRepo: baseDeps.isGitRepo ?? defaultIsGitRepo,
@@ -1045,7 +1046,8 @@ function finalizeEmit(
 		wikiPages: result.wikiPages,
 		bailed: result.bailed,
 		bailReason: result.bailReason,
-		mode: ci ? "ci" : "interactive",
+		mode: result.mode,
+		ci,
 	});
 }
 

@@ -578,7 +578,8 @@ describe("setupAction — ci mode emitter integration", () => {
 		expect(typeof done?.findings).toBe("number");
 		expect(done?.tailored).toBe(true); // byok source = tailored
 		expect(done?.aiSource).toBe("byok");
-		expect(done?.mode).toBe("ci");
+		expect(done?.mode).toBe("fresh");
+		expect(done?.ci).toBe(true);
 	});
 
 	test("not_a_git_repo + ci → preflight error + done, no prompts", async () => {
@@ -721,7 +722,10 @@ describe("setupAction — ci mode emitter integration", () => {
 		expect(lines.length).toBeGreaterThan(0);
 		const events = lines.map((l) => JSON.parse(l) as PhaseEvent);
 		expect(events.at(-1)?.phase).toBe("done");
-		expect(events.at(-1)?.mode).toBe("ci");
+		// `mode` reflects the setup mode (fresh/update/reset), not the runtime
+		// channel. The runtime channel is reported via the boolean `ci` field.
+		expect(events.at(-1)?.mode).toBe("fresh");
+		expect(events.at(-1)?.ci).toBe(true);
 	});
 
 	test("user-agent is threaded into resolveSetupAI as maina-ci/<version>", async () => {
