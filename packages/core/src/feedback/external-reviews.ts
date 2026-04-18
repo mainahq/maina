@@ -8,81 +8,43 @@
  * v1 thin slice: ingest + categorise + query. The RL closure (verify
  * consulting findings, slop ruleset evolution, cloud sync) is v2 — see
  * issue #185.
+ *
+ * DB access goes through `external-reviews-repo.ts` — this module handles
+ * validation, categorisation, and the `gh` subprocess plumbing.
  */
 
-import { randomUUID } from "node:crypto";
-import { getFeedbackDb, type Result } from "../db/index";
+import type { Result } from "../db/index";
+import {
+	insertFindingRow,
+	selectFindings,
+	selectTopCategoriesByFile,
+} from "./external-reviews-repo";
+import type {
+	CategoryByFile,
+	ExternalReviewComment,
+	ExternalReviewFinding,
+	FindingCategory,
+	IngestOptions,
+	IngestStats,
+	InsertFindingInput,
+	QueryFindingsOptions,
+	ReviewerKind,
+} from "./external-reviews-types";
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ── Types (re-exported so callers don't need to know about the split) ───────
 
-export type FindingCategory =
-	| "api-mismatch"
-	| "signature-drift"
-	| "dead-code"
-	| "security"
-	| "style"
-	| "other";
-
-export type ReviewerKind = "bot" | "human";
-
-export type FindingState = "active" | "resolved" | "dismissed";
-
-export interface ExternalReviewComment {
-	/** Stable identifier from the review platform (e.g. GitHub comment id). */
-	sourceId: string;
-	prNumber: number;
-	prRepo: string;
-	filePath: string | null;
-	line: number | null;
-	reviewer: string;
-	body: string;
-	diffAtReview: string | undefined;
-}
-
-export interface InsertFindingInput {
-	prNumber: number;
-	prRepo: string;
-	filePath: string | null;
-	line: number | null;
-	reviewer: string;
-	reviewerKind: ReviewerKind;
-	category: FindingCategory;
-	body: string;
-	diffAtReview?: string;
-	sourceId: string;
-	state?: FindingState;
-}
-
-export interface ExternalReviewFinding {
-	id: string;
-	prNumber: number;
-	prRepo: string;
-	filePath: string | null;
-	line: number | null;
-	reviewer: string;
-	reviewerKind: ReviewerKind;
-	category: FindingCategory;
-	body: string;
-	diffAtReview: string | null;
-	ingestedAt: number;
-	state: FindingState;
-	sourceId: string;
-}
-
-export interface IngestStats {
-	ingested: number;
-	skipped: number;
-}
-
-export interface IngestOptions {
-	allowedReviewers: readonly string[];
-}
-
-export interface CategoryByFile {
-	filePath: string;
-	category: FindingCategory;
-	count: number;
-}
+export type {
+	CategoryByFile,
+	ExternalReviewComment,
+	ExternalReviewFinding,
+	FindingCategory,
+	FindingState,
+	IngestOptions,
+	IngestStats,
+	InsertFindingInput,
+	QueryFindingsOptions,
+	ReviewerKind,
+} from "./external-reviews-types";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -210,7 +172,7 @@ export function classifyReviewerKind(reviewer: string): ReviewerKind {
 	return "human";
 }
 
-// ── Persistence ─────────────────────────────────────────────────────────────
+// ── Persistence (thin wrappers; input validation then repo call) ────────────
 
 function ok<T>(value: T): Result<T, string> {
 	return { ok: true, value };
@@ -228,47 +190,7 @@ export function insertFinding(
 	mainaDir: string,
 	input: InsertFindingInput,
 ): Result<{ inserted: boolean }, string> {
-	const dbResult = getFeedbackDb(mainaDir);
-	if (!dbResult.ok) return err(dbResult.error);
-	const { db } = dbResult.value;
-	try {
-		const id = randomUUID();
-		const ingestedAt = Date.now();
-		const state = input.state ?? "active";
-		const stmt = db.prepare(
-			`INSERT OR IGNORE INTO external_review_findings
-				(id, pr_number, pr_repo, file_path, line, reviewer, reviewer_kind,
-				 category, body, diff_at_review, ingested_at, state, source_id)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		);
-		const res = stmt.run(
-			id,
-			input.prNumber,
-			input.prRepo,
-			input.filePath,
-			input.line,
-			input.reviewer,
-			input.reviewerKind,
-			input.category,
-			input.body,
-			input.diffAtReview ?? null,
-			ingestedAt,
-			state,
-			input.sourceId,
-		);
-		return ok({ inserted: res.changes > 0 });
-	} catch (e) {
-		return err(e instanceof Error ? e.message : String(e));
-	}
-}
-
-export interface QueryFindingsOptions {
-	prRepo?: string;
-	prNumber?: number;
-	filePath?: string;
-	category?: FindingCategory;
-	state?: FindingState;
-	limit?: number;
+	return insertFindingRow(mainaDir, input);
 }
 
 /**
@@ -278,79 +200,7 @@ export function queryFindings(
 	mainaDir: string,
 	opts: QueryFindingsOptions = {},
 ): Result<ExternalReviewFinding[], string> {
-	const dbResult = getFeedbackDb(mainaDir);
-	if (!dbResult.ok) return err(dbResult.error);
-	const { db } = dbResult.value;
-	try {
-		const clauses: string[] = [];
-		const params: (string | number)[] = [];
-		if (opts.prRepo) {
-			clauses.push("pr_repo = ?");
-			params.push(opts.prRepo);
-		}
-		if (opts.prNumber !== undefined) {
-			clauses.push("pr_number = ?");
-			params.push(opts.prNumber);
-		}
-		if (opts.filePath) {
-			clauses.push("file_path = ?");
-			params.push(opts.filePath);
-		}
-		if (opts.category) {
-			clauses.push("category = ?");
-			params.push(opts.category);
-		}
-		if (opts.state) {
-			clauses.push("state = ?");
-			params.push(opts.state);
-		}
-		const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
-		const limit = opts.limit ?? 1000;
-		const rows = db
-			.query(
-				`SELECT id, pr_number, pr_repo, file_path, line, reviewer,
-					reviewer_kind, category, body, diff_at_review, ingested_at,
-					state, source_id
-				 FROM external_review_findings
-				 ${where}
-				 ORDER BY ingested_at DESC
-				 LIMIT ?`,
-			)
-			.all(...params, limit) as Array<{
-			id: string;
-			pr_number: number;
-			pr_repo: string;
-			file_path: string | null;
-			line: number | null;
-			reviewer: string;
-			reviewer_kind: ReviewerKind;
-			category: FindingCategory;
-			body: string;
-			diff_at_review: string | null;
-			ingested_at: number;
-			state: FindingState;
-			source_id: string;
-		}>;
-		return ok(
-			rows.map((r) => ({
-				id: r.id,
-				prNumber: r.pr_number,
-				prRepo: r.pr_repo,
-				filePath: r.file_path,
-				line: r.line,
-				reviewer: r.reviewer,
-				reviewerKind: r.reviewer_kind,
-				category: r.category,
-				body: r.body,
-				diffAtReview: r.diff_at_review,
-				ingestedAt: r.ingested_at,
-				state: r.state,
-				sourceId: r.source_id,
-			})),
-		);
-	} catch (e) {
-		return err(e instanceof Error ? e.message : String(e));
-	}
+	return selectFindings(mainaDir, opts);
 }
 
 /**
@@ -361,41 +211,7 @@ export function getTopCategoriesByFile(
 	mainaDir: string,
 	opts: { limit?: number } = {},
 ): Result<CategoryByFile[], string> {
-	const dbResult = getFeedbackDb(mainaDir);
-	if (!dbResult.ok) return err(dbResult.error);
-	const { db } = dbResult.value;
-	try {
-		const limit = opts.limit ?? 10;
-		const rows = db
-			.query(
-				`SELECT file_path, category, COUNT(*) as cnt
-				 FROM external_review_findings
-				 WHERE file_path IS NOT NULL
-				 GROUP BY file_path, category
-				 ORDER BY cnt DESC
-				 LIMIT ?`,
-			)
-			.all(limit) as Array<{
-			file_path: string;
-			category: FindingCategory;
-			cnt: number;
-		}>;
-		// Keep only the top category per file (first wins because of ORDER BY).
-		const seen = new Set<string>();
-		const out: CategoryByFile[] = [];
-		for (const r of rows) {
-			if (seen.has(r.file_path)) continue;
-			seen.add(r.file_path);
-			out.push({
-				filePath: r.file_path,
-				category: r.category,
-				count: r.cnt,
-			});
-		}
-		return ok(out);
-	} catch (e) {
-		return err(e instanceof Error ? e.message : String(e));
-	}
+	return selectTopCategoriesByFile(mainaDir, opts);
 }
 
 // ── Ingestion ───────────────────────────────────────────────────────────────
@@ -516,6 +332,28 @@ async function fetchPrNumbers(
 	}
 }
 
+/**
+ * `gh api --paginate` emits one JSON document per page (e.g.
+ * `[{...}][{...}]`), which `JSON.parse` rejects as soon as the second page
+ * arrives. `--slurp` wraps every page into an outer array
+ * (`[[{...}],[{...}]]`) so a single `JSON.parse` + `.flat()` handles
+ * arbitrary page counts.
+ *
+ * Exported for tests — production callers should only use it on `gh api
+ * ... --paginate --slurp` output.
+ */
+export function parsePaginatedJson<T>(raw: string): Result<T[], string> {
+	try {
+		const pages = JSON.parse(raw) as T[][];
+		if (!Array.isArray(pages)) {
+			return err("expected paginated JSON array-of-arrays");
+		}
+		return ok(pages.flat());
+	} catch (e) {
+		return err(e instanceof Error ? e.message : String(e));
+	}
+}
+
 async function fetchPrComments(
 	repo: string,
 	prNumber: number,
@@ -527,24 +365,22 @@ async function fetchPrComments(
 		"api",
 		`repos/${repo}/pulls/${prNumber}/comments`,
 		"--paginate",
+		"--slurp",
 	]);
 	if (!reviewRes.ok) return err(reviewRes.error);
-	try {
-		const reviewComments = JSON.parse(reviewRes.value) as GhReviewComment[];
-		for (const c of reviewComments) {
-			out.push({
-				sourceId: `review-${c.id}`,
-				prNumber,
-				prRepo: repo,
-				filePath: c.path ?? null,
-				line: c.line ?? c.original_line ?? null,
-				reviewer: c.user?.login ?? "unknown",
-				body: c.body,
-				diffAtReview: c.diff_hunk,
-			});
-		}
-	} catch (e) {
-		return err(e instanceof Error ? e.message : String(e));
+	const reviewParsed = parsePaginatedJson<GhReviewComment>(reviewRes.value);
+	if (!reviewParsed.ok) return err(reviewParsed.error);
+	for (const c of reviewParsed.value) {
+		out.push({
+			sourceId: `review-${c.id}`,
+			prNumber,
+			prRepo: repo,
+			filePath: c.path ?? null,
+			line: c.line ?? c.original_line ?? null,
+			reviewer: c.user?.login ?? "unknown",
+			body: c.body,
+			diffAtReview: c.diff_hunk,
+		});
 	}
 
 	// Issue-level comments (top-level PR conversation).
@@ -552,24 +388,22 @@ async function fetchPrComments(
 		"api",
 		`repos/${repo}/issues/${prNumber}/comments`,
 		"--paginate",
+		"--slurp",
 	]);
 	if (!issueRes.ok) return err(issueRes.error);
-	try {
-		const issueComments = JSON.parse(issueRes.value) as GhIssueComment[];
-		for (const c of issueComments) {
-			out.push({
-				sourceId: `issue-${c.id}`,
-				prNumber,
-				prRepo: repo,
-				filePath: null,
-				line: null,
-				reviewer: c.user?.login ?? "unknown",
-				body: c.body,
-				diffAtReview: undefined,
-			});
-		}
-	} catch (e) {
-		return err(e instanceof Error ? e.message : String(e));
+	const issueParsed = parsePaginatedJson<GhIssueComment>(issueRes.value);
+	if (!issueParsed.ok) return err(issueParsed.error);
+	for (const c of issueParsed.value) {
+		out.push({
+			sourceId: `issue-${c.id}`,
+			prNumber,
+			prRepo: repo,
+			filePath: null,
+			line: null,
+			reviewer: c.user?.login ?? "unknown",
+			body: c.body,
+			diffAtReview: undefined,
+		});
 	}
 
 	return ok(out);

@@ -196,6 +196,7 @@ export {
 	ingestComments,
 	ingestPrReviews,
 	insertFinding,
+	parsePaginatedJson,
 	type QueryFindingsOptions,
 	queryFindings,
 	type ReviewerKind,

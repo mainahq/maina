@@ -9,6 +9,7 @@ import {
 	getTopCategoriesByFile,
 	ingestComments,
 	insertFinding,
+	parsePaginatedJson,
 	queryFindings,
 } from "../external-reviews";
 
@@ -300,5 +301,132 @@ describe("getTopCategoriesByFile", () => {
 		const a = result.value.find((r) => r.filePath === "a.ts");
 		expect(a?.count).toBe(2);
 		expect(a?.category).toBe("api-mismatch");
+	});
+
+	test("returns one row per distinct file even when a file has many categories (regression for PR #188 CodeRabbit finding)", () => {
+		// File `hot.ts` has 3 separate categories with high counts. Without
+		// the window function, the old implementation GROUP BYs per (file,
+		// category), ORDER BY cnt DESC, LIMIT ? — so all three hot.ts groups
+		// fill the limit and other files get squeezed out, leaving fewer
+		// distinct files than requested.
+		for (let i = 0; i < 5; i++) {
+			insertFinding(tmpDir, {
+				prNumber: 100,
+				prRepo: "x/y",
+				filePath: "hot.ts",
+				line: i,
+				reviewer: "copilot-pull-request-reviewer",
+				reviewerKind: "bot",
+				category: "api-mismatch",
+				body: "x",
+				sourceId: `hot-api-${i}`,
+			});
+		}
+		for (let i = 0; i < 4; i++) {
+			insertFinding(tmpDir, {
+				prNumber: 100,
+				prRepo: "x/y",
+				filePath: "hot.ts",
+				line: i + 10,
+				reviewer: "copilot-pull-request-reviewer",
+				reviewerKind: "bot",
+				category: "style",
+				body: "x",
+				sourceId: `hot-style-${i}`,
+			});
+		}
+		for (let i = 0; i < 3; i++) {
+			insertFinding(tmpDir, {
+				prNumber: 100,
+				prRepo: "x/y",
+				filePath: "hot.ts",
+				line: i + 20,
+				reviewer: "copilot-pull-request-reviewer",
+				reviewerKind: "bot",
+				category: "dead-code",
+				body: "x",
+				sourceId: `hot-dead-${i}`,
+			});
+		}
+		// Also a couple other files with single findings.
+		insertFinding(tmpDir, {
+			prNumber: 101,
+			prRepo: "x/y",
+			filePath: "warm.ts",
+			line: 1,
+			reviewer: "copilot-pull-request-reviewer",
+			reviewerKind: "bot",
+			category: "security",
+			body: "x",
+			sourceId: "warm-1",
+		});
+		insertFinding(tmpDir, {
+			prNumber: 102,
+			prRepo: "x/y",
+			filePath: "cool.ts",
+			line: 1,
+			reviewer: "copilot-pull-request-reviewer",
+			reviewerKind: "bot",
+			category: "other",
+			body: "x",
+			sourceId: "cool-1",
+		});
+
+		const result = getTopCategoriesByFile(tmpDir, { limit: 3 });
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+
+		// Three distinct files returned — not three rows for `hot.ts`.
+		const files = result.value.map((r) => r.filePath);
+		expect(new Set(files).size).toBe(files.length);
+		expect(files).toContain("hot.ts");
+		expect(files).toContain("warm.ts");
+		expect(files).toContain("cool.ts");
+
+		// And hot.ts appears once with its top category (api-mismatch, 5).
+		const hot = result.value.find((r) => r.filePath === "hot.ts");
+		expect(hot?.category).toBe("api-mismatch");
+		expect(hot?.count).toBe(5);
+	});
+});
+
+// ── parsePaginatedJson (gh api --paginate --slurp) ─────────────────────────
+
+describe("parsePaginatedJson", () => {
+	test("flattens a single-page --slurp result", () => {
+		// --slurp wraps pages in an outer array; one page → [[...]]
+		const raw = JSON.stringify([[{ id: 1 }, { id: 2 }]]);
+		const res = parsePaginatedJson<{ id: number }>(raw);
+		expect(res.ok).toBe(true);
+		if (!res.ok) return;
+		expect(res.value).toHaveLength(2);
+		expect(res.value[0]?.id).toBe(1);
+	});
+
+	test("flattens a multi-page --slurp result (regression for PR #188 CodeRabbit finding)", () => {
+		// Two pages combined by --slurp: [[page1], [page2]]
+		const raw = JSON.stringify([
+			[{ id: 1 }, { id: 2 }],
+			[{ id: 3 }, { id: 4 }, { id: 5 }],
+		]);
+		const res = parsePaginatedJson<{ id: number }>(raw);
+		expect(res.ok).toBe(true);
+		if (!res.ok) return;
+		expect(res.value.map((c) => c.id)).toEqual([1, 2, 3, 4, 5]);
+	});
+
+	test("returns an error on concatenated JSON (the bug --slurp fixes)", () => {
+		// This is what `gh api --paginate` produces without --slurp:
+		// two JSON docs back-to-back. JSON.parse must reject the second `[`.
+		const raw = `[{"id":1}][{"id":2}]`;
+		const res = parsePaginatedJson(raw);
+		expect(res.ok).toBe(false);
+	});
+
+	test("handles an empty --slurp result ([])", () => {
+		const res = parsePaginatedJson<{ id: number }>("[]");
+		expect(res.ok).toBe(true);
+		if (!res.ok) return;
+		expect(res.value).toEqual([]);
 	});
 });

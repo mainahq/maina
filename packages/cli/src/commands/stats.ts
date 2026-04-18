@@ -395,6 +395,50 @@ function displayComparison(report: ComparisonReport): void {
 	);
 }
 
+/**
+ * Render `statsAction` output for the CLI. Exposed for tests so we can
+ * verify that `--json` produces a single JSON document with no trailing
+ * formatted text (a regression CodeRabbit flagged on PR #188).
+ */
+export function renderStatsResult(
+	result: StatsActionResult,
+	options: StatsActionOptions,
+): void {
+	if (!result.displayed) {
+		log.warning(result.reason ?? "Unknown error");
+		outro("Done.");
+		return;
+	}
+
+	if (result.specsResult) {
+		displaySpecs(result.specsResult);
+	} else if (result.jsonOutput) {
+		// biome-ignore lint/suspicious/noConsole: JSON output goes to stdout
+		console.log(result.jsonOutput);
+		// JSON mode: do NOT emit further formatted text, it pollutes the
+		// JSON stream and breaks `maina stats --json | jq`.
+		return;
+	} else if (result.stats && result.trends) {
+		displayStats(result.stats, result.trends);
+	}
+
+	if (options.json) {
+		// Defense in depth: even if jsonOutput is missing, `--json` must not
+		// leak formatted wiki/external-category text.
+		return;
+	}
+
+	if (result.wikiMetrics) {
+		displayWikiMetrics(result.wikiMetrics);
+	}
+
+	if (result.externalCategories) {
+		displayExternalCategories(result.externalCategories);
+	}
+
+	outro("Done.");
+}
+
 export function statsCommand(): Command {
 	return new Command("stats")
 		.description("Show commit verification metrics and trends")
@@ -403,7 +447,7 @@ export function statsCommand(): Command {
 		.option("--compare", "Show maina vs raw git comparison")
 		.option("--specs", "Show feature spec quality scores")
 		.action(async (options) => {
-			intro("maina stats");
+			if (!options.json) intro("maina stats");
 
 			if (options.compare) {
 				const cwd = process.cwd();
@@ -425,29 +469,10 @@ export function statsCommand(): Command {
 				specs: options.specs,
 			});
 
-			if (!result.displayed) {
-				log.warning(result.reason ?? "Unknown error");
-				outro("Done.");
-				return;
-			}
-
-			if (result.specsResult) {
-				displaySpecs(result.specsResult);
-			} else if (result.jsonOutput) {
-				// biome-ignore lint/suspicious/noConsole: JSON output goes to stdout
-				console.log(result.jsonOutput);
-			} else if (result.stats && result.trends) {
-				displayStats(result.stats, result.trends);
-			}
-
-			if (result.wikiMetrics) {
-				displayWikiMetrics(result.wikiMetrics);
-			}
-
-			if (result.externalCategories) {
-				displayExternalCategories(result.externalCategories);
-			}
-
-			outro("Done.");
+			renderStatsResult(result, {
+				json: options.json,
+				last: Number.isNaN(last) ? 10 : last,
+				specs: options.specs,
+			});
 		});
 }
