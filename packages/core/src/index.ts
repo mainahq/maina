@@ -181,6 +181,26 @@ export {
 	storeCompressedReview,
 } from "./feedback/compress";
 export {
+	ALLOWED_REVIEWERS,
+	type CategoryByFile,
+	categoriseComment,
+	classifyReviewerKind,
+	type ExternalReviewComment,
+	type ExternalReviewFinding,
+	type FindingCategory,
+	type FindingState,
+	getTopCategoriesByFile,
+	type IngestPrReviewsOptions,
+	type IngestStats,
+	type InsertFindingInput,
+	ingestComments,
+	ingestPrReviews,
+	insertFinding,
+	type QueryFindingsOptions,
+	queryFindings,
+	type ReviewerKind,
+} from "./feedback/external-reviews";
+export {
 	acknowledgeFinding,
 	dismissFinding,
 	getNoisyRules,

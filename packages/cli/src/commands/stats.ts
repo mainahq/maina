@@ -1,12 +1,13 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
-import type { Result } from "@mainahq/core";
+import type { CategoryByFile, Result } from "@mainahq/core";
 import {
 	type ComparisonReport,
 	getComparison,
 	getSkipRate,
 	getStats,
+	getTopCategoriesByFile,
 	getTrends,
 	type QualityScore,
 	type StatsReport,
@@ -55,6 +56,7 @@ export interface StatsActionResult {
 	jsonOutput?: string;
 	specsResult?: SpecsResult;
 	wikiMetrics?: WikiMetrics;
+	externalCategories?: CategoryByFile[];
 }
 
 export interface StatsDeps {
@@ -235,14 +237,38 @@ export async function statsAction(
 	// ── Wiki metrics ───────────────────────────────────────────────────
 	const wikiMetrics = gatherWikiMetrics(mainaDir) ?? undefined;
 
+	// ── External review categories (issue #185 ingest) ─────────────────
+	const externalRes = getTopCategoriesByFile(mainaDir, { limit: 5 });
+	const externalCategories =
+		externalRes.ok && externalRes.value.length > 0
+			? externalRes.value
+			: undefined;
+
 	// ── JSON output ────────────────────────────────────────────────────
 	if (options.json) {
-		const jsonOutput = JSON.stringify({ stats, trends, wikiMetrics }, null, 2);
-		return { displayed: true, stats, trends, jsonOutput, wikiMetrics };
+		const jsonOutput = JSON.stringify(
+			{ stats, trends, wikiMetrics, externalCategories },
+			null,
+			2,
+		);
+		return {
+			displayed: true,
+			stats,
+			trends,
+			jsonOutput,
+			wikiMetrics,
+			externalCategories,
+		};
 	}
 
 	// ── Formatted display ──────────────────────────────────────────────
-	return { displayed: true, stats, trends, wikiMetrics };
+	return {
+		displayed: true,
+		stats,
+		trends,
+		wikiMetrics,
+		externalCategories,
+	};
 }
 
 // ── Specs Display Helper ────────────────────────────────────────────────────
@@ -319,6 +345,14 @@ function displayStats(stats: StatsReport, trends: TrendsReport): void {
 	log.info(
 		`    verify ${vArrow} | tokens ${tArrow} | cache ${cArrow} | quality ${qArrow}`,
 	);
+}
+
+function displayExternalCategories(rows: CategoryByFile[]): void {
+	log.step("Top external-review categories:");
+	const lines = rows.map(
+		(r) => `  ${r.filePath} \u2014 ${r.category} (${r.count})`,
+	);
+	log.message(lines.join("\n"));
 }
 
 function displayWikiMetrics(metrics: WikiMetrics): void {
@@ -408,6 +442,10 @@ export function statsCommand(): Command {
 
 			if (result.wikiMetrics) {
 				displayWikiMetrics(result.wikiMetrics);
+			}
+
+			if (result.externalCategories) {
+				displayExternalCategories(result.externalCategories);
 			}
 
 			outro("Done.");
