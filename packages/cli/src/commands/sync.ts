@@ -125,14 +125,59 @@ export async function syncPullAction(cwd?: string): Promise<SyncActionResult> {
 		};
 	}
 
-	mkdirSync(promptsDir, { recursive: true });
-
-	for (const prompt of prompts) {
-		const filePath = join(promptsDir, prompt.path);
-		writeFileSync(filePath, prompt.content, "utf-8");
+	try {
+		mkdirSync(promptsDir, { recursive: true });
+	} catch (e) {
+		return {
+			synced: false,
+			count: 0,
+			reason: `Could not create ${promptsDir}: ${e instanceof Error ? e.message : String(e)}`,
+		};
 	}
 
-	return { synced: true, count: prompts.length };
+	let written = 0;
+	const skipped: string[] = [];
+
+	for (const prompt of prompts) {
+		// Defensive: a malformed server payload (missing path/content) used to
+		// throw out of the loop and leave `@clack/prompts`' spinner monitor to
+		// print a generic "Something went wrong" (see #196).
+		if (typeof prompt?.path !== "string" || prompt.path.length === 0) {
+			skipped.push(`<unknown id=${String(prompt?.id ?? "?")}>`);
+			continue;
+		}
+		if (typeof prompt.content !== "string") {
+			skipped.push(prompt.path);
+			continue;
+		}
+
+		try {
+			const filePath = join(promptsDir, prompt.path);
+			writeFileSync(filePath, prompt.content, "utf-8");
+			written++;
+		} catch (e) {
+			skipped.push(
+				`${prompt.path} (${e instanceof Error ? e.message : String(e)})`,
+			);
+		}
+	}
+
+	if (written === 0 && skipped.length > 0) {
+		return {
+			synced: false,
+			count: 0,
+			reason: `All ${skipped.length} prompt(s) skipped: ${skipped.join(", ")}`,
+		};
+	}
+
+	return {
+		synced: true,
+		count: written,
+		reason:
+			skipped.length > 0
+				? `Skipped ${skipped.length}: ${skipped.join(", ")}`
+				: undefined,
+	};
 }
 
 // ── Commander Command ───────────────────────────────────────────────────────
@@ -179,7 +224,16 @@ export function syncCommand(): Command {
 
 			if (result.synced) {
 				s.stop("Done");
-				log.success(`Pulled ${result.count} prompt(s) from cloud.`);
+				if (result.count === 0 && result.reason) {
+					// Empty team — show the friendly message instead of "Pulled 0".
+					log.info(result.reason);
+				} else {
+					log.success(`Pulled ${result.count} prompt(s) from cloud.`);
+					if (result.reason) {
+						// Partial success: some records were malformed and skipped.
+						log.warning(result.reason);
+					}
+				}
 				outro("Sync complete.");
 			} else {
 				s.stop("Failed");
