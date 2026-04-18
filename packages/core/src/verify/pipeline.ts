@@ -33,6 +33,7 @@ import { detectSlop } from "./slop";
 import { runSonar } from "./sonar";
 import type { SyntaxDiagnostic } from "./syntax-guard";
 import { syntaxGuard } from "./syntax-guard";
+import { detectDocClaims } from "./tools/doc-claims";
 import { runWikiLintTool } from "./tools/wiki-lint-runner";
 import { runTrivy } from "./trivy";
 import { runTypecheck } from "./typecheck";
@@ -168,6 +169,16 @@ export async function runPipeline(
 		}),
 	);
 
+	// Doc-claims — verifies that import statements in changed markdown docs
+	// reference symbols actually exported by the resolved package source.
+	// Mechanical, no LLM. See packages/core/src/verify/tools/doc-claims.ts.
+	toolPromises.push(
+		runToolWithTiming("doc-claims", async () => {
+			const result = await detectDocClaims(files, { cwd });
+			return { findings: result.findings, skipped: false };
+		}),
+	);
+
 	// Semgrep — pass pre-resolved availability
 	toolPromises.push(
 		runToolWithTiming("semgrep", () =>
@@ -273,6 +284,7 @@ export async function runPipeline(
 		"consistency",
 		"builtin",
 		"wiki-lint",
+		"doc-claims",
 	]);
 	const externalTools = toolReports.filter((r) => !builtInTools.has(r.tool));
 	const allExternalSkipped =

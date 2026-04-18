@@ -86,6 +86,34 @@ The AI Slop Detector catches patterns common in AI-generated code:
 
 Slop detection runs as part of the parallel analysis phase and uses the mechanical model tier for cost efficiency.
 
+### Doc-claim verification
+
+The `doc-claims` tool catches a specific class of bug: a subagent asked to summarize a package's "API surface" returns a narrative that mixes real exports with plausible-looking fabrications, and the fabrications ship to docs. (The bug that motivated this gate: workkit#43, which shipped 20+ wrong API claims.)
+
+For each changed `.md` / `.mdx` file the tool:
+
+1. Parses fenced code blocks for `import` and `require` statements.
+2. Resolves the module specifier to a file inside the workspace — relative paths resolve against the doc's directory; workspace package names (`@scope/name`) are resolved by scanning `<cwd>/packages/*` for a matching `package.json#name`.
+3. Collects every top-level exported identifier from the resolved source (direct exports, `export { ... }` lists, re-exports).
+4. Emits a `warning` finding for each imported symbol that is not in the export set, pointing at the import line.
+
+The check is mechanical — no LLM in the loop — and runs in parallel with the other verify tools.
+
+**Limitations (v1):**
+
+- External packages (`react`, `lodash`, anything in `node_modules`) are skipped silently. We do not walk `node_modules`; verification of external surface is a future improvement.
+- Member-access claims (`obj.method()` in a code sample) are not validated. That requires type information, which is out of scope for v1.
+- `export *` re-exports are treated as a wildcard — any symbol claimed against such a package is accepted. This trades precision for fewer false positives.
+- Severity is `warning`, not `error`. Promote it via `.maina/constitution.md` once the false-positive rate is well understood.
+
+**Silencing a finding:** if a flagged import is actually correct (e.g. the source file uses an exotic export form the regex misses), add the rule to your noisy-rules list:
+
+```bash
+maina feedback dismiss doc-claims/missing-export
+```
+
+After enough dismissals the rule is auto-downgraded or skipped per the standard noisy-rule preferences.
+
 ## Tools
 
 | Tool | What it checks | Required |
@@ -100,6 +128,7 @@ Slop detection runs as part of the parallel analysis phase and uses the mechanic
 | **AI Slop Detector** | AI-generated filler, hallucinations, dead code | Built-in |
 | **typecheck** | `tsc --noEmit` type checking with zero extra installs | Built-in (TS projects) |
 | **consistency** | AST-based cross-function consistency check | Built-in |
+| **doc-claims** | Verifies `import` statements in changed `.md` / `.mdx` files reference symbols actually exported by the resolved package source | Built-in |
 | **ZAP** | Dynamic Application Security Testing (Docker-based) | Optional |
 | **Lighthouse** | Performance, accessibility, and SEO auditing | Optional |
 
