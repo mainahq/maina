@@ -37,6 +37,12 @@ export interface WikiCompileOptions {
 	ai?: boolean;
 	json?: boolean;
 	cwd?: string;
+	/**
+	 * Sample mode — cap the source-file set processed by the compiler so a
+	 * first-pass seed (used by `maina setup`) finishes quickly on large repos.
+	 * The cap is enforced by the core compiler.
+	 */
+	sample?: boolean;
 }
 
 // ── Core Action (testable) ──────────────────────────────────────────────────
@@ -68,6 +74,7 @@ export async function wikiCompileAction(
 		full: mode === "full",
 		dryRun,
 		useAI: options.ai ?? false,
+		sample: options.sample ?? false,
 	});
 
 	if (!result.ok) {

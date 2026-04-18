@@ -7,6 +7,10 @@ export default defineConfig({
   site: 'https://mainahq.com',
   base: '/',
   vite: { plugins: [tailwindcss()] },
+  redirects: {
+    '/quickstart': '/getting-started',
+    '/quickstart/': '/getting-started/',
+  },
   integrations: [
     starlight({
       plugins: [
@@ -35,9 +39,8 @@ export default defineConfig({
         {
           label: 'Start Here',
           items: [
-            { slug: 'quickstart' },
+            { slug: 'getting-started' },
             { slug: 'commands' },
-            { slug: 'full-setup' },
           ],
         },
         {
@@ -49,6 +52,13 @@ export default defineConfig({
             { slug: 'ci' },
             { slug: 'mcp' },
             { slug: 'skills' },
+          ],
+        },
+        {
+          label: 'Advanced',
+          collapsed: true,
+          items: [
+            { slug: 'full-setup' },
           ],
         },
         {

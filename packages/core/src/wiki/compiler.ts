@@ -67,7 +67,16 @@ export interface CompileOptions {
 	full?: boolean;
 	dryRun?: boolean;
 	useAI?: boolean;
+	/**
+	 * Sample mode — cap the source file set to `SAMPLE_FILE_LIMIT` most
+	 * recently modified files. Used by `maina setup` to keep first-pass
+	 * compile inside a 10s foreground budget on large repos.
+	 */
+	sample?: boolean;
 }
+
+/** Hard cap for sample-mode source files. */
+const SAMPLE_FILE_LIMIT = 20;
 
 // ─── AI Enhancement ─────────────────────────────────────────────────────
 
@@ -1034,7 +1043,21 @@ export async function compile(
 
 	try {
 		// ── Step 1: Run extractors ──────────────────────────────────────
-		const sourceFiles = findSourceFiles(repoRoot, repoRoot);
+		let sourceFiles = findSourceFiles(repoRoot, repoRoot);
+		if (options.sample === true && sourceFiles.length > SAMPLE_FILE_LIMIT) {
+			// Sort by mtime desc — most recently modified first — then cap.
+			const withMtime = sourceFiles.map((rel) => {
+				let mtime = 0;
+				try {
+					mtime = statSync(join(repoRoot, rel)).mtimeMs;
+				} catch {
+					// missing file → treat as oldest
+				}
+				return { rel, mtime };
+			});
+			withMtime.sort((a, b) => b.mtime - a.mtime);
+			sourceFiles = withMtime.slice(0, SAMPLE_FILE_LIMIT).map((e) => e.rel);
+		}
 
 		const entityResult = extractCodeEntities(repoRoot, sourceFiles);
 		const codeEntities: CodeEntity[] = entityResult.ok

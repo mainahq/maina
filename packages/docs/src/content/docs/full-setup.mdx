@@ -1,20 +1,24 @@
 ---
-title: Full Setup
-description: Complete setup guide — languages, layers, CI, cloud, MCP, and everything else.
+title: Full Setup (Advanced)
+description: Long-form reference — languages, layers, CI, cloud, MCP, and every lower-level command.
 ---
 
 import { Tabs, TabItem, Card, CardGrid, Steps, Aside, LinkCard, Badge } from '@astrojs/starlight/components';
+
+:::note[Most users want `maina setup` instead]
+The one-command wizard ([Getting Started](/getting-started)) covers 95% of what this page documents — in under 60 seconds, anonymously, with a tailored constitution and agent files. Read on only if you need the lower-level primitives (`maina init`, manual MCP wiring, custom CI plumbing).
+:::
 
 Maina is the verification layer for AI-generated code. 19+ tools. 7 languages. One command. Zero config.
 
 ## Install
 
 <Tabs>
-  <TabItem label="One-liner (recommended)">
+  <TabItem label="Wizard (recommended)">
     ```bash
-    curl -fsSL https://api.mainahq.com/install | bash
+    bunx @mainahq/cli@latest setup
     ```
-    Detects your OS, installs maina, finds your AI tools, configures MCP automatically.
+    Detects your stack, generates a tailored constitution, scaffolds agent files, seeds the wiki, and runs verify — no API key, no login. See [Getting Started](/getting-started).
   </TabItem>
   <TabItem label="bun">
     ```bash
@@ -26,11 +30,11 @@ Maina is the verification layer for AI-generated code. 19+ tools. 7 languages. O
     npm install -g @mainahq/cli
     ```
   </TabItem>
-  <TabItem label="Try without installing">
+  <TabItem label="One-liner (shell)">
     ```bash
-    npx @mainahq/cli init
-    npx @mainahq/cli verify
+    curl -fsSL https://api.mainahq.com/install | bash
     ```
+    Detects your OS and installs maina globally. Pair with `maina setup`.
   </TabItem>
 </Tabs>
 
@@ -45,16 +49,12 @@ Maina is the verification layer for AI-generated code. 19+ tools. 7 languages. O
 1. **Initialize your project**
 
    ```bash
-   maina init --install
+   maina setup          # recommended — one command
+   # or, if you prefer the lower-level primitives:
+   maina init --install # detects stack, installs verification tools
    ```
 
-   This detects your stack, creates `.maina/` with a constitution and custom prompts, and installs missing verification tools.
-
-   Then run guided setup:
-
-   ```bash
-   maina setup   # guided setup — detects IDE, configures MCP
-   ```
+   `maina setup` is the zero-friction wizard. `maina init` is the lower-level bootstrap it delegates to; it remains available for scripting and snapshot tests.
 
 2. **Make changes and commit**
 
@@ -164,21 +164,21 @@ No accounts. No Docker. No cloud required. Everything runs locally in your termi
 
 ## MCP Server
 
-Add Maina to your IDE:
+`maina setup` wires this automatically for every AI coding tool it detects. Manual reference:
 
 <Tabs>
   <TabItem label="Claude Code">
-    Automatic — `maina init` creates `.claude/settings.json`
+    Automatic — setup writes `.claude/CLAUDE.md` and configures MCP.
   </TabItem>
   <TabItem label="Cursor">
-    Automatic — `maina init` creates `.mcp.json`
+    Automatic — setup writes `.cursor/rules/maina.mdc` and `.mcp.json`.
   </TabItem>
   <TabItem label="Windsurf">
-    Run `maina setup` to configure `~/.codeium/windsurf/mcp_config.json`
+    Automatic — setup writes `.windsurf/rules/maina.md` and configures `~/.codeium/windsurf/mcp_config.json`.
   </TabItem>
   <TabItem label="Other">
     ```json
-    {"mcpServers":{"maina":{"command":"npx","args":["@mainahq/cli","--mcp"]}}}
+    {"mcpServers":{"maina":{"command":"bunx","args":["@mainahq/cli","--mcp"]}}}
     ```
   </TabItem>
 </Tabs>

@@ -7,14 +7,15 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
   <div class="hero-prompt">~/project $</div>
   <h1>AI writes 41% of your code.<br><span class="accent">Who's checking it?</span></h1>
   <p class="hero-subtitle">
-    Verification-first developer OS. CLI + MCP server that proves AI-generated code is correct before it merges.
+    One command. Zero config. No API key. A tailored constitution, wired agents,
+    seeded wiki, and a real verify finding — in under 60 seconds.
   </p>
-  <div class="hero-actions">
-    <a href={`${base}/quickstart`} class="btn-primary">Get Started</a>
-    <a href="https://github.com/mainahq/maina" class="btn-secondary">GitHub</a>
+  <div class="install-cmd" id="setup-cmd" title="Click to copy">
+    <code>bunx @mainahq/cli@latest setup</code>
   </div>
-  <div class="install-cmd">
-    <code>curl -fsSL https://api.mainahq.com/install | bash</code>
+  <div class="hero-actions">
+    <a href={`${base}/getting-started`} class="btn-primary">Get Started</a>
+    <a href="https://github.com/mainahq/maina" class="btn-secondary">GitHub</a>
   </div>
   <div class="mcp-badges">
     <button class="mcp-badge" data-action="claude" title="Add Maina MCP to Claude Code">
@@ -41,6 +42,17 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
   var cursorBadge = document.getElementById('cursor-badge');
   if (cursorBadge) {
     cursorBadge.href = 'cursor://anysphere.cursor-deeplink/mcp/install?name=maina&config=' + cursorConfig;
+  }
+
+  // Copy the setup command on click
+  var setupCmd = document.getElementById('setup-cmd');
+  if (setupCmd) {
+    setupCmd.style.cursor = 'pointer';
+    setupCmd.addEventListener('click', function() {
+      navigator.clipboard.writeText('bunx @mainahq/cli@latest setup').then(function() {
+        showToast('Copied! Paste into your terminal.');
+      });
+    });
   }
 
   // Badge click handlers

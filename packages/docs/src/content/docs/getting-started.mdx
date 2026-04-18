@@ -1,0 +1,76 @@
+---
+title: Getting Started
+description: One command. Zero config. No API key. Tailored constitution, agent instruction files, wiki, and a real verify finding in under 60 seconds.
+---
+
+import { Steps, Aside, CardGrid, LinkCard, Badge } from '@astrojs/starlight/components';
+
+```bash
+bunx @mainahq/cli@latest setup
+```
+
+That's the whole install. No API key. No login. No Docker. It works anywhere Bun or Node runs.
+
+In under 60 seconds `maina setup` detects your stack, writes a constitution tailored to *your* repo, wires up every AI coding tool you have installed, seeds a searchable codebase wiki, and runs `maina verify` to surface a real finding inline.
+
+## What the wizard does
+
+<Steps>
+
+1. **Detect** — Languages, frameworks, package manager, linters, test runners, and CI system, inferred from files already in your repo. No prompts to fill out.
+
+2. **Infer** — A tailored `.maina/constitution.md` is generated via the host AI if you're running inside Claude Code / Cursor / Codex, or via the anonymous Cloudflare AI Gateway if not. Bring your own key with `MAINA_API_KEY` for full control. No network? Setup degrades gracefully and ships a solid default.
+
+3. **Scaffold** — Five agent instruction files are written with non-destructive `<maina-managed>` regions so your existing rules stay intact:
+
+   - `AGENTS.md`
+   - `.cursor/rules/maina.mdc`
+   - `.claude/CLAUDE.md`
+   - `.github/copilot-instructions.md`
+   - `.windsurf/rules/maina.md`
+
+   The codebase wiki is seeded in the foreground for 10 seconds; anything not finished continues in the background while you keep working.
+
+4. **Verify** — `maina verify` runs once and surfaces one real finding inline. Now every agent on your machine — Claude Code, Cursor, Copilot, Windsurf — respects the same rules and reviews the same diff.
+
+</Steps>
+
+<Aside type="tip">
+Target: **under 60 seconds** in host mode, **under 90 seconds** in cloud mode.
+</Aside>
+
+## Zero-friction by design
+
+- **No API key required** — host delegation or the anonymous gateway handles AI for the wizard.
+- **No login wall** — the wizard never opens a browser or asks you to create an account.
+- **Non-destructive** — agent files use `<maina-managed>` regions; your own content is preserved.
+- **Resumable** — re-run `maina setup` any time; it diffs and only writes what changed.
+
+## CI and automation
+
+```bash
+bunx @mainahq/cli@latest setup --ci
+```
+
+`--ci` disables all prompts and emits one JSON object per phase on stdout, making the wizard safe to drop into GitHub Actions, GitLab CI, or any provisioning script.
+
+## Next steps
+
+<CardGrid>
+  <LinkCard title="Commands" description="Every command, organized by workflow phase" href="/commands" />
+  <LinkCard title="MCP Server" description="Already wired during setup — here's how it works" href="/mcp" />
+  <LinkCard title="Configuration" description="Model tiers, custom prompts, hooks" href="/configuration" />
+  <LinkCard title="CI Integration" description="Run verification on every pull request" href="/ci" />
+</CardGrid>
+
+## Advanced
+
+Most users should stop at `maina setup`. These commands remain for power users and are kept as canonical references.
+
+- [**`maina setup --update`**](/full-setup) — re-tailor the constitution and agent files for the current stack. Run this after major stack changes.
+- **`maina setup --reset`** — back up `.maina/` and start fresh.
+- **`maina setup --agents <list>`** — scope which agent files are written (e.g. `--agents claude,cursor`).
+- [**`maina init`**](/full-setup) — lower-level bootstrap used internally by the wizard. Kept for scripting and snapshot tests.
+- **`maina configure`** — <Badge text="Deprecated since v1.3" variant="caution" size="small" /> alias for `maina setup --update`. Will be removed in v1.5.
+
+See the [Full Setup](/full-setup) reference for the long-form walkthrough, language matrix, and zero-friction layer breakdown.

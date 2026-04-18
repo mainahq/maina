@@ -8,6 +8,12 @@
 
 ---
 
+```bash
+bunx @mainahq/cli@latest setup
+```
+
+One command. Zero config. No API key, no login. In under 60 seconds: tailored `.maina/constitution.md`, five agent instruction files (`AGENTS.md`, Cursor, Claude, Copilot, Windsurf) with non-destructive managed regions, a seeded codebase wiki, and a real `maina verify` finding surfaced inline.
+
 ## The Problem
 
 AI writes 41% of code today. That code ships with **1.7x more defects** than human-written code. Every team now faces the same question: *how do you trust what the machine wrote?*
@@ -23,10 +29,10 @@ Maina is a CLI + MCP server + skills package. One tool that:
 3. **Proves every change** -- 16-tool verification pipeline, diff-only, before it merges
 
 ```bash
-bunx @mainahq/cli init      # Zero config. Works immediately.
-maina commit                # Verify with 12 tools + commit.
-maina verify --visual       # Add screenshot regression.
-maina pr                    # PR with verification proof attached.
+bunx @mainahq/cli@latest setup   # Wizard: constitution + agents + wiki + verify (<60s)
+maina commit                     # Verify with 12 tools + commit.
+maina verify --visual            # Add screenshot regression.
+maina pr                         # PR with verification proof attached.
 ```
 
 ## How It Works
@@ -114,20 +120,20 @@ Maina runs inside any AI coding tool via MCP and cross-platform skills:
 
 | Tool | MCP | Instructions | Setup |
 |------|-----|-------------|-------|
-| Claude Code | Yes | CLAUDE.md | `maina init` |
-| Cursor | Yes | .cursorrules | `maina init` |
+| Claude Code | Yes | CLAUDE.md | `maina setup` |
+| Cursor | Yes | .cursorrules | `maina setup` |
 | Windsurf | Yes | .windsurfrules | `maina setup` |
-| GitHub Copilot | Yes | copilot-instructions.md | `maina init` |
-| Continue.dev | Yes | config.yaml | `maina init` |
+| GitHub Copilot | Yes | copilot-instructions.md | `maina setup` |
+| Continue.dev | Yes | config.yaml | `maina setup` |
 | Cline | Yes | .clinerules | `maina setup` |
-| Roo Code | Yes | .roo/rules/ | `maina init` |
-| Amazon Q | Yes | .amazonq/ | `maina init` |
-| Gemini CLI | Yes | GEMINI.md | `maina init` |
+| Roo Code | Yes | .roo/rules/ | `maina setup` |
+| Amazon Q | Yes | .amazonq/ | `maina setup` |
+| Gemini CLI | Yes | GEMINI.md | `maina setup` |
 | Zed | Yes | -- | `maina setup` |
-| Codex CLI | -- | AGENTS.md | `maina init` |
-| Aider | -- | CONVENTIONS.md | `maina init` |
+| Codex CLI | -- | AGENTS.md | `maina setup` |
+| Aider | -- | CONVENTIONS.md | `maina setup` |
 
-Run `maina init` to auto-configure MCP for detected tools, or `maina setup` for guided configuration. See the [onboarding skill](packages/skills/onboarding/SKILL.md) for per-tool details.
+Run `maina setup` to auto-configure MCP and write instruction files for every detected tool. See the [onboarding skill](packages/skills/onboarding/SKILL.md) for per-tool details.
 
 ## The Workflow
 
@@ -157,7 +163,7 @@ Maina's 16-tool pipeline caught issues that ad-hoc implementation missed.
 ## 24 Commands
 
 ### Define
-`init`, `init --install`, `configure`, `ticket`, `context`, `explain`, `design`, `review-design`
+`setup`, `setup --update`, `setup --reset`, `init`, `ticket`, `context`, `explain`, `design`, `review-design`
 
 ### Build
 `plan`, `spec`, `commit`
@@ -173,13 +179,10 @@ Maina's 16-tool pipeline caught issues that ad-hoc implementation missed.
 ## Quick Start
 
 ```bash
-bun add -g @mainahq/cli    # Install
-maina init --install         # Bootstrap + install verification tools
-maina configure              # Set conventions interactively
-maina doctor                 # Check what's available
+bunx @mainahq/cli@latest setup
 ```
 
-Then develop:
+That's it. In under 60 seconds you have a tailored constitution, wired agents, a seeded wiki, and a real verify finding. Then develop:
 
 ```bash
 maina plan my-feature        # Create feature branch with structure
@@ -187,6 +190,18 @@ maina plan my-feature        # Create feature branch with structure
 maina commit                 # Verify (12 tools) + commit
 maina pr                     # PR with verification proof
 maina learn                  # Evolve prompts from feedback
+```
+
+### Advanced
+
+Lower-level primitives for scripting and power users — see the [Full Setup docs](https://mainahq.com/full-setup/).
+
+```bash
+maina setup --update         # Re-tailor after major stack changes
+maina setup --reset          # Back up .maina/ and start fresh
+maina setup --ci             # Non-interactive; per-phase JSON output
+maina init --install         # Lower-level bootstrap (called by the wizard)
+maina doctor                 # Check which tools are installed
 ```
 
 ## Zero-Friction Layers
