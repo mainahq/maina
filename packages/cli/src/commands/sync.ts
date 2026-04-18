@@ -116,9 +116,13 @@ export async function syncPullAction(cwd?: string): Promise<SyncActionResult> {
 		return { synced: false, count: 0, reason: errMsg };
 	}
 
-	const prompts = result.value;
+	const prompts = result.value ?? [];
 	if (prompts.length === 0) {
-		return { synced: true, count: 0 };
+		return {
+			synced: true,
+			count: 0,
+			reason: "No team prompts yet.",
+		};
 	}
 
 	mkdirSync(promptsDir, { recursive: true });

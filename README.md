@@ -230,6 +230,17 @@ export default defineConfig({
 });
 ```
 
+## Privacy & Telemetry
+
+Maina sends **anonymous CLI crash reports** when an uncaught error terminates the process. The payload contains the error class/message/stack (absolute file paths rewritten to basenames, emails/IPs/API keys redacted), the subcommand, the maina/node versions, platform/arch, and a CI flag — **no code, no project names, no authentication tokens**.
+
+Opt out any of these three ways:
+
+```bash
+export MAINA_TELEMETRY=0                 # or DO_NOT_TRACK=1
+echo '{"optOut": true}' > ~/.maina/telemetry.json
+```
+
 ## Development
 
 ```bash

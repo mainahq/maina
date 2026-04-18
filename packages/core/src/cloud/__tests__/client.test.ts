@@ -173,6 +173,82 @@ describe("createCloudClient", () => {
 		}
 	});
 
+	test("getTeam maps plan_display from snake_case server response", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(
+				jsonResponse({
+					data: {
+						id: "team_1",
+						name: "Acme",
+						plan: "team",
+						plan_display: "Team",
+						seats: { used: 3, total: 5 },
+					},
+				}),
+			),
+		);
+
+		const client = setupClient();
+		const result = await client.getTeam();
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.plan).toBe("team");
+			expect(result.value.planDisplay).toBe("Team");
+		}
+	});
+
+	test("getTeam falls back to 'free' when plan is missing", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(
+				jsonResponse({
+					data: {
+						id: "team_1",
+						name: "Acme",
+						seats: { used: 1, total: 1 },
+					},
+				}),
+			),
+		);
+
+		const client = setupClient();
+		const result = await client.getTeam();
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.plan).toBe("free");
+			expect(result.value.planDisplay).toBeUndefined();
+		}
+	});
+
+	test("getPrompts returns [] when server sends data: null", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(jsonResponse({ data: null, error: null })),
+		);
+
+		const client = setupClient();
+		const result = await client.getPrompts();
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toEqual([]);
+		}
+	});
+
+	test("getPrompts returns [] when data is missing", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(jsonResponse({ meta: {} })),
+		);
+
+		const client = setupClient();
+		const result = await client.getPrompts();
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toEqual([]);
+		}
+	});
+
 	test("putPrompts sends prompts array", async () => {
 		mockFetch.mockImplementation(() =>
 			Promise.resolve(new Response(null, { status: 204 })),

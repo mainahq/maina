@@ -242,7 +242,11 @@ export function createCloudClient(config: CloudConfig): CloudClient {
 			});
 		},
 
-		getPrompts: () => request<PromptRecord[]>("GET", "/prompts"),
+		getPrompts: async () => {
+			const result = await request<PromptRecord[] | null>("GET", "/prompts");
+			if (!result.ok) return result;
+			return ok(Array.isArray(result.value) ? result.value : []);
+		},
 
 		putPrompts: async (prompts) => {
 			for (const p of prompts) {
@@ -256,7 +260,19 @@ export function createCloudClient(config: CloudConfig): CloudClient {
 			return { ok: true as const, value: undefined };
 		},
 
-		getTeam: () => request<TeamInfo>("GET", "/team"),
+		getTeam: async () => {
+			// biome-ignore lint/suspicious/noExplicitAny: snake_case API mapping
+			const result = await request<any>("GET", "/team");
+			if (!result.ok) return result;
+			const d = result.value ?? {};
+			return ok({
+				id: d.id,
+				name: d.name,
+				plan: d.plan ?? "free",
+				planDisplay: d.planDisplay ?? d.plan_display,
+				seats: d.seats ?? { used: 0, total: 0 },
+			} satisfies TeamInfo);
+		},
 
 		getTeamMembers: () => request<TeamMember[]>("GET", "/team/members"),
 

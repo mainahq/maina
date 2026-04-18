@@ -7,10 +7,13 @@ import { intro, log, outro, spinner, text } from "@clack/prompts";
 import {
 	clearAuthConfig,
 	createCloudClient,
+	exchangeGitHubToken,
 	loadAuthConfig,
 	pollForToken,
+	pollGitHubToken,
 	saveAuthConfig,
 	startDeviceFlow,
+	startGitHubDeviceFlow,
 } from "@mainahq/core";
 import { Command } from "commander";
 
@@ -24,6 +27,77 @@ const DEFAULT_CLOUD_URL =
 export interface LoginActionResult {
 	loggedIn: boolean;
 	reason?: string;
+}
+
+// ── GitHub Login Action ─────────────────────────────────────────────────────
+
+export async function loginWithGitHubAction(): Promise<LoginActionResult> {
+	const existing = loadAuthConfig();
+	if (existing.ok) {
+		log.info("Already logged in. Use `maina logout` to clear credentials.");
+		return { loggedIn: true };
+	}
+
+	const s = spinner();
+	s.start("Requesting GitHub device code...");
+
+	const flow = await startGitHubDeviceFlow();
+	if (!flow.ok) {
+		s.stop("Failed");
+		log.error(flow.error);
+		return { loggedIn: false, reason: flow.error };
+	}
+
+	s.stop("Ready");
+
+	log.info(
+		`To sign in, open ${flow.value.verificationUri} and enter:\n\n    ${flow.value.userCode}\n`,
+	);
+
+	s.start("Waiting for GitHub authorization...");
+
+	const gh = await pollGitHubToken({
+		deviceCode: flow.value.deviceCode,
+		interval: flow.value.interval,
+		expiresIn: flow.value.expiresIn,
+	});
+	if (!gh.ok) {
+		s.stop("Failed");
+		log.error(gh.error);
+		return { loggedIn: false, reason: gh.error };
+	}
+
+	s.message("Exchanging token...");
+	const exchange = await exchangeGitHubToken(
+		DEFAULT_CLOUD_URL,
+		gh.value.accessToken,
+	);
+	if (!exchange.ok) {
+		s.stop("Failed");
+		log.error(exchange.error);
+		return { loggedIn: false, reason: exchange.error };
+	}
+
+	s.stop("Authorized");
+
+	const saveResult = saveAuthConfig({
+		accessToken: exchange.value.accessToken,
+		expiresAt: exchange.value.expiresAt || undefined,
+	});
+	if (!saveResult.ok) {
+		log.error(saveResult.error);
+		return { loggedIn: false, reason: saveResult.error };
+	}
+
+	if (exchange.value.firstTime) {
+		log.success(
+			`Welcome, @${exchange.value.githubLogin}! Your maina account is ready.`,
+		);
+	} else {
+		log.success(`Logged in as @${exchange.value.githubLogin}.`);
+	}
+
+	return { loggedIn: true };
 }
 
 export async function loginAction(): Promise<LoginActionResult> {
@@ -174,10 +248,13 @@ export async function logoutAction(): Promise<LogoutActionResult> {
 export function loginCommand(): Command {
 	return new Command("login")
 		.description("Log in to maina cloud via device authorization")
-		.action(async () => {
-			intro("maina login");
+		.option("--github", "Log in with GitHub (device flow)")
+		.action(async (opts: { github?: boolean }) => {
+			intro(opts.github ? "maina login --github" : "maina login");
 
-			const result = await loginAction();
+			const result = opts.github
+				? await loginWithGitHubAction()
+				: await loginAction();
 
 			if (result.loggedIn) {
 				outro("Logged in!");
