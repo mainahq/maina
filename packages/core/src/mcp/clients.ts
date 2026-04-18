@@ -19,6 +19,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { homedir, platform } from "node:os";
 import { join } from "node:path";
+import { detectLauncher } from "./launcher";
 import type { McpClientId, McpClientInfo } from "./types";
 
 // ── Path helpers ────────────────────────────────────────────────────────────
@@ -108,7 +109,10 @@ export function buildClientRegistry(
 			Boolean(process.env.CLAUDE_CODE) ||
 			Boolean(process.env.CLAUDE_PROJECT_DIR),
 		shape: { path: ["mcpServers"], container: "object", entryKey: "maina" },
-		buildEntry: () => ({ command: "npx", args: ["@mainahq/cli", "--mcp"] }),
+		buildEntry: () => {
+			const l = detectLauncher();
+			return { command: l.command, args: [...l.args] };
+		},
 	};
 
 	const cursor: McpClientInfo = {
@@ -121,7 +125,10 @@ export function buildClientRegistry(
 			dirExists(join(c.home, ".cursor")) ||
 			Object.keys(process.env).some((k) => k.startsWith("CURSOR_")),
 		shape: { path: ["mcpServers"], container: "object", entryKey: "maina" },
-		buildEntry: () => ({ command: "npx", args: ["@mainahq/cli", "--mcp"] }),
+		buildEntry: () => {
+			const l = detectLauncher();
+			return { command: l.command, args: [...l.args] };
+		},
 	};
 
 	const windsurf: McpClientInfo = {
@@ -134,7 +141,10 @@ export function buildClientRegistry(
 			dirExists(join(c.home, ".codeium")) ||
 			Object.keys(process.env).some((k) => k.startsWith("CODEIUM_")),
 		shape: { path: ["mcpServers"], container: "object", entryKey: "maina" },
-		buildEntry: () => ({ command: "npx", args: ["@mainahq/cli", "--mcp"] }),
+		buildEntry: () => {
+			const l = detectLauncher();
+			return { command: l.command, args: [...l.args] };
+		},
 	};
 
 	const cline: McpClientInfo = {
@@ -150,7 +160,10 @@ export function buildClientRegistry(
 			),
 		detect: () => vsCodeExtensionInstalled("saoudrizwan.claude-dev"),
 		shape: { path: ["mcpServers"], container: "object", entryKey: "maina" },
-		buildEntry: () => ({ command: "npx", args: ["@mainahq/cli", "--mcp"] }),
+		buildEntry: () => {
+			const l = detectLauncher();
+			return { command: l.command, args: [...l.args] };
+		},
 	};
 
 	const codex: McpClientInfo = {
@@ -160,7 +173,10 @@ export function buildClientRegistry(
 		globalConfigPath: () => join(c.home, ".codex", "config.toml"),
 		detect: async () => dirExists(join(c.home, ".codex")),
 		shape: { path: ["mcp_servers"], container: "object", entryKey: "maina" },
-		buildEntry: () => ({ command: "npx", args: ["@mainahq/cli", "--mcp"] }),
+		buildEntry: () => {
+			const l = detectLauncher();
+			return { command: l.command, args: [...l.args] };
+		},
 	};
 
 	const continueClient: McpClientInfo = {
@@ -180,14 +196,17 @@ export function buildClientRegistry(
 			container: "array",
 			entryKey: "maina",
 		},
-		buildEntry: () => ({
-			name: "maina",
-			transport: {
-				type: "stdio",
-				command: "npx",
-				args: ["@mainahq/cli", "--mcp"],
-			},
-		}),
+		buildEntry: () => {
+			const l = detectLauncher();
+			return {
+				name: "maina",
+				transport: {
+					type: "stdio",
+					command: l.command,
+					args: [...l.args],
+				},
+			};
+		},
 	};
 
 	const gemini: McpClientInfo = {
@@ -197,7 +216,10 @@ export function buildClientRegistry(
 		globalConfigPath: () => join(c.home, ".gemini", "settings.json"),
 		detect: async () => dirExists(join(c.home, ".gemini")),
 		shape: { path: ["mcpServers"], container: "object", entryKey: "maina" },
-		buildEntry: () => ({ command: "npx", args: ["@mainahq/cli", "--mcp"] }),
+		buildEntry: () => {
+			const l = detectLauncher();
+			return { command: l.command, args: [...l.args] };
+		},
 	};
 
 	const zed: McpClientInfo = {
@@ -211,10 +233,13 @@ export function buildClientRegistry(
 			container: "object",
 			entryKey: "maina",
 		},
-		buildEntry: () => ({
-			source: "custom",
-			command: { path: "npx", args: ["@mainahq/cli", "--mcp"] },
-		}),
+		buildEntry: () => {
+			const l = detectLauncher();
+			return {
+				source: "custom",
+				command: { path: l.command, args: [...l.args] },
+			};
+		},
 	};
 
 	return {
