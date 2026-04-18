@@ -72,7 +72,7 @@ Setup & Config:
 		.version(pkg.version)
 		.option(
 			"--debug",
-			"print full stack traces and error codes on failure (also MAINA_DEBUG=1)",
+			"print full stack traces and error codes on failure (also MAINA_DEBUG=1 or DEBUG=1)",
 		);
 
 	// ── Workflow ─────────────────────────────────────────────────────────

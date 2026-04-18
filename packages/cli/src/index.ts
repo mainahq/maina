@@ -5,8 +5,13 @@ import pkg from "../package.json" with { type: "json" };
 
 // ── Top-level error handling ────────────────────────────────────────────────
 
+// `DEBUG=1` and `NODE_DEBUG=1` are honoured as aliases — users naturally
+// reach for the generic env vars before discovering our prefixed one.
 const DEBUG =
-	process.argv.includes("--debug") || process.env.MAINA_DEBUG === "1";
+	process.argv.includes("--debug") ||
+	process.env.MAINA_DEBUG === "1" ||
+	process.env.DEBUG === "1" ||
+	process.env.NODE_DEBUG === "1";
 
 function printAndReport(err: unknown, origin: string): void {
 	const e = err instanceof Error ? err : new Error(String(err ?? "unknown"));
@@ -20,7 +25,7 @@ function printAndReport(err: unknown, origin: string): void {
 		process.stderr.write(`${e.stack}\n`);
 	} else {
 		process.stderr.write(
-			"(run with --debug or MAINA_DEBUG=1 for full stack)\n",
+			"(run with --debug, MAINA_DEBUG=1, or DEBUG=1 for full stack)\n",
 		);
 	}
 
