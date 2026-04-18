@@ -232,6 +232,55 @@ describe("ticketAction", () => {
 		expect(result.reason).toBe("Authentication required");
 	});
 
+	test("plumbs strictLabels through to createTicket", async () => {
+		let capturedStrict: boolean | undefined;
+		const mockDeps: TicketDepsType = {
+			createTicket: async (options) => {
+				capturedStrict = options.strictLabels;
+				return {
+					ok: true,
+					value: { url: "https://github.com/owner/repo/issues/30", number: 30 },
+				};
+			},
+			detectModules: () => [],
+		};
+
+		await ticketAction(
+			{
+				title: "T",
+				body: "B",
+				label: ["bug"],
+				strictLabels: true,
+				cwd: tmpDir,
+			},
+			mockDeps,
+		);
+
+		expect(capturedStrict).toBe(true);
+	});
+
+	test("returns skippedLabels on the action result", async () => {
+		const mockDeps: TicketDepsType = {
+			createTicket: async () => ({
+				ok: true,
+				value: {
+					url: "https://github.com/owner/repo/issues/31",
+					number: 31,
+					skippedLabels: ["templates", "commands"],
+				},
+			}),
+			detectModules: () => ["templates", "commands"],
+		};
+
+		const result = await ticketAction(
+			{ title: "T", body: "B", cwd: tmpDir },
+			mockDeps,
+		);
+
+		expect(result.created).toBe(true);
+		expect(result.skippedLabels).toEqual(["templates", "commands"]);
+	});
+
 	test("works with no labels at all", async () => {
 		let capturedLabels: string[] | undefined;
 

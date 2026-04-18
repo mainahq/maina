@@ -12,6 +12,7 @@ export interface TicketActionOptions {
 	title?: string;
 	body?: string;
 	label?: string[];
+	strictLabels?: boolean;
 	cwd?: string;
 	repo?: string; // Cross-repo: "owner/name" or alias from constitution
 }
@@ -20,6 +21,7 @@ export interface TicketActionResult {
 	created: boolean;
 	reason?: string;
 	url?: string;
+	skippedLabels?: string[];
 }
 
 export interface TicketDeps {
@@ -120,6 +122,7 @@ export async function ticketAction(
 		title,
 		body,
 		labels: allLabels.length > 0 ? allLabels : undefined,
+		strictLabels: options.strictLabels,
 		cwd,
 		repo,
 	});
@@ -136,7 +139,19 @@ export async function ticketAction(
 		log.info(`Auto-tagged modules: ${autoModules.join(", ")}`);
 	}
 
-	return { created: true, url: result.value.url };
+	const skipped = result.value.skippedLabels;
+	if (skipped && skipped.length > 0) {
+		log.warning(
+			`Skipped labels that don't exist on the repo: ${skipped.join(", ")}. ` +
+				`Create them with \`gh label create\` or pass --strict-labels to abort on missing.`,
+		);
+	}
+
+	return {
+		created: true,
+		url: result.value.url,
+		...(skipped && skipped.length > 0 ? { skippedLabels: skipped } : {}),
+	};
 }
 
 // ── Commander Command ────────────────────────────────────────────────────────
@@ -151,6 +166,10 @@ export function ticketCommand(): Command {
 			"-r, --repo <repo>",
 			"Target repo (alias: maina-cloud, workkit, or owner/name)",
 		)
+		.option(
+			"--strict-labels",
+			"Abort if any label doesn't exist on the repo (default: warn and skip)",
+		)
 		.action(async (options) => {
 			intro("maina ticket");
 
@@ -158,6 +177,7 @@ export function ticketCommand(): Command {
 				title: options.title,
 				body: options.body,
 				label: options.label,
+				strictLabels: options.strictLabels,
 				repo: options.repo,
 			});
 

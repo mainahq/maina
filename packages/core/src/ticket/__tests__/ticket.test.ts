@@ -270,4 +270,183 @@ describe("createTicket", () => {
 
 		expect(capturedOpts?.cwd).toBe("/some/path");
 	});
+
+	// ── Skip-and-warn label behavior (issue #170) ────────────────────────────
+	//
+	// Default: pre-fetch available labels via `gh label list`; drop labels that
+	// don't exist on the repo (returned as `skippedLabels`); the issue is still
+	// filed with the subset that does exist.
+	//
+	// With `strictLabels: true`: skip the pre-fetch, pass all labels through
+	// to `gh issue create` (preserves the old abort-on-missing behavior).
+
+	test("skips labels that do not exist on repo and returns them in skippedLabels", async () => {
+		let createArgs: string[] = [];
+		const mockSpawn = async (args: string[]) => {
+			if (args[1] === "label" && args[2] === "list") {
+				return {
+					exitCode: 0,
+					stdout: JSON.stringify([{ name: "bug" }, { name: "context" }]),
+					stderr: "",
+				};
+			}
+			createArgs = args;
+			return {
+				exitCode: 0,
+				stdout: "https://github.com/owner/repo/issues/7\n",
+				stderr: "",
+			};
+		};
+
+		const result = await createTicket(
+			{
+				title: "t",
+				body: "b",
+				labels: ["bug", "templates", "commands", "context"],
+			},
+			{ spawn: mockSpawn },
+		);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.skippedLabels).toEqual(["templates", "commands"]);
+
+		const labelIdx = createArgs.indexOf("--label");
+		expect(labelIdx).toBeGreaterThan(-1);
+		expect(createArgs[labelIdx + 1]).toBe("bug,context");
+	});
+
+	test("omits --label entirely when every requested label is missing", async () => {
+		let createArgs: string[] = [];
+		const mockSpawn = async (args: string[]) => {
+			if (args[1] === "label" && args[2] === "list") {
+				return { exitCode: 0, stdout: "[]", stderr: "" };
+			}
+			createArgs = args;
+			return {
+				exitCode: 0,
+				stdout: "https://github.com/owner/repo/issues/8\n",
+				stderr: "",
+			};
+		};
+
+		const result = await createTicket(
+			{ title: "t", body: "b", labels: ["templates", "commands"] },
+			{ spawn: mockSpawn },
+		);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.skippedLabels).toEqual(["templates", "commands"]);
+		expect(createArgs).not.toContain("--label");
+	});
+
+	test("strictLabels=true skips pre-fetch and passes labels through as-is", async () => {
+		let labelListCalled = false;
+		let createArgs: string[] = [];
+		const mockSpawn = async (args: string[]) => {
+			if (args[1] === "label" && args[2] === "list") {
+				labelListCalled = true;
+				return { exitCode: 0, stdout: "[]", stderr: "" };
+			}
+			createArgs = args;
+			return {
+				exitCode: 1,
+				stdout: "",
+				stderr: "could not add label: 'templates' not found",
+			};
+		};
+
+		const result = await createTicket(
+			{
+				title: "t",
+				body: "b",
+				labels: ["templates"],
+				strictLabels: true,
+			},
+			{ spawn: mockSpawn },
+		);
+
+		expect(labelListCalled).toBe(false);
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error).toContain("templates");
+		expect(createArgs).toContain("--label");
+	});
+
+	test("falls back to passing labels through when label list fails", async () => {
+		let createArgs: string[] = [];
+		const mockSpawn = async (args: string[]) => {
+			if (args[1] === "label" && args[2] === "list") {
+				return {
+					exitCode: 1,
+					stdout: "",
+					stderr: "gh: not authenticated",
+				};
+			}
+			createArgs = args;
+			return {
+				exitCode: 0,
+				stdout: "https://github.com/owner/repo/issues/9\n",
+				stderr: "",
+			};
+		};
+
+		const result = await createTicket(
+			{ title: "t", body: "b", labels: ["bug"] },
+			{ spawn: mockSpawn },
+		);
+
+		expect(result.ok).toBe(true);
+		const labelIdx = createArgs.indexOf("--label");
+		expect(labelIdx).toBeGreaterThan(-1);
+		expect(createArgs[labelIdx + 1]).toBe("bug");
+	});
+
+	test("forwards --repo to label list when set", async () => {
+		let labelListArgs: string[] = [];
+		const mockSpawn = async (args: string[]) => {
+			if (args[1] === "label" && args[2] === "list") {
+				labelListArgs = args;
+				return { exitCode: 0, stdout: "[]", stderr: "" };
+			}
+			return {
+				exitCode: 0,
+				stdout: "https://github.com/owner/repo/issues/1\n",
+				stderr: "",
+			};
+		};
+
+		await createTicket(
+			{
+				title: "t",
+				body: "b",
+				labels: ["bug"],
+				repo: "beeeku/workkit",
+			},
+			{ spawn: mockSpawn },
+		);
+
+		expect(labelListArgs).toContain("--repo");
+		expect(labelListArgs).toContain("beeeku/workkit");
+	});
+
+	test("skips label pre-fetch when no labels are requested", async () => {
+		let labelListCalled = false;
+		const mockSpawn = async (args: string[]) => {
+			if (args[1] === "label" && args[2] === "list") {
+				labelListCalled = true;
+				return { exitCode: 0, stdout: "[]", stderr: "" };
+			}
+			return {
+				exitCode: 0,
+				stdout: "https://github.com/owner/repo/issues/1\n",
+				stderr: "",
+			};
+		};
+
+		await createTicket({ title: "t", body: "b" }, { spawn: mockSpawn });
+
+		expect(labelListCalled).toBe(false);
+	});
 });
