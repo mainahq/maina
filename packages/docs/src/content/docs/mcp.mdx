@@ -35,10 +35,11 @@ Supported clients: **Claude Code, Cursor, Windsurf, Cline, Codex CLI, Continue.d
 The launcher is auto-detected per machine, in this priority order:
 
 1. **Direct `maina` binary** when `@mainahq/cli` is installed globally (`bun install -g @mainahq/cli` or `npm install -g @mainahq/cli`). Fastest by far — no package manager in the spawn path, no cold-start download, no cache races. **Recommended.**
-2. **`bunx @mainahq/cli@<version> --mcp`** when [Bun](https://bun.sh) is available.
-3. **`npx @mainahq/cli@<version> --mcp`** as the universal fallback.
+2. **Resolved `bunx @mainahq/cli@<version> --mcp`** when [Bun](https://bun.sh) is available.
+3. **Resolved `npx @mainahq/cli@<version> --mcp`** as the universal fallback.
+4. **Bare `npx @mainahq/cli@<version> --mcp`** as the last-resort fallback when nothing else resolves on the install machine — entry stays syntactically valid; user can edit after installing Node or Bun.
 
-All paths are written as the absolute resolved binary location (`/opt/homebrew/bin/bunx`, `/Users/.../.bun/bin/maina`, etc.) so MCP clients with stripped-PATH spawn contexts (Cursor, Zed, Claude Code desktop) can find them. Manual examples below use `npx` for portability.
+Tiers 1-3 are written using the **absolute** resolved binary location (`/opt/homebrew/bin/bunx`, `/Users/.../.bun/bin/maina`, etc.) so MCP clients with stripped-PATH spawn contexts (Cursor, Zed, Claude Code desktop) can find them. Tier 4 is the only case where the bare command name is written. Manual examples below use `npx` for portability.
 
 The setup wizard (`maina setup`) also writes the project-scoped configs (`.mcp.json` and `.claude/settings.json`) for you, so most users won't need `maina mcp add` unless they want maina available in every project from any client.
 

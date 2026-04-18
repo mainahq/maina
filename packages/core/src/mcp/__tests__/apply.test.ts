@@ -18,12 +18,12 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as toml from "@iarna/toml";
-import { version as PKG_VERSION } from "../../../package.json";
+import pkg from "../../../package.json";
 import { addOnClient, inspectClient, removeFromClient } from "../apply";
 import { buildClientRegistry } from "../clients";
 import { detectLauncher, resetLauncherCache } from "../launcher";
 
-const PINNED_PKG = `@mainahq/cli@${PKG_VERSION}`;
+const PINNED_PKG = `@mainahq/cli@${pkg.version}`;
 
 let HOME: string;
 

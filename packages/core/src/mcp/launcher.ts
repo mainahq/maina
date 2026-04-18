@@ -32,7 +32,9 @@
  *     entirely; pinned-version `bunx` reduces the window.
  */
 
-import { version as PKG_VERSION } from "../../package.json";
+import pkg from "../../package.json";
+
+const PKG_VERSION = pkg.version;
 
 export interface Launcher {
 	command: string;

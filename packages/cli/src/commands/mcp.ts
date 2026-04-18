@@ -212,7 +212,7 @@ export function mcpCommand(): Command {
 		// the bunx-on-every-spawn cost + cache races on cold start.
 		if (!isDirectBinary(detectLauncher())) {
 			log.info(
-				"Tip: install maina globally for faster, more reliable MCP startup:\n  bun install -g @mainahq/cli   (or  npm install -g @mainahq/cli)\nThen rerun `maina mcp add`.",
+				"Tip: install maina globally for faster, more reliable MCP startup:\n  bun install -g @mainahq/cli   (or npm install -g @mainahq/cli)\nThen rerun `maina mcp add`.",
 			);
 		}
 		outro("Done.");

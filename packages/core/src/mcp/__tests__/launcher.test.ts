@@ -15,12 +15,14 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { version as PKG_VERSION } from "../../../package.json";
+import pkg from "../../../package.json";
 import {
 	detectLauncher,
 	isDirectBinary,
 	resetLauncherCache,
 } from "../launcher";
+
+const PKG_VERSION = pkg.version;
 
 afterEach(() => {
 	resetLauncherCache();
