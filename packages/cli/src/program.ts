@@ -13,6 +13,7 @@ import { explainCommand } from "./commands/explain";
 import { initCommand } from "./commands/init";
 import { learnCommand } from "./commands/learn";
 import { loginCommand, logoutCommand } from "./commands/login";
+import { mcpCommand } from "./commands/mcp";
 import { planCommand } from "./commands/plan";
 import { prCommand } from "./commands/pr";
 import { promptCommand } from "./commands/prompt";
@@ -91,6 +92,7 @@ Setup & Config:
 	program.addCommand(loginCommand());
 	program.addCommand(logoutCommand());
 	program.addCommand(configureCommand());
+	program.addCommand(mcpCommand());
 
 	// ── Internals ───────────────────────────────────────────────────────
 	program.addCommand(analyzeCommand());

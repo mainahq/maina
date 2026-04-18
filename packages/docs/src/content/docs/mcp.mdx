@@ -9,11 +9,30 @@ Maina includes an MCP (Model Context Protocol) server that exposes its engines t
 
 ## Setup
 
-The install script handles this automatically:
+The fastest path is one command — it auto-detects every supported client on your machine and writes the maina entry into each global config:
 
 ```bash
-curl -fsSL https://api.mainahq.com/install | bash
+maina mcp add
 ```
+
+To remove maina from every client just as quickly:
+
+```bash
+maina mcp remove
+```
+
+Or scope to specific clients:
+
+```bash
+maina mcp add --client claude,cursor,windsurf
+maina mcp add --scope project          # write to .mcp.json / .claude/settings.json instead of global
+maina mcp add --dry-run                # preview the writes without touching disk
+maina mcp list                         # show install status per client
+```
+
+Supported clients: **Claude Code, Cursor, Windsurf, Cline, Codex CLI, Continue.dev, Gemini CLI, Zed**. The command preserves all other MCP servers and unrelated keys via an atomic merge — safe to run repeatedly.
+
+The setup wizard (`maina setup`) also writes the project-scoped configs (`.mcp.json` and `.claude/settings.json`) for you, so most users won't need `maina mcp add` unless they want maina available in every project from any client.
 
 Or configure manually per tool:
 

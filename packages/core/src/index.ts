@@ -249,6 +249,21 @@ export {
 	RUST_PROFILE,
 	TYPESCRIPT_PROFILE,
 } from "./language/profile";
+export { buildMainaEntry, MAINA_MCP_KEY } from "./mcp/entry";
+// MCP install/remove across clients
+export {
+	type ApplyResult,
+	buildClientRegistry,
+	type ListEntry,
+	listClientIds,
+	type McpClientId,
+	type McpScope,
+	type RunOptions,
+	type RunReport,
+	runAdd,
+	runList,
+	runRemove,
+} from "./mcp/index";
 export { loadDefault, type PromptTask } from "./prompts/defaults/index";
 // Prompts
 export {
