@@ -10,6 +10,7 @@ import { contextCommand } from "./commands/context";
 import { designCommand } from "./commands/design";
 import { doctorCommand } from "./commands/doctor";
 import { explainCommand } from "./commands/explain";
+import { feedbackCommand } from "./commands/feedback";
 import { initCommand } from "./commands/init";
 import { learnCommand } from "./commands/learn";
 import { loginCommand, logoutCommand } from "./commands/login";
@@ -103,6 +104,7 @@ Setup & Config:
 	program.addCommand(cacheCommand());
 	program.addCommand(contextCommand());
 	program.addCommand(explainCommand());
+	program.addCommand(feedbackCommand());
 	program.addCommand(learnCommand());
 	program.addCommand(promptCommand());
 	program.addCommand(statsCommand());

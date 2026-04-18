@@ -76,7 +76,7 @@ function createCacheTables(db: Database): void {
 }
 
 /**
- * Create feedback tables: feedback, prompt_versions.
+ * Create feedback tables: feedback, prompt_versions, external_review_findings.
  */
 function createFeedbackTables(db: Database): void {
 	db.exec(`
@@ -99,6 +99,30 @@ function createFeedbackTables(db: Database): void {
 			usage_count INTEGER,
 			created_at TEXT NOT NULL
 		);
+
+		CREATE TABLE IF NOT EXISTS external_review_findings (
+			id TEXT PRIMARY KEY,
+			pr_number INTEGER NOT NULL,
+			pr_repo TEXT NOT NULL,
+			file_path TEXT,
+			line INTEGER,
+			reviewer TEXT NOT NULL,
+			reviewer_kind TEXT NOT NULL,
+			category TEXT NOT NULL,
+			body TEXT NOT NULL,
+			diff_at_review TEXT,
+			ingested_at INTEGER NOT NULL,
+			state TEXT NOT NULL DEFAULT 'active',
+			source_id TEXT NOT NULL,
+			UNIQUE(pr_repo, pr_number, source_id)
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_external_findings_file
+			ON external_review_findings(file_path);
+		CREATE INDEX IF NOT EXISTS idx_external_findings_pr
+			ON external_review_findings(pr_repo, pr_number);
+		CREATE INDEX IF NOT EXISTS idx_external_findings_category
+			ON external_review_findings(category);
 	`);
 
 	// Add workflow columns (nullable — backward compatible)

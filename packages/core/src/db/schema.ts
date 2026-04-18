@@ -72,6 +72,33 @@ export const commitSnapshots = sqliteTable("commit_snapshots", {
 	skipped: integer("skipped", { mode: "boolean" }).notNull().default(false),
 });
 
+export const externalReviewFindings = sqliteTable("external_review_findings", {
+	id: text("id").primaryKey(),
+	prNumber: integer("pr_number").notNull(),
+	prRepo: text("pr_repo").notNull(),
+	filePath: text("file_path"),
+	line: integer("line"),
+	reviewer: text("reviewer").notNull(),
+	reviewerKind: text("reviewer_kind", { enum: ["bot", "human"] }).notNull(),
+	category: text("category", {
+		enum: [
+			"api-mismatch",
+			"signature-drift",
+			"dead-code",
+			"security",
+			"style",
+			"other",
+		],
+	}).notNull(),
+	body: text("body").notNull(),
+	diffAtReview: text("diff_at_review"),
+	ingestedAt: integer("ingested_at").notNull(),
+	state: text("state", { enum: ["active", "resolved", "dismissed"] })
+		.notNull()
+		.default("active"),
+	sourceId: text("source_id").notNull(),
+});
+
 export const promptVersions = sqliteTable("prompt_versions", {
 	id: text("id").primaryKey(),
 	task: text("task").notNull(),

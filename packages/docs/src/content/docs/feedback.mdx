@@ -1,0 +1,91 @@
+---
+title: Feedback Ingest
+description: Pull external code-review findings (Copilot, CodeRabbit, named humans) into Maina as labeled training signal.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+`maina feedback ingest` pulls review comments from external code-review bots and humans into a local SQLite store (`.maina/feedback.db`), turning each comment into a **labeled training signal** for Maina's prompt and slop engines.
+
+This is the v1 thin slice tracked in [issue #185](https://github.com/mainahq/maina/issues/185). Today the command captures and categorises findings; the RL closure (verify consulting prior findings, project-tuned slop ruleset) ships in v2.
+
+## Why
+
+Across the dogfood loop, Copilot and CodeRabbit caught real accuracy bugs that Maina's static checks missed — wrong import paths, signature drift, claims about API shape that the source contradicts. Each comment is a **labeled `(input, output)` pair**: the diff Maina blessed is the input; the bug an external reviewer found is the output. Treating those as training data is more valuable than any hand-coded rule.
+
+## Quick Start
+
+<Steps>
+
+1. Make sure `gh` is installed and authenticated:
+
+   ```bash
+   gh auth status
+   ```
+
+2. From a repo with a GitHub remote, run:
+
+   ```bash
+   maina feedback ingest
+   ```
+
+   By default this pulls comments from `copilot-pull-request-reviewer` and `coderabbitai` on open + recently merged PRs (last 14 days).
+
+3. Inspect what was stored via `maina stats` — the **Top external-review categories** section appears once the table has data.
+
+</Steps>
+
+## Options
+
+| Flag | Purpose | Default |
+| ---- | ------- | ------- |
+| `--repo <slug>` | `owner/repo` to ingest from | derived from current `git remote` |
+| `--pr <number>` | Specific PR(s); repeatable, comma-separated | auto-discover |
+| `--since <days>` | Look-back window for merged PRs | `14` |
+| `--reviewer <login>` | Add a reviewer to the allow-list (repeatable) | bots only |
+| `--json` | Emit machine-readable JSON | off |
+
+## What gets stored
+
+Each row in `external_review_findings` captures:
+
+- `pr_number`, `pr_repo` — which PR this came from
+- `file_path`, `line` — file and line the comment targets (nullable for issue-level comments)
+- `reviewer`, `reviewer_kind` (`bot` | `human`) — who flagged it
+- `category` — one of `api-mismatch`, `signature-drift`, `dead-code`, `security`, `style`, `other`
+- `body` — the comment text
+- `diff_at_review` — the diff hunk being reviewed (when GitHub returns one)
+- `ingested_at`, `state` — bookkeeping
+- `source_id` — the GitHub comment id, used to **dedupe** on re-ingest
+
+Re-running `maina feedback ingest` against the same PR is idempotent: existing rows are skipped, new comments are appended.
+
+## Categorisation
+
+v1 uses a deterministic keyword classifier (no LLM). The rules are intentionally small and conservative — anything ambiguous becomes `other`. Examples:
+
+| Comment fragment | Category |
+| ---------------- | -------- |
+| "doesn't exist", "is not exported", "won't typecheck" | `api-mismatch` |
+| "wrong signature", "expected … got …" | `signature-drift` |
+| "unused", "never called", "dead code" | `dead-code` |
+| "race condition", "ENOENT", "credential", "secret" | `security` |
+| "console.log", "nit:", "typo", "formatting" | `style` |
+
+<Aside type="note">
+Categorisation accuracy is bounded by the rule set. v2 will layer an LLM-backed reclassifier on top of accumulated findings to reduce the `other` bucket.
+</Aside>
+
+## v2 roadmap
+
+The thin slice ships ingest + storage + stats integration. v2 closes the loop:
+
+- **`maina commit`** consults the DB during verify and warns on touched files with prior findings of the same category
+- **Slop ruleset evolution** — auto-generate project-specific slop rules from accumulated findings ("in this repo, claims about `@workkit/*` exports are frequently wrong")
+- **`maina feedback train`** — produce a project-tuned slop ruleset from the labeled corpus
+- **Cloud sync** — opt-in upload to enable cross-team learning
+- **LLM reclassifier** — periodically re-categorise the `other` bucket using accumulated context
+
+## Privacy
+
+Findings are stored **locally only** in `.maina/feedback.db`. No data leaves your machine until cloud sync ships in v2 (and that path will be opt-in).

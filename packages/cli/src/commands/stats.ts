@@ -1,12 +1,13 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
-import type { Result } from "@mainahq/core";
+import type { CategoryByFile, Result } from "@mainahq/core";
 import {
 	type ComparisonReport,
 	getComparison,
 	getSkipRate,
 	getStats,
+	getTopCategoriesByFile,
 	getTrends,
 	type QualityScore,
 	type StatsReport,
@@ -55,6 +56,9 @@ export interface StatsActionResult {
 	jsonOutput?: string;
 	specsResult?: SpecsResult;
 	wikiMetrics?: WikiMetrics;
+	externalCategories?: CategoryByFile[];
+	/** Set when the feedback-DB read for external categories failed. */
+	externalCategoriesError?: string;
 }
 
 export interface StatsDeps {
@@ -235,14 +239,52 @@ export async function statsAction(
 	// ── Wiki metrics ───────────────────────────────────────────────────
 	const wikiMetrics = gatherWikiMetrics(mainaDir) ?? undefined;
 
+	// ── External review categories (issue #185 ingest) ─────────────────
+	const externalRes = getTopCategoriesByFile(mainaDir, { limit: 5 });
+	const externalCategories =
+		externalRes.ok && externalRes.value.length > 0
+			? externalRes.value
+			: undefined;
+	// Surface DB errors instead of silently dropping the section. The most
+	// common cause is "feedback DB not initialised yet"; we want users to
+	// see that explicitly rather than wonder why the section never appears.
+	const externalCategoriesError = !externalRes.ok
+		? externalRes.error
+		: undefined;
+
 	// ── JSON output ────────────────────────────────────────────────────
 	if (options.json) {
-		const jsonOutput = JSON.stringify({ stats, trends, wikiMetrics }, null, 2);
-		return { displayed: true, stats, trends, jsonOutput, wikiMetrics };
+		const jsonOutput = JSON.stringify(
+			{
+				stats,
+				trends,
+				wikiMetrics,
+				externalCategories,
+				externalCategoriesError,
+			},
+			null,
+			2,
+		);
+		return {
+			displayed: true,
+			stats,
+			trends,
+			jsonOutput,
+			wikiMetrics,
+			externalCategories,
+			...(externalCategoriesError ? { externalCategoriesError } : {}),
+		};
 	}
 
 	// ── Formatted display ──────────────────────────────────────────────
-	return { displayed: true, stats, trends, wikiMetrics };
+	return {
+		displayed: true,
+		stats,
+		trends,
+		wikiMetrics,
+		...(externalCategoriesError ? { externalCategoriesError } : {}),
+		externalCategories,
+	};
 }
 
 // ── Specs Display Helper ────────────────────────────────────────────────────
@@ -321,6 +363,14 @@ function displayStats(stats: StatsReport, trends: TrendsReport): void {
 	);
 }
 
+function displayExternalCategories(rows: CategoryByFile[]): void {
+	log.step("Top external-review categories:");
+	const lines = rows.map(
+		(r) => `  ${r.filePath} \u2014 ${r.category} (${r.count})`,
+	);
+	log.message(lines.join("\n"));
+}
+
 function displayWikiMetrics(metrics: WikiMetrics): void {
 	log.step("Wiki:");
 	const parts = [
@@ -361,6 +411,56 @@ function displayComparison(report: ComparisonReport): void {
 	);
 }
 
+/**
+ * Render `statsAction` output for the CLI. Exposed for tests so we can
+ * verify that `--json` produces a single JSON document with no trailing
+ * formatted text (a regression CodeRabbit flagged on PR #188).
+ */
+export function renderStatsResult(
+	result: StatsActionResult,
+	options: StatsActionOptions,
+): void {
+	if (!result.displayed) {
+		log.warning(result.reason ?? "Unknown error");
+		outro("Done.");
+		return;
+	}
+
+	if (result.specsResult) {
+		displaySpecs(result.specsResult);
+	} else if (result.jsonOutput) {
+		// biome-ignore lint/suspicious/noConsole: JSON output goes to stdout
+		console.log(result.jsonOutput);
+		// JSON mode: do NOT emit further formatted text, it pollutes the
+		// JSON stream and breaks `maina stats --json | jq`.
+		return;
+	} else if (result.stats && result.trends) {
+		displayStats(result.stats, result.trends);
+	}
+
+	if (options.json) {
+		// Defense in depth: even if jsonOutput is missing, `--json` must not
+		// leak formatted wiki/external-category text.
+		return;
+	}
+
+	if (result.wikiMetrics) {
+		displayWikiMetrics(result.wikiMetrics);
+	}
+
+	if (result.externalCategories) {
+		displayExternalCategories(result.externalCategories);
+	} else if (result.externalCategoriesError) {
+		// Surface DB errors so users aren't confused by a silently missing
+		// section (the most common cause is "feedback DB not initialised yet").
+		log.warning(
+			`External-review categories unavailable: ${result.externalCategoriesError}`,
+		);
+	}
+
+	outro("Done.");
+}
+
 export function statsCommand(): Command {
 	return new Command("stats")
 		.description("Show commit verification metrics and trends")
@@ -369,7 +469,7 @@ export function statsCommand(): Command {
 		.option("--compare", "Show maina vs raw git comparison")
 		.option("--specs", "Show feature spec quality scores")
 		.action(async (options) => {
-			intro("maina stats");
+			if (!options.json) intro("maina stats");
 
 			if (options.compare) {
 				const cwd = process.cwd();
@@ -391,25 +491,10 @@ export function statsCommand(): Command {
 				specs: options.specs,
 			});
 
-			if (!result.displayed) {
-				log.warning(result.reason ?? "Unknown error");
-				outro("Done.");
-				return;
-			}
-
-			if (result.specsResult) {
-				displaySpecs(result.specsResult);
-			} else if (result.jsonOutput) {
-				// biome-ignore lint/suspicious/noConsole: JSON output goes to stdout
-				console.log(result.jsonOutput);
-			} else if (result.stats && result.trends) {
-				displayStats(result.stats, result.trends);
-			}
-
-			if (result.wikiMetrics) {
-				displayWikiMetrics(result.wikiMetrics);
-			}
-
-			outro("Done.");
+			renderStatsResult(result, {
+				json: options.json,
+				last: Number.isNaN(last) ? 10 : last,
+				specs: options.specs,
+			});
 		});
 }
