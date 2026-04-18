@@ -20,6 +20,7 @@ import { join } from "node:path";
 import * as toml from "@iarna/toml";
 import { addOnClient, inspectClient, removeFromClient } from "../apply";
 import { buildClientRegistry } from "../clients";
+import { detectLauncher, resetLauncherCache } from "../launcher";
 
 let HOME: string;
 
@@ -29,10 +30,15 @@ beforeEach(() => {
 		`maina-mcp-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 	);
 	mkdirSync(HOME, { recursive: true });
+	// Pin launcher detection to npx so test assertions stay stable regardless
+	// of whether the runner has Bun installed (CI doesn't, dev machines do).
+	resetLauncherCache();
+	detectLauncher({ which: () => null }); // primes the cache to npx
 });
 
 afterEach(() => {
 	rmSync(HOME, { recursive: true, force: true });
+	resetLauncherCache();
 });
 
 function readJson(path: string): Record<string, unknown> {
