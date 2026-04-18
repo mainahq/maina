@@ -40,3 +40,11 @@ packages/docs/.astro/
 # Superpowers brainstorm sessions
 .superpowers/
 .claude/
+
+# Private strategy docs — kept in mainahq/maina-cloud:strategy/ (see CLAUDE.md).
+# Listed here so accidentally reviving these filenames won't leak them again.
+PRODUCT_SPEC.md
+IMPLEMENTATION_PLAN.md
+MAINA_WIKI_*.md
+maina-pitchdeck.pptx
+*.pptx

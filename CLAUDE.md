@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Maina — verification-first developer OS. CLI + MCP server + skills package that proves AI-generated code is correct before it merges. Three engines: Context (observes), Prompt (learns), Verify (verifies).
 
-Read PRODUCT_SPEC.md for full product context. Read IMPLEMENTATION_PLAN.md for sprint-by-sprint execution plan.
+Product spec and implementation plan live in the private `mainahq/maina-cloud` repo under `strategy/` (moved out on 2026-04-18 to keep roadmap private).
 
 ## Stack
 
