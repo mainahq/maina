@@ -10,11 +10,11 @@ const DEBUG =
 
 function printAndReport(err: unknown, origin: string): void {
 	const e = err instanceof Error ? err : new Error(String(err ?? "unknown"));
-	// biome-ignore lint/suspicious/noExplicitAny: err.code is platform-specific
-	const code = (e as any).code as string | undefined;
+	const code = (e as Error & { code?: unknown }).code;
 	const prefix =
 		origin === "unhandledRejection" ? "Unhandled rejection" : "Error";
-	const codeStr = code ? ` [${code}]` : "";
+	const codeStr =
+		typeof code === "string" || typeof code === "number" ? ` [${code}]` : "";
 	process.stderr.write(`${prefix}${codeStr}: ${e.message}\n`);
 	if (DEBUG && e.stack) {
 		process.stderr.write(`${e.stack}\n`);
