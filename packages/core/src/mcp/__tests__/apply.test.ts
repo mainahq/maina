@@ -18,9 +18,12 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as toml from "@iarna/toml";
+import pkg from "../../../package.json";
 import { addOnClient, inspectClient, removeFromClient } from "../apply";
 import { buildClientRegistry } from "../clients";
 import { detectLauncher, resetLauncherCache } from "../launcher";
+
+const PINNED_PKG = `@mainahq/cli@${pkg.version}`;
 
 let HOME: string;
 
@@ -61,7 +64,7 @@ describe("addOnClient — JSON object shape (Cursor, Claude, etc.)", () => {
 		const json = readJson(path);
 		expect((json.mcpServers as Record<string, unknown>).maina).toEqual({
 			command: "npx",
-			args: ["@mainahq/cli", "--mcp"],
+			args: [PINNED_PKG, "--mcp"],
 		});
 	});
 
@@ -201,7 +204,7 @@ describe("addOnClient — TOML shape (Codex)", () => {
 		const section = (parsed.mcp_servers as Record<string, unknown>)
 			.maina as Record<string, unknown>;
 		expect(section.command).toBe("npx");
-		expect(section.args).toEqual(["@mainahq/cli", "--mcp"]);
+		expect(section.args).toEqual([PINNED_PKG, "--mcp"]);
 	});
 
 	test("preserves other TOML sections", async () => {

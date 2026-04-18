@@ -264,6 +264,12 @@ export {
 	runList,
 	runRemove,
 } from "./mcp/index";
+export {
+	detectLauncher,
+	isDirectBinary,
+	type Launcher,
+	resetLauncherCache,
+} from "./mcp/launcher";
 export { loadDefault, type PromptTask } from "./prompts/defaults/index";
 // Prompts
 export {

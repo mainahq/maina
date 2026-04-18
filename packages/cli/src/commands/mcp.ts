@@ -15,6 +15,8 @@
 
 import { intro, log, outro } from "@clack/prompts";
 import {
+	detectLauncher,
+	isDirectBinary,
 	type ListEntry,
 	listClientIds,
 	type McpClientId,
@@ -205,6 +207,14 @@ export function mcpCommand(): Command {
 			return;
 		}
 		emitAddReport(result.report ?? { results: [], skipped: [] });
+		// If we wrote a package-manager invocation (bunx/npx) instead of the
+		// installed maina binary, suggest a one-time global install. Avoids
+		// the bunx-on-every-spawn cost + cache races on cold start.
+		if (!isDirectBinary(detectLauncher())) {
+			log.info(
+				"Tip: install maina globally for faster, more reliable MCP startup:\n  bun install -g @mainahq/cli   (or npm install -g @mainahq/cli)\nThen rerun `maina mcp add`.",
+			);
+		}
 		outro("Done.");
 	});
 

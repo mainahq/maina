@@ -3,60 +3,89 @@
  * deterministic regardless of the runner machine's PATH (CI doesn't
  * have Bun installed by default; the developer's machine does).
  *
- * The most important behaviour this file locks down: the launcher's
- * `command` field is the **absolute resolved path** from `which`, not
- * the bare binary name. GUI MCP clients (Cursor, Zed, etc.) inherit
- * a stripped PATH on macOS and fail with `spawn bunx ENOENT` when given
- * a bare command. Resolving the path at install time fixes that.
+ * Two real bugs this file locks down regression tests for:
+ *
+ *   1. **Stripped GUI PATH**: launcher must use the absolute resolved
+ *      path from `which`, not the bare binary name. Cursor/Zed spawn
+ *      with stripped PATH and ENOENT on bare commands.
+ *
+ *   2. **bunx cache races**: prefer the installed `maina` binary over
+ *      bunx. When falling back to bunx/npx, pin the package version so
+ *      the package manager hits its cache reliably across spawns.
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { detectLauncher, resetLauncherCache } from "../launcher";
+import pkg from "../../../package.json";
+import {
+	detectLauncher,
+	isDirectBinary,
+	resetLauncherCache,
+} from "../launcher";
+
+const PKG_VERSION = pkg.version;
 
 afterEach(() => {
 	resetLauncherCache();
 });
 
-describe("detectLauncher — path resolution", () => {
-	test("returns the ABSOLUTE bunx path (not the bare name) when Bun is on PATH", () => {
+describe("detectLauncher — priority order", () => {
+	test("prefers installed maina binary over bunx (avoids cache race entirely)", () => {
+		const l = detectLauncher({
+			which: (cmd) => {
+				if (cmd === "maina") return "/Users/x/.bun/bin/maina";
+				if (cmd === "bunx") return "/opt/homebrew/bin/bunx";
+				return null;
+			},
+			noCache: true,
+		});
+		expect(l.command).toBe("/Users/x/.bun/bin/maina");
+		expect(l.args).toEqual(["--mcp"]);
+		expect(isDirectBinary(l)).toBe(true);
+	});
+
+	test("falls back to bunx with pinned version when maina binary is absent", () => {
 		const l = detectLauncher({
 			which: (cmd) => (cmd === "bunx" ? "/opt/homebrew/bin/bunx" : null),
 			noCache: true,
 		});
-		// Critical regression test: must be the absolute path so Cursor's
-		// stripped-PATH spawn doesn't ENOENT.
 		expect(l.command).toBe("/opt/homebrew/bin/bunx");
-		expect(l.command).not.toBe("bunx");
-		expect(l.args).toEqual(["@mainahq/cli", "--mcp"]);
+		expect(l.args).toEqual([`@mainahq/cli@${PKG_VERSION}`, "--mcp"]);
+		expect(isDirectBinary(l)).toBe(false);
 	});
 
-	test("returns the ABSOLUTE npx path when bunx is missing but npx exists", () => {
+	test("falls back to npx with pinned version when maina + bunx absent", () => {
 		const l = detectLauncher({
 			which: (cmd) => (cmd === "npx" ? "/usr/local/bin/npx" : null),
 			noCache: true,
 		});
 		expect(l.command).toBe("/usr/local/bin/npx");
-		expect(l.command).not.toBe("npx");
+		expect(l.args).toEqual([`@mainahq/cli@${PKG_VERSION}`, "--mcp"]);
 	});
 
-	test("prefers bunx over npx when both are on PATH", () => {
+	test("emits bare `npx` last-resort fallback when nothing resolves", () => {
+		const l = detectLauncher({ which: () => null, noCache: true });
+		expect(l.command).toBe("npx");
+		expect(l.args).toEqual([`@mainahq/cli@${PKG_VERSION}`, "--mcp"]);
+	});
+});
+
+describe("detectLauncher — absolute path contract (Cursor ENOENT regression)", () => {
+	test("maina path is absolute, never bare", () => {
 		const l = detectLauncher({
-			which: (cmd) => {
-				if (cmd === "bunx") return "/opt/homebrew/bin/bunx";
-				if (cmd === "npx") return "/usr/local/bin/npx";
-				return null;
-			},
+			which: (cmd) => (cmd === "maina" ? "/Users/x/.bun/bin/maina" : null),
+			noCache: true,
+		});
+		expect(l.command).toBe("/Users/x/.bun/bin/maina");
+		expect(l.command).not.toBe("maina");
+	});
+
+	test("bunx path is absolute, never bare", () => {
+		const l = detectLauncher({
+			which: (cmd) => (cmd === "bunx" ? "/opt/homebrew/bin/bunx" : null),
 			noCache: true,
 		});
 		expect(l.command).toBe("/opt/homebrew/bin/bunx");
-	});
-
-	test("falls back to bare `npx` when nothing resolves (entry stays syntactically valid)", () => {
-		const l = detectLauncher({
-			which: () => null,
-			noCache: true,
-		});
-		expect(l.command).toBe("npx");
+		expect(l.command).not.toBe("bunx");
 	});
 });
 
@@ -65,36 +94,46 @@ describe("detectLauncher — caching", () => {
 		let calls = 0;
 		const which = (cmd: string) => {
 			calls++;
-			return cmd === "bunx" ? "/opt/homebrew/bin/bunx" : null;
+			return cmd === "maina" ? "/x/maina" : null;
 		};
 		detectLauncher({ which });
 		detectLauncher({ which });
 		detectLauncher({ which });
-		// First call probed both bunx and npx (bunx hit, but the loop also
-		// records npx miss before the cache is set). Subsequent calls
-		// returned cache. So calls is bounded by 2 (first call only).
-		expect(calls).toBeLessThanOrEqual(2);
+		// Bounded: first call probes maina (hit, short-circuits). Subsequent
+		// calls return cache. So calls should be 1 (just the maina probe).
+		expect(calls).toBe(1);
 	});
 
 	test("noCache=true bypasses the cache", () => {
 		let calls = 0;
 		const which = (cmd: string) => {
 			calls++;
-			return cmd === "bunx" ? "/x/bunx" : null;
+			return cmd === "maina" ? "/x/maina" : null;
 		};
 		detectLauncher({ which, noCache: true });
 		detectLauncher({ which, noCache: true });
-		// Each call probes bunx (and possibly npx). Bounded by 4 (2 calls × 2 probes).
-		expect(calls).toBeGreaterThanOrEqual(2);
-		expect(calls).toBeLessThanOrEqual(4);
+		expect(calls).toBe(2);
 	});
 
 	test("resetLauncherCache forces re-detection on next call", () => {
-		detectLauncher({ which: () => "/x/bunx" });
+		detectLauncher({ which: () => "/x/maina" });
 		// Cached value used even with a different which.
-		expect(detectLauncher({ which: () => null }).command).toBe("/x/bunx");
+		expect(detectLauncher({ which: () => null }).command).toBe("/x/maina");
 
 		resetLauncherCache();
+		// Re-probes; nothing on PATH so emits bare npx fallback.
 		expect(detectLauncher({ which: () => null }).command).toBe("npx");
+	});
+});
+
+describe("isDirectBinary helper", () => {
+	test("true for direct binary, false for package-manager invocation", () => {
+		expect(isDirectBinary({ command: "/x/maina", args: ["--mcp"] })).toBe(true);
+		expect(
+			isDirectBinary({
+				command: "/x/bunx",
+				args: ["@mainahq/cli@1.0.0", "--mcp"],
+			}),
+		).toBe(false);
 	});
 });

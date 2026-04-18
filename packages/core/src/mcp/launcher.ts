@@ -1,33 +1,47 @@
 /**
  * Pick the launcher used in MCP client configs.
  *
- * Three concerns this module gets right at install time:
+ * Priority order, each preferring the most-reliable option:
  *
- *   1. Prefer `bunx` when available (5-10× faster startup), `npx` as the
- *      universally-available fallback.
+ *   1. **Installed `maina` binary** (e.g. `/Users/x/.bun/bin/maina`) —
+ *      best by far. No package-manager spawn on every MCP request, no
+ *      cold-start download, no Bun cache race when multiple MCP clients
+ *      spawn the server concurrently. Requires the user to have run
+ *      `bun install -g @mainahq/cli` (or `npm i -g`).
  *
- *   2. Write the **absolute resolved path** of the launcher into the
- *      config — not the bare binary name. GUI-launched AI clients
- *      (Cursor, Claude Code, Zed, etc.) inherit a stripped PATH on macOS
- *      that does NOT include `/opt/homebrew/bin` or `~/.bun/bin`, so a
- *      bare `command: "bunx"` produces `spawn bunx ENOENT` even though
- *      the binary is installed for the user. Resolving via `Bun.which`
- *      gives us the full path the OS will actually find.
+ *   2. **`bunx` with a pinned version** (e.g. `bunx @mainahq/cli@1.4.3
+ *      --mcp`). 5-10× faster than `npx`, and the version pin lets `bunx`
+ *      hit its cache more reliably on subsequent spawns.
  *
- *   3. Cache the detection so each install round-trip probes PATH at
- *      most once. Tests inject a fake `which` to keep snapshots stable.
+ *   3. **`npx` with a pinned version** — universally available.
  *
- * Real-world signal that drove this: cursor MCP logs showed
- * `Connection failed: spawn bunx ENOENT` repeatedly against an entry
- * we wrote with bare `bunx`. Switching to the absolute path fixes it.
+ *   4. Bare `npx` last-resort fallback so the entry stays syntactically
+ *      valid even on a machine with neither bun nor node.
+ *
+ * Two real bugs this module dodges:
+ *
+ *   - **Stripped GUI PATH on macOS.** Cursor / Zed / Claude Code desktop
+ *     spawn subprocesses with a PATH that does NOT include
+ *     `/opt/homebrew/bin` or `~/.bun/bin`. We resolve to the absolute
+ *     path via `Bun.which` so spawning never ENOENTs.
+ *
+ *   - **bunx cache races on cold start.** Concurrent MCP-server spawns
+ *     from a single editor restart hit the same `~/.bun/install/cache`
+ *     and one of them errors with "failed copying files from cache to
+ *     destination for package X". Direct-binary launches dodge this
+ *     entirely; pinned-version `bunx` reduces the window.
  */
+
+import pkg from "../../package.json";
+
+const PKG_VERSION = pkg.version;
 
 export interface Launcher {
 	command: string;
 	args: readonly string[];
 }
 
-const ARGS: readonly string[] = ["@mainahq/cli", "--mcp"];
+const PINNED_PACKAGE = `@mainahq/cli@${PKG_VERSION}`;
 
 export interface DetectLauncherOptions {
 	/**
@@ -46,21 +60,28 @@ export function detectLauncher(opts: DetectLauncherOptions = {}): Launcher {
 	if (cached !== null && opts.noCache !== true) return cached;
 
 	const which = opts.which ?? defaultWhich;
-	// Probe in preference order. Use the absolute resolved path when found
-	// so MCP clients with stripped spawn PATHs (Cursor, Zed, etc.) can
-	// actually find the binary.
-	const bunxPath = which("bunx");
-	const npxPath = which("npx");
+
+	// 1. Direct maina binary — fastest, no package manager involved.
+	const mainaPath = which("maina");
 	let result: Launcher;
-	if (bunxPath) {
-		result = { command: bunxPath, args: ARGS };
-	} else if (npxPath) {
-		result = { command: npxPath, args: ARGS };
+	if (mainaPath) {
+		result = { command: mainaPath, args: ["--mcp"] };
 	} else {
-		// Truly nothing on PATH. Fall back to bare `npx` so the entry is
-		// at least syntactically valid; the user can edit it after they
-		// install Node/Bun.
-		result = { command: "npx", args: ARGS };
+		// 2. bunx (preferred) or npx (fallback) — both with version pin so
+		//    the package manager hits its cache reliably across spawns.
+		const bunxPath = which("bunx");
+		if (bunxPath) {
+			result = { command: bunxPath, args: [PINNED_PACKAGE, "--mcp"] };
+		} else {
+			const npxPath = which("npx");
+			if (npxPath) {
+				result = { command: npxPath, args: [PINNED_PACKAGE, "--mcp"] };
+			} else {
+				// 3. Truly nothing on PATH. Emit a syntactically valid entry
+				//    that the user can edit after they install Node/Bun.
+				result = { command: "npx", args: [PINNED_PACKAGE, "--mcp"] };
+			}
+		}
 	}
 
 	if (opts.noCache !== true) cached = result;
@@ -70,6 +91,16 @@ export function detectLauncher(opts: DetectLauncherOptions = {}): Launcher {
 /** Reset the cached launcher detection. Tests use this between cases. */
 export function resetLauncherCache(): void {
 	cached = null;
+}
+
+/**
+ * Returns true if the launcher is the direct `maina` binary (preferred
+ * path), false if it's a package-manager invocation. CLI consumers use
+ * this to decide whether to print the "consider `bun install -g
+ * @mainahq/cli` for faster startup" tip after `mcp add`.
+ */
+export function isDirectBinary(launcher: Launcher): boolean {
+	return launcher.args.length === 1 && launcher.args[0] === "--mcp";
 }
 
 function defaultWhich(cmd: string): string | null {
