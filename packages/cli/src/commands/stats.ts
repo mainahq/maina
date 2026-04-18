@@ -57,6 +57,8 @@ export interface StatsActionResult {
 	specsResult?: SpecsResult;
 	wikiMetrics?: WikiMetrics;
 	externalCategories?: CategoryByFile[];
+	/** Set when the feedback-DB read for external categories failed. */
+	externalCategoriesError?: string;
 }
 
 export interface StatsDeps {
@@ -243,11 +245,23 @@ export async function statsAction(
 		externalRes.ok && externalRes.value.length > 0
 			? externalRes.value
 			: undefined;
+	// Surface DB errors instead of silently dropping the section. The most
+	// common cause is "feedback DB not initialised yet"; we want users to
+	// see that explicitly rather than wonder why the section never appears.
+	const externalCategoriesError = !externalRes.ok
+		? externalRes.error
+		: undefined;
 
 	// ── JSON output ────────────────────────────────────────────────────
 	if (options.json) {
 		const jsonOutput = JSON.stringify(
-			{ stats, trends, wikiMetrics, externalCategories },
+			{
+				stats,
+				trends,
+				wikiMetrics,
+				externalCategories,
+				externalCategoriesError,
+			},
 			null,
 			2,
 		);
@@ -258,6 +272,7 @@ export async function statsAction(
 			jsonOutput,
 			wikiMetrics,
 			externalCategories,
+			...(externalCategoriesError ? { externalCategoriesError } : {}),
 		};
 	}
 
@@ -267,6 +282,7 @@ export async function statsAction(
 		stats,
 		trends,
 		wikiMetrics,
+		...(externalCategoriesError ? { externalCategoriesError } : {}),
 		externalCategories,
 	};
 }
@@ -434,6 +450,12 @@ export function renderStatsResult(
 
 	if (result.externalCategories) {
 		displayExternalCategories(result.externalCategories);
+	} else if (result.externalCategoriesError) {
+		// Surface DB errors so users aren't confused by a silently missing
+		// section (the most common cause is "feedback DB not initialised yet").
+		log.warning(
+			`External-review categories unavailable: ${result.externalCategoriesError}`,
+		);
 	}
 
 	outro("Done.");
