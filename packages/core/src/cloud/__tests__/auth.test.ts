@@ -3,10 +3,14 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	clearAuthConfig,
+	exchangeGitHubToken,
+	GITHUB_CLIENT_ID,
 	getAuthConfigPath,
 	loadAuthConfig,
+	pollGitHubToken,
 	saveAuthConfig,
 	startDeviceFlow,
+	startGitHubDeviceFlow,
 } from "../auth";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -160,5 +164,197 @@ describe("startDeviceFlow", () => {
 		if (!result.ok) {
 			expect(result.error).toContain("503");
 		}
+	});
+});
+
+// ── GitHub Device Flow ──────────────────────────────────────────────────────
+
+describe("startGitHubDeviceFlow", () => {
+	test("POSTs client_id + scope to github.com/login/device/code", async () => {
+		const seen: { url: string; body: string } = { url: "", body: "" };
+		mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+			seen.url = url;
+			seen.body = String(init?.body ?? "");
+			return Promise.resolve(
+				jsonResponse({
+					device_code: "dev-xyz",
+					user_code: "ABCD-1234",
+					verification_uri: "https://github.com/login/device",
+					expires_in: 900,
+					interval: 5,
+				}),
+			);
+		});
+
+		const result = await startGitHubDeviceFlow();
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.deviceCode).toBe("dev-xyz");
+			expect(result.value.userCode).toBe("ABCD-1234");
+			expect(result.value.verificationUri).toBe(
+				"https://github.com/login/device",
+			);
+			expect(result.value.interval).toBe(5);
+		}
+		expect(seen.url).toBe("https://github.com/login/device/code");
+		expect(seen.body).toContain(`client_id=${GITHUB_CLIENT_ID}`);
+		expect(seen.body).toContain("scope=read%3Auser");
+	});
+
+	test("surfaces device_flow_disabled with an actionable message", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(jsonResponse({ error: "device_flow_disabled" })),
+		);
+
+		const result = await startGitHubDeviceFlow();
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error).toContain("Device Flow");
+	});
+
+	test("returns error on malformed response", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(jsonResponse({ user_code: "ABCD-1234" })),
+		);
+
+		const result = await startGitHubDeviceFlow();
+		expect(result.ok).toBe(false);
+	});
+});
+
+describe("pollGitHubToken", () => {
+	test("keeps polling on authorization_pending, then returns token", async () => {
+		let calls = 0;
+		mockFetch.mockImplementation(() => {
+			calls++;
+			if (calls < 2) {
+				return Promise.resolve(
+					jsonResponse({ error: "authorization_pending" }),
+				);
+			}
+			return Promise.resolve(
+				jsonResponse({
+					access_token: "gho_abc123",
+					scope: "read:user",
+					token_type: "bearer",
+				}),
+			);
+		});
+
+		const result = await pollGitHubToken({
+			deviceCode: "dev-xyz",
+			interval: 0, // poll as fast as possible
+			expiresIn: 5,
+		});
+
+		expect(result.ok).toBe(true);
+		expect(calls).toBe(2);
+		if (result.ok) {
+			expect(result.value.accessToken).toBe("gho_abc123");
+			expect(result.value.scope).toBe("read:user");
+		}
+	});
+
+	test("aborts on expired_token", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(jsonResponse({ error: "expired_token" })),
+		);
+		const result = await pollGitHubToken({
+			deviceCode: "dev-xyz",
+			interval: 0,
+			expiresIn: 5,
+		});
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error).toContain("expired");
+	});
+
+	test("aborts on access_denied", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(jsonResponse({ error: "access_denied" })),
+		);
+		const result = await pollGitHubToken({
+			deviceCode: "dev-xyz",
+			interval: 0,
+			expiresIn: 5,
+		});
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error).toContain("denied");
+	});
+
+	test("backs off on slow_down before eventually succeeding", async () => {
+		let calls = 0;
+		mockFetch.mockImplementation(() => {
+			calls++;
+			if (calls === 1) {
+				return Promise.resolve(jsonResponse({ error: "slow_down" }));
+			}
+			return Promise.resolve(
+				jsonResponse({ access_token: "gho_tok", scope: "read:user" }),
+			);
+		});
+		const result = await pollGitHubToken({
+			deviceCode: "dev-xyz",
+			interval: 0,
+			expiresIn: 30,
+			slowDownIncreaseMs: 10,
+		});
+		expect(result.ok).toBe(true);
+		expect(calls).toBe(2);
+	});
+});
+
+describe("exchangeGitHubToken", () => {
+	test("sends github_access_token and parses snake_case response", async () => {
+		const seen: { url: string; body: string } = { url: "", body: "" };
+		mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+			seen.url = url;
+			seen.body = String(init?.body ?? "");
+			return Promise.resolve(
+				jsonResponse({
+					data: {
+						access_token: "maina_tok",
+						first_time: true,
+						member_id: "member_1",
+						team_id: "team_1",
+						github_login: "alice",
+						email: "alice@example.com",
+						expires_at: "2026-05-18T00:00:00Z",
+					},
+					error: null,
+				}),
+			);
+		});
+
+		const result = await exchangeGitHubToken(
+			"https://api.maina.dev",
+			"gho_abc",
+		);
+
+		expect(result.ok).toBe(true);
+		expect(seen.url).toBe("https://api.maina.dev/auth/github/exchange");
+		expect(seen.body).toContain("gho_abc");
+		if (result.ok) {
+			expect(result.value.accessToken).toBe("maina_tok");
+			expect(result.value.firstTime).toBe(true);
+			expect(result.value.githubLogin).toBe("alice");
+		}
+	});
+
+	test("maps invalid_github_token to an actionable message", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(jsonResponse({ error: "invalid_github_token" }, 401)),
+		);
+		const result = await exchangeGitHubToken("https://api.maina.dev", "t");
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error).toContain("revoked");
+	});
+
+	test("maps provision_failed", async () => {
+		mockFetch.mockImplementation(() =>
+			Promise.resolve(jsonResponse({ error: "provision_failed" }, 502)),
+		);
+		const result = await exchangeGitHubToken("https://api.maina.dev", "t");
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error).toContain("provision");
 	});
 });

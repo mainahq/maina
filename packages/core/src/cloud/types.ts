@@ -40,8 +40,10 @@ export interface TeamInfo {
 	id: string;
 	/** Display name. */
 	name: string;
-	/** Current billing plan. */
+	/** Current billing plan (machine-readable id, e.g. "free", "team"). */
 	plan: string;
+	/** Human-readable plan label, e.g. "Free", "Team". Optional — older servers may omit. */
+	planDisplay?: string;
 	/** Number of seats used / total. */
 	seats: { used: number; total: number };
 }
@@ -79,6 +81,45 @@ export interface TokenResponse {
 	expiresIn: number;
 	/** True when the user has no email set (first-time signup). */
 	firstTime?: boolean;
+}
+
+// ── GitHub Device Flow ──────────────────────────────────────────────────────
+
+export interface GitHubDeviceCodeResponse {
+	/** Short code the user types into github.com/login/device. */
+	userCode: string;
+	/** Opaque code used to poll GitHub for the access token. */
+	deviceCode: string;
+	/** URL the user visits in the browser. */
+	verificationUri: string;
+	/** Polling interval (seconds). */
+	interval: number;
+	/** Seconds until the device code expires. */
+	expiresIn: number;
+}
+
+export interface GitHubTokenResponse {
+	/** GitHub bearer token. Short-lived; used only to exchange for a maina token. */
+	accessToken: string;
+	/** Scopes granted to the access token (space-separated). */
+	scope: string;
+}
+
+export interface GitHubExchangeResponse {
+	/** Maina bearer token. */
+	accessToken: string;
+	/** True when the server just provisioned a new maina member. */
+	firstTime: boolean;
+	/** Maina member identifier (member_...). */
+	memberId: string;
+	/** Maina team identifier (team_...). */
+	teamId: string;
+	/** GitHub login of the authenticated user. */
+	githubLogin: string;
+	/** Email on file for the user (from GitHub). */
+	email: string;
+	/** ISO-8601 timestamp when the token expires. */
+	expiresAt: string;
 }
 
 // ── Profile ────────────────────────────────────────────────────────────────

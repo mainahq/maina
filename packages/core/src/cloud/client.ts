@@ -44,6 +44,12 @@ function isRetryable(status: number): boolean {
 	return status === 429 || status >= 500;
 }
 
+/** Title-case a machine-readable plan id for display. `free` → `Free`. */
+function titleCasePlan(plan: string): string {
+	if (!plan) return "Free";
+	return plan.charAt(0).toUpperCase() + plan.slice(1);
+}
+
 /**
  * Sleep for the given number of milliseconds.
  * Extracted so tests can verify backoff behaviour.
@@ -242,7 +248,11 @@ export function createCloudClient(config: CloudConfig): CloudClient {
 			});
 		},
 
-		getPrompts: () => request<PromptRecord[]>("GET", "/prompts"),
+		getPrompts: async () => {
+			const result = await request<PromptRecord[] | null>("GET", "/prompts");
+			if (!result.ok) return result;
+			return ok(Array.isArray(result.value) ? result.value : []);
+		},
 
 		putPrompts: async (prompts) => {
 			for (const p of prompts) {
@@ -256,7 +266,28 @@ export function createCloudClient(config: CloudConfig): CloudClient {
 			return { ok: true as const, value: undefined };
 		},
 
-		getTeam: () => request<TeamInfo>("GET", "/team"),
+		getTeam: async () => {
+			// biome-ignore lint/suspicious/noExplicitAny: snake_case API mapping
+			const result = await request<any>("GET", "/team");
+			if (!result.ok) return result;
+			const d = result.value ?? {};
+			const plan = d.plan ?? "free";
+			// Prefer an explicit server-supplied label; otherwise derive one from
+			// the machine-readable id so older / partial responses still render a
+			// human-friendly `Plan: Free` instead of `Plan: free` in the CLI.
+			const serverLabel = d.planDisplay ?? d.plan_display;
+			const planDisplay =
+				typeof serverLabel === "string" && serverLabel.length > 0
+					? serverLabel
+					: titleCasePlan(plan);
+			return ok({
+				id: d.id,
+				name: d.name,
+				plan,
+				planDisplay,
+				seats: d.seats ?? { used: 0, total: 0 },
+			} satisfies TeamInfo);
+		},
 
 		getTeamMembers: () => request<TeamMember[]>("GET", "/team/members"),
 

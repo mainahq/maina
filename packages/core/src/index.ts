@@ -55,10 +55,14 @@ export {
 export {
 	type AuthConfig,
 	clearAuthConfig,
+	exchangeGitHubToken,
+	GITHUB_CLIENT_ID,
 	loadAuthConfig,
 	pollForToken,
+	pollGitHubToken,
 	saveAuthConfig,
 	startDeviceFlow,
+	startGitHubDeviceFlow,
 } from "./cloud/auth";
 export { type CloudClient, createCloudClient } from "./cloud/client";
 export type {
@@ -72,6 +76,9 @@ export type {
 	FeedbackBatchPayload,
 	FeedbackEvent,
 	FeedbackImprovementsResponse,
+	GitHubDeviceCodeResponse,
+	GitHubExchangeResponse,
+	GitHubTokenResponse,
 	PromptRecord,
 	SubmitVerifyPayload,
 	TeamInfo,
@@ -397,6 +404,14 @@ export {
 	type TrendsReport,
 	trackToolUsage,
 } from "./stats/tracker";
+// CLI crash telemetry
+export {
+	buildCliErrorPayload,
+	type CliErrorPayload,
+	isCliTelemetryOptedOut,
+	type SendOptions,
+	sendCliErrorReport,
+} from "./telemetry/cli-error-reporter";
 // Ticket
 export {
 	buildIssueBody,

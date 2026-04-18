@@ -69,7 +69,11 @@ Setup & Config:
   mcp remove    Uninstall maina MCP server from clients
   mcp list      Show maina MCP install status per client`,
 		)
-		.version(pkg.version);
+		.version(pkg.version)
+		.option(
+			"--debug",
+			"print full stack traces and error codes on failure (also MAINA_DEBUG=1)",
+		);
 
 	// ── Workflow ─────────────────────────────────────────────────────────
 	program.addCommand(brainstormCommand());

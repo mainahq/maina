@@ -36,8 +36,9 @@ export async function teamAction(): Promise<TeamActionResult> {
 	}
 
 	const team = teamResult.value;
+	const planLabel = team.planDisplay ?? team.plan ?? "Free";
 	log.info(`Team: ${team.name}`);
-	log.info(`Plan: ${team.plan}`);
+	log.info(`Plan: ${planLabel}`);
 	log.info(`Seats: ${team.seats.used}/${team.seats.total}`);
 
 	const membersResult = await client.getTeamMembers();
