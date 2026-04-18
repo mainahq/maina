@@ -32,7 +32,7 @@ maina mcp list                         # show install status per client
 
 Supported clients: **Claude Code, Cursor, Windsurf, Cline, Codex CLI, Continue.dev, Gemini CLI, Zed**. The command preserves all other MCP servers and unrelated keys via an atomic merge — safe to run repeatedly.
 
-The launcher is auto-detected per machine: `bunx` when [Bun](https://bun.sh) is installed (5-10× faster startup), `npx` otherwise (universally available via npm). All manual examples below use `npx` for portability — substitute `bunx` if you have Bun.
+The launcher is auto-detected per machine: `bunx` when `bunx` is on `PATH` (typically when [Bun](https://bun.sh) is installed; 5-10× faster startup), `npx` otherwise (universally available via npm). All manual examples below use `npx` for portability — substitute `bunx` when available.
 
 The setup wizard (`maina setup`) also writes the project-scoped configs (`.mcp.json` and `.claude/settings.json`) for you, so most users won't need `maina mcp add` unless they want maina available in every project from any client.
 
