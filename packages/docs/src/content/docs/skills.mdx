@@ -7,7 +7,7 @@ Maina ships a skills package alongside the CLI. 8 skills that teach AI agents yo
 
 ## What Are Skills?
 
-Skills are structured instruction files (`SKILL.md`) that any AI agent can read and follow. They work across platforms: Claude Code, Cursor, Codex, Gemini CLI.
+Skills are structured instruction files (`SKILL.md`) that any AI agent can read and follow. They work across every major coding agent — Claude Code, Cline, Codex, Continue, Copilot, Cursor, Gemini CLI, OpenHands, Roo Code, Windsurf, Zed AI — plus any MCP-compatible client.
 
 Each skill uses progressive disclosure:
 - **~100 tokens** when scanning (the agent reads the summary and decides if the skill is relevant)
@@ -46,7 +46,7 @@ packages/skills/
 
 **For Claude Code:** Skills are discovered automatically when Maina is installed. They appear as available slash commands.
 
-**For Cursor / Windsurf / Cline / Roo Code / Continue.dev / Codex / Gemini CLI / Amazon Q / Zed / Aider:** Point the agent at the skill files or include them in your project's agent instructions.
+**For Cline / Codex / Continue / Copilot / Cursor / Gemini CLI / OpenHands / Roo Code / Windsurf / Zed AI / any MCP client:** Point the agent at the skill files or include them in your project's agent instructions.
 
 **Without the CLI:** Copy the SKILL.md files into your project. An AI agent with just the skills follows the verification workflow -- no CLI needed.
 

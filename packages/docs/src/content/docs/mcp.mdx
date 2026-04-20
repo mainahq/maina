@@ -30,7 +30,7 @@ maina mcp add --dry-run                # preview the writes without touching dis
 maina mcp list                         # show install status per client
 ```
 
-Supported clients: **Claude Code, Cursor, Windsurf, Cline, Codex CLI, Continue.dev, Gemini CLI, Zed**. The command preserves all other MCP servers and unrelated keys via an atomic merge — safe to run repeatedly.
+Supported clients: **Claude Code, Cline, Codex, Continue, Copilot, Cursor, Gemini CLI, OpenHands, Roo Code, Windsurf, Zed AI** (any MCP client works — those eleven are auto-detected). The command preserves all other MCP servers and unrelated keys via an atomic merge — safe to run repeatedly.
 
 The launcher is auto-detected per machine, in this priority order:
 
@@ -109,7 +109,7 @@ No plugins, no extensions, no separate server process.
 
 ## Tools
 
-The MCP server exposes 10 tools, each delegating to the appropriate engine:
+The MCP server exposes 14 tools, each delegating to the appropriate engine:
 
 | Tool | Description | Engine |
 |------|------------|--------|
@@ -123,6 +123,10 @@ The MCP server exposes 10 tools, each delegating to the appropriate engine:
 | `analyzeFeature` | Check spec/plan/tasks consistency for a feature. Reports mismatches and orphaned artifacts. | Context |
 | `wikiQuery` | Search and synthesize answers from codebase wiki. Returns AI-generated answer with source citations. | Context (L5) |
 | `wikiStatus` | Wiki health dashboard — article counts, coverage, staleness. | Context |
+| `ask_question` | Ask the wiki an open-ended question. DeepWiki-compatible entry point. | Context (L5) |
+| `list_tools` | Enumerate every MCP tool the server exposes, for capability discovery. | Server |
+| `read_wiki_structure` | Return the wiki's article index — titles, types, paths. DeepWiki-compatible. | Context |
+| `read_wiki_contents` | Fetch the full markdown of a named wiki article. DeepWiki-compatible. | Context |
 
 ## How It Works
 
