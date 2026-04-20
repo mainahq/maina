@@ -1,153 +1,71 @@
-# Implementation Plan
+# Implementation Plan — Wiki lint accuracy & status freshness fixes
 
 > HOW only — see spec.md for WHAT and WHY.
 
 ## Architecture
 
-What is the technical approach? How does it fit into existing architecture?
-Where are the integration points with existing code?
+All fixes are localized. Three files, one new helper, per-constraint flag, and a compile-time hash-population pass.
 
-- Pattern: [NEEDS CLARIFICATION]
-- Integration points: [NEEDS CLARIFICATION]
+- Pattern: **targeted bugfix** — no new abstractions, extend existing skip-list and constraint shape.
+- Integration points:
+  - `packages/core/src/verify/tools/wiki-lint.ts` — the lint engine.
+  - `packages/core/src/wiki/compiler.ts` — populate `state.fileHashes`.
+  - `packages/cli/src/commands/wiki/status.ts` — fix path join.
 
 ## Key Technical Decisions
 
-What libraries, patterns, or approaches? WHY these and not alternatives?
-
-- [NEEDS CLARIFICATION]
+- **Hardcoded skip list, not `.gitignore`.** `.gitignore` parsing is a future refactor; for this PR we just add `.claude`, `.maina`, `coverage`, `build`, `out`, `.next`, `.turbo`, `.cache` next to the existing `node_modules`/`dist`/`.git`. Rationale: 4 lines vs. pulling in a gitignore parser; behavior matches 99% of repos.
+- **Per-constraint `skipTests` flag.** Tests should still be scanned for `bun:test` (catches a jest import in a test) but not for `result<` (tests legitimately throw). A flag on `TechConstraint` lets each rule declare its policy.
+- **Import-form ESLint detection.** Replace the content regex `/\.eslintrc|eslint\.config/` — which matches any string occurrence — with `/from\s+["']eslint[\w\-\/"']/` + `/require\s*\(\s*["']eslint[\w\-\/"']\s*\)/`. The existing filename-level check at repo root (wiki-lint.ts:508-523) already catches real `.eslintrc` / `eslint.config.*` files, so this tightens without regression.
+- **Populate `fileHashes` during compile.** `WikiState.fileHashes` is declared but never written. Iterate over the source files already enumerated during compile and write `hashFile(path)` into state. That makes coverage = `articleHashCount / fileHashCount` meaningful.
+- **Fix path join in `countStaleArticles`.** Article keys are stored as `wiki/modules/foo.md`; `wikiDir` is `.maina/wiki`. `join(wikiDir, key)` produces `.maina/wiki/wiki/modules/foo.md` which never exists, so every article lands in the `existsSync === false` branch. Strip the leading `wiki/` before joining.
 
 ## Files
 
 | File | Purpose | New/Modified |
 |------|---------|-------------|
-| [NEEDS CLARIFICATION] | | |
+| `packages/core/src/verify/tools/wiki-lint.ts` | Skip-list expansion, `skipTests` flag, ESLint regex | Modified |
+| `packages/core/src/verify/tools/__tests__/wiki-lint.test.ts` | Tests for all three lint fixes | Modified |
+| `packages/core/src/wiki/compiler.ts` | Write `state.fileHashes` on compile | Modified |
+| `packages/core/src/wiki/__tests__/compiler.test.ts` | Test `fileHashes` populated after compile | Modified |
+| `packages/cli/src/commands/wiki/status.ts` | Fix path join, coverage calc | Modified |
+| `packages/cli/src/commands/__tests__/wiki.test.ts` | Test stale count + coverage with realistic state | Modified |
 
 ## Tasks
 
-TDD: every implementation task must have a preceding test task.
+TDD: tests before impl.
 
-- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.
+- [ ] Add failing test: `collectSourceFiles` skips `.claude/worktrees/agent-*` and `.maina/features/*`.
+- [ ] Impl: extend skip list in `collectSourceFiles`.
+- [ ] Add failing test: `checkDecisionViolations` does NOT flag `*.test.ts` files against `result<` constraint.
+- [ ] Impl: add `skipTests?: boolean` to `TechConstraint`, default true for `result<` / `never throw`, apply filter at scan site.
+- [ ] Add failing test: `constitution/config-parsers.ts`-style content (string mention of `eslint.config`) is NOT flagged; content with `from "eslint"` IS flagged.
+- [ ] Impl: replace `/\.eslintrc|eslint\.config/` with import/require-form regexes.
+- [ ] Add failing test: after a compile, `state.fileHashes` has at least one entry; `wiki status` reports coverage > 0 and stale < total.
+- [ ] Impl (compiler): populate `state.fileHashes` from the file list already traversed during extraction.
+- [ ] Impl (status): fix `countStaleArticles` path join (strip leading `wiki/` or join against `cwd` instead of `wikiDir`).
 
 ## Failure Modes
 
-What can go wrong? How do we handle it gracefully?
-
-- [NEEDS CLARIFICATION]
+- **Skip list too aggressive** — if a user has legitimate source under `.maina/` or `coverage/`, it's silently skipped. Mitigation: skip list only covers well-known tool-output dirs; document in changelog.
+- **`skipTests` regex false positives/negatives** — pattern `/\.(test|spec)\.[jt]sx?$|\/__tests__\/|\/__mocks__\//` should be tight. Add tests for edge cases (`something.test.utils.ts` shouldn't be skipped).
+- **ESLint regex misses real violations** — the new pattern requires import-form, so a project using eslint via `package.json` scripts with no JS import won't be caught. Acceptable: the repo-root filename check still catches `.eslintrc*` / `eslint.config.*`, which is the real config surface.
+- **`fileHashes` perf regression** — hashing all source files adds IO. Already done in some form for change detection; we're just persisting it. Measure in test.
+- **Path-prefix fix breaks other code** — grep for other consumers of `state.articleHashes` keys before changing key format; safer to strip at read-time (in `countStaleArticles`) than to rewrite state format.
 
 ## Testing Strategy
 
-Unit tests, integration tests, or both? What mocks are needed?
-
-- [NEEDS CLARIFICATION]
-
+- **Unit** tests in the same `__tests__` dirs as the files changed. bun:test.
+- **Regression** check: run `bun packages/cli/dist/index.js wiki lint` on this repo after build. Expect ≤ 25 findings, zero under `.claude/worktrees/` or `.maina/`.
+- **Regression** check: run `wiki compile` then `wiki status`; expect `Coverage: > 0%`, `Stale: < total`, `Last compile: <today>`.
+- No mocks for the lint code — it reads real files. Use `tmpdir` fixtures.
 
 ## Wiki Context
 
-### Related Modules
-
-- **wiki-62** (19 entities) — `modules/wiki-62.md`
-- **git** (11 entities) — `modules/git.md`
-- **wiki-56** (9 entities) — `modules/wiki-56.md`
-- **wiki-129** (8 entities) — `modules/wiki-129.md`
-- **tools-285** (7 entities) — `modules/tools-285.md`
-- **cluster-127** (7 entities) — `modules/cluster-127.md`
-- **wiki-63** (7 entities) — `modules/wiki-63.md`
-- **wiki-196** (7 entities) — `modules/wiki-196.md`
-- **cluster-131** (7 entities) — `modules/cluster-131.md`
-- **wiki-200** (7 entities) — `modules/wiki-200.md`
-- **verify-76** (6 entities) — `modules/verify-76.md`
-- **wiki-80** (6 entities) — `modules/wiki-80.md`
-- **wiki-111** (6 entities) — `modules/wiki-111.md`
-- **wiki-152** (6 entities) — `modules/wiki-152.md`
-- **wiki-71** (6 entities) — `modules/wiki-71.md`
-- **cluster-39** (6 entities) — `modules/cluster-39.md`
-- **wiki-148** (6 entities) — `modules/wiki-148.md`
-- **wiki** (5 entities) — `modules/wiki.md`
-- **wiki-81** (5 entities) — `modules/wiki-81.md`
-- **cluster-140** (5 entities) — `modules/cluster-140.md`
-- **wiki-211** (5 entities) — `modules/wiki-211.md`
-- **cluster-87** (4 entities) — `modules/cluster-87.md`
-- **wiki-150** (4 entities) — `modules/wiki-150.md`
-- **cluster-88** (4 entities) — `modules/cluster-88.md`
-- **wiki-151** (4 entities) — `modules/wiki-151.md`
-- **cluster-89** (4 entities) — `modules/cluster-89.md`
-- **wiki-153** (4 entities) — `modules/wiki-153.md`
-- **cluster-90** (4 entities) — `modules/cluster-90.md`
-- **wiki-149** (4 entities) — `modules/wiki-149.md`
-- **cluster-96** (3 entities) — `modules/cluster-96.md`
-- **context-161** (3 entities) — `modules/context-161.md`
-- **cluster-45** (3 entities) — `modules/cluster-45.md`
-- **tools-202** (3 entities) — `modules/tools-202.md`
-- **cluster-132** (3 entities) — `modules/cluster-132.md`
-- **extractors** (3 entities) — `modules/extractors.md`
-- **extractors-181** (2 entities) — `modules/extractors-181.md`
-- **cluster-138** (2 entities) — `modules/cluster-138.md`
-- **wiki-209** (2 entities) — `modules/wiki-209.md`
-- **wiki-170** (2 entities) — `modules/wiki-170.md`
-- **wiki-212** (2 entities) — `modules/wiki-212.md`
-- **wiki-187** (2 entities) — `modules/wiki-187.md`
-- **cluster-116** (2 entities) — `modules/cluster-116.md`
-- **wiki-91** (2 entities) — `modules/wiki-91.md`
-- **cluster-115** (2 entities) — `modules/cluster-115.md`
-- **cluster-105** (2 entities) — `modules/cluster-105.md`
-- **wiki-201** (2 entities) — `modules/wiki-201.md`
-- **cluster-120** (2 entities) — `modules/cluster-120.md`
-- **extractors-182** (2 entities) — `modules/extractors-182.md`
+(Context block from `maina plan` preserved below for reference.)
 
 ### Related Decisions
 
-- 0015-cli-mcp-coequal: CLI and MCP are co-equal first-class surfaces [accepted]
-- 0014-experiment-gate-stagehand-orama: Experiment gate criteria for Stagehand and Orama [accepted]
-- 0027-symbol-page-templates-for-wiki: Symbol page templates for wiki [accepted]
-- 0022-wiki-is-a-view-of-the-context-engine: Wiki is a view of the Context engine [proposed]
-- 0029-scip-type-script-ingest-for-wiki: SCIP TypeScript ingest for wiki [accepted]
-- 0022-wiki-is-a-view: Wiki is a view of the Context engine [accepted]
-- 0017-no-workkit-search: Kill decision — @workkit for wiki search [accepted]
-- 0003-fix-host-delegation-for-cli-ai-tasks: Fix host delegation for CLI AI tasks [proposed]
-- 0019-no-fern-no-sdk: Kill decision — Fern + multi-language SDKs [accepted]
-
-### Similar Features
-
-- 027-v10-launch: Implementation Plan
-- 049-wiki-graph-exporters: Implementation Plan
-- 039-lint-config-parsers: Implementation Plan
-- 035-wiki-foundation: Wiki Foundation (Sprint 0)
-- 043-symbol-page-templates: Implementation Plan
-- 038-wiki-is-a-view: Implementation Plan
-- 045-scip-typescript-ingest: Implementation Plan
-- 040-deepwiki-mcp: Implementation Plan
-
-### Suggestions
-
-- Module 'wiki-62' already has 19 entities — consider extending it
-- Module 'git' already has 11 entities — consider extending it
-- Module 'wiki-56' already has 9 entities — consider extending it
-- Module 'wiki-129' already has 8 entities — consider extending it
-- Module 'tools-285' already has 7 entities — consider extending it
-- Module 'cluster-127' already has 7 entities — consider extending it
-- Module 'wiki-63' already has 7 entities — consider extending it
-- Module 'wiki-196' already has 7 entities — consider extending it
-- Module 'cluster-131' already has 7 entities — consider extending it
-- Module 'wiki-200' already has 7 entities — consider extending it
-- Module 'verify-76' already has 6 entities — consider extending it
-- Module 'wiki-80' already has 6 entities — consider extending it
-- Module 'wiki-111' already has 6 entities — consider extending it
-- Module 'wiki-152' already has 6 entities — consider extending it
-- Module 'wiki-71' already has 6 entities — consider extending it
-- Module 'cluster-39' already has 6 entities — consider extending it
-- Module 'wiki-148' already has 6 entities — consider extending it
-- Feature 027-v10-launch did something similar — check wiki/features/027-v10-launch.md
-- Feature 049-wiki-graph-exporters did something similar — check wiki/features/049-wiki-graph-exporters.md
-- Feature 039-lint-config-parsers did something similar — check wiki/features/039-lint-config-parsers.md
-- Feature 035-wiki-foundation did something similar — check wiki/features/035-wiki-foundation.md
-- Feature 043-symbol-page-templates did something similar — check wiki/features/043-symbol-page-templates.md
-- Feature 038-wiki-is-a-view did something similar — check wiki/features/038-wiki-is-a-view.md
-- Feature 045-scip-typescript-ingest did something similar — check wiki/features/045-scip-typescript-ingest.md
-- Feature 040-deepwiki-mcp did something similar — check wiki/features/040-deepwiki-mcp.md
-- ADR 0015-cli-mcp-coequal (CLI and MCP are co-equal first-class surfaces) is accepted — ensure compatibility
-- ADR 0014-experiment-gate-stagehand-orama (Experiment gate criteria for Stagehand and Orama) is accepted — ensure compatibility
-- ADR 0027-symbol-page-templates-for-wiki (Symbol page templates for wiki) is accepted — ensure compatibility
-- ADR 0029-scip-type-script-ingest-for-wiki (SCIP TypeScript ingest for wiki) is accepted — ensure compatibility
-- ADR 0022-wiki-is-a-view (Wiki is a view of the Context engine) is accepted — ensure compatibility
-- ADR 0017-no-workkit-search (Kill decision — @workkit for wiki search) is accepted — ensure compatibility
-- ADR 0019-no-fern-no-sdk (Kill decision — Fern + multi-language SDKs) is accepted — ensure compatibility
+- 0019-no-fern-no-sdk — "requires biome" keyword — the rule this PR makes more accurate.
+- 0012-v050-cloud-client-maina-cloud — "requires result<" keyword — the rule this PR restricts to non-test files.
+- 0022-wiki-is-a-view — wiki is a view of the Context engine; coverage/staleness signals feed it.

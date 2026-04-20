@@ -35,7 +35,13 @@ import { buildKnowledgeGraph, computePageRank, mapToArticles } from "./graph";
 import { generateIndex } from "./indexer";
 import { generateLinks } from "./linker";
 import { generateGraphReport, generateGraphReportJson } from "./report";
-import { createEmptyState, hashContent, loadState, saveState } from "./state";
+import {
+	createEmptyState,
+	hashContent,
+	hashFile,
+	loadState,
+	saveState,
+} from "./state";
 import type {
 	ArticleType,
 	ExtractedDecision,
@@ -1338,6 +1344,16 @@ export async function compile(
 
 		for (const article of articles) {
 			state.articleHashes[article.path] = article.contentHash;
+		}
+
+		// Persist source-file hashes so `wiki status` can compute coverage
+		// (articleCount / sourceFileCount) and so incremental compile can
+		// detect source changes in future runs. Previously this field was
+		// declared but never written, leaving coverage stuck at 0% (#211).
+		state.fileHashes = {};
+		for (const rel of sourceFiles) {
+			const h = hashFile(join(repoRoot, rel));
+			if (h) state.fileHashes[rel] = h;
 		}
 
 		if (!dryRun) {

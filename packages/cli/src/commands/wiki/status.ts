@@ -42,6 +42,11 @@ const ARTICLE_TYPES = [
 /**
  * Count stale articles — articles whose source files have changed since compilation.
  * An article is stale if its content hash in state doesn't match the current file.
+ *
+ * Article keys in state are of the form `wiki/modules/foo.md`; on disk the files
+ * live at `<wikiDir>/modules/foo.md`. The leading `wiki/` segment must be stripped
+ * before joining against wikiDir — otherwise every article appears stale because
+ * the lookup path `<wikiDir>/wiki/modules/foo.md` never exists (#211).
  */
 function countStaleArticles(
 	wikiDir: string,
@@ -52,7 +57,8 @@ function countStaleArticles(
 	for (const [articlePath, expectedHash] of Object.entries(
 		state.articleHashes,
 	)) {
-		const fullPath = join(wikiDir, articlePath);
+		const onDiskPath = articlePath.replace(/^wiki\//, "");
+		const fullPath = join(wikiDir, onDiskPath);
 		if (!existsSync(fullPath)) {
 			staleCount++;
 			continue;

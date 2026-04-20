@@ -291,6 +291,21 @@ function calculateCoverage(
 
 // ─── Check 6: Spec Drift Detection ──────────────────────────────────────
 
+/** Directories never to recurse into when scanning for source files. */
+const SKIP_DIRS = new Set([
+	"node_modules",
+	"dist",
+	"build",
+	"out",
+	"coverage",
+	".git",
+	".claude",
+	".maina",
+	".next",
+	".turbo",
+	".cache",
+]);
+
 /** Recursively collect source files (.ts, .js, .tsx, .jsx) under a directory. */
 function collectSourceFiles(dir: string): string[] {
 	const results: string[] = [];
@@ -300,14 +315,7 @@ function collectSourceFiles(dir: string): string[] {
 		for (const entry of entries) {
 			const full = join(dir, entry.name);
 			if (entry.isDirectory()) {
-				// Skip node_modules, dist, .git
-				if (
-					entry.name === "node_modules" ||
-					entry.name === "dist" ||
-					entry.name === ".git"
-				) {
-					continue;
-				}
+				if (SKIP_DIRS.has(entry.name)) continue;
 				results.push(...collectSourceFiles(full));
 			} else if (/\.(ts|js|tsx|jsx)$/.test(entry.name)) {
 				results.push(full);
@@ -317,6 +325,18 @@ function collectSourceFiles(dir: string): string[] {
 		// Directory read failure — skip gracefully
 	}
 	return results;
+}
+
+/**
+ * True if the file is a test/spec file or under a tests directory.
+ * Test files legitimately use throw (e.g. inside it(..., () => { throw }))
+ * so production-code rules like "returns Result<>" should skip them.
+ */
+function isTestFile(filePath: string): boolean {
+	return (
+		/\.(test|spec)\.[jt]sx?$/.test(filePath) ||
+		/[\\/](__tests__|__mocks__)[\\/]/.test(filePath)
+	);
 }
 
 /**
@@ -402,6 +422,15 @@ function checkSpecDrift(
 interface TechConstraint {
 	keyword: string;
 	violations: { pattern: RegExp; description: string }[];
+	/**
+	 * When true, skip *.test.* / *.spec.* / __tests__ files.
+	 * Applies to rules that describe production-code behaviour (e.g. "return
+	 * Result<> instead of throwing") — tests legitimately throw as part of
+	 * fixture setup or expected-throw assertions.
+	 * Import-form constraints (e.g. "don't import jest") should leave this
+	 * off so a rogue jest import in a test file is still caught.
+	 */
+	skipTests?: boolean;
 }
 
 const TECH_CONSTRAINTS: TechConstraint[] = [
@@ -419,15 +448,28 @@ const TECH_CONSTRAINTS: TechConstraint[] = [
 		],
 	},
 	{
+		// Import/require of eslint/prettier only — NOT string mentions in content
+		// (see #209). Anchored start-of-line to skip test fixtures and docs.
+		// Repo-root config files are checked separately via configFilenameRules.
 		keyword: "biome",
 		violations: [
 			{
-				pattern: /\.eslintrc|eslint\.config/,
-				description: "uses ESLint configuration",
+				pattern: /^\s*import\b[^\n]*\bfrom\s+["']eslint(?:["']|\/)/m,
+				description: "imports from eslint",
 			},
 			{
-				pattern: /\.prettierrc|prettier\.config/,
-				description: "uses Prettier configuration",
+				pattern:
+					/^\s*(?:const|let|var)\b[^\n]*\brequire\s*\(\s*["']eslint(?:["']|\/)/m,
+				description: "requires eslint",
+			},
+			{
+				pattern: /^\s*import\b[^\n]*\bfrom\s+["']prettier(?:["']|\/)/m,
+				description: "imports from prettier",
+			},
+			{
+				pattern:
+					/^\s*(?:const|let|var)\b[^\n]*\brequire\s*\(\s*["']prettier(?:["']|\/)/m,
+				description: "requires prettier",
 			},
 		],
 	},
@@ -442,6 +484,7 @@ const TECH_CONSTRAINTS: TechConstraint[] = [
 	},
 	{
 		keyword: "result<",
+		skipTests: true,
 		violations: [
 			{
 				pattern: /\bthrow\s+new\b/,
@@ -451,6 +494,7 @@ const TECH_CONSTRAINTS: TechConstraint[] = [
 	},
 	{
 		keyword: "never throw",
+		skipTests: true,
 		violations: [
 			{
 				pattern: /\bthrow\s+/,
@@ -522,17 +566,38 @@ function checkDecisionViolations(
 		// Root dir read failure — skip
 	}
 
-	// Check config file names against constraints
+	// Check config file names against constraints. This catches the presence of
+	// a real .eslintrc / eslint.config file at the repo root — a structural
+	// signal that ESLint is in use, independent of any source-file content.
+	const configFilenameRules: Record<
+		string,
+		{ pattern: RegExp; description: string }[]
+	> = {
+		biome: [
+			{
+				pattern: /^\.eslintrc|^eslint\.config/,
+				description:
+					"has .eslintrc / eslint.config at repo root (uses ESLint configuration)",
+			},
+			{
+				pattern: /^\.prettierrc|^prettier\.config/,
+				description:
+					"has .prettierrc / prettier.config at repo root (uses Prettier configuration)",
+			},
+		],
+	};
 	for (const configFile of configFiles) {
 		const fileName = relative(repoRoot, configFile);
 		for (const { decisionId, constraint } of activeConstraints) {
-			for (const violation of constraint.violations) {
-				if (violation.pattern.test(fileName)) {
+			const rules = configFilenameRules[constraint.keyword];
+			if (!rules) continue;
+			for (const rule of rules) {
+				if (rule.pattern.test(fileName)) {
 					findings.push({
 						check: "decision_violation",
 						severity: "error",
 						article: decisionId,
-						message: `Decision violation: ADR "${decisionId}" requires ${constraint.keyword}, but "${fileName}" ${violation.description}`,
+						message: `Decision violation: ADR "${decisionId}" requires ${constraint.keyword}, but "${fileName}" ${rule.description}`,
 						source: configFile,
 					});
 				}
@@ -545,8 +610,10 @@ function checkDecisionViolations(
 		try {
 			const content = readFileSync(filePath, "utf-8");
 			const relPath = relative(repoRoot, filePath);
+			const fileIsTest = isTestFile(filePath);
 
 			for (const { decisionId, constraint } of activeConstraints) {
+				if (constraint.skipTests && fileIsTest) continue;
 				for (const violation of constraint.violations) {
 					if (violation.pattern.test(content)) {
 						findings.push({

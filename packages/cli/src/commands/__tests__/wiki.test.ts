@@ -349,6 +349,23 @@ describe("maina wiki status", () => {
 		// Should be a valid ISO date
 		expect(new Date(result.lastCompile).getTime()).toBeGreaterThan(0);
 	});
+
+	test("after a full compile, staleCount is 0 and coverage > 0 — #211", async () => {
+		createSampleProject(tmpDir);
+
+		await wikiInitAction({ cwd: tmpDir });
+		const result = await wikiStatusAction({ cwd: tmpDir });
+
+		expect(result.initialized).toBe(true);
+		// Coverage should reflect source files hashed vs articles written.
+		// Bug #211: compile never populated state.fileHashes, so coverage
+		// was stuck at 0 and status was useless as a health signal.
+		expect(result.coveragePercent).toBeGreaterThan(0);
+		// Bug #211: countStaleArticles used `join(wikiDir, articlePath)` with
+		// articlePath `wiki/modules/foo.md`, producing `.maina/wiki/wiki/modules/foo.md`
+		// which never exists → every article reported stale.
+		expect(result.staleCount).toBe(0);
+	});
 });
 
 describe("maina wiki query", () => {

@@ -588,6 +588,155 @@ describe("Wiki Lint Tool", () => {
 
 			expect(result.decisionViolations).toHaveLength(0);
 		});
+
+		it("should not scan .claude/worktrees/ (agent worktree duplicates) — #208", () => {
+			const adrDir = join(tmpDir, "adr");
+			mkdirSync(adrDir, { recursive: true });
+			writeFileSync(
+				join(adrDir, "0001-testing.md"),
+				"# ADR-0001: Use Bun Test\n\n## Status\n\nAccepted\n\n## Context\n\nTests.\n\n## Decision\n\nUse bun:test for tests.\n",
+			);
+
+			// Put a violating file under .claude/worktrees/
+			writeSourceFile(
+				".claude/worktrees/agent-abc/src/a.test.ts",
+				'import { describe } from "jest";\n',
+			);
+
+			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+
+			const underWorktree = result.decisionViolations.filter((f) =>
+				f.source?.includes(".claude/worktrees/"),
+			);
+			expect(underWorktree).toHaveLength(0);
+		});
+
+		it("should not scan .maina/ (own tooling state) — #208", () => {
+			const adrDir = join(tmpDir, "adr");
+			mkdirSync(adrDir, { recursive: true });
+			writeFileSync(
+				join(adrDir, "0001-testing.md"),
+				"# ADR-0001: Use Bun Test\n\n## Status\n\nAccepted\n\n## Context\n\nTests.\n\n## Decision\n\nUse bun:test.\n",
+			);
+
+			writeSourceFile(
+				".maina/features/050-foo/scratch.ts",
+				'import { describe } from "jest";\n',
+			);
+
+			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+
+			const underMaina = result.decisionViolations.filter((f) =>
+				f.source?.includes("/.maina/"),
+			);
+			expect(underMaina).toHaveLength(0);
+		});
+
+		it("should NOT flag *.test.ts files that throw against a result< ADR — #210", () => {
+			const adrDir = join(tmpDir, "adr");
+			mkdirSync(adrDir, { recursive: true });
+			writeFileSync(
+				join(adrDir, "0012-result.md"),
+				"# ADR-0012: Result pattern\n\n## Status\n\nAccepted\n\n## Context\n\nError handling.\n\n## Decision\n\nAll functions return Result<T,E>.\n",
+			);
+
+			// Test file throws — this is legitimate (e.g. expected-throw assertion setup)
+			writeSourceFile(
+				"src/thing.test.ts",
+				'import { expect, it } from "bun:test";\nit("x", () => { throw new Error("boom"); });\n',
+			);
+
+			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+
+			const resultViolations = result.decisionViolations.filter((f) =>
+				f.message.includes("throws instead of returning Result"),
+			);
+			expect(resultViolations).toHaveLength(0);
+		});
+
+		it("should still flag production *.ts files that throw against result< — #210 regression guard", () => {
+			const adrDir = join(tmpDir, "adr");
+			mkdirSync(adrDir, { recursive: true });
+			writeFileSync(
+				join(adrDir, "0012-result.md"),
+				"# ADR-0012: Result pattern\n\n## Status\n\nAccepted\n\n## Context\n\nErrors.\n\n## Decision\n\nUse Result<T,E>.\n",
+			);
+
+			writeSourceFile(
+				"src/thing.ts",
+				'export function x() { throw new Error("boom"); }\n',
+			);
+
+			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+
+			const resultViolations = result.decisionViolations.filter((f) =>
+				f.message.includes("throws instead of returning Result"),
+			);
+			expect(resultViolations.length).toBeGreaterThanOrEqual(1);
+		});
+
+		it("should still flag jest import in a test file (bun:test constraint applies to tests) — #210 regression guard", () => {
+			// skipTests must NOT apply to import-form constraints like bun:test —
+			// a test file importing jest is still a violation.
+			const adrDir = join(tmpDir, "adr");
+			mkdirSync(adrDir, { recursive: true });
+			writeFileSync(
+				join(adrDir, "0001-testing.md"),
+				"# ADR-0001: Use bun:test\n\n## Status\n\nAccepted\n\n## Context\n\nTests.\n\n## Decision\n\nUse bun:test only.\n",
+			);
+
+			writeSourceFile("src/a.test.ts", 'import { describe } from "jest";\n');
+
+			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+
+			expect(result.decisionViolations.length).toBeGreaterThanOrEqual(1);
+			expect(result.decisionViolations[0]?.message).toContain("jest");
+		});
+
+		it("should NOT flag files that merely mention 'eslint.config' as strings — #209", () => {
+			const adrDir = join(tmpDir, "adr");
+			mkdirSync(adrDir, { recursive: true });
+			writeFileSync(
+				join(adrDir, "0002-linting.md"),
+				"# ADR-0002: Use Biome\n\n## Status\n\nAccepted\n\n## Context\n\nLinting.\n\n## Decision\n\nUse Biome only.\n",
+			);
+
+			// A file that detects/parses ESLint configs for other repos — should NOT self-flag.
+			writeSourceFile(
+				"src/config-parsers.ts",
+				'export const ESLINT_CONFIG_NAMES = [".eslintrc", "eslint.config.js"];\n',
+			);
+
+			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+
+			const eslintContentHits = result.decisionViolations.filter(
+				(f) =>
+					f.message.includes("uses ESLint configuration") &&
+					f.source?.endsWith("config-parsers.ts"),
+			);
+			expect(eslintContentHits).toHaveLength(0);
+		});
+
+		it("should still flag real ESLint imports against a Biome ADR — #209 regression guard", () => {
+			const adrDir = join(tmpDir, "adr");
+			mkdirSync(adrDir, { recursive: true });
+			writeFileSync(
+				join(adrDir, "0002-linting.md"),
+				"# ADR-0002: Use Biome\n\n## Status\n\nAccepted\n\n## Context\n\nLinting.\n\n## Decision\n\nUse Biome only.\n",
+			);
+
+			writeSourceFile(
+				"src/real-usage.ts",
+				'import { ESLint } from "eslint";\nconst e = new ESLint();\n',
+			);
+
+			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+
+			const eslintHits = result.decisionViolations.filter((f) =>
+				f.message.toLowerCase().includes("eslint"),
+			);
+			expect(eslintHits.length).toBeGreaterThanOrEqual(1);
+		});
 	});
 
 	// ─── Check 8: Missing Rationale ─────────────────────────────────────
