@@ -40,8 +40,10 @@ const ARTICLE_TYPES = [
 ];
 
 /**
- * Count stale articles — articles whose source files have changed since compilation.
- * An article is stale if its content hash in state doesn't match the current file.
+ * Count stale articles — articles whose on-disk markdown has drifted from the
+ * hash recorded at compile time. For each entry in `state.articleHashes`, read
+ * the article file and compare its hash to the recorded one. A missing file or
+ * a hash mismatch counts as stale.
  *
  * Article keys in state are of the form `wiki/modules/foo.md`; on disk the files
  * live at `<wikiDir>/modules/foo.md`. The leading `wiki/` segment must be stripped

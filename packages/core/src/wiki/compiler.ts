@@ -1350,10 +1350,17 @@ export async function compile(
 		// (articleCount / sourceFileCount) and so incremental compile can
 		// detect source changes in future runs. Previously this field was
 		// declared but never written, leaving coverage stuck at 0% (#211).
-		state.fileHashes = {};
-		for (const rel of sourceFiles) {
-			const h = hashFile(join(repoRoot, rel));
-			if (h) state.fileHashes[rel] = h;
+		//
+		// Skip on sampled compiles (options.sample truncates sourceFiles to
+		// SAMPLE_FILE_LIMIT — persisting that truncated set as canonical state
+		// would make coverage look fake-high on subsequent runs). Preserve any
+		// existing fileHashes from a prior full compile in that case.
+		if (options.sample !== true) {
+			state.fileHashes = {};
+			for (const rel of sourceFiles) {
+				const h = hashFile(join(repoRoot, rel));
+				if (h) state.fileHashes[rel] = h;
+			}
 		}
 
 		if (!dryRun) {

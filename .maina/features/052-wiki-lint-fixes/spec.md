@@ -22,8 +22,8 @@ Closes #208, #209, #210, #211.
 - [ ] Running `wiki lint` on this repo produces ≤ 25 findings (vs. 77 today), and **zero** findings come from paths under `.claude/worktrees/` or `.maina/`.
 - [ ] No `*.test.ts` / `*.spec.ts` / `__tests__/` file is flagged by the `result<` (throw-based) constraint.
 - [ ] `packages/core/src/constitution/config-parsers.ts` and `packages/core/src/verify/tools/wiki-lint.ts` are **not** flagged as "uses ESLint configuration".
-- [ ] After `wiki compile`, `wiki status` shows `Last compile` ≥ the compile run's timestamp, and `Stale` reflects only articles whose source mtime is newer than the compile timestamp.
-- [ ] Unit tests cover: worktree/`.claude`/`.maina` exclusion, test-file exclusion for production-code constraints, ESLint detection requires import-form or real config filename, status freshness updated on compile success.
+- [ ] After `wiki compile`, `wiki status` reports `Coverage > 0%`, `Stale == 0`, and a `Last compile` timestamp from the run. Staleness is computed by hashing each on-disk article and comparing against the hash recorded in `state.articleHashes` at compile time (mismatches / missing files count as stale); coverage is `articleCount / fileHashCount`, where `fileHashCount` is populated by the compile run. `Last compile` is the last successful compile's ISO timestamp from `state.lastFullCompile` / `state.lastIncrementalCompile`.
+- [ ] Unit tests cover: worktree/`.claude`/`.maina` exclusion, test-file exclusion for production-code constraints, ESLint detection requires import-form or real config filename, status reports non-zero coverage and zero stale immediately after compile.
 
 ## Scope
 
@@ -35,8 +35,9 @@ Closes #208, #209, #210, #211.
   - Rewrite the `biome`-vs-ESLint content regex to match only real usage signals (import/require of `eslint*` packages), not any occurrence of the string.
   - Keep the root-config filename check (already correct at ~L508-523).
 - Wiki compile/status freshness:
-  - On successful compile, persist a `lastCompile` timestamp to `.maina/wiki/.state.json` (or wherever the state lives).
-  - `wiki status` computes staleness against that timestamp.
+  - Populate `state.fileHashes` on a full compile — the field exists in the schema but was never written, so coverage was stuck at 0%. Skip on sample compiles so a truncated file set doesn't overwrite a prior full compile's canonical state.
+  - Fix `countStaleArticles`'s path join: article keys in state are `wiki/modules/foo.md` but `wikiDir` is `.maina/wiki`, so `join(wikiDir, key)` produced `.maina/wiki/wiki/modules/foo.md` — a path that never exists. Strip the leading `wiki/` before joining.
+  - `wiki status` reads the last compile timestamp from `state.lastFullCompile` / `state.lastIncrementalCompile`, which compile already writes.
 - Tests for each fix (TDD).
 
 ### Out of Scope

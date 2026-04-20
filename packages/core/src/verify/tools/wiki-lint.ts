@@ -328,14 +328,14 @@ function collectSourceFiles(dir: string): string[] {
 }
 
 /**
- * True if the file is a test/spec file or under a tests directory.
- * Test files legitimately use throw (e.g. inside it(..., () => { throw }))
+ * True if the file is a test/spec file or under a test/tests/__tests__/__mocks__
+ * directory. Test files legitimately throw (e.g. inside it(..., () => { throw }))
  * so production-code rules like "returns Result<>" should skip them.
  */
 function isTestFile(filePath: string): boolean {
 	return (
 		/\.(test|spec)\.[jt]sx?$/.test(filePath) ||
-		/[\\/](__tests__|__mocks__)[\\/]/.test(filePath)
+		/[\\/](tests?|__tests__|__mocks__)[\\/]/.test(filePath)
 	);
 }
 
@@ -448,27 +448,27 @@ const TECH_CONSTRAINTS: TechConstraint[] = [
 		],
 	},
 	{
-		// Import/require of eslint/prettier only — NOT string mentions in content
-		// (see #209). Anchored start-of-line to skip test fixtures and docs.
-		// Repo-root config files are checked separately via configFilenameRules.
+		// Import/require of eslint/prettier only — see #209 and PR #212 review.
+		// skipTests avoids self-flags on fixture strings in lint's own tests.
 		keyword: "biome",
+		skipTests: true,
 		violations: [
 			{
-				pattern: /^\s*import\b[^\n]*\bfrom\s+["']eslint(?:["']|\/)/m,
+				pattern:
+					/^\s*import\b[^\n]*["']eslint(?:["']|\/)|^\s*(?:await\s+)?import\s*\(\s*["']eslint(?:["']|\/)/m,
 				description: "imports from eslint",
 			},
 			{
-				pattern:
-					/^\s*(?:const|let|var)\b[^\n]*\brequire\s*\(\s*["']eslint(?:["']|\/)/m,
+				pattern: /^\s*[^\n]*\brequire\s*\(\s*["']eslint(?:["']|\/)/m,
 				description: "requires eslint",
 			},
 			{
-				pattern: /^\s*import\b[^\n]*\bfrom\s+["']prettier(?:["']|\/)/m,
+				pattern:
+					/^\s*import\b[^\n]*["']prettier(?:["']|\/)|^\s*(?:await\s+)?import\s*\(\s*["']prettier(?:["']|\/)/m,
 				description: "imports from prettier",
 			},
 			{
-				pattern:
-					/^\s*(?:const|let|var)\b[^\n]*\brequire\s*\(\s*["']prettier(?:["']|\/)/m,
+				pattern: /^\s*[^\n]*\brequire\s*\(\s*["']prettier(?:["']|\/)/m,
 				description: "requires prettier",
 			},
 		],

@@ -737,6 +737,68 @@ describe("Wiki Lint Tool", () => {
 			);
 			expect(eslintHits.length).toBeGreaterThanOrEqual(1);
 		});
+
+		it('should flag side-effect `import "eslint"` against a Biome ADR — PR #212 review', () => {
+			const adrDir = join(tmpDir, "adr");
+			mkdirSync(adrDir, { recursive: true });
+			writeFileSync(
+				join(adrDir, "0002-linting.md"),
+				"# ADR-0002: Use Biome\n\n## Status\n\nAccepted\n\n## Context\n\nLinting.\n\n## Decision\n\nUse Biome only.\n",
+			);
+
+			writeSourceFile("src/side-effect.ts", 'import "eslint";\n');
+
+			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+
+			const hits = result.decisionViolations.filter((f) =>
+				f.message.toLowerCase().includes("eslint"),
+			);
+			expect(hits.length).toBeGreaterThanOrEqual(1);
+		});
+
+		it('should flag top-level dynamic `await import("eslint")` against a Biome ADR — PR #212 review', () => {
+			// Line-anchored detection catches dynamic imports that appear as a
+			// top-level statement. Deeply-nested dynamic imports (e.g. inside a
+			// function body, on the same line as other tokens) are not matched
+			// — that's a deliberate trade-off to keep string-literal fixtures
+			// and docs from self-flagging (#209).
+			const adrDir = join(tmpDir, "adr");
+			mkdirSync(adrDir, { recursive: true });
+			writeFileSync(
+				join(adrDir, "0002-linting.md"),
+				"# ADR-0002: Use Biome\n\n## Status\n\nAccepted\n\n## Context\n\nLinting.\n\n## Decision\n\nUse Biome only.\n",
+			);
+
+			writeSourceFile("src/dynamic.ts", 'await import("eslint");\n');
+
+			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+
+			const hits = result.decisionViolations.filter((f) =>
+				f.message.toLowerCase().includes("eslint"),
+			);
+			expect(hits.length).toBeGreaterThanOrEqual(1);
+		});
+
+		it('should flag bare `require("eslint")` against a Biome ADR — PR #212 review', () => {
+			const adrDir = join(tmpDir, "adr");
+			mkdirSync(adrDir, { recursive: true });
+			writeFileSync(
+				join(adrDir, "0002-linting.md"),
+				"# ADR-0002: Use Biome\n\n## Status\n\nAccepted\n\n## Context\n\nLinting.\n\n## Decision\n\nUse Biome only.\n",
+			);
+
+			writeSourceFile(
+				"src/bare-require.ts",
+				'module.exports = require("eslint");\n',
+			);
+
+			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+
+			const hits = result.decisionViolations.filter((f) =>
+				f.message.toLowerCase().includes("eslint"),
+			);
+			expect(hits.length).toBeGreaterThanOrEqual(1);
+		});
 	});
 
 	// ─── Check 8: Missing Rationale ─────────────────────────────────────
