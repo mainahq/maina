@@ -60,7 +60,9 @@ const jsonLd = {
     <meta property="og:description" content={META.description} />
     <meta property="og:type" content="website" />
     <meta property="og:url" content={META.url} />
-    <meta property="og:image" content={META.ogImage} />
+    {META.ogImage && (
+      <meta property="og:image" content={META.ogImage} />
+    )}
     <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
     <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
   </head>

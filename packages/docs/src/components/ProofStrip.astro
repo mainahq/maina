@@ -10,8 +10,14 @@
 import { PROOF_STRIP } from '../data/landing';
 
 const labelPattern = /(`[^`]+`)/g;
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+const resolveHref = (href: string): string =>
+  href.startsWith('/') || href.startsWith('#') ? `${base}${href}` : href;
+
 const items = PROOF_STRIP.stats.map((s) => ({
   ...s,
+  href: resolveHref(s.href),
   parts: s.label.split(labelPattern),
 }));
 ---

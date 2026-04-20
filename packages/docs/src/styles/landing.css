@@ -37,14 +37,15 @@
    via `cursor-blink`. */
 
 @keyframes mt-frame-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  /* Loop-aware: a frame with animation-delay = t seconds, animation-
+     duration = --mt-duration, and animation-iteration-count: infinite
+     will first appear at t, stay visible until ~97% of the cycle, fade
+     out, and come back at t + duration. The fade-out just before the
+     loop point avoids a visible flicker when the animation restarts. */
+  0% { opacity: 0; transform: translateY(6px); }
+  1% { opacity: 1; transform: translateY(0); }
+  96% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 @keyframes mt-cursor-blink {
@@ -243,7 +244,10 @@ body {
   min-width: 0;
   background: transparent;
   border: 0;
-  color: var(--color-ink, #fafaf9);
+  /* Pinned to a light constant: the install row wears terminal chrome
+     in both themes, so --color-ink (which flips in light mode) would
+     produce dark text on dark bg. */
+  color: #fafaf9;
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 13.5px;
   padding: 12px 14px;

@@ -13,9 +13,8 @@ import { STACK_FIT } from '../data/landing';
   <ul class="stackfit__list" role="list">
     {STACK_FIT.tools.map((t) => (
       <li class="stackfit__tile">
-        <span class="stackfit__name" title={t.tooltip} aria-label={`${t.name} — ${t.tooltip}`}>
-          {t.name}
-        </span>
+        <span class="stackfit__name">{t.name}</span>
+        <span class="stackfit__tooltip">{t.tooltip}</span>
       </li>
     ))}
     <li class="stackfit__tile stackfit__tile--plus">
@@ -44,37 +43,49 @@ import { STACK_FIT } from '../data/landing';
     list-style: none;
     padding: 0;
     margin: 0;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 12px;
   }
 
   .stackfit__tile {
     margin: 0;
+    padding: 14px 16px;
+    background: var(--color-bg-elev);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius, 10px);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: border-color 140ms ease;
+  }
+
+  .stackfit__tile:hover {
+    border-color: var(--color-accent);
   }
 
   .stackfit__name {
-    display: inline-block;
-    padding: 8px 14px;
     font-family: var(--font-mono);
-    font-size: 12.5px;
-    color: var(--color-ink-muted);
-    background: var(--color-bg-elev);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-ink);
     letter-spacing: 0.01em;
   }
 
-  .stackfit__tile:hover .stackfit__name {
-    color: var(--color-accent);
-    border-color: var(--color-accent);
+  .stackfit__tooltip {
+    font-family: var(--font-display);
+    font-size: 11.5px;
+    color: var(--color-ink-muted);
+    line-height: 1.4;
+  }
+
+  .stackfit__tile--plus {
+    background: transparent;
+    border-style: dashed;
   }
 
   .stackfit__tile--plus .stackfit__name {
     color: var(--color-accent);
-    background: transparent;
-    border-style: dashed;
   }
 
   .stackfit__caption {

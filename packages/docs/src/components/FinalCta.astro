@@ -7,6 +7,13 @@
  * resolved, `secondaryLinks` does not include a Discord entry.
  */
 import { FINAL_CTA } from '../data/landing';
+
+// Non-root deploys (e.g., preview at /pr-205/) prefix every internal
+// link with BASE_URL. External links pass through untouched.
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+const resolveHref = (href: string): string =>
+  href.startsWith('/') ? `${base}${href}` : href;
 ---
 
 <section class="final-cta" id="final-cta">
@@ -37,7 +44,7 @@ import { FINAL_CTA } from '../data/landing';
 
   <ul class="final-cta__links">
     {FINAL_CTA.secondaryLinks.map((l) => (
-      <li><a href={l.href} rel="noopener">{l.label}</a></li>
+      <li><a href={resolveHref(l.href)} rel="noopener">{l.label}</a></li>
     ))}
   </ul>
 </section>
@@ -121,7 +128,8 @@ import { FINAL_CTA } from '../data/landing';
     flex: 1;
     background: transparent;
     border: 0;
-    color: var(--color-ink);
+    /* Light constant — install row is terminal-styled in both themes. */
+    color: #fafaf9;
     font-family: var(--font-mono);
     font-size: 13.5px;
     padding: 12px 14px;

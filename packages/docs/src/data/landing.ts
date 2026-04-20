@@ -18,7 +18,10 @@ export const META = {
 		"Maina — your AI keeps sending the wrong context. That's why it's slopping out broken code.",
 	description:
 		"Maina is a verification-first developer OS. It rebuilds the context your AI should have been using, runs a 19-tool pipeline on every diff, and proves the change is correct before it merges. Works with Claude Code, Cursor, Windsurf, Copilot, Codex, Gemini CLI. Free and open source.",
-	ogImage: "/og/og-landing-v2.png",
+	// Set to a real path (e.g. "/og/og-landing-v2.png") once the asset
+	// is generated via scripts/generate-og.ts. Until then we skip the
+	// og:image meta tag rather than point at a 404.
+	ogImage: null as string | null,
 	url: "https://mainahq.com/",
 } as const;
 
@@ -220,10 +223,13 @@ export const COMPARISON = {
 			name: "Manual review",
 			cells: ["Human-only", "n/a", "✗", "✗", "Your time"],
 		},
-		// NEEDS CLARIFICATION (T8.1): sign off on these cells.
+		// [NEEDS CLARIFICATION: T8.1] sign off on these cells before
+		// rendering. The row ships today with `draft: true` so the
+		// Comparison component can filter it out until reviewers agree.
 		{
 			name: "your .cursorrules folder",
 			cells: ["✗", "✗", "✗", "✗", "Free"],
+			draft: true as const,
 		},
 	],
 } as const;

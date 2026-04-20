@@ -7,6 +7,10 @@
  * row cells — currently [✗, ✗, ✗, ✗, Free]. Flagged in the PR body.
  */
 import { COMPARISON } from '../data/landing';
+
+// Filter out rows still flagged `draft: true` in landing.ts — these
+// are waiting on reviewer sign-off (see plan.md open Q4).
+const rows = COMPARISON.rows.filter((r) => !('draft' in r && r.draft));
 ---
 
 <section class="cmp-v2" id="comparison">
@@ -22,7 +26,7 @@ import { COMPARISON } from '../data/landing';
         </tr>
       </thead>
       <tbody>
-        {COMPARISON.rows.map((row) => (
+        {rows.map((row) => (
           <tr class={'highlighted' in row && row.highlighted ? 'cmp-v2__row cmp-v2__row--us' : 'cmp-v2__row'}>
             <th scope="row" class="cmp-v2__row-head">{row.name}</th>
             {row.cells.map((cell) => (

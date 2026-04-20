@@ -1,15 +1,24 @@
 ---
 import { FOOTER } from '../data/landing';
+
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+const resolveHref = (href: string): string =>
+  href.startsWith('/') ? `${base}${href}` : href;
+
+// Hardcoding the copyright year goes stale next January. Derive it
+// at build time.
+const year = new Date().getFullYear();
 ---
 
 <footer class="footer-v2">
   <p class="footer-v2__tagline">{FOOTER.tagline}</p>
   <div class="footer-v2__links">
     {FOOTER.links.map((l) => (
-      <a href={l.href} rel="noopener">{l.label}</a>
+      <a href={resolveHref(l.href)} rel="noopener">{l.label}</a>
     ))}
   </div>
-  <p class="footer-v2__copy">&copy; 2026 Maina contributors</p>
+  <p class="footer-v2__copy">&copy; {year} Maina contributors</p>
 </footer>
 
 <style is:global>

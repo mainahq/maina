@@ -17,6 +17,16 @@ const lastT = fullFrames[fullFrames.length - 1]?.t ?? TOTAL_DURATION_S;
 function kindClass(kind: string): string {
   return `mt-line mt-line--${kind}`;
 }
+
+// Mark the first frame of each chapter so the chapter-link anchors
+// have a target to scroll to. Subsequent frames in the same chapter
+// don't get an id.
+const seenChapters = new Set<string>();
+const chapterAnchorForFrame = (idx: number, chapter?: string): string | undefined => {
+  if (!chapter || seenChapters.has(chapter)) return undefined;
+  seenChapters.add(chapter);
+  return `chapter-${chapter}`;
+};
 ---
 
 <section class="termv2" id="terminal">
@@ -41,19 +51,23 @@ function kindClass(kind: string): string {
     </div>
 
     <pre class="mt-body termv2__body" style={`--mt-duration: ${TOTAL_DURATION_S}s`}>
-{fullFrames.map((f, idx) => (
-  <div
-    data-frame={idx}
-    data-chapter={f.chapter}
-    class={kindClass(f.kind)}
-    style={`animation-delay: ${f.t}s`}
-  >
-    <span class="termv2__text">{f.text}</span>
-    {f.annotation && (
-      <span class="termv2__annotation" aria-hidden="false">// {f.annotation}</span>
-    )}
-  </div>
-))}
+{fullFrames.map((f, idx) => {
+  const anchorId = chapterAnchorForFrame(idx, f.chapter);
+  return (
+    <div
+      id={anchorId}
+      data-frame={idx}
+      data-chapter={f.chapter}
+      class={kindClass(f.kind)}
+      style={`animation-delay: ${f.t}s`}
+    >
+      <span class="termv2__text">{f.text}</span>
+      {f.annotation && (
+        <span class="termv2__annotation" aria-hidden="false">// {f.annotation}</span>
+      )}
+    </div>
+  );
+})}
     </pre>
   </div>
 
@@ -106,16 +120,20 @@ function kindClass(kind: string): string {
 
     if (btnRR) {
       btnRR.addEventListener('click', function () {
-        // Restart trick: null the animation, force a reflow, then restore
-        // so every frame's animation-delay re-evaluates from now.
+        // Restart trick: null the animation, force a reflow, then
+        // restore so every frame's animation-delay re-evaluates from
+        // now. Also clear any per-frame play-state so a restart from
+        // a paused run actually starts playing again.
         var frames = body.querySelectorAll('[data-frame]');
         for (var i = 0; i < frames.length; i++) {
           var el = frames[i];
           el.style.animation = 'none';
-          /* force reflow */
+          el.style.animationPlayState = '';
+          /* force reflow so the browser re-evaluates the animation */
           el.offsetWidth;
           el.style.animation = '';
         }
+        setPlayState('running');
         if (paused) {
           paused = false;
           if (btnPP) {

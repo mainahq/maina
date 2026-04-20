@@ -105,10 +105,14 @@ function kindClass(kind: string): string {
   .mt-line {
     opacity: 0;
     animation-name: mt-frame-reveal;
-    animation-duration: 0.6s;
-    animation-fill-mode: forwards;
-    animation-timing-function: ease-out;
-    animation-iteration-count: 1;
+    /* Duration is the full loop length from --mt-duration on the parent
+       .mt-body; the keyframe handles appear/hold/disappear inside that
+       window. Each frame's own animation-delay (set inline per frame)
+       offsets when within the loop it becomes visible. */
+    animation-duration: var(--mt-duration, 55s);
+    animation-fill-mode: both;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
   }
 
   .mt-line--input { color: var(--color-ink); }

@@ -4,6 +4,11 @@
  * `landing.ts`; proof links already resolve to ADR slugs.
  */
 import { ENGINES } from '../data/landing';
+
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+const resolveHref = (href: string): string =>
+  href.startsWith('/') ? `${base}${href}` : href;
 ---
 
 <section class="engines-v2" id="engines">
@@ -18,7 +23,7 @@ import { ENGINES } from '../data/landing';
           <span>Proof: </span>
           {card.proofLinks.map((l, idx) => (
             <span>
-              <a href={l.href}>{l.label}</a>
+              <a href={resolveHref(l.href)}>{l.label}</a>
               <span>{idx < card.proofLinks.length - 1 ? ", " : "."}</span>
             </span>
           ))}
