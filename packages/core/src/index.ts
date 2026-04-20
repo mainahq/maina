@@ -545,6 +545,12 @@ export {
 	type ZapOptions,
 	type ZapResult,
 } from "./verify/zap";
+// Wiki — Community detection
+export {
+	type CommunitiesResult,
+	type CommunityAlgorithm,
+	detectCommunities as detectCommunitiesV2,
+} from "./wiki/communities";
 // Wiki — Compiler
 export {
 	type CompilationResult as WikiCompilationResult,
@@ -560,6 +566,15 @@ export {
 	type WikiConsultResult,
 	type WikiDesignConsultResult,
 } from "./wiki/consult";
+// Wiki — Exporters
+export {
+	type ExportFormat,
+	type ExportResult,
+	exportCypher,
+	exportGraph,
+	exportGraphMl,
+	exportObsidian,
+} from "./wiki/export";
 export { type CodeEntity, extractCodeEntities } from "./wiki/extractors/code";
 export {
 	extractDecisions,
@@ -583,7 +598,7 @@ export {
 export { generateIndex } from "./wiki/indexer";
 // Wiki — Linker
 export { generateLinks, type LinkResult } from "./wiki/linker";
-// Wiki — Louvain
+// Wiki — Louvain (legacy; new code should use detectCommunitiesV2)
 export {
 	detectCommunities,
 	type LouvainNode,
