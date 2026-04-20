@@ -24,6 +24,7 @@ import {
 import { dirname, join, relative } from "node:path";
 import type { TryAIResult } from "../ai/try-generate";
 import type { Result } from "../db/index";
+import { type CommunityAlgorithm, detectCommunities } from "./communities";
 import type { CodeEntity } from "./extractors/code";
 import { extractCodeEntities } from "./extractors/code";
 import { extractDecisions } from "./extractors/decision";
@@ -33,7 +34,6 @@ import type { KnowledgeGraph } from "./graph";
 import { buildKnowledgeGraph, computePageRank, mapToArticles } from "./graph";
 import { generateIndex } from "./indexer";
 import { generateLinks } from "./linker";
-import { detectCommunities } from "./louvain";
 import { createEmptyState, hashContent, loadState, saveState } from "./state";
 import type {
 	ArticleType,
@@ -73,6 +73,12 @@ export interface CompileOptions {
 	 * compile inside a 10s foreground budget on large repos.
 	 */
 	sample?: boolean;
+	/**
+	 * Community detection algorithm. Defaults to `"leiden"`, which guarantees
+	 * connected communities and modularity ≥ Louvain. Pass `"louvain"` to opt
+	 * back into the legacy path. See `./communities.ts`.
+	 */
+	communityAlgorithm?: CommunityAlgorithm;
 }
 
 /** Hard cap for sample-mode source files. */
@@ -1089,20 +1095,22 @@ export async function compile(
 			traces,
 		);
 
-		// ── Step 3: Louvain community detection ────────────────────────
-		const louvainResult = detectCommunities(graph.adjacency);
+		// ── Step 3: Community detection (Leiden by default, Louvain opt-in) ──
+		const communityResult = detectCommunities(graph.adjacency, {
+			algorithm: options.communityAlgorithm ?? "leiden",
+		});
 
 		// ── Step 4: Compute PageRank ───────────────────────────────────
 		const pageRankScores = computePageRank(graph);
 
 		// ── Step 5: Map nodes to article paths ─────────────────────────
-		const articleMap = mapToArticles(graph, louvainResult.communities);
+		const articleMap = mapToArticles(graph, communityResult.communities);
 
 		// ── Step 6: Generate template-based articles ───────────────────
 		const articles: WikiArticle[] = [];
 
-		// Module articles (from Louvain communities)
-		for (const [commId, members] of louvainResult.communities) {
+		// Module articles — one per community.
+		for (const [commId, members] of communityResult.communities) {
 			const moduleNodes = members.filter(
 				(m) => graph.nodes.get(m)?.type === "module",
 			);
