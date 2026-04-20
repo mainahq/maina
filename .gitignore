@@ -13,6 +13,8 @@ test-todos.db
 test-todos.db-shm
 test-todos.db-wal
 todos.db
+# Feedback test fixtures create timestamped temp dirs; never commit them.
+packages/core/src/feedback/__tests__/tmp-capture-*
 
 # Maina — local data (per-machine, not shared)
 .maina/context/
