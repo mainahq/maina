@@ -44,6 +44,7 @@ import type {
 	WikiArticle,
 	WikiLink,
 } from "./types";
+import { renderGraphHtml } from "./visualize";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -85,6 +86,11 @@ export interface CompileOptions {
 	 * The markdown `wiki/GRAPH_REPORT.md` is still written. Default: false.
 	 */
 	noReportJson?: boolean;
+	/**
+	 * Skip emitting `wiki/graph.html` — the self-contained force-directed
+	 * explorer. Default: false (viz always emitted unless `dryRun`).
+	 */
+	noViz?: boolean;
 }
 
 /** Hard cap for sample-mode source files. */
@@ -1309,6 +1315,12 @@ export async function compile(
 				const reportJson = generateGraphReportJson(articles, graph, reportOpts);
 				writeFileSync(join(wikiDir, ".graph-report.json"), reportJson);
 			}
+		}
+
+		// ── Step 9d: Emit self-contained graph.html visualizer (#200) ──
+		if (!dryRun && !options.noViz) {
+			const html = renderGraphHtml(graph, articles);
+			writeFileSync(join(wikiDir, "graph.html"), html);
 		}
 
 		// ── Step 10: Save state ────────────────────────────────────────
