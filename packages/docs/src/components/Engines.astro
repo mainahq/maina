@@ -15,12 +15,12 @@ import { ENGINES } from '../data/landing';
         <p class="engines-v2__claim">{card.claim}</p>
         <p class="engines-v2__detail">{card.detail}</p>
         <p class="engines-v2__proof">
-          Proof:{' '}
-          {card.proofLinks.map((l, i) => (
-            <>
+          <span>Proof: </span>
+          {card.proofLinks.map((l, idx) => (
+            <span>
               <a href={l.href}>{l.label}</a>
-              {i < card.proofLinks.length - 1 ? ', ' : '.'}
-            </>
+              <span>{idx < card.proofLinks.length - 1 ? ", " : "."}</span>
+            </span>
           ))}
         </p>
       </li>

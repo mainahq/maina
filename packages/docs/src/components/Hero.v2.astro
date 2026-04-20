@@ -1,0 +1,16 @@
+---
+/**
+ * Hero.v2.astro — A/B variant stub.
+ *
+ * Selected when `HERO_VARIANT=v2`. Intentionally empty so the site
+ * builds; the frontmatter below loudly fails the build when the
+ * variant is actually chosen.
+ */
+if (import.meta.env.HERO_VARIANT === "v2") {
+  throw new Error(
+    "Hero.v2 is a scaffold. Implement it before setting HERO_VARIANT=v2.",
+  );
+}
+---
+
+<!-- Hero.v2 placeholder — never rendered while HERO_VARIANT=v1. -->

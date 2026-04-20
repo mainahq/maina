@@ -41,9 +41,9 @@ function kindClass(kind: string): string {
     </div>
 
     <pre class="mt-body termv2__body" style={`--mt-duration: ${TOTAL_DURATION_S}s`}>
-{fullFrames.map((f, i) => (
+{fullFrames.map((f, idx) => (
   <div
-    data-frame={i}
+    data-frame={idx}
     data-chapter={f.chapter}
     class={kindClass(f.kind)}
     style={`animation-delay: ${f.t}s`}

@@ -35,9 +35,9 @@ function kindClass(kind: string): string {
     <span class="mt-chrome__title">~/project · maina</span>
   </div>
   <pre class="mt-body" style={`--mt-duration: ${TOTAL_DURATION_S}s`}>
-{heroFrames.map((f, i) => (
+{heroFrames.map((f, idx) => (
   <div
-    data-frame={i}
+    data-frame={idx}
     class={kindClass(f.kind)}
     style={`animation-delay: ${f.t}s`}
   >{f.text}</div>
