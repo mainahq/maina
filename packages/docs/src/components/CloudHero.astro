@@ -1,0 +1,217 @@
+---
+/**
+ * CloudHero — governance-first two-column hero for /cloud. Left column
+ * is the locked hook + two CTAs; right column is the cloud hero
+ * terminal (login → sync → verify → proof). All copy from
+ * `cloud-landing.ts`; frame data from `cloud-terminal-script.ts`.
+ */
+import { CLOUD_HERO } from '../data/cloud-landing';
+import { cloudHeroFrames } from '../data/cloud-terminal-script';
+
+const HERO_DURATION_S = 40;
+
+function kindClass(kind: string): string {
+  return `mt-line mt-line--${kind}`;
+}
+---
+
+<section class="cloud-hero" id="cloud-hero">
+  <div class="cloud-hero__col cloud-hero__col--copy">
+    <p class="cloud-hero__eyebrow">{CLOUD_HERO.eyebrow}</p>
+    <h1 class="cloud-hero__headline">
+      <span>{CLOUD_HERO.headlineLine1}</span>
+      <span class="cloud-hero__headline-accent">{CLOUD_HERO.headlineLine2}</span>
+    </h1>
+    <p class="cloud-hero__sub">{CLOUD_HERO.sub}</p>
+
+    <div class="cloud-hero__ctas">
+      <a class="cloud-hero__cta cloud-hero__cta--primary" href={CLOUD_HERO.primaryCta.target}>
+        {CLOUD_HERO.primaryCta.label}
+      </a>
+      <a class="cloud-hero__cta cloud-hero__cta--secondary" href={CLOUD_HERO.secondaryCta.target}>
+        {CLOUD_HERO.secondaryCta.label}
+      </a>
+    </div>
+    <p class="cloud-hero__tertiary">
+      <a href={CLOUD_HERO.tertiaryLink.target}>{CLOUD_HERO.tertiaryLink.label}</a>
+    </p>
+  </div>
+
+  <div class="cloud-hero__col cloud-hero__col--terminal">
+    <div
+      class="mt-terminal cloud-hero__terminal"
+      data-mt-frames
+      role="img"
+      aria-label="40-second terminal: maina login → sync pull → verify → commit with proof URL"
+    >
+      <div class="mt-chrome" aria-hidden="true">
+        <span class="mt-chrome__dot mt-chrome__dot--r"></span>
+        <span class="mt-chrome__dot mt-chrome__dot--y"></span>
+        <span class="mt-chrome__dot mt-chrome__dot--g"></span>
+        <span class="mt-chrome__title">~/team-monorepo · maina cloud</span>
+      </div>
+      <pre class="mt-body" style={`--mt-duration: ${HERO_DURATION_S}s`}>
+{cloudHeroFrames.map((f, idx) => (
+  <div
+    data-frame={idx}
+    data-chapter={f.chapter}
+    class={kindClass(f.kind)}
+    style={`animation-delay: ${f.t}s`}
+  >{f.text}</div>
+))}<div data-frame={cloudHeroFrames.length} class="mt-cursor" aria-hidden="true"></div>
+      </pre>
+    </div>
+
+    <!-- Annotation band: four chapter labels aligned to the terminal. -->
+    <ol class="cloud-hero__chapters">
+      {CLOUD_HERO.chapters.map((c) => (
+        <li class="cloud-hero__chapter">
+          <span class="cloud-hero__chapter-num">{c.number}</span>
+          <span class="cloud-hero__chapter-label">· {c.label}</span>
+          <span class="cloud-hero__chapter-tip">{c.tooltip}</span>
+        </li>
+      ))}
+    </ol>
+  </div>
+</section>
+
+<style is:global>
+  .cloud-hero {
+    max-width: 1200px;
+    margin: 40px auto 56px;
+    padding: 24px 24px 8px;
+    display: grid;
+    gap: 48px;
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  @media (min-width: 960px) {
+    .cloud-hero {
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 56px;
+      padding-top: 56px;
+    }
+  }
+
+  .cloud-hero__col--copy,
+  .cloud-hero__col--terminal { min-width: 0; }
+
+  .cloud-hero__eyebrow {
+    margin: 0 0 20px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-ink-muted);
+    letter-spacing: 0.01em;
+  }
+
+  .cloud-hero__headline {
+    margin: 0 0 22px;
+    font-family: var(--font-display);
+    font-size: clamp(36px, 4.6vw, 56px);
+    line-height: 1.08;
+    font-weight: 700;
+    color: var(--color-ink);
+    letter-spacing: -0.01em;
+  }
+
+  .cloud-hero__headline > span { display: block; }
+
+  .cloud-hero__headline-accent {
+    color: var(--color-accent);
+  }
+
+  .cloud-hero__sub {
+    margin: 0 0 28px;
+    max-width: 620px;
+    color: var(--color-ink-muted);
+    font-size: 16px;
+    line-height: 1.65;
+  }
+
+  .cloud-hero__ctas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .cloud-hero__cta {
+    display: inline-block;
+    padding: 11px 18px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: var(--radius);
+    transition: filter 140ms ease, border-color 140ms ease;
+  }
+
+  .cloud-hero__cta--primary {
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+    border: 1px solid var(--color-accent);
+  }
+
+  .cloud-hero__cta--primary:hover { filter: brightness(1.06); }
+
+  .cloud-hero__cta--secondary {
+    background: transparent;
+    color: var(--color-ink);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+  }
+
+  .cloud-hero__cta--secondary:hover { border-color: var(--color-accent); color: var(--color-accent); }
+
+  .cloud-hero__tertiary {
+    margin: 4px 0 0;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+  }
+
+  .cloud-hero__tertiary a {
+    color: var(--color-ink-muted);
+    text-decoration: none;
+  }
+
+  .cloud-hero__tertiary a:hover { color: var(--color-accent); }
+
+  .cloud-hero__terminal { max-width: 580px; }
+
+  .cloud-hero__chapters {
+    list-style: none;
+    padding: 0;
+    margin: 14px 0 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .cloud-hero__chapter {
+    background: var(--color-bg-elev);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.35;
+    color: var(--color-ink-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .cloud-hero__chapter-num {
+    color: var(--color-accent);
+    font-weight: 700;
+  }
+
+  .cloud-hero__chapter-label {
+    color: var(--color-ink);
+  }
+
+  .cloud-hero__chapter-tip {
+    margin-top: 2px;
+    color: var(--color-ink-muted);
+  }
+</style>

@@ -1,0 +1,102 @@
+---
+/**
+ * OssVsCloud — "what OSS covers vs what Cloud adds" matrix. Same
+ * styling DNA as the main Comparison matrix but with OSS and Cloud
+ * as the two columns.
+ */
+import { OSS_VS_CLOUD } from '../data/cloud-landing';
+---
+
+<section class="oss-vs-cloud" id="oss-vs-cloud">
+  <div class="oss-vs-cloud__head">
+    <span class="section-eyebrow">// OSS vs Cloud</span>
+    <h2 class="oss-vs-cloud__title">{OSS_VS_CLOUD.header}</h2>
+  </div>
+
+  <div class="oss-vs-cloud__scroll">
+    <table class="oss-vs-cloud__table">
+      <thead>
+        <tr>
+          <th scope="col"></th>
+          {OSS_VS_CLOUD.columns.map((c) => (
+            <th scope="col" class={`oss-vs-cloud__col-head oss-vs-cloud__col-head--${c.id}`}>
+              {c.label}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {OSS_VS_CLOUD.rows.map((row) => (
+          <tr class="oss-vs-cloud__row">
+            <th scope="row" class="oss-vs-cloud__row-head">{row.capability}</th>
+            <td class="oss-vs-cloud__cell">{row.oss}</td>
+            <td class="oss-vs-cloud__cell oss-vs-cloud__cell--cloud">{row.cloud}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <p class="oss-vs-cloud__cap">{OSS_VS_CLOUD.cap}</p>
+</section>
+
+<style is:global>
+  .oss-vs-cloud {
+    max-width: 1000px;
+    margin: 80px auto;
+    padding: 0 24px;
+  }
+
+  .oss-vs-cloud__head {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .oss-vs-cloud__title {
+    font-family: var(--font-display);
+    font-size: clamp(22px, 2.8vw, 32px);
+    margin: 0;
+    color: var(--color-ink);
+    line-height: 1.3;
+  }
+
+  .oss-vs-cloud__scroll { overflow-x: auto; }
+
+  .oss-vs-cloud__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  .oss-vs-cloud__col-head,
+  .oss-vs-cloud__row-head,
+  .oss-vs-cloud__cell {
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    vertical-align: top;
+  }
+
+  .oss-vs-cloud__col-head {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-ink-muted);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  .oss-vs-cloud__col-head--cloud {
+    color: var(--color-accent);
+  }
+
+  .oss-vs-cloud__row-head { color: var(--color-ink); font-weight: 600; }
+  .oss-vs-cloud__cell { color: var(--color-ink-muted); }
+  .oss-vs-cloud__cell--cloud { color: var(--color-ink); }
+
+  .oss-vs-cloud__cap {
+    text-align: center;
+    margin: 24px 0 0;
+    color: var(--color-ink-muted);
+    font-size: 14px;
+  }
+</style>

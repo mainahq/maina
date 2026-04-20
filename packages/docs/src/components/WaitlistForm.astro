@@ -1,0 +1,293 @@
+---
+/**
+ * WaitlistForm — beta signup form. No-JS fallback: form `action` is
+ * `mailto:` with a pre-filled subject and body template so submission
+ * in a JS-disabled browser still reaches beta@mainahq.com.
+ *
+ * With JS: client-side validation runs before submit; success replaces
+ * the form with a thank-you panel. On 4xx/5xx or network error, the
+ * form shows a fallback `mailto:` link.
+ *
+ * NEEDS CLARIFICATION (plan.md): backend — Worker / PostHog / Formspree.
+ * Until resolved the form posts to `/api/waitlist` (404 today on
+ * mainahq.com). The mailto fallback covers submission in the meantime.
+ */
+import { WAITLIST } from '../data/cloud-landing';
+
+const mailtoSubject = encodeURIComponent('Beta request — [Role] — [Team size]');
+const mailtoBody = encodeURIComponent(
+  [
+    'Email: ',
+    'Role: ',
+    'Team size: ',
+    'Company: ',
+    'Notes: ',
+  ].join('\n'),
+);
+const mailtoHref = `mailto:${WAITLIST.mailto}?subject=${mailtoSubject}&body=${mailtoBody}`;
+---
+
+<section class="waitlist" id="waitlist">
+  <div class="waitlist__head">
+    <span class="section-eyebrow">// beta</span>
+    <h2 class="waitlist__title">{WAITLIST.header}</h2>
+    <p class="waitlist__body">{WAITLIST.body}</p>
+  </div>
+
+  <form
+    class="waitlist__form"
+    action={mailtoHref}
+    method="post"
+    enctype="text/plain"
+    data-waitlist-endpoint="/api/waitlist"
+    novalidate
+  >
+    <div class="waitlist__field">
+      <label class="waitlist__label" for="waitlist-email">{WAITLIST.fields.email.label}</label>
+      <input
+        id="waitlist-email"
+        class="waitlist__input"
+        type="email"
+        name={WAITLIST.fields.email.name}
+        required={WAITLIST.fields.email.required}
+        placeholder={WAITLIST.fields.email.placeholder}
+        autocomplete="email"
+      />
+    </div>
+
+    <div class="waitlist__grid">
+      <div class="waitlist__field">
+        <label class="waitlist__label" for="waitlist-role">{WAITLIST.fields.role.label}</label>
+        <select
+          id="waitlist-role"
+          class="waitlist__input waitlist__input--select"
+          name={WAITLIST.fields.role.name}
+          required={WAITLIST.fields.role.required}
+        >
+          <option value="">—</option>
+          {WAITLIST.fields.role.options.map((o) => (
+            <option value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+      <div class="waitlist__field">
+        <label class="waitlist__label" for="waitlist-team-size">{WAITLIST.fields.teamSize.label}</label>
+        <select
+          id="waitlist-team-size"
+          class="waitlist__input waitlist__input--select"
+          name={WAITLIST.fields.teamSize.name}
+          required={WAITLIST.fields.teamSize.required}
+        >
+          <option value="">—</option>
+          {WAITLIST.fields.teamSize.options.map((o) => (
+            <option value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+
+    <div class="waitlist__field">
+      <label class="waitlist__label" for="waitlist-company">{WAITLIST.fields.company.label}</label>
+      <input
+        id="waitlist-company"
+        class="waitlist__input"
+        type="text"
+        name={WAITLIST.fields.company.name}
+        placeholder={WAITLIST.fields.company.placeholder}
+        maxlength={120}
+      />
+    </div>
+
+    <div class="waitlist__field">
+      <label class="waitlist__label" for="waitlist-notes">{WAITLIST.fields.notes.label}</label>
+      <textarea
+        id="waitlist-notes"
+        class="waitlist__input waitlist__input--textarea"
+        name={WAITLIST.fields.notes.name}
+        rows={WAITLIST.fields.notes.rows}
+        maxlength={500}
+      ></textarea>
+    </div>
+
+    <button type="submit" class="waitlist__submit">{WAITLIST.submitLabel}</button>
+
+    <p class="waitlist__privacy">{WAITLIST.privacy}</p>
+    <p class="waitlist__fallback" data-waitlist-fallback hidden>
+      Something went wrong. <a href={mailtoHref}>Send by email instead →</a>
+    </p>
+  </form>
+
+  <div class="waitlist__thankyou" data-waitlist-thankyou hidden>
+    <p>{WAITLIST.thankyou}</p>
+  </div>
+</section>
+
+<script is:inline>
+  (function () {
+    const form = document.querySelector('.waitlist__form');
+    if (!form) return;
+    const endpoint = form.getAttribute('data-waitlist-endpoint');
+    const thankyou = document.querySelector('[data-waitlist-thankyou]');
+    const fallback = form.querySelector('[data-waitlist-fallback]');
+
+    form.addEventListener('submit', function (ev) {
+      const fd = new FormData(form);
+      const email = String(fd.get('email') || '');
+      const role = String(fd.get('role') || '');
+      const team = String(fd.get('team_size') || '');
+      const emailOk = /.+@.+\..+/.test(email);
+      if (!emailOk || !role || !team) {
+        return; // native validation / mailto fallback will run
+      }
+      // Only hijack if we have a real endpoint AND fetch. Otherwise let
+      // the native action (mailto) fire.
+      if (!endpoint || typeof fetch !== 'function') return;
+      ev.preventDefault();
+      const payload = {
+        email,
+        role,
+        team_size: team,
+        company: String(fd.get('company') || '').trim() || undefined,
+        notes: String(fd.get('notes') || '').trim() || undefined,
+      };
+      fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+        .then(function (res) {
+          if (res.status === 202 || res.ok) {
+            form.hidden = true;
+            if (thankyou) thankyou.hidden = false;
+          } else {
+            if (fallback) fallback.hidden = false;
+          }
+        })
+        .catch(function () {
+          if (fallback) fallback.hidden = false;
+        });
+    });
+  })();
+</script>
+
+<style is:global>
+  .waitlist {
+    max-width: 620px;
+    margin: 80px auto;
+    padding: 0 24px;
+  }
+
+  .waitlist__head {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .waitlist__title {
+    font-family: var(--font-display);
+    font-size: clamp(24px, 2.8vw, 32px);
+    margin: 0 0 10px;
+    color: var(--color-ink);
+  }
+
+  .waitlist__body {
+    margin: 0 auto;
+    color: var(--color-ink-muted);
+    font-size: 15px;
+    max-width: 520px;
+  }
+
+  .waitlist__form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: var(--color-bg-elev);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+
+  .waitlist__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  @media (min-width: 560px) {
+    .waitlist__grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  .waitlist__field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .waitlist__label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .waitlist__input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--color-bg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    outline: none;
+  }
+
+  .waitlist__input:focus-visible {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2);
+  }
+
+  .waitlist__input--textarea { resize: vertical; min-height: 56px; }
+  .waitlist__input--select { appearance: auto; }
+
+  .waitlist__submit {
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+    border: 0;
+    padding: 12px 18px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: filter 140ms ease;
+  }
+
+  .waitlist__submit:hover { filter: brightness(1.06); }
+
+  .waitlist__privacy {
+    margin: 0;
+    font-size: 11.5px;
+    color: var(--color-ink-muted);
+    line-height: 1.5;
+  }
+
+  .waitlist__fallback {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--color-terminal-red);
+  }
+
+  .waitlist__fallback a { color: var(--color-accent); }
+
+  .waitlist__thankyou {
+    padding: 28px;
+    background: var(--color-bg-elev);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+    text-align: center;
+    color: var(--color-ink);
+    font-size: 15px;
+  }
+</style>

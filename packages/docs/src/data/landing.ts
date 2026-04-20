@@ -37,6 +37,7 @@ export const NAV = {
 		{ label: "Docs", href: "/quickstart" },
 		{ label: "Commands", href: "/commands" },
 		{ label: "Wiki", href: "/wiki" },
+		{ label: "Cloud", href: "/cloud" },
 		{ label: "GitHub", href: "https://github.com/mainahq/maina" },
 	],
 } as const;
@@ -286,9 +287,9 @@ export const FAQ = {
 export const FOOTER = {
 	tagline: "Verification-first developer OS.",
 	links: [
-		{ label: "GitHub", href: "https://github.com/mainahq/maina" },
+		{ label: "Cloud", href: "/cloud" },
 		{ label: "Docs", href: "/quickstart" },
-		{ label: "MCP", href: "/mcp" },
+		{ label: "GitHub", href: "https://github.com/mainahq/maina" },
 		{
 			label: "License",
 			href: "https://github.com/mainahq/maina/blob/master/LICENSE",

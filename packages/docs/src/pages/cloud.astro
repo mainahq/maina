@@ -1,0 +1,164 @@
+---
+import CloudHero from '../components/CloudHero.astro';
+import GovernancePainStrip from '../components/GovernancePainStrip.astro';
+import CloudFeatureGrid from '../components/CloudFeatureGrid.astro';
+import OssVsCloud from '../components/OssVsCloud.astro';
+import WaitlistForm from '../components/WaitlistForm.astro';
+import DemoBooking from '../components/DemoBooking.astro';
+import CloudFaq from '../components/CloudFaq.astro';
+import CloudFinalCta from '../components/CloudFinalCta.astro';
+import Footer from '../components/Footer.astro';
+import { CLOUD_META } from '../data/cloud-landing';
+import { NAV } from '../data/landing';
+import '../styles/landing.css';
+
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      name: 'Maina',
+      url: 'https://mainahq.com/',
+      logo: 'https://mainahq.com/favicon.svg',
+      // sameAs: LinkedIn URL — [NEEDS CLARIFICATION: plan.md open Q5].
+    },
+    {
+      '@type': 'SoftwareApplication',
+      name: 'Maina Cloud',
+      description: CLOUD_META.description,
+      url: CLOUD_META.url,
+      applicationCategory: 'DeveloperApplication',
+      operatingSystem: 'macOS, Linux, Windows (WSL)',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', availability: 'https://schema.org/PreOrder' },
+      featureList: [
+        'One versioned team constitution',
+        'Permalinkable verification report per diff',
+        'GitHub OAuth device flow (no API keys)',
+        'Team-level prompt A/B testing',
+        'EU telemetry hosting option',
+      ],
+    },
+  ],
+};
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script is:inline>
+      // Prevent FOUC: apply theme before paint
+      (function () {
+        var stored = localStorage.getItem('starlight-theme');
+        var theme = stored || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+    <title>{CLOUD_META.title}</title>
+    <meta name="description" content={CLOUD_META.description} />
+    <meta property="og:title" content={CLOUD_META.ogTitle} />
+    <meta property="og:description" content={CLOUD_META.ogDescription} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={CLOUD_META.url} />
+    {CLOUD_META.ogImage && (
+      <meta property="og:image" content={CLOUD_META.ogImage} />
+    )}
+    <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  </head>
+  <body>
+    <nav class="nav">
+      <a href={base} class="nav-brand">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="15 10 105 100" width="30" height="28" style="margin-top:-1px">
+          <path d="M60,18 C85,12 100,30 98,55 C96,78 82,98 58,102 C34,106 20,90 20,68 C20,50 32,30 60,18Z" fill="#d6d3d1" />
+          <path d="M58,30 C75,26 88,38 86,55 C84,70 74,82 58,85 C42,88 32,78 32,62 C32,48 42,34 58,30Z" fill="#78716c" />
+          <path d="M58,45 C68,42 76,50 74,58 C72,66 65,72 58,72 C50,72 44,66 44,58 C44,50 50,44 58,45Z" fill="#f97316" />
+          <polygon points="98,42 115,35 108,46" fill="#f97316" />
+          <circle cx="86" cy="38" r="3" fill="#fafaf9" />
+          <path d="M20,78 C14,92 8,108 12,118 L22,112 C20,100 22,88 24,80Z" fill="#d6d3d1" />
+        </svg>
+        {NAV.brand}
+      </a>
+      <div class="nav-right">
+        <div class="nav-links">
+          {NAV.links.map((l) => {
+            const href = l.href.startsWith('/') ? `${base}${l.href}` : l.href;
+            const active = l.label === 'Cloud';
+            return (
+              <a href={href} class={active ? 'cloud-nav-link-active' : ''}>{l.label}</a>
+            );
+          })}
+        </div>
+        <button class="theme-toggle" type="button" aria-label="Toggle theme">
+          <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>
+          <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
+        </button>
+      </div>
+    </nav>
+
+    <CloudHero />
+    <div class="band-bleed"><GovernancePainStrip /></div>
+    <CloudFeatureGrid />
+    <div class="band-bleed band-hairline"><OssVsCloud /></div>
+    <WaitlistForm />
+    <div class="band-bleed"><DemoBooking /></div>
+    <CloudFinalCta />
+    <CloudFaq />
+    <Footer />
+
+    <script is:inline>
+      // Copy-to-clipboard — shared delegated listener, same as /
+      document.addEventListener('click', function (ev) {
+        const target = ev.target;
+        if (!(target instanceof Element)) return;
+        const btn = target.closest('[data-copy-target]');
+        if (!btn) return;
+        const sel = btn.getAttribute('data-copy-target');
+        if (!sel) return;
+        const input = document.querySelector(sel);
+        if (!input) return;
+        const value = input.value;
+        const flash = function () {
+          const original = btn.textContent;
+          btn.textContent = 'Copied';
+          setTimeout(function () { btn.textContent = original; }, 1600);
+        };
+        const fallback = function () {
+          input.select();
+          document.execCommand('copy');
+          flash();
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(value).then(flash, fallback);
+        } else {
+          fallback();
+        }
+      });
+
+      // Theme toggle
+      (function () {
+        var btn = document.querySelector('.theme-toggle');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+          var current = document.documentElement.getAttribute('data-theme');
+          var next = current === 'light' ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', next);
+          localStorage.setItem('starlight-theme', next);
+        });
+
+        window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function (e) {
+          if (!localStorage.getItem('starlight-theme')) {
+            document.documentElement.setAttribute('data-theme', e.matches ? 'light' : 'dark');
+          }
+        });
+      })();
+    </script>
+
+    <style is:global>
+      .cloud-nav-link-active { color: var(--color-accent) !important; font-weight: 600; }
+    </style>
+  </body>
+</html>

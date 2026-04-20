@@ -1,0 +1,102 @@
+---
+/**
+ * CloudFaq — seven <details> items, native keyboard accessible. Same
+ * styling as `Faq.astro` on /; different content from
+ * `cloud-landing.ts.CLOUD_FAQ`.
+ */
+import { CLOUD_FAQ } from '../data/cloud-landing';
+
+const labelPattern = /(`[^`]+`)/g;
+const items = CLOUD_FAQ.items.map((i) => ({
+  ...i,
+  parts: i.a.split(labelPattern),
+}));
+---
+
+<section class="cloud-faq" id="cloud-faq">
+  <h2 class="cloud-faq__title">FAQ</h2>
+  <ol class="cloud-faq__list">
+    {items.map((it) => (
+      <li>
+        <details class="cloud-faq__item">
+          <summary class="cloud-faq__q">{it.q}</summary>
+          <p class="cloud-faq__a">
+            {it.parts.map((p) => (
+              p.startsWith('`') && p.endsWith('`')
+                ? <code>{p.slice(1, -1)}</code>
+                : <>{p}</>
+            ))}
+          </p>
+        </details>
+      </li>
+    ))}
+  </ol>
+</section>
+
+<style is:global>
+  .cloud-faq {
+    max-width: 760px;
+    margin: 80px auto;
+    padding: 0 24px;
+  }
+
+  .cloud-faq__title {
+    font-family: var(--font-display);
+    font-size: clamp(22px, 2.6vw, 30px);
+    margin: 0 0 24px;
+    color: var(--color-ink);
+  }
+
+  .cloud-faq__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .cloud-faq__item {
+    background: var(--color-bg-elev);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+  }
+
+  .cloud-faq__q {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-ink);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .cloud-faq__q::marker { content: ''; }
+
+  .cloud-faq__q::before {
+    content: '+';
+    display: inline-block;
+    width: 1em;
+    color: var(--color-accent);
+    margin-right: 8px;
+  }
+
+  details[open] .cloud-faq__q::before { content: '−'; }
+
+  .cloud-faq__a {
+    margin: 10px 0 0;
+    color: var(--color-ink-muted);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .cloud-faq__a code {
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--color-ink);
+  }
+</style>

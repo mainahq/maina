@@ -107,9 +107,9 @@ describe("landing copy invariants", () => {
 		expect(FAQ.items.some((i) => i.q.includes("phone home"))).toBe(true);
 	});
 
-	it("nav has the four spec-mandated links", () => {
+	it("nav carries Docs, Commands, Wiki, Cloud, GitHub (in order)", () => {
 		const labels = NAV.links.map((l) => l.label);
-		expect(labels).toEqual(["Docs", "Commands", "Wiki", "GitHub"]);
+		expect(labels).toEqual(["Docs", "Commands", "Wiki", "Cloud", "GitHub"]);
 	});
 
 	it("footer is trimmed — four or fewer links", () => {
