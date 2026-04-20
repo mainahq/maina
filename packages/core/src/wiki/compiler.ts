@@ -34,6 +34,7 @@ import type { KnowledgeGraph } from "./graph";
 import { buildKnowledgeGraph, computePageRank, mapToArticles } from "./graph";
 import { generateIndex } from "./indexer";
 import { generateLinks } from "./linker";
+import { generateGraphReport, generateGraphReportJson } from "./report";
 import { createEmptyState, hashContent, loadState, saveState } from "./state";
 import type {
 	ArticleType,
@@ -79,6 +80,11 @@ export interface CompileOptions {
 	 * back into the legacy path. See `./communities.ts`.
 	 */
 	communityAlgorithm?: CommunityAlgorithm;
+	/**
+	 * Skip emitting the machine-readable `wiki/.graph-report.json` companion.
+	 * The markdown `wiki/GRAPH_REPORT.md` is still written. Default: false.
+	 */
+	noReportJson?: boolean;
 }
 
 /** Hard cap for sample-mode source files. */
@@ -1288,6 +1294,20 @@ export async function compile(
 				await saveSearchIndex(wikiDir, searchIndex);
 			} catch {
 				// Search index is optional — continue if Orama is unavailable
+			}
+		}
+
+		// ── Step 9c: Emit GRAPH_REPORT.md audit (#201) ─────────────────
+		if (!dryRun) {
+			const reportOpts = {
+				durationMs: Date.now() - start,
+				communities: communityResult.communities.size,
+			};
+			const reportMd = generateGraphReport(articles, graph, reportOpts);
+			writeFileSync(join(wikiDir, "GRAPH_REPORT.md"), reportMd);
+			if (!options.noReportJson) {
+				const reportJson = generateGraphReportJson(articles, graph, reportOpts);
+				writeFileSync(join(wikiDir, ".graph-report.json"), reportJson);
 			}
 		}
 
