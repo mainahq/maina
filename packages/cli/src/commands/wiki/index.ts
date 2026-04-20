@@ -6,6 +6,7 @@
 
 import { Command } from "commander";
 import { wikiCompileCommand } from "./compile";
+import { wikiExportCommand } from "./export";
 import { wikiIngestCommand } from "./ingest";
 import { wikiInitCommand } from "./init";
 import { wikiLintCommand } from "./lint";
@@ -21,6 +22,7 @@ export function wikiCommand(): Command {
 	wikiStatusCommand(wiki);
 	wikiIngestCommand(wiki);
 	wikiLintCommand(wiki);
+	wikiExportCommand(wiki);
 
 	return wiki;
 }

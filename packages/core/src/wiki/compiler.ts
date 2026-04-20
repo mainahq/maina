@@ -4,7 +4,7 @@
  * Pipeline:
  * 1. Run all extractors (code entities, features, decisions, workflow traces)
  * 2. Build the unified knowledge graph
- * 3. Run Louvain community detection for module boundaries
+ * 3. Run community detection (leiden-connected by default) for module boundaries
  * 4. Compute PageRank
  * 5. Generate articles using template-based compilation (no AI)
  * 6. Generate wikilinks via linker
@@ -24,6 +24,7 @@ import {
 import { dirname, join, relative } from "node:path";
 import type { TryAIResult } from "../ai/try-generate";
 import type { Result } from "../db/index";
+import { type CommunityAlgorithm, detectCommunities } from "./communities";
 import type { CodeEntity } from "./extractors/code";
 import { extractCodeEntities } from "./extractors/code";
 import { extractDecisions } from "./extractors/decision";
@@ -33,7 +34,7 @@ import type { KnowledgeGraph } from "./graph";
 import { buildKnowledgeGraph, computePageRank, mapToArticles } from "./graph";
 import { generateIndex } from "./indexer";
 import { generateLinks } from "./linker";
-import { detectCommunities } from "./louvain";
+import { generateGraphReport, generateGraphReportJson } from "./report";
 import { createEmptyState, hashContent, loadState, saveState } from "./state";
 import type {
 	ArticleType,
@@ -43,6 +44,7 @@ import type {
 	WikiArticle,
 	WikiLink,
 } from "./types";
+import { renderGraphHtml } from "./visualize";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -73,6 +75,22 @@ export interface CompileOptions {
 	 * compile inside a 10s foreground budget on large repos.
 	 */
 	sample?: boolean;
+	/**
+	 * Community detection algorithm. Defaults to `"leiden-connected"`, which
+	 * guarantees connected communities and modularity ≥ Louvain. Pass
+	 * `"louvain"` to opt back into the legacy path. See `./communities.ts`.
+	 */
+	communityAlgorithm?: CommunityAlgorithm;
+	/**
+	 * Skip emitting the machine-readable `wiki/.graph-report.json` companion.
+	 * The markdown `wiki/GRAPH_REPORT.md` is still written. Default: false.
+	 */
+	noReportJson?: boolean;
+	/**
+	 * Skip emitting `wiki/graph.html` — the self-contained force-directed
+	 * explorer. Default: false (viz always emitted unless `dryRun`).
+	 */
+	noViz?: boolean;
 }
 
 /** Hard cap for sample-mode source files. */
@@ -1089,20 +1107,22 @@ export async function compile(
 			traces,
 		);
 
-		// ── Step 3: Louvain community detection ────────────────────────
-		const louvainResult = detectCommunities(graph.adjacency);
+		// ── Step 3: Community detection (leiden-connected by default) ────────
+		const communityResult = detectCommunities(graph.adjacency, {
+			algorithm: options.communityAlgorithm ?? "leiden-connected",
+		});
 
 		// ── Step 4: Compute PageRank ───────────────────────────────────
 		const pageRankScores = computePageRank(graph);
 
 		// ── Step 5: Map nodes to article paths ─────────────────────────
-		const articleMap = mapToArticles(graph, louvainResult.communities);
+		const articleMap = mapToArticles(graph, communityResult.communities);
 
 		// ── Step 6: Generate template-based articles ───────────────────
 		const articles: WikiArticle[] = [];
 
-		// Module articles (from Louvain communities)
-		for (const [commId, members] of louvainResult.communities) {
+		// Module articles — one per community.
+		for (const [commId, members] of communityResult.communities) {
 			const moduleNodes = members.filter(
 				(m) => graph.nodes.get(m)?.type === "module",
 			);
@@ -1281,6 +1301,26 @@ export async function compile(
 			} catch {
 				// Search index is optional — continue if Orama is unavailable
 			}
+		}
+
+		// ── Step 9c: Emit GRAPH_REPORT.md audit (#201) ─────────────────
+		if (!dryRun) {
+			const reportOpts = {
+				durationMs: Date.now() - start,
+				communities: communityResult.communities.size,
+			};
+			const reportMd = generateGraphReport(articles, graph, reportOpts);
+			writeFileSync(join(wikiDir, "GRAPH_REPORT.md"), reportMd);
+			if (!options.noReportJson) {
+				const reportJson = generateGraphReportJson(articles, graph, reportOpts);
+				writeFileSync(join(wikiDir, ".graph-report.json"), reportJson);
+			}
+		}
+
+		// ── Step 9d: Emit self-contained graph.html visualizer (#200) ──
+		if (!dryRun && !options.noViz) {
+			const html = renderGraphHtml(graph, articles);
+			writeFileSync(join(wikiDir, "graph.html"), html);
 		}
 
 		// ── Step 10: Save state ────────────────────────────────────────
