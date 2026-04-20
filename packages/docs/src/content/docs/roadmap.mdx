@@ -3,70 +3,89 @@ title: Roadmap
 description: Upcoming features and the future direction of Maina.
 ---
 
-Maina is open source (Apache 2.0) and actively developed. Here is what is shipped and planned.
+Maina is open source (Apache 2.0) and actively developed. The latest release is **`@mainahq/cli@1.6.1`**. Here is what shipped across the v1.x line and what is planned next.
 
-## Shipped (v1.0.0)
+## Shipped (v1.0.0 → v1.6.1)
 
-Maina v1.0.0 launched under the [@mainahq](https://github.com/mainahq) organization. Everything below shipped across v0.3.0 through v1.0.0.
+### v1.0.0 — Launch ([#46](https://github.com/mainahq/maina/issues/46))
 
-### Core (v0.3.x)
+- **mainahq.com** and the [@mainahq](https://github.com/mainahq) GitHub organization
+- **npm scope** — `@mainahq/cli`, `@mainahq/core`, `@mainahq/mcp`, `@mainahq/skills`
+- **38+ CLI commands** including `maina brainstorm` as the workflow entry point
+- **19-tool verification pipeline** — Biome, ruff, go vet, clippy, dotnet format, Checkstyle, PHPStan, Semgrep, Trivy, Secretlint, SonarQube, Stryker, diff-cover, AI review, slop detection, visual regression, typecheck, consistency check, ZAP, Lighthouse
+- **7 languages** — TypeScript, Python, Go, Rust, C#/.NET, Java/Kotlin, PHP
+- **Structured AI delegation** via the `---MAINA_AI_REQUEST---` stdout protocol
+- **Visual verification** — Playwright screenshot regression testing
+- **Workflow context** — rolling summary forwarded between lifecycle steps
+- **Background RL** — async feedback recording at each workflow step with post-workflow analysis
+- **Verification proof** — `maina pr` includes verification artifacts in the PR body
+- **`maina configure`** — interactive constitution, conventions, tools, visual URLs
+- **`maina init --install`** — auto-install missing verification tools + auto-configure Biome
+- **`--json` flag** on 8 commands (`analyze`, `commit`, `context`, `doctor`, `review`, `slop`, `stats`, `verify`)
+- **Exit codes** — 0 (passed), 1 (findings), 2 (tool failure), 3 (config error)
+- **`--auto` flags** on `maina spec` and `maina design`
+- **Post-workflow RL trace analysis** — proposes prompt improvements fed into `maina learn`
+- **1,167+ tests** across 102 files
+- **GitHub Discussions, issue templates, CONTRIBUTING.md**
 
-- **38+ CLI commands** including `maina brainstorm` as the workflow starting point
-- **19+ tool verification pipeline** -- Biome, ruff, go vet, clippy, dotnet format, Checkstyle, PHPStan, Semgrep, Trivy, Secretlint, SonarQube, Stryker, diff-cover, AI review, slop detection, visual regression, typecheck, consistency check, ZAP, Lighthouse
-- **7 languages** -- TypeScript, Python, Go, Rust, C#/.NET, Java/Kotlin, PHP
-- **Structured AI delegation** -- `---MAINA_AI_REQUEST---` stdout protocol for any MCP-compatible host
-- **Visual verification** -- Playwright screenshot regression testing
-- **Workflow context** -- rolling summary forwarded between lifecycle steps
-- **Background RL** -- async feedback recording at each workflow step with post-workflow analysis
-- **Verification proof** -- `maina pr` includes verification artifacts in the PR body
-- **`maina brainstorm`** -- interactive idea exploration that generates structured GitHub issues
-- **`maina configure`** -- interactive constitution, conventions, tools, visual URLs
-- **`maina init --install`** -- auto-install missing verification tools + auto-configure Biome
-- **`--json` flag** on 8 commands (`analyze`, `commit`, `context`, `doctor`, `review`, `slop`, `stats`, `verify`) for machine-readable output
-- **Exit codes** -- 0 (passed), 1 (findings), 2 (tool failure), 3 (config error)
-- **`--auto` flags for `maina spec` and `maina design`** -- CI and scripting workflows
-- **Post-workflow RL trace analysis** -- Proposes prompt improvements fed into `maina learn`
-- **14 MCP tools** for IDE integration
-- **8 cross-platform skills** for Claude Code, Cline, Codex, Continue, Copilot, Cursor, Gemini CLI, OpenHands, Roo Code, Windsurf, Zed AI (any MCP-compatible client)
+### v1.1.0 — Round-trip Flywheel ([#70](https://github.com/mainahq/maina/pull/70))
 
-### Cloud + Team (v0.5.0–v0.6.0)
+- **Codebase Wiki** — `maina wiki init/compile/query/status/lint/ingest`. Compiles ~370 articles from code, plans, specs, ADRs, workflow traces. Context Engine Layer 5 with 12% token budget allocation.
+- **Universal install script** — `curl -fsSL https://api.mainahq.com/install | bash`. Detects OS, installs Maina, finds AI tools, configures MCP automatically.
+- **`maina setup`** — guided first-time setup.
+- **MCP tool call → cache → feedback round trip** — every MCP tool call feeds cache for instant replay, feedback for prompt evolution, and stats for dashboards.
+- **Louvain community detection + PageRank** for module boundaries.
+- **Wiki lint** — 9 automated checks (stale articles, orphan refs, broken links, spec drift, decision violations, coverage gaps, missing rationale, contradictions).
+- **`mainahq/self-improve-action`** — scheduled cron Action that collects workflow traces, analyzes prompt effectiveness, A/B tests improvements, commits better prompts automatically.
 
-- **Maina Cloud API** -- Workers service using @workkit packages
-- **`maina login/logout`** -- GitHub OAuth device flow
-- **`maina sync push/pull`** -- Shared prompts + feedback across team members
-- **`maina team`** -- Team management and invites
-- **`maina verify --cloud`** -- Submit diffs to Maina Cloud for hosted verification
-- **Proof artifacts in R2** -- @workkit/r2 for verification results
-- **Distributed cache** -- Content-hash cache on KV with SWR
-- **A/B test coordination** -- Durable Objects track prompt variant allocation
-- **PR check integration** -- Maina runs as a GitHub PR check alongside Copilot, CodeRabbit, DeepSource. Adds the verification-first layer they're missing: spec compliance, cross-function consistency, slop detection, AI review with learned prompts. Posts inline review comments on findings.
-- **`mainahq/maina/.github/actions/verify@main`** -- GitHub Action for CI integration in 3 lines of YAML
-- **`mainahq/workflow-action` -- Autonomous coding Action** -- A GitHub Issue triggers the full maina workflow (brainstorm → plan → design → spec → implement → verify → review → commit → PR). User writes an issue, Action produces a verified PR.
-- **Rate limiting** -- @workkit/ratelimit on all API endpoints
-- **Structured logging** -- @workkit/logger for observability
+### v1.2.0 — 50-issue dogfood drop
 
-### Launch (v1.0.0) ([#46](https://github.com/mainahq/maina/issues/46))
+Largest release on record: 50 issues shipped across six milestones.
 
-- **mainahq.com** -- Project domain, docs at docs.mainahq.com
-- **GitHub org** -- github.com/mainahq
-- **npm scope** -- `@mainahq/cli`, `@mainahq/core`, `@mainahq/mcp`, `@mainahq/skills`
-- **Org structure** -- Core and community teams, branch protection, CODEOWNERS
-- **Show HN, dev.to article** -- Launch announcement
-- **GitHub Discussions, issue templates, CONTRIBUTING.md** -- Community infrastructure
-- **1167+ tests** across 102 files
+- **Init & Wiki** — CI workflow uses real package.json script names and `maina verify`; constitution architecture enriched for monorepos; wiki reads descriptions from `package.json`; MCP `getContext` capped at 50K chars; MCP responses standardised on `{ data, error, meta }`; secret checker skips test fixtures.
+- **Onboarding** — `/quickstart` page (3 commands, under 60s), MCP install badges on the hero, build-time stats generator, 5 cookbook pages, 4 blog posts.
+- **Constitution rebuild (derived, not authored)** — import adapters for existing rule files, git-log + CI analyzer, lint-config + manifest parsers, pattern sampler, glob-scoped rules via `constitution.d/*.md`, interview gap-filler with rejected-rules persistence.
+- **PR comment v2** — sticky root-comment writer, GitHub Checks API integration, slash command parser (`/maina retry|explain|approve`).
+- **Error reporting + telemetry** — PII / code-content scrubbing library, deterministic 6-char error IDs, opt-in OSS error reporting, opt-out Cloud error reporting, usage telemetry.
+- **MCP + Wiki** — **progressive tool disclosure (14 total tools)**, DeepWiki-compatible server (`ask_question`, `read_wiki_structure`, `read_wiki_contents`), symbol page templates with Mermaid call graphs, SCIP TypeScript ingest, wiki repositioned as "a view of the Context engine".
+- **17 ADRs** (0013-0029).
+
+### v1.3.0 — Zero-friction setup wizard
+
+- **`maina setup`** — one-command onboarding that detects your stack, tailors a constitution via host-delegated or cloud AI (anonymous, no API key), scaffolds 5 agent instruction files with non-destructive managed regions, seeds the wiki, and runs verify — all under 60 seconds.
+- `--ci`, `--update`, `--reset`, `--agents` flags.
+- `maina configure` becomes a deprecated alias for `setup --update` (removed in v1.5).
+- New `getting-started.mdx` features the wizard as the primary CTA.
+
+### v1.4.0 → v1.4.3 — Cross-project MCP install
+
+- **`maina mcp add / remove / list`** across **11 hosts** — Claude Code, Cline, Codex, Continue, Copilot, Cursor, Gemini CLI, OpenHands, Roo Code, Windsurf, Zed AI. Atomic JSON / TOML merges preserve every other MCP server and unrelated config key. `--client <list>`, `--scope global|project|both`, `--dry-run`, `--json`.
+- **Launcher fallback chain** — installed `maina` binary → `bunx @mainahq/cli@<version> --mcp` → `npx` → bare `npx`. Each tier resolves via `Bun.which` to an absolute path. Fixes Cursor / Zed / Claude Code app on macOS where GUI-launched clients inherit a stripped PATH.
+
+### v1.5.0 → v1.5.1 — Learning from external reviewers
+
+- **`maina feedback ingest`** — pulls review comments from configured reviewers (Copilot, CodeRabbit, custom) on open + recently merged PRs, stores them in a new `external_review_findings` table as labeled `(input, output)` training pairs. Deterministic keyword categoriser (`api-mismatch`, `signature-drift`, `dead-code`, `security`, `style`, `other`). `maina stats` surfaces the top categories.
+- **`doc-claims` verify tool** — parses fenced `import` / `require` blocks in changed markdown, resolves the module to workspace source, warns when a claimed symbol isn't exported. Catches the "docs describe an API the code doesn't ship" class of slop.
+
+### v1.6.0 → v1.6.1 — GitHub login, safer errors, sync hardening
+
+- **`maina login --github`** — GitHub device flow, exchanges for a Maina token at `/auth/github/exchange`. Fixes the duplicate-account bug where device flow created UUID+email members while the web flow keyed by `github_id`.
+- **Top-level exception handler** — prints `err.code` + `err.message` instead of the generic "Something went wrong". `--debug` / `MAINA_DEBUG=1` / `DEBUG=1` / `NODE_DEBUG=1` all enable full stack traces.
+- **Anonymous CLI crash reporting** — fire-and-forget POST to `/v1/cli/errors` with scrubbed payload (paths → basenames, secrets/emails/IPs redacted). Opt out via `MAINA_TELEMETRY=0`, `DO_NOT_TRACK=1`, or `~/.maina/telemetry.json`.
+- **`maina sync pull` hardening** — per-record validation, empty-team copy, partial-success warnings.
 
 ### Workkit packages powering Maina Cloud
 
 | Maina Cloud feature | Workkit packages |
 |---|---|
-| Team registry + prompt sync | @workkit/d1, @workkit/kv, @workkit/env |
-| Hosted verification | @workkit/queue, @workkit/r2, @workkit/cache |
-| A/B test coordination | @workkit/do |
-| Auth + SSO | @workkit/auth |
-| API protection | @workkit/ratelimit |
-| Dashboard API | @workkit/api |
-| Observability | @workkit/logger |
-| Testing | @workkit/testing |
+| Team registry + prompt sync | `@workkit/d1`, `@workkit/kv`, `@workkit/env` |
+| Hosted verification | `@workkit/queue`, `@workkit/r2`, `@workkit/cache` |
+| A/B test coordination | `@workkit/do` |
+| Auth + SSO | `@workkit/auth` |
+| API protection | `@workkit/ratelimit` |
+| Dashboard API | `@workkit/api` |
+| Observability | `@workkit/logger` |
+| Testing | `@workkit/testing` |
 
 ### How Maina fits alongside existing tools
 
@@ -93,7 +112,7 @@ Copilot helps write code. CodeRabbit reviews it. DeepSource lints it. Maina **ve
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  mainahq/workflow-action (v0.6.0)                   │
+│  mainahq/workflow-action                            │
 │                                                     │
 │  GitHub Issue created                               │
 │    → brainstorm (parse issue into spec)             │
@@ -110,10 +129,10 @@ Copilot helps write code. CodeRabbit reviews it. DeepSource lints it. Maina **ve
 └─────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────┐
-│  mainahq/self-improve-action (v1.1.0)               │
+│  mainahq/self-improve-action                        │
 │                                                     │
 │  Scheduled: daily or weekly cron                    │
-│    → collect all workflow traces since last run      │
+│    → collect all workflow traces since last run     │
 │    → analyze: which prompts led to accepted PRs?    │
 │    → propose prompt improvements                    │
 │    → A/B test against historical data               │
@@ -125,37 +144,28 @@ Copilot helps write code. CodeRabbit reviews it. DeepSource lints it. Maina **ve
 └─────────────────────────────────────────────────────┘
 ```
 
-### Round-trip Flywheel (v1.1.0) ([#70](https://github.com/mainahq/maina/pull/70))
+## Planned
 
-- **Codebase Wiki** -- `maina wiki init/compile/query/status/lint/ingest`. Compiles ~370 articles from code, plans, specs, ADRs, workflow traces. Context Engine Layer 5 with 12% token budget allocation.
-- **Universal install script** -- `curl -fsSL https://api.mainahq.com/install | bash`. Detects OS, installs maina, finds AI tools, configures MCP automatically.
-- **`maina setup`** -- Guided first-time setup: detects IDE, configures MCP, runs init + doctor
-- **11-host MCP support** -- Claude Code, Cline, Codex, Continue, Copilot, Cursor, Gemini CLI, OpenHands, Roo Code, Windsurf, Zed AI (any MCP-compatible client works)
-- **10 MCP tools** -- Added `wikiQuery` and `wikiStatus`
-- **8 cross-platform skills** -- Added `wiki-workflow`, `cloud-workflow`, `onboarding`
-- **Wiki lint** -- 9 automated checks: stale articles, orphan refs, broken links, spec drift, decision violations, coverage gaps, missing rationale, contradictions
-- **`mainahq/self-improve-action` -- Autonomous RL loop** -- Scheduled cron Action (daily/weekly) that collects traces across all recent workflows, analyzes prompt effectiveness, proposes improvements, A/B tests them against historical data, and commits better prompts automatically.
+### v1.7.x — Cloud dashboard + billing
 
-## v1.2.0 -- Dashboard + Billing ([#44](https://github.com/mainahq/maina/issues/44))
+- **Metrics API** — verification pass rate, cache hit rate, tokens saved, prompt evolution
+- **Dashboard UI** — CF Pages frontend at [app.mainahq.com](https://app.mainahq.com)
+- **Billing** — free tier (100 verifications / month), paid tiers via Stripe
+- **OpenAPI docs** — full API spec at [docs.mainahq.com/api](https://docs.mainahq.com) via `@workkit/api`
+- **SSO** for teams
 
-- **Metrics API** -- Verification pass rate, cache hit rate, tokens saved, prompt evolution
-- **Dashboard UI** -- CF Pages frontend at app.mainahq.com
-- **Billing** -- Free tier (100 verifications/month), paid tiers via Stripe
-- **OpenAPI docs** -- Full API spec at docs.mainahq.com/api via @workkit/api
-- **SSO** -- Single sign-on for teams
+### v1.8.x — CF Workers skill + cross-dogfooding
 
-## v1.3.0 -- CF Workers Skill + Cross-Dogfooding ([#45](https://github.com/mainahq/maina/issues/45))
+- **CF Workers Maina skill** — auto-detects `wrangler.toml`, loads Workers-specific rules and prompts
+- **Cross-dogfooding report** — quantitative analysis: bugs found, prompts evolved, patterns learned from running Maina on Maina and on Workkit
 
-- **CF Workers Maina skill** -- Auto-detects `wrangler.toml`, loads Workers-specific rules and prompts
-- **Cross-dogfooding report** -- Quantitative analysis: bugs found, prompts evolved, patterns learned
+### v2.0 — Enterprise
 
-## v2.0.0 -- Enterprise
-
-- **Air-gapped deployment** -- On-premise with audit logging, SOC 2 compliance
-- **Custom model fine-tuning** -- From your team's accepted reviews and feedback
-- **Chrome extension** -- Review AI-generated code in GitHub PRs
-- **`transformContext` hooks** -- Programmatic context manipulation
-- **Self-extending agent** -- Maina proposes its own extensions based on usage patterns
+- **Air-gapped / self-hosted deployment** — on-premise with audit logging, SOC 2 compliance (the answer to every "can we self-host?" today)
+- **Custom model fine-tuning** — from your team's accepted reviews and feedback
+- **Chrome extension** — review AI-generated code inline on GitHub PRs
+- **`transformContext` hooks** — programmatic context manipulation
+- **Self-extending agent** — Maina proposes its own extensions based on usage patterns
 
 ## Contributing
 
@@ -183,19 +193,19 @@ bun run verify       # Full verification: check + typecheck + test
 ### Conventions
 
 - **Conventional commits** with scopes: `cli`, `core`, `mcp`, `skills`, `docs`, `ci`
-- **TDD always** -- write tests first, watch them fail, implement, watch them pass
-- **Result pattern** -- `Result<T, E>` for error handling, never throw
-- **Bun only** -- Bun runtime, bun:test, bun:sqlite. Not Node.js, not Jest, not Vitest.
+- **TDD always** — write tests first, watch them fail, implement, watch them pass
+- **Result pattern** — `Result<T, E>` for error handling, never throw
+- **Bun only** — Bun runtime, `bun:test`, `bun:sqlite`. Not Node.js, not Jest, not Vitest.
 
 ### Where to contribute
 
-- **New language profiles** -- Add a `LanguageProfile` in `packages/core/src/language/profile.ts`
-- **New analysis tools** -- Add a tool adapter in `packages/core/src/verify/`
-- **Linter parsers** -- Add output parsers in `packages/core/src/verify/linters/`
-- **Skills** -- Write new SKILL.md files in `packages/skills/`
-- **Documentation** -- Improve these docs in `packages/docs/`
-- **Bug reports and feature requests** -- Open a GitHub Issue
+- **New language profiles** — add a `LanguageProfile` in `packages/core/src/language/profile.ts`
+- **New analysis tools** — add a tool adapter in `packages/core/src/verify/`
+- **Linter parsers** — add output parsers in `packages/core/src/verify/linters/`
+- **Skills** — write new `SKILL.md` files in `packages/skills/`
+- **Documentation** — improve these docs in `packages/docs/`
+- **Bug reports and feature requests** — open a GitHub Issue
 
 ### Dogfooding
 
-Every commit to Maina goes through `maina commit`. If you contribute, use `maina commit` for your commits too. If a gate is noisy, fix the gate -- do not skip it.
+Every commit to Maina goes through `maina commit`. If you contribute, use `maina commit` for your commits too. If a gate is noisy, fix the gate — don't skip it.
