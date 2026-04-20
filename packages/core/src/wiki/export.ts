@@ -175,8 +175,26 @@ function safeFilename(input: string): string {
 	return input.replace(/[^A-Za-z0-9._-]/g, "_");
 }
 
+/**
+ * Short stable suffix derived from the original id. Prevents filename
+ * collisions when two distinct ids collapse to the same sanitised name
+ * (e.g. `foo/bar` and `foo_bar` both sanitise to `foo_bar`).
+ */
+function idHashSuffix(id: string): string {
+	let h = 0;
+	for (let i = 0; i < id.length; i++) {
+		h = (Math.imul(31, h) + id.charCodeAt(i)) | 0;
+	}
+	return (h >>> 0).toString(36).slice(0, 6);
+}
+
 function obsidianFilenameForNode(node: GraphNode): string {
-	return `${safeFilename(node.type)}/${safeFilename(node.id)}.md`;
+	const safe = safeFilename(node.id);
+	// Append a 6-char hash of the original id when sanitisation changed
+	// anything — cheap, deterministic, collision-resistant enough for a
+	// per-repo vault (2⁻²⁴ ≈ 6e-8 per-pair).
+	const suffix = safe === node.id ? "" : `-${idHashSuffix(node.id)}`;
+	return `${safeFilename(node.type)}/${safe}${suffix}.md`;
 }
 
 /**

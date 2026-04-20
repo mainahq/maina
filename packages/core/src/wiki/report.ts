@@ -79,22 +79,47 @@ function articleCountsByType(
 	return out;
 }
 
+function pathFromNodeId(nodeId: string): string | null {
+	const [kind, ...rest] = nodeId.split(":");
+	if (!kind || rest.length === 0) return null;
+	const safe = rest.join(":").replace(/[^a-zA-Z0-9_-]/g, "-");
+	switch (kind) {
+		case "entity":
+			return `wiki/entities/${safe}.md`;
+		case "feature":
+			return `wiki/features/${safe}.md`;
+		case "decision":
+			return `wiki/decisions/${safe}.md`;
+		case "module":
+			return `wiki/modules/${safe}.md`;
+		default:
+			return null;
+	}
+}
+
 function topPageRankNodes(
 	graph: KnowledgeGraph,
 	articles: WikiArticle[],
 	limit = TOP_PAGERANK_LIMIT,
 ): GraphReportData["topPageRank"] {
-	const articleByNodeId = new Map<string, string>();
+	// Convention-based mapping beats title matching: duplicate-title nodes
+	// used to collide. O(articles) for the lookup set; O(log n) node lookup.
+	const validPaths = new Set(articles.map((a) => a.path));
+	const titleCounts = new Map<string, number>();
+	const titleToPath = new Map<string, string>();
 	for (const a of articles) {
-		// article-node mapping is via `path` → node id is best-effort; link the
-		// article when the node id matches `entity:<name>` convention or an
-		// explicit match. We keep it loose so this function stays pure.
-		for (const [id, node] of graph.nodes) {
-			if (node.label && a.title && node.label === a.title) {
-				articleByNodeId.set(id, a.path);
-			}
-		}
+		titleCounts.set(a.title, (titleCounts.get(a.title) ?? 0) + 1);
+		titleToPath.set(a.title, a.path);
 	}
+	const resolve = (nodeId: string, label: string): string | null => {
+		const conv = pathFromNodeId(nodeId);
+		if (conv && validPaths.has(conv)) return conv;
+		// Only accept a title match when it's unambiguous.
+		if ((titleCounts.get(label) ?? 0) === 1) {
+			return titleToPath.get(label) ?? null;
+		}
+		return null;
+	};
 	return [...graph.nodes.values()]
 		.sort((a, b) => {
 			if (b.pageRank !== a.pageRank) return b.pageRank - a.pageRank;
@@ -104,7 +129,7 @@ function topPageRankNodes(
 		.map((n) => ({
 			id: n.id,
 			label: n.label,
-			path: articleByNodeId.get(n.id) ?? null,
+			path: resolve(n.id, n.label),
 			pageRank: n.pageRank,
 		}));
 }
@@ -287,6 +312,7 @@ function renderMarkdown(d: GraphReportData): string {
 	lines.push(`  - feature: ${d.counts.articles.feature}`);
 	lines.push(`  - decision: ${d.counts.articles.decision}`);
 	lines.push(`  - architecture: ${d.counts.articles.architecture}`);
+	lines.push(`  - raw: ${d.counts.articles.raw}`);
 	lines.push(`- **Graph:** ${d.counts.nodes} nodes · ${d.counts.edges} edges`);
 	lines.push(`- **Communities:** ${d.counts.communities}`);
 	lines.push("");

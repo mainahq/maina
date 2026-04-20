@@ -545,11 +545,12 @@ export {
 	type ZapOptions,
 	type ZapResult,
 } from "./verify/zap";
-// Wiki — Community detection
+// Wiki — Community detection (Leiden by default, Louvain opt-in via option)
 export {
 	type CommunitiesResult,
 	type CommunityAlgorithm,
-	detectCommunities as detectCommunitiesV2,
+	type DetectOptions,
+	detectCommunities,
 } from "./wiki/communities";
 // Wiki — Compiler
 export {
@@ -598,9 +599,9 @@ export {
 export { generateIndex } from "./wiki/indexer";
 // Wiki — Linker
 export { generateLinks, type LinkResult } from "./wiki/linker";
-// Wiki — Louvain (legacy; new code should use detectCommunitiesV2)
+// Wiki — Louvain (legacy direct access; prefer `detectCommunities` + algorithm option)
 export {
-	detectCommunities,
+	detectCommunities as detectCommunitiesLouvain,
 	type LouvainNode,
 	type LouvainResult,
 } from "./wiki/louvain";

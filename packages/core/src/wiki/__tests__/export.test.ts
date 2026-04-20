@@ -111,11 +111,18 @@ describe("exportGraphMl", () => {
 });
 
 describe("exportObsidian", () => {
+	function findPath(
+		files: Record<string, string>,
+		prefix: string,
+	): string | undefined {
+		return Object.keys(files).find((k) => k.startsWith(prefix));
+	}
+
 	it("emits a directory map with per-node markdown, an index, and a workspace", () => {
 		const files = exportObsidian(fixture(), NO_ARTICLES);
-		expect(files["entity/entity_Greeter.md"]).toBeString();
-		expect(files["entity/entity_VERSION.md"]).toBeString();
-		expect(files["module/module_core.md"]).toBeString();
+		expect(findPath(files, "entity/entity_Greeter")).toBeString();
+		expect(findPath(files, "entity/entity_VERSION")).toBeString();
+		expect(findPath(files, "module/module_core")).toBeString();
 		expect(files["index.md"]).toContain("# maina graph");
 		expect(files["index.md"]).toContain("## entity");
 		expect(files["index.md"]).toContain("## module");
@@ -125,9 +132,41 @@ describe("exportObsidian", () => {
 		).toHaveProperty("main");
 	});
 
+	it("disambiguates filenames when sanitization would collide", () => {
+		// Two distinct ids that sanitise to the same base name.
+		const nodes = new Map();
+		nodes.set("a:b", {
+			id: "a:b",
+			type: "entity",
+			label: "A",
+			pageRank: 0.1,
+		});
+		nodes.set("a_b", {
+			id: "a_b",
+			type: "entity",
+			label: "A2",
+			pageRank: 0.2,
+		});
+		const adjacency = new Map([
+			["a:b", new Set()],
+			["a_b", new Set()],
+		]);
+		const graph = {
+			nodes,
+			edges: [],
+			adjacency,
+		} as unknown as Parameters<typeof exportObsidian>[0];
+		const files = exportObsidian(graph, NO_ARTICLES);
+		const matches = Object.keys(files).filter((k) =>
+			k.startsWith("entity/a_b"),
+		);
+		expect(matches.length).toBeGreaterThanOrEqual(2);
+	});
+
 	it("includes [[wikilinks]] for outgoing and incoming edges", () => {
 		const files = exportObsidian(fixture(), NO_ARTICLES);
-		const greeter = files["entity/entity_Greeter.md"] ?? "";
+		const greeterKey = findPath(files, "entity/entity_Greeter");
+		const greeter = (greeterKey && files[greeterKey]) || "";
 		expect(greeter).toContain("## Outgoing");
 		expect(greeter).toContain("- references → [[entity:VERSION|VERSION]]");
 		expect(greeter).toContain("## Incoming");
@@ -136,7 +175,8 @@ describe("exportObsidian", () => {
 
 	it("frontmatter carries node metadata", () => {
 		const files = exportObsidian(fixture(), NO_ARTICLES);
-		const greeter = files["entity/entity_Greeter.md"] ?? "";
+		const greeterKey = findPath(files, "entity/entity_Greeter");
+		const greeter = (greeterKey && files[greeterKey]) || "";
 		expect(greeter).toStartWith("---\n");
 		expect(greeter).toContain('id: "entity:Greeter"');
 		expect(greeter).toContain("pageRank: 0.42");

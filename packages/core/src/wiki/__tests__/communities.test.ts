@@ -155,6 +155,73 @@ describe("communities.detectCommunities", () => {
 		});
 	});
 
+	describe("repo-scale: Leiden modularity ≥ Louvain", () => {
+		it("on a many-clique graph with bridge nodes that Louvain is known to mis-split", () => {
+			// Simulate a real monorepo: 10 "modules" of 6 tightly-connected
+			// entities, joined by 5 bridge nodes that each span two modules.
+			// This is the shape the Traag 2019 paper demonstrates Louvain
+			// fails on — some modules get split across communities, leaving
+			// disconnected pieces. Leiden (our connectedness variant or full)
+			// must produce modularity ≥ Louvain here.
+			const edges: [string, string][] = [];
+			const MODULES = 10;
+			const SIZE = 6;
+			for (let m = 0; m < MODULES; m++) {
+				for (let i = 0; i < SIZE; i++) {
+					for (let j = i + 1; j < SIZE; j++) {
+						edges.push([`m${m}_n${i}`, `m${m}_n${j}`]);
+					}
+				}
+			}
+			for (let b = 0; b < 5; b++) {
+				const left = `m${b}_n0`;
+				const right = `m${b + 5}_n0`;
+				const bridge = `bridge_${b}`;
+				edges.push([left, bridge]);
+				edges.push([bridge, right]);
+			}
+			const adj = adjOf(edges);
+
+			const louvain = detectLouvain(adj);
+			const leiden = detectCommunities(adj, { algorithm: "leiden" });
+
+			expect(leiden.modularity).toBeGreaterThanOrEqual(louvain.modularity);
+			// Leiden must never return a disconnected community on this input.
+			for (const members of leiden.communities.values()) {
+				if (members.length <= 1) continue;
+				const memberSet = new Set(members);
+				const seen = new Set<string>([members[0] ?? ""]);
+				const queue = [members[0] ?? ""];
+				while (queue.length) {
+					const n = queue.shift();
+					if (n === undefined) break;
+					for (const nb of adj.get(n) ?? []) {
+						if (memberSet.has(nb) && !seen.has(nb)) {
+							seen.add(nb);
+							queue.push(nb);
+						}
+					}
+				}
+				expect(seen.size).toBe(members.length);
+			}
+		});
+	});
+
+	describe("seed option is accepted for future API stability", () => {
+		it("passing a seed does not change current (deterministic) output", () => {
+			const adj = adjOf([
+				["a", "b"],
+				["b", "c"],
+			]);
+			const r1 = detectCommunities(adj);
+			const r2 = detectCommunities(adj, { seed: 12345 });
+			expect(r1.modularity).toBe(r2.modularity);
+			expect([...r1.communities.entries()]).toEqual([
+				...r2.communities.entries(),
+			]);
+		});
+	});
+
 	describe("fallback to louvain still works", () => {
 		it("louvain path matches the old direct call", () => {
 			const adj = adjOf([

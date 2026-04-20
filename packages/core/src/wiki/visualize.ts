@@ -7,7 +7,7 @@
  * (search, type filter, click-to-open). Deterministic for the same input.
  */
 
-import type { GraphEdge, GraphNode, KnowledgeGraph } from "./graph";
+import type { GraphNode, KnowledgeGraph } from "./graph";
 import type { WikiArticle } from "./types";
 
 // ─── Options + types ───────────────────────────────────────────────────
@@ -55,7 +55,6 @@ function layout(
 		a.id.localeCompare(b.id),
 	);
 	const positions = new Map<string, Point>();
-	const velocities = new Map<string, Point>();
 
 	// Initialize positions inside a square centered at the middle of the canvas.
 	const cx = opts.width / 2;
@@ -66,7 +65,6 @@ function layout(
 			x: cx + (rng() - 0.5) * 2 * radius,
 			y: cy + (rng() - 0.5) * 2 * radius,
 		});
-		velocities.set(n.id, { x: 0, y: 0 });
 	}
 
 	const area = opts.width * opts.height;
@@ -191,13 +189,38 @@ function radiusForPageRank(pageRank: number, min: number, max: number): number {
 	return 4 + t * 14;
 }
 
+/**
+ * Map a graph node to its wiki article. The compiler's article-path
+ * conventions are:
+ *   entity:<name>   → wiki/entities/<safeName>.md
+ *   feature:<id>    → wiki/features/<id>.md
+ *   decision:<id>   → wiki/decisions/<id>.md
+ *   module:<name>   → wiki/modules/<safeName>.md (or best-effort)
+ *
+ * We try the convention first and fall back to a title match only when no
+ * convention candidate exists. Title-only matching was previously the
+ * primary strategy and broke whenever two articles shared a title.
+ */
 function articlePathForNode(
 	node: GraphNode,
 	articles: WikiArticle[],
 ): string | null {
-	// Match by label — same best-effort strategy the report uses.
-	const match = articles.find((a) => a.title === node.label);
-	return match ? match.path : null;
+	const idParts = node.id.split(":");
+	const kind = idParts[0];
+	const rest = idParts.slice(1).join(":");
+	const safe = rest.replace(/[^a-zA-Z0-9_-]/g, "-");
+	const candidates: string[] = [];
+	if (kind === "entity") candidates.push(`wiki/entities/${safe}.md`);
+	else if (kind === "feature") candidates.push(`wiki/features/${safe}.md`);
+	else if (kind === "decision") candidates.push(`wiki/decisions/${safe}.md`);
+	else if (kind === "module") candidates.push(`wiki/modules/${safe}.md`);
+	for (const path of candidates) {
+		if (articles.some((a) => a.path === path)) return path;
+	}
+	// Disambiguate when multiple articles share a title: only return a hit
+	// when there's exactly one match for this node's label.
+	const titleMatches = articles.filter((a) => a.title === node.label);
+	return titleMatches.length === 1 ? (titleMatches[0]?.path ?? null) : null;
 }
 
 // ─── Public API ────────────────────────────────────────────────────────
@@ -238,20 +261,16 @@ export function renderGraphHtml(
 	}
 
 	const nodeSvg: string[] = [];
-	const nodeIndex: {
-		id: string;
-		label: string;
-		type: string;
-		path: string | null;
-	}[] = [];
 	for (const n of nodes) {
 		const p = positions.get(n.id);
 		if (!p) continue;
 		const r = radiusForPageRank(n.pageRank, minPr, maxPr);
 		const path = articlePathForNode(n, articles);
-		nodeIndex.push({ id: n.id, label: n.label, type: n.type, path });
+		// tabindex makes the node focusable so keyboard users can Tab between
+		// nodes; the inline JS turns Enter/Space into a navigation when a
+		// `data-path` is set.
 		nodeSvg.push(
-			`<g class="node" data-id="${escapeAttr(n.id)}" data-type="${n.type}" data-label="${escapeAttr(n.label.toLowerCase())}"${path ? ` data-path="${escapeAttr(path)}"` : ""}>`,
+			`<g class="node" tabindex="0" role="link" aria-label="${escapeAttr(n.label)}" data-id="${escapeAttr(n.id)}" data-type="${n.type}" data-label="${escapeAttr(n.label.toLowerCase())}"${path ? ` data-path="${escapeAttr(path)}"` : ""}>`,
 		);
 		nodeSvg.push(
 			`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r.toFixed(1)}" fill="${colorForType(n.type)}" />`,
@@ -351,10 +370,17 @@ function pageHtml(ctx: {
 
   q.addEventListener('input', applyFilters);
   filters.forEach((f) => f.addEventListener('change', applyFilters));
+  function open(n) {
+    const p = n.dataset.path;
+    if (p) window.location.href = p;
+  }
   nodes.forEach((n) => {
-    n.addEventListener('click', () => {
-      const p = n.dataset.path;
-      if (p) window.location.href = p;
+    n.addEventListener('click', () => open(n));
+    n.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        open(n);
+      }
     });
   });
 })();

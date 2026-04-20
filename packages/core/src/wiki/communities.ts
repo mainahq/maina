@@ -44,6 +44,13 @@ export interface CommunitiesResult {
 export interface DetectOptions {
 	/** Defaults to `"leiden"`. */
 	algorithm?: CommunityAlgorithm;
+	/**
+	 * Deterministic seed hook. The current implementation is fully
+	 * deterministic (no randomized moves), so this value is accepted and
+	 * forwarded for API stability only. A full Leiden rewrite with
+	 * randomized refinement will consume this seed.
+	 */
+	seed?: number;
 }
 
 // ─── Modularity (same formulation Louvain uses) ─────────────────────────
@@ -125,6 +132,10 @@ export function detectCommunities(
 	options: DetectOptions = {},
 ): CommunitiesResult {
 	const algorithm = options.algorithm ?? "leiden";
+	// Seed is plumbed for future use; the current deterministic implementation
+	// ignores it. Keeping the parameter in the signature so the contract is
+	// stable when the full Leiden refinement pass lands.
+	void options.seed;
 
 	const base = detectLouvain(adjacency);
 
