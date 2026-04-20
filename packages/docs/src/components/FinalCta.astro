@@ -1,0 +1,164 @@
+---
+/**
+ * FinalCta — the closing install line (fourth appearance) and
+ * secondary links. Copy from `landing.ts`.
+ *
+ * NEEDS CLARIFICATION (plan.md open Q1): Discord — real or cut? Until
+ * resolved, `secondaryLinks` does not include a Discord entry.
+ */
+import { FINAL_CTA } from '../data/landing';
+---
+
+<section class="final-cta" id="final-cta">
+  <h2 class="final-cta__title">{FINAL_CTA.header}</h2>
+  <p class="final-cta__body">{FINAL_CTA.body}</p>
+
+  <div class="final-cta__install">
+    <label for="final-install" class="final-cta__install-label">Install</label>
+    <div class="final-cta__install-row">
+      <input
+        id="final-install"
+        class="final-cta__install-input"
+        type="text"
+        readonly
+        value={FINAL_CTA.installCommand}
+        aria-label="Install command — read-only, select to copy"
+      />
+      <button
+        type="button"
+        class="final-cta__install-copy"
+        data-copy-target="#final-install"
+        aria-label="Copy install command"
+      >
+        Copy
+      </button>
+    </div>
+  </div>
+
+  <ul class="final-cta__links">
+    {FINAL_CTA.secondaryLinks.map((l) => (
+      <li><a href={l.href} rel="noopener">{l.label}</a></li>
+    ))}
+  </ul>
+</section>
+
+<script is:inline>
+  (function () {
+    var btn = document.querySelector('.final-cta__install-copy');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var sel = btn.getAttribute('data-copy-target');
+      if (!sel) return;
+      var input = document.querySelector(sel);
+      if (!input) return;
+      var done = function () {
+        var original = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = original; }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(input.value).then(done, function () {
+          input.select();
+          document.execCommand('copy');
+          done();
+        });
+      } else {
+        input.select();
+        document.execCommand('copy');
+        done();
+      }
+    });
+  })();
+</script>
+
+<style is:global>
+  .final-cta {
+    max-width: 760px;
+    margin: 100px auto;
+    padding: 48px 24px;
+    text-align: center;
+  }
+
+  .final-cta__title {
+    font-family: var(--font-display);
+    font-size: clamp(26px, 3vw, 36px);
+    margin: 0 0 18px;
+    color: var(--color-ink);
+  }
+
+  .final-cta__body {
+    margin: 0 auto 26px;
+    max-width: 620px;
+    color: var(--color-ink-muted);
+    font-size: 15px;
+    line-height: 1.65;
+  }
+
+  .final-cta__install {
+    margin: 0 auto 22px;
+    max-width: 480px;
+    text-align: left;
+  }
+
+  .final-cta__install-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-ink-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .final-cta__install-row {
+    display: flex;
+    margin-top: 6px;
+    background: var(--color-terminal-bg);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .final-cta__install-input {
+    flex: 1;
+    background: transparent;
+    border: 0;
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    padding: 12px 14px;
+    outline: none;
+  }
+
+  .final-cta__install-copy {
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+    border: 0;
+    padding: 0 18px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .final-cta__install-copy:hover { filter: brightness(1.05); }
+
+  .final-cta__links {
+    list-style: none;
+    padding: 0;
+    margin: 28px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 18px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+
+  .final-cta__links a {
+    color: var(--color-ink-muted);
+    text-decoration: none;
+  }
+
+  .final-cta__links a:hover {
+    color: var(--color-accent);
+  }
+</style>

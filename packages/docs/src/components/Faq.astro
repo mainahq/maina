@@ -1,0 +1,101 @@
+---
+/**
+ * FAQ — native <details>/<summary>, keyboard-accessible without JS.
+ * Content from `landing.ts`.
+ */
+import { FAQ } from '../data/landing';
+
+function renderAnswer(text: string) {
+  // Inline-code spans for any backticked phrase in the answer.
+  return text.split(/(`[^`]+`)/g);
+}
+const items = FAQ.items.map((i) => ({ ...i, parts: renderAnswer(i.a) }));
+---
+
+<section class="faq-v2" id="faq">
+  <h2 class="faq-v2__title">FAQ</h2>
+  <ol class="faq-v2__list">
+    {items.map((it) => (
+      <li>
+        <details class="faq-v2__item">
+          <summary class="faq-v2__q">{it.q}</summary>
+          <p class="faq-v2__a">
+            {it.parts.map((p) => (
+              p.startsWith('`') && p.endsWith('`')
+                ? <code>{p.slice(1, -1)}</code>
+                : <>{p}</>
+            ))}
+          </p>
+        </details>
+      </li>
+    ))}
+  </ol>
+</section>
+
+<style is:global>
+  .faq-v2 {
+    max-width: 760px;
+    margin: 80px auto;
+    padding: 0 24px;
+  }
+
+  .faq-v2__title {
+    font-family: var(--font-display);
+    font-size: clamp(22px, 2.6vw, 30px);
+    margin: 0 0 24px;
+    color: var(--color-ink);
+  }
+
+  .faq-v2__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .faq-v2__item {
+    background: var(--color-bg-elev);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+  }
+
+  .faq-v2__q {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-ink);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .faq-v2__q::marker { content: ''; }
+
+  .faq-v2__q::before {
+    content: '+';
+    display: inline-block;
+    width: 1em;
+    color: var(--color-accent);
+    margin-right: 8px;
+  }
+
+  details[open] .faq-v2__q::before { content: '−'; }
+
+  .faq-v2__a {
+    margin: 10px 0 0;
+    color: var(--color-ink-muted);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .faq-v2__a code {
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--color-ink);
+  }
+</style>

@@ -1,15 +1,39 @@
 ---
 import Hero from '../components/Hero.astro';
-import Engines from '../components/Engines.astro';
+import PainStrip from '../components/PainStrip.astro';
 import Terminal from '../components/Terminal.astro';
-import Comparison from '../components/Comparison.astro';
+import Engines from '../components/Engines.astro';
 import ProofStrip from '../components/ProofStrip.astro';
-import Features from '../components/Features.astro';
+import StackFit from '../components/StackFit.astro';
+import Comparison from '../components/Comparison.astro';
+import FinalCta from '../components/FinalCta.astro';
+import Faq from '../components/Faq.astro';
 import Footer from '../components/Footer.astro';
+import { META, NAV } from '../data/landing';
 import '../styles/landing.css';
 
 const rawBase = import.meta.env.BASE_URL;
 const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Maina',
+  description: META.description,
+  url: META.url,
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'macOS, Linux, Windows (WSL)',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  softwareVersion: '1.1.0',
+  programmingLanguage: ['TypeScript', 'Python', 'Go', 'Rust', 'C#', 'Java', 'PHP'],
+  featureList: [
+    'Context Engine (4-layer retrieval, AST + PageRank)',
+    '19-tool verification pipeline (diff-only)',
+    'MCP server',
+    'Constitution + versioned prompts',
+  ],
+  codeRepository: 'https://github.com/mainahq/maina',
+};
 ---
 
 <html lang="en">
@@ -18,62 +42,56 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script is:inline>
       // Prevent FOUC: apply theme before paint
-      (function() {
+      (function () {
         var stored = localStorage.getItem('starlight-theme');
         var theme = stored || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
         document.documentElement.setAttribute('data-theme', theme);
       })();
     </script>
-    <title>Maina — Stop shipping broken AI code</title>
-    <meta name="description" content="AI writes 41% of code today. Maina is the 19-tool verification layer that proves every change is correct before it merges. 7 languages. 12 AI coding tools. Wiki knowledge compiler." />
-    <meta name="keywords" content="code verification, AI code review, code quality, static analysis, mcp server, claude code, cursor, windsurf, cline, copilot, codex, semgrep, trivy, biome, slop detection, codebase wiki, knowledge graph" />
-    <meta property="og:title" content="Maina — Stop shipping broken AI code" />
-    <meta property="og:description" content="AI writes 41% of your code. Who's checking it? 19-tool verification + codebase wiki. Works with Claude Code, Cursor, Windsurf, and 9 more." />
+    <title>{META.title}</title>
+    <meta name="description" content={META.description} />
+    <meta property="og:title" content={META.title} />
+    <meta property="og:description" content={META.description} />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://mainahq.com/" />
+    <meta property="og:url" content={META.url} />
+    <meta property="og:image" content={META.ogImage} />
     <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
-    <script type="application/ld+json" set:html={JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "Maina",
-      "description": "Verification-first developer OS. 19-tool pipeline + codebase wiki that proves AI-generated code is correct before it merges.",
-      "url": "https://mainahq.com/",
-      "applicationCategory": "DeveloperApplication",
-      "operatingSystem": "macOS, Linux, Windows",
-      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-      "softwareVersion": "1.1.0",
-      "programmingLanguage": ["TypeScript", "Python", "Go", "Rust", "C#", "Java", "PHP"],
-      "codeRepository": "https://github.com/mainahq/maina"
-    })} />
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
   </head>
   <body>
     <nav class="nav">
       <a href={base} class="nav-brand">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="15 10 105 100" width="30" height="28" style="margin-top:-1px">
-          <path d="M60,18 C85,12 100,30 98,55 C96,78 82,98 58,102 C34,106 20,90 20,68 C20,50 32,30 60,18Z" fill="#d6d3d1"/><path d="M58,30 C75,26 88,38 86,55 C84,70 74,82 58,85 C42,88 32,78 32,62 C32,48 42,34 58,30Z" fill="#78716c"/><path d="M58,45 C68,42 76,50 74,58 C72,66 65,72 58,72 C50,72 44,66 44,58 C44,50 50,44 58,45Z" fill="#f97316"/><polygon points="98,42 115,35 108,46" fill="#f97316"/><circle cx="86" cy="38" r="3" fill="#fafaf9"/><path d="M20,78 C14,92 8,108 12,118 L22,112 C20,100 22,88 24,80Z" fill="#d6d3d1"/>
+          <path d="M60,18 C85,12 100,30 98,55 C96,78 82,98 58,102 C34,106 20,90 20,68 C20,50 32,30 60,18Z" fill="#d6d3d1" />
+          <path d="M58,30 C75,26 88,38 86,55 C84,70 74,82 58,85 C42,88 32,78 32,62 C32,48 42,34 58,30Z" fill="#78716c" />
+          <path d="M58,45 C68,42 76,50 74,58 C72,66 65,72 58,72 C50,72 44,66 44,58 C44,50 50,44 58,45Z" fill="#f97316" />
+          <polygon points="98,42 115,35 108,46" fill="#f97316" />
+          <circle cx="86" cy="38" r="3" fill="#fafaf9" />
+          <path d="M20,78 C14,92 8,108 12,118 L22,112 C20,100 22,88 24,80Z" fill="#d6d3d1" />
         </svg>
-        Maina<span class="dot">.</span>
+        {NAV.brand}
       </a>
       <div class="nav-right">
         <div class="nav-links">
-          <a href={`${base}/quickstart`}>Docs</a>
-          <a href={`${base}/commands`}>Commands</a>
-          <a href={`${base}/mcp`}>MCP</a>
-          <a href="https://github.com/mainahq/maina">GitHub</a>
-          <a href={`${base}/quickstart`} class="nav-cta">Get Started</a>
+          {NAV.links.map((l) => (
+            <a href={l.href.startsWith('/') ? `${base}${l.href}` : l.href}>{l.label}</a>
+          ))}
         </div>
         <button class="theme-toggle" type="button" aria-label="Toggle theme">
-          <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-          <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>
+          <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>
         </button>
       </div>
     </nav>
     <Hero />
-    <Engines />
+    <PainStrip />
     <Terminal />
-    <Comparison />
+    <Engines />
     <ProofStrip />
-    <Features />
+    <StackFit />
+    <Comparison />
+    <FinalCta />
+    <Faq />
     <Footer />
     <script is:inline>
       // Scroll reveal
@@ -90,18 +108,17 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
       }
 
       // Theme toggle
-      (function() {
+      (function () {
         var btn = document.querySelector('.theme-toggle');
         if (!btn) return;
-        btn.addEventListener('click', function() {
+        btn.addEventListener('click', function () {
           var current = document.documentElement.getAttribute('data-theme');
           var next = current === 'light' ? 'dark' : 'light';
           document.documentElement.setAttribute('data-theme', next);
           localStorage.setItem('starlight-theme', next);
         });
 
-        // Listen for OS preference changes when no explicit choice stored
-        window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function(e) {
+        window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', function (e) {
           if (!localStorage.getItem('starlight-theme')) {
             document.documentElement.setAttribute('data-theme', e.matches ? 'light' : 'dark');
           }

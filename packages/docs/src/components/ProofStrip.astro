@@ -1,26 +1,100 @@
 ---
-const stats = [
-  { value: '1,167+', label: 'tests' },
-  { value: '18+', label: 'tools' },
-  { value: '7', label: 'languages' },
-  { value: '100%', label: 'benchmark' },
-];
+/**
+ * ProofStrip — single horizontal receipts strip. Each stat is a link
+ * to its source. Copy from `landing.ts`.
+ *
+ * Labels may contain backticked phrases (`maina commit`) which render
+ * as inline `<code>` spans. Splitting happens in the template markup
+ * since Astro's frontmatter is TS, not TSX.
+ */
+import { PROOF_STRIP } from '../data/landing';
+
+const labelPattern = /(`[^`]+`)/g;
+const items = PROOF_STRIP.stats.map((s) => ({
+  ...s,
+  parts: s.label.split(labelPattern),
+}));
 ---
 
-<section class="proof-section">
-  <div class="proof-inner reveal">
-    <h2 class="proof-title">Built with Maina. Verified by Maina.</h2>
-    <p class="proof-body">
-      Every one of the 250+ commits in this repository was verified by
-      <code>maina commit</code> before it merged. The tool eats its own cooking.
-    </p>
-    <div class="proof-stats">
-      {stats.map((stat) => (
-        <div class="proof-stat">
-          <div class="proof-stat-value">{stat.value}</div>
-          <div class="proof-stat-label">{stat.label}</div>
-        </div>
-      ))}
-    </div>
-  </div>
+<section class="proofstrip-v2">
+  <ul class="proofstrip-v2__list">
+    {items.map((s) => (
+      <li class="proofstrip-v2__item">
+        <a href={s.href} class="proofstrip-v2__link" rel="noopener">
+          <span class="proofstrip-v2__value">{s.value}</span>
+          <span class="proofstrip-v2__label">
+            {s.parts.map((p) => (
+              p.startsWith('`') && p.endsWith('`')
+                ? <code>{p.slice(1, -1)}</code>
+                : <>{p}</>
+            ))}
+          </span>
+        </a>
+      </li>
+    ))}
+  </ul>
 </section>
+
+<style is:global>
+  .proofstrip-v2 {
+    max-width: 1100px;
+    margin: 80px auto;
+    padding: 0 24px;
+  }
+
+  .proofstrip-v2__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  @media (min-width: 900px) {
+    .proofstrip-v2__list {
+      grid-template-columns: repeat(5, 1fr);
+    }
+  }
+
+  .proofstrip-v2__item { margin: 0; }
+
+  .proofstrip-v2__link {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px 14px;
+    background: var(--color-bg-elev);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: var(--color-ink);
+    transition: border-color 140ms ease;
+  }
+
+  .proofstrip-v2__link:hover,
+  .proofstrip-v2__link:focus-visible {
+    border-color: var(--color-accent);
+  }
+
+  .proofstrip-v2__value {
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 600;
+    color: var(--color-accent);
+  }
+
+  .proofstrip-v2__label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-ink-muted);
+    line-height: 1.5;
+  }
+
+  .proofstrip-v2__label code {
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11.5px;
+  }
+</style>

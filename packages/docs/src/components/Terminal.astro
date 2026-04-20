@@ -1,56 +1,251 @@
 ---
+/**
+ * Terminal — full-width "60 seconds, start to finish" section.
+ *
+ * Renders `fullFrames` (~90 s, annotated, chaptered) as pre-baked DOM
+ * with shared CSS-keyframe reveal. Adds a four-marker chapter timeline
+ * with pause/restart controls. Controls are vanilla JS and are hidden
+ * entirely under `prefers-reduced-motion: reduce` via the
+ * `--mt-controls-display` custom property flipped in landing.css.
+ */
+import { TERMINAL_SECTION } from '../data/landing';
+import { fullFrames } from '../data/terminal-script';
+
+const TOTAL_DURATION_S = 95;
+const lastT = fullFrames[fullFrames.length - 1]?.t ?? TOTAL_DURATION_S;
+
+function kindClass(kind: string): string {
+  return `mt-line mt-line--${kind}`;
+}
 ---
 
-<section class="terminal-section">
-  <div class="terminal reveal">
-    <div class="terminal-dots">
-      <span class="dot-red"></span>
-      <span class="dot-yellow"></span>
-      <span class="dot-green"></span>
+<section class="termv2" id="terminal">
+  <header class="termv2__head">
+    <h2 class="termv2__title">{TERMINAL_SECTION.header}</h2>
+    <p class="termv2__sub">{TERMINAL_SECTION.sub}</p>
+  </header>
+
+  <div
+    class="termv2__frame mt-terminal"
+    data-mt-frames
+    data-mt-controls
+    data-mt-duration={TOTAL_DURATION_S}
+    role="img"
+    aria-label="90-second annotated terminal demo: context, constitution, verify, commit proof"
+  >
+    <div class="mt-chrome" aria-hidden="true">
+      <span class="mt-chrome__dot mt-chrome__dot--r"></span>
+      <span class="mt-chrome__dot mt-chrome__dot--y"></span>
+      <span class="mt-chrome__dot mt-chrome__dot--g"></span>
+      <span class="mt-chrome__title">~/maina-example · maina</span>
     </div>
-    <div class="terminal-body">
-      <div class="line">
-        <span class="prompt">$ </span><span class="cmd">curl -fsSL https://api.mainahq.com/install | bash</span>
-      </div>
-      <div class="line">&nbsp;</div>
-      <div class="line">
-        <span class="pass">  ✓</span> <span class="dim">OS: macOS (arm64)</span>
-      </div>
-      <div class="line">
-        <span class="pass">  ✓</span> <span class="dim">Package manager: bun</span>
-      </div>
-      <div class="line">
-        <span class="pass">  ✓</span> <span class="accent">Claude Code</span> <span class="dim">· </span><span class="accent">Cursor</span> <span class="dim">· </span><span class="accent">VS Code</span>
-      </div>
-      <div class="line">
-        <span class="pass">  ✓</span> <span class="dim">MCP configured for 3 tools</span>
-      </div>
-      <div class="line">&nbsp;</div>
-      <div class="line">
-        <span class="prompt">$ </span><span class="cmd">maina wiki init</span>
-      </div>
-      <div class="line">
-        <span class="pass">  Compiled 370 articles</span> <span class="dim">in 195ms</span>
-      </div>
-      <div class="line">
-        <span class="dim">  Modules: 179 · Entities: 138 · Decisions: 12</span>
-      </div>
-      <div class="line">&nbsp;</div>
-      <div class="line">
-        <span class="prompt">$ </span><span class="cmd">maina commit</span>
-      </div>
-      <div class="line">
-        <span class="accent">  Syntax guard</span> <span class="pass">passed</span> <span class="dim">· </span><span class="accent">Semgrep</span> <span class="pass">passed</span> <span class="dim">· </span><span class="accent">Trivy</span> <span class="pass">passed</span>
-      </div>
-      <div class="line">
-        <span class="accent">  Wiki lint</span> <span class="pass">passed</span> <span class="dim">· </span><span class="accent">AI review</span> <span class="pass">passed</span>
-      </div>
-      <div class="line">
-        <span class="pass">  Verification passed</span> <span class="dim">(11.2s, 12 tools)</span>
-      </div>
-      <div class="line">
-        <span class="pass">  Committed:</span> <span class="cmd">feat(core): add user authentication</span>
-      </div>
-    </div>
+
+    <pre class="mt-body termv2__body" style={`--mt-duration: ${TOTAL_DURATION_S}s`}>
+{fullFrames.map((f, i) => (
+  <div
+    data-frame={i}
+    data-chapter={f.chapter}
+    class={kindClass(f.kind)}
+    style={`animation-delay: ${f.t}s`}
+  >
+    <span class="termv2__text">{f.text}</span>
+    {f.annotation && (
+      <span class="termv2__annotation" aria-hidden="false">// {f.annotation}</span>
+    )}
   </div>
+))}
+    </pre>
+  </div>
+
+  <div class="termv2__timeline" style={`--mt-last: ${lastT}`}>
+    <div class="termv2__controls" role="group" aria-label="Terminal playback">
+      <button type="button" class="termv2__btn" data-mt-action="play-pause" aria-pressed="false">Pause</button>
+      <button type="button" class="termv2__btn" data-mt-action="restart">Restart</button>
+    </div>
+    <ol class="termv2__chapters">
+      {TERMINAL_SECTION.chapters.map((c) => (
+        <li class="termv2__chapter" data-chapter-id={c.id}>
+          <a href={`#chapter-${c.id}`} class="termv2__chapter-link">{c.label}</a>
+        </li>
+      ))}
+    </ol>
+  </div>
+
+  <p class="termv2__reproduce">
+    {TERMINAL_SECTION.reproduceLinePrefix} <code>{TERMINAL_SECTION.installCommand}</code>
+  </p>
 </section>
+
+<script is:inline>
+  (function () {
+    var frame = document.querySelector('[data-mt-controls]');
+    if (!frame) return;
+
+    var body = frame.querySelector('.mt-body');
+    var container = frame.parentElement;
+
+    // Set animation-play-state on every pre-rendered frame. CSS reads this.
+    var setPlayState = function (state) {
+      var frames = body.querySelectorAll('[data-frame]');
+      for (var i = 0; i < frames.length; i++) {
+        frames[i].style.animationPlayState = state;
+      }
+    };
+
+    var btnPP = container.querySelector('[data-mt-action="play-pause"]');
+    var btnRR = container.querySelector('[data-mt-action="restart"]');
+    var paused = false;
+    if (btnPP) {
+      btnPP.addEventListener('click', function () {
+        paused = !paused;
+        setPlayState(paused ? 'paused' : 'running');
+        btnPP.textContent = paused ? 'Play' : 'Pause';
+        btnPP.setAttribute('aria-pressed', paused ? 'true' : 'false');
+      });
+    }
+
+    if (btnRR) {
+      btnRR.addEventListener('click', function () {
+        // Restart trick: null the animation, force a reflow, then restore
+        // so every frame's animation-delay re-evaluates from now.
+        var frames = body.querySelectorAll('[data-frame]');
+        for (var i = 0; i < frames.length; i++) {
+          var el = frames[i];
+          el.style.animation = 'none';
+          /* force reflow */
+          el.offsetWidth;
+          el.style.animation = '';
+        }
+        if (paused) {
+          paused = false;
+          if (btnPP) {
+            btnPP.textContent = 'Pause';
+            btnPP.setAttribute('aria-pressed', 'false');
+          }
+        }
+      });
+    }
+  })();
+</script>
+
+<style is:global>
+  .termv2 {
+    max-width: 1100px;
+    margin: 60px auto 80px;
+    padding: 0 24px;
+  }
+
+  .termv2__head {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  .termv2__title {
+    font-family: var(--font-display);
+    font-size: clamp(26px, 3vw, 36px);
+    line-height: 1.15;
+    margin: 0 0 10px;
+    color: var(--color-ink);
+  }
+
+  .termv2__sub {
+    margin: 0 auto;
+    max-width: 640px;
+    color: var(--color-ink-muted);
+    font-size: 15px;
+  }
+
+  .termv2__frame {
+    margin: 28px 0 16px;
+  }
+
+  .termv2__body {
+    min-height: 440px;
+  }
+
+  .termv2__text { display: inline; }
+
+  .termv2__annotation {
+    display: inline-block;
+    margin-left: 12px;
+    padding: 0 6px;
+    color: var(--color-accent);
+    font-size: 11.5px;
+    background: rgba(249, 115, 22, 0.08);
+    border-radius: 4px;
+  }
+
+  .termv2__timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    margin-top: 12px;
+  }
+
+  @media (min-width: 720px) {
+    .termv2__timeline {
+      flex-direction: row;
+      justify-content: space-between;
+    }
+  }
+
+  .termv2__controls {
+    display: var(--mt-controls-display, flex);
+    gap: 8px;
+  }
+
+  .termv2__btn {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--color-bg-elev);
+    color: var(--color-ink);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .termv2__btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+  }
+
+  .termv2__chapters {
+    display: flex;
+    gap: 10px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .termv2__chapter-link {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-ink-muted);
+    text-decoration: none;
+    padding: 6px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+  }
+
+  .termv2__chapter-link:hover {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+
+  .termv2__reproduce {
+    text-align: center;
+    margin: 20px 0 0;
+    color: var(--color-ink-muted);
+    font-size: 14px;
+  }
+
+  .termv2__reproduce code {
+    background: var(--color-bg-elev);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    color: var(--color-ink);
+  }
+</style>

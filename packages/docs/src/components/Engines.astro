@@ -1,44 +1,106 @@
 ---
-const rawBase = import.meta.env.BASE_URL;
-const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
-
-const engines = [
-  {
-    tag: 'Observes',
-    name: 'Context Engine',
-    description:
-      '4-layer retrieval with PageRank-scored dependency graphs, tree-sitter AST, and dynamic token budgets. Knows what matters before you ask.',
-    href: `${base}/engines/context`,
-  },
-  {
-    tag: 'Learns',
-    name: 'Prompt Engine',
-    description:
-      'Loads your constitution and custom prompts. Hashes, versions, and A/B-tests prompt variants so every generation improves over time.',
-    href: `${base}/engines/prompt`,
-  },
-  {
-    tag: 'Verifies',
-    name: 'Verify Engine',
-    description:
-      'Syntax guard, parallel deterministic tools, diff-only filter, AI fix, two-stage review. Catches problems before they reach your PR.',
-    href: `${base}/engines/verify`,
-  },
-];
+/**
+ * Engines — "Three engines. One honest claim each." All copy from
+ * `landing.ts`; proof links already resolve to ADR slugs.
+ */
+import { ENGINES } from '../data/landing';
 ---
 
-<section class="engines-section">
-  <div class="section-inner">
-    <div class="section-label">Three Engines</div>
-    <h2 class="section-title">Observe. Learn. Verify.</h2>
-    <div class="engine-cards reveal-stagger">
-      {engines.map((engine) => (
-        <a href={engine.href} class="engine-card">
-          <span class="engine-tag">{engine.tag}</span>
-          <h3>{engine.name}</h3>
-          <p>{engine.description}</p>
-        </a>
-      ))}
-    </div>
-  </div>
+<section class="engines-v2" id="engines">
+  <h2 class="engines-v2__title">{ENGINES.header}</h2>
+  <ul class="engines-v2__grid">
+    {ENGINES.cards.map((card) => (
+      <li class="engines-v2__card" id={`engine-${card.id}`}>
+        <h3 class="engines-v2__name">{card.name}</h3>
+        <p class="engines-v2__claim">{card.claim}</p>
+        <p class="engines-v2__detail">{card.detail}</p>
+        <p class="engines-v2__proof">
+          Proof:{' '}
+          {card.proofLinks.map((l, i) => (
+            <>
+              <a href={l.href}>{l.label}</a>
+              {i < card.proofLinks.length - 1 ? ', ' : '.'}
+            </>
+          ))}
+        </p>
+      </li>
+    ))}
+  </ul>
 </section>
+
+<style is:global>
+  .engines-v2 {
+    max-width: 1100px;
+    margin: 80px auto;
+    padding: 0 24px;
+  }
+
+  .engines-v2__title {
+    font-family: var(--font-display);
+    font-size: clamp(26px, 3vw, 36px);
+    text-align: center;
+    margin: 0 0 36px;
+    color: var(--color-ink);
+  }
+
+  .engines-v2__grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 18px;
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 900px) {
+    .engines-v2__grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .engines-v2__card {
+    background: var(--color-bg-elev);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+  }
+
+  .engines-v2__name {
+    margin: 0 0 10px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--color-accent);
+    letter-spacing: 0.02em;
+  }
+
+  .engines-v2__claim {
+    margin: 0 0 14px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-ink);
+    line-height: 1.35;
+  }
+
+  .engines-v2__detail {
+    margin: 0 0 16px;
+    color: var(--color-ink-muted);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .engines-v2__proof {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-ink-muted);
+  }
+
+  .engines-v2__proof a {
+    color: var(--color-accent);
+    text-decoration: none;
+  }
+
+  .engines-v2__proof a:hover {
+    text-decoration: underline;
+  }
+</style>

@@ -1,12 +1,54 @@
 ---
+import { FOOTER } from '../data/landing';
 ---
 
-<footer class="footer">
-  <p class="footer-tagline">Built with Maina. Verified by Maina.</p>
-  <div class="footer-links">
-    <a href="https://github.com/mainahq/maina">GitHub</a>
-    <a href="https://www.npmjs.com/package/maina">npm</a>
-    <a href="https://github.com/mainahq/maina/blob/master/LICENSE">Apache 2.0</a>
+<footer class="footer-v2">
+  <p class="footer-v2__tagline">{FOOTER.tagline}</p>
+  <div class="footer-v2__links">
+    {FOOTER.links.map((l) => (
+      <a href={l.href} rel="noopener">{l.label}</a>
+    ))}
   </div>
-  <p class="footer-copy">&copy; 2026 Maina contributors</p>
+  <p class="footer-v2__copy">&copy; 2026 Maina contributors</p>
 </footer>
+
+<style is:global>
+  .footer-v2 {
+    max-width: 1100px;
+    margin: 60px auto 40px;
+    padding: 40px 24px 20px;
+    text-align: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--color-ink-muted);
+    font-size: 13px;
+  }
+
+  .footer-v2__tagline {
+    margin: 0 0 14px;
+    font-family: var(--font-mono);
+    color: var(--color-ink);
+  }
+
+  .footer-v2__links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 18px;
+    margin-bottom: 18px;
+    font-family: var(--font-mono);
+  }
+
+  .footer-v2__links a {
+    color: var(--color-ink-muted);
+    text-decoration: none;
+  }
+
+  .footer-v2__links a:hover {
+    color: var(--color-accent);
+  }
+
+  .footer-v2__copy {
+    margin: 0;
+    font-size: 12px;
+  }
+</style>

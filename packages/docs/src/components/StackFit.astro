@@ -1,0 +1,87 @@
+---
+/**
+ * StackFit — horizontal strip of compatible agent tools. Alphabetical
+ * order is enforced by the copy in `landing.ts`. Pending follow-up
+ * (T7.2): swap the text tiles for monochrome SVG logos at
+ * `packages/docs/public/assets/stack/<slug>.svg`.
+ */
+import { STACK_FIT } from '../data/landing';
+---
+
+<section class="stackfit" id="stack-fit">
+  <h2 class="stackfit__title">{STACK_FIT.header}</h2>
+  <ul class="stackfit__list" role="list">
+    {STACK_FIT.tools.map((t) => (
+      <li class="stackfit__tile">
+        <span class="stackfit__name" title={t.tooltip} aria-label={`${t.name} — ${t.tooltip}`}>
+          {t.name}
+        </span>
+      </li>
+    ))}
+    <li class="stackfit__tile stackfit__tile--plus">
+      <span class="stackfit__name">{STACK_FIT.plus}</span>
+    </li>
+  </ul>
+  <p class="stackfit__caption">{STACK_FIT.caption}</p>
+</section>
+
+<style is:global>
+  .stackfit {
+    max-width: 1100px;
+    margin: 60px auto;
+    padding: 0 24px;
+  }
+
+  .stackfit__title {
+    font-family: var(--font-display);
+    font-size: clamp(22px, 2.6vw, 30px);
+    text-align: center;
+    margin: 0 0 24px;
+    color: var(--color-ink);
+  }
+
+  .stackfit__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .stackfit__tile {
+    margin: 0;
+  }
+
+  .stackfit__name {
+    display: inline-block;
+    padding: 8px 14px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--color-ink-muted);
+    background: var(--color-bg-elev);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+    letter-spacing: 0.01em;
+  }
+
+  .stackfit__tile:hover .stackfit__name {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+
+  .stackfit__tile--plus .stackfit__name {
+    color: var(--color-accent);
+    background: transparent;
+    border-style: dashed;
+  }
+
+  .stackfit__caption {
+    margin: 22px auto 0;
+    text-align: center;
+    max-width: 620px;
+    color: var(--color-ink-muted);
+    font-size: 14px;
+  }
+</style>

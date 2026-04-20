@@ -1,48 +1,95 @@
 ---
-const rows = [
-  { label: 'Runs locally', maina: '✓', coderabbit: '✗', deepsource: '✗', manual: '✓' },
-  { label: 'Open source', maina: '✓', coderabbit: '✗', deepsource: 'Partial', manual: 'N/A' },
-  { label: 'Learns from your feedback', maina: '✓', coderabbit: '✗', deepsource: '✗', manual: 'Slow' },
-  { label: 'Deterministic tools', maina: '18+', coderabbit: '0', deepsource: '~5', manual: 'Varies' },
-  { label: 'Spec compliance check', maina: '✓', coderabbit: '✗', deepsource: '✗', manual: '✓' },
-  { label: 'Slop detection', maina: '✓', coderabbit: '✗', deepsource: '✗', manual: 'Subjective' },
-  { label: 'Price', maina: 'Free', coderabbit: '$19/mo+', deepsource: '$12/mo+', manual: '$$$ (time)' },
-];
-
-function cellClass(value: string): string {
-  if (value === '✓' || value === 'Free') return 'cell-pass';
-  if (value === '✗') return 'cell-fail';
-  return 'cell-neutral';
-}
+/**
+ * Comparison — "What this replaces." Matrix with the canonical rows
+ * plus the new `.cursorrules` row. Cell values come from `landing.ts`.
+ *
+ * NEEDS CLARIFICATION (plan.md open Q4): sign off on the .cursorrules
+ * row cells — currently [✗, ✗, ✗, ✗, Free]. Flagged in the PR body.
+ */
+import { COMPARISON } from '../data/landing';
 ---
 
-<section class="comparison-section">
-  <div class="comparison-inner">
-    <div class="section-label">How It Compares</div>
-    <h2 class="comparison-title">Not another AI reviewer. A verification layer.</h2>
-    <div class="comparison-table-wrap reveal">
-      <table class="comparison-table">
-        <thead>
-          <tr>
-            <th></th>
-            <th class="col-maina">Maina</th>
-            <th>CodeRabbit</th>
-            <th>DeepSource</th>
-            <th>Manual Review</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr>
-              <td class="row-label">{row.label}</td>
-              <td class={`col-maina ${cellClass(row.maina)}`}>{row.maina}</td>
-              <td class={cellClass(row.coderabbit)}>{row.coderabbit}</td>
-              <td class={cellClass(row.deepsource)}>{row.deepsource}</td>
-              <td class={cellClass(row.manual)}>{row.manual}</td>
-            </tr>
+<section class="cmp-v2" id="comparison">
+  <h2 class="cmp-v2__title">{COMPARISON.header}</h2>
+  <div class="cmp-v2__scroll">
+    <table class="cmp-v2__table">
+      <thead>
+        <tr>
+          <th scope="col" class="cmp-v2__col-head cmp-v2__col-head--name"></th>
+          {COMPARISON.columns.map((c) => (
+            <th scope="col" class="cmp-v2__col-head">{c.label}</th>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </tr>
+      </thead>
+      <tbody>
+        {COMPARISON.rows.map((row) => (
+          <tr class={'highlighted' in row && row.highlighted ? 'cmp-v2__row cmp-v2__row--us' : 'cmp-v2__row'}>
+            <th scope="row" class="cmp-v2__row-head">{row.name}</th>
+            {row.cells.map((cell) => (
+              <td class="cmp-v2__cell">{cell}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   </div>
 </section>
+
+<style is:global>
+  .cmp-v2 {
+    max-width: 1100px;
+    margin: 80px auto;
+    padding: 0 24px;
+  }
+
+  .cmp-v2__title {
+    font-family: var(--font-display);
+    font-size: clamp(26px, 3vw, 36px);
+    text-align: center;
+    margin: 0 0 28px;
+    color: var(--color-ink);
+  }
+
+  .cmp-v2__scroll {
+    overflow-x: auto;
+  }
+
+  .cmp-v2__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  .cmp-v2__col-head,
+  .cmp-v2__row-head,
+  .cmp-v2__cell {
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--color-ink);
+  }
+
+  .cmp-v2__col-head {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--color-ink-muted);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  .cmp-v2__row-head {
+    font-weight: 600;
+  }
+
+  .cmp-v2__row--us .cmp-v2__row-head {
+    color: var(--color-accent);
+  }
+
+  .cmp-v2__row--us .cmp-v2__cell {
+    color: var(--color-ink);
+  }
+
+  .cmp-v2__cell {
+    color: var(--color-ink-muted);
+  }
+</style>
