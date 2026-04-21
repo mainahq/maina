@@ -1,6 +1,6 @@
 {
   "name": "@mainahq/cli",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "type": "module",
   "license": "Apache-2.0",
   "description": "Maina CLI — verification-first developer OS command-line interface",
@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.2.0",
-    "@mainahq/core": "^1.7.0",
+    "@mainahq/core": "^1.8.0",
     "@mainahq/mcp": "^1.7.0",
     "commander": "^14.0.3"
   },

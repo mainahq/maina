@@ -1,5 +1,27 @@
 # @mainahq/cli
 
+## 1.8.0
+
+### Minor Changes
+
+- [#221](https://github.com/mainahq/maina/pull/221) [`576ba80`](https://github.com/mainahq/maina/commit/576ba80ff616fa0a43b106e7798dc8bd9885bd2c) Thanks [@beeeku](https://github.com/beeeku)! - **AI defaults refreshed + cloud timeout fixed.** Two correctness issues caught during post-waves QA:
+
+  - **Model tier defaults** were pinned to Claude Sonnet 4 (May 2025) for both `standard` and `architectural`, which silently downgraded `maina design-review`, `maina learn`, and every architecture-class call to a mid-tier model. Bumped to the current Claude 4.X family: `mechanical` → Haiku 4.5, `standard` → Sonnet 4.6, `architectural` → Opus 4.7. The tiers are now genuinely distinct. Override per-repo with `maina.config.ts`; override the default provider with `MAINA_PROVIDER`.
+  - **Cloud setup gateway timeout** was 2 s, but the gateway at `api.mainahq.com/v1/setup` responds in 8–13 s in practice. Every cloud call timed out and fell through to BYOK or degraded — the working middle tier was invisible. Raised the default to 20 s and added `MAINA_CLOUD_TIMEOUT_MS` env override. The per-call `cloudTimeoutMs` option still takes precedence.
+
+- [#223](https://github.com/mainahq/maina/pull/223) [`9ff05c9`](https://github.com/mainahq/maina/commit/9ff05c9a4228316cc254e467c6346e5e7cf5d74f) Thanks [@beeeku](https://github.com/beeeku)! - **PostHog send path wired end-to-end (feat 054).** Event builders (`buildUsageEvent`, `buildErrorEvent`) and PII scrubbing have existed for months without a caller — users who opted in to `telemetry: true` still sent zero events.
+
+  This PR adds `packages/core/src/telemetry/posthog-client.ts` with `captureUsage`, `captureError`, and `flushTelemetry`. All three are no-ops unless (a) the consent flag in `~/.maina/config.yml` is set AND (b) `MAINA_POSTHOG_API_KEY` is present at build time. OSS forks built without the key get a silent no-op binary — no leaked events to maina's PostHog project.
+
+  Wired three high-value call sites: `maina setup` emits `maina.install`, `maina verify` emits `maina.verify.started` + `maina.verify.completed`, `maina learn` emits `maina.learn.ran`. The remaining five events enumerated in `UsageEventName` (`maina.commit`, `maina.plan`, `maina.wiki.init`, `maina.wiki.query`) land in a follow-up so this PR stays reviewable.
+
+  Commander `postAction` hook awaits `flushTelemetry(2000)` at every command exit so an unreachable PostHog endpoint cannot hang `maina commit` beyond the budget. The SDK is dynamic-imported on the first green-lit capture — startup cost is zero when telemetry is off.
+
+### Patch Changes
+
+- Updated dependencies [[`576ba80`](https://github.com/mainahq/maina/commit/576ba80ff616fa0a43b106e7798dc8bd9885bd2c), [`9ff05c9`](https://github.com/mainahq/maina/commit/9ff05c9a4228316cc254e467c6346e5e7cf5d74f)]:
+  - @mainahq/core@1.8.0
+
 ## 1.7.0
 
 ### Minor Changes
