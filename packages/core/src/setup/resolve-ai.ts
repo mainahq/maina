@@ -25,6 +25,7 @@ import {
 import { getApiKey, isHostMode } from "../config/index";
 import type { StackContext } from "./context";
 import { loadUniversalPrompt } from "./prompts";
+import type { SetupDegradedReason } from "./recovery";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,8 +38,10 @@ export interface SetupAIMetadata {
 	promptHash?: string;
 	/** Cloud-supplied retry-at when degraded after a 429. */
 	retryAt?: string;
-	/** Human-readable why-degraded marker for the CLI nudge. */
-	reason?: string;
+	/** Normalised reason the degraded tier kicked in. Absent when source !== "degraded". */
+	reason?: SetupDegradedReason;
+	/** Raw sub-reason (e.g. "timeout", "http_500", "empty_response") for the setup log. */
+	reasonDetail?: string;
 	durationMs: number;
 	usage?: { promptTokens?: number; completionTokens?: number };
 }
@@ -97,7 +100,11 @@ export async function resolveSetupAI(
 	});
 
 	const attempted: SetupAISource[] = [];
-	let degradedHint: { reason?: string; retryAt?: string } = {};
+	let degradedHint: {
+		reason?: SetupDegradedReason;
+		reasonDetail?: string;
+		retryAt?: string;
+	} = {};
 
 	const wantTier = (tier: SetupAISource): boolean => {
 		if (opts.forceSource === undefined) return true;
@@ -105,6 +112,7 @@ export async function resolveSetupAI(
 	};
 
 	// ── 1. Host ────────────────────────────────────────────────────────────────
+	let hostFailed = false;
 	if (wantTier("host") && isHostMode()) {
 		attempted.push("host");
 		const hostResult = await runHostTier(opts, prompt);
@@ -134,6 +142,15 @@ export async function resolveSetupAI(
 				},
 			};
 		}
+		// Host was the preferred tier and returned null — record so we can
+		// surface `host_unavailable` instead of a downstream reason if nothing
+		// else succeeds. Per spec: a user inside Claude Code should see that
+		// host specifically failed, not a generic "ai_unavailable".
+		hostFailed = true;
+		degradedHint = {
+			reason: "host_unavailable",
+			reasonDetail: "host_returned_null",
+		};
 	}
 
 	// ── 2. Cloud (anonymous proxy) ─────────────────────────────────────────────
@@ -152,22 +169,37 @@ export async function resolveSetupAI(
 				},
 			};
 		}
-		// Capture rate-limit hints for the eventual degraded result
+		// Capture cloud-side hints. Rate-limit always wins (it has retry info).
+		// Generic cloud errors do not overwrite an earlier `host_unavailable`
+		// hint because host was the preferred tier — telling the user "cloud
+		// returned 500" when they are inside Claude Code hides the real story.
 		if (cloudResult.kind === "rate_limited") {
 			degradedHint = {
 				reason: "rate_limited",
+				reasonDetail: "http_429",
 				retryAt: cloudResult.retryAt,
 			};
+		} else if (!hostFailed) {
+			degradedHint = {
+				reason: "ai_unavailable",
+				reasonDetail: cloudResult.reason,
+			};
 		} else {
-			degradedHint = { reason: cloudResult.reason };
+			// Preserve host_unavailable reason, but append cloud error to detail
+			degradedHint = {
+				reason: "host_unavailable",
+				reasonDetail: `host_returned_null; cloud=${cloudResult.reason}`,
+			};
 		}
 	}
 
 	// ── 3. BYOK ───────────────────────────────────────────────────────────────
+	let byokAttempted = false;
 	if (wantTier("byok")) {
 		attempted.push("byok");
 		const apiKey = getApiKey();
 		if (apiKey !== null || opts.byokGenerate !== undefined) {
+			byokAttempted = true;
 			const text = await runByokTier(opts, prompt);
 			if (text !== null) {
 				return {
@@ -180,19 +212,26 @@ export async function resolveSetupAI(
 					},
 				};
 			}
-			// byok was attempted but failed — keep going
-			if (degradedHint.reason === undefined) {
-				degradedHint = { reason: "byok_failed" };
-			}
+			// byok was attempted but failed — overrides earlier hints
+			degradedHint = {
+				reason: "byok_failed",
+				reasonDetail: "byok_empty_or_error",
+			};
 		}
 	}
 
 	// ── 4. Degraded (always succeeds) ─────────────────────────────────────────
 	attempted.push("degraded");
-	const reason =
-		opts.forceSource === "degraded"
-			? "forced"
-			: (degradedHint.reason ?? "ai_unavailable");
+	let reason: SetupDegradedReason;
+	if (opts.forceSource === "degraded") {
+		reason = "forced";
+	} else if (degradedHint.reason !== undefined) {
+		reason = degradedHint.reason;
+	} else if (!byokAttempted && getApiKey() === null) {
+		reason = "no_key";
+	} else {
+		reason = "ai_unavailable";
+	}
 	return {
 		source: "degraded",
 		text: buildGenericConstitution(opts.stack),
@@ -200,6 +239,7 @@ export async function resolveSetupAI(
 			source: "degraded",
 			attemptedSources: [...attempted],
 			reason,
+			reasonDetail: degradedHint.reasonDetail,
 			retryAt: degradedHint.retryAt,
 			durationMs: Date.now() - start,
 		},

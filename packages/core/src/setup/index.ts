@@ -28,6 +28,11 @@ export {
 	type UniversalPromptInputs,
 } from "./prompts";
 export {
+	degradedBanner,
+	recoveryCommand,
+	type SetupDegradedReason,
+} from "./recovery";
+export {
 	type ResolveAIOptions,
 	resolveSetupAI,
 	type SetupAIMetadata,

@@ -49,7 +49,10 @@ let mockFeedbackDbResult: { ok: boolean; value?: unknown; error?: string } = {
 	error: "no db",
 };
 
+const actualCore = await import("@mainahq/core");
+
 mock.module("@mainahq/core", () => ({
+	...actualCore,
 	detectTools: async () => mockDetectedTools,
 	createCacheManager: () => ({
 		stats: () => mockCacheStats,
@@ -79,6 +82,7 @@ mock.module("@clack/prompts", () => ({
 		start: () => {},
 		stop: () => {},
 	}),
+	confirm: async () => true,
 }));
 
 afterAll(() => {

@@ -398,25 +398,81 @@ install_maina() {
   case "$pkg_mgr" in
     bun)
       info "Installing with bun..."
-      bun install -g @mainahq/cli
+      if ! bun install -g @mainahq/cli; then
+        error "bun install -g @mainahq/cli failed."
+        info "  Try: npm install -g @mainahq/cli"
+        exit 11
+      fi
       ;;
     pnpm)
       info "Installing with pnpm..."
-      pnpm install -g @mainahq/cli
+      if ! pnpm install -g @mainahq/cli; then
+        error "pnpm install -g @mainahq/cli failed."
+        info "  Try: npm install -g @mainahq/cli"
+        exit 11
+      fi
       ;;
     yarn)
       info "Installing with yarn..."
-      yarn global add @mainahq/cli
+      if ! yarn global add @mainahq/cli; then
+        error "yarn global add @mainahq/cli failed."
+        info "  Try: npm install -g @mainahq/cli"
+        exit 11
+      fi
       ;;
     npm)
       info "Installing with npm..."
-      npm install -g @mainahq/cli
+      if ! npm install -g @mainahq/cli; then
+        error "npm install -g @mainahq/cli failed."
+        info "  Check npm permissions: https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally"
+        exit 11
+      fi
       ;;
     none)
       error "No package manager found. Install one of: bun, npm, pnpm, yarn"
       echo ""
       info "Recommended: curl -fsSL https://bun.sh/install | bash"
-      exit 1
+      exit 10
+      ;;
+  esac
+}
+
+# Emits the shell-profile hint for the user to add the package-manager's
+# global bin directory to PATH. Shell profile and bin directory both depend
+# on what the user has — a pure-npm user does not have ~/.bun/bin.
+path_hint() {
+  local pkg_mgr="$1"
+  local shell_name="${SHELL##*/}"
+  local profile
+  case "$shell_name" in
+    zsh)  profile="\$HOME/.zshrc" ;;
+    bash) profile="\$HOME/.bashrc" ;;
+    fish) profile="\$HOME/.config/fish/config.fish" ;;
+    *)    profile="your shell profile" ;;
+  esac
+  warn "maina was installed globally but is not on PATH in this shell."
+  info "  Add the $pkg_mgr global bin directory to PATH in $profile, then open a new shell."
+  case "$pkg_mgr" in
+    bun)
+      if [ "$shell_name" = "fish" ]; then
+        dim "    fish_add_path \$HOME/.bun/bin"
+      else
+        dim "    export PATH=\"\$HOME/.bun/bin:\$PATH\""
+      fi
+      ;;
+    pnpm)
+      dim "    # Run \`pnpm bin -g\` to see the directory, then add it to PATH"
+      dim "    export PATH=\"\$(pnpm bin -g):\$PATH\""
+      ;;
+    yarn)
+      dim "    export PATH=\"\$(yarn global bin):\$PATH\""
+      ;;
+    npm)
+      dim "    # Run \`npm bin -g\` to see the directory, then add it to PATH"
+      dim "    export PATH=\"\$(npm prefix -g)/bin:\$PATH\""
+      ;;
+    *)
+      dim "    # Add your package manager's global bin directory to PATH"
       ;;
   esac
 }
@@ -456,20 +512,16 @@ main() {
     install_maina "$pkg_mgr"
   fi
 
-  # Verify installation
+  # Verify installation. We do not silently fall back to bunx — if `maina` is
+  # not on PATH in a fresh shell, AI agents that spawn subshells cannot find it.
+  # The user must resolve the PATH hint or re-run with an alternative package
+  # manager.
   if ! command -v maina &>/dev/null; then
-    # Try with package runner
-    local runner
-    runner=$(get_mcp_command "$pkg_mgr")
-    if $runner @mainahq/cli --version &>/dev/null 2>&1; then
-      success "Installed (available via $runner @mainahq/cli)"
-    else
-      error "Installation failed. Try manually: $pkg_mgr install -g @mainahq/cli"
-      exit 1
-    fi
-  else
-    success "maina $(maina --version 2>/dev/null || echo '') installed"
+    path_hint "$pkg_mgr"
+    error "Aborting: global install completed but 'maina' is not on PATH."
+    exit 12
   fi
+  success "maina $(maina --version 2>/dev/null || echo '') installed"
 
   # Step 3: Detect AI coding tools
   step "3. Detecting AI coding tools"

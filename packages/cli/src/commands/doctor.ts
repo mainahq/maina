@@ -1,8 +1,14 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { intro, log, outro, spinner } from "@clack/prompts";
-import type { CacheStats, DetectedTool } from "@mainahq/core";
+import { confirm, intro, log, outro, spinner } from "@clack/prompts";
+import type {
+	CacheStats,
+	DetectedTool,
+	McpClientId,
+	McpClientInfo,
+} from "@mainahq/core";
 import {
+	buildClientRegistry,
 	createCacheManager,
 	detectTools,
 	getApiKey,
@@ -15,9 +21,17 @@ import { EXIT_PASSED, outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+export type DoctorExecFn = (cmd: string) => Promise<{ exitCode: number }>;
+
 export interface DoctorActionOptions {
 	cwd?: string;
 	json?: boolean;
+	fix?: boolean;
+	yes?: boolean;
+	/** DI seam for tests; defaults to `Bun.spawn`-backed runner. */
+	execFn?: DoctorExecFn;
+	/** Override $HOME root for global-config lookups in tests. */
+	home?: string;
 }
 
 export interface EngineHealth {
@@ -43,11 +57,24 @@ export interface WikiHealth {
 	lastCompile: string;
 }
 
+export type McpScope = "project" | "global" | "both" | "missing";
+
+export interface McpIntegration {
+	client: McpClientId;
+	label: string;
+	scope: McpScope;
+	projectPath: string | null;
+	globalPath: string;
+	/** Shell-parseable remediation when scope === "missing". */
+	fix?: string;
+}
+
 export interface McpHealth {
 	mcpJson: boolean;
 	claudeSettings: boolean;
 	serverCommand: string;
 	toolCount: number;
+	integrations: McpIntegration[];
 }
 
 export interface DoctorActionResult {
@@ -156,20 +183,90 @@ function formatWikiHealth(health: WikiHealth): string {
 
 // ── MCP Health Check ──────────────────────────────────────────────────────
 
-function checkMcpHealth(cwd: string): McpHealth {
+function readMainaPresent(
+	path: string,
+	shape: McpClientInfo["shape"],
+): boolean {
+	if (!existsSync(path)) return false;
+	try {
+		const raw = readFileSync(path, "utf-8");
+		// TOML clients (Codex) use a simple presence check: the entry key appears
+		// under the configured path. Parsing full TOML is out of scope for doctor.
+		if (path.endsWith(".toml")) {
+			return raw.includes(`[${shape.path.join(".")}.${shape.entryKey}]`);
+		}
+		const content = JSON.parse(raw) as Record<string, unknown>;
+		let cursor: unknown = content;
+		for (const key of shape.path) {
+			if (cursor && typeof cursor === "object" && key in (cursor as object)) {
+				cursor = (cursor as Record<string, unknown>)[key];
+			} else {
+				return false;
+			}
+		}
+		if (shape.container === "array") {
+			return (
+				Array.isArray(cursor) &&
+				(cursor as Array<Record<string, unknown>>).some(
+					(e) => e?.name === shape.entryKey,
+				)
+			);
+		}
+		return (
+			cursor !== null &&
+			typeof cursor === "object" &&
+			shape.entryKey in (cursor as object)
+		);
+	} catch {
+		return false;
+	}
+}
+
+function checkMcpHealth(cwd: string, home?: string): McpHealth {
+	const registry = buildClientRegistry(home);
+	const integrations: McpIntegration[] = [];
+	// `.mcp.json` at repo root is Claude Code's shared project-level source
+	// alongside `.claude/settings.json`. Treat either as project-scope for Claude.
+	const sharedMcpJsonPath = join(cwd, ".mcp.json");
+	const sharedMcpJsonHasMaina = readMainaPresent(sharedMcpJsonPath, {
+		path: ["mcpServers"],
+		container: "object",
+		entryKey: "maina",
+	});
+	for (const [id, info] of Object.entries(registry) as Array<
+		[McpClientId, McpClientInfo]
+	>) {
+		const globalPath = info.globalConfigPath();
+		const globalPresent = readMainaPresent(globalPath, info.shape);
+		const projectPath = info.projectConfigPath?.(cwd) ?? null;
+		let projectPresent = projectPath
+			? readMainaPresent(projectPath, info.shape)
+			: false;
+		if (id === "claude" && sharedMcpJsonHasMaina) projectPresent = true;
+		let scope: McpScope;
+		if (globalPresent && projectPresent) scope = "both";
+		else if (globalPresent) scope = "global";
+		else if (projectPresent) scope = "project";
+		else scope = "missing";
+		const integration: McpIntegration = {
+			client: id,
+			label: info.label,
+			scope,
+			projectPath,
+			globalPath,
+		};
+		if (scope === "missing") {
+			integration.fix = `maina mcp add --client ${id} --scope global`;
+		}
+		integrations.push(integration);
+	}
+
 	const mcpJsonPath = join(cwd, ".mcp.json");
 	const mcpJson = existsSync(mcpJsonPath);
-
-	const claudeSettingsPath = join(cwd, ".claude", "settings.json");
-	let claudeSettings = false;
-	if (existsSync(claudeSettingsPath)) {
-		try {
-			const content = JSON.parse(readFileSync(claudeSettingsPath, "utf-8"));
-			claudeSettings = content?.mcpServers?.maina !== undefined;
-		} catch {
-			// Invalid JSON — not configured
-		}
-	}
+	const claudeIntegration = integrations.find((i) => i.client === "claude");
+	const claudeSettings =
+		claudeIntegration?.scope === "project" ||
+		claudeIntegration?.scope === "both";
 
 	// Determine the server command from .mcp.json
 	let serverCommand = "not configured";
@@ -180,9 +277,6 @@ function checkMcpHealth(cwd: string): McpHealth {
 			const mainaServer = content?.mcpServers?.maina;
 			if (mainaServer) {
 				serverCommand = `${mainaServer.command} ${(mainaServer.args ?? []).join(" ")}`;
-				// Count known tools: 10 is the current registered count
-				// (getContext, verify, analyzeFeature, explainModule, reviewCode,
-				//  checkSlop, suggestTests, getConventions, wikiQuery, wikiCompile)
 				toolCount = 10;
 			}
 		} catch {
@@ -190,23 +284,66 @@ function checkMcpHealth(cwd: string): McpHealth {
 		}
 	}
 
-	return { mcpJson, claudeSettings, serverCommand, toolCount };
+	return { mcpJson, claudeSettings, serverCommand, toolCount, integrations };
+}
+
+async function defaultExec(cmd: string): Promise<{ exitCode: number }> {
+	const parts = cmd.split(/\s+/).filter((p) => p.length > 0);
+	if (parts.length === 0) return { exitCode: 1 };
+	const proc = Bun.spawn({ cmd: parts, stdout: "inherit", stderr: "inherit" });
+	const exitCode = await proc.exited;
+	return { exitCode };
+}
+
+async function runFixFlow(
+	health: McpHealth,
+	opts: { yes: boolean; execFn: DoctorExecFn; jsonMode: boolean },
+): Promise<void> {
+	const missing = health.integrations.filter(
+		(i) => i.scope === "missing" && typeof i.fix === "string",
+	);
+	if (missing.length === 0) {
+		if (!opts.jsonMode) log.success("No MCP integrations to fix.");
+		return;
+	}
+	for (const row of missing) {
+		if (!row.fix) continue;
+		if (!opts.yes) {
+			const proceed = await confirm({
+				message: `Run fix for ${row.label}? ${row.fix}`,
+			});
+			if (proceed !== true) continue;
+		}
+		if (!opts.jsonMode) log.info(`→ ${row.fix}`);
+		const { exitCode } = await opts.execFn(row.fix);
+		if (!opts.jsonMode) {
+			if (exitCode === 0) log.success(`Fixed: ${row.label}`);
+			else log.error(`Fix failed for ${row.label} (exit ${exitCode})`);
+		}
+	}
 }
 
 function formatMcpHealth(health: McpHealth): string {
 	const lines: string[] = [];
-	lines.push(
-		`  .mcp.json              ${health.mcpJson ? "\u2713 found" : "\u2717 missing"}`,
-	);
-	lines.push(
-		`  .claude/settings.json  ${health.claudeSettings ? "\u2713 found (Claude Code)" : "\u2717 missing (Claude Code)"}`,
-	);
+	for (const row of health.integrations) {
+		const mark =
+			row.scope === "missing"
+				? "\u2717"
+				: row.scope === "both"
+					? "\u2713\u2713"
+					: "\u2713";
+		lines.push(
+			`  ${row.label.padEnd(18)} ${mark} ${row.scope}${
+				row.scope === "missing" && row.fix ? ` — fix: ${row.fix}` : ""
+			}`,
+		);
+	}
 	if (health.serverCommand !== "not configured") {
 		lines.push(
-			`  MCP Server             \u2713 ${health.toolCount} tools registered`,
+			`  MCP Server         \u2713 ${health.toolCount} tools registered`,
 		);
 	} else {
-		lines.push("  MCP Server             \u2717 not configured");
+		lines.push("  MCP Server         \u2717 not configured");
 	}
 	return lines.join("\n");
 }
@@ -420,10 +557,24 @@ export async function doctorAction(
 	}
 
 	// ── Step 7: MCP Integration ───────────────────────────────────────
-	const mcpHealth = checkMcpHealth(cwd);
+	const mcpHealth = checkMcpHealth(cwd, options.home);
 	if (!jsonMode) {
 		log.step("MCP Integration:");
 		log.message(formatMcpHealth(mcpHealth));
+	}
+
+	// ── Step 8: --fix flow (optional) ────────────────────────────────
+	if (options.fix) {
+		// jsonMode implies non-interactive: a CI caller passing --json --fix
+		// without --yes must not block on a terminal prompt. Auto-approve
+		// when json is set (they asked for machine-readable, they get
+		// machine-driven).
+		const yes = (options.yes ?? false) || jsonMode;
+		await runFixFlow(mcpHealth, {
+			yes,
+			execFn: options.execFn ?? defaultExec,
+			jsonMode,
+		});
 	}
 
 	return {
@@ -443,6 +594,8 @@ export function doctorCommand(): Command {
 	return new Command("doctor")
 		.description("Check tool installation and engine health")
 		.option("--json", "Output JSON for CI")
+		.option("--fix", "Run the remediation command for each missing MCP row")
+		.option("-y, --yes", "Skip confirmations (with --fix)")
 		.action(async (options) => {
 			const jsonMode = options.json ?? false;
 
@@ -455,7 +608,11 @@ export function doctorCommand(): Command {
 				s.start("Checking system health…");
 			}
 
-			const result = await doctorAction({ json: jsonMode });
+			const result = await doctorAction({
+				json: jsonMode,
+				fix: options.fix,
+				yes: options.yes,
+			});
 
 			if (!jsonMode) {
 				s.stop("Health check complete.");

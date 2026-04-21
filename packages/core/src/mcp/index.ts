@@ -12,7 +12,13 @@ import { buildClientRegistry, listClientIds } from "./clients";
 import type { ApplyResult, McpClientId, RunOptions } from "./types";
 
 export { buildClientRegistry, listClientIds } from "./clients";
-export type { ApplyResult, McpClientId, McpScope, RunOptions } from "./types";
+export type {
+	ApplyResult,
+	McpClientId,
+	McpClientInfo,
+	McpScope,
+	RunOptions,
+} from "./types";
 
 interface ResolvedClient {
 	id: McpClientId;
