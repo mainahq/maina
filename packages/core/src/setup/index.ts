@@ -74,12 +74,6 @@ export {
 	type SetupAIResult,
 	type SetupAISource,
 } from "./resolve-ai";
-// Skills deployment (Wave 3, G7 materialisation).
-export {
-	type DeploySkillsOptions,
-	type DeploySkillsReport,
-	deploySkills,
-} from "./skills-deploy";
 export {
 	type ScanReport,
 	scanGitLog,
@@ -87,6 +81,12 @@ export {
 	scanRepo,
 	scanTreeSitter,
 } from "./scan/index";
+// Skills deployment (Wave 3, G7 materialisation).
+export {
+	type DeploySkillsOptions,
+	type DeploySkillsReport,
+	deploySkills,
+} from "./skills-deploy";
 export {
 	buildGenericConstitutionFromInput,
 	renderFileLayoutSection,
