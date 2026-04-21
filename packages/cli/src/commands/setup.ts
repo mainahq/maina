@@ -831,6 +831,14 @@ export async function setupAction(
 		sp2.stop(`Constitution ready (${ai.source}).`);
 		constitutionText = ai.text;
 	}
+	// Enforce Wave 2 acceptance §6.2: every generated constitution — tailor,
+	// cloud, BYOK, degraded, host-fallback — MUST ship with the two required
+	// sections. Cloud returns raw LLM text that sometimes omits them; rather
+	// than retrying through tailor (expensive + requires a separate prompt
+	// contract with the gateway), we deterministically append any missing
+	// section from the shared renderer so file-layout discipline lands in
+	// every repo regardless of tier.
+	constitutionText = ensureRequiredSections(constitutionText, result.stack);
 
 	// ── Phase 3: scaffold ───────────────────────────────────────────────────
 	const sp3 = deps.spinner();
@@ -1324,6 +1332,31 @@ function writeDegradedLogEntry(
 	} catch {
 		// ignore — log is advisory
 	}
+}
+
+/**
+ * Post-process any constitution text to guarantee it contains both of the
+ * mandatory sections (Wave 2 §6.2). Idempotent — if a section is already
+ * present with its `## Heading` line, we leave it alone; otherwise we append
+ * the shared renderer output. Called after every tier's output (cloud, BYOK,
+ * host-fallback, degraded) so G3/G7 compliance isn't tier-dependent.
+ */
+function ensureRequiredSections(text: string, stack: StackContext): string {
+	const normalised = text.endsWith("\n") ? text : `${text}\n`;
+	const hasWorkflow = /^##\s+Maina Workflow\b/m.test(normalised);
+	const hasFileLayout = /^##\s+File Layout\b/m.test(normalised);
+	if (hasWorkflow && hasFileLayout) return normalised;
+	let out = normalised;
+	if (!hasWorkflow) {
+		out = `${out}\n${renderWorkflowSection()}\n`;
+	}
+	if (!hasFileLayout) {
+		out = `${out}\n${renderFileLayoutSection({
+			languages: stack.languages,
+			toplevelDirs: [],
+		})}\n`;
+	}
+	return out;
 }
 
 function buildHostFallbackConstitution(stack: StackContext): string {
