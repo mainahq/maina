@@ -465,6 +465,30 @@ export {
 	type SendOptions,
 	sendCliErrorReport,
 } from "./telemetry/cli-error-reporter";
+// PostHog send path (feat 054)
+export {
+	captureError,
+	captureUsage,
+	createPosthogClient,
+	flushTelemetry,
+	type PosthogClient,
+	type PosthogClientOptions,
+	type PosthogFactory,
+	type PosthogLike,
+} from "./telemetry/posthog-client";
+export {
+	buildErrorEvent,
+	type ErrorEvent,
+	type ErrorEventContext,
+	isErrorReportingEnabled,
+	reportError,
+} from "./telemetry/reporter";
+export {
+	buildUsageEvent,
+	isTelemetryEnabled,
+	type UsageEvent,
+	type UsageEventName,
+} from "./telemetry/usage";
 // Ticket
 export {
 	buildIssueBody,

@@ -4,6 +4,8 @@ import {
 	analyseFeedback,
 	analyseWorkflowFeedback,
 	analyseWorkflowRuns,
+	buildUsageEvent,
+	captureUsage,
 	createCandidate,
 	createCloudClient,
 	exportFeedbackForCloud,
@@ -13,6 +15,9 @@ import {
 	resolveABTests,
 } from "@mainahq/core";
 import { Command } from "commander";
+import packageJson from "../../package.json" with { type: "json" };
+
+const CLI_VERSION = (packageJson as { version?: string }).version ?? "0.0.0";
 
 const TASKS: PromptTask[] = [
 	"review",
@@ -42,6 +47,13 @@ export function learnCommand(): Command {
 
 			const repoRoot = process.cwd();
 			const mainaDir = join(repoRoot, ".maina");
+
+			// Emit early so the cohort event fires even on cloud-mode runs
+			// (which exit via `runCloudLearn` below). `captureUsage` no-ops
+			// when telemetry is off or the build-time key is absent.
+			captureUsage(
+				buildUsageEvent("maina.learn.ran", { cloud, interactive }, CLI_VERSION),
+			);
 
 			// ── Cloud mode ──────────────────────────────────────────────────
 			if (cloud) {
