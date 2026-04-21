@@ -112,6 +112,7 @@ export async function resolveSetupAI(
 	};
 
 	// ── 1. Host ────────────────────────────────────────────────────────────────
+	let hostFailed = false;
 	if (wantTier("host") && isHostMode()) {
 		attempted.push("host");
 		const hostResult = await runHostTier(opts, prompt);
@@ -141,6 +142,15 @@ export async function resolveSetupAI(
 				},
 			};
 		}
+		// Host was the preferred tier and returned null — record so we can
+		// surface `host_unavailable` instead of a downstream reason if nothing
+		// else succeeds. Per spec: a user inside Claude Code should see that
+		// host specifically failed, not a generic "ai_unavailable".
+		hostFailed = true;
+		degradedHint = {
+			reason: "host_unavailable",
+			reasonDetail: "host_returned_null",
+		};
 	}
 
 	// ── 2. Cloud (anonymous proxy) ─────────────────────────────────────────────
@@ -159,17 +169,26 @@ export async function resolveSetupAI(
 				},
 			};
 		}
-		// Capture rate-limit hints for the eventual degraded result
+		// Capture cloud-side hints. Rate-limit always wins (it has retry info).
+		// Generic cloud errors do not overwrite an earlier `host_unavailable`
+		// hint because host was the preferred tier — telling the user "cloud
+		// returned 500" when they are inside Claude Code hides the real story.
 		if (cloudResult.kind === "rate_limited") {
 			degradedHint = {
 				reason: "rate_limited",
 				reasonDetail: "http_429",
 				retryAt: cloudResult.retryAt,
 			};
-		} else {
+		} else if (!hostFailed) {
 			degradedHint = {
 				reason: "ai_unavailable",
 				reasonDetail: cloudResult.reason,
+			};
+		} else {
+			// Preserve host_unavailable reason, but append cloud error to detail
+			degradedHint = {
+				reason: "host_unavailable",
+				reasonDetail: `host_returned_null; cloud=${cloudResult.reason}`,
 			};
 		}
 	}

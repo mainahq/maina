@@ -32,6 +32,7 @@ import {
 	ALL_AGENTS,
 	anonymizeStack,
 	assembleStackContext,
+	degradedBanner,
 	deviceFingerprint,
 	isTelemetryOptedOut,
 	newSetupId,
@@ -800,7 +801,7 @@ export async function setupAction(
 	if (result.degraded) {
 		const reason: SetupDegradedReason = ai.metadata.reason ?? "ai_unavailable";
 		const recovery = recoveryCommand(reason);
-		deps.log.warning(`AI unavailable (${reason}) — offline template written.`);
+		deps.log.warning(degradedBanner(reason));
 		deps.log.info(`→ ${recovery}`);
 		writeDegradedLogEntry(cwd, {
 			reason,

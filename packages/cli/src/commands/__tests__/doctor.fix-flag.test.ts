@@ -111,6 +111,46 @@ describe("doctor --fix", () => {
 		}
 	});
 
+	test("--json --fix auto-approves (never blocks on confirm)", async () => {
+		const calls: string[] = [];
+		const execFn = async (cmd: string): Promise<{ exitCode: number }> => {
+			calls.push(cmd);
+			return { exitCode: 0 };
+		};
+		// confirm() is stubbed as `async () => true` in the module mock above,
+		// so we cannot detect a hanging call directly — instead, assert that
+		// execFn fires for every missing row. Without jsonMode→yes, the loop
+		// would still proceed (confirm returns true in the stub), so we also
+		// flip confirm to reject to prove jsonMode bypasses the prompt entirely.
+		mock.module("@clack/prompts", () => ({
+			intro: () => {},
+			outro: () => {},
+			log: {
+				info: () => {},
+				error: () => {},
+				warning: () => {},
+				success: () => {},
+				message: () => {},
+				step: () => {},
+			},
+			spinner: () => ({ start: () => {}, stop: () => {} }),
+			// If the code ever asks, it will be told "no" — but it must not ask.
+			confirm: async () => false,
+		}));
+		const result = await doctorAction({
+			cwd,
+			home,
+			fix: true,
+			json: true,
+			execFn,
+		});
+		const missing = result.mcpHealth.integrations?.filter(
+			(i) => i.scope === "missing",
+		);
+		expect(missing?.length ?? 0).toBeGreaterThan(0);
+		expect(calls.length).toBe(missing?.length ?? 0);
+	});
+
 	test("does not call execFn when --fix is absent", async () => {
 		let called = 0;
 		const execFn = async (_cmd: string): Promise<{ exitCode: number }> => {

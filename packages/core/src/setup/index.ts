@@ -27,7 +27,11 @@ export {
 	loadUniversalPrompt,
 	type UniversalPromptInputs,
 } from "./prompts";
-export { recoveryCommand, type SetupDegradedReason } from "./recovery";
+export {
+	degradedBanner,
+	recoveryCommand,
+	type SetupDegradedReason,
+} from "./recovery";
 export {
 	type ResolveAIOptions,
 	resolveSetupAI,

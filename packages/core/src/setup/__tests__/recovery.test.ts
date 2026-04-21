@@ -1,5 +1,39 @@
 import { describe, expect, test } from "bun:test";
-import { recoveryCommand, type SetupDegradedReason } from "../recovery";
+import {
+	degradedBanner,
+	recoveryCommand,
+	type SetupDegradedReason,
+} from "../recovery";
+
+const ALL_REASONS: SetupDegradedReason[] = [
+	"host_unavailable",
+	"rate_limited",
+	"byok_failed",
+	"no_key",
+	"ai_unavailable",
+	"forced",
+];
+
+describe("degradedBanner", () => {
+	test("every reason has a distinct banner", () => {
+		const banners = ALL_REASONS.map(degradedBanner);
+		expect(new Set(banners).size).toBe(ALL_REASONS.length);
+	});
+
+	test("no_key banner names the missing key, not generic 'AI unavailable'", () => {
+		const b = degradedBanner("no_key");
+		expect(b.toLowerCase()).toContain("api key");
+		expect(b.toLowerCase()).not.toContain("all ai tiers");
+	});
+
+	test("forced banner explicitly says 'forced'", () => {
+		expect(degradedBanner("forced").toLowerCase()).toContain("forced");
+	});
+
+	test("host_unavailable banner mentions host", () => {
+		expect(degradedBanner("host_unavailable").toLowerCase()).toContain("host");
+	});
+});
 
 describe("recoveryCommand", () => {
 	test("returns non-empty command for every reason", () => {

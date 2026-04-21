@@ -18,9 +18,9 @@ Files:
 Exit codes from `install.sh`:
 
 - `0` — `maina` on PATH.
-- `10` — Bun install step failed. Remediation: `curl -fsSL https://bun.sh/install | bash`.
-- `11` — `bun add -g @mainahq/cli` (or npm fallback) failed. Remediation: `npm install -g @mainahq/cli`.
-- `12` — Global install succeeded but PATH not refreshed. Remediation: print the shell-profile export line (`~/.zshrc`/`~/.bashrc`/fish config) for `~/.bun/bin`.
+- `10` — No package manager found (bun/npm/pnpm/yarn all missing). Remediation: `curl -fsSL https://bun.sh/install | bash`.
+- `11` — The package manager's global install command failed. Remediation: `npm install -g @mainahq/cli`.
+- `12` — Global install succeeded but PATH not refreshed. Remediation: print the shell-profile export line for the detected package manager's global bin directory.
 
 Contract: `install.sh` must never exit 0 if `command -v maina` is still empty. The existing fallback branch at lines 462–469 (silent pivot to `$runner @mainahq/cli`) goes away.
 

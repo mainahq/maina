@@ -141,6 +141,15 @@ describe("setupAction — degraded honesty", () => {
 		expect(joined.toLowerCase()).toContain("retry");
 	});
 
+	test("warning banner is tailored per reason, not hardcoded 'AI unavailable'", async () => {
+		const { deps, collected } = makeDepsWithCapture(fakeDegraded("no_key"));
+		await setupAction({ cwd: tmpDir, yes: true }, deps);
+		const warn = collected.warn.join("\n");
+		expect(warn.toLowerCase()).toContain("api key");
+		// The previous hardcoded banner said "AI unavailable (no_key)" — must be gone.
+		expect(warn).not.toContain("AI unavailable (no_key)");
+	});
+
 	test("non-degraded outcomes do not write setup.log", async () => {
 		const byok: SetupAIResult = {
 			source: "byok",

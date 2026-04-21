@@ -351,6 +351,7 @@ export {
 	anonymizeStack,
 	assembleStackContext,
 	contextHash,
+	degradedBanner,
 	deviceFingerprint,
 	extractManaged,
 	generateAgentsMd,

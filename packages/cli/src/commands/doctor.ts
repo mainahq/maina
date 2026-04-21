@@ -565,8 +565,13 @@ export async function doctorAction(
 
 	// ── Step 8: --fix flow (optional) ────────────────────────────────
 	if (options.fix) {
+		// jsonMode implies non-interactive: a CI caller passing --json --fix
+		// without --yes must not block on a terminal prompt. Auto-approve
+		// when json is set (they asked for machine-readable, they get
+		// machine-driven).
+		const yes = (options.yes ?? false) || jsonMode;
 		await runFixFlow(mcpHealth, {
-			yes: options.yes ?? false,
+			yes,
 			execFn: options.execFn ?? defaultExec,
 			jsonMode,
 		});

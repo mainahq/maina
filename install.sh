@@ -437,24 +437,44 @@ install_maina() {
   esac
 }
 
-# Emits the shell-profile hint for the user to add `~/.bun/bin` (or equivalent)
-# to PATH. Picks the user's shell profile heuristically.
+# Emits the shell-profile hint for the user to add the package-manager's
+# global bin directory to PATH. Shell profile and bin directory both depend
+# on what the user has — a pure-npm user does not have ~/.bun/bin.
 path_hint() {
+  local pkg_mgr="$1"
   local shell_name="${SHELL##*/}"
   local profile
   case "$shell_name" in
-    zsh)  profile="~/.zshrc" ;;
-    bash) profile="~/.bashrc" ;;
-    fish) profile="~/.config/fish/config.fish" ;;
+    zsh)  profile="\$HOME/.zshrc" ;;
+    bash) profile="\$HOME/.bashrc" ;;
+    fish) profile="\$HOME/.config/fish/config.fish" ;;
     *)    profile="your shell profile" ;;
   esac
   warn "maina was installed globally but is not on PATH in this shell."
-  info "  Add this line to $profile and open a new shell:"
-  if [ "$shell_name" = "fish" ]; then
-    dim "    fish_add_path \$HOME/.bun/bin"
-  else
-    dim "    export PATH=\"\$HOME/.bun/bin:\$PATH\""
-  fi
+  info "  Add the $pkg_mgr global bin directory to PATH in $profile, then open a new shell."
+  case "$pkg_mgr" in
+    bun)
+      if [ "$shell_name" = "fish" ]; then
+        dim "    fish_add_path \$HOME/.bun/bin"
+      else
+        dim "    export PATH=\"\$HOME/.bun/bin:\$PATH\""
+      fi
+      ;;
+    pnpm)
+      dim "    # Run \`pnpm bin -g\` to see the directory, then add it to PATH"
+      dim "    export PATH=\"\$(pnpm bin -g):\$PATH\""
+      ;;
+    yarn)
+      dim "    export PATH=\"\$(yarn global bin):\$PATH\""
+      ;;
+    npm)
+      dim "    # Run \`npm bin -g\` to see the directory, then add it to PATH"
+      dim "    export PATH=\"\$(npm prefix -g)/bin:\$PATH\""
+      ;;
+    *)
+      dim "    # Add your package manager's global bin directory to PATH"
+      ;;
+  esac
 }
 
 # ─── Main ─────────────────────────────────────────────────────────────────
@@ -497,7 +517,7 @@ main() {
   # The user must resolve the PATH hint or re-run with an alternative package
   # manager.
   if ! command -v maina &>/dev/null; then
-    path_hint
+    path_hint "$pkg_mgr"
     error "Aborting: global install completed but 'maina' is not on PATH."
     exit 12
   fi

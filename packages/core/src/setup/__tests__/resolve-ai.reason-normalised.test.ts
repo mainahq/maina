@@ -165,6 +165,62 @@ describe("resolveSetupAI — normalised degraded reason", () => {
 		}
 	});
 
+	test("host tier attempted and returns null → reason=host_unavailable", async () => {
+		process.env.MAINA_HOST_MODE = "true";
+		const cwd = tmp();
+		try {
+			const result = await resolveSetupAI({
+				cwd,
+				stack: STACK,
+				repoSummary: SUMMARY,
+				fingerprint: FP,
+				hostGenerate: async () => ({
+					text: null,
+					fromAI: false,
+					hostDelegation: false,
+				}),
+				fetchImpl: (async () =>
+					new Response("", { status: 500 })) as unknown as typeof fetch,
+			});
+			expect(result.source).toBe("degraded");
+			if (result.source !== "degraded") return;
+			expect(result.metadata.reason).toBe("host_unavailable");
+			expect(result.metadata.reasonDetail ?? "").toContain(
+				"host_returned_null",
+			);
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+		}
+	});
+
+	test("host fails but cloud 429 wins (retry info > host signal)", async () => {
+		process.env.MAINA_HOST_MODE = "true";
+		const cwd = tmp();
+		try {
+			const result = await resolveSetupAI({
+				cwd,
+				stack: STACK,
+				repoSummary: SUMMARY,
+				fingerprint: FP,
+				hostGenerate: async () => ({
+					text: null,
+					fromAI: false,
+					hostDelegation: false,
+				}),
+				fetchImpl: (async () =>
+					new Response(
+						JSON.stringify({ meta: { retryAt: "2026-04-22T00:00:00Z" } }),
+						{ status: 429, headers: { "Content-Type": "application/json" } },
+					)) as unknown as typeof fetch,
+			});
+			expect(result.source).toBe("degraded");
+			if (result.source !== "degraded") return;
+			expect(result.metadata.reason).toBe("rate_limited");
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+		}
+	});
+
 	test("forceSource=degraded → reason=forced", async () => {
 		const cwd = tmp();
 		try {
