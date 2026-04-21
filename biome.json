@@ -37,7 +37,7 @@
 			"!packages/docs/dist",
 			"!.claude/worktrees",
 			"!examples/**/.cursor",
-			"!prototypes"
+			"!prototypes/**"
 		]
 	},
 	"overrides": [
