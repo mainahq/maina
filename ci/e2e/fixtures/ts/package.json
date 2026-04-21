@@ -1,0 +1,9 @@
+{
+  "name": "e2e-ts-fixture",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "echo 'ok'"
+  }
+}

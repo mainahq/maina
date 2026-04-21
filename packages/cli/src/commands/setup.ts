@@ -985,6 +985,14 @@ export async function setupAction(
 	result.wikiPages = wikiSeedResult.pages;
 	result.wikiBackgrounded = wikiSeedResult.backgrounded;
 	result.wikiSkipped = wikiSeedResult.skipped;
+
+	// Wave 4 / G9: if the foreground race abandoned the compile, re-spawn
+	// it as a detached `maina wiki init --background --depth quick` so the
+	// work survives `setup` exiting. The parent process is about to return
+	// and its in-process promise would otherwise be torn down.
+	if (result.wikiBackgrounded) {
+		kickOffBackgroundWiki(cwd);
+	}
 	emitter.phase({
 		phase: "wiki",
 		status:
@@ -1204,6 +1212,39 @@ function emitSummary(log: SetupLogger, r: SetupResult): void {
 	}
 	log.message("");
 	log.info("Sign in with `maina login` for daily audits + higher limits.");
+}
+
+/**
+ * Wave 4 / G9: fire-and-forget spawn of `maina wiki init --background
+ * --depth quick` so an abandoned foreground compile continues past the
+ * end of `setup`. Best-effort: any spawn failure is swallowed (we do
+ * not want to fail setup because a post-hook background nudge failed).
+ */
+function kickOffBackgroundWiki(cwd: string): void {
+	try {
+		const proc = Bun.spawn(
+			[
+				"bun",
+				"run",
+				"maina",
+				"wiki",
+				"init",
+				"--background",
+				"--depth",
+				"quick",
+				"--json",
+			],
+			{
+				cwd,
+				stdout: "ignore",
+				stderr: "ignore",
+				stdin: "ignore",
+			},
+		);
+		proc.unref?.();
+	} catch {
+		// Best-effort — background compile is a nicety, not a requirement.
+	}
 }
 
 function describeWiki(r: SetupResult): string {

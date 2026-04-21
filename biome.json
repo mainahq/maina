@@ -38,5 +38,17 @@
 			"!.claude/worktrees",
 			"!examples/**/.cursor"
 		]
-	}
+	},
+	"overrides": [
+		{
+			"includes": ["scripts/**/*.ts", "ci/e2e/**/*.ts"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noConsole": "off"
+					}
+				}
+			}
+		}
+	]
 }

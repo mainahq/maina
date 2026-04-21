@@ -130,9 +130,9 @@ Maina runs inside any AI coding tool via MCP and cross-platform skills:
 }
 ```
 
-10 MCP tools: `getContext`, `getConventions`, `verify`, `checkSlop`, `reviewCode`, `explainModule`, `suggestTests`, `analyzeFeature`, `wikiQuery`, `wikiStatus`.
+MCP tools include `getContext`, `getConventions`, `verify`, `checkSlop`, `reviewCode`, `explainModule`, `suggestTests`, `analyzeFeature`, `wikiQuery`, `wikiStatus`. Run `bun run docs:manifest` for the live tool + skill inventory.
 
-8 cross-platform skills that work even without the CLI installed.
+Cross-platform skills work even without the CLI installed.
 
 | Tool | MCP | Instructions | Setup |
 |------|-----|-------------|-------|
@@ -176,7 +176,10 @@ Validator library benchmark (95 hidden edge-case tests):
 
 Maina's 16-tool pipeline caught issues that ad-hoc implementation missed.
 
-## 24 Commands
+## Commands
+
+<!-- docs-manifest: ignore -->
+Live count and names come from `bun run docs:manifest`. The groupings below are for readability only — do not hand-type counts.
 
 ### Define
 `setup`, `setup --update`, `setup --reset`, `init`, `ticket`, `context`, `explain`, `design`, `review-design`

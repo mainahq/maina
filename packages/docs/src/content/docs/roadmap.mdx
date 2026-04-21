@@ -21,6 +21,7 @@ Maina is open source (Apache 2.0) and actively developed. The latest release is 
 - **Verification proof** — `maina pr` includes verification artifacts in the PR body
 - **`maina configure`** — interactive constitution, conventions, tools, visual URLs
 - **`maina init --install`** — auto-install missing verification tools + auto-configure Biome
+{/* docs-manifest: ignore */}
 - **`--json` flag** on 8 commands (`analyze`, `commit`, `context`, `doctor`, `review`, `slop`, `stats`, `verify`)
 - **Exit codes** — 0 (passed), 1 (findings), 2 (tool failure), 3 (config error)
 - **`--auto` flags** on `maina spec` and `maina design`
@@ -43,6 +44,7 @@ Maina is open source (Apache 2.0) and actively developed. The latest release is 
 Largest release on record: 50 issues shipped across six milestones.
 
 - **Init & Wiki** — CI workflow uses real package.json script names and `maina verify`; constitution architecture enriched for monorepos; wiki reads descriptions from `package.json`; MCP `getContext` capped at 50K chars; MCP responses standardised on `{ data, error, meta }`; secret checker skips test fixtures.
+{/* docs-manifest: ignore */}
 - **Onboarding** — `/quickstart` page (3 commands, under 60s), MCP install badges on the hero, build-time stats generator, 5 cookbook pages, 4 blog posts.
 - **Constitution rebuild (derived, not authored)** — import adapters for existing rule files, git-log + CI analyzer, lint-config + manifest parsers, pattern sampler, glob-scoped rules via `constitution.d/*.md`, interview gap-filler with rejected-rules persistence.
 - **PR comment v2** — sticky root-comment writer, GitHub Checks API integration, slash command parser (`/maina retry|explain|approve`).

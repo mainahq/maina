@@ -19,7 +19,11 @@
     "changeset": "changeset",
     "version": "changeset version",
     "release": "bun run build && changeset publish",
-    "knip": "knip"
+    "knip": "knip",
+    "check:paths": "bun scripts/check-paths.ts",
+    "docs:manifest": "bun scripts/docs-manifest.ts",
+    "docs:check": "bun scripts/docs-manifest.ts --check",
+    "e2e:onboarding": "bun ci/e2e/run-local.ts ts claude-code"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.12",
