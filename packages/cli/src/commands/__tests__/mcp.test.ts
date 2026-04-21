@@ -31,41 +31,55 @@ afterEach(() => {
 // ── parseClientList ────────────────────────────────────────────────────────
 
 describe("parseClientList", () => {
-	test("returns undefined when no value passed (auto-detect)", () => {
-		expect(parseClientList(undefined)).toBeUndefined();
-		expect(parseClientList("")).toBeUndefined();
+	test("ok(undefined) when no value passed (auto-detect)", () => {
+		const r1 = parseClientList(undefined);
+		expect(r1.ok).toBe(true);
+		if (r1.ok) expect(r1.value).toBeUndefined();
+		const r2 = parseClientList("");
+		expect(r2.ok).toBe(true);
+		if (r2.ok) expect(r2.value).toBeUndefined();
 	});
 
 	test("splits on commas, trims, lowercases", () => {
-		expect(parseClientList("Claude, Cursor, Windsurf")).toEqual([
-			"claude",
-			"cursor",
-			"windsurf",
-		]);
+		const r = parseClientList("Claude, Cursor, Windsurf");
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value).toEqual(["claude", "cursor", "windsurf"]);
 	});
 
-	test("throws on unknown client with helpful list", () => {
-		expect(() => parseClientList("claude,nope")).toThrow(
-			/Unknown client: nope/,
-		);
+	test("err on unknown client with helpful list", () => {
+		const r = parseClientList("claude,nope");
+		expect(r.ok).toBe(false);
+		if (!r.ok) expect(r.error).toMatch(/Unknown client: nope/);
 	});
 
-	test("returns undefined for empty list after trimming", () => {
-		expect(parseClientList(", ,")).toBeUndefined();
+	test("ok(undefined) for empty list after trimming", () => {
+		const r = parseClientList(", ,");
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value).toBeUndefined();
 	});
 });
 
 describe("parseScope", () => {
 	test("defaults to global when undefined", () => {
-		expect(parseScope(undefined)).toBe("global");
+		const r = parseScope(undefined);
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value).toBe("global");
 	});
 	test("accepts global / project / both case-insensitive", () => {
-		expect(parseScope("GLOBAL")).toBe("global");
-		expect(parseScope("project")).toBe("project");
-		expect(parseScope("Both")).toBe("both");
+		for (const [input, expected] of [
+			["GLOBAL", "global"],
+			["project", "project"],
+			["Both", "both"],
+		] as const) {
+			const r = parseScope(input);
+			expect(r.ok).toBe(true);
+			if (r.ok) expect(r.value).toBe(expected);
+		}
 	});
-	test("throws on unknown scope", () => {
-		expect(() => parseScope("user")).toThrow(/Unknown scope/);
+	test("err on unknown scope", () => {
+		const r = parseScope("user");
+		expect(r.ok).toBe(false);
+		if (!r.ok) expect(r.error).toMatch(/Unknown scope/);
 	});
 });
 
