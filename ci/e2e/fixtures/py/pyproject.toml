@@ -1,0 +1,8 @@
+[project]
+name = "e2e-py-fixture"
+version = "0.0.1"
+description = "Minimal Python project for maina setup E2E."
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 100

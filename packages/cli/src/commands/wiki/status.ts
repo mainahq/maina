@@ -2,7 +2,9 @@
  * `maina wiki status` — quick health dashboard for the wiki.
  *
  * Shows initialization state, article counts by type, coverage,
- * stale article count, and last compilation timestamp.
+ * stale article count, last compilation timestamp, and — when a
+ * `wiki init --background` compile is in flight — a progress line
+ * with percent complete + ETA (Wave 4 / G9).
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -14,6 +16,19 @@ import { EXIT_PASSED, outputJson } from "../../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+export interface WikiProgress {
+	startedAt: string;
+	percent: number;
+	etaSeconds: number;
+	stage: string;
+	/**
+	 * True when the progress record has not been updated in more than
+	 * STALE_THRESHOLD_MS. Surfaced so UIs can render a "stalled" hint
+	 * rather than a live spinner for a dead background compile.
+	 */
+	stale: boolean;
+}
+
 export interface WikiStatusResult {
 	initialized: boolean;
 	articlesByType: Record<string, number>;
@@ -21,6 +36,7 @@ export interface WikiStatusResult {
 	coveragePercent: number;
 	staleCount: number;
 	lastCompile: string;
+	progress: WikiProgress | null;
 }
 
 export interface WikiStatusOptions {
@@ -28,7 +44,7 @@ export interface WikiStatusOptions {
 	cwd?: string;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Constants ───────────────────────────────────────────────────────────────
 
 const ARTICLE_TYPES = [
 	"modules",
@@ -38,6 +54,59 @@ const ARTICLE_TYPES = [
 	"architecture",
 	"raw",
 ];
+
+/** A progress file older than 10 minutes is considered stalled. */
+const STALE_THRESHOLD_MS = 10 * 60 * 1000;
+
+// ── Progress loading ────────────────────────────────────────────────────────
+
+/**
+ * Read `.maina/wiki/.progress.json` if it exists.
+ *
+ * Returns `null` when the file is missing, unparseable, or the run has
+ * already completed (`percent === 100`). A non-null result means a
+ * background compile is either still running or stalled — caller
+ * inspects `stale` to tell the two apart.
+ */
+function loadProgress(wikiDir: string): WikiProgress | null {
+	const path = join(wikiDir, ".progress.json");
+	if (!existsSync(path)) return null;
+	let raw: string;
+	try {
+		raw = readFileSync(path, "utf-8");
+	} catch {
+		return null;
+	}
+	let parsed: {
+		startedAt?: unknown;
+		percent?: unknown;
+		etaSeconds?: unknown;
+		stage?: unknown;
+	};
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return null;
+	}
+
+	const startedAt =
+		typeof parsed.startedAt === "string" ? parsed.startedAt : null;
+	const percent = typeof parsed.percent === "number" ? parsed.percent : null;
+	if (startedAt === null || percent === null) return null;
+	if (percent >= 100) return null;
+
+	const etaSeconds =
+		typeof parsed.etaSeconds === "number" ? parsed.etaSeconds : 0;
+	const stage = typeof parsed.stage === "string" ? parsed.stage : "compiling";
+
+	const startedMs = Date.parse(startedAt);
+	const stale =
+		Number.isFinite(startedMs) && Date.now() - startedMs > STALE_THRESHOLD_MS;
+
+	return { startedAt, percent, etaSeconds, stage, stale };
+}
+
+// ── Stale-article accounting ────────────────────────────────────────────────
 
 /**
  * Count stale articles — articles whose on-disk markdown has drifted from the
@@ -97,6 +166,7 @@ export async function wikiStatusAction(
 			coveragePercent: 0,
 			staleCount: 0,
 			lastCompile: "",
+			progress: null,
 		};
 	}
 
@@ -135,6 +205,9 @@ export async function wikiStatusAction(
 			? Math.round((articleHashCount / fileHashCount) * 100)
 			: 0;
 
+	// Background-compile progress (G9)
+	const progress = loadProgress(wikiDir);
+
 	return {
 		initialized: true,
 		articlesByType,
@@ -142,10 +215,25 @@ export async function wikiStatusAction(
 		coveragePercent: Math.min(coveragePercent, 100),
 		staleCount,
 		lastCompile,
+		progress,
 	};
 }
 
 // ── Formatting ──────────────────────────────────────────────────────────────
+
+/**
+ * Render a one-line summary of an in-flight background compile. Exported
+ * so both the CLI renderer and the tests can share the exact formatting
+ * rules.
+ */
+export function formatProgressLine(progress: WikiProgress): string {
+	if (progress.stale) {
+		return `  Compile stalled — ${progress.percent}% at '${progress.stage}' (no update in 10+ min). Re-run \`maina wiki init\`.`;
+	}
+	const eta = progress.etaSeconds > 0 ? `ETA ${progress.etaSeconds}s` : "";
+	const tail = eta !== "" ? ` (${eta})` : "";
+	return `  Compiling… ${progress.percent}% — ${progress.stage}${tail}`;
+}
 
 function formatStatusTable(result: WikiStatusResult): string {
 	const lines: string[] = [];
@@ -153,6 +241,11 @@ function formatStatusTable(result: WikiStatusResult): string {
 	if (!result.initialized) {
 		lines.push("  Wiki not initialized. Run `maina wiki init` to get started.");
 		return lines.join("\n");
+	}
+
+	if (result.progress !== null) {
+		lines.push(formatProgressLine(result.progress));
+		lines.push("");
 	}
 
 	lines.push(`  ${"Type".padEnd(16)} Count`);

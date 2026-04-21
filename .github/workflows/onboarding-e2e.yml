@@ -1,0 +1,187 @@
+name: Onboarding E2E
+
+# Wave 4 / §6.11 — run `install.sh` → `maina setup --yes --ci` →
+# MCP simulate-agent on a 4×2 (lang × ide) matrix to prove onboarding
+# still lands in <60s on a fresh Docker image.
+#
+# Only Claude Code + TypeScript is must-pass. The other seven cells
+# are informational (`continue-on-error: true`) so a flake on e.g.
+# rust-on-alpine does not block merges.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 9 * * *" # 09:00 UTC daily
+  pull_request:
+    paths:
+      - "install.sh"
+      - "packages/cli/src/commands/setup.ts"
+      - "packages/cli/src/commands/doctor.ts"
+      - "packages/cli/src/commands/wiki/**"
+      - "packages/cli/src/commands/context.ts"
+      - "packages/cli/src/program.ts"
+      - "packages/core/src/setup/**"
+      - "packages/core/src/bootstrap/**"
+      - "ci/e2e/**"
+      - ".github/workflows/onboarding-e2e.yml"
+
+jobs:
+  must-pass:
+    name: must-pass / claude-code + ts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build CLI
+        run: bun run --filter '@mainahq/cli' build
+
+      - name: Link maina CLI
+        run: |
+          cd packages/cli
+          bun link
+
+      - name: Run must-pass E2E (TypeScript + Claude Code)
+        id: e2e
+        env:
+          CI: "true"
+        run: |
+          bun ci/e2e/run-local.ts ts claude-code | tee e2e.log
+          dur=$(grep -oE 'elapsed=[0-9]+' e2e.log | head -1 | cut -d= -f2)
+          echo "duration_ms=${dur:-0}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload e2e log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-must-pass-log
+          path: e2e.log
+
+  matrix:
+    name: ${{ matrix.ide }} + ${{ matrix.lang }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: must-pass
+    # Other cells are informational — do not block merges on flakes.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        ide: [claude-code, cursor]
+        lang: [ts, py, go, rust]
+        exclude:
+          # Must-pass cell runs in the job above; skip here.
+          - ide: claude-code
+            lang: ts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build CLI
+        run: bun run --filter '@mainahq/cli' build
+
+      - name: Link maina CLI
+        run: |
+          cd packages/cli
+          bun link
+
+      - name: Set up language toolchain (py)
+        if: matrix.lang == 'py'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up language toolchain (go)
+        if: matrix.lang == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Set up language toolchain (rust)
+        if: matrix.lang == 'rust'
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Run E2E cell
+        id: e2e
+        env:
+          CI: "true"
+        run: |
+          bun ci/e2e/run-local.ts ${{ matrix.lang }} ${{ matrix.ide }} | tee e2e.log
+          dur=$(grep -oE 'elapsed=[0-9]+' e2e.log | head -1 | cut -d= -f2)
+          echo "duration_ms=${dur:-0}" >> "$GITHUB_OUTPUT"
+          echo "ide=${{ matrix.ide }}" >> "$GITHUB_OUTPUT"
+          echo "lang=${{ matrix.lang }}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload e2e log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.ide }}-${{ matrix.lang }}-log
+          path: e2e.log
+
+  latency:
+    name: Aggregate latency
+    runs-on: ubuntu-latest
+    needs: [must-pass, matrix]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Download all e2e logs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: e2e-*-log
+          path: e2e-logs
+          merge-multiple: false
+
+      - name: Emit docs/e2e-latency.json
+        run: |
+          mkdir -p docs
+          bun -e '
+          import { readdirSync, readFileSync, writeFileSync, statSync } from "node:fs";
+          import { join } from "node:path";
+          const root = "e2e-logs";
+          const entries: Array<{cell: string; durationMs: number}> = [];
+          try {
+            for (const name of readdirSync(root)) {
+              const full = join(root, name);
+              try {
+                if (!statSync(full).isDirectory()) continue;
+              } catch { continue; }
+              const log = join(full, "e2e.log");
+              let body = "";
+              try { body = readFileSync(log, "utf-8"); } catch { continue; }
+              const m = body.match(/elapsed=(\d+)/);
+              if (!m) continue;
+              entries.push({ cell: name, durationMs: Number.parseInt(m[1], 10) });
+            }
+          } catch {}
+          const out = { generatedAt: new Date().toISOString(), cells: entries };
+          writeFileSync("docs/e2e-latency.json", JSON.stringify(out, null, 2));
+          console.log(`Wrote ${entries.length} cell(s) to docs/e2e-latency.json`);
+          '
+
+      - name: Upload latency artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-latency
+          path: docs/e2e-latency.json

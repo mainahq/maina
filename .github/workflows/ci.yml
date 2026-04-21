@@ -25,5 +25,11 @@ jobs:
       - name: Type check
         run: bun run typecheck
 
+      - name: Path hygiene (Wave 4 G13 regression guard)
+        run: bun run check:paths
+
+      - name: Docs manifest (Wave 4 G11 hand-typed count guard)
+        run: bun run docs:check
+
       - name: Test
         run: bun run test

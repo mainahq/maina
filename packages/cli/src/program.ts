@@ -103,19 +103,35 @@ Setup & Config:
 	program.addCommand(mcpCommand());
 
 	// ── Internals ───────────────────────────────────────────────────────
-	program.addCommand(analyzeCommand());
-	program.addCommand(benchmarkCommand());
-	program.addCommand(cacheCommand());
-	program.addCommand(contextCommand());
-	program.addCommand(explainCommand());
-	program.addCommand(feedbackCommand());
-	program.addCommand(learnCommand());
-	program.addCommand(promptCommand());
-	program.addCommand(statsCommand());
-	program.addCommand(statusCommand());
-	program.addCommand(syncCommand());
-	program.addCommand(teamCommand());
-	program.addCommand(visualCommand());
+	//
+	// Wave 4 / G11: these commands are plumbing that the majority of users
+	// never type. They stay **registered** (so existing scripts keep
+	// working and muscle memory is not broken) but are `.hidden()` from
+	// the top-level `maina --help` listing so first-time users see a
+	// short, curated command surface. Call them by name to use them.
+	const internals = [
+		analyzeCommand(),
+		benchmarkCommand(),
+		cacheCommand(),
+		contextCommand(),
+		explainCommand(),
+		feedbackCommand(),
+		learnCommand(),
+		promptCommand(),
+		statsCommand(),
+		statusCommand(),
+		syncCommand(),
+		teamCommand(),
+		visualCommand(),
+	];
+	for (const cmd of internals) {
+		// Commander does not expose a public `.hidden()` method but respects
+		// the internal `_hidden` flag when rendering `helpInformation()`.
+		// Setting it keeps the command callable while removing it from the
+		// top-level help listing — exactly what G11 asks for.
+		(cmd as unknown as { _hidden: boolean })._hidden = true;
+		program.addCommand(cmd);
+	}
 
 	return program;
 }
