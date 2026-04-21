@@ -176,6 +176,19 @@ export async function cloudVerifyAction(
 	const cwd = options.cwd ?? process.cwd();
 	const baseBranch = options.base ?? "main";
 	const sleepFn = deps?.sleepFn ?? ((ms: number) => Bun.sleep(ms));
+	const startedAt = Date.now();
+
+	// Cloud-path telemetry — `verifyAction` has its own started/completed
+	// captures but the Commander action dispatches cloud runs to this
+	// function directly, so we emit here too. Consent-gated inside
+	// `captureUsage`.
+	captureUsage(
+		buildUsageEvent(
+			"maina.verify.started",
+			{ cloud: true, deep: false, visual: false, all: false },
+			CLI_VERSION,
+		),
+	);
 
 	// ── Step 1: Auth ──────────────────────────────────────────────────────
 	let client: CloudClient;
@@ -302,6 +315,19 @@ export async function cloudVerifyAction(
 		wfMainaDir,
 		"verify",
 		`Cloud pipeline ${verifyResult.passed ? "passed" : "failed"}: ${verifyResult.findings.length} findings, ${verifyResult.durationMs}ms.`,
+	);
+
+	captureUsage(
+		buildUsageEvent(
+			"maina.verify.completed",
+			{
+				cloud: true,
+				passed: verifyResult.passed,
+				findings: verifyResult.findings.length,
+				durationMs: Date.now() - startedAt,
+			},
+			CLI_VERSION,
+		),
 	);
 
 	return {

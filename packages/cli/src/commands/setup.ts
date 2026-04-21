@@ -1070,23 +1070,28 @@ export async function setupAction(
 	});
 	// Consent-gated PostHog usage event. `captureUsage` is a no-op when
 	// `telemetry: true` isn't set or the build-time key is absent, so this
-	// is always safe to call.
-	captureUsage(
-		buildUsageEvent(
-			result.bailed ? "maina.install" : "maina.install",
-			{
-				mode: result.mode,
-				aiSource: result.aiSource,
-				degraded: result.degraded,
-				tailored: result.aiSource !== "degraded" && result.aiSource !== "host",
-				durationMs: result.durationMs,
-				bailed: result.bailed,
-				bailReason: result.bailReason ?? "",
-				agentFiles: result.agentFilesWritten.length,
-			},
-			CLI_VERSION,
-		),
-	);
+	// is always safe to call — but we also honour the command-level
+	// `--no-telemetry` flag here, because a user who explicitly opted out
+	// of the setup-specific beacon should not silently still feed PostHog.
+	if (options.telemetry !== false) {
+		captureUsage(
+			buildUsageEvent(
+				"maina.install",
+				{
+					mode: result.mode,
+					aiSource: result.aiSource,
+					degraded: result.degraded,
+					tailored:
+						result.aiSource !== "degraded" && result.aiSource !== "host",
+					durationMs: result.durationMs,
+					bailed: result.bailed,
+					bailReason: result.bailReason ?? "",
+					agentFiles: result.agentFilesWritten.length,
+				},
+				CLI_VERSION,
+			),
+		);
+	}
 	return result;
 }
 

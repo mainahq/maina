@@ -221,6 +221,11 @@ async function loadRealSdk(apiKey: string): Promise<PosthogLike | null> {
  * `PosthogLike` contract stays synchronous-construction. The first capture
  * after construction fires the dynamic import; subsequent captures go
  * straight through once the real SDK resolves.
+ *
+ * Shutdown must drain any in-flight captures queued on the `ready` promise —
+ * otherwise events fired just before `flushTelemetry` races can be dropped
+ * (CodeRabbit 2026-04-22). We collect the queued-capture promises and await
+ * them alongside the real SDK's shutdown.
  */
 function defaultFactory(apiKey: string): PosthogLike {
 	const pending: Promise<PosthogLike | null> = loadRealSdk(apiKey);
@@ -228,22 +233,26 @@ function defaultFactory(apiKey: string): PosthogLike {
 	const ready = pending.then((s) => {
 		real = s;
 	});
+	const queued: Promise<unknown>[] = [];
 	return {
 		capture(input) {
 			if (real) {
 				real.capture(input);
 				return;
 			}
-			void ready.then(() => real?.capture(input));
+			queued.push(ready.then(() => real?.capture(input)));
 		},
 		captureException(input) {
 			if (real) {
 				real.captureException(input);
 				return;
 			}
-			void ready.then(() => real?.captureException(input));
+			queued.push(ready.then(() => real?.captureException(input)));
 		},
 		async shutdown() {
+			// Drain queued pre-import captures first so their `.capture()`
+			// calls land on the SDK before we tear it down.
+			await Promise.allSettled(queued);
 			const s = await pending;
 			if (s) await s.shutdown();
 		},

@@ -36,13 +36,21 @@ Binary + test-enforced. Each maps to a test ID in `plan.md` §3.
 
 ## Scope
 
-### In Scope
+### In Scope (THIS PR)
 
-- New `posthog-client.ts` with: consent gate, lazy SDK import, build-time key injection point, `captureUsage` / `captureError` / `flush`.
-- Call sites for all 8 enumerated events: install, verify.started, verify.completed, learn.ran, commit, plan, wiki.init, wiki.query.
-- CLI exit handler drain via `program.ts`.
-- Wire `captureError()` into the existing CLI error-reporter path.
-- Tests per §Success Criteria.
+- New `posthog-client.ts` with: consent gate, lazy SDK import, build-time key injection point, `captureUsage` / `captureError` / `flush`, queued-capture drain on shutdown.
+- Call sites wired for **3 of 8** enumerated events in this PR — the highest-value commands:
+  - `maina setup` → `maina.install` (honours `--no-telemetry` command-level flag)
+  - `maina verify` → `maina.verify.started` + `maina.verify.completed` (both local and `--cloud` paths)
+  - `maina learn` → `maina.learn.ran`
+- CLI exit handler drain via `program.ts` — `postAction` hook + belt-and-braces `beforeExit`/`SIGINT`/`SIGTERM` so commands that call `process.exit()` directly also drain.
+- Tests for the client: consent off, consent on + no key, consent on + key set, errors-consent independence, SDK construction error, flush budget.
+
+### Deferred (follow-up PRs)
+
+- Remaining 5 call sites: `maina.commit`, `maina.plan`, `maina.wiki.init`, `maina.wiki.query`. Each is ~5 lines + a small test; kept out of this PR to keep the review surface reasonable.
+- Wiring `captureError()` into the existing CLI error-reporter path. Currently the builder is exported but the CLI crash path still routes to the legacy `cli-error-reporter` only.
+- `posthog-node` as a hard dep of `@mainahq/core`. Currently dynamic-imported without the package listed, so OSS forks building without the dep get a no-op. Adding the dep to package.json is what actually lets real captures fire in prod.
 
 ### Out of Scope
 
