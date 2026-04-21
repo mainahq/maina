@@ -14,6 +14,11 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import {
+	COMMIT_PROMPT_TEMPLATE,
+	REVIEW_PROMPT_TEMPLATE,
+	scaffold,
+} from "../bootstrap/scaffold";
 import type { Result } from "../db/index";
 import type { DetectedTool } from "../verify/detect";
 import { detectTools } from "../verify/detect";
@@ -1182,23 +1187,9 @@ ${summary}`,
 	return null;
 }
 
-const REVIEW_PROMPT_TEMPLATE = `# Review Prompt
-
-Review the following code changes for:
-1. Correctness — does the code do what it claims?
-2. Style — does it follow project conventions?
-3. Safety — are there security or performance concerns?
-4. Tests — are changes adequately tested?
-`;
-
-const COMMIT_PROMPT_TEMPLATE = `# Commit Message Prompt
-
-Generate a conventional commit message for the staged changes.
-
-Format: <type>(<scope>): <description>
-
-Types: feat, fix, refactor, test, docs, chore, ci, perf
-`;
+// Shared prompt templates live in `bootstrap/scaffold` — the single source
+// of truth used by both `init` and `setup`. Imported at the top of this
+// file so the review/commit scaffolds stay in lockstep across commands.
 
 function buildCiWorkflow(stack: DetectedStack): string {
 	const isBun = stack.runtime === "bun";
@@ -1269,18 +1260,18 @@ function getFileManifest(
 	stack: DetectedStack,
 	constitutionOverride?: string,
 ): FileEntry[] {
+	// `.maina/prompts/{review,commit}.md` are written by the shared
+	// `bootstrap/scaffold` step before this manifest runs — see the
+	// `bootstrap()` body. They are intentionally omitted here so both
+	// `init` and `setup` stay in lockstep (no drift).
+	//
+	// Unused in this function body but imported to make the dep explicit:
+	void REVIEW_PROMPT_TEMPLATE;
+	void COMMIT_PROMPT_TEMPLATE;
 	return [
 		{
 			relativePath: ".maina/constitution.md",
 			content: constitutionOverride ?? buildConstitution(stack),
-		},
-		{
-			relativePath: ".maina/prompts/review.md",
-			content: REVIEW_PROMPT_TEMPLATE,
-		},
-		{
-			relativePath: ".maina/prompts/commit.md",
-			content: COMMIT_PROMPT_TEMPLATE,
 		},
 		{
 			relativePath: "AGENTS.md",
@@ -1416,10 +1407,27 @@ export async function bootstrap(
 		// Detect available verification tools on PATH (filtered by project languages)
 		const detectedToolsList = await detectTools(detectedStack.languages);
 
-		// Ensure .maina/ exists
-		mkdirSync(mainaDir, { recursive: true });
+		// Scaffold the shared `.maina/` skeleton via the single-source-of-truth
+		// module. `init` and `setup` both call this, so re-running either
+		// command never produces drift. We opt out of the constitution stub
+		// because `init` writes a tailored (stack-aware) constitution in the
+		// manifest below.
+		const scaffoldResult = await scaffold({
+			cwd: repoRoot,
+			withPrompts: true,
+			withConstitutionStub: false,
+		});
+		if (!scaffoldResult.ok) {
+			return {
+				ok: false,
+				error: `scaffold failed: ${scaffoldResult.error}`,
+			};
+		}
+		for (const path of scaffoldResult.value.created) {
+			if (!created.includes(path)) created.push(path);
+		}
 
-		// Create extra directories (e.g. hooks)
+		// Create extra directories (e.g. hooks) not owned by the shared scaffold.
 		for (const dir of EXTRA_DIRS) {
 			mkdirSync(join(repoRoot, dir), { recursive: true });
 		}

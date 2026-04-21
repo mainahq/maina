@@ -17,10 +17,31 @@ export {
 	type RuleCategory,
 	type RuleSourceKind,
 } from "./adopt";
+// Keyed-JSON-merge writers for IDE MCP configs (Wave 3, G6/G12).
+export {
+	type MainaMcpEntry,
+	type WriteClaudeSettingsAction,
+	type WriteClaudeSettingsOptions,
+	type WriteClaudeSettingsReport,
+	writeClaudeMd,
+	writeClaudeSettings,
+} from "./agent-files/claude";
+export {
+	type CursorMcpEntry,
+	type WriteCursorMcpAction,
+	type WriteCursorMcpOptions,
+	type WriteCursorMcpReport,
+	writeCursorMcp,
+} from "./agent-files/cursor";
 // Agent-files exports its own `StackContext` stub; we re-export everything
 // from it and then expose the canonical `StackContext` from `./context` below,
 // shadowing the stub. The stub is structurally compatible.
 export * from "./agent-files/index";
+export {
+	type MergeJsonKeyedOptions,
+	type MergeJsonKeyedResult,
+	mergeJsonKeyed,
+} from "./agent-files/region";
 export {
 	type ConfirmOptions,
 	type ConfirmResult,
@@ -60,6 +81,12 @@ export {
 	scanRepo,
 	scanTreeSitter,
 } from "./scan/index";
+// Skills deployment (Wave 3, G7 materialisation).
+export {
+	type DeploySkillsOptions,
+	type DeploySkillsReport,
+	deploySkills,
+} from "./skills-deploy";
 export {
 	buildGenericConstitutionFromInput,
 	renderFileLayoutSection,

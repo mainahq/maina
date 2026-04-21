@@ -32,7 +32,9 @@ import {
 	ALL_AGENTS,
 	anonymizeStack,
 	assembleStackContext,
+	buildMainaEntry,
 	degradedBanner,
+	deploySkills,
 	deviceFingerprint,
 	isTelemetryOptedOut,
 	newSetupId,
@@ -45,9 +47,12 @@ import {
 	type SetupTelemetryEvent,
 	type SetupTelemetryPhase,
 	type StackContext,
+	scaffold,
 	sendSetupTelemetry,
 	summarizeRepo,
 	writeAllAgentFiles,
+	writeClaudeSettings,
+	writeCursorMcp,
 } from "@mainahq/core";
 import { Command } from "commander";
 import packageJson from "../../package.json" with { type: "json" };
@@ -217,7 +222,8 @@ const NOOP_LOGGER: SetupLogger = {
 
 const NOOP_SPINNER = (): SpinnerLike => ({ start: () => {}, stop: () => {} });
 
-const defaultDeps: SetupActionDeps = {
+// biome-ignore lint/correctness/noUnusedVariables: kept for public-API parity with previous setup wizard callers.
+const _defaultDeps: SetupActionDeps = {
 	intro,
 	outro,
 	log,
@@ -828,6 +834,39 @@ export async function setupAction(
 	const sp3 = deps.spinner();
 	sp3.start("Scaffolding files…");
 	const constitutionPath = join(cwd, ".maina", "constitution.md");
+
+	// Shared `.maina/` skeleton (prompts, features/.gitkeep, cache/,
+	// config.yml). Single source of truth used by both `init` and `setup`
+	// — closes G13 and keeps the two commands from drifting.
+	const scaffoldResult = await scaffold({
+		cwd,
+		withPrompts: true,
+		withConstitutionStub: false,
+	});
+	if (!scaffoldResult.ok) {
+		// Scaffold failures are bailable: without `.maina/` we can't write
+		// the constitution. Surface the error and exit like constitution
+		// write failures below.
+		sp3.stop("Scaffold failed.");
+		deps.log.error(`Could not scaffold .maina/: ${scaffoldResult.error}`);
+		result.bailed = true;
+		result.bailReason = "scaffold_failed";
+		emitter.phase({
+			phase: "scaffold",
+			status: "error",
+			reason: scaffoldResult.error,
+		});
+		finalizeEmit(emitter, result, startedAt, ci);
+		result.durationMs = Date.now() - startedAt;
+		await dispatchTelemetry(result, {
+			cwd,
+			ci,
+			phases: phaseRecords,
+			options,
+		});
+		return result;
+	}
+
 	try {
 		mkdirSync(join(cwd, ".maina"), { recursive: true });
 		atomicWrite(constitutionPath, constitutionText);
@@ -866,11 +905,62 @@ export async function setupAction(
 	if (agentResult.ok) {
 		result.agentFilesWritten = agentResult.value.written;
 		result.agentFilesWarnings = agentResult.value.warnings;
-		sp3.stop(`Wrote ${result.agentFilesWritten.length} file(s).`);
 	} else {
-		sp3.stop("Agent file write reported errors.");
 		result.agentFilesWarnings.push(agentResult.error);
 	}
+
+	// ── IDE MCP wiring (G6, G12) ────────────────────────────────────────────
+	// Keyed JSON merge into .claude/settings.json and .cursor/mcp.json so
+	// user-authored MCP entries are preserved byte-for-byte. This replaces
+	// the old overwrite-with-.bak behaviour.
+	const mainaEntry = buildMainaEntry();
+	const claudeWrite = await writeClaudeSettings(cwd, {
+		mainaMcpEntry: mainaEntry,
+	});
+	if (claudeWrite.ok) {
+		result.agentFilesWritten.push(".claude/settings.json");
+		if (claudeWrite.value.action === "recovered") {
+			result.agentFilesWarnings.push(
+				`.claude/settings.json was malformed; original preserved as ${claudeWrite.value.backupPath ?? ".bak.<ts>"}`,
+			);
+		}
+	} else {
+		result.agentFilesWarnings.push(
+			`skip .claude/settings.json: ${claudeWrite.error}`,
+		);
+	}
+
+	const cursorWrite = await writeCursorMcp(cwd, { mainaMcpEntry: mainaEntry });
+	if (cursorWrite.ok) {
+		result.agentFilesWritten.push(".cursor/mcp.json");
+		if (cursorWrite.value.action === "recovered") {
+			result.agentFilesWarnings.push(
+				`.cursor/mcp.json was malformed; original preserved as ${cursorWrite.value.backupPath ?? ".bak.<ts>"}`,
+			);
+		}
+	} else {
+		result.agentFilesWarnings.push(
+			`skip .cursor/mcp.json: ${cursorWrite.error}`,
+		);
+	}
+
+	// ── Skills materialisation ──────────────────────────────────────────────
+	// Best-effort copy of `@mainahq/skills/<name>/SKILL.md` into
+	// `.maina/skills/<name>/SKILL.md`. A missing skills package is a
+	// warning, never a bail.
+	const skillsResult = await deploySkills({ cwd });
+	if (skillsResult.ok) {
+		for (const name of skillsResult.value.deployed) {
+			result.agentFilesWritten.push(`.maina/skills/${name}/SKILL.md`);
+		}
+		for (const w of skillsResult.value.warnings) {
+			result.agentFilesWarnings.push(`skills-deploy: ${w}`);
+		}
+	} else {
+		result.agentFilesWarnings.push(`skills-deploy: ${skillsResult.error}`);
+	}
+
+	sp3.stop(`Wrote ${result.agentFilesWritten.length} file(s).`);
 	emitter.phase({
 		phase: "scaffold",
 		status: agentResult.ok ? "ok" : "degraded",

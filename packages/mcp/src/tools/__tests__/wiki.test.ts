@@ -90,7 +90,9 @@ describe("Wiki MCP Tools", () => {
 	describe("wikiQuery", () => {
 		it("should return answer and sources for known articles", async () => {
 			setupWiki();
-			const server = createMcpServer();
+			// wikiQuery/wikiStatus are in the extended tool bundle, so we need
+			// allTools mode to exercise their handlers directly.
+			const server = createMcpServer({ allTools: true });
 			const cb = getToolCallback(server, "wikiQuery");
 			expect(cb).toBeDefined();
 			if (!cb) return;
@@ -111,7 +113,9 @@ describe("Wiki MCP Tools", () => {
 
 		it("should return empty sources for irrelevant query", async () => {
 			setupWiki();
-			const server = createMcpServer();
+			// wikiQuery/wikiStatus are in the extended tool bundle, so we need
+			// allTools mode to exercise their handlers directly.
+			const server = createMcpServer({ allTools: true });
 			const cb = getToolCallback(server, "wikiQuery");
 			if (!cb) return;
 
@@ -123,7 +127,9 @@ describe("Wiki MCP Tools", () => {
 
 		it("should handle missing wiki dir gracefully", async () => {
 			// No wiki setup — cwd has no .maina/wiki
-			const server = createMcpServer();
+			// wikiQuery/wikiStatus are in the extended tool bundle, so we need
+			// allTools mode to exercise their handlers directly.
+			const server = createMcpServer({ allTools: true });
 			const cb = getToolCallback(server, "wikiQuery");
 			if (!cb) return;
 
@@ -137,7 +143,9 @@ describe("Wiki MCP Tools", () => {
 
 		it("should include cached field in response", async () => {
 			setupWiki();
-			const server = createMcpServer();
+			// wikiQuery/wikiStatus are in the extended tool bundle, so we need
+			// allTools mode to exercise their handlers directly.
+			const server = createMcpServer({ allTools: true });
 			const cb = getToolCallback(server, "wikiQuery");
 			if (!cb) return;
 
@@ -150,7 +158,9 @@ describe("Wiki MCP Tools", () => {
 	describe("wikiStatus", () => {
 		it("should return correct counts for initialized wiki", async () => {
 			setupWiki();
-			const server = createMcpServer();
+			// wikiQuery/wikiStatus are in the extended tool bundle, so we need
+			// allTools mode to exercise their handlers directly.
+			const server = createMcpServer({ allTools: true });
 			const cb = getToolCallback(server, "wikiStatus");
 			expect(cb).toBeDefined();
 			if (!cb) return;
@@ -169,7 +179,9 @@ describe("Wiki MCP Tools", () => {
 
 		it("should return coverage percentage", async () => {
 			setupWiki();
-			const server = createMcpServer();
+			// wikiQuery/wikiStatus are in the extended tool bundle, so we need
+			// allTools mode to exercise their handlers directly.
+			const server = createMcpServer({ allTools: true });
 			const cb = getToolCallback(server, "wikiStatus");
 			if (!cb) return;
 
@@ -182,7 +194,9 @@ describe("Wiki MCP Tools", () => {
 
 		it("should handle missing wiki dir gracefully", async () => {
 			// No wiki setup
-			const server = createMcpServer();
+			// wikiQuery/wikiStatus are in the extended tool bundle, so we need
+			// allTools mode to exercise their handlers directly.
+			const server = createMcpServer({ allTools: true });
 			const cb = getToolCallback(server, "wikiStatus");
 			if (!cb) return;
 

@@ -20,53 +20,56 @@ describe("createMcpServer", () => {
 		expect(typeof server.close).toBe("function");
 	});
 
-	test("default mode registers all tools plus list_tools meta-tool", () => {
+	test("default mode registers only 3 progressive tools + list_tools meta-tool", () => {
+		// Progressive disclosure: the handshake payload is intentionally
+		// small. Agents discover the remaining tools via `list_tools` and
+		// opt in via `--all-tools`. See progressive-tools.test.ts for the
+		// full contract.
 		const server = createMcpServer();
 		const names = getRegisteredToolNames(server);
-		// 13 tools + list_tools = 14 (10 original + 3 deepwiki)
-		expect(names).toHaveLength(14);
+		expect(names).toHaveLength(4);
 		expect(names).toContain("list_tools");
-		expect(names).toContain("ask_question");
-		expect(names).toContain("read_wiki_structure");
-		expect(names).toContain("read_wiki_contents");
+		expect(names).toContain("verify");
+		expect(names).toContain("getContext");
+		expect(names).toContain("reviewCode");
 	});
 
-	test("allTools mode registers 13 tools without list_tools", () => {
+	test("allTools mode registers 10 tools without list_tools", () => {
 		const server = createMcpServer({ allTools: true });
 		const names = getRegisteredToolNames(server);
-		expect(names).toHaveLength(13);
+		expect(names).toHaveLength(10);
 		expect(names).not.toContain("list_tools");
 	});
 
-	test("registers context tools", () => {
-		const server = createMcpServer();
+	test("allTools mode registers context tools", () => {
+		const server = createMcpServer({ allTools: true });
 		const names = getRegisteredToolNames(server);
 		expect(names).toContain("getContext");
 		expect(names).toContain("getConventions");
 	});
 
-	test("registers verify tools", () => {
-		const server = createMcpServer();
+	test("allTools mode registers verify tools", () => {
+		const server = createMcpServer({ allTools: true });
 		const names = getRegisteredToolNames(server);
 		expect(names).toContain("verify");
 		expect(names).toContain("checkSlop");
 	});
 
-	test("registers feature tools", () => {
-		const server = createMcpServer();
+	test("allTools mode registers feature tools", () => {
+		const server = createMcpServer({ allTools: true });
 		const names = getRegisteredToolNames(server);
 		expect(names).toContain("suggestTests");
 		expect(names).toContain("analyzeFeature");
 	});
 
-	test("registers explain tools", () => {
-		const server = createMcpServer();
+	test("allTools mode registers explain tools", () => {
+		const server = createMcpServer({ allTools: true });
 		const names = getRegisteredToolNames(server);
 		expect(names).toContain("explainModule");
 	});
 
-	test("registers review tools", () => {
-		const server = createMcpServer();
+	test("allTools mode registers review tools", () => {
+		const server = createMcpServer({ allTools: true });
 		const names = getRegisteredToolNames(server);
 		expect(names).toContain("reviewCode");
 	});
@@ -87,7 +90,7 @@ function getToolCallback(
 }
 
 describe("list_tools meta-tool", () => {
-	test("returns all tool descriptions", async () => {
+	test("returns the 10-tool Maina surface (DeepWiki compat lives separately)", async () => {
 		const server = createMcpServer();
 		const cb = getToolCallback(server, "list_tools");
 		expect(cb).toBeDefined();
@@ -95,16 +98,17 @@ describe("list_tools meta-tool", () => {
 
 		const result = await cb({}, {});
 		const parsed = JSON.parse(result.content[0].text);
-		expect(parsed.data.tools.length).toBe(13);
-		expect(parsed.data.total).toBe(13);
+		expect(parsed.data.tools.length).toBe(10);
+		expect(parsed.data.total).toBe(10);
 
 		const toolNames = parsed.data.tools.map((t: { name: string }) => t.name);
 		expect(toolNames).toContain("verify");
 		expect(toolNames).toContain("reviewCode");
 		expect(toolNames).toContain("wikiQuery");
-		expect(toolNames).toContain("ask_question");
-		expect(toolNames).toContain("read_wiki_structure");
-		expect(toolNames).toContain("read_wiki_contents");
+		// DeepWiki compat tools are registered only in allTools mode and are
+		// not part of the 10-tool list_tools surface.
+		expect(toolNames).not.toContain("ask_question");
+		expect(toolNames).not.toContain("read_wiki_structure");
 	});
 });
 
@@ -166,8 +170,8 @@ describe("tool handlers return error on missing dependencies", () => {
 		expect(parsed.stage2.findings.length).toBeGreaterThan(0);
 	});
 
-	test("checkSlop handler returns error for nonexistent files", async () => {
-		const server = createMcpServer();
+	test("checkSlop handler (allTools mode) returns error for nonexistent files", async () => {
+		const server = createMcpServer({ allTools: true });
 		const cb = getToolCallback(server, "checkSlop");
 		expect(cb).toBeDefined();
 		if (!cb) return;
@@ -177,8 +181,8 @@ describe("tool handlers return error on missing dependencies", () => {
 		expect(result.content[0].type).toBe("text");
 	});
 
-	test("explainModule handler returns gracefully without db", async () => {
-		const server = createMcpServer();
+	test("explainModule handler (allTools mode) returns gracefully without db", async () => {
+		const server = createMcpServer({ allTools: true });
 		const cb = getToolCallback(server, "explainModule");
 		expect(cb).toBeDefined();
 		if (!cb) return;
@@ -188,8 +192,8 @@ describe("tool handlers return error on missing dependencies", () => {
 		expect(result.content[0].type).toBe("text");
 	});
 
-	test("analyzeFeature handler returns error for missing dir", async () => {
-		const server = createMcpServer();
+	test("analyzeFeature handler (allTools mode) returns error for missing dir", async () => {
+		const server = createMcpServer({ allTools: true });
 		const cb = getToolCallback(server, "analyzeFeature");
 		expect(cb).toBeDefined();
 		if (!cb) return;
