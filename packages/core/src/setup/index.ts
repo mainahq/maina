@@ -9,10 +9,23 @@
  * - `prompts.ts` — loader for the universal setup prompt template.
  */
 
+export {
+	adoptRules,
+	detectExistingRuleFiles,
+	formatProvenanceComment,
+	type Rule,
+	type RuleCategory,
+	type RuleSourceKind,
+} from "./adopt";
 // Agent-files exports its own `StackContext` stub; we re-export everything
 // from it and then expose the canonical `StackContext` from `./context` below,
 // shadowing the stub. The stub is structurally compatible.
 export * from "./agent-files/index";
+export {
+	type ConfirmOptions,
+	type ConfirmResult,
+	confirmRules,
+} from "./confirm";
 export {
 	assembleStackContext,
 	contextHash,
@@ -33,12 +46,30 @@ export {
 	type SetupDegradedReason,
 } from "./recovery";
 export {
+	buildGenericConstitution,
 	type ResolveAIOptions,
 	resolveSetupAI,
 	type SetupAIMetadata,
 	type SetupAIResult,
 	type SetupAISource,
 } from "./resolve-ai";
+export {
+	type ScanReport,
+	scanGitLog,
+	scanLintConfig,
+	scanRepo,
+	scanTreeSitter,
+} from "./scan/index";
+export {
+	buildGenericConstitutionFromInput,
+	renderFileLayoutSection,
+	renderWorkflowSection,
+	type TailorInput,
+	type TailorOutput,
+	tailorConstitution,
+	type ValidateResult,
+	validateConstitution,
+} from "./tailor";
 export {
 	anonymizeStack,
 	isTelemetryOptedOut,

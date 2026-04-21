@@ -13,6 +13,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, relative } from "node:path";
 import type { Result } from "../db/index";
 import { detectFileLanguage, detectLanguages } from "../language/detect";
+import { detectExistingRuleFiles as _detectExistingRuleFiles } from "./adopt";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -648,6 +649,17 @@ export async function summarizeRepo(
 		lines.push("");
 	}
 
+	// Existing rule/instruction files — useful signal for the tailor prompt.
+	const ruleFiles = _detectExistingRuleFiles(cwd);
+	if (ruleFiles.length > 0) {
+		lines.push("## Existing rule files");
+		lines.push("");
+		for (const f of ruleFiles.slice(0, 20)) {
+			lines.push(`- ${f}`);
+		}
+		lines.push("");
+	}
+
 	let out = lines.join("\n");
 	if (out.length > MAX_SUMMARY_CHARS) {
 		out = `${out.slice(0, MAX_SUMMARY_CHARS - 64)}\n\n[...truncated at ${MAX_SUMMARY_CHARS} chars]`;
@@ -657,4 +669,11 @@ export async function summarizeRepo(
 
 // Re-export for convenience — callers can compute a path relative to cwd
 // without importing node:path separately.
-export { relative as relativePath };
+/**
+ * Re-export from `adopt.ts` so existing callers importing from
+ * `setup/context` can discover rule files without a second import.
+ */
+export {
+	_detectExistingRuleFiles as detectExistingRuleFiles,
+	relative as relativePath,
+};

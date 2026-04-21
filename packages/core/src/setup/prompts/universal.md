@@ -46,6 +46,13 @@ of a repository. Your job is to produce three things in a single response:
 
 - One response only. No preambles, no trailing chatter.
 - Use the detected stack verbatim — do not rename tools or invent frameworks.
+- If a section titled "Accepted rules" appears below, those rules are the
+  ONLY ones you may include. **Merge them; do not invent new rules.**
+  Preserve every `<!-- source: ..., confidence: ... -->` comment verbatim
+  so downstream tooling can trace provenance.
+- If a section titled "Workflow section" or "File-layout section" appears
+  below, copy it **verbatim** into your output (headings included). Do not
+  paraphrase, reorder, or split these sections.
 - If the repo is empty or the stack is unknown, emit a generic starter
   constitution and list only universal tools (Semgrep, Trivy, Secretlint).
 - Use `[NEEDS CLARIFICATION: <question>]` markers rather than guessing.

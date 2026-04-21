@@ -16,6 +16,7 @@
  * - **degraded**: deterministic fallback. Never errors.
  */
 
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
 	type DelegationPrompt,
@@ -23,9 +24,12 @@ import {
 	tryAIGenerate,
 } from "../ai/try-generate";
 import { getApiKey, isHostMode } from "../config/index";
+import type { Rule } from "./adopt";
+import { formatProvenanceComment } from "./adopt";
 import type { StackContext } from "./context";
 import { loadUniversalPrompt } from "./prompts";
 import type { SetupDegradedReason } from "./recovery";
+import { renderFileLayoutSection, renderWorkflowSection } from "./tailor";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -75,6 +79,14 @@ export interface ResolveAIOptions {
 	hostGenerate?: (prompt: string, mainaDir: string) => Promise<TryAIResult>;
 	/** BYOK generate override for tests. Returns the model output text. */
 	byokGenerate?: (prompt: string) => Promise<string>;
+	/**
+	 * Rules adopted from existing agent-instruction files. When present,
+	 * the universal prompt is augmented with an "Accepted rules" block so
+	 * the LLM merges rather than reinvents.
+	 */
+	adoptedRules?: Rule[];
+	/** Rules surfaced by the deterministic scanners (lint-config, git-log, ...). */
+	scannedRules?: Rule[];
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -94,9 +106,15 @@ export async function resolveSetupAI(
 ): Promise<SetupAIResult> {
 	const start = Date.now();
 	const stackString = stackToString(opts.stack);
-	const prompt = loadUniversalPrompt({
+	const basePrompt = loadUniversalPrompt({
 		stack: stackString,
 		repoSummary: opts.repoSummary,
+	});
+	const prompt = augmentPromptWithRules(basePrompt, {
+		adopted: opts.adoptedRules ?? [],
+		scanned: opts.scannedRules ?? [],
+		languages: opts.stack.languages,
+		toplevelDirs: listToplevelDirs(opts.cwd),
 	});
 
 	const attempted: SetupAISource[] = [];
@@ -234,7 +252,11 @@ export async function resolveSetupAI(
 	}
 	return {
 		source: "degraded",
-		text: buildGenericConstitution(opts.stack),
+		text: buildGenericConstitution(opts.stack, {
+			toplevelDirs: listToplevelDirs(opts.cwd),
+			adoptedRules: opts.adoptedRules ?? [],
+			scannedRules: opts.scannedRules ?? [],
+		}),
 		metadata: {
 			source: "degraded",
 			attemptedSources: [...attempted],
@@ -437,10 +459,22 @@ async function safeJson(
 
 /**
  * Build a generic-but-stack-tailored starter constitution. Used when every
- * AI tier fails. The output is intentionally short and conservative — the
- * user can refine it after `maina setup` finishes.
+ * AI tier fails — but ALWAYS includes the `## Maina Workflow` and `## File
+ * Layout` sections verbatim, so downstream maina commands have something to
+ * anchor to regardless of which tier produced the file.
+ *
+ * The `extras` argument is optional so callers that only have a
+ * `StackContext` (legacy tests) continue to work; in that case we emit a
+ * minimal layout section with no toplevel-dir hints.
  */
-function buildGenericConstitution(stack: StackContext): string {
+export function buildGenericConstitution(
+	stack: StackContext,
+	extras?: {
+		toplevelDirs?: string[];
+		adoptedRules?: Rule[];
+		scannedRules?: Rule[];
+	},
+): string {
 	const langs =
 		stack.languages.length > 0 ? stack.languages.join(", ") : "your stack";
 	const linters =
@@ -451,37 +485,132 @@ function buildGenericConstitution(stack: StackContext): string {
 			: "your test runner";
 	const pm = stack.packageManager;
 
-	return `# Project Constitution
+	const sections: string[] = [];
+	sections.push("# Project Constitution", "");
+	sections.push(
+		"> Generated offline by `maina setup` — refine this after the wizard finishes.",
+		"",
+	);
+	sections.push("## Stack", "");
+	sections.push(`- Languages: ${langs}`);
+	sections.push(`- Package manager: ${pm}`);
+	sections.push(`- Linters: ${linters}`);
+	sections.push(`- Test runners: ${tests}`);
+	sections.push("");
 
-> Generated offline by \`maina setup\` — refine this after the wizard finishes.
+	const ruleLines: string[] = [];
+	for (const rule of extras?.adoptedRules ?? []) {
+		ruleLines.push(`- ${rule.text} ${formatProvenanceComment(rule)}`);
+	}
+	for (const rule of extras?.scannedRules ?? []) {
+		ruleLines.push(`- ${rule.text} ${formatProvenanceComment(rule)}`);
+	}
+	if (ruleLines.length > 0) {
+		sections.push("## Rules", "");
+		sections.push(...ruleLines);
+		sections.push("");
+	}
 
-## Stack
+	sections.push(
+		"## Principles",
+		"",
+		"1. **Tests first.** Write a failing test, then make it pass.",
+		"2. **Small, reviewable diffs.** Prefer many small PRs over one large PR.",
+		"3. **Conventional commits.** `type(scope): subject` — keep history greppable.",
+		"4. **No silent failures.** Use `Result<T, E>` or explicit error returns; never swallow exceptions.",
+		"5. **Lint and type-check before push.** Block on errors locally so CI stays green.",
+		"",
+		"## Definition of Done",
+		"",
+		`- All tests pass (\`${tests}\`).`,
+		`- Linter is clean (\`${linters}\`).`,
+		"- Type checks pass.",
+		"- Code review approved by one other engineer.",
+		"",
+		"## What Not To Do",
+		"",
+		"- Do not commit secrets or generated artefacts.",
+		"- Do not bypass linters with blanket `disable` directives.",
+		"- Do not commit `console.log` / `print` debugging statements.",
+		"- Do not skip tests with `.skip` / `.only` outside short-lived debugging.",
+		"",
+	);
 
-- Languages: ${langs}
-- Package manager: ${pm}
-- Linters: ${linters}
-- Test runners: ${tests}
+	sections.push(renderWorkflowSection(), "");
+	sections.push(
+		renderFileLayoutSection({
+			languages: stack.languages,
+			toplevelDirs: extras?.toplevelDirs ?? [],
+		}),
+	);
 
-## Principles
+	return `${sections.join("\n")}\n`;
+}
 
-1. **Tests first.** Write a failing test, then make it pass.
-2. **Small, reviewable diffs.** Prefer many small PRs over one large PR.
-3. **Conventional commits.** \`type(scope): subject\` — keep history greppable.
-4. **No silent failures.** Use \`Result<T, E>\` or explicit error returns; never swallow exceptions.
-5. **Lint and type-check before push.** Block on errors locally so CI stays green.
+// ── Rule-aware prompt augmentation ───────────────────────────────────────────
 
-## Definition of Done
+function augmentPromptWithRules(
+	base: string,
+	opts: {
+		adopted: Rule[];
+		scanned: Rule[];
+		languages: string[];
+		toplevelDirs: string[];
+	},
+): string {
+	if (opts.adopted.length === 0 && opts.scanned.length === 0) {
+		return base;
+	}
+	const lines: string[] = [base, ""];
+	lines.push("### Accepted rules (merge; do NOT invent new ones)");
+	lines.push("");
+	for (const rule of opts.adopted) {
+		lines.push(`- ${rule.text} ${formatProvenanceComment(rule)}`);
+	}
+	for (const rule of opts.scanned) {
+		lines.push(`- ${rule.text} ${formatProvenanceComment(rule)}`);
+	}
+	lines.push("");
+	lines.push("### Workflow section — include verbatim in your output");
+	lines.push("");
+	lines.push(renderWorkflowSection());
+	lines.push("");
+	lines.push("### File-layout section — include verbatim in your output");
+	lines.push("");
+	lines.push(
+		renderFileLayoutSection({
+			languages: opts.languages,
+			toplevelDirs: opts.toplevelDirs,
+		}),
+	);
+	return lines.join("\n");
+}
 
-- All tests pass (\`${tests}\`).
-- Linter is clean (\`${linters}\`).
-- Type checks pass.
-- Code review approved by one other engineer.
-
-## What Not To Do
-
-- Do not commit secrets or generated artefacts.
-- Do not bypass linters with blanket \`disable\` directives.
-- Do not commit \`console.log\` / \`print\` debugging statements.
-- Do not skip tests with \`.skip\` / \`.only\` outside short-lived debugging.
-`;
+function listToplevelDirs(cwd: string): string[] {
+	if (!existsSync(cwd)) return [];
+	try {
+		return readdirSync(cwd)
+			.filter((entry) => {
+				if (entry.startsWith(".")) return false;
+				if (
+					entry === "node_modules" ||
+					entry === "dist" ||
+					entry === "build" ||
+					entry === "out" ||
+					entry === "target" ||
+					entry === "coverage"
+				) {
+					return false;
+				}
+				try {
+					return statSync(join(cwd, entry)).isDirectory();
+				} catch {
+					return false;
+				}
+			})
+			.sort()
+			.slice(0, 12);
+	} catch {
+		return [];
+	}
 }
