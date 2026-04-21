@@ -449,26 +449,26 @@ const TECH_CONSTRAINTS: TechConstraint[] = [
 	},
 	{
 		// Import/require of eslint/prettier only — see #209 and PR #212 review.
-		// skipTests avoids self-flags on fixture strings in lint's own tests.
+		// The `^[^"'\n]*` prefix rejects matches whose line already contains a
+		// quote (meaning we're inside a string literal — i.e. a test fixture).
+		// Real imports/requires still match because the line prefix before the
+		// keyword has no quote.
 		keyword: "biome",
-		skipTests: true,
 		violations: [
 			{
-				pattern:
-					/^\s*import\b[^\n]*["']eslint(?:["']|\/)|^\s*(?:await\s+)?import\s*\(\s*["']eslint(?:["']|\/)/m,
+				pattern: /^[^"'\n]*\bimport\b[^\n]*["']eslint(?:["']|\/)/m,
 				description: "imports from eslint",
 			},
 			{
-				pattern: /^\s*[^\n]*\brequire\s*\(\s*["']eslint(?:["']|\/)/m,
+				pattern: /^[^"'\n]*\brequire\s*\(\s*["']eslint(?:["']|\/)/m,
 				description: "requires eslint",
 			},
 			{
-				pattern:
-					/^\s*import\b[^\n]*["']prettier(?:["']|\/)|^\s*(?:await\s+)?import\s*\(\s*["']prettier(?:["']|\/)/m,
+				pattern: /^[^"'\n]*\bimport\b[^\n]*["']prettier(?:["']|\/)/m,
 				description: "imports from prettier",
 			},
 			{
-				pattern: /^\s*[^\n]*\brequire\s*\(\s*["']prettier(?:["']|\/)/m,
+				pattern: /^[^"'\n]*\brequire\s*\(\s*["']prettier(?:["']|\/)/m,
 				description: "requires prettier",
 			},
 		],

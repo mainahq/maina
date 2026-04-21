@@ -51,7 +51,7 @@ Closes #208, #209, #210, #211.
 - **Skip list over `.gitignore` parsing.** Hardcoded skip list is boring and correct; honoring `.gitignore` is better long-term but out of scope — single-PR constraint.
 - **Per-constraint `skipTests` flag** (default `true` for `result<` / `never throw`, `false` for import-form checks like `bun:test`). This preserves existing catches where tests *should* be scanned (e.g. a test importing jest is still a violation).
 - **ESLint detection: require import-form.** Switch `/\.eslintrc|eslint\.config/` content regex to `/from\s+["']eslint(["']|\/)/` + `/require\s*\(\s*["']eslint(["']|\/)\s*\)/`. Filename-level check at root already catches real eslint config files — no regression.
-- **Compile writes `lastCompile` timestamp.** Simplest fix — existing state file already has fields; add one more and read it from status.
+- **Compile populates `state.fileHashes` + status reads existing `state.lastFullCompile`/`state.lastIncrementalCompile`.** The last-compile timestamp fields already exist and are written by compile; status just had the wrong path join and the coverage denominator (`fileHashCount`) was always 0 because compile never wrote `fileHashes`. Populate the field on full compile and fix the path join — no new state fields needed.
 
 ## Open Questions
 

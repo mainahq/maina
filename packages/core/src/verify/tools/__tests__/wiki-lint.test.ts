@@ -799,6 +799,68 @@ describe("Wiki Lint Tool", () => {
 			);
 			expect(hits.length).toBeGreaterThanOrEqual(1);
 		});
+
+		it("should still flag a real eslint import inside a test file (no skipTests on biome) — PR #212 review", () => {
+			// CodeRabbit flagged that a blanket skipTests on biome would turn
+			// a genuine eslint static import inside a test file into a false
+			// negative. The tightened regex excludes lines whose prefix
+			// contains a quote char (meaning the match is inside a string
+			// literal), so real imports in test files are still caught.
+			const adrDir = join(tmpDir, "adr");
+			mkdirSync(adrDir, { recursive: true });
+			writeFileSync(
+				join(adrDir, "0002-linting.md"),
+				"# ADR-0002: Use Biome\n\n## Status\n\nAccepted\n\n## Context\n\nLinting.\n\n## Decision\n\nUse Biome only.\n",
+			);
+
+			// A `.test.ts` file that genuinely imports eslint (not a fixture).
+			writeSourceFile(
+				"src/check.test.ts",
+				'import { ESLint } from "eslint";\ntest("x", () => { new ESLint(); });\n',
+			);
+
+			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+
+			const hits = result.decisionViolations.filter((f) =>
+				f.message.toLowerCase().includes("eslint"),
+			);
+			expect(hits.length).toBeGreaterThanOrEqual(1);
+		});
+
+		it("should NOT flag fixture strings that LOOK like eslint imports inside quoted literals — PR #212 review", () => {
+			// Reciprocal guard: a test file whose content quotes a fake import
+			// like `'import { X } from "eslint"'` must not self-flag. This is
+			// exactly the shape wiki-lint's own tests use.
+			const adrDir = join(tmpDir, "adr");
+			mkdirSync(adrDir, { recursive: true });
+			writeFileSync(
+				join(adrDir, "0002-linting.md"),
+				"# ADR-0002: Use Biome\n\n## Status\n\nAccepted\n\n## Context\n\nLinting.\n\n## Decision\n\nUse Biome only.\n",
+			);
+
+			writeSourceFile(
+				"src/fixture.test.ts",
+				[
+					'import { test } from "bun:test";',
+					'test("fixture", () => {',
+					"\tconst fixture = 'import { ESLint } from \"eslint\";';",
+					"\tconst fixture2 = 'module.exports = require(\"eslint\");';",
+					"\texpect(fixture).toBeTruthy();",
+					"\texpect(fixture2).toBeTruthy();",
+					"});",
+					"",
+				].join("\n"),
+			);
+
+			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+
+			const hits = result.decisionViolations.filter(
+				(f) =>
+					f.source?.endsWith("fixture.test.ts") &&
+					f.message.toLowerCase().includes("eslint"),
+			);
+			expect(hits).toHaveLength(0);
+		});
 	});
 
 	// ─── Check 8: Missing Rationale ─────────────────────────────────────
