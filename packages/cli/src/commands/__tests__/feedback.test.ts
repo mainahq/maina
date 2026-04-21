@@ -10,55 +10,70 @@ import {
 // ── parsePrNumbers ─────────────────────────────────────────────────────────
 
 describe("parsePrNumbers", () => {
-	test("returns [] for undefined", () => {
-		expect(parsePrNumbers(undefined)).toEqual([]);
+	test("returns ok([]) for undefined", () => {
+		const r = parsePrNumbers(undefined);
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value).toEqual([]);
 	});
 
 	test("parses a single numeric token", () => {
-		expect(parsePrNumbers(["123"])).toEqual([123]);
+		const r = parsePrNumbers(["123"]);
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value).toEqual([123]);
 	});
 
 	test("parses comma-separated tokens within one entry", () => {
-		expect(parsePrNumbers(["1,2,3"])).toEqual([1, 2, 3]);
+		const r = parsePrNumbers(["1,2,3"]);
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value).toEqual([1, 2, 3]);
 	});
 
 	test("parses repeated --pr entries", () => {
-		expect(parsePrNumbers(["1", "2", "3,4"])).toEqual([1, 2, 3, 4]);
+		const r = parsePrNumbers(["1", "2", "3,4"]);
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value).toEqual([1, 2, 3, 4]);
 	});
 
-	test("throws InvalidPrNumberError on non-numeric token", () => {
-		expect(() => parsePrNumbers(["foo"])).toThrow(InvalidPrNumberError);
+	test("err(InvalidPrNumberError) on non-numeric token", () => {
+		const r = parsePrNumbers(["foo"]);
+		expect(r.ok).toBe(false);
+		if (!r.ok) expect(r.error).toBeInstanceOf(InvalidPrNumberError);
 	});
 
-	test("throws on mixed valid + invalid token (must NOT fall back to auto-mode)", () => {
+	test("err on mixed valid + invalid token (must NOT fall back to auto-mode)", () => {
 		// Critical case from CodeRabbit: `--pr foo,123` previously returned
-		// [123] silently dropping foo. Now it throws.
-		expect(() => parsePrNumbers(["1,foo"])).toThrow(InvalidPrNumberError);
+		// [123] silently dropping foo. Now it returns err.
+		const r = parsePrNumbers(["1,foo"]);
+		expect(r.ok).toBe(false);
+		if (!r.ok) expect(r.error).toBeInstanceOf(InvalidPrNumberError);
 	});
 
-	test("throws on negative integer", () => {
-		expect(() => parsePrNumbers(["-5"])).toThrow(InvalidPrNumberError);
+	test("err on negative integer", () => {
+		const r = parsePrNumbers(["-5"]);
+		expect(r.ok).toBe(false);
 	});
 
-	test("throws on zero", () => {
-		expect(() => parsePrNumbers(["0"])).toThrow(InvalidPrNumberError);
+	test("err on zero", () => {
+		const r = parsePrNumbers(["0"]);
+		expect(r.ok).toBe(false);
 	});
 
-	test("throws on decimal", () => {
-		expect(() => parsePrNumbers(["1.5"])).toThrow(InvalidPrNumberError);
+	test("err on decimal", () => {
+		const r = parsePrNumbers(["1.5"]);
+		expect(r.ok).toBe(false);
 	});
 
-	test("throws on empty token (e.g. trailing comma)", () => {
-		expect(() => parsePrNumbers(["1,"])).toThrow(InvalidPrNumberError);
+	test("err on empty token (e.g. trailing comma)", () => {
+		const r = parsePrNumbers(["1,"]);
+		expect(r.ok).toBe(false);
 	});
 
 	test("error message includes the offending token", () => {
-		try {
-			parsePrNumbers(["foo"]);
-			throw new Error("expected to throw");
-		} catch (e) {
-			expect(e).toBeInstanceOf(InvalidPrNumberError);
-			expect((e as Error).message).toContain("foo");
+		const r = parsePrNumbers(["foo"]);
+		expect(r.ok).toBe(false);
+		if (!r.ok) {
+			expect(r.error).toBeInstanceOf(InvalidPrNumberError);
+			expect(r.error.message).toContain("foo");
 		}
 	});
 });

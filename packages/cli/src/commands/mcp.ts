@@ -21,6 +21,7 @@ import {
 	listClientIds,
 	type McpClientId,
 	type McpScope,
+	type Result,
 	type RunOptions,
 	type RunReport,
 	runAdd,
@@ -36,8 +37,8 @@ const VALID_CLIENTS = new Set<McpClientId>(listClientIds());
 
 export function parseClientList(
 	raw: string | undefined,
-): McpClientId[] | undefined {
-	if (!raw) return undefined;
+): Result<McpClientId[] | undefined, string> {
+	if (!raw) return { ok: true, value: undefined };
 	const parts = raw
 		.split(",")
 		.map((s) => s.trim().toLowerCase())
@@ -45,20 +46,29 @@ export function parseClientList(
 	const validated: McpClientId[] = [];
 	for (const p of parts) {
 		if (!VALID_CLIENTS.has(p as McpClientId)) {
-			throw new Error(
-				`Unknown client: ${p}. Valid clients: ${listClientIds().join(", ")}`,
-			);
+			return {
+				ok: false,
+				error: `Unknown client: ${p}. Valid clients: ${listClientIds().join(", ")}`,
+			};
 		}
 		validated.push(p as McpClientId);
 	}
-	return validated.length > 0 ? validated : undefined;
+	return {
+		ok: true,
+		value: validated.length > 0 ? validated : undefined,
+	};
 }
 
-export function parseScope(raw: string | undefined): McpScope {
-	if (raw === undefined) return "global";
+export function parseScope(raw: string | undefined): Result<McpScope, string> {
+	if (raw === undefined) return { ok: true, value: "global" };
 	const v = raw.toLowerCase();
-	if (v === "global" || v === "project" || v === "both") return v;
-	throw new Error(`Unknown scope: ${raw}. Use one of: global, project, both`);
+	if (v === "global" || v === "project" || v === "both") {
+		return { ok: true, value: v };
+	}
+	return {
+		ok: false,
+		error: `Unknown scope: ${raw}. Use one of: global, project, both`,
+	};
 }
 
 // ── Pretty printing ────────────────────────────────────────────────────────
@@ -133,17 +143,16 @@ export async function mcpAction(
 ): Promise<McpActionResult> {
 	const cwd = options.cwd ?? process.cwd();
 
-	let clients: McpClientId[] | undefined;
-	let scope: McpScope;
-	try {
-		clients = parseClientList(options.client);
-		scope = parseScope(options.scope);
-	} catch (e) {
-		return {
-			command: options.command,
-			error: e instanceof Error ? e.message : String(e),
-		};
+	const clientsResult = parseClientList(options.client);
+	if (!clientsResult.ok) {
+		return { command: options.command, error: clientsResult.error };
 	}
+	const scopeResult = parseScope(options.scope);
+	if (!scopeResult.ok) {
+		return { command: options.command, error: scopeResult.error };
+	}
+	const clients = clientsResult.value;
+	const scope = scopeResult.value;
 
 	const runOpts: RunOptions = {
 		scope,

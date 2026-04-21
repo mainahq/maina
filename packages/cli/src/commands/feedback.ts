@@ -7,7 +7,12 @@
 
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
-import { ALLOWED_REVIEWERS, getRepoSlug, ingestPrReviews } from "@mainahq/core";
+import {
+	ALLOWED_REVIEWERS,
+	getRepoSlug,
+	ingestPrReviews,
+	type Result,
+} from "@mainahq/core";
 import { Command } from "commander";
 
 export interface FeedbackIngestOptions {
@@ -41,34 +46,34 @@ export class InvalidPrNumberError extends Error {
  * Parse `--pr` values (Commander collects them into a string[]), allowing
  * comma-separated tokens within each entry.
  *
- * Throws {@link InvalidPrNumberError} on any non-positive-integer token.
+ * Returns `err(InvalidPrNumberError)` on any non-positive-integer token.
  * Silently dropping bad input would be dangerous: an empty result switches
  * the command to auto-discovery, which could ingest from unrelated PRs.
- *
- * Exported for testability.
  */
-export function parsePrNumbers(raw: string[] | undefined): number[] {
-	if (!raw) return [];
+export function parsePrNumbers(
+	raw: string[] | undefined,
+): Result<number[], InvalidPrNumberError> {
+	if (!raw) return { ok: true, value: [] };
 	const out: number[] = [];
 	for (const r of raw) {
 		for (const part of r.split(",")) {
 			const trimmed = part.trim();
 			if (trimmed.length === 0) {
-				throw new InvalidPrNumberError(part);
+				return { ok: false, error: new InvalidPrNumberError(part) };
 			}
 			// Require a pure positive-integer string — reject leading +, decimals,
 			// scientific notation, etc.
 			if (!/^\d+$/.test(trimmed)) {
-				throw new InvalidPrNumberError(trimmed);
+				return { ok: false, error: new InvalidPrNumberError(trimmed) };
 			}
 			const n = Number.parseInt(trimmed, 10);
 			if (!Number.isFinite(n) || n <= 0) {
-				throw new InvalidPrNumberError(trimmed);
+				return { ok: false, error: new InvalidPrNumberError(trimmed) };
 			}
 			out.push(n);
 		}
 	}
-	return out;
+	return { ok: true, value: out };
 }
 
 /**
@@ -82,25 +87,18 @@ export async function feedbackIngestAction(
 	const mainaDir = join(cwd, ".maina");
 
 	const repo = options.repo ?? (await getRepoSlug(cwd));
-	let prNumbers: number[];
-	try {
-		prNumbers = parsePrNumbers(options.pr);
-	} catch (e) {
-		const message =
-			e instanceof InvalidPrNumberError
-				? e.message
-				: e instanceof Error
-					? e.message
-					: String(e);
+	const parsed = parsePrNumbers(options.pr);
+	if (!parsed.ok) {
 		return {
 			ok: false,
 			repo,
 			prNumbers: [],
 			ingested: 0,
 			skipped: 0,
-			error: message,
+			error: parsed.error.message,
 		};
 	}
+	const prNumbers = parsed.value;
 	const since = options.since ? Number.parseInt(options.since, 10) : 14;
 	const reviewers = [...ALLOWED_REVIEWERS, ...(options.reviewer ?? [])];
 
