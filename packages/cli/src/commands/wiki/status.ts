@@ -7,7 +7,7 @@
  * with percent complete + ETA (Wave 4 / G9).
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
 import { loadWikiState } from "@mainahq/core";
@@ -72,8 +72,10 @@ function loadProgress(wikiDir: string): WikiProgress | null {
 	const path = join(wikiDir, ".progress.json");
 	if (!existsSync(path)) return null;
 	let raw: string;
+	let mtimeMs: number;
 	try {
 		raw = readFileSync(path, "utf-8");
+		mtimeMs = statSync(path).mtimeMs;
 	} catch {
 		return null;
 	}
@@ -99,9 +101,11 @@ function loadProgress(wikiDir: string): WikiProgress | null {
 		typeof parsed.etaSeconds === "number" ? parsed.etaSeconds : 0;
 	const stage = typeof parsed.stage === "string" ? parsed.stage : "compiling";
 
-	const startedMs = Date.parse(startedAt);
-	const stale =
-		Number.isFinite(startedMs) && Date.now() - startedMs > STALE_THRESHOLD_MS;
+	// Staleness is progress-freshness, not run age: a 30-minute compile whose
+	// progress file is rewritten every few seconds is NOT stalled. We read the
+	// file's mtime instead of `startedAt` so long-running jobs aren't
+	// prematurely marked dead.
+	const stale = Date.now() - mtimeMs > STALE_THRESHOLD_MS;
 
 	return { startedAt, percent, etaSeconds, stage, stale };
 }

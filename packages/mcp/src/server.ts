@@ -187,19 +187,13 @@ export function createMcpServer(options?: McpServerOptions): McpServer {
 	);
 
 	if (options?.allTools) {
+		// Register every tool including the DeepWiki-compat surface so callers
+		// that opt in via `--all-tools` keep getting `ask_question` et al.
+		// Strict-10 pruning is handled inside `registerAllTools` when (and only
+		// when) `MAINA_MCP_STRICT_TEN=1` — we do NOT re-prune here, because
+		// that would silently regress the DeepWiki tools whenever allTools
+		// is on. (See PR #220 review — this block used to unconditionally prune.)
 		registerAllTools(server);
-		// Strict 10-tool surface for the `allTools` path — DeepWiki compat
-		// stays available via the separate entry point but is not counted
-		// in the 10-tool spec surface.
-		// biome-ignore lint/suspicious/noExplicitAny: accessing private registry
-		const internal = server as any;
-		const registry: Record<string, unknown> = internal._registeredTools ?? {};
-		const allowed = new Set<string>(ALL_TOOL_DESCRIPTIONS.map((t) => t.name));
-		for (const name of Object.keys(registry)) {
-			if (!allowed.has(name)) {
-				delete registry[name];
-			}
-		}
 	} else {
 		registerProgressiveTools(server);
 		registerListToolsMeta(server);

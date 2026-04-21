@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { basename, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
 import { assembleContext } from "@mainahq/core";
 import { Command } from "commander";
@@ -145,7 +145,7 @@ export async function contextAction(
 	if (options.show !== true) {
 		const resolved = resolveContextOutputPath(repoRoot, options);
 		legacyPreserved = resolved.legacyPreserved;
-		mkdirSync(join(resolved.path, ".."), { recursive: true });
+		mkdirSync(dirname(resolved.path), { recursive: true });
 		await Bun.write(resolved.path, result.text);
 		written = resolved.path;
 	}

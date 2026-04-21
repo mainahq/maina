@@ -128,16 +128,25 @@ export async function wikiInitAction(
 		writeProgressSeed(wikiDir);
 		const depth = options.depth ?? "full";
 		const spawn = options._spawnBackground ?? defaultSpawnBackground;
-		const args = [
-			"bun",
-			"run",
-			"maina",
-			"wiki",
-			"init",
-			"--json",
-			"--depth",
-			depth,
-		];
+		// Invoke `maina` directly when it's on PATH (the normal install case).
+		// Falling back to `process.execPath` + `process.argv[1]` keeps the
+		// background spawn working when the CLI was launched from a path that
+		// isn't on the user's PATH (e.g. a bun-linked dev build). We never
+		// use `bun run maina` because user repos don't have a `maina` script
+		// in their package.json, so `bun run maina` would fail.
+		const mainaOnPath = Bun.which("maina");
+		const args =
+			mainaOnPath !== null
+				? [mainaOnPath, "wiki", "init", "--json", "--depth", depth]
+				: [
+						process.execPath,
+						process.argv[1] ?? "",
+						"wiki",
+						"init",
+						"--json",
+						"--depth",
+						depth,
+					];
 		if (options.ai === true) args.push("--ai");
 		spawn(args, cwd);
 		if (!options.json) {

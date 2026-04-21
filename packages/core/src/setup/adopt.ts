@@ -11,7 +11,7 @@
  * repos — no file path is resolved outside `cwd`.
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import type { Result } from "../db/index";
 
@@ -196,12 +196,16 @@ function walkFiles(dir: string, suffixes: string[], cwd: string): WalkedFile[] {
 	}
 	for (const entry of entries.sort()) {
 		const full = join(dir, entry);
-		let st: ReturnType<typeof statSync>;
+		// `lstatSync` does not follow symlinks. A symlinked rules directory
+		// pointing outside `cwd` would otherwise let `walkFiles` read arbitrary
+		// filesystem paths — we skip those entries entirely.
+		let st: ReturnType<typeof lstatSync>;
 		try {
-			st = statSync(full);
+			st = lstatSync(full);
 		} catch {
 			continue;
 		}
+		if (st.isSymbolicLink()) continue;
 		if (st.isDirectory()) {
 			out.push(...walkFiles(full, suffixes, cwd));
 			continue;

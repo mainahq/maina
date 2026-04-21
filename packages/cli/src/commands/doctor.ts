@@ -264,9 +264,12 @@ function checkMcpHealth(cwd: string, home?: string): McpHealth {
 	const mcpJsonPath = join(cwd, ".mcp.json");
 	const mcpJson = existsSync(mcpJsonPath);
 	const claudeIntegration = integrations.find((i) => i.client === "claude");
+	// `claudeSettings` is true whenever a maina MCP is wired for Claude Code at
+	// ANY scope — global, project, or both. Users with only a user-level
+	// registration should not be told their settings are missing (G10).
 	const claudeSettings =
-		claudeIntegration?.scope === "project" ||
-		claudeIntegration?.scope === "both";
+		claudeIntegration?.scope !== undefined &&
+		claudeIntegration.scope !== "missing";
 
 	// Determine the server command from .mcp.json
 	let serverCommand = "not configured";
@@ -564,6 +567,7 @@ export async function doctorAction(
 	}
 
 	// ── Step 8: --fix flow (optional) ────────────────────────────────
+	let finalMcpHealth = mcpHealth;
 	if (options.fix) {
 		// jsonMode implies non-interactive: a CI caller passing --json --fix
 		// without --yes must not block on a terminal prompt. Auto-approve
@@ -575,6 +579,15 @@ export async function doctorAction(
 			execFn: options.execFn ?? defaultExec,
 			jsonMode,
 		});
+		// Recompute after the fix commands ran so the returned / rendered
+		// integration table reflects the post-fix state. Otherwise callers
+		// (and the JSON consumer) see stale "missing" rows for clients that
+		// were just wired up.
+		finalMcpHealth = checkMcpHealth(cwd, options.home);
+		if (!jsonMode) {
+			log.step("MCP Integration (after --fix):");
+			log.message(formatMcpHealth(finalMcpHealth));
+		}
 	}
 
 	return {
@@ -584,7 +597,7 @@ export async function doctorAction(
 		cacheStats,
 		aiStatus,
 		wikiHealth,
-		mcpHealth,
+		mcpHealth: finalMcpHealth,
 	};
 }
 

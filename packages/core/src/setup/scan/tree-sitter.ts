@@ -15,7 +15,7 @@
  *   - Rust: `.unwrap()` prevalence in non-test code.
  */
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { lstatSync, readdirSync, readFileSync } from "node:fs";
 import { extname, join, relative, sep } from "node:path";
 import type { Result } from "../../db/index";
 import type { Rule, RuleCategory, RuleSourceKind } from "../adopt";
@@ -84,12 +84,15 @@ function walk(root: string, dir: string, groups: LangGroup[]): void {
 	for (const entry of entries) {
 		if (IGNORED_DIRS.has(entry)) continue;
 		const full = join(dir, entry);
-		let st: ReturnType<typeof statSync>;
+		// `lstatSync` does not follow symlinks — prevents the sampler from
+		// escaping `root` through a symlinked directory.
+		let st: ReturnType<typeof lstatSync>;
 		try {
-			st = statSync(full);
+			st = lstatSync(full);
 		} catch {
 			continue;
 		}
+		if (st.isSymbolicLink()) continue;
 		if (st.isDirectory()) {
 			walk(root, full, groups);
 			continue;

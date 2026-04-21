@@ -92,11 +92,19 @@ describe("progressive MCP disclosure — default mode", () => {
 	});
 });
 
+const DEEPWIKI_TOOL_NAMES = [
+	"ask_question",
+	"read_wiki_structure",
+	"read_wiki_contents",
+];
+
 describe("progressive MCP disclosure — allTools opt-out", () => {
-	test("allTools: true registers all 10 tools", () => {
+	test("allTools: true registers every canonical tool", () => {
 		const server = createMcpServer({ allTools: true });
-		const names = getRegisteredToolNames(server);
-		expect(names.sort()).toEqual([...ALL_TOOL_NAMES].sort());
+		const names = new Set(getRegisteredToolNames(server));
+		for (const t of ALL_TOOL_NAMES) {
+			expect(names.has(t)).toBe(true);
+		}
 	});
 
 	test("allTools: true does NOT register list_tools", () => {
@@ -105,9 +113,25 @@ describe("progressive MCP disclosure — allTools opt-out", () => {
 		expect(names.has("list_tools")).toBe(false);
 	});
 
-	test("allTools registration count equals ALL_TOOL_NAMES length exactly", () => {
+	test("allTools: true keeps DeepWiki-compat tools registered by default", () => {
 		const server = createMcpServer({ allTools: true });
-		const names = getRegisteredToolNames(server);
-		expect(names.length).toBe(ALL_TOOL_NAMES.length);
+		const names = new Set(getRegisteredToolNames(server));
+		for (const t of DEEPWIKI_TOOL_NAMES) {
+			expect(names.has(t)).toBe(true);
+		}
+	});
+
+	test("MAINA_MCP_STRICT_TEN=1 prunes DeepWiki down to the canonical 10", () => {
+		const original = process.env.MAINA_MCP_STRICT_TEN;
+		process.env.MAINA_MCP_STRICT_TEN = "1";
+		try {
+			const server = createMcpServer({ allTools: true });
+			const names = getRegisteredToolNames(server);
+			expect(names.sort()).toEqual([...ALL_TOOL_NAMES].sort());
+			expect(names.length).toBe(ALL_TOOL_NAMES.length);
+		} finally {
+			if (original === undefined) delete process.env.MAINA_MCP_STRICT_TEN;
+			else process.env.MAINA_MCP_STRICT_TEN = original;
+		}
 	});
 });

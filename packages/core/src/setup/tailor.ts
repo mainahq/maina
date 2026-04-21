@@ -88,7 +88,50 @@ export function validateConstitution(text: string): ValidateResult {
 	if (!/^##\s+File Layout\b/m.test(text)) {
 		return { ok: false, reason: "missing `## File Layout` section" };
 	}
+
+	// The workflow template is constant — an LLM that paraphrased it instead
+	// of substituting it verbatim is violating the spec. We compare the
+	// extracted body (content after the `## Maina Workflow` heading up to the
+	// next top-level `##`) against the template's body, normalising whitespace
+	// so trailing blanks or re-wrapped lines don't false-fail.
+	const expectedBody = normaliseSectionText(
+		stripFirstHeading(renderWorkflowSection()),
+	);
+	const workflowSection = extractSection(text, "Maina Workflow");
+	if (workflowSection === null || workflowSection.trim().length === 0) {
+		return { ok: false, reason: "`## Maina Workflow` section is empty" };
+	}
+	if (normaliseSectionText(workflowSection) !== expectedBody) {
+		return {
+			ok: false,
+			reason:
+				"`## Maina Workflow` section was paraphrased, not substituted verbatim",
+		};
+	}
 	return { ok: true };
+}
+
+function stripFirstHeading(section: string): string {
+	return section.replace(/^##\s+[^\n]*\n/, "");
+}
+
+function normaliseSectionText(text: string): string {
+	return text
+		.replace(/\r\n/g, "\n")
+		.split("\n")
+		.map((l) => l.trimEnd())
+		.filter((l) => l.length > 0)
+		.join("\n")
+		.trim();
+}
+
+function extractSection(text: string, heading: string): string | null {
+	const re = new RegExp(
+		`^##\\s+${heading}\\b[^\\n]*\\n([\\s\\S]*?)(?=^##\\s|\\Z)`,
+		"m",
+	);
+	const m = re.exec(text);
+	return m ? (m[1] ?? null) : null;
 }
 
 export function renderWorkflowSection(): string {

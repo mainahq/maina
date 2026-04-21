@@ -43,9 +43,7 @@ const GOOD_CONSTITUTION = `# Project Constitution
 
 - Use Result<T, E> for errors.
 
-## Maina Workflow
-
-(filled in by template)
+${renderWorkflowSection()}
 
 ## File Layout
 

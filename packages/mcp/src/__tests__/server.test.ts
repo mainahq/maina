@@ -34,11 +34,17 @@ describe("createMcpServer", () => {
 		expect(names).toContain("reviewCode");
 	});
 
-	test("allTools mode registers 10 tools without list_tools", () => {
+	test("allTools mode registers the 10 canonical tools plus DeepWiki compat, without list_tools", () => {
 		const server = createMcpServer({ allTools: true });
 		const names = getRegisteredToolNames(server);
-		expect(names).toHaveLength(10);
+		// 10 canonical + 3 DeepWiki compat; `list_tools` is not registered.
 		expect(names).not.toContain("list_tools");
+		expect(names).toContain("verify");
+		expect(names).toContain("getContext");
+		expect(names).toContain("ask_question");
+		// 10 canonical + 3 deepwiki = 13. Using a >= check to stay robust if
+		// the canonical surface grows later.
+		expect(names.length).toBeGreaterThanOrEqual(10);
 	});
 
 	test("allTools mode registers context tools", () => {

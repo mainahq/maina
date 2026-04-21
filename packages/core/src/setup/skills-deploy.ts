@@ -17,6 +17,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Result } from "../db/index";
 
 export interface DeploySkillsOptions {
@@ -100,20 +101,17 @@ export async function deploySkills(
 }
 
 /**
- * Locate the `@mainahq/skills` source root. We prefer the installed
- * package (stable, production) and fall back to the monorepo sibling
- * (development). Returns `null` if neither is found.
+ * Locate the `@mainahq/skills` source root. For maina devs working inside
+ * the monorepo, the sibling `packages/skills` takes precedence; for
+ * end-users who `bun add -g @mainahq/cli`, the monorepo guess misses and
+ * we resolve the installed package via `Bun.resolveSync`. Returns `null`
+ * when neither is available.
  */
 function defaultSkillsRoot(): string | null {
-	// 1. Monorepo sibling — when this module is resolved from inside the
-	// maina repo, the skills package lives two dirs up.
-	const monorepoGuess = join(
-		new URL(".", import.meta.url).pathname,
-		"..",
-		"..",
-		"..",
-		"skills",
-	);
+	// 1. Monorepo sibling — `fileURLToPath` handles paths with spaces or
+	// other percent-encoded characters that would break `.pathname`.
+	const hereDir = dirname(fileURLToPath(import.meta.url));
+	const monorepoGuess = join(hereDir, "..", "..", "..", "skills");
 	if (existsSync(monorepoGuess) && dirHasSkills(monorepoGuess)) {
 		return monorepoGuess;
 	}

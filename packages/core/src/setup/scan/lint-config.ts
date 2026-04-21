@@ -426,7 +426,9 @@ export function listLintConfigFiles(cwd: string): string[] {
 		"prettier.config.mjs",
 		"tsconfig.json",
 		"pyproject.toml",
-		"ruff.toml",
+		// NOTE: `ruff.toml` intentionally omitted — we only emit a Ruff rule
+		// from `[tool.ruff]` inside `pyproject.toml` today. Including it here
+		// would falsely advertise coverage. Re-add once `scanRuffToml` exists.
 		"Cargo.toml",
 		"go.mod",
 	];
