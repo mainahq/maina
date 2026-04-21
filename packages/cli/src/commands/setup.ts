@@ -35,10 +35,12 @@ import {
 	deviceFingerprint,
 	isTelemetryOptedOut,
 	newSetupId,
+	recoveryCommand,
 	resolveSetupAI,
 	type SetupAIMetadata,
 	type SetupAIResult,
 	type SetupAISource,
+	type SetupDegradedReason,
 	type SetupTelemetryEvent,
 	type SetupTelemetryPhase,
 	type StackContext,
@@ -795,6 +797,19 @@ export async function setupAction(
 		durationMs: ai.metadata.durationMs,
 	});
 
+	if (result.degraded) {
+		const reason: SetupDegradedReason = ai.metadata.reason ?? "ai_unavailable";
+		const recovery = recoveryCommand(reason);
+		deps.log.warning(`AI unavailable (${reason}) — offline template written.`);
+		deps.log.info(`→ ${recovery}`);
+		writeDegradedLogEntry(cwd, {
+			reason,
+			reasonDetail: ai.metadata.reasonDetail,
+			retryAt: ai.metadata.retryAt,
+			recovery,
+		});
+	}
+
 	let constitutionText: string;
 	if (ai.source === "host") {
 		// Host delegation: the prompt has already been emitted to stdout for
@@ -1132,6 +1147,51 @@ function emptyStack(): StackContext {
  * Identical shape to the degraded fallback so writers downstream don't care
  * which path produced the text.
  */
+/**
+ * Heuristic — returns true when the CLI was launched via a package runner
+ * that caches the package in a tmp directory (bunx, npx, pnpx, pnpm dlx).
+ * Used to warn the user that `maina` will not be on PATH after exit.
+ */
+function isRunningFromPackageRunnerCache(): boolean {
+	const entry = process.argv[1] ?? "";
+	return /(\.bun[/\\]install[/\\]cache|[/\\]_npx[/\\]|[/\\]pnpm[/\\]dlx)/i.test(
+		entry,
+	);
+}
+
+function writeDegradedLogEntry(
+	cwd: string,
+	entry: {
+		reason: SetupDegradedReason;
+		reasonDetail?: string;
+		retryAt?: string;
+		recovery: string;
+	},
+): void {
+	const mainaDir = join(cwd, ".maina");
+	try {
+		mkdirSync(mainaDir, { recursive: true });
+	} catch {
+		return;
+	}
+	const logPath = join(mainaDir, "setup.log");
+	const parts = [
+		new Date().toISOString(),
+		"[degraded]",
+		`reason=${entry.reason}`,
+	];
+	if (entry.reasonDetail) parts.push(`detail=${entry.reasonDetail}`);
+	if (entry.retryAt) parts.push(`retryAt=${entry.retryAt}`);
+	parts.push(`recovery=${JSON.stringify(entry.recovery)}`);
+	const line = `${parts.join(" ")}\n`;
+	try {
+		const existing = existsSync(logPath) ? readFileSync(logPath, "utf-8") : "";
+		writeFileSync(logPath, existing + line);
+	} catch {
+		// ignore — log is advisory
+	}
+}
+
 function buildHostFallbackConstitution(stack: StackContext): string {
 	const langs = stack.languages.join(", ") || "your stack";
 	return `# Project Constitution
@@ -1196,6 +1256,19 @@ export function setupCommand(): Command {
 				typeof opts.agents === "string" ? parseAgentList(opts.agents) : null;
 
 			if (!json) intro("maina setup");
+
+			// G1: When launched through bunx/pnpx/npx, the CLI is cached in a tmp
+			// dir and vanishes after exit — AI agents that spawn subshells will not
+			// find `maina` on PATH. Surface a loud notice now so the user either
+			// installs globally or knows why subsequent AI calls cannot shell out.
+			if (!json && isRunningFromPackageRunnerCache()) {
+				log.warning(
+					"Running from a package-runner cache — `maina` will not be on PATH after this command exits.",
+				);
+				log.info(
+					"  Install globally with: `bun add -g @mainahq/cli` (or `npm install -g @mainahq/cli`).",
+				);
+			}
 
 			const actionOpts: SetupActionOptions = {
 				yes: opts.yes === true,

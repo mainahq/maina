@@ -9,10 +9,26 @@
 ---
 
 ```bash
-bunx @mainahq/cli@latest setup
+curl -fsSL https://api.mainahq.com/install | bash
 ```
 
 One command. Zero config. No API key, no login. In under 60 seconds: tailored `.maina/constitution.md`, five agent instruction files (`AGENTS.md`, Cursor, Claude, Copilot, Windsurf) with non-destructive managed regions, a seeded codebase wiki, and a real `maina verify` finding surfaced inline.
+
+<details>
+<summary>Alternate install paths</summary>
+
+```bash
+# Global install via any package manager you already have
+bun  add -g @mainahq/cli
+pnpm add -g @mainahq/cli
+npm  install -g @mainahq/cli
+
+# One-off run — the wrapper self-upgrades to a global install on first use,
+# because AI agents that spawn subshells cannot find `maina` otherwise.
+bunx @mainahq/cli@latest setup
+```
+
+</details>
 
 ## The Problem
 
