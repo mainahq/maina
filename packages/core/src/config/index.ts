@@ -18,10 +18,19 @@ export interface MainaConfig {
 }
 
 const DEFAULT_CONFIG: MainaConfig = {
+	// Defaults lock to the current-generation Claude 4.X family (April 2026):
+	// - mechanical → Haiku 4.5 (cheap + fast, same-provider as the other tiers
+	//   so one key covers every call; replaces Gemini 2.5 Flash as the cheap
+	//   default — Gemini can still be set per-tier via `maina.config.ts`).
+	// - standard → Sonnet 4.6 (replaces Sonnet 4 from May 2025).
+	// - architectural → Opus 4.7 (actual top tier, not a clone of standard).
+	//   The earlier default aliased architectural to the same Sonnet 4 as
+	//   standard, which silently downgraded `maina design-review`, `learn`,
+	//   and architecture work to a mid-tier model.
 	models: {
-		mechanical: "google/gemini-2.5-flash",
-		standard: "anthropic/claude-sonnet-4",
-		architectural: "anthropic/claude-sonnet-4",
+		mechanical: "anthropic/claude-haiku-4-5",
+		standard: "anthropic/claude-sonnet-4-6",
+		architectural: "anthropic/claude-opus-4-7",
 		local: "ollama/qwen3-coder-8b",
 	},
 	provider: "openrouter",

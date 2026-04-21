@@ -91,7 +91,22 @@ export interface ResolveAIOptions {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const DEFAULT_CLOUD_TIMEOUT_MS = 2000;
+/**
+ * Default abort budget for the anonymous cloud proxy. The gateway currently
+ * responds in 8–13 s (observed 2026-04-22), and the previous 2 s ceiling
+ * meant **every** cloud call timed out — the fallthrough masked a working
+ * tier. 20 s leaves headroom while still keeping the wizard's <60 s promise
+ * on the cloud path. Override via `MAINA_CLOUD_TIMEOUT_MS` for tests or when
+ * pointing at a self-hosted faster gateway.
+ */
+function parseCloudTimeout(raw: string | undefined): number {
+	if (raw === undefined) return 20_000;
+	const parsed = Number.parseInt(raw, 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : 20_000;
+}
+const DEFAULT_CLOUD_TIMEOUT_MS = parseCloudTimeout(
+	process.env.MAINA_CLOUD_TIMEOUT_MS,
+);
 const DEFAULT_USER_AGENT = "maina/setup";
 const CLOUD_URL = process.env.MAINA_CLOUD_URL ?? "https://api.mainahq.com";
 const CLOUD_PATH = "/v1/setup";

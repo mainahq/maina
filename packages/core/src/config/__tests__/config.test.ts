@@ -47,6 +47,21 @@ describe("getDefaultConfig", () => {
 		expect(getDefaultConfig().provider).toBe("openrouter");
 	});
 
+	test("default tier models are Claude 4.X (not legacy Sonnet 4)", () => {
+		const { models } = getDefaultConfig();
+		// Locked to the current-gen family. Upgrading these is a deliberate
+		// change — when the next family ships, this test forces you to
+		// update DEFAULT_CONFIG instead of silently drifting.
+		expect(models.mechanical).toBe("anthropic/claude-haiku-4-5");
+		expect(models.standard).toBe("anthropic/claude-sonnet-4-6");
+		expect(models.architectural).toBe("anthropic/claude-opus-4-7");
+	});
+
+	test("architectural tier is distinct from standard (not a regression clone)", () => {
+		const { models } = getDefaultConfig();
+		expect(models.architectural).not.toBe(models.standard);
+	});
+
 	test("default daily budget is 5.0", () => {
 		expect(getDefaultConfig().budget.daily).toBe(5.0);
 	});
@@ -143,7 +158,7 @@ describe("loadConfig", () => {
 		expect(config.provider).toBe("custom-provider");
 		// Defaults are preserved for unspecified fields
 		expect(config.budget.daily).toBe(5.0);
-		expect(config.models.standard).toBe("anthropic/claude-sonnet-4");
+		expect(config.models.standard).toBe("anthropic/claude-sonnet-4-6");
 	});
 
 	test("never throws — returns defaults on any import error", async () => {
