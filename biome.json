@@ -36,7 +36,8 @@
 			"!packages/docs/.astro",
 			"!packages/docs/dist",
 			"!.claude/worktrees",
-			"!examples/**/.cursor"
+			"!examples/**/.cursor",
+			"!prototypes"
 		]
 	},
 	"overrides": [
