@@ -82,13 +82,13 @@ describe("generate — cache hit", () => {
 		const cacheKey = await buildCacheKey({
 			task,
 			promptHash,
-			model: "google/gemini-2.5-flash",
+			model: "anthropic/claude-haiku-4-5",
 		});
 
 		// Pre-populate cache
 		const cachedValue = JSON.stringify({
 			text: "feat: add test suite",
-			model: "google/gemini-2.5-flash",
+			model: "anthropic/claude-haiku-4-5",
 			tokens: { input: 100, output: 20 },
 		});
 		cache.set(cacheKey, cachedValue);
@@ -102,7 +102,7 @@ describe("generate — cache hit", () => {
 
 		expect(result.cached).toBe(true);
 		expect(result.text).toBe("feat: add test suite");
-		expect(result.model).toBe("google/gemini-2.5-flash");
+		expect(result.model).toBe("anthropic/claude-haiku-4-5");
 	});
 });
 
