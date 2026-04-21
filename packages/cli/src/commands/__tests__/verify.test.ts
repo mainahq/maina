@@ -135,6 +135,22 @@ mock.module("@mainahq/core", () => ({
 	loadAuthConfig: () => mockAuthResult,
 	createCloudClient: () => ({}),
 	getDiff: async () => mockDiffOutput,
+	// Telemetry (feat 054) — verify.ts now emits maina.verify.{started,
+	// completed}. Both functions are safe no-ops here since the mock
+	// factory is what the consent-gated client ultimately reaches.
+	buildUsageEvent: (
+		event: string,
+		properties: Record<string, unknown>,
+		version: string,
+	) => ({
+		event,
+		properties,
+		timestamp: new Date().toISOString(),
+		os: process.platform,
+		runtime: "bun",
+		version,
+	}),
+	captureUsage: () => {},
 }));
 
 mock.module("@clack/prompts", () => ({
