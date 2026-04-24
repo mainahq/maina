@@ -48,16 +48,18 @@ The `modelVersion` field on the receipt (separate from `agent.id`) carries the p
 
 ### Detection precedence
 
-When `maina receipt` runs, it synthesizes `agent.id` from the first matching source:
+When Maina emits a receipt — via `maina pr` per constitution C5, which gets a dedicated receipt generator in mainahq/maina#237 — it synthesizes `agent.id` from the first matching source in this order:
 
-1. **MCP context** — if the host is a registered MCP client, the MCP handshake identifies it; the model is taken from the host's identity.
-2. **Git trailer** — if the last commit has a `Agent: <host>:<agent>` trailer, use that verbatim.
-3. **Environment variable** — `MAINA_AGENT_ID` overrides detection entirely (escape hatch for CI + scripts).
-4. **Fallback** — `ci:unknown` if none of the above resolves. Never leave empty; the schema pattern rejects empty strings anyway.
+1. **Environment variable** — `MAINA_AGENT_ID`, if set, wins. Escape hatch for CI + scripts that need to pin an identity explicitly.
+2. **MCP context** — if the host is a registered MCP client, the MCP handshake identifies it; the model is taken from the host's identity.
+3. **Git trailer** — if the last commit has an `Agent: <host>:<agent>` trailer, use that verbatim.
+4. **Fallback** — `ci:unknown`. Never empty; the schema pattern rejects empty strings anyway.
 
 ### Schema update
 
-Update `mainahq/receipt-schema` `v1.json` to tighten the `agent.id` pattern to `^[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*$`. **This is NOT a breaking change** — the existing pattern is "non-empty string", and the new one is strictly narrower; receipts that conformed before will either conform after (if they already used this format) or be caught by validation (if they didn't). Since no receipts exist in the wild yet, there's no migration.
+Tighten the `agent.id` pattern in `mainahq/receipt-schema/v1.json` to `^[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*$` **before `v1.json` is tagged and published to npm**. Current state: the repo exists (mainahq/receipt-schema) but `v1.0.0` has not yet been published — no DNS, no npm release, no downstream consumers. Tightening the pattern during this pre-publish window is not a breaking contract change.
+
+**After** `v1.0.0` is tagged and published, `v1.json` becomes immutable per ADR 0030 / constitution — any further changes ship as `v2.json`. This ADR is explicitly scoped to the pre-publish window; it will be void once v1 is pinned.
 
 ## Consequences
 
@@ -72,7 +74,7 @@ Update `mainahq/receipt-schema` `v1.json` to tighten the `agent.id` pattern to `
 ### Negative
 
 - **Name collisions across hosts.** Two hosts could pick different agent slugs for the same underlying model (`cursor:sonnet` vs `cline:claude-sonnet`). Accepted: receipts are per-host, comparing across hosts is a dashboard concern that can normalize in Wave 5.
-- **Slug maintenance.** New hosts and new models require updates to a canonical slug table. Mitigation: the table lives in `packages/core/src/receipt/agent-id.ts` and is the only source of truth; ADR 0032 is the authoritative spec.
+- **Slug maintenance.** New hosts and new models require updates to a canonical slug table. Mitigation: in the Wave 2 receipt generator (mainahq/maina#237) the table will live at `packages/core/src/receipt/agent-id.ts` as the single source of truth; ADR 0032 is the authoritative spec it materializes.
 - **Multi-model sessions.** If an agent switches models mid-PR (e.g. planning with Opus, implementing with Sonnet), `agent.id` reflects only the last one. Accepted for v1: the retry counter (ADR 0031) already signals "this receipt is not a clean first-run", and receipts are an integrity primitive, not a session log.
 
 ## References
