@@ -19,6 +19,7 @@ import { mcpCommand } from "./commands/mcp";
 import { planCommand } from "./commands/plan";
 import { prCommand } from "./commands/pr";
 import { promptCommand } from "./commands/prompt";
+import { receiptCommand } from "./commands/receipt";
 import { reviewCommand } from "./commands/review";
 import { reviewDesignCommand } from "./commands/review-design";
 import { setupCommand } from "./commands/setup";
@@ -127,6 +128,7 @@ Setup & Config:
 	// ── Build & Verify ──────────────────────────────────────────────────
 	program.addCommand(verifyCommand());
 	program.addCommand(verifyReceiptCommand());
+	program.addCommand(receiptCommand());
 	program.addCommand(commitCommand());
 	program.addCommand(reviewCommand());
 	program.addCommand(reviewDesignCommand());
