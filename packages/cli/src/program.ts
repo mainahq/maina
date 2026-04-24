@@ -50,11 +50,13 @@ Workflow:
   spec          Generate test stubs from spec
 
 Build & Verify:
-  verify        Run verification pipeline
-  commit        Verify + commit with message
-  review        Two-stage code review
-  slop          Detect AI slop patterns
-  pr            Create pull request
+  verify         Run verification pipeline
+  verify-receipt Ratify a receipt JSON file offline
+  receipt        Run verify and emit a signed v1 receipt (JSON + HTML)
+  commit         Verify + commit with message
+  review         Two-stage code review
+  slop           Detect AI slop patterns
+  pr             Create pull request
 
 Wiki:
   wiki init     Compile codebase knowledge

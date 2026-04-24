@@ -5,7 +5,7 @@
  *
  * Precedence (first match wins):
  *   1. MAINA_AGENT_ID env var (escape hatch for CI + scripts)
- *   2. MCP context (TODO: Wave 2 follow-up — requires host handshake plumbing)
+ *   2. MCP context (deferred to Wave 4 — needs host handshake plumbing alongside the GitHub App)
  *   3. Git trailer `Agent: <host>:<agent>` on the current HEAD commit
  *   4. Fallback `ci:unknown`
  *

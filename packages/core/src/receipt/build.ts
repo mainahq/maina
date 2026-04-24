@@ -73,14 +73,17 @@ export type BuildReceiptResult =
 	| { ok: true; data: Receipt }
 	| { ok: false; code: "canonicalize-failed"; message: string };
 
+const REPO_SLUG_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+
 export async function buildReceipt(
 	input: BuildReceiptInput,
 ): Promise<BuildReceiptResult> {
 	const cwd = input.cwd ?? process.cwd();
-	const repo = (await getRepoSlug(cwd)) || "unknown/unknown";
+	const rawSlug = (await getRepoSlug(cwd)) || "";
+	const repo = REPO_SLUG_PATTERN.test(rawSlug) ? rawSlug : "unknown/unknown";
 	const agent = await detectAgent({ modelVersion: input.modelVersion, cwd });
 
-	const checks = input.pipeline.tools
+	const mappedChecks = input.pipeline.tools
 		.map((report): Check | null => {
 			const tool = TOOL_MAPPING[report.tool];
 			if (!tool) return null;
@@ -99,6 +102,11 @@ export async function buildReceipt(
 			};
 		})
 		.filter((c): c is Check => c !== null);
+
+	// If the pipeline failed but every dropped tool's failure is invisible (typecheck,
+	// consistency, wiki-lint, syntax-guard), surface a synthetic check so the receipt
+	// always names *why* it didn't pass.
+	const checks = surfaceHiddenFailures(input.pipeline, mappedChecks);
 
 	const retries = input.retries ?? 0;
 	const baseStatus = derivePipelineStatus(input.pipeline, checks);
@@ -156,4 +164,58 @@ function derivePipelineStatus(
 	if (pipeline.passed) return "passed";
 	const anyFailed = checks.some((c) => c.status === "failed");
 	return anyFailed ? "failed" : "partial";
+}
+
+/**
+ * When pipeline.passed is false but no v1-mapped check captures the failure
+ * (typecheck/consistency/wiki-lint/syntax-guard are dropped from v1), emit a
+ * synthetic biome-check entry that records the hidden failure(s) so a red
+ * receipt always points at *something* the reader can act on.
+ */
+function surfaceHiddenFailures(
+	pipeline: PipelineResult,
+	mapped: Check[],
+): Check[] {
+	if (pipeline.passed) return mapped;
+	if (mapped.some((c) => c.status === "failed")) return mapped;
+
+	const hiddenFailures: ReceiptFinding[] = [];
+
+	if (pipeline.syntaxPassed === false && pipeline.syntaxErrors) {
+		for (const err of pipeline.syntaxErrors) {
+			hiddenFailures.push({
+				severity: "error",
+				file: err.file,
+				...(err.line > 0 ? { line: err.line } : {}),
+				message: `Syntax guard: ${err.message}`,
+			});
+		}
+	}
+
+	for (const tool of pipeline.tools) {
+		if (TOOL_MAPPING[tool.tool] !== null) continue; // already mapped
+		for (const f of tool.findings) {
+			if (f.severity !== "error") continue;
+			hiddenFailures.push({
+				severity: "error",
+				file: f.file,
+				...(f.line > 0 ? { line: f.line } : {}),
+				message: `${tool.tool}: ${f.message}`,
+				...(f.ruleId ? { rule: f.ruleId } : {}),
+			});
+		}
+	}
+
+	if (hiddenFailures.length === 0) return mapped;
+
+	return [
+		...mapped,
+		{
+			id: "biome-check",
+			name: "Pipeline (typecheck / consistency / syntax-guard)",
+			status: "failed",
+			tool: "biome",
+			findings: hiddenFailures,
+		},
+	];
 }

@@ -107,13 +107,23 @@ function summarizeStatus(
 	passed: number,
 	total: number,
 ): string {
-	if (total === 0) return "verified";
-	if (receipt.status === "passed") return `passed ${passed} of ${total} checks`;
-	if (receipt.status === "partial")
-		return receipt.retries >= 3
-			? `partial — retry cap reached (${receipt.retries} retries)`
+	if (receipt.status === "passed") {
+		return total === 0
+			? "verified — no checks ran"
+			: `passed ${passed} of ${total} checks`;
+	}
+	if (receipt.status === "partial") {
+		if (receipt.retries >= 3) {
+			return `partial — retry cap reached (${receipt.retries} retries)`;
+		}
+		return total === 0
+			? "partial — no checks rendered, see logs"
 			: `partial — ${passed} of ${total} checks held`;
-	return `failed — ${passed} of ${total} checks held`;
+	}
+	// failed
+	return total === 0
+		? "failed — no checks rendered, see logs"
+		: `failed — ${passed} of ${total} checks held`;
 }
 
 function renderRetryBadge(retries: number): string {
