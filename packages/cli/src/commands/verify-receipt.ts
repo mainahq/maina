@@ -2,6 +2,12 @@ import { readFileSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { verifyReceipt } from "@mainahq/core";
 import { Command } from "commander";
+import {
+	EXIT_CONFIG_ERROR,
+	EXIT_FINDINGS,
+	EXIT_PASSED,
+	outputJson,
+} from "../json";
 
 export interface VerifyReceiptOptions {
 	json?: boolean;
@@ -29,7 +35,7 @@ export function verifyReceiptAction(
 		const text = readFileSync(absolute, "utf-8");
 		raw = JSON.parse(text);
 	} catch (e) {
-		const message = (e as Error).message;
+		const message = e instanceof Error ? e.message : String(e);
 		return {
 			ok: false,
 			code: "io",
@@ -59,26 +65,32 @@ export function verifyReceiptCommand(): Command {
 		.option("--json", "emit structured JSON envelope instead of human output")
 		.action((path: string, opts: VerifyReceiptOptions) => {
 			const result = verifyReceiptAction(path, opts);
+			const exitCode = result.ok
+				? EXIT_PASSED
+				: result.code === "io"
+					? EXIT_CONFIG_ERROR
+					: EXIT_FINDINGS;
+
 			if (opts.json) {
-				process.stdout.write(`${formatJson(result)}\n`);
-				process.exit(result.ok ? 0 : 2);
+				outputJson(formatJsonEnvelope(result), exitCode);
+				return;
 			}
 			if (result.ok) {
 				process.stdout.write(
 					`Receipt verified — passed ${result.passedCount} of ${result.totalCount} checks (${result.status}).\n`,
 				);
-				process.exit(0);
+			} else {
+				process.stderr.write(
+					`Receipt verification failed [${result.code}]: ${result.message}\n`,
+				);
 			}
-			process.stderr.write(
-				`Receipt verification failed [${result.code}]: ${result.message}\n`,
-			);
-			process.exit(2);
+			process.exitCode = exitCode;
 		});
 }
 
-function formatJson(result: VerifyReceiptResult): string {
+function formatJsonEnvelope(result: VerifyReceiptResult): unknown {
 	if (result.ok) {
-		return JSON.stringify({
+		return {
 			data: {
 				verified: true,
 				passed: result.passedCount,
@@ -87,11 +99,11 @@ function formatJson(result: VerifyReceiptResult): string {
 			},
 			error: null,
 			meta: { schemaVersion: "v1" },
-		});
+		};
 	}
-	return JSON.stringify({
+	return {
 		data: null,
 		error: { code: result.code, message: result.message },
 		meta: { schemaVersion: "v1" },
-	});
+	};
 }

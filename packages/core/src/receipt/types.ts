@@ -1,10 +1,10 @@
 /**
  * Maina Receipt — v1 TypeScript types.
  *
- * Mirrors the JSON Schema in ./v1.json. Both ship together.
+ * Mirrors the canonical v1 JSON Schema published at
+ * `https://schemas.mainahq.com/v1.json` and tracked in `mainahq/receipt-schema`.
  *
- * TODO: once @mainahq/receipt-schema v1.0.0 publishes to npm, replace this file
- * with `export * from "@mainahq/receipt-schema"`. Tracking: mainahq/maina#229.
+ * TODO(mainahq/maina#229): once @mainahq/receipt-schema v1.0.0 publishes to npm, replace this file with `export * from "@mainahq/receipt-schema"`.
  */
 
 export type CheckStatus = "passed" | "failed" | "skipped";

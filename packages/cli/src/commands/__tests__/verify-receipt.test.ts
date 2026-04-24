@@ -33,7 +33,9 @@ function baseReceipt(): Omit<Receipt, "hash"> {
 }
 
 function signed(receipt: Omit<Receipt, "hash">): Receipt {
-	return { ...receipt, hash: computeReceiptHash(receipt) };
+	const hash = computeReceiptHash(receipt);
+	if (!hash.ok) throw new Error(`computeReceiptHash failed: ${hash.message}`);
+	return { ...receipt, hash: hash.data };
 }
 
 describe("verifyReceiptAction", () => {

@@ -30,53 +30,75 @@ function baseReceipt(): Omit<Receipt, "hash"> {
 	};
 }
 
+function unwrapHash(receipt: Omit<Receipt, "hash">): string {
+	const result = computeHash(receipt);
+	if (!result.ok) throw new Error(`computeHash failed: ${result.message}`);
+	return result.data;
+}
+
 function signed(receipt: Omit<Receipt, "hash">): Receipt {
-	return { ...receipt, hash: computeHash(receipt) };
+	return { ...receipt, hash: unwrapHash(receipt) };
+}
+
+function unwrapCanonical(value: unknown): string {
+	const result = canonicalize(value);
+	if (!result.ok) throw new Error(`canonicalize failed: ${result.message}`);
+	return result.data;
 }
 
 describe("canonicalize", () => {
 	test("sorts object keys lexicographically", () => {
-		expect(canonicalize({ b: 1, a: 2 })).toBe('{"a":2,"b":1}');
+		expect(unwrapCanonical({ b: 1, a: 2 })).toBe('{"a":2,"b":1}');
 	});
 
 	test("recurses into nested objects", () => {
-		expect(canonicalize({ outer: { z: 1, a: 2 } })).toBe(
+		expect(unwrapCanonical({ outer: { z: 1, a: 2 } })).toBe(
 			'{"outer":{"a":2,"z":1}}',
 		);
 	});
 
 	test("preserves array order", () => {
-		expect(canonicalize([3, 1, 2])).toBe("[3,1,2]");
+		expect(unwrapCanonical([3, 1, 2])).toBe("[3,1,2]");
 	});
 
 	test("handles primitives", () => {
-		expect(canonicalize(null)).toBe("null");
-		expect(canonicalize(true)).toBe("true");
-		expect(canonicalize(false)).toBe("false");
-		expect(canonicalize(42)).toBe("42");
-		expect(canonicalize("hi")).toBe('"hi"');
+		expect(unwrapCanonical(null)).toBe("null");
+		expect(unwrapCanonical(true)).toBe("true");
+		expect(unwrapCanonical(false)).toBe("false");
+		expect(unwrapCanonical(42)).toBe("42");
+		expect(unwrapCanonical("hi")).toBe('"hi"');
 	});
 
 	test("skips undefined values in objects", () => {
-		expect(canonicalize({ a: 1, b: undefined, c: 2 })).toBe('{"a":1,"c":2}');
+		expect(unwrapCanonical({ a: 1, b: undefined, c: 2 })).toBe('{"a":1,"c":2}');
 	});
 
-	test("rejects non-finite numbers", () => {
-		expect(() => canonicalize(NaN)).toThrow();
-		expect(() => canonicalize(Infinity)).toThrow();
+	test("returns structured error for non-finite numbers", () => {
+		const nanResult = canonicalize(NaN);
+		expect(nanResult.ok).toBe(false);
+		if (!nanResult.ok) expect(nanResult.code).toBe("non-finite-number");
+
+		const infResult = canonicalize(Infinity);
+		expect(infResult.ok).toBe(false);
+	});
+
+	test("returns structured error for unsupported types (bigint)", () => {
+		const result = canonicalize({ big: BigInt(1) });
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.code).toBe("unsupported-type");
 	});
 });
 
 describe("computeHash", () => {
 	test("is deterministic", () => {
 		const r = baseReceipt();
-		expect(computeHash(r)).toBe(computeHash(r));
+		expect(unwrapHash(r)).toBe(unwrapHash(r));
 	});
 
 	test("changes when fields change", () => {
 		const r1 = baseReceipt();
 		const r2 = { ...baseReceipt(), retries: 1 };
-		expect(computeHash(r1)).not.toBe(computeHash(r2));
+		expect(unwrapHash(r1)).not.toBe(unwrapHash(r2));
 	});
 
 	test("is independent of key order in input", () => {
@@ -94,7 +116,17 @@ describe("computeHash", () => {
 			repo: r.repo,
 			prTitle: r.prTitle,
 		} as Omit<Receipt, "hash">;
-		expect(computeHash(r)).toBe(computeHash(reordered));
+		expect(unwrapHash(r)).toBe(unwrapHash(reordered));
+	});
+
+	test("surfaces canonicalize failure as structured error", () => {
+		const bad = {
+			...baseReceipt(),
+			agent: { id: "x", modelVersion: NaN },
+		} as never;
+		const result = computeHash(bad as Omit<Receipt, "hash">);
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.code).toBe("canonicalize-failed");
 	});
 });
 

@@ -10,6 +10,8 @@ import type { Receipt } from "./types";
 
 const HEX64 = /^[0-9a-f]{64}$/;
 const REPO_FORMAT = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const ISO_8601 =
+	/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 const CHECK_STATUSES: ReadonlyArray<string> = ["passed", "failed", "skipped"];
 const RECEIPT_STATUSES: ReadonlyArray<string> = ["passed", "failed", "partial"];
 const CHECK_TOOLS: ReadonlyArray<string> = [
@@ -38,10 +40,25 @@ export type VerifyErrorCode =
 	| "missing-field"
 	| "invalid-field"
 	| "invalid-hash-format"
-	| "hash-mismatch";
+	| "hash-mismatch"
+	| "canonicalize-failed";
 
-export function computeHash(receipt: Omit<Receipt, "hash">): string {
-	return createHash("sha256").update(canonicalize(receipt)).digest("hex");
+/**
+ * Compute the canonical sha256 hash for a receipt payload (minus the `hash`
+ * field). Returns a Result — if the payload contains unsupported JS types
+ * (bigint, symbol, NaN, Infinity) canonicalization fails and the error is
+ * surfaced structurally rather than thrown.
+ */
+export function computeHash(
+	receipt: Omit<Receipt, "hash">,
+):
+	| { ok: true; data: string }
+	| { ok: false; code: "canonicalize-failed"; message: string } {
+	const c = canonicalize(receipt);
+	if (!c.ok) {
+		return { ok: false, code: "canonicalize-failed", message: c.message };
+	}
+	return { ok: true, data: createHash("sha256").update(c.data).digest("hex") };
 }
 
 export function verifyReceipt(raw: unknown): VerifyResult {
@@ -57,12 +74,19 @@ export function verifyReceipt(raw: unknown): VerifyResult {
 
 	const receipt = raw as Receipt;
 	const { hash: declaredHash, ...rest } = receipt;
-	const actualHash = computeHash(rest as Omit<Receipt, "hash">);
-	if (declaredHash !== actualHash) {
+	const hashResult = computeHash(rest as Omit<Receipt, "hash">);
+	if (!hashResult.ok) {
+		return {
+			ok: false,
+			code: "canonicalize-failed",
+			message: hashResult.message,
+		};
+	}
+	if (declaredHash !== hashResult.data) {
 		return {
 			ok: false,
 			code: "hash-mismatch",
-			message: `Hash mismatch: receipt declares ${declaredHash}, canonical re-hash is ${actualHash}`,
+			message: `Hash mismatch: receipt declares ${declaredHash}, canonical re-hash is ${hashResult.data}`,
 		};
 	}
 	return { ok: true, data: receipt };
@@ -102,7 +126,11 @@ function validateShape(
 	if (typeof r.repo !== "string" || !REPO_FORMAT.test(r.repo)) {
 		return invalid("repo", "owner/name string");
 	}
-	if (typeof r.timestamp !== "string") {
+	if (
+		typeof r.timestamp !== "string" ||
+		!ISO_8601.test(r.timestamp) ||
+		Number.isNaN(Date.parse(r.timestamp))
+	) {
 		return invalid("timestamp", "ISO 8601 string");
 	}
 	if (typeof r.status !== "string" || !RECEIPT_STATUSES.includes(r.status)) {
@@ -229,6 +257,21 @@ function validateChecks(v: unknown) {
 				return invalid(`checks[${i}].findings[${j}].file`, "string");
 			if (typeof f.message !== "string")
 				return invalid(`checks[${i}].findings[${j}].message`, "string");
+			if (
+				f.line !== undefined &&
+				(typeof f.line !== "number" || !Number.isInteger(f.line) || f.line < 1)
+			) {
+				return invalid(
+					`checks[${i}].findings[${j}].line`,
+					"positive integer when present",
+				);
+			}
+			if (f.rule !== undefined && typeof f.rule !== "string") {
+				return invalid(
+					`checks[${i}].findings[${j}].rule`,
+					"string when present",
+				);
+			}
 		}
 		if (c.patch !== undefined) {
 			const p = c.patch as Record<string, unknown>;
