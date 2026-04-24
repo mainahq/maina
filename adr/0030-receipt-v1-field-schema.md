@@ -26,14 +26,14 @@ v1 receipt fields:
 | `status` | `"passed" \| "failed" \| "partial"` | Surface copy: *"passed N of M checks"* (C2) |
 | `hash` | string (sha256, hex) | RFC 8785 canonicalize the receipt minus `hash` → sha256. `hash` is always excluded from the canonicalization input (never set to an empty string). |
 | `diff` | `{ additions: number, deletions: number, files: number }` | Already computed in pipeline |
-| `agent` | `{ id: string, modelVersion: string }` | From MCP context or git trailer |
-| `promptVersion` | `{ constitutionHash: string, promptsHash: string }` | Already versioned |
+| `agent` | `{ id: string, modelVersion: string }` | From MCP context or git trailer. `modelVersion` is the upstream string (e.g. `claude-opus-4-7`). `id` format is `[NEEDS CLARIFICATION: slug? UUID? host-prefixed "host:agent" (e.g. "claude-code:opus")? Lock before Wave 2.]` |
+| `promptVersion` | `{ constitutionHash: string, promptsHash: string }` | Already versioned. Both hashes are sha256, lowercase hex — same encoding as the top-level `hash` field. |
 | `checks[]` | `Check[]` — see schema below | One per tool in the verify pipeline |
 | `walkthrough` | string | 3-sentence summary, mechanical-tier model output |
-| `feedback[]` | `{ checkId: string, reason: string, constitutionHash: string }[]` | False-positive reports; keyed by constitutionHash so feedback follows the policy, not the repo |
+| `feedback[]` | `{ checkId: string, reason: string, constitutionHash: string }[]` | False-positive reports; keyed by `constitutionHash` (sha256, lowercase hex) so feedback follows the policy, not the repo |
 | `retries` | number (non-negative integer) | Default cap 3, configurable (see sibling ADR, ships in [mainahq/maina#233](https://github.com/mainahq/maina/pull/233)) |
 
-#### `Check` (v1 contract)
+### `Check` (v1 contract)
 
 ```ts
 type CheckStatus = "passed" | "failed" | "skipped";
@@ -44,20 +44,20 @@ type CheckTool =
 
 interface Finding {
   severity: "info" | "warning" | "error";
-  file: string;
-  line?: number;
+  file: string;      // path relative to repo root, POSIX forward slashes, no leading "./"
+  line?: number;     // 1-based
   message: string;
-  rule?: string;
+  rule?: string;     // tool-specific rule id, e.g. "no-explicit-any"
 }
 
 interface Patch {
-  diff: string; // unified diff
+  diff: string;      // unified diff (git-style, with a/ b/ prefixes)
   rationale: string;
 }
 
 interface Check {
-  id: string;        // stable slug, e.g. "biome-check"
-  name: string;      // human label, e.g. "Biome lint + format"
+  id: string;        // synthesis rule: "${tool}-check" (e.g. "biome-check"). Stable across receipts.
+  name: string;      // human label, tool-specific (e.g. "Biome lint + format")
   status: CheckStatus;
   tool: CheckTool;
   findings: Finding[];
@@ -70,7 +70,7 @@ interface Check {
 - `findings: number` → `findings: Finding[]` (count becomes structured array; count is `findings.length`)
 - `skipped: true` → `status: "skipped"`; `skipped: false` combined with `findings > 0` → `status: "failed"`; otherwise `status: "passed"`
 - `duration` is dropped from the receipt surface (kept internal); if needed later, add via v2
-- `id` and `name` are synthesized from `tool` for the first pass; Wave 2 can specialize per-tool
+- `id` is synthesized as `"${tool}-check"` for the first pass (deterministic); `name` is tool-specific prose from a static lookup table shipped at `packages/core/src/receipt/check-names.ts`. Wave 2 can specialize further, but this synthesis rule is the v1 contract for independent implementers.
 
 **Excluded from v1:** no `policyName` field. Receipts enumerate checks by id; naming policies is a v2 decision once we have design-partner feedback on what granularity matters.
 
