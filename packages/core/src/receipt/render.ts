@@ -12,9 +12,15 @@ export function renderReceiptHtml(receipt: Receipt): string {
 		(c) => c.status === "passed",
 	).length;
 	const total = receipt.checks.length;
-	const statusLabel = summarizeStatus(receipt, passedCount, total);
+	const statusLabel = escapeHtml(summarizeStatus(receipt, passedCount, total));
 	const retryBadge = renderRetryBadge(receipt.retries);
-	const shortHash = receipt.hash.slice(0, 12);
+	const shortHash = escapeHtml(receipt.hash.slice(0, 12));
+	const additions = numStr(receipt.diff.additions);
+	const deletions = numStr(receipt.diff.deletions);
+	const files = numStr(receipt.diff.files);
+	const retries = numStr(receipt.retries);
+	const passedStr = numStr(passedCount);
+	const totalStr = numStr(total);
 
 	return `<!DOCTYPE html>
 <html lang="en">
@@ -73,11 +79,11 @@ a { color: oklch(0.55 0.2 250); }
   <dt>agent</dt><dd>${escapeHtml(receipt.agent.id)} · ${escapeHtml(receipt.agent.modelVersion)}</dd>
   <dt>constitution</dt><dd class="hash">${escapeHtml(receipt.promptVersion.constitutionHash.slice(0, 12))}…</dd>
   <dt>prompts</dt><dd class="hash">${escapeHtml(receipt.promptVersion.promptsHash.slice(0, 12))}…</dd>
-  <dt>diff</dt><dd>+${receipt.diff.additions} / −${receipt.diff.deletions} across ${receipt.diff.files} file(s)</dd>
-  <dt>retries</dt><dd>${receipt.retries}</dd>
+  <dt>diff</dt><dd>+${additions} / −${deletions} across ${files} file(s)</dd>
+  <dt>retries</dt><dd>${retries}</dd>
 </dl>
 
-<h2>Checks (${passedCount} of ${total} passed)</h2>
+<h2>Checks (${passedStr} of ${totalStr} passed)</h2>
 ${receipt.checks.map(renderCheck).join("\n")}
 
 <footer>
@@ -92,7 +98,7 @@ function renderCheck(check: Check): string {
 	const findings = check.findings
 		.map(
 			(f) =>
-				`  <div class="finding"><span class="severity severity-${severityClass(f.severity)}">${escapeHtml(f.severity)}</span>${escapeHtml(f.file)}${f.line !== undefined ? `:${f.line}` : ""} — ${escapeHtml(f.message)}</div>`,
+				`  <div class="finding"><span class="severity severity-${severityClass(f.severity)}">${escapeHtml(f.severity)}</span>${escapeHtml(f.file)}${f.line !== undefined ? `:${numStr(f.line)}` : ""} — ${escapeHtml(f.message)}</div>`,
 		)
 		.join("\n");
 	return `<div class="check check-${checkStatusClass(check.status)}">
@@ -149,11 +155,19 @@ function summarizeStatus(
 
 function renderRetryBadge(retries: number): string {
 	if (retries === 0) return "";
+	const n = numStr(retries);
 	const label =
 		retries >= 3
-			? `retried ${retries} times · capped`
-			: `retried ${retries} time${retries === 1 ? "" : "s"}`;
-	return `<span class="retry-badge">${label}</span>`;
+			? `retried ${n} times · capped`
+			: `retried ${n} time${retries === 1 ? "" : "s"}`;
+	return `<span class="retry-badge">${escapeHtml(label)}</span>`;
+}
+
+/** Numbers can in theory arrive as strings if a tampered JSON skips schema
+ * validation. Coerce + escape so the renderer never trusts the JS type alone. */
+function numStr(n: number): string {
+	if (typeof n !== "number" || !Number.isFinite(n)) return "0";
+	return escapeHtml(String(Math.trunc(n)));
 }
 
 export function escapeHtml(s: string): string {
