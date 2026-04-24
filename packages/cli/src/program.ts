@@ -30,6 +30,7 @@ import { syncCommand } from "./commands/sync";
 import { teamCommand } from "./commands/team";
 import { ticketCommand } from "./commands/ticket";
 import { verifyCommand } from "./commands/verify";
+import { verifyReceiptCommand } from "./commands/verify-receipt";
 import { visualCommand } from "./commands/visual";
 import { wikiCommand } from "./commands/wiki/index";
 
@@ -125,6 +126,7 @@ Setup & Config:
 
 	// ── Build & Verify ──────────────────────────────────────────────────
 	program.addCommand(verifyCommand());
+	program.addCommand(verifyReceiptCommand());
 	program.addCommand(commitCommand());
 	program.addCommand(reviewCommand());
 	program.addCommand(reviewDesignCommand());

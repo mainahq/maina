@@ -335,6 +335,25 @@ export {
 	type WorkflowRunSummary,
 	type WorkflowStepAnalysis,
 } from "./prompts/evolution";
+// Receipt
+export {
+	type Agent as ReceiptAgent,
+	type Check as ReceiptCheck,
+	type CheckStatus as ReceiptCheckStatus,
+	type CheckTool as ReceiptCheckTool,
+	canonicalize as canonicalizeReceipt,
+	computeHash as computeReceiptHash,
+	type Diff as ReceiptDiff,
+	type FeedbackEntry as ReceiptFeedbackEntry,
+	type Finding as ReceiptFinding,
+	type Patch as ReceiptPatch,
+	type PromptVersion as ReceiptPromptVersion,
+	type Receipt,
+	type ReceiptStatus,
+	type VerifyErrorCode as ReceiptVerifyErrorCode,
+	type VerifyResult as ReceiptVerifyResult,
+	verifyReceipt,
+} from "./receipt";
 // Comprehensive Review (Superpowers-style)
 export {
 	type ComprehensiveReviewFinding,
