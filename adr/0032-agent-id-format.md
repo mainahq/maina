@@ -18,7 +18,7 @@ The direction doc lists 11 host integrations already: Claude Code, Cline, Codex,
 
 ### Format
 
-```
+```text
 <host>:<agent>
 ```
 
@@ -68,7 +68,7 @@ Tighten the `agent.id` pattern in `mainahq/receipt-schema/v1.json` to `^[a-z0-9]
 - **Cross-host analytics work from day 1.** Layer 4 rollup (Wave 5) can slice on `split(agent.id, ':')[0]` for host and `[1]` for agent without bespoke parsers.
 - **Self-documenting.** `claude-code:opus` reads like English; no translation layer needed in the GitHub App walkthrough comment.
 - **Stable over model upgrades.** `claude-code:opus` stays the same slug whether it's Opus 4.6 or 4.7 — the precise version lives in `modelVersion`, not `agent.id`.
-- **Clear detection order.** MCP > trailer > env > fallback. No guessing about precedence in Wave 2 implementation.
+- **Clear detection order.** env var > MCP > trailer > fallback. No guessing about precedence in Wave 2 implementation.
 - **Receipts from CI without a host are legible.** `ci:unknown` is a valid slug; not a magic empty string.
 
 ### Negative
