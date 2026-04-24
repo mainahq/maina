@@ -1,0 +1,71 @@
+---
+title: Copy Discipline
+description: Maina's affirmative verification framing — "passed N of M checks," not "0 findings."
+---
+
+Maina's user-facing copy — receipt HTML, CLI output, GitHub App walkthrough comment, Slack posts — follows **affirmative verification framing**. This is non-negotiable; it's encoded as rule **C2** in the [project constitution](https://github.com/mainahq/maina/blob/master/.maina/constitution.md).
+
+## The rule
+
+Every string Maina emits to a user describes *what passed*, not *what's missing*.
+
+- **Bad:** "0 findings", "no issues found", "no errors"
+- **Good:** "passed 12 of 12 policy checks", "all 847 tests passed", "verified against 13 tools"
+
+## Why it matters
+
+CodeRabbit and DeepSource talk like adversaries: *"here's what's wrong."* Maina's wire format is a **proof-of-correctness receipt**, not a bug report. The copy has to match the artifact — you're not delivering a verdict, you're delivering evidence that the change is safe to merge.
+
+Saying "0 findings" leaks the adversarial framing: it implies you *looked for problems and didn't find any*, which is the same frame CodeRabbit uses. Saying "passed 12 of 12 policy checks" describes the evidence: *these specific things were verified, and they all held*.
+
+## The table
+
+| Surface | Bad | Good |
+|---|---|---|
+| CLI output | `✓ 0 findings` | `✓ passed 13 of 13 checks` |
+| Receipt status | `no issues` | `passed — 13 of 13 checks held` |
+| Partial status | `1 failure` | `passed 12 of 13 checks; 1 check flagged` |
+| Security section | `no security findings` | `no secrets, no high-CVE deps, no risky AST patterns on diff` |
+| Test results | `all tests pass` | `all 847 tests passed across 63 files` |
+| GitHub App comment | `0 issues in 10 files` | `passed 13 of 13 checks across 10 files` |
+| Slack post | `✓ clean run` | `✓ verified — passed 13 of 13 checks` |
+
+## Where the rule applies
+
+- Receipt HTML (`.maina/receipts/{hash}/index.html`)
+- JSON `status` descriptions in API responses
+- CLI stdout + stderr copy for every command
+- GitHub App sticky comment template
+- Slack integration messages (Wave 4)
+- Walkthrough summary prompt output (mechanical-tier model is instructed + guardrailed)
+- Docs site copy when describing receipts or verify output
+
+## Where the rule **doesn't** apply
+
+- Internal logs at debug verbosity — raw counts are fine
+- Error messages when verification fails for infrastructure reasons (missing config, tool not installed) — these are boundary errors, not verification outcomes
+- ADR prose and contributing docs that describe failure modes — discussing *"0 findings"* in the context of this doc is allowed (meta-discussion)
+
+## Enforcement
+
+A grep-based CI check will block merges on banned phrases in `packages/docs/` and `packages/core/src/prompts/`, excluding this meta-doc (which quotes the phrases as *examples of what not to do*):
+
+```bash
+rg -n '\b(0 findings?|no issues? found|no errors?|0 problems?)\b' \
+  packages/docs/ packages/core/src/prompts/ \
+  --glob '!packages/docs/src/content/docs/copy-discipline.mdx'
+```
+
+A non-empty result fails CI and blocks merge. The walkthrough prompt (Wave 2.2) will get an inline slop guard that rejects model output matching the same regex before it lands on a receipt.
+
+Both the CI script and the slop guard ship in the Wave 2.2 walkthrough ticket (mainahq/maina#238) — this guide defines the contract those checks enforce.
+
+## Why we spelled this out as a constitution rule
+
+C2 is the brand. It's cheap to enforce now, expensive to retrofit once receipts have been shared publicly. The internal direction doc (2026-04-25) calls out Risk 1 as *"receipt collapses into 'another PR review tool' perception"* — the visual similarity to CodeRabbit is real, so every string we ship has to reinforce the different framing.
+
+## See also
+
+- Constitution rule C2 (in `.maina/constitution.md`)
+- ADR 0030 — Receipt v1 field schema
+- Internal direction doc (private, mainahq team only): `DIRECTION_AND_BUILD_PLAN_2026_04_25.md` Risk 1
