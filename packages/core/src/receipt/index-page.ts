@@ -48,7 +48,8 @@ export function writeIndexPage(
 	options: IndexPageOptions = {},
 ): IndexPageResult {
 	try {
-		const entries = collectEntries(receiptsDir, options.limit ?? 20);
+		const limit = clampLimit(options.limit);
+		const entries = collectEntries(receiptsDir, limit);
 		const html = renderIndexHtml(entries, options.title ?? "Maina receipts");
 		const htmlPath = join(receiptsDir, "index.html");
 		writeFileSync(htmlPath, html, "utf-8");
@@ -57,6 +58,13 @@ export function writeIndexPage(
 		const message = e instanceof Error ? e.message : String(e);
 		return { ok: false, code: "io", message };
 	}
+}
+
+/** Clamp the limit to a non-negative safe integer; `undefined` → default 20. */
+function clampLimit(raw: number | undefined): number {
+	if (raw === undefined) return 20;
+	if (typeof raw !== "number" || !Number.isFinite(raw)) return 20;
+	return Math.max(0, Math.trunc(raw));
 }
 
 /** Render the index HTML — exported for tests. */
@@ -128,19 +136,37 @@ Verify any receipt offline with <code>maina verify-receipt &lt;path&gt;</code>.
 }
 
 function renderRow(entry: IndexEntry): string {
+	const safeStatus = receiptStatusClass(entry.status);
+	const safeHash = HEX64.test(entry.hash) ? entry.hash : "";
 	const statusLabel =
 		entry.status === "passed"
 			? `passed ${entry.passedCount} of ${entry.totalCount}`
 			: entry.status === "partial"
 				? `partial — ${entry.passedCount}/${entry.totalCount} held`
 				: `failed — ${entry.passedCount}/${entry.totalCount} held`;
+
+	const titleCell = safeHash
+		? `<a href="./${safeHash}/index.html">${escapeHtml(entry.prTitle)}</a>`
+		: escapeHtml(entry.prTitle);
+
 	return `<tr>
-  <td><span class="status status-${entry.status}">${escapeHtml(entry.status)}</span></td>
-  <td class="title-cell"><a href="./${escapeHtml(entry.hash)}/index.html">${escapeHtml(entry.prTitle)}</a><br><span class="hash">${escapeHtml(entry.repo)}</span></td>
+  <td><span class="status status-${safeStatus}">${escapeHtml(entry.status)}</span></td>
+  <td class="title-cell">${titleCell}<br><span class="hash">${escapeHtml(entry.repo)}</span></td>
   <td>${escapeHtml(statusLabel)}</td>
   <td class="timestamp">${escapeHtml(entry.timestamp)}</td>
   <td class="hash">${escapeHtml(entry.hash.slice(0, 12))}…</td>
 </tr>`;
+}
+
+const HEX64 = /^[0-9a-f]{64}$/;
+
+/** Defense-in-depth — receipts that bypass schema validation (tampered JSON
+ * loaded directly from disk) shouldn't be able to inject HTML attributes via
+ * an unexpected `status` value. */
+function receiptStatusClass(s: string): "passed" | "failed" | "partial" {
+	return s === "passed" || s === "failed" || s === "partial"
+		? (s as "passed" | "failed" | "partial")
+		: "failed";
 }
 
 function collectEntries(receiptsDir: string, limit: number): IndexEntry[] {

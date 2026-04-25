@@ -19,7 +19,7 @@ import {
 	type Receipt,
 	renderReceiptHtml,
 	runPipeline,
-	writeIndexPage,
+	writeReceiptIndexPage,
 } from "@mainahq/core";
 import { Command } from "commander";
 import { EXIT_FINDINGS, EXIT_PASSED, outputJson } from "../json";
@@ -109,7 +109,7 @@ export async function receiptAction(
 	// failure here shouldn't fail receipt generation; the per-receipt page
 	// is the load-bearing artifact.
 	if (!options.noIndex) {
-		writeIndexPage(outputDir);
+		writeReceiptIndexPage(outputDir);
 	}
 
 	const passedCount = built.data.checks.filter(

@@ -376,7 +376,7 @@ export {
 	type WalkthroughDeps,
 	type WalkthroughInput,
 	type WalkthroughResult,
-	writeIndexPage,
+	writeIndexPage as writeReceiptIndexPage,
 } from "./receipt";
 // Comprehensive Review (Superpowers-style)
 export {

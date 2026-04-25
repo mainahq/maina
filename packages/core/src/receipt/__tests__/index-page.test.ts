@@ -94,17 +94,32 @@ describe("renderIndexHtml", () => {
 });
 
 describe("writeIndexPage", () => {
-	let dir: string;
+	const created: string[] = [];
 
-	beforeAll(() => {
-		dir = mkdtempSync(join(tmpdir(), "maina-receipts-index-"));
-	});
+	function freshDir(): string {
+		const d = mkdtempSync(join(tmpdir(), "maina-receipts-index-"));
+		created.push(d);
+		return d;
+	}
+
+	function writeReceiptFile(
+		root: string,
+		hash: string,
+		overrides: Partial<Receipt>,
+	): void {
+		mkdirSync(join(root, hash), { recursive: true });
+		writeFileSync(
+			join(root, hash, "receipt.json"),
+			JSON.stringify(makeReceipt({ hash, ...overrides })),
+		);
+	}
 
 	afterAll(() => {
-		rmSync(dir, { recursive: true, force: true });
+		for (const d of created) rmSync(d, { recursive: true, force: true });
 	});
 
 	test("writes a valid index for an empty directory", () => {
+		const dir = freshDir();
 		const result = writeIndexPage(dir);
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
@@ -115,66 +130,47 @@ describe("writeIndexPage", () => {
 	});
 
 	test("walks receipt subdirs and renders newest first", () => {
-		const olderHash = "a".repeat(64);
-		const newerHash = "b".repeat(64);
-
-		mkdirSync(join(dir, olderHash), { recursive: true });
-		writeFileSync(
-			join(dir, olderHash, "receipt.json"),
-			JSON.stringify(
-				makeReceipt({
-					hash: olderHash,
-					timestamp: "2026-04-20T10:00:00Z",
-					prTitle: "older PR",
-				}),
-			),
-		);
-		mkdirSync(join(dir, newerHash), { recursive: true });
-		writeFileSync(
-			join(dir, newerHash, "receipt.json"),
-			JSON.stringify(
-				makeReceipt({
-					hash: newerHash,
-					timestamp: "2026-04-25T12:00:00Z",
-					prTitle: "newer PR",
-				}),
-			),
-		);
+		const dir = freshDir();
+		writeReceiptFile(dir, "a".repeat(64), {
+			timestamp: "2026-04-20T10:00:00Z",
+			prTitle: "older PR",
+		});
+		writeReceiptFile(dir, "b".repeat(64), {
+			timestamp: "2026-04-25T12:00:00Z",
+			prTitle: "newer PR",
+		});
 
 		const result = writeIndexPage(dir);
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.entries).toBe(2);
 		const html = readFileSync(result.htmlPath, "utf-8");
-		const olderIndex = html.indexOf("older PR");
-		const newerIndex = html.indexOf("newer PR");
-		expect(newerIndex).toBeLessThan(olderIndex);
+		expect(html.indexOf("newer PR")).toBeLessThan(html.indexOf("older PR"));
 	});
 
 	test("ignores non-receipt subdirs", () => {
+		const dir = freshDir();
+		writeReceiptFile(dir, "a".repeat(64), { prTitle: "real" });
 		mkdirSync(join(dir, "not-a-hash"), { recursive: true });
 		writeFileSync(join(dir, "not-a-hash", "receipt.json"), "garbage");
+
 		const result = writeIndexPage(dir);
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
-		// Still 2 entries from the previous test
-		expect(result.entries).toBe(2);
+		expect(result.entries).toBe(1);
 	});
 
-	test("respects --limit / options.limit", () => {
-		// Add a third
-		const thirdHash = "c".repeat(64);
-		mkdirSync(join(dir, thirdHash), { recursive: true });
-		writeFileSync(
-			join(dir, thirdHash, "receipt.json"),
-			JSON.stringify(
-				makeReceipt({
-					hash: thirdHash,
-					timestamp: "2026-04-22T10:00:00Z",
-					prTitle: "third PR",
-				}),
-			),
-		);
+	test("respects options.limit", () => {
+		const dir = freshDir();
+		writeReceiptFile(dir, "a".repeat(64), {
+			timestamp: "2026-04-25T01:00:00Z",
+		});
+		writeReceiptFile(dir, "b".repeat(64), {
+			timestamp: "2026-04-25T02:00:00Z",
+		});
+		writeReceiptFile(dir, "c".repeat(64), {
+			timestamp: "2026-04-25T03:00:00Z",
+		});
 
 		const result = writeIndexPage(dir, { limit: 2 });
 		expect(result.ok).toBe(true);
@@ -182,8 +178,18 @@ describe("writeIndexPage", () => {
 		expect(result.entries).toBe(2);
 	});
 
+	test("clamps negative or non-finite limits to defaults", () => {
+		const dir = freshDir();
+		writeReceiptFile(dir, "a".repeat(64), {});
+		const negative = writeIndexPage(dir, { limit: -5 });
+		expect(negative.ok).toBe(true);
+		if (negative.ok) expect(negative.entries).toBe(0);
+		const inf = writeIndexPage(dir, { limit: Number.POSITIVE_INFINITY });
+		expect(inf.ok).toBe(true);
+		if (inf.ok) expect(inf.entries).toBe(1);
+	});
+
 	test("returns io error when receipts dir is unwritable", () => {
-		// Use a non-existent parent path — writeFileSync will fail.
 		const result = writeIndexPage("/this/dir/does/not/exist/at/all");
 		expect(result.ok).toBe(false);
 		if (result.ok) return;
