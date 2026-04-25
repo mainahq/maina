@@ -26,11 +26,26 @@ const RECEIPTS_DIR = ".maina/receipts";
 const INDEX_PATH = join(RECEIPTS_DIR, "index.html");
 const HASH_HREF = /href="\.\/([0-9a-f]{64})\/index\.html"/g;
 
-interface CheckResult {
+export interface CheckResult {
 	missingDirs: string[];
 	missingHtml: string[];
 	missingJson: string[];
 	duplicateHashes: string[];
+	/** Total link count seen in the index (including duplicates). Computed
+	 * once during parse so the CLI doesn't have to re-read + re-regex the
+	 * index file just to print the count. */
+	total: number;
+}
+
+/** True when `statSync` reports a directory. Wrapped in try/catch because
+ * a TOCTOU race or a permission flip between `existsSync` and `statSync`
+ * would otherwise crash the guard with an unstructured throw. */
+function isDirectorySafe(dir: string): boolean {
+	try {
+		return statSync(dir).isDirectory();
+	} catch {
+		return false;
+	}
 }
 
 export function checkReceiptsIndex(
@@ -42,11 +57,13 @@ export function checkReceiptsIndex(
 		missingHtml: [],
 		missingJson: [],
 		duplicateHashes: [],
+		total: 0,
 	};
 
 	const html = readFileSync(indexPath, "utf-8");
 	const matches = [...html.matchAll(HASH_HREF)];
 	const hashes = matches.map((m) => m[1]).filter((h): h is string => !!h);
+	result.total = hashes.length;
 
 	const seen = new Set<string>();
 	for (const hash of hashes) {
@@ -57,7 +74,7 @@ export function checkReceiptsIndex(
 		seen.add(hash);
 
 		const dir = join(receiptsDir, hash);
-		if (!existsSync(dir) || !statSync(dir).isDirectory()) {
+		if (!isDirectorySafe(dir)) {
 			result.missingDirs.push(hash);
 			continue;
 		}
@@ -76,25 +93,27 @@ export function isClean(r: CheckResult): boolean {
 	);
 }
 
-function reportAndExit(r: CheckResult, total: number): never {
+function reportAndExit(r: CheckResult): never {
 	if (isClean(r)) {
 		process.stdout.write(
-			`Receipt index integrity: ${total} link(s) checked, all resolve.\n`,
+			`Receipt index integrity: ${r.total} link(s) checked, all resolve.\n`,
 		);
 		process.exit(0);
 	}
 	process.stderr.write("Receipt index integrity FAILED:\n");
+	// Print full hashes so the offending directory is grep-uniquely
+	// identifiable — short prefixes can collide.
 	for (const h of r.missingDirs) {
-		process.stderr.write(`  missing directory: ${h.slice(0, 12)}…\n`);
+		process.stderr.write(`  missing directory: ${h}\n`);
 	}
 	for (const h of r.missingHtml) {
-		process.stderr.write(`  missing index.html: ${h.slice(0, 12)}…\n`);
+		process.stderr.write(`  missing index.html: ${h}\n`);
 	}
 	for (const h of r.missingJson) {
-		process.stderr.write(`  missing receipt.json: ${h.slice(0, 12)}…\n`);
+		process.stderr.write(`  missing receipt.json: ${h}\n`);
 	}
 	for (const h of r.duplicateHashes) {
-		process.stderr.write(`  duplicate link: ${h.slice(0, 12)}…\n`);
+		process.stderr.write(`  duplicate link: ${h}\n`);
 	}
 	process.exit(1);
 }
@@ -113,8 +132,5 @@ if (import.meta.main) {
 		);
 		process.exit(1);
 	}
-	const result = checkReceiptsIndex(INDEX_PATH, RECEIPTS_DIR);
-	const html = readFileSync(INDEX_PATH, "utf-8");
-	const total = [...html.matchAll(HASH_HREF)].length;
-	reportAndExit(result, total);
+	reportAndExit(checkReceiptsIndex(INDEX_PATH, RECEIPTS_DIR));
 }

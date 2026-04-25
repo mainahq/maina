@@ -58,6 +58,8 @@ describe("checkReceiptsIndex", () => {
 
 		const result = checkReceiptsIndex(indexPath, tmp);
 		expect(isClean(result)).toBe(true);
+		// total comes from the parse, not a re-read; covers the dedup-IO fix.
+		expect(result.total).toBe(2);
 	});
 
 	test("flags missing directories", () => {
