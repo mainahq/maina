@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maina receipts</title>
+<meta name="description" content="Maina proof-of-correctness receipts — newest first.">
+<style>
+:root { color-scheme: light dark; }
+body { font: 15px/1.55 system-ui, -apple-system, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1.25rem; }
+h1 { font-size: 1.5rem; margin: 0 0 0.5rem 0; }
+.meta { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; opacity: 0.7; margin-bottom: 1.5rem; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid rgba(127,127,127,0.18); vertical-align: top; }
+th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.65; }
+.status { display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px; font-weight: 600; font-size: 0.78rem; }
+.status-passed { background: oklch(0.92 0.1 145); color: oklch(0.25 0.15 145); }
+.status-failed { background: oklch(0.92 0.1 25); color: oklch(0.25 0.15 25); }
+.status-partial { background: oklch(0.92 0.08 90); color: oklch(0.3 0.15 90); }
+.title-cell a { color: inherit; text-decoration: none; font-weight: 500; }
+.title-cell a:hover { text-decoration: underline; }
+.hash { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; opacity: 0.65; }
+.timestamp { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; opacity: 0.75; }
+.empty { padding: 2rem 1rem; text-align: center; opacity: 0.7; }
+footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid rgba(127,127,127,0.2); font-size: 0.82rem; opacity: 0.7; }
+a { color: oklch(0.55 0.2 250); }
+@media (prefers-color-scheme: dark) { a { color: oklch(0.75 0.15 250); } }
+</style>
+</head>
+<body>
+<h1>Maina receipts</h1>
+<p class="meta">Maina proof-of-correctness receipts — newest first.</p>
+
+<table>
+<thead>
+<tr>
+  <th>Status</th>
+  <th>PR</th>
+  <th>Checks</th>
+  <th>Timestamp</th>
+  <th>Hash</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><span class="status status-passed">passed</span></td>
+  <td class="title-cell"><a href="./dffae20060fef23a897460f32c5b75c0aea51fcb6e8bef4efc3aaee79d8097a3/index.html">feat(core,cli): receipt walkthrough — 3-sentence ai header (#238)</a><br><span class="hash">mainahq/maina</span></td>
+  <td>passed 8 of 10</td>
+  <td class="timestamp">2026-04-25T21:13:00.372Z</td>
+  <td class="hash">dffae20060fe…</td>
+</tr>
+<tr>
+  <td><span class="status status-passed">passed</span></td>
+  <td class="title-cell"><a href="./0fdcbc34705c8dbde927510b404bb4825bca863e04479fbe0e9a2d5bf2543573/index.html">feat(core,cli): receipts index page for github pages (#242)</a><br><span class="hash">mainahq/maina</span></td>
+  <td>passed 8 of 10</td>
+  <td class="timestamp">2026-04-25T21:12:49.736Z</td>
+  <td class="hash">0fdcbc34705c…</td>
+</tr>
+<tr>
+  <td><span class="status status-passed">passed</span></td>
+  <td class="title-cell"><a href="./bf1b2656d40f9e1bdc807ec70835aa47618550120c82c8de65501e8ae5667c84/index.html">feat(core,cli): maina apply-fix — autofix loop closer (#240)</a><br><span class="hash">mainahq/maina</span></td>
+  <td>passed 8 of 10</td>
+  <td class="timestamp">2026-04-25T21:12:38.375Z</td>
+  <td class="hash">bf1b2656d40f…</td>
+</tr>
+<tr>
+  <td><span class="status status-passed">passed</span></td>
+  <td class="title-cell"><a href="./73b2f0ab6a32f663c9de361ad2dfd793c48cef0fb3c1672dc5b304cd77335356/index.html">feat(core,cli): receipt false-positive feedback recording (#239)</a><br><span class="hash">mainahq/maina</span></td>
+  <td>passed 8 of 10</td>
+  <td class="timestamp">2026-04-25T21:12:26.806Z</td>
+  <td class="hash">73b2f0ab6a32…</td>
+</tr>
+<tr>
+  <td><span class="status status-passed">passed</span></td>
+  <td class="title-cell"><a href="./851559e6d280373ec4676171180f6ec6e02fafae2e26032ecbb3820d956b2ba4/index.html">feat(core): maina-native prompt templates and agents (#243 #244)</a><br><span class="hash">mainahq/maina</span></td>
+  <td>passed 8 of 10</td>
+  <td class="timestamp">2026-04-25T21:12:14.706Z</td>
+  <td class="hash">851559e6d280…</td>
+</tr>
+<tr>
+  <td><span class="status status-passed">passed</span></td>
+  <td class="title-cell"><a href="./a5fc63f18baa87b7369835136de3aed222efef621a6baeeff5626c5d832cf2b4/index.html">feat(ci): backfill receipts script for wave 3 dogfood (#256)</a><br><span class="hash">mainahq/maina</span></td>
+  <td>passed 8 of 10</td>
+  <td class="timestamp">2026-04-25T21:12:02.212Z</td>
+  <td class="hash">a5fc63f18baa…</td>
+</tr>
+<tr>
+  <td><span class="status status-passed">passed</span></td>
+  <td class="title-cell"><a href="./a637db444873d72138649a19802f81b4b38feb890ddecff8b6162ca117fcb627/index.html">feat(ci): backfilled receipts for last 10 prs (#258)</a><br><span class="hash">mainahq/maina</span></td>
+  <td>passed 8 of 10</td>
+  <td class="timestamp">2026-04-25T21:11:48.454Z</td>
+  <td class="hash">a637db444873…</td>
+</tr>
+<tr>
+  <td><span class="status status-passed">passed</span></td>
+  <td class="title-cell"><a href="./a6fe85807b762f25446b0fcf4d45cc970a95dd0ebf1de0cdc8cb26e9988b24c1/index.html">ci(docs): publish .maina/receipts/** via Pages workflow (#263)</a><br><span class="hash">mainahq/maina</span></td>
+  <td>passed 8 of 10</td>
+  <td class="timestamp">2026-04-25T21:11:30.247Z</td>
+  <td class="hash">a6fe85807b76…</td>
+</tr>
+<tr>
+  <td><span class="status status-failed">failed</span></td>
+  <td class="title-cell"><a href="./b5f29d966306a67eb8ffc6791dad758ecd70b13e20423ca86075a429c37e0bd4/index.html">feat(core,cli): thread diff stats into receipt builds (#264)</a><br><span class="hash">mainahq/maina</span></td>
+  <td>failed — 8/11 held</td>
+  <td class="timestamp">2026-04-25T21:11:18.529Z</td>
+  <td class="hash">b5f29d966306…</td>
+</tr>
+<tr>
+  <td><span class="status status-passed">passed</span></td>
+  <td class="title-cell"><a href="./cc884d4a168ba0eef5716882dd4f21318e758f98e0128d971bd84af407a004b4/index.html">feat(core): per-receipt footer backlink to receipts index (#268)</a><br><span class="hash">mainahq/maina</span></td>
+  <td>passed 8 of 10</td>
+  <td class="timestamp">2026-04-25T21:11:05.434Z</td>
+  <td class="hash">cc884d4a168b…</td>
+</tr>
+</tbody>
+</table>
+
+<footer>
+Receipt format: v1 (<a href="https://schemas.mainahq.com/v1.json">schemas.mainahq.com/v1.json</a>).
+Verify any receipt offline with <code>maina verify-receipt &lt;path&gt;</code>.
+</footer>
+</body>
+</html>
