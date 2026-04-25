@@ -37,13 +37,18 @@ jobs:
       # Copy backfilled + future receipts into the published site so each
       # receipt is reachable at /receipts/<hash>/ on Pages. Receipts are
       # static HTML+JSON; Starlight is fine with sibling directories under
-      # dist/.
+      # dist/. Fails the job if .maina/receipts is missing — once we ship
+      # receipt publishing, an absent directory is a real misconfiguration,
+      # not a normal state.
       - name: Stage receipts under docs dist
         run: |
-          if [ -d .maina/receipts ]; then
-            mkdir -p packages/docs/dist/receipts
-            cp -R .maina/receipts/. packages/docs/dist/receipts/
+          if [ ! -d .maina/receipts ]; then
+            echo "::error::.maina/receipts is missing — receipts must be committed before this workflow runs"
+            exit 1
           fi
+          rm -rf packages/docs/dist/receipts
+          mkdir -p packages/docs/dist/receipts
+          cp -R .maina/receipts/. packages/docs/dist/receipts/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
