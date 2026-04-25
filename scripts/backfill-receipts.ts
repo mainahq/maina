@@ -26,6 +26,7 @@ import {
 	type ReceiptActionResult,
 	receiptAction,
 } from "../packages/cli/src/commands/receipt";
+import { getDiffStats } from "../packages/core/src/git";
 import { writeIndexPage as writeReceiptIndexPage } from "../packages/core/src/receipt/index-page";
 
 interface BackfillOptions {
@@ -252,12 +253,23 @@ async function backfillOne(
 		};
 	}
 
+	// Pre-compute diff stats for the same range so the receipt records the
+	// PR's actual line-level scope rather than 0/0/0. The default path in
+	// receiptAction can't infer this — it's a synthetic range across the
+	// merge commit's parent → merge commit.
+	const diff = await getDiffStats({
+		cwd: options.cwd,
+		from: `${pr.mergeCommit.oid}^`,
+		to: pr.mergeCommit.oid,
+	});
+
 	try {
 		const receipt = await receiptAction({
 			cwd: options.cwd,
 			base: pr.baseRefName,
 			title: pr.title,
 			files,
+			diff,
 			noIndex: true, // we'll refresh once at the end
 		});
 		return { ok: true, receipt };

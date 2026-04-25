@@ -4,10 +4,12 @@ import {
 	getChangedFiles,
 	getCurrentBranch,
 	getDiff,
+	getDiffStats,
 	getRecentCommits,
 	getRepoRoot,
 	getRepoSlug,
 	getStagedFiles,
+	parseShortstat,
 } from "../index";
 
 describe("git operations", () => {
@@ -59,6 +61,54 @@ describe("git operations", () => {
 	test("getDiff() returns a string", async () => {
 		const diff = await getDiff();
 		expect(typeof diff).toBe("string");
+	});
+
+	test("parseShortstat() returns zeros for empty input", () => {
+		expect(parseShortstat("")).toEqual({
+			additions: 0,
+			deletions: 0,
+			files: 0,
+		});
+		expect(parseShortstat("   \n  ")).toEqual({
+			additions: 0,
+			deletions: 0,
+			files: 0,
+		});
+	});
+
+	test("parseShortstat() handles full add+del shortstat line", () => {
+		const line = " 3 files changed, 42 insertions(+), 5 deletions(-)";
+		expect(parseShortstat(line)).toEqual({
+			files: 3,
+			additions: 42,
+			deletions: 5,
+		});
+	});
+
+	test("parseShortstat() handles add-only shortstat", () => {
+		expect(parseShortstat(" 1 file changed, 1 insertion(+)")).toEqual({
+			files: 1,
+			additions: 1,
+			deletions: 0,
+		});
+	});
+
+	test("parseShortstat() handles del-only shortstat", () => {
+		expect(parseShortstat(" 2 files changed, 7 deletions(-)")).toEqual({
+			files: 2,
+			additions: 0,
+			deletions: 7,
+		});
+	});
+
+	test("getDiffStats() returns a stats object (may be zero)", async () => {
+		const stats = await getDiffStats();
+		expect(typeof stats.additions).toBe("number");
+		expect(typeof stats.deletions).toBe("number");
+		expect(typeof stats.files).toBe("number");
+		expect(stats.additions).toBeGreaterThanOrEqual(0);
+		expect(stats.deletions).toBeGreaterThanOrEqual(0);
+		expect(stats.files).toBeGreaterThanOrEqual(0);
 	});
 
 	test("getRepoSlug() returns owner/repo format", async () => {

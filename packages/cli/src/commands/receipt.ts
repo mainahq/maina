@@ -11,8 +11,10 @@ import { join, relative } from "node:path";
 import {
 	type BuildReceiptInput,
 	buildReceipt,
+	type DiffStats,
 	deriveChecksAndStatus,
 	generateWalkthrough,
+	getDiffStats,
 	getStagedFiles,
 	getTrackedFiles,
 	type PipelineResult,
@@ -36,6 +38,10 @@ export interface ReceiptActionOptions {
 	 * detection — useful for backfill scripts that compute a PR's
 	 * diff scope directly. */
 	files?: string[];
+	/** Pre-computed diff stats. Backfill computes its own range
+	 * (`<commit>^..<commit>`) and passes the result through; otherwise
+	 * receiptAction shells out to `git diff --shortstat` itself. */
+	diff?: DiffStats;
 }
 
 export interface ReceiptActionResult {
@@ -61,7 +67,7 @@ export async function receiptAction(
 	const pipeline = await runVerifyPipeline(cwd, options);
 	const { constitutionHash, promptsHash } = loadPromptVersion(cwd);
 	const prTitle = options.title ?? "Untitled PR";
-	const diff = { additions: 0, deletions: 0, files: 0 };
+	const diff = options.diff ?? (await resolveDiffStats(cwd, options));
 	const retries = 0;
 
 	// Use the *same* check derivation that buildReceipt will use — guarantees
@@ -128,6 +134,18 @@ export async function receiptAction(
 		totalCount: built.data.checks.length,
 		status: built.data.status,
 	};
+}
+
+async function resolveDiffStats(
+	cwd: string,
+	options: ReceiptActionOptions,
+): Promise<DiffStats> {
+	// `--all` walks every tracked file; line-level add/del don't apply.
+	if (options.all) return { additions: 0, deletions: 0, files: 0 };
+	// Default path: staged diff (what `maina receipt` runs against pre-merge).
+	// Backfill always provides options.diff or options.files+base, so this
+	// branch only fires for the live `maina receipt` invocation.
+	return getDiffStats({ cwd, staged: true });
 }
 
 async function runVerifyPipeline(

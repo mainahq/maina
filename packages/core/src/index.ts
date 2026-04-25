@@ -255,15 +255,19 @@ export {
 // Git
 export {
 	type Commit,
+	type DiffStats,
+	type GetDiffStatsOptions,
 	getBranchName,
 	getChangedFiles,
 	getCurrentBranch,
 	getDiff,
+	getDiffStats,
 	getRecentCommits,
 	getRepoRoot,
 	getRepoSlug,
 	getStagedFiles,
 	getTrackedFiles,
+	parseShortstat,
 } from "./git/index";
 export {
 	appendVerifiedByTrailer,
