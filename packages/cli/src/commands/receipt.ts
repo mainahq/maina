@@ -19,6 +19,7 @@ import {
 	type Receipt,
 	renderReceiptHtml,
 	runPipeline,
+	writeReceiptIndexPage,
 } from "@mainahq/core";
 import { Command } from "commander";
 import { EXIT_FINDINGS, EXIT_PASSED, outputJson } from "../json";
@@ -30,6 +31,7 @@ export interface ReceiptActionOptions {
 	title?: string;
 	outputDir?: string;
 	cwd?: string;
+	noIndex?: boolean;
 }
 
 export interface ReceiptActionResult {
@@ -102,6 +104,14 @@ export async function receiptAction(
 			error: { code: "io", message: writeResult.message },
 		};
 	}
+
+	// Refresh the listing page after writing the receipt — best-effort. A
+	// failure here shouldn't fail receipt generation; the per-receipt page
+	// is the load-bearing artifact.
+	if (!options.noIndex) {
+		writeReceiptIndexPage(outputDir);
+	}
+
 	const passedCount = built.data.checks.filter(
 		(c) => c.status === "passed",
 	).length;
@@ -236,6 +246,10 @@ export function receiptCommand(): Command {
 		.option(
 			"--output-dir <dir>",
 			"override output directory (default .maina/receipts/)",
+		)
+		.option(
+			"--no-index",
+			"skip refreshing .maina/receipts/index.html after writing",
 		)
 		.option("--json", "emit structured JSON envelope instead of human output")
 		.action(async (opts: ReceiptActionOptions) => {

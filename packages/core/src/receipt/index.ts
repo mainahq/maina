@@ -11,6 +11,13 @@ export {
 	deriveChecksAndStatus,
 } from "./build";
 export { canonicalize } from "./canonical";
+export {
+	type IndexEntry,
+	type IndexPageOptions,
+	type IndexPageResult,
+	renderIndexHtml,
+	writeIndexPage,
+} from "./index-page";
 export { renderReceiptHtml } from "./render";
 export type {
 	Agent,

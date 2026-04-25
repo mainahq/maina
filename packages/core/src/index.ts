@@ -361,10 +361,14 @@ export {
 	type FeedbackEntry as ReceiptFeedbackEntry,
 	type Finding as ReceiptFinding,
 	generateWalkthrough,
+	type IndexEntry as ReceiptIndexEntry,
+	type IndexPageOptions as ReceiptIndexPageOptions,
+	type IndexPageResult as ReceiptIndexPageResult,
 	type Patch as ReceiptPatch,
 	type PromptVersion as ReceiptPromptVersion,
 	type Receipt,
 	type ReceiptStatus,
+	renderIndexHtml as renderReceiptIndexHtml,
 	renderReceiptHtml,
 	type VerifyErrorCode as ReceiptVerifyErrorCode,
 	type VerifyResult as ReceiptVerifyResult,
@@ -372,6 +376,7 @@ export {
 	type WalkthroughDeps,
 	type WalkthroughInput,
 	type WalkthroughResult,
+	writeIndexPage as writeReceiptIndexPage,
 } from "./receipt";
 // Comprehensive Review (Superpowers-style)
 export {
