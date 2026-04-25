@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	getChangedFiles,
-	getStagedFiles,
 	type Receipt,
 	validatePatchScope,
 	verifyReceipt,
@@ -79,6 +78,18 @@ export async function applyFixAction(
 				},
 			};
 		}
+		// Don't trust the on-disk path keyed by user-supplied hash — make sure
+		// the verified receipt's own hash matches the argument. Catches stale
+		// or misplaced files in `.maina/receipts/<wrong>/receipt.json`.
+		if (verified.data.hash !== hash) {
+			return {
+				ok: false,
+				error: {
+					code: "hash-mismatch",
+					message: `Receipt at ${receiptPath} reports hash ${verified.data.hash}, but command was invoked with ${hash}.`,
+				},
+			};
+		}
 		receipt = verified.data;
 	} catch (e) {
 		return {
@@ -111,20 +122,48 @@ export async function applyFixAction(
 		};
 	}
 
-	// 3. Working tree must be clean — don't merge user WIP with autofix
-	const staged = await getStagedFiles(cwd);
-	if (staged.length > 0) {
+	// 3. Working tree must be clean — staged + unstaged + untracked. A staged
+	// check alone would let `git add -- <file>` after the apply sweep up
+	// pre-existing unstaged WIP into the autofix commit.
+	const portionPorcelain = await runGit(["status", "--porcelain"], cwd);
+	if (portionPorcelain.exitCode !== 0) {
+		return {
+			ok: false,
+			error: {
+				code: "git-status-failed",
+				message: `git status failed: ${portionPorcelain.stderr.trim() || portionPorcelain.stdout.trim()}`,
+			},
+		};
+	}
+	if (portionPorcelain.stdout.trim().length > 0) {
 		return {
 			ok: false,
 			error: {
 				code: "working-tree-dirty",
-				message: `Working tree has staged changes — commit or stash before applying autofix.`,
+				message:
+					"Working tree has uncommitted changes — commit or stash before applying autofix.",
 			},
 		};
 	}
 
 	// 4. Validate scope — patch must only touch files in the receipt's diff scope
 	const baseBranch = options.base ?? DEFAULT_BASE_BRANCH;
+	// Verify base ref exists before relying on getChangedFiles — otherwise an
+	// unknown base produces an empty allowlist that surfaces every patch as
+	// "out-of-scope", which is misleading.
+	const baseCheck = await runGit(
+		["rev-parse", "--verify", "--quiet", baseBranch],
+		cwd,
+	);
+	if (baseCheck.exitCode !== 0) {
+		return {
+			ok: false,
+			error: {
+				code: "unknown-base-branch",
+				message: `Base branch ${baseBranch} not found. Pass --base <branch> with an existing ref.`,
+			},
+		};
+	}
 	const allowedFiles = await getChangedFiles(baseBranch, cwd);
 	const validation = validatePatchScope(check.patch, allowedFiles);
 	if (!validation.ok) {
@@ -137,12 +176,22 @@ export async function applyFixAction(
 		};
 	}
 
-	// 5. git apply --check, then git apply for real (skip on dry-run)
+	// 5. Write patch to tmp, then git apply --check + apply (skip on dry-run)
 	const tmpPatch = join(
 		tmpdir(),
 		`maina-autofix-${hash.slice(0, 12)}-${Date.now()}.patch`,
 	);
-	writeFileSync(tmpPatch, check.patch.diff, "utf-8");
+	try {
+		writeFileSync(tmpPatch, check.patch.diff, "utf-8");
+	} catch (e) {
+		return {
+			ok: false,
+			error: {
+				code: "io",
+				message: `Failed to write tmp patch ${tmpPatch}: ${(e as Error).message}`,
+			},
+		};
+	}
 
 	const checkResult = await runGit(["apply", "--check", tmpPatch], cwd);
 	if (checkResult.exitCode !== 0) {
@@ -174,18 +223,20 @@ export async function applyFixAction(
 		};
 	}
 
-	// 6. Stage + commit
-	for (const file of validation.touchedFiles) {
-		const addResult = await runGit(["add", "--", file], cwd);
-		if (addResult.exitCode !== 0) {
-			return {
-				ok: false,
-				error: {
-					code: "stage-failed",
-					message: `git add ${file} failed: ${addResult.stderr.trim()}`,
-				},
-			};
-		}
+	// 6. Stage + commit. Use `git add -A --` so deletions and renames stage
+	// correctly (`git add -- <file>` won't stage a removed path).
+	const addResult = await runGit(
+		["add", "-A", "--", ...validation.touchedFiles],
+		cwd,
+	);
+	if (addResult.exitCode !== 0) {
+		return {
+			ok: false,
+			error: {
+				code: "stage-failed",
+				message: `git add -A failed: ${addResult.stderr.trim()}`,
+			},
+		};
 	}
 
 	const commitMessage = buildCommitMessage(
@@ -229,15 +280,58 @@ async function runGit(
 	args: string[],
 	cwd: string,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-	const proc = Bun.spawn(["git", ...args], {
-		cwd,
-		stdout: "pipe",
-		stderr: "pipe",
-	});
-	const stdout = await new Response(proc.stdout).text();
-	const stderr = await new Response(proc.stderr).text();
-	const exitCode = await proc.exited;
-	return { exitCode, stdout, stderr };
+	try {
+		const proc = Bun.spawn(["git", ...args], {
+			cwd,
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		const stdout = await new Response(proc.stdout).text();
+		const stderr = await new Response(proc.stderr).text();
+		const exitCode = await proc.exited;
+		return { exitCode, stdout, stderr };
+	} catch (e) {
+		// Spawn failure (e.g. git not on PATH) — surface as a non-zero exitCode
+		// + stderr text so callers' Result-based error mapping still works.
+		const message = e instanceof Error ? e.message : String(e);
+		return {
+			exitCode: 127,
+			stdout: "",
+			stderr: `git not available: ${message}`,
+		};
+	}
+}
+
+/** Map a structured `apply-fix` error to a CLI exit code. Used for both the
+ * human-readable path and the `--json` envelope so automation sees the same
+ * codes as interactive use. */
+function exitCodeForError(
+	error: ApplyFixActionResult["error"] | undefined,
+): number {
+	if (!error) return EXIT_PASSED;
+	switch (error.code) {
+		case "invalid-hash":
+		case "receipt-not-found":
+		case "invalid-receipt":
+		case "hash-mismatch":
+		case "check-not-found":
+		case "no-patch":
+		case "unknown-base-branch":
+		case "io":
+		case "git-status-failed":
+			return EXIT_CONFIG_ERROR;
+		case "working-tree-dirty":
+		case "empty-diff":
+		case "malformed-diff":
+		case "out-of-scope":
+		case "apply-conflict":
+		case "apply-failed":
+		case "stage-failed":
+		case "commit-failed":
+			return EXIT_FINDINGS;
+		default:
+			return EXIT_FINDINGS;
+	}
 }
 
 export function applyFixCommand(): Command {
@@ -255,7 +349,9 @@ export function applyFixCommand(): Command {
 		.action(
 			async (hash: string, checkId: string, opts: ApplyFixActionOptions) => {
 				const result = await applyFixAction(hash, checkId, opts);
-				const exitCode = result.ok ? EXIT_PASSED : EXIT_CONFIG_ERROR;
+				const exitCode = result.ok
+					? EXIT_PASSED
+					: exitCodeForError(result.error);
 
 				if (opts.json) {
 					outputJson(formatEnvelope(result, opts.dryRun ?? false), exitCode);
@@ -276,8 +372,6 @@ export function applyFixCommand(): Command {
 					process.stderr.write(
 						`apply-fix failed [${result.error?.code}]: ${result.error?.message}\n`,
 					);
-					process.exitCode = EXIT_FINDINGS;
-					return;
 				}
 				process.exitCode = exitCode;
 			},

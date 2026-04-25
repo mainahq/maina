@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { extractPatchFiles, validatePatchScope } from "../autofix";
+import {
+	extractPatchDestinations,
+	extractPatchFiles,
+	validatePatchScope,
+} from "../autofix";
 
 const SAMPLE_DIFF = `diff --git a/src/foo.ts b/src/foo.ts
 index 0000000..1111111 100644
@@ -51,7 +55,42 @@ describe("extractPatchFiles", () => {
 	});
 });
 
+describe("extractPatchDestinations", () => {
+	test("returns only the destination of a rename", () => {
+		expect(extractPatchDestinations(RENAME_DIFF)).toEqual(["src/new.ts"]);
+	});
+
+	test("returns the single path for plain edits", () => {
+		expect(extractPatchDestinations(SAMPLE_DIFF)).toEqual(["src/foo.ts"]);
+	});
+
+	test("handles CRLF line endings", () => {
+		const crlf = SAMPLE_DIFF.replace(/\n/g, "\r\n");
+		expect(extractPatchDestinations(crlf)).toEqual(["src/foo.ts"]);
+	});
+});
+
 describe("validatePatchScope", () => {
+	test("accepts a rename when only the destination is in the allowlist", () => {
+		const result = validatePatchScope(
+			{ diff: RENAME_DIFF, rationale: "rename" },
+			["src/new.ts"],
+		);
+		expect(result.ok).toBe(true);
+		// touchedFiles still includes the source so callers can stage the deletion
+		if (result.ok) {
+			expect(result.touchedFiles.sort()).toEqual(["src/new.ts", "src/old.ts"]);
+		}
+	});
+
+	test("handles CRLF-encoded diffs without polluting paths with \\r", () => {
+		const crlf = SAMPLE_DIFF.replace(/\n/g, "\r\n");
+		const result = validatePatchScope({ diff: crlf, rationale: "x" }, [
+			"src/foo.ts",
+		]);
+		expect(result.ok).toBe(true);
+	});
+
 	test("ok when every touched file is allowed", () => {
 		const result = validatePatchScope({ diff: SAMPLE_DIFF, rationale: "fix" }, [
 			"src/foo.ts",

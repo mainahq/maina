@@ -358,6 +358,7 @@ export {
 	type Diff as ReceiptDiff,
 	deriveChecksAndStatus,
 	detectAgent,
+	extractPatchDestinations,
 	extractPatchFiles,
 	type FeedbackEntry as ReceiptFeedbackEntry,
 	type Finding as ReceiptFinding,

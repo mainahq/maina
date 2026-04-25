@@ -5,6 +5,7 @@ export {
 	detectAgent,
 } from "./agent-id";
 export {
+	extractPatchDestinations,
 	extractPatchFiles,
 	type ValidatePatchResult,
 	validatePatchScope,
