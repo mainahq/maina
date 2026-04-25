@@ -196,12 +196,13 @@ async function backfillOne(
 		};
 	}
 
-	// Compute the PR's diff scope — files changed between the merge commit
-	// and the merge-base with its target branch. A detached HEAD has nothing
-	// staged, so without this the pipeline runs over an empty file list.
-	const baseRef = `origin/${pr.baseRefName}`;
+	// Compute the PR's diff scope. For squash-merged PRs the merge commit
+	// has a single parent (the previous tip of the target branch), so the
+	// PR's actual changes are simply `<commit>^ → <commit>`. Three-dot
+	// against `origin/<base>` returns empty because the squash commit IS
+	// already in the base after the merge.
 	const diffFiles = await runGit(
-		["diff", "--name-only", `${baseRef}...HEAD`],
+		["diff", "--name-only", `${pr.mergeCommit.oid}^`, pr.mergeCommit.oid],
 		options.cwd,
 	);
 	const files =
@@ -215,7 +216,7 @@ async function backfillOne(
 	if (files.length === 0) {
 		return {
 			ok: false,
-			reason: `no files in diff scope ${baseRef}...${pr.mergeCommit.oid.slice(0, 12)}`,
+			reason: `no files in diff scope ${pr.mergeCommit.oid.slice(0, 12)}^..${pr.mergeCommit.oid.slice(0, 12)}`,
 		};
 	}
 
