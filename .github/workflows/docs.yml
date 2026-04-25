@@ -34,6 +34,13 @@ jobs:
       - name: Build docs
         run: cd packages/docs && bun run build
 
+      # Validate that every link in .maina/receipts/index.html resolves to
+      # an actual hash directory with both index.html and receipt.json on
+      # disk. Catches drift between hand-edits and the generator before
+      # we ship 404s to mainahq.com (#269).
+      - name: Receipt index link integrity
+        run: bun scripts/check-receipts-index.ts
+
       # Copy backfilled + future receipts into the published site so each
       # receipt is reachable at /receipts/<hash>/ on Pages. Receipts are
       # static HTML+JSON; Starlight is fine with sibling directories under
