@@ -6,7 +6,9 @@
   "license": "Apache-2.0",
   "description": "Maina documentation site — built with Astro Starlight",
   "scripts": {
+    "predev": "bun scripts/generate-receipts-manifest.ts",
     "dev": "astro dev",
+    "prebuild": "bun scripts/generate-receipts-manifest.ts",
     "build": "astro build",
     "preview": "astro preview",
     "typecheck": "astro check"
