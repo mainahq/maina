@@ -5,13 +5,17 @@
  * is v2.
  */
 
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
 import {
 	ALLOWED_REVIEWERS,
+	countReceiptFpsByCheck,
 	getRepoSlug,
 	ingestPrReviews,
+	queryReceiptFps,
 	type Result,
+	recordReceiptFp,
 } from "@mainahq/core";
 import { Command } from "commander";
 
@@ -195,5 +199,165 @@ export function feedbackCommand(): Command {
 			outro("Done.");
 		});
 
+	cmd
+		.command("fp")
+		.description(
+			"Record a false-positive against a check on a receipt (per-policy)",
+		)
+		.argument("<receipt-hash>", "receipt sha256 (64 hex chars)")
+		.argument("<check-id>", "id of the noisy check (e.g. biome-check)")
+		.requiredOption("--reason <text>", "why this finding is a false positive")
+		.option(
+			"--constitution-hash <hash>",
+			"override the constitution hash (defaults to receipt's promptVersion)",
+		)
+		.option(
+			"--maina-dir <path>",
+			"override .maina directory (default ./.maina)",
+		)
+		.option("--json", "emit machine-readable JSON")
+		.action(
+			(
+				receiptHashArg: string,
+				checkIdArg: string,
+				options: {
+					reason: string;
+					constitutionHash?: string;
+					mainaDir?: string;
+					json?: boolean;
+				},
+			) => {
+				const constitutionHash =
+					options.constitutionHash ??
+					inferConstitutionHashFromReceipt(receiptHashArg, options.mainaDir);
+
+				if (!constitutionHash) {
+					const message =
+						"Could not infer constitutionHash from receipt — pass --constitution-hash explicitly.";
+					if (options.json) {
+						process.stdout.write(
+							`${JSON.stringify({ ok: false, error: { code: "no-constitution-hash", message } })}\n`,
+						);
+					} else {
+						log.error(message);
+					}
+					process.exitCode = 1;
+					return;
+				}
+
+				const result = recordReceiptFp({
+					checkId: checkIdArg,
+					reason: options.reason,
+					constitutionHash,
+					receiptHash: receiptHashArg,
+					mainaDir: options.mainaDir,
+				});
+
+				if (!result.ok) {
+					if (options.json) {
+						process.stdout.write(`${JSON.stringify(result)}\n`);
+					} else {
+						log.error(`fp recorded failed: ${result.message}`);
+					}
+					process.exitCode = 1;
+					return;
+				}
+
+				if (options.json) {
+					process.stdout.write(
+						`${JSON.stringify({ ok: true, data: result.data }, null, 2)}\n`,
+					);
+					return;
+				}
+				log.success(
+					`Recorded FP for ${result.data.checkId} — ${result.data.id.slice(0, 8)}…`,
+				);
+			},
+		);
+
+	cmd
+		.command("fps")
+		.description("List recorded false-positive feedback")
+		.option(
+			"--constitution-hash <hash>",
+			"only show FPs for this constitution version",
+		)
+		.option("--check-id <id>", "only show FPs for this check id")
+		.option("--maina-dir <path>", "override .maina directory")
+		.option("--json", "emit machine-readable JSON")
+		.action(
+			(options: {
+				constitutionHash?: string;
+				checkId?: string;
+				mainaDir?: string;
+				json?: boolean;
+			}) => {
+				const result = queryReceiptFps({
+					constitutionHash: options.constitutionHash,
+					checkId: options.checkId,
+					mainaDir: options.mainaDir,
+				});
+				if (!result.ok) {
+					if (options.json) {
+						process.stdout.write(`${JSON.stringify(result)}\n`);
+					} else {
+						log.error(`query failed: ${result.message}`);
+					}
+					process.exitCode = 1;
+					return;
+				}
+				if (options.json) {
+					process.stdout.write(
+						`${JSON.stringify({ ok: true, data: result.data }, null, 2)}\n`,
+					);
+					return;
+				}
+				if (result.data.length === 0) {
+					log.info("No false-positive feedback recorded for that filter.");
+					return;
+				}
+				if (options.constitutionHash) {
+					const counts = countReceiptFpsByCheck(
+						options.constitutionHash,
+						options.mainaDir,
+					);
+					const summary = Array.from(counts.entries())
+						.sort((a, b) => b[1] - a[1])
+						.map(([check, n]) => `  ${check}: ${n}`)
+						.join("\n");
+					log.message(`Counts by check (constitution-scoped):\n${summary}`);
+				}
+				const lines = result.data.map(
+					(r) =>
+						`  [${r.createdAt}] ${r.checkId} — ${r.reason} (constitution=${r.constitutionHash.slice(0, 12)}…)`,
+				);
+				log.message(lines.join("\n"));
+			},
+		);
+
 	return cmd;
+}
+
+/**
+ * Best-effort: read `.maina/receipts/<hash>/receipt.json` and pull
+ * `promptVersion.constitutionHash`. Returns undefined when missing/malformed
+ * — caller falls back to the explicit --constitution-hash flag.
+ */
+function inferConstitutionHashFromReceipt(
+	receiptHash: string,
+	mainaDir?: string,
+): string | undefined {
+	if (!/^[0-9a-f]{64}$/.test(receiptHash)) return undefined;
+	try {
+		const root = mainaDir ?? ".maina";
+		const path = join(root, "receipts", receiptHash, "receipt.json");
+		// biome-ignore lint/suspicious/noExplicitAny: tolerate any malformed JSON shape
+		const data: any = JSON.parse(readFileSync(path, "utf-8"));
+		const hash = data?.promptVersion?.constitutionHash;
+		return typeof hash === "string" && /^[0-9a-f]{64}$/.test(hash)
+			? hash
+			: undefined;
+	} catch {
+		return undefined;
+	}
 }

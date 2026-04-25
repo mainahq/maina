@@ -123,6 +123,22 @@ function createFeedbackTables(db: Database): void {
 			ON external_review_findings(pr_repo, pr_number);
 		CREATE INDEX IF NOT EXISTS idx_external_findings_category
 			ON external_review_findings(category);
+
+		-- Per-check false-positive reports keyed by the constitution version
+		-- they were filed against. Q7 (locked 2026-04-25): feedback follows
+		-- the policy, not the repo. See adr/0030 + receipt v1 wire format.
+		CREATE TABLE IF NOT EXISTS receipt_feedback (
+			id TEXT PRIMARY KEY,
+			receipt_hash TEXT,
+			check_id TEXT NOT NULL,
+			reason TEXT NOT NULL,
+			constitution_hash TEXT NOT NULL,
+			created_at TEXT NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_receipt_feedback_check
+			ON receipt_feedback(check_id, constitution_hash);
+		CREATE INDEX IF NOT EXISTS idx_receipt_feedback_constitution
+			ON receipt_feedback(constitution_hash);
 	`);
 
 	// Add workflow columns (nullable — backward compatible)

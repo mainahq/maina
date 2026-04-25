@@ -228,6 +228,16 @@ export {
 	type RulePreference,
 	savePreferences,
 } from "./feedback/preferences";
+export {
+	countReceiptFpsByCheck,
+	type QueryReceiptFpsOptions,
+	type QueryReceiptFpsResult,
+	queryReceiptFps,
+	type ReceiptFpRecord,
+	type RecordReceiptFpInput,
+	type RecordReceiptFpResult,
+	recordReceiptFp,
+} from "./feedback/receipt-fp";
 export { emitAcceptSignal, emitRejectSignal } from "./feedback/signals";
 export {
 	exportEpisodicForCloud,
