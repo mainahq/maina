@@ -89,6 +89,8 @@ ${receipt.checks.map(renderCheck).join("\n")}
 <footer>
 Verified with Maina. Receipt format: v1 (<a href="https://schemas.mainahq.com/v1.json">schemas.mainahq.com/v1.json</a>).
 Verify this receipt offline with <code>maina verify-receipt ./receipt.json</code>.
+<br>
+<a href="../">Back to receipts index</a>
 </footer>
 </body>
 </html>`;
