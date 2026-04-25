@@ -78,6 +78,34 @@ describe("receipts-gallery", () => {
 		expect(cards.map((c) => c.hash)).toEqual(["2".repeat(64), "3".repeat(64)]);
 	});
 
+	it("rejects non-ISO-8601 timestamps", () => {
+		expect(toGalleryCard(rawReceipt({ timestamp: "yesterday" }))).toBeNull();
+		expect(toGalleryCard(rawReceipt({ timestamp: "2026/04/25" }))).toBeNull();
+		// Sanity: the canonical ISO form still parses.
+		expect(
+			toGalleryCard(rawReceipt({ timestamp: "2026-04-25T20:00:00.000Z" })),
+		).not.toBeNull();
+		// And the offset form is also valid ISO-8601.
+		expect(
+			toGalleryCard(rawReceipt({ timestamp: "2026-04-25T20:00:00+00:00" })),
+		).not.toBeNull();
+	});
+
+	it("breaks ties on equal timestamps deterministically by hash", () => {
+		const sameTime = "2026-04-25T20:00:00.000Z";
+		const cards = buildGallery([
+			rawReceipt({ hash: "b".repeat(64), timestamp: sameTime }),
+			rawReceipt({ hash: "a".repeat(64), timestamp: sameTime }),
+			rawReceipt({ hash: "c".repeat(64), timestamp: sameTime }),
+		]);
+		// All three timestamps tie; tie-break by hash ascending.
+		expect(cards.map((c) => c.hash)).toEqual([
+			"a".repeat(64),
+			"b".repeat(64),
+			"c".repeat(64),
+		]);
+	});
+
 	it("drops malformed receipts instead of throwing", () => {
 		// Missing required fields, bogus hash, wrong types — every one
 		// should silently drop, leaving the surviving valid card alone.

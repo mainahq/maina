@@ -71,7 +71,7 @@ export function toGalleryCard(
 	const repo = typeof raw.repo === "string" ? raw.repo : null;
 	if (!repo) return null;
 	const timestamp = typeof raw.timestamp === "string" ? raw.timestamp : null;
-	if (!timestamp) return null;
+	if (!timestamp || !isIsoTimestamp(timestamp)) return null;
 	const status = normalizeStatus(raw.status);
 	if (!status) return null;
 	const walkthroughRaw =
@@ -121,12 +121,27 @@ export function buildGallery(
 	const cards = rawReceipts
 		.map((r) => toGalleryCard(r, { linkBase: options.linkBase }))
 		.filter((c): c is GalleryCard => c !== null);
-	cards.sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1));
+	// Newest-first; equal timestamps fall back to hash for a deterministic
+	// total order. Returning 0 on full equality keeps the JS sort contract.
+	cards.sort((a, b) => {
+		if (a.timestamp !== b.timestamp) return a.timestamp < b.timestamp ? 1 : -1;
+		if (a.hash !== b.hash) return a.hash < b.hash ? -1 : 1;
+		return 0;
+	});
 	return cards.slice(0, limit);
 }
 
 function normalizeStatus(raw: unknown): StatusBadge | null {
 	return raw === "passed" || raw === "failed" || raw === "partial" ? raw : null;
+}
+
+const ISO_8601 =
+	/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+function isIsoTimestamp(raw: string): boolean {
+	if (!ISO_8601.test(raw)) return false;
+	const t = Date.parse(raw);
+	return Number.isFinite(t);
 }
 
 function statusLabel(
