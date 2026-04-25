@@ -1,33 +1,26 @@
 ---
 /**
- * ReceiptGallery — Wave 3.2 #257.
+ * ReceiptGallery — Wave 3.2 #257, manifest path #274.
  *
- * Reads every `.maina/receipts/<hash>/receipt.json` at build time via
- * Vite's `import.meta.glob`, hands the raw shapes to `buildGallery`, and
- * renders cards. Pure SSG — zero client JS. Empty state covers fresh
- * checkouts where no receipts have been produced yet (so the homepage
- * doesn't visibly break).
+ * Reads the pre-built manifest written by
+ * `packages/docs/scripts/generate-receipts-manifest.ts`. Earlier
+ * iterations used `import.meta.glob` with `{ eager: true }` to load
+ * every receipt JSON into the Vite dep graph; that stops scaling past
+ * ~100 receipts. The script now does the parsing once at build time
+ * (wired via `prebuild`), the component is a pure renderer. Pure SSG —
+ * zero client JS. Empty state covers fresh checkouts where the
+ * manifest is empty.
  */
 import { RECEIPTS_GALLERY } from '../data/landing';
-import {
-  buildGallery,
-  type RawReceipt,
-  type GalleryCard,
-} from '../data/receipts-gallery';
+import type { GalleryCard } from '../data/receipts-gallery';
+import manifest from '../data/receipts-manifest.json';
 
 const rawBase = import.meta.env.BASE_URL;
 const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
 
-const receiptModules = import.meta.glob<RawReceipt>(
-  '../../../../.maina/receipts/*/receipt.json',
-  { eager: true, import: 'default' },
-);
-
-const cards: GalleryCard[] = buildGallery(Object.values(receiptModules));
-
 // Resolve hrefs against the site base so this works under a non-root
 // `BASE_URL` (e.g. preview deploys).
-const resolvedCards = cards.map((c) => ({
+const resolvedCards = (manifest as GalleryCard[]).map((c) => ({
   ...c,
   href: c.href.startsWith('/') ? `${base}${c.href}` : c.href,
 }));
