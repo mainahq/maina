@@ -17,6 +17,19 @@ import { canonicalize } from "../receipt/canonical";
 const VERIFIED_BY_PATTERN =
 	/^Verified-by:[ \t]*Maina@sha256:[0-9a-f]{64}[ \t]*$/m;
 
+/** Global pattern for replaceAll — collapses any number of existing
+ * Verified-by lines into one, so duplicates that snuck in get cleaned up. */
+const VERIFIED_BY_PATTERN_GLOBAL =
+	/^Verified-by:[ \t]*Maina@sha256:[0-9a-f]{64}[ \t]*$/gm;
+
+export type AppendTrailerResult =
+	| { ok: true; data: string }
+	| { ok: false; code: "invalid-hash"; message: string };
+
+export type ProofHashResult =
+	| { ok: true; data: string }
+	| { ok: false; code: "canonicalize-failed"; message: string };
+
 /** Returns true if the message already contains a `Verified-by: Maina@sha256:...` trailer. */
 export function hasVerifiedByTrailer(message: string): boolean {
 	return VERIFIED_BY_PATTERN.test(message);
@@ -25,32 +38,48 @@ export function hasVerifiedByTrailer(message: string): boolean {
 /**
  * Append a `Verified-by: Maina@sha256:<hash>` trailer to a commit message.
  *
- * Idempotent: if the message already has one, the message is returned
- * unchanged. If it has a different sha256 in an existing trailer, the
- * existing line is replaced (single source of truth — re-verify wins).
+ * Idempotent: re-running with the same hash is a no-op. If the message
+ * already has one or more `Verified-by` trailers (with any hash), they are
+ * collapsed into a single line carrying `hash` — single source of truth.
+ *
+ * Returns a Result; matches the repo's "never throw" convention.
  */
-export function appendVerifiedByTrailer(message: string, hash: string): string {
+export function appendVerifiedByTrailer(
+	message: string,
+	hash: string,
+): AppendTrailerResult {
 	if (!/^[0-9a-f]{64}$/.test(hash)) {
-		throw new Error(`Invalid sha256 hash for trailer: ${hash}`);
+		return {
+			ok: false,
+			code: "invalid-hash",
+			message: `Invalid sha256 hash for trailer: ${hash}`,
+		};
 	}
 	const trailer = `Verified-by: Maina@sha256:${hash}`;
 
-	// Replace existing Verified-by line, keeping all other trailers + body.
 	if (VERIFIED_BY_PATTERN.test(message)) {
-		return message.replace(VERIFIED_BY_PATTERN, trailer);
+		// Collapse duplicates into one line, then de-dup blank lines created by
+		// removing leading/trailing matches.
+		let count = 0;
+		const collapsed = message.replace(VERIFIED_BY_PATTERN_GLOBAL, () => {
+			count += 1;
+			return count === 1 ? trailer : "__MAINA_REMOVE__";
+		});
+		const cleaned = collapsed
+			.replace(/\n__MAINA_REMOVE__/g, "")
+			.replace(/__MAINA_REMOVE__\n?/g, "");
+		return { ok: true, data: cleaned };
 	}
 
 	const trimmed = message.trimEnd();
 	if (trimmed.length === 0) {
-		return `${trailer}\n`;
+		return { ok: true, data: `${trailer}\n` };
 	}
 
-	// If the last paragraph already looks like trailers (Key: value lines),
-	// append to it. Otherwise add a blank line separator first.
 	if (lastParagraphIsTrailers(trimmed)) {
-		return `${trimmed}\n${trailer}\n`;
+		return { ok: true, data: `${trimmed}\n${trailer}\n` };
 	}
-	return `${trimmed}\n\n${trailer}\n`;
+	return { ok: true, data: `${trimmed}\n\n${trailer}\n` };
 }
 
 /** Heuristic — last paragraph is "trailer-like" when every non-empty line in
@@ -67,11 +96,20 @@ function lastParagraphIsTrailers(message: string): boolean {
 /** Compute a sha256 hash of an arbitrary value via canonicalized JSON.
  * Suitable for the `Verified-by` trailer when no full receipt is available
  * (e.g. `maina commit` runs verify but doesn't produce a receipt artifact;
- * it can still record a stable proof identity). */
-export function computeProofHash(value: unknown): string {
+ * it can still record a stable proof identity).
+ *
+ * Returns a Result; matches the repo's "never throw" convention. */
+export function computeProofHash(value: unknown): ProofHashResult {
 	const c = canonicalize(value);
 	if (!c.ok) {
-		throw new Error(`Cannot compute proof hash: ${c.message}`);
+		return {
+			ok: false,
+			code: "canonicalize-failed",
+			message: c.message,
+		};
 	}
-	return createHash("sha256").update(c.data).digest("hex");
+	return {
+		ok: true,
+		data: createHash("sha256").update(c.data).digest("hex"),
+	};
 }

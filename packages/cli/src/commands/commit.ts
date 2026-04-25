@@ -402,16 +402,16 @@ export async function commitAction(
 
 	// ── Step 5b: Append Verified-by trailer when verification ran ─────────
 	if (!options.noTrailer && !options.noVerify && pipelineResult) {
-		try {
-			const proofHash = computeProofHash({
-				passed: pipelineResult.passed,
-				toolsRun: pipelineResult.tools.length,
-				findingsShown: pipelineResult.findings.length,
-				findingsHidden: pipelineResult.hiddenCount,
-			});
-			message = appendVerifiedByTrailer(message, proofHash);
-		} catch {
-			// Trailer is best-effort — never block the commit.
+		const hash = computeProofHash({
+			passed: pipelineResult.passed,
+			toolsRun: pipelineResult.tools.length,
+			findingsShown: pipelineResult.findings.length,
+			findingsHidden: pipelineResult.hiddenCount,
+		});
+		if (hash.ok) {
+			const trailer = appendVerifiedByTrailer(message, hash.data);
+			if (trailer.ok) message = trailer.data;
+			// Trailer is best-effort — failures are silent so they never block commit.
 		}
 	}
 

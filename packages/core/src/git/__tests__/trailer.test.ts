@@ -8,6 +8,19 @@ import {
 const HASH = "a".repeat(64);
 const HASH2 = "b".repeat(64);
 
+function unwrapAppend(message: string, hash: string): string {
+	const result = appendVerifiedByTrailer(message, hash);
+	if (!result.ok)
+		throw new Error(`unexpected append failure: ${result.message}`);
+	return result.data;
+}
+
+function unwrapHash(value: unknown): string {
+	const result = computeProofHash(value);
+	if (!result.ok) throw new Error(`unexpected hash failure: ${result.message}`);
+	return result.data;
+}
+
 describe("hasVerifiedByTrailer", () => {
 	test("detects a present trailer", () => {
 		expect(
@@ -28,64 +41,75 @@ describe("hasVerifiedByTrailer", () => {
 
 describe("appendVerifiedByTrailer", () => {
 	test("appends with blank-line separator on a subject-only message", () => {
-		const result = appendVerifiedByTrailer("feat: add thing", HASH);
-		expect(result).toBe(
+		expect(unwrapAppend("feat: add thing", HASH)).toBe(
 			`feat: add thing\n\nVerified-by: Maina@sha256:${HASH}\n`,
 		);
 	});
 
 	test("appends to existing trailer block without extra blank line", () => {
 		const msg = "feat: add thing\n\nCo-Authored-By: foo <foo@example.com>";
-		const result = appendVerifiedByTrailer(msg, HASH);
-		expect(result).toBe(
+		expect(unwrapAppend(msg, HASH)).toBe(
 			`feat: add thing\n\nCo-Authored-By: foo <foo@example.com>\nVerified-by: Maina@sha256:${HASH}\n`,
 		);
 	});
 
 	test("is idempotent — re-running with the same hash leaves one trailer", () => {
-		const once = appendVerifiedByTrailer("feat: x", HASH);
-		const twice = appendVerifiedByTrailer(once, HASH);
+		const once = unwrapAppend("feat: x", HASH);
+		const twice = unwrapAppend(once, HASH);
 		expect(twice).toBe(once);
 		expect(twice.match(/Verified-by:/g)?.length).toBe(1);
 	});
 
 	test("replaces an existing trailer with a different hash", () => {
-		const original = appendVerifiedByTrailer("feat: x", HASH);
-		const updated = appendVerifiedByTrailer(original, HASH2);
+		const original = unwrapAppend("feat: x", HASH);
+		const updated = unwrapAppend(original, HASH2);
 		expect(updated).toContain(`Verified-by: Maina@sha256:${HASH2}`);
 		expect(updated).not.toContain(`Verified-by: Maina@sha256:${HASH}`);
 		expect(updated.match(/Verified-by:/g)?.length).toBe(1);
 	});
 
-	test("rejects an invalid hash", () => {
-		expect(() => appendVerifiedByTrailer("feat: x", "not-a-hash")).toThrow();
+	test("collapses multiple existing Verified-by trailers into one", () => {
+		const messy = `feat: x\n\nVerified-by: Maina@sha256:${HASH}\nCo-Authored-By: foo\nVerified-by: Maina@sha256:${"c".repeat(64)}\n`;
+		const cleaned = unwrapAppend(messy, HASH2);
+		expect(cleaned.match(/Verified-by:/g)?.length).toBe(1);
+		expect(cleaned).toContain(`Verified-by: Maina@sha256:${HASH2}`);
+		expect(cleaned).toContain("Co-Authored-By: foo");
+	});
+
+	test("returns Result error for an invalid hash", () => {
+		const result = appendVerifiedByTrailer("feat: x", "not-a-hash");
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.code).toBe("invalid-hash");
 	});
 
 	test("handles a body paragraph between subject and trailers", () => {
 		const msg = "feat: x\n\nThis is a body paragraph with details.";
-		const result = appendVerifiedByTrailer(msg, HASH);
-		expect(result).toBe(
+		expect(unwrapAppend(msg, HASH)).toBe(
 			`feat: x\n\nThis is a body paragraph with details.\n\nVerified-by: Maina@sha256:${HASH}\n`,
 		);
 	});
 
 	test("handles empty input", () => {
-		expect(appendVerifiedByTrailer("", HASH)).toBe(
-			`Verified-by: Maina@sha256:${HASH}\n`,
-		);
+		expect(unwrapAppend("", HASH)).toBe(`Verified-by: Maina@sha256:${HASH}\n`);
 	});
 });
 
 describe("computeProofHash", () => {
 	test("produces a stable sha256 hex string", () => {
-		const h = computeProofHash({ passed: true, tools: 13 });
+		const h = unwrapHash({ passed: true, tools: 13 });
 		expect(h).toMatch(/^[0-9a-f]{64}$/);
-		expect(computeProofHash({ tools: 13, passed: true })).toBe(h);
+		expect(unwrapHash({ tools: 13, passed: true })).toBe(h);
 	});
 
 	test("differs when input changes", () => {
-		const a = computeProofHash({ passed: true });
-		const b = computeProofHash({ passed: false });
-		expect(a).not.toBe(b);
+		expect(unwrapHash({ passed: true })).not.toBe(
+			unwrapHash({ passed: false }),
+		);
+	});
+
+	test("returns Result error when canonicalization fails", () => {
+		const result = computeProofHash({ bad: BigInt(1) });
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.code).toBe("canonicalize-failed");
 	});
 });
