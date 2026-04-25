@@ -5,6 +5,12 @@ export {
 	detectAgent,
 } from "./agent-id";
 export {
+	extractPatchDestinations,
+	extractPatchFiles,
+	type ValidatePatchResult,
+	validatePatchScope,
+} from "./autofix";
+export {
 	type BuildReceiptInput,
 	type BuildReceiptResult,
 	buildReceipt,

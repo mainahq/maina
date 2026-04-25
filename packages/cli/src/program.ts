@@ -2,6 +2,7 @@ import { flushTelemetry } from "@mainahq/core";
 import { Command } from "commander";
 import pkg from "../package.json";
 import { analyzeCommand } from "./commands/analyze";
+import { applyFixCommand } from "./commands/apply-fix";
 import { benchmarkCommand } from "./commands/benchmark";
 import { brainstormCommand } from "./commands/brainstorm";
 import { cacheCommand } from "./commands/cache";
@@ -131,6 +132,7 @@ Setup & Config:
 	program.addCommand(verifyCommand());
 	program.addCommand(verifyReceiptCommand());
 	program.addCommand(receiptCommand());
+	program.addCommand(applyFixCommand());
 	program.addCommand(commitCommand());
 	program.addCommand(reviewCommand());
 	program.addCommand(reviewDesignCommand());
