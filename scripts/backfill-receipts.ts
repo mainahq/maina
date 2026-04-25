@@ -149,11 +149,20 @@ async function ensureCleanWorkingTree(cwd: string): Promise<void> {
 	if (result.exitCode !== 0) {
 		throw new Error(`git status failed: ${result.stderr.trim()}`);
 	}
-	if (result.stdout.trim().length > 0) {
+	// Only modified/staged TRACKED files block `git checkout --detach`.
+	// Untracked files (porcelain `??`) sit alongside the new HEAD without
+	// conflict, so we tolerate them — repos with extensive auto-generated
+	// metadata (e.g. `.maina/wiki/`) routinely have hundreds.
+	const conflicting = result.stdout
+		.split("\n")
+		.filter((line) => line.length > 0)
+		.filter((line) => !line.startsWith("??"));
+
+	if (conflicting.length > 0) {
 		throw new Error(
-			"Working tree is dirty — commit or stash before running backfill.\n" +
-				"git status --porcelain output:\n" +
-				result.stdout,
+			"Working tree has modified tracked files — commit, stash, or `git checkout --` them before running backfill.\n" +
+				"Conflicting paths (untracked files are tolerated):\n" +
+				conflicting.join("\n"),
 		);
 	}
 }
