@@ -111,6 +111,19 @@ describe("git operations", () => {
 		expect(stats.files).toBeGreaterThanOrEqual(0);
 	});
 
+	test("getDiffStats() returns zeros when only `from` or `to` is set", async () => {
+		expect(await getDiffStats({ from: "HEAD" })).toEqual({
+			additions: 0,
+			deletions: 0,
+			files: 0,
+		});
+		expect(await getDiffStats({ to: "HEAD" })).toEqual({
+			additions: 0,
+			deletions: 0,
+			files: 0,
+		});
+	});
+
 	test("getRepoSlug() returns owner/repo format", async () => {
 		const slug = await getRepoSlug();
 		expect(typeof slug).toBe("string");

@@ -208,6 +208,30 @@ async function captureOriginalRef(cwd: string): Promise<string> {
 	return sha.stdout.trim();
 }
 
+/**
+ * Resolve the diff range that captures the PR's contribution. For true
+ * merge commits (2 parents) we diff first-parent..second-parent so the
+ * range covers only the feature-branch contents, not the linear advance
+ * of master. For squash/single-parent commits, fall back to `^..oid`.
+ *
+ * Returned SHAs are full 40-char hashes — slicing for display happens at
+ * the call site.
+ */
+async function diffRangeFor(
+	oid: string,
+	cwd: string,
+): Promise<{ from: string; to: string }> {
+	const result = await runGit(["rev-list", "--parents", "-n", "1", oid], cwd);
+	if (result.exitCode === 0) {
+		const parts = result.stdout.trim().split(/\s+/);
+		// Format: <oid> <parent1> [<parent2>...]
+		if (parts.length >= 3 && parts[1] && parts[2]) {
+			return { from: parts[1], to: parts[2] };
+		}
+	}
+	return { from: `${oid}^`, to: oid };
+}
+
 async function backfillOne(
 	pr: MergedPr,
 	options: BackfillOptions,
@@ -229,13 +253,20 @@ async function backfillOne(
 		};
 	}
 
-	// Compute the PR's diff scope. For squash-merged PRs the merge commit
-	// has a single parent (the previous tip of the target branch), so the
-	// PR's actual changes are simply `<commit>^ → <commit>`. Three-dot
-	// against `origin/<base>` returns empty because the squash commit IS
-	// already in the base after the merge.
+	// Compute the PR's diff scope based on the merge commit's parent count:
+	//   - squash-merge or rebase-merge tip (1 parent): `<commit>^ → <commit>`
+	//   - true merge commit       (2 parents):         `<commit>^1 → <commit>^2`
+	//                                                  (^1 = base before merge,
+	//                                                   ^2 = feature branch tip)
+	// Rebase-merged multi-commit PRs are undercounted: only the last commit
+	// of the PR's range is captured because the parent of the merged tip is
+	// the previous PR commit, not the PR's base. This repo uses squash-merge
+	// exclusively, so the caveat is documented but not handled.
+	// Three-dot against `origin/<base>` returns empty because the merge IS
+	// already in the base after merging.
+	const range = await diffRangeFor(pr.mergeCommit.oid, options.cwd);
 	const diffFiles = await runGit(
-		["diff", "--name-only", `${pr.mergeCommit.oid}^`, pr.mergeCommit.oid],
+		["diff", "--name-only", range.from, range.to],
 		options.cwd,
 	);
 	const files =
@@ -249,7 +280,7 @@ async function backfillOne(
 	if (files.length === 0) {
 		return {
 			ok: false,
-			reason: `no files in diff scope ${pr.mergeCommit.oid.slice(0, 12)}^..${pr.mergeCommit.oid.slice(0, 12)}`,
+			reason: `no files in diff scope ${range.from.slice(0, 12)}..${range.to.slice(0, 12)}`,
 		};
 	}
 
@@ -259,8 +290,8 @@ async function backfillOne(
 	// merge commit's parent → merge commit.
 	const diff = await getDiffStats({
 		cwd: options.cwd,
-		from: `${pr.mergeCommit.oid}^`,
-		to: pr.mergeCommit.oid,
+		from: range.from,
+		to: range.to,
 	});
 
 	try {

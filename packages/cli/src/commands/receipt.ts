@@ -143,8 +143,9 @@ async function resolveDiffStats(
 	// `--all` walks every tracked file; line-level add/del don't apply.
 	if (options.all) return { additions: 0, deletions: 0, files: 0 };
 	// Default path: staged diff (what `maina receipt` runs against pre-merge).
-	// Backfill always provides options.diff or options.files+base, so this
-	// branch only fires for the live `maina receipt` invocation.
+	// Backfill provides `options.diff` directly because it knows the
+	// synthetic commit range to diff against; without that hint, we fall
+	// back to staged.
 	return getDiffStats({ cwd, staged: true });
 }
 

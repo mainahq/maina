@@ -14,6 +14,10 @@ async function exec(
 			cwd,
 			stdout: "pipe",
 			stderr: "pipe",
+			// Force English git output so locale-aware parsers (e.g.
+			// parseShortstat's "files changed / insertions / deletions"
+			// regexes) work on contributor machines that aren't en_US.
+			env: { ...process.env, LC_ALL: "C", LANG: "C" },
 		});
 		const output = await new Response(proc.stdout).text();
 		const exitCode = await proc.exited;
@@ -134,10 +138,19 @@ export interface GetDiffStatsOptions {
 /**
  * Compute diff stats. Falls back to zero on git failure (matches the rest
  * of this module's never-throw pattern).
+ *
+ * `from` and `to` must be supplied together — supplying only one is a
+ * caller bug (the other "default" git would pick is rarely the range the
+ * caller meant). Returns zero in that case rather than silently producing
+ * misleading stats.
  */
 export async function getDiffStats(
 	options: GetDiffStatsOptions = {},
 ): Promise<DiffStats> {
+	const partialRange =
+		(options.from && !options.to) || (!options.from && options.to);
+	if (partialRange) return { additions: 0, deletions: 0, files: 0 };
+
 	const args = ["diff", "--shortstat"];
 	if (options.from && options.to) {
 		args.push(`${options.from}..${options.to}`);
