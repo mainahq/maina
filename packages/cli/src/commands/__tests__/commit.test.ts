@@ -115,6 +115,11 @@ mock.module("@mainahq/core", () => ({
 	emitAcceptSignal: () => {},
 	emitRejectSignal: () => {},
 	trackToolUsage: () => ({ ok: true, value: undefined }),
+	appendVerifiedByTrailer: (message: string, _hash: string) => ({
+		ok: true,
+		data: message,
+	}),
+	computeProofHash: () => ({ ok: true, data: "0".repeat(64) }),
 }));
 
 mock.module("@clack/prompts", () => ({

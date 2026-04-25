@@ -3,9 +3,11 @@ import { join } from "node:path";
 import { confirm, intro, isCancel, log, outro, text } from "@clack/prompts";
 import {
 	addEpisodicEntry,
+	appendVerifiedByTrailer,
 	appendWorkflowStep,
 	assembleContext,
 	checkAIAvailability,
+	computeProofHash,
 	emitAcceptSignal,
 	getCurrentBranch,
 	getDiff,
@@ -28,6 +30,7 @@ export interface CommitActionOptions {
 	message?: string;
 	skip?: boolean;
 	noVerify?: boolean;
+	noTrailer?: boolean;
 	json?: boolean;
 	cwd?: string;
 }
@@ -397,6 +400,21 @@ export async function commitAction(
 		}
 	}
 
+	// ── Step 5b: Append Verified-by trailer when verification ran ─────────
+	if (!options.noTrailer && !options.noVerify && pipelineResult) {
+		const hash = computeProofHash({
+			passed: pipelineResult.passed,
+			toolsRun: pipelineResult.tools.length,
+			findingsShown: pipelineResult.findings.length,
+			findingsHidden: pipelineResult.hiddenCount,
+		});
+		if (hash.ok) {
+			const trailer = appendVerifiedByTrailer(message, hash.data);
+			if (trailer.ok) message = trailer.data;
+			// Trailer is best-effort — failures are silent so they never block commit.
+		}
+	}
+
 	// ── Step 6: Git commit ────────────────────────────────────────────────
 	const { exitCode, stdout, stderr } = await deps.gitCommit(message, cwd);
 
@@ -553,6 +571,7 @@ export function commitCommand(): Command {
 		.option("-m, --message <msg>", "Commit message")
 		.option("--skip", "Skip verification (not recommended)")
 		.option("--no-verify", "Skip all verification and hooks")
+		.option("--no-trailer", "Skip the Verified-by: Maina@sha256 commit trailer")
 		.option("--json", "Output JSON for CI")
 		.action(async (options) => {
 			if (!options.json) {

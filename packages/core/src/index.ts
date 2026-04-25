@@ -254,6 +254,11 @@ export {
 	getStagedFiles,
 	getTrackedFiles,
 } from "./git/index";
+export {
+	appendVerifiedByTrailer,
+	computeProofHash,
+	hasVerifiedByTrailer,
+} from "./git/trailer";
 // Hooks
 export {
 	executeHook,
