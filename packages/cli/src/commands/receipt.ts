@@ -11,6 +11,8 @@ import { join, relative } from "node:path";
 import {
 	type BuildReceiptInput,
 	buildReceipt,
+	deriveChecksAndStatus,
+	generateWalkthrough,
 	getStagedFiles,
 	getTrackedFiles,
 	type PipelineResult,
@@ -52,12 +54,38 @@ export async function receiptAction(
 
 	const pipeline = await runVerifyPipeline(cwd, options);
 	const { constitutionHash, promptsHash } = loadPromptVersion(cwd);
+	const prTitle = options.title ?? "Untitled PR";
+	const diff = { additions: 0, deletions: 0, files: 0 };
+	const retries = 0;
+
+	// Use the *same* check derivation that buildReceipt will use — guarantees
+	// the walkthrough names the same checks and reports the same status that
+	// end up signed in the receipt body.
+	const { checks: derivedChecks, status: derivedStatus } =
+		deriveChecksAndStatus(pipeline, retries);
+
+	const walkthrough = await generateWalkthrough({
+		prTitle,
+		diff,
+		status: derivedStatus,
+		retries,
+		mainaDir: join(cwd, MAINA_DIR),
+		checks: derivedChecks.map((c) => ({
+			name: c.name,
+			tool: c.tool,
+			status: c.status,
+			findingsCount: c.findings.length,
+		})),
+	});
 
 	const buildInput: BuildReceiptInput = {
-		prTitle: options.title ?? "Untitled PR",
+		prTitle,
 		pipeline,
 		constitutionHash,
 		promptsHash,
+		walkthrough: walkthrough.text,
+		diff,
+		retries,
 		cwd,
 	};
 

@@ -13,7 +13,8 @@ export type PromptTask =
 	| "ai-review"
 	| "design-hld-lld"
 	| "wiki-query"
-	| "wiki-compile";
+	| "wiki-compile"
+	| "walkthrough";
 
 const FALLBACK_TEMPLATE = `You are a helpful AI assistant completing the "{{task}}" task.
 

@@ -14,6 +14,7 @@ const MECHANICAL_TASKS = new Set([
 	"slop",
 	"compress",
 	"code-review",
+	"walkthrough",
 ]);
 const ARCHITECTURAL_TASKS = new Set(["design-review", "architecture", "learn"]);
 

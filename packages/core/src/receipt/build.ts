@@ -17,6 +17,7 @@ import type {
 	Finding as ReceiptFinding,
 } from "./types";
 import { computeHash } from "./verify";
+import { baselineWalkthrough } from "./walkthrough";
 
 /**
  * Map internal pipeline tool names to the v1 CheckTool enum.
@@ -75,15 +76,18 @@ export type BuildReceiptResult =
 
 const REPO_SLUG_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
-export async function buildReceipt(
-	input: BuildReceiptInput,
-): Promise<BuildReceiptResult> {
-	const cwd = input.cwd ?? process.cwd();
-	const rawSlug = (await getRepoSlug(cwd)) || "";
-	const repo = REPO_SLUG_PATTERN.test(rawSlug) ? rawSlug : "unknown/unknown";
-	const agent = await detectAgent({ modelVersion: input.modelVersion, cwd });
-
-	const mappedChecks = input.pipeline.tools
+/**
+ * Pure helper: turn a pipeline result + retry count into the v1 `checks` array
+ * + final `status` that the receipt will carry. Exported so callers (e.g.
+ * walkthrough generation in the CLI) can use the same derivation that ends up
+ * in the signed receipt — keeps the walkthrough's check counts consistent with
+ * the receipt body.
+ */
+export function deriveChecksAndStatus(
+	pipeline: PipelineResult,
+	retries = 0,
+): { checks: Check[]; status: "passed" | "failed" | "partial" } {
+	const mappedChecks = pipeline.tools
 		.map((report): Check | null => {
 			const tool = TOOL_MAPPING[report.tool];
 			if (!tool) return null;
@@ -103,15 +107,22 @@ export async function buildReceipt(
 		})
 		.filter((c): c is Check => c !== null);
 
-	// If the pipeline failed but every dropped tool's failure is invisible (typecheck,
-	// consistency, wiki-lint, syntax-guard), surface a synthetic check so the receipt
-	// always names *why* it didn't pass.
-	const checks = surfaceHiddenFailures(input.pipeline, mappedChecks);
+	const checks = surfaceHiddenFailures(pipeline, mappedChecks);
+	const baseStatus = derivePipelineStatus(pipeline, checks);
+	const status = retries >= 3 ? "partial" : baseStatus;
+	return { checks, status };
+}
+
+export async function buildReceipt(
+	input: BuildReceiptInput,
+): Promise<BuildReceiptResult> {
+	const cwd = input.cwd ?? process.cwd();
+	const rawSlug = (await getRepoSlug(cwd)) || "";
+	const repo = REPO_SLUG_PATTERN.test(rawSlug) ? rawSlug : "unknown/unknown";
+	const agent = await detectAgent({ modelVersion: input.modelVersion, cwd });
 
 	const retries = input.retries ?? 0;
-	const baseStatus = derivePipelineStatus(input.pipeline, checks);
-	// Constitution C3 — cap at 3 forces partial regardless of underlying outcome.
-	const status = retries >= 3 ? "partial" : baseStatus;
+	const { checks, status } = deriveChecksAndStatus(input.pipeline, retries);
 
 	const receiptWithoutHash: Omit<Receipt, "hash"> = {
 		prTitle: input.prTitle,
@@ -127,7 +138,18 @@ export async function buildReceipt(
 		checks,
 		walkthrough:
 			input.walkthrough ??
-			"Receipt walkthrough lands in Wave 2.2 (mainahq/maina#238).",
+			baselineWalkthrough({
+				prTitle: input.prTitle,
+				diff: input.diff ?? { additions: 0, deletions: 0, files: 0 },
+				status,
+				retries,
+				checks: checks.map((c) => ({
+					name: c.name,
+					tool: c.tool,
+					status: c.status,
+					findingsCount: c.findings.length,
+				})),
+			}),
 		feedback: [],
 		retries,
 	};
