@@ -171,6 +171,21 @@ describe("renderReceiptHtml", () => {
 		expect(html).toContain("&lt;script&gt;");
 	});
 
+	test("includes a footer backlink to the receipts index", async () => {
+		const result = await buildReceipt({
+			prTitle: "linked PR",
+			pipeline: stubPipeline(),
+			constitutionHash: "a".repeat(64),
+			promptsHash: "b".repeat(64),
+		});
+		if (!result.ok) throw new Error("build failed");
+		const html = renderReceiptHtml(result.data);
+		// Per-receipt URLs are at /receipts/<hash>/, so "../" lands on the
+		// listing page. Avoids dead-end navigation when users land on a
+		// receipt link directly.
+		expect(html).toMatch(/<a href="\.\.\/"[^>]*>[^<]*receipts[^<]*<\/a>/i);
+	});
+
 	test("shows a retry badge when retries > 0", async () => {
 		const result = await buildReceipt({
 			prTitle: "retried PR",
