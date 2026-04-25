@@ -1,0 +1,236 @@
+---
+/**
+ * ReceiptGallery — Wave 3.2 #257.
+ *
+ * Reads every `.maina/receipts/<hash>/receipt.json` at build time via
+ * Vite's `import.meta.glob`, hands the raw shapes to `buildGallery`, and
+ * renders cards. Pure SSG — zero client JS. Empty state covers fresh
+ * checkouts where no receipts have been produced yet (so the homepage
+ * doesn't visibly break).
+ */
+import { RECEIPTS_GALLERY } from '../data/landing';
+import {
+  buildGallery,
+  type RawReceipt,
+  type GalleryCard,
+} from '../data/receipts-gallery';
+
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+
+const receiptModules = import.meta.glob<RawReceipt>(
+  '../../../../.maina/receipts/*/receipt.json',
+  { eager: true, import: 'default' },
+);
+
+const cards: GalleryCard[] = buildGallery(Object.values(receiptModules));
+
+// Resolve hrefs against the site base so this works under a non-root
+// `BASE_URL` (e.g. preview deploys).
+const resolvedCards = cards.map((c) => ({
+  ...c,
+  href: c.href.startsWith('/') ? `${base}${c.href}` : c.href,
+}));
+
+const allReceiptsHref = `${base}${RECEIPTS_GALLERY.allReceiptsHref}`;
+---
+
+<section class="receipts-gallery">
+  <div class="receipts-gallery__head">
+    <h2 class="receipts-gallery__title">{RECEIPTS_GALLERY.heading}</h2>
+    <p class="receipts-gallery__sub">{RECEIPTS_GALLERY.subheading}</p>
+  </div>
+
+  {resolvedCards.length === 0 ? (
+    <p class="receipts-gallery__empty">{RECEIPTS_GALLERY.emptyState}</p>
+  ) : (
+    <ul class="receipts-gallery__list">
+      {resolvedCards.map((c) => (
+        <li class="receipts-gallery__item">
+          <a class="receipts-gallery__card" href={c.href}>
+            <div class="receipts-gallery__card-head">
+              <span class={`receipts-gallery__status receipts-gallery__status--${c.status}`}>
+                {c.statusLabel}
+              </span>
+              <span class="receipts-gallery__hash">{c.hashShort}…</span>
+            </div>
+            <h3 class="receipts-gallery__pr">{c.prTitle}</h3>
+            <p class="receipts-gallery__walkthrough">{c.walkthrough}</p>
+            <div class="receipts-gallery__foot">
+              <span class="receipts-gallery__diff">{c.diffSummary}</span>
+              <span class="receipts-gallery__repo">{c.repo}</span>
+            </div>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+
+  {resolvedCards.length > 0 && (
+    <p class="receipts-gallery__cta">
+      <a href={allReceiptsHref}>{RECEIPTS_GALLERY.allReceiptsLabel} →</a>
+    </p>
+  )}
+</section>
+
+<style is:global>
+  .receipts-gallery {
+    max-width: 1100px;
+    margin: 96px auto;
+    padding: 0 24px;
+  }
+
+  .receipts-gallery__head {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+
+  .receipts-gallery__title {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    color: var(--color-ink);
+  }
+
+  .receipts-gallery__sub {
+    font-size: 15px;
+    color: var(--color-ink-muted);
+    max-width: 640px;
+    margin: 0 auto;
+    line-height: 1.55;
+  }
+
+  .receipts-gallery__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 720px) {
+    .receipts-gallery__list {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  @media (min-width: 1000px) {
+    .receipts-gallery__list {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .receipts-gallery__item { margin: 0; }
+
+  .receipts-gallery__card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px 18px 16px;
+    background: var(--color-bg-elev);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: var(--color-ink);
+    transition: border-color 140ms ease, transform 140ms ease;
+    height: 100%;
+  }
+
+  .receipts-gallery__card:hover,
+  .receipts-gallery__card:focus-visible {
+    border-color: var(--color-accent);
+    transform: translateY(-1px);
+  }
+
+  .receipts-gallery__card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .receipts-gallery__status {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .receipts-gallery__status--passed {
+    background: oklch(0.92 0.1 145);
+    color: oklch(0.25 0.15 145);
+  }
+
+  .receipts-gallery__status--partial {
+    background: oklch(0.92 0.08 90);
+    color: oklch(0.3 0.15 90);
+  }
+
+  .receipts-gallery__status--failed {
+    background: oklch(0.92 0.1 25);
+    color: oklch(0.3 0.15 25);
+  }
+
+  .receipts-gallery__hash {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-ink-muted);
+    word-break: break-all;
+  }
+
+  .receipts-gallery__pr {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    line-height: 1.35;
+  }
+
+  .receipts-gallery__walkthrough {
+    font-size: 13px;
+    color: var(--color-ink-muted);
+    line-height: 1.5;
+    margin: 0;
+    flex-grow: 1;
+  }
+
+  .receipts-gallery__foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-ink-muted);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 10px;
+  }
+
+  .receipts-gallery__empty {
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--color-ink-muted);
+    padding: 36px 0;
+  }
+
+  .receipts-gallery__cta {
+    text-align: center;
+    margin: 28px 0 0 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+
+  .receipts-gallery__cta a {
+    color: var(--color-accent);
+    text-decoration: none;
+  }
+
+  .receipts-gallery__cta a:hover {
+    text-decoration: underline;
+  }
+</style>

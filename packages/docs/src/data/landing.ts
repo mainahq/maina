@@ -164,6 +164,21 @@ export const ENGINES = {
 	],
 } as const;
 
+/** Receipts gallery — Wave 3.2 #257. Cards render between Engines and
+ * ProofStrip; data comes from `.maina/receipts/<hash>/receipt.json` at
+ * build time. Heading is locked copy; per-card text is generated from
+ * the receipts themselves and adheres to C2 ("passed N of M", never
+ * "0 findings"). */
+export const RECEIPTS_GALLERY = {
+	heading: "Recent verifications",
+	subheading:
+		"Real receipts from this repo. Each card is a cryptographic record of a merge — diff stats, status, and the checks that ran. Click through for the signed JSON and walkthrough.",
+	emptyState:
+		"receipts ship with each merge — none recorded yet for this build",
+	allReceiptsLabel: "all receipts",
+	allReceiptsHref: "/receipts/",
+} as const;
+
 /** ProofStrip receipts. */
 export const PROOF_STRIP = {
 	stats: [
