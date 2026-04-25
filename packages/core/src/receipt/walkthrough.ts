@@ -180,7 +180,7 @@ function validateAiOutput(
 	const trimmed = raw.trim();
 	if (trimmed.length === 0) return { ok: false, reason: "empty" };
 
-	if (trimmed.includes("[NEEDS CLARIFICATION")) {
+	if (/\[\s*needs\s+clarification\b/i.test(trimmed)) {
 		return { ok: false, reason: "needs-clarification" };
 	}
 
