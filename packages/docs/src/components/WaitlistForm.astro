@@ -8,11 +8,12 @@
  * the form with a thank-you panel. On 4xx/5xx or network error, the
  * form shows a fallback `mailto:` link.
  *
- * Backend decision (2026-04-21): a `@workkit`-built Cloudflare Worker
- * landing in the private `mainahq/maina-cloud` repo owns POST
- * `/api/waitlist`. Until the Worker ships, POSTs 404 and the mailto
- * fallback covers submission end-to-end. No frontend change is
- * needed when the Worker goes live.
+ * Backend: the `@workkit`-built Cloudflare Worker in the private
+ * `mainahq/maina-cloud` repo owns POST `/api/waitlist`. Apex
+ * `mainahq.com` is served by GitHub Pages / Fastly (no PUT/POST
+ * support), so the form posts cross-origin to the Worker's custom
+ * domain `api.mainahq.com`. CORS on the Worker pins
+ * `Access-Control-Allow-Origin: https://mainahq.com` (MAI-12).
  */
 import { WAITLIST } from '../data/cloud-landing';
 
@@ -41,7 +42,7 @@ const mailtoHref = `mailto:${WAITLIST.mailto}?subject=${mailtoSubject}&body=${ma
     action={mailtoHref}
     method="post"
     enctype="text/plain"
-    data-waitlist-endpoint="/api/waitlist"
+    data-waitlist-endpoint="https://api.mainahq.com/api/waitlist"
     novalidate
   >
     <div class="waitlist__field">
