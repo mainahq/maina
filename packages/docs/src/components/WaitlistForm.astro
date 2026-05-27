@@ -132,6 +132,37 @@ const mailtoHref = `mailto:${WAITLIST.mailto}?subject=${mailtoSubject}&body=${ma
     const thankyou = document.querySelector('[data-waitlist-thankyou]');
     const fallback = form.querySelector('[data-waitlist-fallback]');
 
+    // Attribution captured on landing by the head-injected utm-capture
+    // script (see astro.config.mjs). First-touch wins; all values are
+    // string-typed and <=128 chars. Returns {} when none was captured.
+    function readAttribution() {
+      try {
+        return JSON.parse(sessionStorage.getItem('maina_attrib') || '{}');
+      } catch (e) {
+        return {};
+      }
+    }
+
+    // Rewrite the form's mailto action so the source attribution is in
+    // the email body too — works for the JS-disabled path and for the
+    // fetch path's fallback.
+    function refreshMailtoAction() {
+      var a = readAttribution();
+      var parts = [];
+      Object.keys(a).forEach(function (k) {
+        if (a[k]) parts.push(k + ': ' + a[k]);
+      });
+      if (!parts.length) return;
+      var current = form.getAttribute('action') || '';
+      var marker = '%0A%0A--%20attribution%20--%0A';
+      var base = current.split(marker)[0];
+      form.setAttribute(
+        'action',
+        base + marker + encodeURIComponent(parts.join('\n')),
+      );
+    }
+    refreshMailtoAction();
+
     form.addEventListener('submit', function (ev) {
       const fd = new FormData(form);
       const email = String(fd.get('email') || '');
@@ -145,13 +176,38 @@ const mailtoHref = `mailto:${WAITLIST.mailto}?subject=${mailtoSubject}&body=${ma
       // the native action (mailto) fire.
       if (!endpoint || typeof fetch !== 'function') return;
       ev.preventDefault();
+      const attribution = readAttribution();
       const payload = {
         email,
         role,
         team_size: team,
         company: String(fd.get('company') || '').trim() || undefined,
         notes: String(fd.get('notes') || '').trim() || undefined,
+        utm_source: attribution.utm_source || undefined,
+        utm_medium: attribution.utm_medium || undefined,
+        utm_campaign: attribution.utm_campaign || undefined,
+        utm_content: attribution.utm_content || undefined,
+        utm_term: attribution.utm_term || undefined,
+        ref: attribution.ref || undefined,
+        gclid: attribution.gclid || undefined,
+        referrer: attribution.referrer || undefined,
+        landing_path: attribution.landing_path || undefined,
+        landing_at: attribution.landing_at || undefined,
       };
+      // Plausible custom event — fires whether or not the backend
+      // responds successfully, so /cloud waitlist conversion is
+      // measurable today via the mailto path too.
+      if (typeof window.plausible === 'function') {
+        window.plausible('Waitlist Submit', {
+          props: {
+            role: role,
+            team_size: team,
+            utm_source: attribution.utm_source || '(none)',
+            utm_medium: attribution.utm_medium || '(none)',
+            utm_campaign: attribution.utm_campaign || '(none)',
+          },
+        });
+      }
       fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

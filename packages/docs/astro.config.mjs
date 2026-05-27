@@ -3,6 +3,71 @@ import starlight from '@astrojs/starlight';
 import tailwindcss from '@tailwindcss/vite';
 import starlightLlmsTxt from 'starlight-llms-txt';
 
+// Plausible domain is opt-in via env var. Unset (e.g. local dev, previews,
+// or a build before Cloudflare Pages is wired) → no analytics tag is
+// emitted. Pageviews + outbound-link clicks + tagged events ("install
+// copy", "waitlist submit") are the only signals; no cookies, no PII.
+// See docs/launch/utm-link-pack.md for the source-attribution playbook.
+const PLAUSIBLE_DOMAIN = process.env.PUBLIC_PLAUSIBLE_DOMAIN || '';
+const PLAUSIBLE_SRC =
+  process.env.PUBLIC_PLAUSIBLE_SRC ||
+  'https://plausible.io/js/script.tagged-events.outbound-links.js';
+
+const analyticsHead = PLAUSIBLE_DOMAIN
+  ? [
+      {
+        tag: 'script',
+        attrs: {
+          defer: true,
+          'data-domain': PLAUSIBLE_DOMAIN,
+          src: PLAUSIBLE_SRC,
+        },
+      },
+      {
+        tag: 'script',
+        content:
+          'window.plausible=window.plausible||function(){(window.plausible.q=window.plausible.q||[]).push(arguments)};',
+      },
+    ]
+  : [];
+
+// UTM capture — runs on every page load, stashes any utm_* + referrer +
+// landing path in sessionStorage so WaitlistForm.astro can forward them
+// with the submission (works for both the fetch path and the mailto
+// fallback). Sized for inline injection; no external request.
+const utmCaptureHead = [
+  {
+    tag: 'script',
+    content: `
+(function(){
+  try {
+    var KEY='maina_attrib';
+    var params=new URLSearchParams(window.location.search);
+    var fields=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','ref','gclid'];
+    var found={};
+    var hasAny=false;
+    fields.forEach(function(f){var v=params.get(f); if(v){found[f]=v.slice(0,128); hasAny=true;}});
+    var prior={};
+    try { prior=JSON.parse(sessionStorage.getItem(KEY)||'{}'); } catch(e) {}
+    // First-touch attribution: only overwrite if we have new utm params,
+    // otherwise keep the prior value so a deeper page-nav doesn't wipe it.
+    if (hasAny) {
+      found.referrer = document.referrer || prior.referrer || '';
+      found.landing_path = window.location.pathname + window.location.search;
+      found.landing_at = new Date().toISOString();
+      sessionStorage.setItem(KEY, JSON.stringify(found));
+    } else if (!prior.landing_path) {
+      prior.referrer = document.referrer || '';
+      prior.landing_path = window.location.pathname + window.location.search;
+      prior.landing_at = new Date().toISOString();
+      sessionStorage.setItem(KEY, JSON.stringify(prior));
+    }
+  } catch(e) {}
+})();
+`.trim(),
+  },
+];
+
 export default defineConfig({
   site: 'https://mainahq.com',
   base: '/',
@@ -13,6 +78,7 @@ export default defineConfig({
   },
   integrations: [
     starlight({
+      head: [...analyticsHead, ...utmCaptureHead],
       plugins: [
         starlightLlmsTxt({
           projectName: 'Maina',
