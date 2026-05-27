@@ -130,6 +130,60 @@ describe("verify/ignore", () => {
 		});
 	});
 
+	describe("pattern matcher — semantics of the small .gitignore subset", () => {
+		// These lock in the documented subset called out on `matchesPattern`.
+		// Names below are deliberately chosen NOT to overlap with
+		// `DEFAULT_IGNORE_DIRS` so each case actually exercises the pattern
+		// matcher rather than the default-dir short-circuit.
+		const segmentCases: Array<[string, string, boolean]> = [
+			// `*` inside a single segment, suffix glob
+			["*.snap", "thing.snap", true],
+			["*.snap", "a/b/thing.snap", true],
+			["*.snap", "thing.snap.bak", false],
+			["*.snap", "thing/snap", false],
+
+			// `dir/*.js` — `*` must NOT cross `/`
+			["fixtures/*.js", "fixtures/a.js", true],
+			["fixtures/*.js", "fixtures/b/c.js", false],
+			["fixtures/*.js", "src/fixtures/a.js", true],
+			["fixtures/*.js", "src/fixtures/b/c.js", false],
+
+			// Anchored `dir/*.js` only matches at root
+			["/fixtures/*.js", "fixtures/a.js", true],
+			["/fixtures/*.js", "src/fixtures/a.js", false],
+
+			// Bare name — segment match, not substring
+			["myfoo", "myfoo", true],
+			["myfoo", "myfoo/bar", true],
+			["myfoo", "a/myfoo/b", true],
+			["myfoo", "a/myfoo", true],
+			["myfoo", "myfoobar", false],
+			["myfoo", "myfoobar/x", false],
+			["myfoo", "a/myfoobar/x", false],
+
+			// Directory-only pattern (`myfoo/`) doesn't match a sibling file
+			["myfoo/", "myfoo/x.txt", true],
+			["myfoo/", "myfoo", false],
+			["myfoo/", "a/myfoo", false],
+
+			// Anchored prefix
+			["/genroot", "genroot", true],
+			["/genroot", "genroot/index.js", true],
+			["/genroot", "src/genroot/index.js", false],
+
+			// Patterns with more than one `*` are explicitly unsupported and must NOT match
+			["**/*.js", "a/b.js", false],
+			["a/**", "a/b/c", false],
+		];
+
+		for (const [pattern, path, expected] of segmentCases) {
+			it(`'${pattern}' vs '${path}' → ${expected}`, () => {
+				const opts = { extraPatterns: [pattern] };
+				expect(isIgnored(path, opts)).toBe(expected);
+			});
+		}
+	});
+
 	describe("loadMainaIgnore", () => {
 		const TMP = join(tmpdir(), `maina-loadignore-test-${Date.now()}`);
 

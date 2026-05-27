@@ -6,8 +6,10 @@
  * bundle produces tens of thousands of false positives (#207). These are
  * filtered out before any verify tool sees the file list.
  *
- * Honors both the built-in defaults below and any patterns listed in
- * `.maina/ignore` (gitignore-style, one pattern per line, `#` for comments).
+ * Project-local extras live in `.maina/ignore`, one pattern per line, `#` for
+ * comments. The matcher is a deliberately small subset of `.gitignore` — see
+ * the comment on `matchesPattern` for the exact supported syntax and the
+ * features that are NOT implemented (negation, `**`, character classes).
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -87,8 +89,9 @@ function pathSegments(p: string): string[] {
  * Checks (in order):
  *   1. Path segments against `DEFAULT_IGNORE_DIRS` plus any `extraDirs`.
  *   2. Filename suffix against `DEFAULT_IGNORE_SUFFIXES`.
- *   3. Any gitignore-style pattern in `extraPatterns` (substring match for
- *      simple `foo/bar` style entries; `*` glob handled minimally).
+ *   3. Each pattern in `extraPatterns` evaluated with the matcher described
+ *      on `matchesPattern` (small `.gitignore` subset; not a full
+ *      implementation).
  */
 export function isIgnored(
 	file: string,
@@ -121,14 +124,31 @@ export function isIgnored(
 }
 
 /**
- * Tiny gitignore-flavoured matcher — covers the cases that show up in a
- * hand-written `.maina/ignore`. We do not pull in `ignore` or `micromatch`
- * just to keep the dependency footprint small.
+ * Pattern matcher for `.maina/ignore`. This is a deliberately small subset
+ * of `.gitignore` — enough for the hand-written project-local extras we
+ * expect (block a fixture dir, ignore a `*.snap` suffix) without pulling in
+ * `ignore` or `micromatch`.
  *
- *   - `foo/bar`         → substring match
- *   - `foo/*.js`        → directory prefix + suffix
- *   - `*.snap`          → suffix
- *   - `/path/to/thing`  → anchored prefix match (leading slash trimmed)
+ * Supported (with the same semantics gitignore uses):
+ *
+ *   - `foo/`           — directory; matches any path with `foo` as a segment.
+ *   - `foo`            — bare name; matches `foo` as a segment (file or dir).
+ *   - `/foo`           — anchored to the repo root; only matches `foo` and
+ *                        files inside `foo/`.
+ *   - `*.snap`         — suffix glob; the leading `*` matches any chars
+ *                        (including none) inside one path segment.
+ *   - `dir/*.js`       — directory + suffix glob; `*` matches within a
+ *                        single segment, so `dir/a.js` matches but
+ *                        `dir/sub/a.js` does NOT.
+ *
+ * Explicitly NOT supported (so we don't surprise users who reach for them):
+ *
+ *   - `**` recursive globs            (use a directory pattern instead)
+ *   - `!pattern` negation             (no allow-listing)
+ *   - `[a-z]` character classes
+ *   - `?` single-char wildcards
+ *   - Patterns with more than one `*`
+ *   - Mid-segment matching of bare names other than via `*.suffix`
  */
 function matchesPattern(norm: string, raw: string): boolean {
 	const pattern = raw.trim();
@@ -141,28 +161,55 @@ function matchesPattern(norm: string, raw: string): boolean {
 	const isDirOnly = body.endsWith("/");
 	if (isDirOnly) body = body.slice(0, -1);
 
-	// Pure suffix glob, e.g. *.snap
+	// Pure suffix glob, e.g. *.snap — `*` matches within a single segment.
 	if (body.startsWith("*.")) {
-		return norm.toLowerCase().endsWith(body.slice(1).toLowerCase());
+		const suffix = body.slice(1).toLowerCase();
+		const lower = norm.toLowerCase();
+		if (!lower.endsWith(suffix)) return false;
+		// Ensure the `*` did not span a `/` — final segment must contain
+		// the entire match.
+		const segStart = lower.lastIndexOf("/") + 1;
+		return lower.indexOf(suffix, segStart) !== -1;
 	}
 
-	// `dir/*.js` style — directory prefix + suffix
+	// `dir/*.js` style — directory prefix + single-segment suffix glob.
+	// The `*` must NOT cross a `/`, so `dir/*.js` matches `dir/a.js` but not
+	// `dir/sub/a.js`. Patterns with more than one `*` are unsupported.
 	const starIdx = body.indexOf("*");
 	if (starIdx !== -1) {
+		if (body.indexOf("*", starIdx + 1) !== -1) return false;
 		const prefix = body.slice(0, starIdx);
 		const suffix = body.slice(starIdx + 1);
-		if (anchored) {
-			return norm.startsWith(prefix) && norm.endsWith(suffix);
+		const tryMatch = (hay: string, hayStart: number) => {
+			if (!hay.startsWith(prefix, hayStart)) return false;
+			const tailStart = hayStart + prefix.length;
+			if (!hay.endsWith(suffix)) return false;
+			const tailEnd = hay.length - suffix.length;
+			if (tailEnd < tailStart) return false;
+			// The wildcard span must not include a path separator.
+			return (
+				hay.indexOf("/", tailStart) === -1 ||
+				hay.indexOf("/", tailStart) >= tailEnd
+			);
+		};
+		if (anchored) return tryMatch(norm, 0);
+		// Non-anchored: try every segment boundary as the prefix start.
+		if (tryMatch(norm, 0)) return true;
+		for (let i = 0; i < norm.length; i++) {
+			if (norm[i] === "/" && tryMatch(norm, i + 1)) return true;
 		}
-		return norm.includes(prefix) && norm.endsWith(suffix);
+		return false;
 	}
 
-	// Directory-style (foo/) or bare name (foo) — match the segment anywhere
-	// in the path. For anchored patterns the segment must start the path.
+	// Bare name or `dir/` — match the segment anywhere in the path (for
+	// non-anchored patterns) or only at the path root (anchored). A
+	// trailing-slash pattern (`dir/`) requires the name to appear as a
+	// directory segment, never as a bare file basename.
 	if (anchored) {
+		if (isDirOnly) return norm.startsWith(`${body}/`);
 		return norm === body || norm.startsWith(`${body}/`);
 	}
-	if (norm === body) return true;
+	if (!isDirOnly && norm === body) return true;
 	if (norm.startsWith(`${body}/`)) return true;
 	if (norm.includes(`/${body}/`)) return true;
 	if (!isDirOnly && norm.endsWith(`/${body}`)) return true;
@@ -179,9 +226,11 @@ export interface FilterIgnoredResult {
 /**
  * Filter a list of file paths, removing ignored ones.
  *
- * Reads `<cwd>/.maina/ignore` (gitignore-style, optional) and merges its
- * patterns with the built-in defaults. Missing or unreadable files are
- * silently treated as empty.
+ * Reads optional patterns from `<cwd>/.maina/ignore` (one pattern per line,
+ * `#` comments) and merges them with the built-in defaults. The pattern
+ * syntax is the small `.gitignore` subset documented on `matchesPattern`,
+ * not full gitignore. Missing or unreadable files are silently treated as
+ * empty.
  */
 export function filterIgnoredFiles(
 	files: readonly string[],
