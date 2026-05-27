@@ -1,0 +1,65 @@
+---
+/**
+ * AnalyticsHead — drop into every <head>: Starlight pages (via the
+ * `head` config in astro.config.mjs), and the standalone pages
+ * `index.astro` and `cloud.astro` which build their own <html>/<head>.
+ *
+ * Two scripts, both env-gated for safety:
+ *
+ *   1. Plausible — opt-in via PUBLIC_PLAUSIBLE_DOMAIN. Unset → tag
+ *      omitted, zero outbound requests, no console noise.
+ *   2. UTM capture — always emitted. Tiny inline script writes any
+ *      `utm_*` / `ref` / `gclid` from the landing URL to
+ *      sessionStorage (first-touch wins) so WaitlistForm can forward
+ *      the attribution.
+ *
+ * Companion: docs/launch/utm-link-pack.md and
+ * src/components/WaitlistForm.astro.
+ */
+const PLAUSIBLE_DOMAIN = import.meta.env.PUBLIC_PLAUSIBLE_DOMAIN ?? '';
+const PLAUSIBLE_SRC =
+  import.meta.env.PUBLIC_PLAUSIBLE_SRC ??
+  'https://plausible.io/js/script.tagged-events.outbound-links.js';
+---
+
+{PLAUSIBLE_DOMAIN && (
+  <>
+    <script
+      is:inline
+      defer
+      data-domain={PLAUSIBLE_DOMAIN}
+      src={PLAUSIBLE_SRC}
+    />
+    <script is:inline>
+      {`window.plausible=window.plausible||function(){(window.plausible.q=window.plausible.q||[]).push(arguments)};`}
+    </script>
+  </>
+)}
+
+<script is:inline>
+  {`
+(function(){
+  try {
+    var KEY='maina_attrib';
+    var params=new URLSearchParams(window.location.search);
+    var fields=['utm_source','utm_medium','utm_campaign','utm_content','utm_term','ref','gclid'];
+    var found={};
+    var hasAny=false;
+    fields.forEach(function(f){var v=params.get(f); if(v){found[f]=v.slice(0,128); hasAny=true;}});
+    var prior={};
+    try { prior=JSON.parse(sessionStorage.getItem(KEY)||'{}'); } catch(e) {}
+    if (hasAny) {
+      found.referrer = document.referrer || prior.referrer || '';
+      found.landing_path = window.location.pathname + window.location.search;
+      found.landing_at = new Date().toISOString();
+      sessionStorage.setItem(KEY, JSON.stringify(found));
+    } else if (!prior.landing_path) {
+      prior.referrer = document.referrer || '';
+      prior.landing_path = window.location.pathname + window.location.search;
+      prior.landing_at = new Date().toISOString();
+      sessionStorage.setItem(KEY, JSON.stringify(prior));
+    }
+  } catch(e) {}
+})();
+`}
+</script>

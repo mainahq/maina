@@ -13,6 +13,7 @@ import Comparison from '../components/Comparison.astro';
 import FinalCta from '../components/FinalCta.astro';
 import Faq from '../components/Faq.astro';
 import Footer from '../components/Footer.astro';
+import AnalyticsHead from '../components/AnalyticsHead.astro';
 import { META, NAV } from '../data/landing';
 import cliPackage from '../../../cli/package.json';
 import '../styles/landing.css';
@@ -80,6 +81,7 @@ const jsonLd = {
     )}
     <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
     <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    <AnalyticsHead />
   </head>
   <body>
     <nav class="nav">

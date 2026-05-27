@@ -8,6 +8,9 @@ import starlightLlmsTxt from 'starlight-llms-txt';
 // emitted. Pageviews + outbound-link clicks + tagged events ("install
 // copy", "waitlist submit") are the only signals; no cookies, no PII.
 // See docs/launch/utm-link-pack.md for the source-attribution playbook.
+// AnalyticsHead.astro is the shared partial; it's imported into the
+// standalone pages (`index.astro`, `cloud.astro`) and the snippet below
+// is the same content for Starlight-rendered pages.
 const PLAUSIBLE_DOMAIN = process.env.PUBLIC_PLAUSIBLE_DOMAIN || '';
 const PLAUSIBLE_SRC =
   process.env.PUBLIC_PLAUSIBLE_SRC ||
@@ -31,10 +34,6 @@ const analyticsHead = PLAUSIBLE_DOMAIN
     ]
   : [];
 
-// UTM capture — runs on every page load, stashes any utm_* + referrer +
-// landing path in sessionStorage so WaitlistForm.astro can forward them
-// with the submission (works for both the fetch path and the mailto
-// fallback). Sized for inline injection; no external request.
 const utmCaptureHead = [
   {
     tag: 'script',
@@ -49,8 +48,6 @@ const utmCaptureHead = [
     fields.forEach(function(f){var v=params.get(f); if(v){found[f]=v.slice(0,128); hasAny=true;}});
     var prior={};
     try { prior=JSON.parse(sessionStorage.getItem(KEY)||'{}'); } catch(e) {}
-    // First-touch attribution: only overwrite if we have new utm params,
-    // otherwise keep the prior value so a deeper page-nav doesn't wipe it.
     if (hasAny) {
       found.referrer = document.referrer || prior.referrer || '';
       found.landing_path = window.location.pathname + window.location.search;

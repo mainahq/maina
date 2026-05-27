@@ -8,6 +8,7 @@ import DemoBooking from '../components/DemoBooking.astro';
 import CloudFaq from '../components/CloudFaq.astro';
 import CloudFinalCta from '../components/CloudFinalCta.astro';
 import Footer from '../components/Footer.astro';
+import AnalyticsHead from '../components/AnalyticsHead.astro';
 import { CLOUD_META } from '../data/cloud-landing';
 import { NAV } from '../data/landing';
 import '../styles/landing.css';
@@ -71,6 +72,7 @@ const jsonLd = {
     )}
     <link rel="icon" href={`${base}/favicon.svg`} type="image/svg+xml" />
     <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    <AnalyticsHead />
   </head>
   <body>
     <nav class="nav">
