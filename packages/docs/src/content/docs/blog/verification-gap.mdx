@@ -1,0 +1,155 @@
+---
+title: "The verification gap in agent-written code: what actually breaks"
+description: "Six categories of bug in agent-authored PRs that pass CI, pass review, and ship anyway — with concrete code examples."
+---
+
+**tl;dr** — Agent-written code clusters into six recognizable failure modes that pass CI and pass review: hallucinated APIs the agent's own mocks legitimize, type-checks-but-doesn't-work, false-green tests, locally-correct-globally-wrong refactors, plausibility theater in error handling, and stale codebase knowledge. Traditional review and traditional CI can't catch most of them.
+
+A year ago, the interesting question was "can an agent write code?" That question is settled. The interesting question now is: **when an agent writes code that ships, what kind of bug is it?**
+
+If you spend time reviewing agent-authored PRs — Cursor, Claude Code, Copilot agent mode, Devin, Cognition, your in-house thing — you start to notice the bugs cluster. They don't look like human bugs. They pass CI. They pass eyeballs. They pass the kind of review where a staff engineer glances at the diff and says "looks reasonable" because the diff actually does look reasonable.
+
+Then they ship, and three days later something explodes that nobody can immediately attribute to the change.
+
+This post is the taxonomy. Six categories of failure I keep seeing in agent-authored code, with examples close enough to real PRs that anyone who has reviewed an agent diff this month will recognize them. At the end I'll talk about why traditional review and traditional CI can't catch most of these, and what a verification layer for agent-written code has to look like to be useful — without overselling what anyone has shipped yet (including us).
+
+## 1. The hallucinated API that the test mocks into existence
+
+The agent writes code that calls a method that does not exist on the version of the library you actually have installed.
+
+```js
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
+export async function uploadAvatar(client, key, body) {
+  // Looks fine. PutObjectCommand has a .send() method, right?
+  return PutObjectCommand.send(client, { Bucket: "avatars", Key: key, Body: body });
+}
+```
+
+`PutObjectCommand` is a command class in `@aws-sdk/client-s3` v3. It has no static `.send()` and no instance `.send()`. The correct call is `await client.send(new PutObjectCommand({...}))`. The agent has confidently fused two adjacent APIs — likely the v2 `s3.putObject(...).promise()` shape and the v3 command-class shape — into something that exists in neither version.
+
+In a strict TypeScript project the compiler would catch this. Plenty of production code is not strict TypeScript: untyped JavaScript, `@ts-ignore`d call sites, or shimmed clients typed as `any`. CI is still green because the agent also wrote the test:
+
+```js
+vi.mock("@aws-sdk/client-s3", () => ({
+  S3Client: vi.fn(),
+  PutObjectCommand: { send: vi.fn().mockResolvedValue({ ETag: "abc" }) },
+}));
+```
+
+The mock invents the same hallucinated shape. The test passes. The production code throws `TypeError: PutObjectCommand.send is not a function` the first time it runs against a real client. Your unit-test suite is now a closed loop where the agent grades its own homework.
+
+The pattern: **the agent hallucinates an API, the agent's test mock replicates the hallucination, both sides agree, CI is green, prod is wrong.**
+
+## 2. Type-checks-but-doesn't-work
+
+This is the category where Sorbet/TypeScript/mypy gets the most undeserved credit. Types align. Semantics drift.
+
+```ts
+function applyDiscount(price: Money, discount: Discount): Money {
+  if (discount.kind === "percentage") {
+    return Money.from(price.amount * (1 - discount.value));
+  }
+  return Money.from(price.amount - discount.value);
+}
+```
+
+If `Discount.value` is stored as `0.1` for "10%", this is correct. If your codebase stores percentages as `10` for "10%" — because somebody three years ago decided that, and you've been multiplying by 100 ever since — this is spectacularly wrong: `price * (1 - 10)` is `price * -9`, so every "10% off" coupon now charges the customer minus nine times the order total. Either your payments provider rejects the negative charge (loud failure), or you've just credited customers nine orders' worth of money (quiet failure for a quarter, until finance reconciles).
+
+The types compile. The unit test the agent wrote happens to use `0.1`. Your codebase uses `10`.
+
+This is not a class of bug agents invent. Humans do it too. The difference is that a human writing `applyDiscount` would either ask, or would notice the inconsistency by reading the two neighboring call sites. The agent does neither, because the cost of "reading" two more files is the same as the cost of writing the function — and the loss function doesn't reward it.
+
+## 3. False-green tests
+
+Tests are supposed to be a check on the code. When the same actor writes both, you've removed the check.
+
+```py
+def normalize_email(s: str) -> str:
+    return s.strip().lower()
+
+def test_normalize_email_strips_and_lowercases():
+    assert normalize_email("  USER@Example.com  ") == "user@example.com"
+```
+
+Looks fine. Then somebody reports that signups from `user+tag@example.com` are creating duplicate accounts even though `user@example.com` already exists. The old `normalize_email` stripped plus-aliases — that was how the system enforced its "one account per real address" invariant. The agent's rewrite dropped the rule because nothing in its context window said it mattered.
+
+The agent's test asserts what the agent's code does. It does not assert what the *system* needs `normalize_email` to do. Without an independent specification — a property-based test, an integration test that crosses the seam, or a human reviewer who knows the invariant — there's no constraint forcing them to diverge.
+
+This is the cleanest case where "100% coverage" and "tests pass" tells you nothing about correctness. The agent has written a tautology and called it a test.
+
+## 4. Locally correct, globally wrong
+
+The agent gets handed a diff scoped to one file. It does an excellent job on that file. It does not notice the four other call sites that relied on the old behavior.
+
+Real example I keep seeing: an agent refactors a function signature.
+
+```diff
+- export function fetchUser(id: string): Promise<User>
++ export function fetchUser(id: string, opts: any = {}): Promise<User>
+```
+
+The agent typed `opts` as `any` — the easy default when you don't want to commit to an options schema yet. The diff includes the function. The diff includes new tests for the new option. The diff does **not** include the three other modules that import `fetchUser` and pass it through `Array.prototype.map(fetchUser)` — where `map`'s second positional argument (the index) is now silently received as `opts`.
+
+Because `opts` is `any`, TypeScript can't complain that a `number` is being passed where an options object is expected — `any` accepts everything. So the types still pass. `opts.includeDeleted` is `undefined`, so behavior looks unchanged… until somebody widens the type later (`opts: { includeDeleted?: boolean; limit?: number }`), the agent's "extract `opts.limit`" change ships, and every `.map(fetchUser)` call site starts silently passing the array index as a row limit.
+
+The agent's context window saw the file. CI saw the diff. The reviewer saw what the agent saw. Nobody saw the system.
+
+## 5. Plausibility theater
+
+The hardest category to spot in review, because the code *reads* like good code.
+
+```py
+try:
+    result = external_service.charge(card, amount)
+    return result
+except Exception as e:
+    logger.error(f"charge failed: {e}")
+    return {"ok": False, "error": "payment failed"}
+```
+
+What's wrong? `external_service.charge` may raise a transient network error, in which case the caller can retry safely. Or it may raise an "already charged, idempotency key collision" error, in which case the charge succeeded and the caller must not retry. The agent has flattened both into the same `{"ok": False}`, and the caller — which is also agent-written — retries on any `ok: False`.
+
+You now have a double-charge bug, on payments, that passed review because the error handling "looked thoughtful." This is the most expensive category. It's the one that gets agent-written code banned from a codebase after one incident.
+
+## 6. Stale knowledge of the codebase
+
+The agent was trained or prompted with a snapshot of the world that includes idioms your team deprecated six months ago.
+
+It writes `name = Column(String, nullable=False)` — SQLAlchemy 1.x-style imperative column declarations — in a codebase that migrated to 2.x's `name: Mapped[str] = mapped_column()` typed-attribute style last quarter. It uses `useEffect(() => { fetch(...).then(setData) }, [])` for data fetching in a codebase that has standardized on React Query (and where the React docs themselves now tell you not to fetch in `useEffect`). It imports from the old internal `utils/` barrel file that everyone agreed in an RFC to delete.
+
+Each of these compiles. Each of these passes the test the agent wrote. Each of these is, in your codebase, *wrong* — not because the code doesn't work, but because the maintainability invariants your team has agreed to are violated, silently, by a contributor who can't read the RFC channel.
+
+Multiply by the rate at which agents are now contributing PRs. You get a codebase that is regressing toward whatever idioms were most popular on the open internet in the model's training data, regardless of what your team decided.
+
+---
+
+## Why CI and review can't catch most of this
+
+Look back at the six categories.
+
+- **#1 (hallucinated API)** is a unit-test problem when the agent writes the mocks. It's an integration-test problem when there are no integration tests.
+- **#2 (type-checks-but-doesn't-work)** is invisible to the type system by definition.
+- **#3 (false-green tests)** is invisible to coverage tools. Coverage rewards quantity, not independence.
+- **#4 (locally correct, globally wrong)** is invisible to a reviewer who reads the diff instead of the system.
+- **#5 (plausibility theater)** is *especially* invisible to reviewers, because the code is well-formatted, well-named, and well-commented. The bug is in the semantics of the contract, not the syntax of the change.
+- **#6 (stale knowledge)** is invisible to anyone who hasn't memorized your team's last six RFCs.
+
+The pattern: every one of these categories breaks the assumption a traditional review pipeline is built on, which is that **the contributor and the reviewer share context** — context about libraries, business invariants, system shape, error semantics, team conventions. With a human contributor, that assumption is roughly true after a few months of onboarding. With an agent contributor, it is roughly never true, and the agent doesn't know what it doesn't know.
+
+The reviewer is now the only line of defense, and the reviewer is overwhelmed because agents are submitting PRs at 10× the rate humans were.
+
+## What a verification layer has to do
+
+I'll keep this short, because anyone who has stared at this problem can fill in the rest.
+
+A useful verification layer for agent-authored code is the thing that **independently checks the agent's claim** about its own diff. Three properties matter:
+
+1. **Independence.** Whatever generates the check cannot be the thing that generated the code. If the same agent writes the code and the test, you're back to category 3.
+2. **System context, not file context.** The checker has to load enough of the codebase — call graph, invariants, deprecation policy — to catch categories 4 and 6. A linter that sees one file is not enough.
+3. **Semantic, not just syntactic.** It has to be able to model what the function is *for*, not just whether it parses. Category 2 and category 5 are syntactically perfect bugs.
+
+This is hard. It is also obviously the next layer of infra anyone running agent-authored code in production needs. It is what we're building, and what we expect a few other teams to be building. We'll have more to say about how we approach it in the next few posts.
+
+If you've shipped (or almost shipped) one of the six bug categories above and you want to talk about what your team is doing about it, we'd love to compare notes. [waitlist + intro form here](https://mainahq.com/?from=blog-post-1).
+

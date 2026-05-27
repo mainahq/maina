@@ -82,6 +82,7 @@ export default defineConfig({
         {
           label: 'Blog',
           items: [
+            { slug: 'blog/verification-gap' },
             { slug: 'blog/why-no-sdk' },
             { slug: 'blog/why-not-passmark' },
             { slug: 'blog/why-not-custom-search' },
