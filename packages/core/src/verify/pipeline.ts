@@ -26,6 +26,7 @@ import type { DetectedTool } from "./detect";
 import { detectTools } from "./detect";
 import type { Finding } from "./diff-filter";
 import { filterByDiff } from "./diff-filter";
+import { filterIgnoredFiles } from "./ignore";
 import { runMutation } from "./mutation";
 import { runSecretlint } from "./secretlint";
 import { runSemgrep } from "./semgrep";
@@ -108,7 +109,14 @@ export async function runPipeline(
 	const baseBranch = options?.baseBranch ?? "main";
 
 	// ── Step 1: Get files to check ────────────────────────────────────────
-	const files = options?.files ?? (await getStagedFiles(cwd));
+	const rawFiles = options?.files ?? (await getStagedFiles(cwd));
+
+	// Filter out bundled/minified artifacts (dist/, build/, *.min.js, etc.)
+	// before any tool sees them. Running pattern-based slop detection on a
+	// committed ncc/esbuild bundle produces tens of thousands of false
+	// positives — broke `maina verify` on the GitHub-Action repo shape
+	// (#207).
+	const { kept: files } = filterIgnoredFiles(rawFiles, cwd);
 
 	// Empty file list → nothing to verify
 	if (files.length === 0) {

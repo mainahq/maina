@@ -923,6 +923,56 @@ function generateVerifyPipelineArticle(
 }
 
 /**
+ * Last-resort architecture article: list the source files grouped by their
+ * top-level directory. Used when no other extractor or generator yielded
+ * an article — typical for tiny repos like a single-file GitHub Action
+ * (#207). Returns null when no source files were supplied.
+ */
+function generateSourceTreeArticle(
+	sourceFiles: string[],
+): ArchitectureArticle | null {
+	if (sourceFiles.length === 0) return null;
+
+	const groups = new Map<string, string[]>();
+	for (const rel of sourceFiles) {
+		const norm = rel.replace(/\\/g, "/");
+		const firstSlash = norm.indexOf("/");
+		const group =
+			firstSlash === -1 ? "(root)" : norm.slice(0, firstSlash) || "(root)";
+		const list = groups.get(group) ?? [];
+		list.push(norm);
+		groups.set(group, list);
+	}
+
+	const lines: string[] = [];
+	lines.push("# Architecture: Source Tree");
+	lines.push("");
+	lines.push(
+		"> Auto-generated source-tree article. The repo had no exported entities, features, or architectural patterns the wiki could derive a richer article from, so we list the source files here as the minimum viable index.",
+	);
+	lines.push("");
+	lines.push(`Indexed ${sourceFiles.length} source file(s).`);
+	lines.push("");
+
+	for (const [group, files] of [...groups.entries()].sort(([a], [b]) =>
+		a.localeCompare(b),
+	)) {
+		lines.push(`## ${group}/`);
+		lines.push("");
+		for (const file of files.sort()) {
+			lines.push(`- \`${file}\``);
+		}
+		lines.push("");
+	}
+
+	return {
+		slug: "source-tree",
+		title: "Source Tree",
+		content: lines.join("\n"),
+	};
+}
+
+/**
  * Generate architecture articles by detecting cross-cutting patterns
  * from the codebase structure.
  */
@@ -1068,6 +1118,7 @@ export async function compile(
 	try {
 		// ── Step 1: Run extractors ──────────────────────────────────────
 		let sourceFiles = findSourceFiles(repoRoot, repoRoot);
+		let sampleTruncated = false;
 		if (options.sample === true && sourceFiles.length > SAMPLE_FILE_LIMIT) {
 			// Sort by mtime desc — most recently modified first — then cap.
 			const withMtime = sourceFiles.map((rel) => {
@@ -1081,6 +1132,7 @@ export async function compile(
 			});
 			withMtime.sort((a, b) => b.mtime - a.mtime);
 			sourceFiles = withMtime.slice(0, SAMPLE_FILE_LIMIT).map((e) => e.rel);
+			sampleTruncated = true;
 		}
 
 		const entityResult = extractCodeEntities(repoRoot, sourceFiles);
@@ -1245,6 +1297,34 @@ export async function compile(
 		const archArticles = generateArchitectureArticles(repoRoot);
 		articles.push(...archArticles);
 
+		// Fallback: a small/single-file repo (e.g. a GitHub Action's
+		// hand-written `src/index.ts`) often produces zero entities and zero
+		// architecture matches, leaving the wiki visibly empty after `init`
+		// (#207). When source files exist but none of the structural
+		// extractors landed a real article, emit a single source-tree
+		// article so the user at least sees their files indexed.
+		if (
+			articles.length === 0 &&
+			sourceFiles.length > 0 &&
+			features.length === 0 &&
+			decisions.length === 0
+		) {
+			const sourceTree = generateSourceTreeArticle(sourceFiles);
+			if (sourceTree) {
+				articles.push(
+					makeArticle(
+						`wiki/architecture/${sourceTree.slug}.md`,
+						"architecture",
+						sourceTree.title,
+						sourceTree.content,
+						0.5,
+						[],
+						[],
+					),
+				);
+			}
+		}
+
 		// ── Step 6b: AI enhancement (optional) ────────────────────────
 		if (options.useAI) {
 			const contextSummary = [
@@ -1351,11 +1431,13 @@ export async function compile(
 		// detect source changes in future runs. Previously this field was
 		// declared but never written, leaving coverage stuck at 0% (#211).
 		//
-		// Skip on sampled compiles (options.sample truncates sourceFiles to
-		// SAMPLE_FILE_LIMIT — persisting that truncated set as canonical state
-		// would make coverage look fake-high on subsequent runs). Preserve any
-		// existing fileHashes from a prior full compile in that case.
-		if (options.sample !== true) {
+		// Skip when a sampled compile actually truncated the file list —
+		// persisting that truncated set as canonical state would make coverage
+		// look fake-high on subsequent runs. When the repo has fewer files
+		// than the sample limit, no truncation happened and we save the hashes
+		// so `wiki status` reports an honest coverage number on tiny repos
+		// (#207).
+		if (!sampleTruncated) {
 			state.fileHashes = {};
 			for (const rel of sourceFiles) {
 				const h = hashFile(join(repoRoot, rel));
