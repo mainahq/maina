@@ -402,6 +402,106 @@ describe("Wiki Compiler", () => {
 		});
 	});
 
+	// ── Tiny single-file repo fallback (#207) ────────────────────────────
+
+	describe("tiny single-file repo (GitHub Action shape)", () => {
+		it("emits a source-tree article when nothing else matched", async () => {
+			// Repo with a single non-exporting src file — mirrors the
+			// ncc-bundled GitHub Action shape from issue #207.
+			const tinyRepo = join(tmpDir, "tiny-action");
+			const tinyMaina = join(tinyRepo, ".maina");
+			const tinyWiki = join(tinyMaina, "wiki");
+			mkdirSync(join(tinyRepo, "src"), { recursive: true });
+			mkdirSync(tinyWiki, { recursive: true });
+			writeFileSync(
+				join(tinyRepo, "src", "index.ts"),
+				"const core = { setOutput: (k: string, v: string) => {} };\ncore.setOutput('hello', 'world');\n",
+			);
+
+			const result = await compile({
+				repoRoot: tinyRepo,
+				mainaDir: tinyMaina,
+				wikiDir: tinyWiki,
+				full: true,
+			});
+			expect(result.ok).toBe(true);
+			if (!result.ok) return;
+
+			const archArticles = result.value.articles.filter(
+				(a) => a.type === "architecture",
+			);
+			const sourceTree = archArticles.find((a) =>
+				a.path.endsWith("/source-tree.md"),
+			);
+			expect(sourceTree).toBeDefined();
+			expect(sourceTree?.content).toContain("src/index.ts");
+		});
+
+		it("saves fileHashes on a small sample-mode compile (no truncation)", async () => {
+			// `maina setup` calls compile with sample:true. On a tiny repo
+			// the sample limit (20) is never hit, so the file list is the
+			// whole repo and fileHashes must be saved for honest coverage
+			// reporting (#207).
+			const smallRepo = join(tmpDir, "small-repo");
+			const smallMaina = join(smallRepo, ".maina");
+			const smallWiki = join(smallMaina, "wiki");
+			mkdirSync(join(smallRepo, "src"), { recursive: true });
+			mkdirSync(smallWiki, { recursive: true });
+			writeFileSync(
+				join(smallRepo, "src", "index.ts"),
+				"export function run(): void {}\n",
+			);
+
+			const result = await compile({
+				repoRoot: smallRepo,
+				mainaDir: smallMaina,
+				wikiDir: smallWiki,
+				full: true,
+				sample: true,
+			});
+			expect(result.ok).toBe(true);
+			if (!result.ok) return;
+
+			const statePath = join(smallWiki, ".state.json");
+			expect(existsSync(statePath)).toBe(true);
+			const state = JSON.parse(readFileSync(statePath, "utf-8"));
+			expect(Object.keys(state.fileHashes).length).toBeGreaterThan(0);
+			expect(state.fileHashes["src/index.ts"]).toBeTruthy();
+		});
+
+		it("does NOT save fileHashes when sample mode actually truncates", async () => {
+			// When source files exceed the sample cap, we still skip saving
+			// to avoid making coverage look fake-high on later runs.
+			const largeRepo = join(tmpDir, "large-repo");
+			const largeMaina = join(largeRepo, ".maina");
+			const largeWiki = join(largeMaina, "wiki");
+			const srcDir = join(largeRepo, "src");
+			mkdirSync(srcDir, { recursive: true });
+			mkdirSync(largeWiki, { recursive: true });
+			// Write 25 files > SAMPLE_FILE_LIMIT (20)
+			for (let i = 0; i < 25; i++) {
+				writeFileSync(
+					join(srcDir, `mod-${i}.ts`),
+					`export function fn${i}(): number { return ${i}; }\n`,
+				);
+			}
+
+			const result = await compile({
+				repoRoot: largeRepo,
+				mainaDir: largeMaina,
+				wikiDir: largeWiki,
+				full: true,
+				sample: true,
+			});
+			expect(result.ok).toBe(true);
+			if (!result.ok) return;
+
+			const statePath = join(largeWiki, ".state.json");
+			const state = JSON.parse(readFileSync(statePath, "utf-8"));
+			expect(Object.keys(state.fileHashes).length).toBe(0);
+		});
+	});
+
 	// ── Monorepo architecture article reads package.json descriptions (#81) ──
 
 	describe("monorepo architecture article", () => {

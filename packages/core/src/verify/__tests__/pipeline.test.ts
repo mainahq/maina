@@ -32,6 +32,10 @@ let mockStagedFiles: string[] = ["src/app.ts"];
 // Track call order for verifying pipeline sequencing
 let callOrder: string[] = [];
 
+// Capture the files argument seen by syntaxGuard so we can assert that the
+// pipeline filtered ignored paths (#207) before any tool ran.
+let capturedSyntaxGuardFiles: string[] | null = null;
+
 // Mock the modules
 // NOTE: These mocks are intentionally minimal — they only export what pipeline.ts
 // needs. Tests MUST be run via `bun run test` (scripts/test-isolated.ts) which
@@ -39,8 +43,10 @@ let callOrder: string[] = [];
 // Running `bun test` directly (single process) will cause cross-file mock leaks.
 
 mock.module("../syntax-guard", () => ({
-	syntaxGuard: async (..._args: unknown[]) => {
+	syntaxGuard: async (...args: unknown[]) => {
 		callOrder.push("syntaxGuard");
+		const files = args[0];
+		capturedSyntaxGuardFiles = Array.isArray(files) ? [...files] : null;
 		return mockSyntaxGuardResult;
 	},
 }));
@@ -205,6 +211,7 @@ describe("VerifyPipeline", () => {
 	beforeEach(() => {
 		// Reset all mock state
 		callOrder = [];
+		capturedSyntaxGuardFiles = null;
 		mockSyntaxGuardResult = { ok: true, value: undefined };
 		mockDetectedTools = [
 			makeDetectedTool("biome", true),
@@ -243,6 +250,38 @@ describe("VerifyPipeline", () => {
 		expect(
 			result.detectedTools.find((t) => t.name === "semgrep")?.available,
 		).toBe(true);
+	});
+
+	it("filters bundled/minified artifacts before any tool sees them (#207)", async () => {
+		// Simulates a GitHub-Action repo where `dist/index.js` is committed.
+		// Without filtering, slop runs on a 100KB ncc bundle and produces
+		// thousands of false positives — broke `maina verify` on first run.
+		await runPipeline({
+			files: [
+				"src/index.ts",
+				"dist/index.js",
+				"build/output.js",
+				"node_modules/foo/index.js",
+				"public/app.min.js",
+			],
+		});
+
+		expect(capturedSyntaxGuardFiles).not.toBeNull();
+		expect(capturedSyntaxGuardFiles).toEqual(["src/index.ts"]);
+	});
+
+	it("returns the empty-pipeline shape when every input file is ignored (#207)", async () => {
+		// All inputs filtered → nothing left to verify. Should short-circuit
+		// to the empty-pipeline result rather than crash.
+		const result = await runPipeline({
+			files: ["dist/index.js", "node_modules/foo/index.js"],
+		});
+
+		expect(result.passed).toBe(true);
+		expect(result.findings).toEqual([]);
+		expect(result.tools).toEqual([]);
+		// syntaxGuard must not have been called — short-circuit before Step 2.
+		expect(callOrder).not.toContain("syntaxGuard");
 	});
 
 	it("should run all detected tools in parallel", async () => {

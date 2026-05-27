@@ -604,6 +604,15 @@ export {
 	hashFinding,
 	parseFixResponse,
 } from "./verify/fix";
+// Verify — Ignore
+export {
+	DEFAULT_IGNORE_DIRS,
+	DEFAULT_IGNORE_SUFFIXES,
+	type FilterIgnoredResult,
+	filterIgnoredFiles,
+	isIgnored,
+	loadMainaIgnore,
+} from "./verify/ignore";
 // Verify — Lighthouse
 export {
 	type LighthouseOptions,
