@@ -1,5 +1,25 @@
 # @mainahq/skills
 
+## 1.8.1
+
+### Patch Changes
+
+- [#280](https://github.com/mainahq/maina/pull/280) [`ee29a32`](https://github.com/mainahq/maina/commit/ee29a325c78c9719766c9056ccab26759a062aa5) Thanks [@beeeku](https://github.com/beeeku)! - fix(core,verify,wiki): exclude bundled artifacts from verify and index tiny repos in wiki init ([#207](https://github.com/mainahq/maina/issues/207))
+
+  - **verify**: `maina verify` now skips files inside `dist/`, `build/`, `out/`,
+    `node_modules/`, `coverage/`, `target/`, `vendor/` and friends, plus files
+    matching common bundler suffixes (`*.min.js`, `*.bundle.js`, `*-bundle.js`,
+    `*.chunk.js`, `*.d.ts`, `*.map`). Previously, on a GitHub-Action repo whose
+    ncc-bundled `dist/index.js` was committed, the first `maina verify` produced
+    ~10k slop findings. Honors a `.maina/ignore` file (gitignore-style) for
+    project-local extras.
+  - **wiki**: `maina wiki init` on a single-file repo no longer reports `0
+articles`. When no entity/architecture article matched, the compiler now
+    emits a `wiki/architecture/source-tree.md` fallback that at least lists
+    every source file. `state.fileHashes` is also written on small sample-mode
+    compiles (no truncation) so `wiki status` shows an honest coverage number
+    instead of 0%.
+
 ## 1.7.0
 
 ### Minor Changes
