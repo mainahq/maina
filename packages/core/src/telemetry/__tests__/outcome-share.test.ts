@@ -106,12 +106,11 @@ describe("outcome share payload — schema", () => {
 		const tier: DecisionRecord = {
 			...SLOP,
 			type: "task.tier",
-			optionOrder: ["mechanical", "standard", "architectural", "local"],
+			optionOrder: ["mechanical", "standard", "architectural"],
 			distribution: [
-				{ answer: "mechanical", p: 0.7 },
+				{ answer: "mechanical", p: 0.8 },
 				{ answer: "standard", p: 0.1 },
 				{ answer: "architectural", p: 0.1 },
-				{ answer: "local", p: 0.1 },
 			],
 			answer: "mechanical",
 		};

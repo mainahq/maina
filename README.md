@@ -244,7 +244,6 @@ export default defineConfig({
     mechanical: 'google/gemini-2.5-flash',
     standard: 'anthropic/claude-sonnet-4',
     architectural: 'anthropic/claude-sonnet-4',
-    local: 'ollama/qwen3-coder-8b',
   },
   provider: 'openrouter',
 });

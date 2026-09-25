@@ -65,7 +65,7 @@ const SAMPLES: readonly DecideRequest[] = [
 			{
 				kind: "choice",
 				id: "tier",
-				options: ["mechanical", "standard", "architectural", "local"],
+				options: ["mechanical", "standard", "architectural"],
 			},
 		],
 	},
@@ -216,7 +216,6 @@ describe("decide", () => {
 				{ answer: "mechanical", p: 1 },
 				{ answer: "standard", p: 0 },
 				{ answer: "architectural", p: 0 },
-				{ answer: "local", p: 0 },
 			],
 			confidence: 1,
 			backend: { id: "heuristic", version: heuristicBackend.version },

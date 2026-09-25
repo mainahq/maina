@@ -119,7 +119,6 @@ describe("buildDecisionRecord", () => {
 			"mechanical",
 			"standard",
 			"architectural",
-			"local",
 		]);
 		expect(record.latencyMs).toBe(decision.latencyMs);
 		expect(record.host).toBe("claude-code");
@@ -173,7 +172,7 @@ describe("buildDecisionRecord checks the decision belongs to the request", () =>
 				{
 					kind: "choice",
 					id: "tier",
-					options: ["local", "architectural", "standard", "mechanical"],
+					options: ["architectural", "standard", "mechanical"],
 				},
 			],
 		} as const;

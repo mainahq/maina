@@ -101,9 +101,8 @@ const ModelsSchema = z.strictObject({
 	),
 	standard: modelId.describe("Mid tier: reviews, plans, design docs."),
 	architectural: modelId.describe(
-		"Top tier: design review, architecture, prompt evolution.",
+		"Top tier: design review, architecture, prompt evolution, and any task routing is unsure about.",
 	),
-	local: modelId.describe("Offline tier."),
 });
 
 const usd = z.number().nonnegative().nullable();

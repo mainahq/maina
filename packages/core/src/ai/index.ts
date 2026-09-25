@@ -2,14 +2,17 @@ import { join } from "node:path";
 import { buildCacheKey, hashContent } from "../cache/keys";
 import { createCacheManager } from "../cache/manager";
 import { getTtl } from "../cache/ttl";
+import type { BudgetSpend } from "../config/budget";
 import {
 	getApiKey,
 	loadConfigModule,
 	resolveProvider,
 	shouldDelegateToHost,
 } from "../config/index";
+import { defaultDecidePorts } from "../decide/decide";
 import type { EnvPort } from "../ports/env";
-import { resolveModel } from "./tiers";
+import type { LoggerPort } from "../ports/logger";
+import { routeTask } from "./routing";
 import { validateAIOutput } from "./validate";
 
 /**
@@ -28,6 +31,10 @@ interface GenerateOptions extends AIContext {
 	userPrompt: string;
 	files?: string[]; // for cache key
 	mainaDir?: string; // for cache storage; defaults to <root>/.maina
+	/** Spend so far, for the budget caps; defaults to nothing spent. */
+	spend?: BudgetSpend;
+	/** Receives the routing decision and its savings estimate. */
+	logger?: LoggerPort;
 }
 
 interface GenerateResult {
@@ -36,6 +43,12 @@ interface GenerateResult {
 	model: string;
 	tokens?: { input: number; output: number };
 	slopWarnings?: string[];
+	/**
+	 * Set when the budget stopped the call before any model ran: the
+	 * user-facing message (also in `text` for older callers). Never treat
+	 * `text` as model output when this is set.
+	 */
+	budgetStop?: string;
 }
 
 interface StoredResult {
@@ -43,6 +56,16 @@ interface StoredResult {
 	model: string;
 	tokens?: { input: number; output: number };
 }
+
+const ignoreLog = (): undefined => undefined;
+
+/** For callers that pass no logger: routing entries are dropped. */
+const SILENT_LOGGER: LoggerPort = {
+	debug: ignoreLog,
+	info: ignoreLog,
+	warn: ignoreLog,
+	error: ignoreLog,
+};
 
 /**
  * Performs the actual AI SDK call. Isolated here so tests never need to invoke it.
@@ -99,10 +122,12 @@ async function callModel(
 /**
  * Main AI generation function with cache-first strategy.
  *
- * 1. Hash the prompts to build a stable cache key.
- * 2. Return cached result if available.
- * 3. If no API key, return a helpful error result (never throw).
- * 4. Call the model, cache the result, and return it.
+ * 1. Route the task to a tier and enforce the budget; a budget stop
+ *    returns its message instead of calling a model.
+ * 2. Hash the prompts to build a stable cache key.
+ * 3. Return cached result if available.
+ * 4. If no API key, return a helpful error result (never throw).
+ * 5. Call the model, cache the result, and return it.
  */
 export async function generate(
 	options: GenerateOptions,
@@ -111,15 +136,23 @@ export async function generate(
 		options;
 
 	const { config } = await loadConfigModule(root);
-	const resolved = resolveModel(task, config);
+	const routed = routeTask(
+		{ decide: defaultDecidePorts, logger: options.logger ?? SILENT_LOGGER },
+		{ task, budget: config.budget, spend: options.spend },
+	);
+	if (!routed.ok) {
+		const message = routed.error.message;
+		return { text: message, cached: false, model: "", budgetStop: message };
+	}
+	const configuredModel = config.models[routed.value.tier];
 	const provider = resolveProvider(config, env);
 	// In host mode with Anthropic, use a sensible model instead of OpenRouter model IDs
 	const modelId =
-		provider === "anthropic" && resolved.modelId.startsWith("google/")
+		provider === "anthropic" && configuredModel.startsWith("google/")
 			? "claude-sonnet-4-20250514"
-			: provider === "anthropic" && resolved.modelId.includes("/")
-				? (resolved.modelId.split("/")[1] ?? resolved.modelId)
-				: resolved.modelId;
+			: provider === "anthropic" && configuredModel.includes("/")
+				? (configuredModel.split("/")[1] ?? configuredModel)
+				: configuredModel;
 
 	// Build cache key
 	const promptHash = hashContent(systemPrompt + userPrompt);

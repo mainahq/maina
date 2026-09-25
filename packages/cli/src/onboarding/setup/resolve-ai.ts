@@ -444,6 +444,7 @@ async function runByokTier(
 			root: opts.cwd,
 			env: opts.env,
 		});
+		if (result.budgetStop !== undefined) return null;
 		const text = result.text ?? "";
 		// `generate()` returns explanatory strings on failure — filter those out
 		if (

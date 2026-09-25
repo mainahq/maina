@@ -39,6 +39,8 @@ export interface FixResult {
 	suggestions: FixSuggestion[];
 	cached: boolean;
 	model?: string;
+	/** Set when the budget stopped the AI call: the message naming the cap. */
+	budgetStop?: string;
 }
 
 export interface FixOptions {
@@ -303,6 +305,12 @@ export async function generateFixes(
 		root: cwd,
 		env,
 	});
+
+	// A budget stop is not a model answer: surface it and never cache it,
+	// or the fix step stays empty after the budget is raised.
+	if (aiResult.budgetStop !== undefined) {
+		return { suggestions: [], cached: false, budgetStop: aiResult.budgetStop };
+	}
 
 	// Parse the response
 	const suggestions = parseFixResponse(aiResult.text, findings);

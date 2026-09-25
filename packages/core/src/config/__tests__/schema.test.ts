@@ -141,7 +141,7 @@ describe("salvageConfigLayer (#393)", () => {
 		const { layer, errors } = salvageConfigLayer(
 			{
 				provider: "anthropic",
-				models: { standard: "", local: "ollama/x" },
+				models: { standard: "", mechanical: "x/cheap" },
 				budget: { perTaskUsd: 1, nope: true },
 				extra: 1,
 			},
@@ -149,7 +149,7 @@ describe("salvageConfigLayer (#393)", () => {
 		);
 		expect(layer).toEqual({
 			provider: "anthropic",
-			models: { local: "ollama/x" },
+			models: { mechanical: "x/cheap" },
 			budget: { perTaskUsd: 1 },
 		});
 		expect(errors.map((e) => e.path).sort()).toEqual([

@@ -64,6 +64,12 @@ const COSTS: RoutingCosts = {
 	costPerTaskUsd: { mechanical: 0.01, standard: 0.05, architectural: 0.2 },
 };
 
+/** Costs with the top tier left unpriced. */
+const UNPRICED_TOP: RoutingCosts["costPerTaskUsd"] = {
+	mechanical: 0.01,
+	standard: 0.05,
+};
+
 describe("summarise", () => {
 	test("is null when nothing happened", () => {
 		expect(summarise(slice([]))).toBeNull();
@@ -174,15 +180,15 @@ describe("summarise", () => {
 
 	test("a tier without a cost adds nothing to the estimate", () => {
 		const summary = summarise(
-			slice([routed("r1", "local"), routed("r2", "mechanical")]),
-			{ routing: COSTS },
+			slice([routed("r1", "architectural"), routed("r2", "mechanical")]),
+			{ routing: { ...COSTS, costPerTaskUsd: UNPRICED_TOP } },
 		);
 		expect(summary?.estimatedSavedUsd).toBeCloseTo(0.04, 10);
 	});
 
 	test("an unpriced baseline estimates no savings", () => {
 		const summary = summarise(slice([routed("r1", "mechanical")]), {
-			routing: { baselineTier: "local", costPerTaskUsd: COSTS.costPerTaskUsd },
+			routing: { baselineTier: "architectural", costPerTaskUsd: UNPRICED_TOP },
 		});
 		expect(summary?.estimatedSavedUsd).toBe(0);
 	});

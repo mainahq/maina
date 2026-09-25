@@ -17,7 +17,6 @@ export default defineConfig({
     mechanical: 'google/gemini-2.5-flash',
     standard: 'anthropic/claude-sonnet-4',
     architectural: 'anthropic/claude-sonnet-4',
-    local: 'ollama/qwen3-coder-8b',
   },
   provider: 'openrouter',
   budget: {
@@ -39,15 +38,24 @@ Every AI call uses a specific tier. You choose which model fills each tier.
 | **mechanical** | Tests, commit messages, slop detection, context compression | `google/gemini-2.5-flash` |
 | **standard** | Reviews, plans, design docs, explanations | `anthropic/claude-sonnet-4` |
 | **architectural** | Design review, architecture decisions, prompt evolution | `anthropic/claude-sonnet-4` |
-| **local** | Offline use via Ollama -- slop detection, commit messages | `ollama/qwen3-coder-8b` |
 
-Models are specified as `provider/model-name` strings. Maina uses [OpenRouter](https://openrouter.ai/) by default, giving access to 300+ models through a unified interface.
+Models are specified as `provider/model-name` strings. Maina uses [OpenRouter](https://openrouter.ai/) by default, giving access to 300+ models through a unified interface. A 1.x config that still sets `models.local` keeps loading; the key is ignored.
+
+### Routing and budget
+
+Each task is routed to a tier through the `task.tier` decision. When that decision's confidence is at or above the policy's `task.tier` confidence threshold, the task runs on the tier it picked (a commit message runs on `mechanical`). Below the threshold the task is uncertain and runs on `architectural`.
+
+Before the call, the router checks the estimated cost against `budget.dailyUsd` and `budget.perTaskUsd`. When a cap would be crossed:
+
+- `onBreach: 'degrade'` moves the task to the most capable lower tier that fits, and stops with a message when even `mechanical` does not fit.
+- `onBreach: 'stop'` stops with a message naming the cap and how to raise it.
+
+Every routing decision is logged with an estimate of what it saved against the `standard` tier (negative when the task needed a dearer tier).
 
 ### Free tier
 
 With no API key, Maina still works:
 - Deterministic verification (Biome, Semgrep, Trivy, etc.) runs normally
-- Point the `local` tier to Ollama for offline AI features
 - AI-dependent features gracefully degrade
 
 ## Constitution

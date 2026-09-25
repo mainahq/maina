@@ -16,6 +16,8 @@ export interface TryAIResult {
 	promptHash?: string;
 	/** Structured prompt for host to process when hostDelegation is true */
 	delegation?: DelegationPrompt;
+	/** Set when the budget stopped the call: the message naming the cap. */
+	budgetStop?: string;
 }
 
 /**
@@ -26,6 +28,7 @@ export interface TryAIResult {
  * - { text: null, hostDelegation: true, delegation } when in host mode (no key)
  *   The delegation contains structured prompts for the host agent to process.
  * - { text: null } when AI is not available and not in host mode
+ * - { text: null, budgetStop } when the budget stopped the call
  */
 export async function tryAIGenerate(
 	task: string,
@@ -58,6 +61,18 @@ export async function tryAIGenerate(
 				root: ctx.root,
 				env: ctx.env,
 			});
+
+			// A budget stop is not model output, and handing it to the host
+			// would sidestep the cap: report it and stop.
+			if (result.budgetStop !== undefined) {
+				return {
+					text: null,
+					fromAI: false,
+					hostDelegation: false,
+					promptHash: builtPrompt.hash,
+					budgetStop: result.budgetStop,
+				};
+			}
 
 			// Skip delegation responses from generate() — we handle it below
 			if (

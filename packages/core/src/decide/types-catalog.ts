@@ -36,12 +36,11 @@ type CatalogEntry = Readonly<{
 	defaultBackend: DecisionBackend;
 }>;
 
-/** Options of `task.tier`. */
+/** Options of `task.tier`, cheapest first (routing degrades down this list). */
 export const MODEL_TIERS: readonly ModelTier[] = [
 	"mechanical",
 	"standard",
 	"architectural",
-	"local",
 ];
 
 /** Options of `review.category`. */
