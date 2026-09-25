@@ -7,6 +7,7 @@
 
 import type { Result } from "../../db/index";
 import { DECISION_TYPES } from "../../policy/schema";
+import { SUM_EPSILON } from "../decide";
 import type { Answer, DecisionType, DistributionEntry } from "../types";
 import { DECISION_CATALOG } from "../types-catalog";
 import { isHash } from "./hash";
@@ -78,12 +79,13 @@ function isAnswerFor(
 			return true;
 		case "number":
 			return Number.isFinite(value);
-		case "string":
-			return (
-				privacy.rawOptions ||
-				isHash(value) ||
-				(DECISION_CATALOG[type].options?.includes(value) ?? false)
-			);
+		case "string": {
+			// A type with fixed options takes only those, whatever the privacy:
+			// `rawOptions` is about free-form options, not the catalog contract.
+			const fixed = DECISION_CATALOG[type].options;
+			if (fixed !== undefined) return fixed.includes(value);
+			return privacy.rawOptions || isHash(value);
+		}
 		default:
 			return false;
 	}
@@ -103,6 +105,52 @@ function isEntryFor(
 		p >= 0 &&
 		p <= 1
 	);
+}
+
+/**
+ * Which field is inconsistent, if any: `distribution` must be one entry per
+ * option in `optionOrder` order summing to 1 (or, with no options, a single
+ * point mass at a numeric answer), and `answer` one of its modes. The same
+ * contract `decide` enforces, checked on the (possibly hashed) labels.
+ */
+function inconsistency(
+	optionOrder: readonly Answer[],
+	distribution: readonly DistributionEntry[],
+	answer: Answer,
+): Readonly<{ field: DecisionRecordField; message: string }> | undefined {
+	const total = distribution.reduce((sum, e) => sum + e.p, 0);
+	if (distribution.length === 0 || Math.abs(total - 1) > SUM_EPSILON) {
+		return {
+			field: "distribution",
+			message: "distribution must be non-empty and sum to 1",
+		};
+	}
+	if (optionOrder.length === 0) {
+		const [only] = distribution;
+		if (distribution.length !== 1 || typeof only?.answer !== "number") {
+			return {
+				field: "distribution",
+				message: "a score distribution is a single numeric entry",
+			};
+		}
+		return only.answer === answer
+			? undefined
+			: { field: "answer", message: "a score answer is its point mass" };
+	}
+	if (
+		distribution.length !== optionOrder.length ||
+		distribution.some((e, i) => e.answer !== optionOrder[i])
+	) {
+		return {
+			field: "distribution",
+			message: "distribution needs one entry per option, in option order",
+		};
+	}
+	const chosen = distribution.find((e) => e.answer === answer);
+	const max = Math.max(...distribution.map((e) => e.p));
+	return chosen !== undefined && chosen.p === max
+		? undefined
+		: { field: "answer", message: "answer must be a mode of the distribution" };
 }
 
 function invalid(
@@ -173,6 +221,12 @@ export function validateRecord(
 			"answer must be a boolean, a number, a fixed catalog option or a hash",
 		);
 	}
+	const mismatch = inconsistency(
+		r.optionOrder as readonly Answer[],
+		r.distribution as readonly DistributionEntry[],
+		r.answer,
+	);
+	if (mismatch !== undefined) return invalid(mismatch.field, mismatch.message);
 	if (typeof r.finalAction !== "string" || !LABEL_PATTERN.test(r.finalAction)) {
 		return invalid("finalAction", "finalAction must be a lower-case label");
 	}

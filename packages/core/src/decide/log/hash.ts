@@ -75,7 +75,19 @@ function sortedEncodings(
 	return `[${parts.join(",")}]`;
 }
 
+/**
+ * A throwing getter or a revoked `Proxy` must not break logging: such an
+ * object encodes as a fixed tag instead.
+ */
 function encodeObject(value: object, outer: ReadonlySet<object>): string {
+	try {
+		return encodeReadable(value, outer);
+	} catch {
+		return tagged("$unreadable", "true");
+	}
+}
+
+function encodeReadable(value: object, outer: ReadonlySet<object>): string {
 	if (outer.has(value)) return tagged("$circular", "true");
 	const seen = new Set(outer).add(value);
 	if (Array.isArray(value)) return encodeList(value, seen);
@@ -109,7 +121,8 @@ function encodeObject(value: object, outer: ReadonlySet<object>): string {
  * Canonical JSON: sorted keys, no whitespace. `undefined`, functions and
  * symbols are dropped from objects and become `null` in arrays (as in
  * JSON); bigints, non-finite numbers, dates, bytes, maps, sets and cycles
- * get tagged forms instead of throwing; object keys starting with `$` are
+ * get tagged forms instead of throwing (as do objects whose properties
+ * cannot be read); object keys starting with `$` are
  * escaped so no plain object encodes like a tagged form. Never throws.
  */
 export function canonicalJson(value: unknown): string {

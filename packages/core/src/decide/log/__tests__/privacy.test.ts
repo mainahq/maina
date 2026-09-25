@@ -105,6 +105,18 @@ function leaks(haystack: string, secrets: readonly string[]): string[] {
 	return secrets.filter((s) => haystack.includes(s));
 }
 
+const TIER_ONLY: DecideRequest = {
+	type: "task.tier",
+	state: { trusted: { task: "commit" }, untrusted: {} },
+	questions: [
+		{
+			kind: "choice",
+			id: "tier",
+			options: ["mechanical", "standard", "architectural", "local"],
+		},
+	],
+};
+
 describe("no field contains raw file content (property)", () => {
 	test(`${RUNS} random code strings and paths, seed ${SEED}`, () => {
 		const next = prng(SEED);
@@ -182,6 +194,23 @@ describe("no field contains raw file content (property)", () => {
 			}
 		}
 		expect(unwrap(queryDecisions({ db }, {}))).toEqual([]);
+	});
+
+	test("rawOptions never lets a fixed-catalog type carry other strings", () => {
+		const db = migratedDb();
+		const raw = { rawOptions: true } as const;
+		const base = recordFor(TIER_ONLY, { privacy: raw });
+		const code = randomCode(prng(SEED + 2));
+		const tainted: readonly DecisionRecord[] = [
+			{ ...base, id: "o", optionOrder: [code, ...base.optionOrder] },
+			{ ...base, id: "a", answer: code },
+			{ ...base, id: "h", answer: `sha256:${"a".repeat(64)}` },
+		];
+		for (const record of tainted) {
+			expect(appendDecision({ db, privacy: raw }, record).ok).toBe(false);
+		}
+		unwrap(appendDecision({ db, privacy: raw }, base));
+		expect(unwrap(queryDecisions({ db }, {}))).toEqual([base]);
 	});
 
 	test("free-form options are stored raw only when privacy allows it", () => {

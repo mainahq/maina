@@ -8,6 +8,7 @@
 import type { Result } from "../../db/index";
 import type { Policy } from "../../policy/schema";
 import type { DbPort } from "../../ports/db";
+import { answerProblem } from "../decide";
 import type { Answer, DecideRequest, Decision, Question } from "../types";
 import { DECISION_CATALOG } from "../types-catalog";
 import {
@@ -77,6 +78,29 @@ export function buildDecisionRecord(
 				kind: "invalid_record",
 				field: "decision",
 				message: `the request has no question "${decision.id}"`,
+			},
+		};
+	}
+	if (decision.type !== request.type) {
+		return {
+			ok: false,
+			error: {
+				kind: "invalid_record",
+				field: "type",
+				message: `the decision is a ${decision.type} decision, the request a ${request.type} one`,
+			},
+		};
+	}
+	// The same checks `decide` ran: the replay key must describe the inputs
+	// the stored answer was actually given for.
+	const problem = answerProblem(question, decision);
+	if (problem !== undefined) {
+		return {
+			ok: false,
+			error: {
+				kind: "invalid_record",
+				field: "decision",
+				message: `the decision does not answer question "${question.id}": ${problem}`,
 			},
 		};
 	}

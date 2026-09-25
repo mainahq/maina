@@ -145,6 +145,53 @@ describe("buildDecisionRecord", () => {
 	});
 });
 
+describe("buildDecisionRecord checks the decision belongs to the request", () => {
+	test("a decision of another type is an error", () => {
+		const decision = decideOne(SLOP_REQUEST);
+		const result = buildDecisionRecord({
+			id: "r1",
+			ts: 5,
+			request: {
+				...SLOP_REQUEST,
+				type: "diff.sensitive",
+			},
+			decision,
+			policy: DEFAULT_POLICY,
+			finalAction: "flag",
+		});
+		expect(result.ok).toBe(false);
+		if (!result.ok && result.error.kind === "invalid_record") {
+			expect(result.error.field).toBe("type");
+		}
+	});
+
+	test("a decision that does not answer the located question is an error", () => {
+		const decision = decideOne(TIER_REQUEST);
+		const reordered = {
+			...TIER_REQUEST,
+			questions: [
+				{
+					kind: "choice",
+					id: "tier",
+					options: ["local", "architectural", "standard", "mechanical"],
+				},
+			],
+		} as const;
+		const result = buildDecisionRecord({
+			id: "r1",
+			ts: 5,
+			request: reordered,
+			decision,
+			policy: DEFAULT_POLICY,
+			finalAction: "route",
+		});
+		expect(result.ok).toBe(false);
+		if (!result.ok && result.error.kind === "invalid_record") {
+			expect(result.error.field).toBe("decision");
+		}
+	});
+});
+
 describe("appendDecision validates records", () => {
 	const base = (): DecisionRecord => recordFor(SLOP_REQUEST);
 	const bad: ReadonlyArray<
@@ -165,6 +212,49 @@ describe("appendDecision validates records", () => {
 		["distribution", { distribution: [{ answer: true, p: 2 }] }],
 		["distribution", { distribution: "nope" }],
 		["optionOrder", { optionOrder: [{}] }],
+		["distribution", { distribution: [] }],
+		[
+			"distribution",
+			{
+				distribution: [
+					{ answer: true, p: 0.5 },
+					{ answer: false, p: 0.4 },
+				],
+			},
+		],
+		[
+			"distribution",
+			{
+				distribution: [
+					{ answer: false, p: 0.5 },
+					{ answer: true, p: 0.5 },
+				],
+			},
+		],
+		[
+			"distribution",
+			{ optionOrder: [], distribution: [{ answer: true, p: 1 }] },
+		],
+		[
+			"answer",
+			{
+				answer: false,
+				distribution: [
+					{ answer: true, p: 0.9 },
+					{ answer: false, p: 0.1 },
+				],
+			},
+		],
+		[
+			"answer",
+			{
+				answer: 3,
+				distribution: [
+					{ answer: true, p: 0.5 },
+					{ answer: false, p: 0.5 },
+				],
+			},
+		],
 	];
 	for (const [field, patch] of bad) {
 		test(`rejects a malformed ${field}: ${JSON.stringify(patch)}`, () => {

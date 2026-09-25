@@ -45,7 +45,7 @@ export const defaultDecidePorts: DecidePorts = {
 };
 
 /** Tolerance for a distribution's sum, to absorb floating-point rounding. */
-const SUM_EPSILON = 1e-9;
+export const SUM_EPSILON = 1e-9;
 
 function expectedOptions(question: Question): readonly unknown[] | undefined {
 	switch (question.kind) {
@@ -69,7 +69,7 @@ function isEntry(
 }
 
 /** Why `answer` is not a valid answer to `question`, or `undefined`. */
-function answerProblem(
+export function answerProblem(
 	question: Question,
 	answer: BackendAnswer | undefined,
 ): string | undefined {

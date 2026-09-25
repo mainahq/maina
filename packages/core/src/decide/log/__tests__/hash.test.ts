@@ -50,6 +50,22 @@ describe("canonicalJson", () => {
 		expect(JSON.parse(canonicalJson({ a: sparse }))).toEqual({ a: [null, 1] });
 	});
 
+	test("never throws on objects whose properties cannot be read", () => {
+		const hostile = {
+			ok: 1,
+			get boom(): number {
+				throw new Error("getter");
+			},
+		};
+		const { proxy, revoke } = Proxy.revocable({}, {});
+		revoke();
+		for (const value of [hostile, { nested: [hostile] }, proxy]) {
+			expect(typeof canonicalJson(value)).toBe("string");
+			expect(isHash(hashValue(value))).toBe(true);
+		}
+		expect(canonicalJson(hostile)).toBe(canonicalJson(hostile));
+	});
+
 	test("a plain object never encodes like a tagged form", () => {
 		const date = new Date(0);
 		expect(canonicalJson({ $date: date.toISOString() })).not.toBe(
