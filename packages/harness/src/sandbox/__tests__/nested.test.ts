@@ -173,6 +173,21 @@ const nestsHere: readonly string[] =
 		platform
 	] ?? [];
 
+/**
+ * Prints the spike's outcome, with the inner sandbox's own stderr (srt's
+ * debug lines dropped), so a CI log is enough to update ADR 0048.
+ */
+function report(worker: string, started: boolean, stderr: string): void {
+	const own = stderr
+		.split("\n")
+		.filter((line) => line.trim() !== "" && !line.startsWith("[SandboxDebug]"))
+		.slice(-5)
+		.join(" | ");
+	process.stderr.write(
+		`[spike] ${worker} inner sandbox on ${platform}: ${started ? "starts" : "fails"}${own === "" ? "" : `: ${own}`}\n`,
+	);
+}
+
 async function startsUnderOuter(innerScript: (tmp: string) => string) {
 	const layout = makeLayout();
 	const opts = policyToSandbox(
@@ -213,6 +228,7 @@ describe.skipIf(SKIP_REASON !== undefined)(
 					);
 					return `HOME='${tmp}' '${srt.value.path}' --settings '${inner}' -- /bin/echo inner-ok`;
 				});
+				report("claude", started, ran.stderr);
 				expect({
 					worker: "claude",
 					platform,
@@ -235,6 +251,7 @@ describe.skipIf(SKIP_REASON !== undefined)(
 					(tmp) =>
 						`HOME='${tmp}' CODEX_HOME='${tmp}' '${codex}' sandbox -- /bin/echo inner-ok`,
 				);
+				report("codex", started, ran.stderr);
 				expect({
 					worker: "codex",
 					platform,
