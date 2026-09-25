@@ -10,6 +10,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { DEFAULT_POLICY } from "../../policy/defaults";
 import { createFakeProcess } from "../../ports/testing";
 import type { DetectedTool } from "../detect";
 import type { DiffFilterResult, Finding } from "../diff-filter";
@@ -760,6 +761,21 @@ describe("VerifyPipeline", () => {
 		].join("\n");
 		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 		expect(result.triage?.needsReview).toBe(true);
+		expect(capturedAIReviewOptions?.deep).toBe(true);
+	});
+
+	it("runs the deep review when the triage cannot decide (fails closed, #329)", async () => {
+		const noBackends = {
+			clock: { now: () => 0 },
+			policy: DEFAULT_POLICY,
+			backends: new Map(),
+		};
+		const result = await runPipeline({
+			cwd: ROOT,
+			files: ["src/app.ts"],
+			decide: noBackends,
+		});
+		expect(result.triage).toBeUndefined();
 		expect(capturedAIReviewOptions?.deep).toBe(true);
 	});
 

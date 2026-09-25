@@ -182,10 +182,26 @@ type DiffStats = Readonly<{
 	paths: readonly string[];
 }>;
 
-/** The path a `--- a/x` / `+++ b/x` header names, or `undefined` for /dev/null. */
-function headerPath(line: string): string | undefined {
-	const path = line.slice(4).replace(/^[ab]\//, "");
-	return path === "/dev/null" ? undefined : path;
+/** A header path without its `a/` / `b/` prefix, or `undefined` for /dev/null. */
+function cleanPath(raw: string): string | undefined {
+	const path = raw.replace(/^[ab]\//, "");
+	return path === "/dev/null" || path === "" ? undefined : path;
+}
+
+/**
+ * The paths a file header line names: `--- a/x` / `+++ b/x`, and the ones a
+ * change without a hunk has (`rename from x`, `copy to x`,
+ * `Binary files a/x and b/y differ`).
+ */
+function headerPaths(line: string): readonly (string | undefined)[] {
+	if (line.startsWith("+++ ") || line.startsWith("--- ")) {
+		return [cleanPath(line.slice(4))];
+	}
+	const moved = /^(?:rename|copy) (?:from|to) (.+)$/.exec(line);
+	if (moved) return [cleanPath(moved[1] ?? "")];
+	const binary = /^Binary files (.+) and (.+) differ$/.exec(line);
+	if (binary) return [cleanPath(binary[1] ?? ""), cleanPath(binary[2] ?? "")];
+	return [];
 }
 
 /**
@@ -204,11 +220,9 @@ function diffStats(diff: string): DiffStats {
 		} else if (line.startsWith("@@")) {
 			inHunk = true;
 		} else if (!inHunk) {
-			const header =
-				line.startsWith("+++ ") || line.startsWith("--- ")
-					? headerPath(line)
-					: undefined;
-			if (header !== undefined) paths.add(header);
+			for (const path of headerPaths(line)) {
+				if (path !== undefined) paths.add(path);
+			}
 		} else if (line.startsWith("+")) {
 			additions++;
 		} else if (line.startsWith("-")) {
@@ -269,10 +283,14 @@ export function triageDiff(
 	};
 }
 
-/** The deep review runs only when `--deep` is passed or the triage asks for it. */
+/**
+ * The deep review runs when `--deep` is passed or the triage asks for it.
+ * A failed triage (`undefined`) fails closed and runs it too: no decision is
+ * less sure than an unsure "no", which already counts as a yes.
+ */
 export function runsDeepReview(
 	deep: boolean,
 	triage: Triage | undefined,
 ): boolean {
-	return deep || triage?.needsReview === true;
+	return deep || triage?.needsReview !== false;
 }

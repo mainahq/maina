@@ -28,8 +28,9 @@ const LARGE_DIFF_LINES = 300;
 const WIDE_DIFF_FILES = 15;
 
 /**
- * Path segments (directory or file stem, split on `.`, `-` and `_`) that
- * mark security-sensitive code.
+ * Path words (each directory or file name split on `.`, `-`, `_` and
+ * camelCase boundaries, so `authService.ts` gives `auth`) that mark
+ * security-sensitive code.
  */
 const SENSITIVE_WORDS: ReadonlySet<string> = new Set([
 	"auth",
@@ -57,15 +58,24 @@ const SENSITIVE_WORDS: ReadonlySet<string> = new Set([
 	"migration",
 	"migrations",
 	"env",
+	"oauth",
+	"oidc",
+	"saml",
+	"sso",
+	"jwt",
+	"csrf",
+	"rbac",
 ]);
+
+/** Splits a path segment into words: separators and camelCase humps. */
+const WORD_BREAK = /[._-]+|(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])/;
 
 /** Whether `path` names security-sensitive code (see `SENSITIVE_WORDS`). */
 function isSensitivePath(path: string): boolean {
 	return path
-		.toLowerCase()
 		.split("/")
-		.flatMap((segment) => segment.split(/[._-]+/))
-		.some((word) => SENSITIVE_WORDS.has(word));
+		.flatMap((segment) => segment.split(WORD_BREAK))
+		.some((word) => SENSITIVE_WORDS.has(word.toLowerCase()));
 }
 
 /**

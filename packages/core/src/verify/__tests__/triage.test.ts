@@ -264,10 +264,65 @@ describe("review triage: diff.needs_review", () => {
 		};
 		const yes = { ...no, needsReview: true };
 		expect(runsDeepReview(false, no)).toBe(false);
-		expect(runsDeepReview(false, undefined)).toBe(false);
 		expect(runsDeepReview(false, yes)).toBe(true);
 		expect(runsDeepReview(true, no)).toBe(true);
 		expect(runsDeepReview(true, undefined)).toBe(true);
+	});
+
+	test("a failed triage fails closed: the deep review runs", () => {
+		// No decision is the least sure answer there is; like an unsure "no",
+		// it must not skip the review.
+		expect(runsDeepReview(false, undefined)).toBe(true);
+	});
+
+	test("camelCase file names are split into words for the sensitive-path check", () => {
+		for (const path of [
+			"src/services/authService.ts",
+			"src/sessionStore.ts",
+			"src/lib/resetPassword.ts",
+			"src/JWTVerifier.ts",
+		]) {
+			const result = triageDiff(defaultDecidePorts, diffOf(path, 3));
+			expect({ path, needs: result.ok && result.value.needsReview }).toEqual({
+				path,
+				needs: true,
+			});
+		}
+		const plain = triageDiff(
+			defaultDecidePorts,
+			diffOf("src/authorList.ts", 3),
+		);
+		expect(plain.ok && plain.value.needsReview).toBe(false);
+	});
+
+	test("OAuth, JWT and similar identity code is security-sensitive", () => {
+		for (const path of ["src/oauth.ts", "src/jwt/verify.ts", "src/sso.ts"]) {
+			const result = triageDiff(defaultDecidePorts, diffOf(path, 3));
+			expect({ path, needs: result.ok && result.value.needsReview }).toEqual({
+				path,
+				needs: true,
+			});
+		}
+	});
+
+	test("a pure rename or a binary change of a sensitive file still counts", () => {
+		const rename = [
+			"diff --git a/src/app.ts b/src/auth/app.ts",
+			"similarity index 100%",
+			"rename from src/app.ts",
+			"rename to src/auth/app.ts",
+		].join("\n");
+		const renamed = triageDiff(defaultDecidePorts, rename);
+		expect(renamed.ok && renamed.value.needsReview).toBe(true);
+
+		const binary = [
+			"diff --git a/config/secrets.bin b/config/secrets.bin",
+			"new file mode 100644",
+			"index 0000000..e69de29",
+			"Binary files /dev/null and b/config/secrets.bin differ",
+		].join("\n");
+		const bin = triageDiff(defaultDecidePorts, binary);
+		expect(bin.ok && bin.value.needsReview).toBe(true);
 	});
 });
 

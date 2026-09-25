@@ -62,9 +62,9 @@ Only findings on changed lines are reported. If a file had 50 pre-existing warni
 
 ### Findings and review triage
 
-Every finding gets a `realProbability`: how likely it is to be a real problem, judged from how often you dismissed that rule before. A finding Maina is confident is noise (at or above the `finding.real` confidence threshold in your policy) is dropped; one that is more likely noise than real is shown one severity lower. Probabilities, not raw dismiss ratios, drive both, so a threshold in `.maina/policy.json` tunes them.
+Every finding gets a `realProbability`: how likely it is to be a real problem, judged from how often you dismissed that rule before. A finding Maina is confident is noise (at or above the policy's `finding.real` confidence threshold, 0.8 by default) is dropped; one that is more likely noise than real is shown one severity lower. Probabilities, not raw dismiss ratios, drive both.
 
-The diff is triaged too. A large diff, a wide one, or one that touches security-sensitive paths (auth, sessions, secrets, tokens, payments, migrations) gets the standard-tier AI review without `--deep`; everything else gets the fast mechanical one. The receipt records the triage decision (`triage: { decisionId, needsReview, confidence }`), and the AI review sees the bodies of the functions your diff calls, read from the code graph.
+The diff is triaged too. A large diff, a wide one, or one that touches security-sensitive paths (auth, sessions, secrets, tokens, payments, migrations) gets the standard-tier AI review without `--deep`; everything else gets the fast mechanical one. If the triage cannot decide, the standard-tier review runs. The receipt records the triage decision (`triage: { decisionId, needsReview, confidence }`), and the AI review sees the bodies of the functions your diff calls, read from the code graph.
 
 ### Auto-detection
 
