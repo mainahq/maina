@@ -275,6 +275,12 @@ describe("checkUnusedImports", () => {
 		expect(findings).toHaveLength(0);
 	});
 
+	it("keeps a binding literally named `type` when aliased (`type as Kind`)", () => {
+		const content = `import { type as Kind } from "./mod";\nconst k = Kind;\n`;
+		const findings = checkUnusedImports("src/app.ts", content);
+		expect(findings).toHaveLength(0);
+	});
+
 	it("reports an unused inline type import by its bare name", () => {
 		const content = `import { foo, type Unused } from "./mod";\nfoo();\n`;
 		const findings = checkUnusedImports("src/app.ts", content);

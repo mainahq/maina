@@ -26,14 +26,19 @@ function err<E>(error: E): Result<never, E> {
 
 // ── fs ──────────────────────────────────────────────────────────────────────
 
+/**
+ * Platform-independent key: `\\` and `/` are both separators, then `.` and
+ * `..` segments are collapsed, so fakes behave the same on every OS.
+ */
+function toKey(path: string): string {
+	return posix.normalize(path.replaceAll("\\", "/"));
+}
+
 export function createMemoryFs(
 	initial: Readonly<Record<string, string>> = {},
 ): FsPort {
 	const files = new Map<string, string>(
-		Object.entries(initial).map(([path, content]) => [
-			posix.normalize(path),
-			content,
-		]),
+		Object.entries(initial).map(([path, content]) => [toKey(path), content]),
 	);
 	const dirPrefix = (path: string): string =>
 		path.endsWith("/") ? path : `${path}/`;
@@ -43,19 +48,19 @@ export function createMemoryFs(
 
 	return {
 		readFile: async (path) => {
-			const content = files.get(posix.normalize(path));
+			const content = files.get(toKey(path));
 			return content === undefined ? err(notFound(path)) : ok(content);
 		},
 		writeFile: async (path, content) => {
-			files.set(posix.normalize(path), content);
+			files.set(toKey(path), content);
 			return ok(undefined);
 		},
 		exists: async (path) => {
-			const key = posix.normalize(path);
+			const key = toKey(path);
 			return files.has(key) || childrenOf(key).length > 0;
 		},
 		readDir: async (path) => {
-			const key = posix.normalize(path);
+			const key = toKey(path);
 			const children = childrenOf(key);
 			if (children.length === 0) return err(notFound(path));
 			const prefix = dirPrefix(key);
@@ -65,7 +70,7 @@ export function createMemoryFs(
 			return ok([...names].sort());
 		},
 		remove: async (path) => {
-			const key = posix.normalize(path);
+			const key = toKey(path);
 			const targets = files.has(key) ? [key] : childrenOf(key);
 			if (targets.length === 0) return err(notFound(path));
 			for (const target of targets) files.delete(target);
@@ -88,7 +93,8 @@ export function createFakeGit(
 	return {
 		run: async (root, args) => {
 			calls.push({ root, args: [...args] });
-			const stdout = responses[args.join(" ")];
+			const key = args.join(" ");
+			const stdout = Object.hasOwn(responses, key) ? responses[key] : undefined;
 			return stdout === undefined
 				? err({
 						kind: "failed",
@@ -189,9 +195,20 @@ export function createFakeModel(
 	return {
 		generate: async (request) => {
 			requests.push(request);
-			return respond === undefined
-				? err({ kind: "unavailable", message: "fake model has no responder" })
-				: ok({ text: respond(request), model: "fake" });
+			if (respond === undefined) {
+				return err({
+					kind: "unavailable",
+					message: "fake model has no responder",
+				});
+			}
+			try {
+				return ok({ text: respond(request), model: "fake" });
+			} catch (error) {
+				return err({
+					kind: "failed",
+					message: error instanceof Error ? error.message : String(error),
+				});
+			}
 		},
 		requests: () => [...requests],
 	};

@@ -94,11 +94,12 @@ export function checkUnusedImports(
 		const rawNames = match[1]?.split(",") ?? [];
 		const importedNames: string[] = [];
 		for (const raw of rawNames) {
-			// Drop an inline "type" modifier (`{ A, type B }`), then handle
+			// Drop an inline "type" modifier (`{ A, type B }`) but keep a
+			// binding literally named `type` (`{ type as Kind }`), then handle
 			// "X as Y" — the local name is Y
 			const parts = raw
 				.trim()
-				.replace(/^type\s+/, "")
+				.replace(/^type\s+(?!as\s)/, "")
 				.split(/\s+as\s+/);
 			const resolved = (parts.length > 1 ? parts[1] : parts[0])?.trim() ?? "";
 			if (resolved.length > 0) {

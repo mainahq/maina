@@ -66,16 +66,38 @@ function blank(ch: string): string {
 	return ch === "\n" ? "\n" : " ";
 }
 
-function regexAllowed(code: readonly string[]): boolean {
+/** Keywords whose `( … )` header can be followed directly by a statement. */
+const CONTROL_KEYWORDS = new Set(["if", "while", "for", "with"]);
+
+function lastSignificant(code: readonly string[]): number {
 	let i = code.length - 1;
 	while (i >= 0 && /\s/.test(code[i] ?? "")) i--;
+	return i;
+}
+
+function wordEndingAt(code: readonly string[], end: number): string {
+	let start = end;
+	while (start > 0 && /[\w$]/.test(code[start - 1] ?? "")) start--;
+	return code.slice(start, end + 1).join("");
+}
+
+/**
+ * Whether a `/` at the current position starts a regex literal.
+ * `controlCloses` holds the output indices of `)` that close an
+ * `if`/`while`/`for`/`with` header, after which a statement (and therefore
+ * a regex) may start; after any other `)` a `/` is a division.
+ */
+function regexAllowed(
+	code: readonly string[],
+	controlCloses: ReadonlySet<number>,
+): boolean {
+	const i = lastSignificant(code);
 	if (i < 0) return true;
 	const last = code[i] ?? "";
+	if (last === ")") return controlCloses.has(i);
 	if (REGEX_AFTER_CHAR.has(last)) return true;
 	if (!/[\w$]/.test(last)) return false;
-	let start = i;
-	while (start > 0 && /[\w$]/.test(code[start - 1] ?? "")) start--;
-	return REGEX_AFTER_WORD.has(code.slice(start, i + 1).join(""));
+	return REGEX_AFTER_WORD.has(wordEndingAt(code, i));
 }
 
 /**
@@ -86,6 +108,9 @@ export function maskNonCode(source: string): string {
 	const out: string[] = [];
 	// Each entry is the brace depth at which a `${` expression was opened.
 	const templateStack: number[] = [];
+	// One entry per open `(`: whether it opened a control-flow header.
+	const parenStack: boolean[] = [];
+	const controlCloses = new Set<number>();
 	let depth = 0;
 	let i = 0;
 
@@ -145,7 +170,7 @@ export function maskNonCode(source: string): string {
 			out.push("`");
 			i++;
 			readTemplate();
-		} else if (ch === "/" && regexAllowed(out)) {
+		} else if (ch === "/" && regexAllowed(out, controlCloses)) {
 			out.push(" ");
 			i++;
 			let inClass = false;
@@ -162,6 +187,17 @@ export function maskNonCode(source: string): string {
 				else if (c === "]") inClass = false;
 				else if (c === "/" && !inClass) break;
 			}
+		} else if (ch === "(") {
+			const prev = lastSignificant(out);
+			parenStack.push(
+				prev >= 0 && CONTROL_KEYWORDS.has(wordEndingAt(out, prev)),
+			);
+			out.push(ch);
+			i++;
+		} else if (ch === ")") {
+			if (parenStack.pop() === true) controlCloses.add(out.length);
+			out.push(ch);
+			i++;
 		} else if (ch === "{") {
 			depth++;
 			out.push(ch);

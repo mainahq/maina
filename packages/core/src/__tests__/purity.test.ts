@@ -99,6 +99,15 @@ describe("purity scanner", () => {
 		expect(scanSource(source)).toEqual([]);
 	});
 
+	test("treats / after a control-flow `)` as a regex, other `)` as division", () => {
+		const source = [
+			"if (ok) /throw|console\\./.test(s);",
+			"while (x) /process\\.env/.exec(s);",
+			"const half = (a + b) / 2; process.cwd();",
+		].join("\n");
+		expect(scanSource(source)).toEqual([{ rule: "process.cwd", line: 3 }]);
+	});
+
 	test("scans code inside template literal expressions", () => {
 		const source = `const s = \`cwd: \${process.cwd()} \${\`\${console.log}\`}\`;`;
 		expect(scanSource(source)).toEqual([

@@ -53,6 +53,15 @@ describe("createMemoryFs", () => {
 		});
 	});
 
+	test("treats backslash and slash separators alike on every platform", async () => {
+		const fs = createMemoryFs({ "C:\\repo\\src\\a.ts": "a" });
+		expect(await fs.readFile("C:/repo/src/a.ts")).toEqual({
+			ok: true,
+			value: "a",
+		});
+		expect(await fs.readDir("C:\\repo")).toEqual({ ok: true, value: ["src"] });
+	});
+
 	test("readDir on a missing directory is not_found", async () => {
 		const fs = createMemoryFs();
 		expect(await fs.readDir("/nope")).toEqual({
@@ -78,6 +87,12 @@ describe("createFakeGit", () => {
 		const result = await git.run("/repo", ["status"]);
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.error.kind).toBe("failed");
+	});
+
+	test("only own scripted keys match, not Object.prototype members", async () => {
+		const git = createFakeGit();
+		const result = await git.run("/repo", ["toString"]);
+		expect(result.ok).toBe(false);
 	});
 });
 
@@ -136,6 +151,21 @@ describe("createFakeModel", () => {
 			value: { text: "echo:p", model: "fake" },
 		});
 		expect(model.requests()).toHaveLength(1);
+	});
+
+	test("a throwing responder becomes a failed Result, not a rejection", async () => {
+		const model = createFakeModel(() => {
+			throw new Error("boom");
+		});
+		const result = await model.generate({
+			tier: "standard",
+			system: "",
+			prompt: "x",
+		});
+		expect(result).toEqual({
+			ok: false,
+			error: { kind: "failed", message: "boom" },
+		});
 	});
 
 	test("without a responder the model is unavailable", async () => {
