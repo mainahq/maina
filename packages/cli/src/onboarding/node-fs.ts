@@ -4,10 +4,16 @@
  * Rooted at the repository: every path is repo-relative. Writes go to a
  * unique temp file that is renamed into place, so an interrupted run never
  * leaves a half-written file behind.
+ *
+ * A symlinked target (for example `CLAUDE.md -> AGENTS.md`) is never
+ * written: renaming over it would replace the user's link with a regular
+ * file, and writing through it would let two targets fight over one file.
+ * The write fails, so `applyOps` reports the file as skipped.
  */
 
 import {
 	existsSync,
+	lstatSync,
 	mkdirSync,
 	readFileSync,
 	renameSync,
@@ -39,6 +45,13 @@ export function nodeOnboardingFs(root: string): OnboardingFs {
 		write: (path, content) => {
 			const full = join(root, path);
 			const tmp = `${full}.maina.tmp.${process.pid}.${Math.random().toString(36).slice(2)}`;
+			try {
+				if (lstatSync(full, { throwIfNoEntry: false })?.isSymbolicLink()) {
+					return { ok: false, error: "is a symbolic link; not replaced" };
+				}
+			} catch (e) {
+				return { ok: false, error: message(e) };
+			}
 			try {
 				mkdirSync(dirname(full), { recursive: true });
 				writeFileSync(tmp, content, "utf-8");
