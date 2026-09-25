@@ -1,4 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import { createFakeEnv } from "../../ports/testing";
+
+const TEST_AI = { root: ".", env: createFakeEnv() };
 
 // ── Mock State ──────────────────────────────────────────────────────────────
 
@@ -58,6 +61,7 @@ describe("generateDesignApproaches", () => {
 			const result = await generateDesignApproaches(
 				"Design a verification pipeline",
 				".maina",
+				TEST_AI,
 			);
 
 			expect(result.ok).toBe(true);
@@ -77,6 +81,7 @@ describe("generateDesignApproaches", () => {
 			const result = await generateDesignApproaches(
 				"Simple decision",
 				".maina",
+				TEST_AI,
 			);
 
 			expect(result.ok).toBe(true);
@@ -90,7 +95,7 @@ describe("generateDesignApproaches", () => {
 
 	describe("edge cases", () => {
 		test("returns empty array when context is empty", async () => {
-			const result = await generateDesignApproaches("", ".maina");
+			const result = await generateDesignApproaches("", ".maina", TEST_AI);
 
 			expect(result.ok).toBe(true);
 			if (result.ok) {
@@ -102,7 +107,11 @@ describe("generateDesignApproaches", () => {
 			mockAIResponse =
 				'```json\n[{"name":"A","description":"D","pros":["p"],"cons":["c"],"recommended":true}]\n```';
 
-			const result = await generateDesignApproaches("Test context", ".maina");
+			const result = await generateDesignApproaches(
+				"Test context",
+				".maina",
+				TEST_AI,
+			);
 
 			expect(result.ok).toBe(true);
 			if (result.ok) {
@@ -121,7 +130,11 @@ describe("generateDesignApproaches", () => {
 			}));
 			mockAIResponse = JSON.stringify(fourApproaches);
 
-			const result = await generateDesignApproaches("Test context", ".maina");
+			const result = await generateDesignApproaches(
+				"Test context",
+				".maina",
+				TEST_AI,
+			);
 
 			expect(result.ok).toBe(true);
 			if (result.ok) {
@@ -136,7 +149,11 @@ describe("generateDesignApproaches", () => {
 		test("returns empty array when AI is not available", async () => {
 			mockAIResponse = null;
 
-			const result = await generateDesignApproaches("Test context", ".maina");
+			const result = await generateDesignApproaches(
+				"Test context",
+				".maina",
+				TEST_AI,
+			);
 
 			expect(result.ok).toBe(true);
 			if (result.ok) {
@@ -147,7 +164,11 @@ describe("generateDesignApproaches", () => {
 		test("returns empty array when AI returns malformed JSON", async () => {
 			mockAIResponse = "not valid json at all";
 
-			const result = await generateDesignApproaches("Test context", ".maina");
+			const result = await generateDesignApproaches(
+				"Test context",
+				".maina",
+				TEST_AI,
+			);
 
 			expect(result.ok).toBe(true);
 			if (result.ok) {
@@ -179,7 +200,11 @@ describe("generateDesignApproaches", () => {
 				},
 			]);
 
-			const result = await generateDesignApproaches("Test context", ".maina");
+			const result = await generateDesignApproaches(
+				"Test context",
+				".maina",
+				TEST_AI,
+			);
 
 			expect(result.ok).toBe(true);
 			if (result.ok) {

@@ -60,6 +60,7 @@ import {
 } from "@mainahq/core";
 import { Command } from "commander";
 import packageJson from "../../package.json" with { type: "json" };
+import { processEnv } from "../env";
 import { EXIT_CONFIG_ERROR, EXIT_PASSED } from "../json";
 import {
 	jsonEmitter,
@@ -707,6 +708,7 @@ export async function setupAction(
 	const repoSummary = await summarizeRepo(cwd, result.stack);
 	const aiResolveOptions: Parameters<typeof resolveSetupAI>[0] = {
 		cwd,
+		env: processEnv,
 		stack: result.stack,
 		repoSummary,
 		fingerprint: deviceFingerprint(),

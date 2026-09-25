@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import type { EnvPort } from "../../ports/env";
 import { checkAIAvailability } from "../availability";
+
+/** Live view of the test process env (tests toggle process.env directly). */
+const liveEnv: EnvPort = { get: (name) => process.env[name] };
 
 describe("checkAIAvailability", () => {
 	const originalEnv = { ...process.env };
@@ -37,7 +41,7 @@ describe("checkAIAvailability", () => {
 	it("returns api-key method when MAINA_API_KEY is set", () => {
 		process.env.MAINA_API_KEY = "test-key-123";
 
-		const result = checkAIAvailability();
+		const result = checkAIAvailability(liveEnv);
 
 		expect(result.available).toBe(true);
 		expect(result.method).toBe("api-key");
@@ -47,7 +51,7 @@ describe("checkAIAvailability", () => {
 	it("returns api-key method when OPENROUTER_API_KEY is set", () => {
 		process.env.OPENROUTER_API_KEY = "or-key-456";
 
-		const result = checkAIAvailability();
+		const result = checkAIAvailability(liveEnv);
 
 		expect(result.available).toBe(true);
 		expect(result.method).toBe("api-key");
@@ -57,7 +61,7 @@ describe("checkAIAvailability", () => {
 	it("returns api-key method when ANTHROPIC_API_KEY is set", () => {
 		process.env.ANTHROPIC_API_KEY = "sk-ant-test";
 
-		const result = checkAIAvailability();
+		const result = checkAIAvailability(liveEnv);
 
 		expect(result.available).toBe(true);
 		expect(result.method).toBe("api-key");
@@ -67,7 +71,7 @@ describe("checkAIAvailability", () => {
 	it("returns host-delegation when CLAUDECODE env is set", () => {
 		process.env.CLAUDECODE = "1";
 
-		const result = checkAIAvailability();
+		const result = checkAIAvailability(liveEnv);
 
 		expect(result.available).toBe(true);
 		expect(result.method).toBe("host-delegation");
@@ -77,7 +81,7 @@ describe("checkAIAvailability", () => {
 	it("returns host-delegation when CLAUDE_CODE_ENTRYPOINT is set", () => {
 		process.env.CLAUDE_CODE_ENTRYPOINT = "cli";
 
-		const result = checkAIAvailability();
+		const result = checkAIAvailability(liveEnv);
 
 		expect(result.available).toBe(true);
 		expect(result.method).toBe("host-delegation");
@@ -87,7 +91,7 @@ describe("checkAIAvailability", () => {
 	it("returns host-delegation when CURSOR is set", () => {
 		process.env.CURSOR = "1";
 
-		const result = checkAIAvailability();
+		const result = checkAIAvailability(liveEnv);
 
 		expect(result.available).toBe(true);
 		expect(result.method).toBe("host-delegation");
@@ -97,7 +101,7 @@ describe("checkAIAvailability", () => {
 	it("returns host-delegation when MAINA_HOST_MODE is true", () => {
 		process.env.MAINA_HOST_MODE = "true";
 
-		const result = checkAIAvailability();
+		const result = checkAIAvailability(liveEnv);
 
 		expect(result.available).toBe(true);
 		expect(result.method).toBe("host-delegation");
@@ -105,14 +109,14 @@ describe("checkAIAvailability", () => {
 	});
 
 	it("returns none when no key and no host environment", () => {
-		const result = checkAIAvailability();
+		const result = checkAIAvailability(liveEnv);
 
 		expect(result.available).toBe(false);
 		expect(result.method).toBe("none");
 	});
 
 	it("includes a reason message when method is none", () => {
-		const result = checkAIAvailability();
+		const result = checkAIAvailability(liveEnv);
 
 		expect(result.reason).toBeDefined();
 		expect(result.reason).toContain("No API key found");
@@ -123,7 +127,7 @@ describe("checkAIAvailability", () => {
 		process.env.MAINA_API_KEY = "test-key";
 		process.env.CLAUDECODE = "1";
 
-		const result = checkAIAvailability();
+		const result = checkAIAvailability(liveEnv);
 
 		expect(result.available).toBe(true);
 		expect(result.method).toBe("api-key");

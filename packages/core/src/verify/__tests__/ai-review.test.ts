@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import { createFakeEnv } from "../../ports/testing";
 
 // Mock tryAIGenerate
 let mockAIResult: {
@@ -141,6 +142,8 @@ describe("runAIReview", () => {
 		diff: "+  const x = validateInput(data);",
 		entities: [],
 		mainaDir: ".maina",
+		root: ".",
+		env: createFakeEnv(),
 	};
 
 	beforeEach(() => {

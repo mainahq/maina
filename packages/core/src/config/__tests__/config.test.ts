@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { EnvPort } from "../../ports/env";
 import {
 	findConfigFile,
 	getApiKey,
@@ -10,6 +11,9 @@ import {
 	loadConfig,
 	resolveProvider,
 } from "../index";
+
+/** Live view of the test process env (tests toggle process.env directly). */
+const liveEnv: EnvPort = { get: (name) => process.env[name] };
 
 // ─── getDefaultConfig ────────────────────────────────────────────────────────
 
@@ -181,7 +185,7 @@ describe("getApiKey", () => {
 		delete process.env.MAINA_API_KEY;
 		delete process.env.OPENROUTER_API_KEY;
 
-		const result = getApiKey();
+		const result = getApiKey(liveEnv);
 
 		// Restore
 		if (saved1 !== undefined) process.env.MAINA_API_KEY = saved1;
@@ -196,7 +200,7 @@ describe("getApiKey", () => {
 		process.env.MAINA_API_KEY = "test-maina-key";
 		delete process.env.OPENROUTER_API_KEY;
 
-		const result = getApiKey();
+		const result = getApiKey(liveEnv);
 
 		if (saved1 !== undefined) process.env.MAINA_API_KEY = saved1;
 		else delete process.env.MAINA_API_KEY;
@@ -211,7 +215,7 @@ describe("getApiKey", () => {
 		delete process.env.MAINA_API_KEY;
 		process.env.OPENROUTER_API_KEY = "test-openrouter-key";
 
-		const result = getApiKey();
+		const result = getApiKey(liveEnv);
 
 		if (saved1 !== undefined) process.env.MAINA_API_KEY = saved1;
 		if (saved2 !== undefined) process.env.OPENROUTER_API_KEY = saved2;
@@ -226,7 +230,7 @@ describe("getApiKey", () => {
 		process.env.MAINA_API_KEY = "maina-wins";
 		process.env.OPENROUTER_API_KEY = "openrouter-loses";
 
-		const result = getApiKey();
+		const result = getApiKey(liveEnv);
 
 		if (saved1 !== undefined) process.env.MAINA_API_KEY = saved1;
 		else delete process.env.MAINA_API_KEY;
@@ -245,7 +249,7 @@ describe("resolveProvider", () => {
 		const saved = process.env.MAINA_PROVIDER;
 		delete process.env.MAINA_PROVIDER;
 
-		const result = resolveProvider(config);
+		const result = resolveProvider(config, liveEnv);
 
 		if (saved !== undefined) process.env.MAINA_PROVIDER = saved;
 
@@ -257,7 +261,7 @@ describe("resolveProvider", () => {
 		const saved = process.env.MAINA_PROVIDER;
 		process.env.MAINA_PROVIDER = "env-provider";
 
-		const result = resolveProvider(config);
+		const result = resolveProvider(config, liveEnv);
 
 		if (saved !== undefined) process.env.MAINA_PROVIDER = saved;
 		else delete process.env.MAINA_PROVIDER;
@@ -270,7 +274,7 @@ describe("resolveProvider", () => {
 		const saved = process.env.MAINA_PROVIDER;
 		delete process.env.MAINA_PROVIDER;
 
-		const result = resolveProvider(config);
+		const result = resolveProvider(config, liveEnv);
 
 		if (saved !== undefined) process.env.MAINA_PROVIDER = saved;
 
@@ -292,7 +296,7 @@ describe("resolveProvider", () => {
 		process.env.MAINA_HOST_MODE = "true";
 
 		const config = getDefaultConfig();
-		const result = resolveProvider(config);
+		const result = resolveProvider(config, liveEnv);
 
 		// Restore
 		if (saved.provider !== undefined)
@@ -318,7 +322,7 @@ describe("isHostMode", () => {
 		const saved = process.env.MAINA_HOST_MODE;
 		process.env.MAINA_HOST_MODE = "true";
 
-		const result = isHostMode();
+		const result = isHostMode(liveEnv);
 
 		if (saved !== undefined) process.env.MAINA_HOST_MODE = saved;
 		else delete process.env.MAINA_HOST_MODE;
@@ -338,7 +342,7 @@ describe("isHostMode", () => {
 		delete process.env.MAINA_HOST_MODE;
 		process.env.ANTHROPIC_API_KEY = "sk-ant-test";
 
-		const result = isHostMode();
+		const result = isHostMode(liveEnv);
 
 		if (saved.maina !== undefined) process.env.MAINA_API_KEY = saved.maina;
 		if (saved.openrouter !== undefined)
@@ -369,7 +373,7 @@ describe("isHostMode", () => {
 		delete process.env.CURSOR;
 		process.env.MAINA_API_KEY = "test";
 
-		const result = isHostMode();
+		const result = isHostMode(liveEnv);
 
 		// Restore
 		if (saved.maina !== undefined) process.env.MAINA_API_KEY = saved.maina;

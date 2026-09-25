@@ -24,6 +24,7 @@ import {
 	writeReceiptIndexPage,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { aiContext, processEnv } from "../env";
 import { EXIT_FINDINGS, EXIT_PASSED, outputJson } from "../json";
 
 interface ReceiptActionOptions {
@@ -76,19 +77,22 @@ export async function receiptAction(
 	const { checks: derivedChecks, status: derivedStatus } =
 		deriveChecksAndStatus(pipeline, retries);
 
-	const walkthrough = await generateWalkthrough({
-		prTitle,
-		diff,
-		status: derivedStatus,
-		retries,
-		mainaDir: join(cwd, MAINA_DIR),
-		checks: derivedChecks.map((c) => ({
-			name: c.name,
-			tool: c.tool,
-			status: c.status,
-			findingsCount: c.findings.length,
-		})),
-	});
+	const walkthrough = await generateWalkthrough(
+		{
+			prTitle,
+			diff,
+			status: derivedStatus,
+			retries,
+			mainaDir: join(cwd, MAINA_DIR),
+			checks: derivedChecks.map((c) => ({
+				name: c.name,
+				tool: c.tool,
+				status: c.status,
+				findingsCount: c.findings.length,
+			})),
+		},
+		aiContext(cwd),
+	);
 
 	const buildInput: BuildReceiptInput = {
 		prTitle,
@@ -99,6 +103,7 @@ export async function receiptAction(
 		diff,
 		retries,
 		cwd,
+		env: processEnv,
 	};
 
 	const built = await buildReceipt(buildInput);

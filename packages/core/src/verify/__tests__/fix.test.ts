@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import { createFakeEnv } from "../../ports/testing";
 import type { Finding } from "../diff-filter";
 
 // ─── Mock setup ──────────────────────────────────────────────────────────
@@ -242,6 +243,7 @@ describe("generateFixes", () => {
 	const defaultOptions: FixOptions = {
 		mainaDir: ".maina",
 		cwd: "/project",
+		env: createFakeEnv(),
 		contextText: "const computeValue = () => 42;",
 	};
 
@@ -431,6 +433,8 @@ describe("generateFixes", () => {
 	it("should handle missing contextText gracefully", async () => {
 		await generateFixes([sampleFinding], {
 			mainaDir: ".maina",
+			cwd: "/project",
+			env: createFakeEnv(),
 		});
 
 		expect(mockBuildSystemPrompt).toHaveBeenCalledWith(

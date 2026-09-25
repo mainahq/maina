@@ -13,8 +13,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildCacheKey, hashContent } from "../../cache/keys";
 import { createCacheManager } from "../../cache/manager";
+import type { EnvPort } from "../../ports/env";
 import { generate } from "../index";
 import { getTaskTier } from "../tiers";
+
+/** Live view of the test process env (tests toggle process.env directly). */
+const liveEnv: EnvPort = { get: (name) => process.env[name] };
 
 const TEST_DIR = join(tmpdir(), `maina-ai-test-${Date.now()}`);
 
@@ -98,6 +102,8 @@ describe("generate — cache hit", () => {
 			systemPrompt,
 			userPrompt,
 			mainaDir,
+			root: mainaDir,
+			env: liveEnv,
 		});
 
 		expect(result.cached).toBe(true);
@@ -120,6 +126,8 @@ describe("generate — no API key", () => {
 			systemPrompt: "You are a code reviewer.",
 			userPrompt: "Review this code: const x = 1;",
 			mainaDir,
+			root: mainaDir,
+			env: liveEnv,
 		});
 
 		expect(result.cached).toBe(false);

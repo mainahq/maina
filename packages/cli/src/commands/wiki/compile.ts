@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
 import { compileWiki } from "@mainahq/core";
 import type { Command } from "commander";
+import { processEnv } from "../../env";
 import { EXIT_PASSED, outputJson } from "../../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -74,6 +75,7 @@ export async function wikiCompileAction(
 		full: mode === "full",
 		dryRun,
 		useAI: options.ai ?? false,
+		env: processEnv,
 		sample: options.sample ?? false,
 	});
 

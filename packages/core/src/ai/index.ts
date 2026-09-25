@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { buildCacheKey, hashContent } from "../cache/keys";
 import { createCacheManager } from "../cache/manager";
 import { getTtl } from "../cache/ttl";
@@ -7,15 +8,26 @@ import {
 	resolveProvider,
 	shouldDelegateToHost,
 } from "../config/index";
+import type { EnvPort } from "../ports/env";
 import { resolveModel } from "./tiers";
 import { validateAIOutput } from "./validate";
 
-interface GenerateOptions {
+/**
+ * What every AI entry point needs from its caller: the repository root the
+ * `maina.config.*` lookup starts from, and the environment that decides the
+ * API key, provider and host delegation.
+ */
+export type AIContext = Readonly<{
+	root: string;
+	env: EnvPort;
+}>;
+
+interface GenerateOptions extends AIContext {
 	task: string;
 	systemPrompt: string;
 	userPrompt: string;
 	files?: string[]; // for cache key
-	mainaDir?: string; // for cache storage
+	mainaDir?: string; // for cache storage; defaults to <root>/.maina
 }
 
 interface GenerateResult {
@@ -95,11 +107,12 @@ async function callModel(
 export async function generate(
 	options: GenerateOptions,
 ): Promise<GenerateResult> {
-	const { task, systemPrompt, userPrompt, files, mainaDir } = options;
+	const { task, systemPrompt, userPrompt, files, mainaDir, root, env } =
+		options;
 
-	const config = await loadConfig();
+	const config = await loadConfig(root);
 	const resolved = resolveModel(task, config);
-	const provider = resolveProvider(config);
+	const provider = resolveProvider(config, env);
 	// In host mode with Anthropic, use a sensible model instead of OpenRouter model IDs
 	const modelId =
 		provider === "anthropic" && resolved.modelId.startsWith("google/")
@@ -118,7 +131,7 @@ export async function generate(
 	});
 
 	// Set up cache (no-op manager if mainaDir not provided)
-	const effectiveMainaDir = mainaDir ?? ".maina";
+	const effectiveMainaDir = mainaDir ?? join(root, ".maina");
 	const cache = createCacheManager(effectiveMainaDir);
 
 	// Cache hit
@@ -139,7 +152,7 @@ export async function generate(
 
 	// Host delegation: when running inside Claude Code/Cursor without own API key,
 	// return the prompt so the host agent can process it via MCP or skills
-	if (shouldDelegateToHost()) {
+	if (shouldDelegateToHost(env)) {
 		const delegationText = `[HOST_DELEGATION] Task: ${task}\n\nSystem: ${systemPrompt}\n\nUser: ${userPrompt}`;
 		// Cache the delegation prompt to avoid rebuilding on repeat calls
 		const ttl = getTtl(task as Parameters<typeof getTtl>[0]);
@@ -156,7 +169,7 @@ export async function generate(
 	}
 
 	// Check for API key
-	const apiKey = getApiKey();
+	const apiKey = getApiKey(env);
 	if (apiKey === null) {
 		return {
 			text: "No API key found. Set MAINA_API_KEY or OPENROUTER_API_KEY environment variable to use AI features.",

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createFakeEnv } from "../../ports/testing";
 import { assembleContext } from "../engine";
 
 // Create a temporary .maina dir for tests
@@ -25,6 +26,7 @@ describe("assembleContext", () => {
 	test("assembleContext('commit') returns an AssembledContext object", async () => {
 		const result = await assembleContext("commit", {
 			repoRoot,
+			env: createFakeEnv(),
 			mainaDir: tempMainaDir,
 		});
 
@@ -39,6 +41,7 @@ describe("assembleContext", () => {
 	test("assembleContext('commit') has budget mode 'focused'", async () => {
 		const result = await assembleContext("commit", {
 			repoRoot,
+			env: createFakeEnv(),
 			mainaDir: tempMainaDir,
 		});
 
@@ -48,6 +51,7 @@ describe("assembleContext", () => {
 	test("assembleContext('commit') includes working layer", async () => {
 		const result = await assembleContext("commit", {
 			repoRoot,
+			env: createFakeEnv(),
 			mainaDir: tempMainaDir,
 		});
 
@@ -59,6 +63,7 @@ describe("assembleContext", () => {
 	test("assembleContext returns tokens count > 0", async () => {
 		const result = await assembleContext("commit", {
 			repoRoot,
+			env: createFakeEnv(),
 			mainaDir: tempMainaDir,
 		});
 
@@ -68,6 +73,7 @@ describe("assembleContext", () => {
 	test("assembleContext returns layer reports", async () => {
 		const result = await assembleContext("commit", {
 			repoRoot,
+			env: createFakeEnv(),
 			mainaDir: tempMainaDir,
 		});
 
@@ -83,6 +89,7 @@ describe("assembleContext", () => {
 	test("assembled text is non-empty", async () => {
 		const result = await assembleContext("commit", {
 			repoRoot,
+			env: createFakeEnv(),
 			mainaDir: tempMainaDir,
 		});
 
@@ -92,6 +99,7 @@ describe("assembleContext", () => {
 	test("working layer is always present in layer reports", async () => {
 		const result = await assembleContext("commit", {
 			repoRoot,
+			env: createFakeEnv(),
 			mainaDir: tempMainaDir,
 		});
 
@@ -101,8 +109,16 @@ describe("assembleContext", () => {
 
 	test("assembleContext('context') includes more layers than 'commit'", async () => {
 		const [commitResult, contextResult] = await Promise.all([
-			assembleContext("commit", { repoRoot, mainaDir: tempMainaDir }),
-			assembleContext("context", { repoRoot, mainaDir: tempMainaDir }),
+			assembleContext("commit", {
+				repoRoot,
+				env: createFakeEnv(),
+				mainaDir: tempMainaDir,
+			}),
+			assembleContext("context", {
+				repoRoot,
+				env: createFakeEnv(),
+				mainaDir: tempMainaDir,
+			}),
 		]);
 
 		const commitIncluded = commitResult.layers.filter((l) => l.included).length;
@@ -116,6 +132,7 @@ describe("assembleContext", () => {
 	test("assembleContext('context') has budget mode 'explore'", async () => {
 		const result = await assembleContext("context", {
 			repoRoot,
+			env: createFakeEnv(),
 			mainaDir: tempMainaDir,
 		});
 
@@ -125,6 +142,7 @@ describe("assembleContext", () => {
 	test("assembleContext is resilient — returns valid result even with bad mainaDir", async () => {
 		const result = await assembleContext("commit", {
 			repoRoot,
+			env: createFakeEnv(),
 			mainaDir: join(tmpdir(), "nonexistent-maina-dir-xyz"),
 		});
 
@@ -137,6 +155,7 @@ describe("assembleContext", () => {
 	test("assembleContext with searchQuery includes retrieval layer for 'context' command", async () => {
 		const result = await assembleContext("context", {
 			repoRoot,
+			env: createFakeEnv(),
 			mainaDir: tempMainaDir,
 			searchQuery: "assembleContext",
 		});
@@ -149,6 +168,7 @@ describe("assembleContext", () => {
 	test("budget allocation is populated with numeric values", async () => {
 		const result = await assembleContext("commit", {
 			repoRoot,
+			env: createFakeEnv(),
 			mainaDir: tempMainaDir,
 		});
 
@@ -165,11 +185,13 @@ describe("assembleContext", () => {
 	test("modelContextWindow option reduces output budget", async () => {
 		const fullResult = await assembleContext("commit", {
 			repoRoot,
+			env: createFakeEnv(),
 			mainaDir: tempMainaDir,
 		});
 
 		const smallResult = await assembleContext("commit", {
 			repoRoot,
+			env: createFakeEnv(),
 			mainaDir: tempMainaDir,
 			modelContextWindow: 30_000,
 		});

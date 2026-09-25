@@ -7,6 +7,7 @@
 
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { AIContext } from "../ai/index";
 import { tryAIGenerate } from "../ai/try-generate";
 import type { Result } from "../db/index";
 import { toKebabCase } from "../utils";
@@ -260,6 +261,7 @@ export async function listAdrs(adrDir: string): Promise<Result<AdrSummary[]>> {
 export async function generateHldLld(
 	specContent: string,
 	mainaDir: string,
+	ctx: AIContext,
 ): Promise<Result<string | null>> {
 	try {
 		const variables: Record<string, string> = {
@@ -272,6 +274,7 @@ export async function generateHldLld(
 			mainaDir,
 			variables,
 			`Generate HLD and LLD sections for this spec:\n\n${specContent}`,
+			ctx,
 		);
 
 		if (!aiResult.text) {

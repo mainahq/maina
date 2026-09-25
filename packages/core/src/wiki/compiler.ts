@@ -22,8 +22,10 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { dirname, join, relative } from "node:path";
+import type { AIContext } from "../ai/index";
 import type { TryAIResult } from "../ai/try-generate";
 import type { Result } from "../db/index";
+import type { EnvPort } from "../ports/env";
 import { type CommunityAlgorithm, detectCommunities } from "./communities";
 import type { CodeEntity } from "./extractors/code";
 import { extractCodeEntities } from "./extractors/code";
@@ -76,6 +78,8 @@ export interface CompileOptions {
 	full?: boolean;
 	dryRun?: boolean;
 	useAI?: boolean;
+	/** Environment for the AI enhancement's key/host detection (needed with `useAI`). */
+	env?: EnvPort;
 	/**
 	 * Sample mode — cap the source file set to `SAMPLE_FILE_LIMIT` most
 	 * recently modified files. Used by `maina setup` to keep first-pass
@@ -113,6 +117,7 @@ async function enhanceWithAI(
 	article: WikiArticle,
 	context: string,
 	mainaDir: string,
+	ctx: AIContext,
 ): Promise<string> {
 	try {
 		const { tryAIGenerate } = await import("../ai/try-generate");
@@ -131,6 +136,7 @@ async function enhanceWithAI(
 			mainaDir,
 			{ task: "wiki-compile" },
 			userPrompt,
+			ctx,
 		);
 
 		// If AI returned text, use it; otherwise fall back to original
@@ -1325,7 +1331,8 @@ export async function compile(
 		}
 
 		// ── Step 6b: AI enhancement (optional) ────────────────────────
-		if (options.useAI) {
+		const aiEnv = options.env;
+		if (options.useAI && aiEnv) {
 			const contextSummary = [
 				`Repository: ${repoRoot}`,
 				`Entities: ${codeEntities.length}`,
@@ -1340,6 +1347,7 @@ export async function compile(
 						article,
 						contextSummary,
 						mainaDir,
+						{ root: repoRoot, env: aiEnv },
 					);
 					if (enhanced !== article.content) {
 						article.content = enhanced;

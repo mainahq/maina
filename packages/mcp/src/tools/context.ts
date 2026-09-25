@@ -9,6 +9,7 @@
 import { join } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { processEnv } from "../env";
 
 const COMMANDS = [
 	"commit",
@@ -62,6 +63,7 @@ export function registerContextTools(server: McpServer): void {
 				const start = Date.now();
 				const result = await assembleContext(command, {
 					repoRoot: process.cwd(),
+					env: processEnv,
 					mainaDir,
 					modeOverride: "focused",
 					modelContextWindow: MCP_CONTEXT_WINDOW,

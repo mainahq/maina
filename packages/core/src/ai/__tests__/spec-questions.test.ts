@@ -1,4 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import { createFakeEnv } from "../../ports/testing";
+
+const TEST_AI = { root: ".", env: createFakeEnv() };
 
 // ── Mock State ──────────────────────────────────────────────────────────────
 
@@ -55,6 +58,7 @@ describe("generateSpecQuestions", () => {
 			const result = await generateSpecQuestions(
 				"## Tasks\n- T001: Add cache",
 				".maina",
+				TEST_AI,
 			);
 
 			expect(result.ok).toBe(true);
@@ -75,6 +79,7 @@ describe("generateSpecQuestions", () => {
 			const result = await generateSpecQuestions(
 				"## Tasks\n- T001: Clear task",
 				".maina",
+				TEST_AI,
 			);
 
 			expect(result.ok).toBe(true);
@@ -88,7 +93,7 @@ describe("generateSpecQuestions", () => {
 
 	describe("edge cases", () => {
 		test("returns empty array when plan content is empty", async () => {
-			const result = await generateSpecQuestions("", ".maina");
+			const result = await generateSpecQuestions("", ".maina", TEST_AI);
 
 			expect(result.ok).toBe(true);
 			if (result.ok) {
@@ -103,6 +108,7 @@ describe("generateSpecQuestions", () => {
 			const result = await generateSpecQuestions(
 				"## Tasks\n- T001: Test",
 				".maina",
+				TEST_AI,
 			);
 
 			expect(result.ok).toBe(true);
@@ -123,6 +129,7 @@ describe("generateSpecQuestions", () => {
 			const result = await generateSpecQuestions(
 				"## Tasks\n- T001: Test",
 				".maina",
+				TEST_AI,
 			);
 
 			expect(result.ok).toBe(true);
@@ -141,6 +148,7 @@ describe("generateSpecQuestions", () => {
 			const result = await generateSpecQuestions(
 				"## Tasks\n- T001: Test",
 				".maina",
+				TEST_AI,
 			);
 
 			expect(result.ok).toBe(true);
@@ -155,6 +163,7 @@ describe("generateSpecQuestions", () => {
 			const result = await generateSpecQuestions(
 				"## Tasks\n- T001: Test",
 				".maina",
+				TEST_AI,
 			);
 
 			expect(result.ok).toBe(true);
@@ -178,6 +187,7 @@ describe("generateSpecQuestions", () => {
 			const result = await generateSpecQuestions(
 				"## Tasks\n- T001: Test",
 				".maina",
+				TEST_AI,
 			);
 
 			expect(result.ok).toBe(true);

@@ -1,3 +1,4 @@
+import type { AIContext } from "./index";
 import { tryAIGenerate } from "./try-generate";
 
 /**
@@ -10,12 +11,14 @@ export async function generateCommitMessage(
 	diff: string,
 	stagedFiles: string[],
 	mainaDir: string,
+	ctx: AIContext,
 ): Promise<string | null> {
 	const aiResult = await tryAIGenerate(
 		"commit",
 		mainaDir,
 		{ diff, files: stagedFiles.join(", ") },
 		`Generate a conventional commit message for this diff:\n\n${diff}\n\nFiles: ${stagedFiles.join(", ")}`,
+		ctx,
 	);
 
 	if (aiResult.text && aiResult.fromAI) {
