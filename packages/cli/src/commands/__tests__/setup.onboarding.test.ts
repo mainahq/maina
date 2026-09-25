@@ -389,6 +389,8 @@ describe("setupAction — kept constitution skips the AI call (#406)", () => {
 			await run({
 				deps: countingDeps(),
 				telemetry: undefined,
+				// Setup telemetry is opt-in (#306); opt in to see the event.
+				telemetryConsent: async () => true,
 				sendTelemetry: async (opts) => {
 					event = opts.event;
 					return { sent: true, error: null };
