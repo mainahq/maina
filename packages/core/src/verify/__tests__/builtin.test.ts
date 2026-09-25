@@ -6,6 +6,8 @@
  */
 
 import { describe, expect, it } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
 	checkAnyType,
 	checkConsoleLogs,
@@ -175,6 +177,100 @@ describe("checkSecrets", () => {
 	it("still flags real-looking secrets in non-test files", () => {
 		const content = `const apikey = "sk_live_abc123def456";\n`;
 		expect(checkSecrets("src/config.ts", content)).toHaveLength(1);
+	});
+});
+
+// ─── checkSecrets: JSON / YAML key forms (#391) ──────────────────────────
+
+describe("checkSecrets JSON/YAML key forms (#391)", () => {
+	const fixture = (name: string) =>
+		readFileSync(join(import.meta.dir, "fixtures", "secrets", name), "utf-8");
+	const lines = (findings: { line: number }[]) => findings.map((f) => f.line);
+
+	it('detects quoted JSON keys like "api_key": "..."', () => {
+		expect(
+			checkSecrets("config/app.json", '{ "api_key": "Zq8vN3pL5tR7wX2yB4cD" }'),
+		).toHaveLength(1);
+		expect(
+			checkSecrets("config/app.json", `{ 'token' : 'a1B2c3D4e5F6g7H8' }`),
+		).toHaveLength(1);
+	});
+
+	it("detects JSON-style keys inside code files too", () => {
+		const content = `const cfg = { "password": "hunter2-Correct-Horse" };\n`;
+		expect(checkSecrets("src/config.ts", content)).toHaveLength(1);
+	});
+
+	it("detects hyphenated key forms (api-key, auth-token)", () => {
+		expect(
+			checkSecrets("config/app.json", '"x-api-key": "Zq8vN3pL5tR7wX2yB4cD"'),
+		).toHaveLength(1);
+		expect(
+			checkSecrets("config/app.yml", "auth-token: a1B2c3D4e5F6g7H8"),
+		).toHaveLength(1);
+	});
+
+	it("detects unquoted YAML values", () => {
+		expect(
+			checkSecrets("config/app.yaml", "api_key: Zq8vN3pL5tR7wX2yB4cD"),
+		).toHaveLength(1);
+	});
+
+	it("flags every hardcoded key in the leaky JSON fixture", () => {
+		const findings = checkSecrets("config/leaky.json", fixture("leaky.json"));
+		expect(lines(findings)).toEqual([3, 5, 6]);
+		expect(findings.every((f) => f.ruleId === "hardcoded-secret")).toBe(true);
+	});
+
+	it("flags every hardcoded key in the leaky YAML fixture", () => {
+		const findings = checkSecrets("config/leaky.yml", fixture("leaky.yml"));
+		expect(lines(findings)).toEqual([2, 4, 5, 7]);
+	});
+
+	it("does not flag a JSON schema that only names secret keys", () => {
+		expect(checkSecrets("schemas/config.json", fixture("schema.json"))).toEqual(
+			[],
+		);
+	});
+
+	it("does not flag a YAML schema that only names secret keys", () => {
+		expect(checkSecrets("schemas/config.yml", fixture("schema.yml"))).toEqual(
+			[],
+		);
+	});
+
+	it("does not flag ellipsis placeholders in docs and examples", () => {
+		const content = '// e.g. `"api_key": "..."` or `token: "…"`\n';
+		expect(checkSecrets("src/docs.ts", content)).toEqual([]);
+	});
+
+	it("does not flag i18n labels that echo the key name", () => {
+		const content = '{\n\t"password": "Password",\n\t"api_key": "API_KEY"\n}\n';
+		expect(checkSecrets("locales/en.json", content)).toEqual([]);
+		expect(checkSecrets("locales/en.yml", "token: Token")).toEqual([]);
+	});
+
+	it("checks every key on a line, not only the first (minified JSON)", () => {
+		const secret = "Zq8vN3pL5tR7wX2yB4cD";
+		for (const content of [
+			`{"password":"Password","api_key":"${secret}"}`,
+			`{"token":"test","secret":"${secret}"}`,
+			`{"api_key":"<your-key>","token":"${secret}"}`,
+		]) {
+			expect(checkSecrets("config/min.json", content)).toHaveLength(1);
+		}
+		// Still one finding per line even when several keys leak.
+		expect(
+			checkSecrets(
+				"config/min.json",
+				`{"token":"${secret}","secret":"${secret}"}`,
+			),
+		).toHaveLength(1);
+	});
+
+	it("does not treat unquoted type annotations in code as YAML values", () => {
+		const content = "interface Cfg {\n\tapi_key: string\n\ttoken: Token\n}\n";
+		expect(checkSecrets("src/types.ts", content)).toEqual([]);
 	});
 });
 
