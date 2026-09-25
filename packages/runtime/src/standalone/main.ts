@@ -19,7 +19,9 @@ import { failClosedHookOutput } from "./hook-fallback";
 
 /**
  * Claude Code's hook events (PascalCase), answered by the Claude Code
- * adapter. Codex (mainahq/maina#311) uses the same names and output shape.
+ * adapter. Codex uses the same names but not the same answers: it runs a
+ * tool whose PreToolUse hook asks. Codex hooks must go through
+ * `adapters/codex.ts` instead (mainahq/maina#475).
  */
 const CLAUDE_EVENTS: ReadonlySet<string> = new Set([
 	"PreToolUse",
