@@ -14,21 +14,20 @@
  */
 
 import { intro, log, outro } from "@clack/prompts";
+import type { Result } from "@mainahq/core";
+import { Command } from "commander";
 import {
-	detectLauncher,
-	isDirectBinary,
 	type ListEntry,
 	listClientIds,
 	type McpClientId,
 	type McpScope,
-	type Result,
 	type RunOptions,
 	type RunReport,
 	runAdd,
 	runList,
 	runRemove,
-} from "@mainahq/core";
-import { Command } from "commander";
+} from "../hosts/index";
+import { detectLauncher, isDirectBinary } from "../hosts/launcher";
 import { EXIT_PASSED, outputJson } from "../json";
 
 // ── Option parsing ─────────────────────────────────────────────────────────

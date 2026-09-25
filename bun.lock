@@ -25,8 +25,9 @@
       },
       "dependencies": {
         "@clack/prompts": "^1.2.0",
-        "@mainahq/core": "workspace:^",
-        "@mainahq/mcp": "workspace:^",
+        "@iarna/toml": "^2.2.5",
+        "@mainahq/core": "^1.8.1",
+        "@mainahq/mcp": "^1.8.1",
         "commander": "^14.0.3",
       },
     },
@@ -35,7 +36,6 @@
       "version": "1.8.1",
       "dependencies": {
         "@ai-sdk/openai": "^3.0.50",
-        "@iarna/toml": "^2.2.5",
         "@orama/orama": "^3.1.18",
         "ai": "^6.0.145",
         "drizzle-orm": "^0.45.2",
@@ -64,7 +64,7 @@
       "name": "@mainahq/mcp",
       "version": "1.8.1",
       "dependencies": {
-        "@mainahq/core": "^1.1.2",
+        "@mainahq/core": "^1.8.1",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "zod": "^4.3.6",
       },

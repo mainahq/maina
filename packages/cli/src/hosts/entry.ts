@@ -1,0 +1,32 @@
+/**
+ * The maina MCP server entry. Single source of truth so every client
+ * registers the same `command` / `args` shape — and so a future change
+ * is one edit.
+ *
+ * The launcher (`bunx` vs `npx`) is auto-detected per machine: prefer
+ * `bunx` when Bun is installed (5-10× faster startup), fall back to
+ * `npx` (universally available via npm). See `./launcher.ts` for the
+ * detection logic and the dogfood incident that motivated this.
+ *
+ * Tests can pin the launcher via `buildMainaEntry({ launcher })` to keep
+ * snapshots stable across machines.
+ */
+
+import { detectLauncher, type Launcher } from "./launcher";
+
+interface MainaMcpEntry {
+	command: string;
+	args: string[];
+}
+
+interface BuildEntryOptions {
+	launcher?: Launcher;
+}
+
+export function buildMainaEntry(opts: BuildEntryOptions = {}): MainaMcpEntry {
+	const l = opts.launcher ?? detectLauncher();
+	return {
+		command: l.command,
+		args: [...l.args],
+	};
+}

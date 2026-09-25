@@ -27,14 +27,17 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { confirm, intro, isCancel, log, outro, spinner } from "@clack/prompts";
+import { buildUsageEvent, captureUsage, scaffold } from "@mainahq/core";
+import { Command } from "commander";
+import packageJson from "../../package.json" with { type: "json" };
+import { processEnv } from "../env";
+import { buildMainaEntry } from "../hosts/entry";
+import { EXIT_CONFIG_ERROR, EXIT_PASSED } from "../json";
 import {
 	type AgentKind,
 	ALL_AGENTS,
 	anonymizeStack,
 	assembleStackContext,
-	buildMainaEntry,
-	buildUsageEvent,
-	captureUsage,
 	degradedBanner,
 	deploySkills,
 	deviceFingerprint,
@@ -51,17 +54,12 @@ import {
 	type SetupTelemetryEvent,
 	type SetupTelemetryPhase,
 	type StackContext,
-	scaffold,
 	sendSetupTelemetry,
 	summarizeRepo,
 	writeAllAgentFiles,
 	writeClaudeSettings,
 	writeCursorMcp,
-} from "@mainahq/core";
-import { Command } from "commander";
-import packageJson from "../../package.json" with { type: "json" };
-import { processEnv } from "../env";
-import { EXIT_CONFIG_ERROR, EXIT_PASSED } from "../json";
+} from "../onboarding/setup/index";
 import {
 	jsonEmitter,
 	noopEmitter,

@@ -13,13 +13,4 @@ import type { PurityRule } from "./purity-scanner";
  */
 export const PURITY_ALLOWLIST: Readonly<
 	Record<string, Readonly<Partial<Record<PurityRule, number>>>>
-> = {
-	"mcp/clients.ts": { "process.env": 6 },
-	"setup/confirm.ts": {
-		"process.cwd": 1,
-		"process.env": 2,
-		"process.stdout": 1,
-	},
-	"setup/resolve-ai.ts": { "process.env": 2 },
-	"setup/skills-deploy.ts": { "process.cwd": 1 },
-};
+> = {};
