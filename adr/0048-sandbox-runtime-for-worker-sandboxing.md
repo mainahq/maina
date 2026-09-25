@@ -96,12 +96,20 @@ Each agent's own sandbox engine was started inside `srt` (rerun by
 
 | Inner sandbox | macOS (Seatbelt outer) | Linux (bubblewrap outer) |
 |---|---|---|
-| Codex (`codex sandbox`, Seatbelt / Landlock) | fails: `sandbox-exec: sandbox_apply: Operation not permitted` | recorded by the `sandbox (ubuntu-latest)` job |
-| Claude Code (sandbox-runtime) | fails: the inner `srt` cannot bind its proxy socket, and Seatbelt would refuse the nested profile regardless | recorded by the `sandbox (ubuntu-latest)` job |
+| Codex 0.157.0 (`codex sandbox`: Seatbelt on macOS, bubblewrap on Linux) | fails: `sandbox-exec: sandbox_apply: Operation not permitted` | fails: `error building bubblewrap command: Read-only file system (os error 30)` |
+| Claude Code (sandbox-runtime 0.0.77) | fails: the inner `srt` cannot bind its proxy socket (`listen EPERM`), and Seatbelt would refuse the nested profile regardless | fails: the inner `srt` cannot bind its proxy socket (`listen EPERM`) |
+
+Recorded locally (macOS 26) and by the `sandbox` CI job on `macos-latest`
+and `ubuntu-latest` (mainahq/maina#500), which prints each outcome as a
+`[spike]` line.
 
 On macOS the result is general, not specific to these agents: any Seatbelt
 profile beyond `(allow default)` makes a nested `sandbox_apply` fail with
-`EPERM`, verified with bare `sandbox-exec` inside `sandbox-exec`.
+`EPERM`, verified with bare `sandbox-exec` inside `sandbox-exec`. On Linux
+the outer sandbox mounts the filesystem read-only outside the allowed write
+paths and does not let the sandboxed process bind the Unix sockets an inner
+sandbox-runtime needs. So on neither platform does any agent's own sandbox
+start inside maina's, and `INNER_SANDBOX_NESTS` is empty for both.
 
 So `configureInnerSandbox(worker)` switches the agent's own sandbox off
 wherever it cannot nest, using the worker registry's `disable` patch (Codex

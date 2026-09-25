@@ -10,7 +10,9 @@
  * - macOS: no. Seatbelt refuses a second profile inside a sandboxed
  *   process (`sandbox_apply: Operation not permitted`), so an agent whose
  *   sandbox is on cannot run a single command.
- * - Linux: see `INNER_SANDBOX_NESTS`.
+ * - Linux: no. Codex's bubblewrap cannot build its mounts on the outer
+ *   sandbox's read-only filesystem, and an inner sandbox-runtime cannot
+ *   bind its proxy's Unix socket.
  * - A container sandbox never nests: no container runtime is reachable
  *   from inside the outer sandbox.
  *
