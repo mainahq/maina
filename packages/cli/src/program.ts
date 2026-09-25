@@ -1,5 +1,6 @@
 import { flushTelemetry, VERSION } from "@mainahq/core";
 import { Command } from "commander";
+import { allowCommand } from "./commands/allow";
 import { analyzeCommand } from "./commands/analyze";
 import { applyFixCommand } from "./commands/apply-fix";
 import { benchmarkCommand } from "./commands/benchmark";
@@ -163,6 +164,9 @@ Setup & Config:
 	program.addCommand(configureCommand());
 	program.addCommand(mcpCommand());
 	program.addCommand(privacyCommand());
+
+	// ── Gate ────────────────────────────────────────────────────────────
+	program.addCommand(allowCommand());
 
 	// ── Internals ───────────────────────────────────────────────────────
 	//

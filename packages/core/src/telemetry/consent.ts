@@ -21,6 +21,7 @@
 import { join } from "node:path";
 import { readJsonFile } from "../config/schema";
 import type { Result } from "../db/index";
+import { userPolicyFile } from "../policy/load";
 import {
 	type PolicyError,
 	type PolicyLayer,
@@ -215,7 +216,7 @@ export async function loadCollectionConfig(
 	const [user, repo, legacy, fileSwitch] = await Promise.all([
 		home === undefined
 			? Promise.resolve({ ok: true as const, value: undefined })
-			: readTelemetryLayer(ctx.fs, join(home, ".maina", "policy.json"), "user"),
+			: readTelemetryLayer(ctx.fs, userPolicyFile(home), "user"),
 		repoFile === undefined
 			? Promise.resolve({ ok: true as const, value: undefined })
 			: readTelemetryLayer(ctx.fs, repoFile, "repo"),

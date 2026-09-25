@@ -52,6 +52,7 @@ const VISIBLE_COMMANDS = [
 	"configure",
 	"mcp",
 	"privacy",
+	"allow",
 ];
 
 // ── Internal commands that MUST be hidden ──────────────────────────────────

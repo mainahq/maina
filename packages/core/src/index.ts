@@ -139,6 +139,8 @@ export {
 	DECISION_OUTCOMES_MIGRATION,
 	migrateDecisionOutcomes,
 } from "./db/decision-outcomes";
+// Gate subject migration (what a gate decision was about, FR-GATE-8)
+export { migrateGateSubjects } from "./db/gate-subjects";
 // DB
 export type {
 	DbHandle,
@@ -149,7 +151,8 @@ export type {
 	SqliteDatabase,
 	SqliteStatement,
 } from "./db/index";
-export { getFeedbackDb } from "./db/index";
+export { getDecisionDb, getFeedbackDb } from "./db/index";
+export { toDbPort } from "./db/port";
 // Decide (typed decision interface, FR-DEC-1/2)
 export {
 	type DecidePorts,
@@ -420,6 +423,23 @@ export type {
 	ShellAction,
 } from "./gate/events";
 export { DEFAULT_PROTECTED_BRANCHES } from "./gate/events";
+// Gate messages and recorded overrides (FR-GATE-8, FR-DEC-4)
+export {
+	type ConfidenceBand,
+	confidenceBand,
+	formatGateMessage,
+} from "./gate/messages";
+export {
+	findGateSubject,
+	type GateSubject,
+	gateSubject,
+	type OverrideError,
+	recordGateSubject,
+	recordOverride,
+	rememberOverride,
+	scopedAllowRules,
+	withUserRules,
+} from "./gate/overrides";
 export type {
 	ShellNode,
 	ShellParser,
@@ -542,13 +562,14 @@ export {
 	DEFAULT_POLICY,
 	IRREVERSIBLE_ACTION_CLASSES,
 } from "./policy/defaults";
-export { loadPolicy } from "./policy/load";
+export { loadPolicy, readUserPolicy, userPolicyFile } from "./policy/load";
 export {
 	type Policy,
 	type PolicyError,
 	type PolicyLayer,
 	parsePolicyLayer,
 	policyJsonSchema,
+	type RulePolicy,
 	VERDICTS,
 	type Verdict,
 } from "./policy/schema";

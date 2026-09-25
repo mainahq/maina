@@ -329,3 +329,12 @@ export function getFeedbackDb(mainaDir: string): Result<DbHandle> {
 export function getStatsDb(mainaDir: string): Result<DbHandle> {
 	return initDatabase(join(mainaDir, "stats.db"), createStatsTables);
 }
+
+/**
+ * Open the decision database (.maina/decisions.db): the decision log, its
+ * outcomes and the gate subjects. Their migrations create the tables through
+ * a `DbPort` (`toDbPort`), not here.
+ */
+export function getDecisionDb(mainaDir: string): Result<DbHandle> {
+	return initDatabase(join(mainaDir, "decisions.db"));
+}

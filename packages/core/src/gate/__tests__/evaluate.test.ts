@@ -300,6 +300,24 @@ describe("evaluateGate: rules, then decide, then thresholds", () => {
 		expect(result.verdict).toBe("allow");
 		expect(result.degraded).toBe(false);
 	});
+
+	test("the result carries the model's confidence, for the message's band (FR-GATE-8)", () => {
+		const result = evaluateGate(
+			withModel(() => ({ verdict: "allow", p: 0.93 })),
+			shellEvent("ls -la"),
+			modelPolicy(),
+		);
+		expect(result.confidence).toBeCloseTo(0.93, 5);
+	});
+
+	test("a verdict no model answered carries no confidence", () => {
+		const result = evaluateGate(
+			gatePorts(),
+			shellEvent("git status"),
+			withRules({ deny: [{ match: "git status" }] }),
+		);
+		expect(result.confidence).toBeUndefined();
+	});
 });
 
 // ── Monotonicity ────────────────────────────────────────────────────────────

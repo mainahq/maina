@@ -25,6 +25,7 @@ packages/core/src/feedback/__tests__/tmp-capture-*
 .maina/stats.db
 .maina/stats.db-shm
 .maina/stats.db-wal
+.maina/decisions.db
 .maina/benchmarks/*.json
 !.maina/benchmarks/stories/
 .maina/wiki/.search-index.json
