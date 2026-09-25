@@ -1,7 +1,13 @@
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
-import { assembleContext, loadWorkingContext } from "@mainahq/core";
+import {
+	assembleContext,
+	type EnvPort,
+	loadWorkingContext,
+	type MainaCommand,
+} from "@mainahq/core";
 import { Command } from "commander";
+import { processEnv } from "../env";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,7 +43,7 @@ export interface StatusDeps {
 	}>;
 	assembleContext: (
 		command: string,
-		options: { repoRoot: string; mainaDir: string },
+		options: { repoRoot: string; mainaDir: string; env: EnvPort },
 	) => Promise<{
 		tokens: number;
 		layers: Array<{ name: string; tokens: number; included: boolean }>;
@@ -48,7 +54,11 @@ export interface StatusDeps {
 
 const defaultDeps: StatusDeps = {
 	loadWorkingContext: loadWorkingContext as StatusDeps["loadWorkingContext"],
-	assembleContext: assembleContext as unknown as StatusDeps["assembleContext"],
+	// "status" is not a MainaCommand (it gets the default context needs); the
+	// options are type-checked against core so a required port can't be
+	// dropped silently again.
+	assembleContext: (command, options) =>
+		assembleContext(command as MainaCommand, options),
 };
 
 // ── Core Action (testable) ───────────────────────────────────────────────────
@@ -87,6 +97,7 @@ export async function statusAction(
 		const ctx = await deps.assembleContext("status", {
 			repoRoot: cwd,
 			mainaDir,
+			env: processEnv,
 		});
 		result.contextTokens = ctx.tokens;
 		result.contextLayers = ctx.layers;
