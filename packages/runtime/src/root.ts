@@ -155,13 +155,14 @@ export async function resolveRootAsync(
 	git: AsyncGitProbe,
 ): Promise<Result<Root, NoRepo>> {
 	const { source, values } = pickCandidates(inputs);
-	const reserved =
-		source === "explicit" ? new Set<string>() : reservedRoots(inputs.home);
 	const tried: string[] = [];
 	for (const value of values) {
 		const dir = toDir(value, inputs.cwd);
 		const path = dir === null ? null : await git.toplevel(dir);
-		if (path !== null && !reserved.has(resolve(path))) {
+		const allowed =
+			path !== null &&
+			(source === "explicit" || !isReserved(path, inputs.home));
+		if (allowed) {
 			return { ok: true, value: { path, source } };
 		}
 		tried.push(dir ?? value);
