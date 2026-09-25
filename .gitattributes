@@ -1,0 +1,5 @@
+# The launchers and their manifest run as-is on every OS: a CRLF
+# checkout (core.autocrlf on Windows) would break sh and the manifest parser.
+packages/runtime/launcher/launch.sh text eol=lf
+packages/runtime/launcher/launch.ps1 text eol=lf
+packages/runtime/launcher/manifest.json text eol=lf

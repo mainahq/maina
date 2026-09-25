@@ -345,7 +345,8 @@ for (const interp of INTERPRETERS) {
 					);
 				}
 				expect(existsSync(staged.cached)).toBe(false);
-			});
+				// One launch per event; PowerShell on Windows takes ~3 s each.
+			}, 120_000);
 
 			test("hook mode never allows: pre-tool events ask", async () => {
 				const staged = stageOffline();
