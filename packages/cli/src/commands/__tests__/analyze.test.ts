@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 // ── Mock State ───────────────────────────────────────────────────────────────
 
@@ -260,15 +260,20 @@ describe("analyzeAction", () => {
 		expect(result.reason).toContain("main");
 	});
 
-	test("summary counts are correct across multiple features", async () => {
-		const dir1 = join(tmpDir, ".maina", "features", "001-user-auth");
-		const dir2 = join(tmpDir, ".maina", "features", "002-payments");
+	// Match on the feature folder name only; the temp root embeds Date.now()
+	// and may itself contain "001"/"002" (#435).
+	const isFeature = (dir: string, id: string) =>
+		basename(dir).startsWith(`${id}-`);
+
+	async function expectSummaryCountsAcrossFeatures(root: string) {
+		const dir1 = join(root, ".maina", "features", "001-user-auth");
+		const dir2 = join(root, ".maina", "features", "002-payments");
 		mkdirSync(dir1, { recursive: true });
 		mkdirSync(dir2, { recursive: true });
 
 		const deps = createMockDeps({
 			analyze: (dir) => {
-				if (dir.includes("001")) {
+				if (isFeature(dir, "001")) {
 					return {
 						ok: true,
 						value: {
@@ -311,23 +316,37 @@ describe("analyzeAction", () => {
 			},
 		});
 
-		const result = await analyzeAction({ all: true, cwd: tmpDir }, deps);
+		const result = await analyzeAction({ all: true, cwd: root }, deps);
 
 		expect(result.analyzed).toBe(true);
 		expect(result.reports?.length).toBe(2);
 
 		// Feature 001
-		const report001 = result.reports?.find((r) => r.featureDir.includes("001"));
+		const report001 = result.reports?.find((r) =>
+			isFeature(r.featureDir, "001"),
+		);
 		expect(report001?.errors).toBe(1);
 		expect(report001?.warnings).toBe(1);
 
 		// Feature 002
-		const report002 = result.reports?.find((r) => r.featureDir.includes("002"));
+		const report002 = result.reports?.find((r) =>
+			isFeature(r.featureDir, "002"),
+		);
 		expect(report002?.errors).toBe(0);
 		expect(report002?.warnings).toBe(1);
 
 		// Overall: has errors, so passed = false
 		expect(result.passed).toBe(false);
+	}
+
+	test("summary counts are correct across multiple features", async () => {
+		await expectSummaryCountsAcrossFeatures(tmpDir);
+	});
+
+	test("summary counts match by feature folder even when the temp path contains feature numbers", async () => {
+		// Regression for #435: tmpDir embeds Date.now(), which can contain "001"
+		// or "002". Force that collision deterministically.
+		await expectSummaryCountsAcrossFeatures(join(tmpDir, "run-002-001"));
 	});
 
 	test("findings count includes all findings per feature", async () => {
