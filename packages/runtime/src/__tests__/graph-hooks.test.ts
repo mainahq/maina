@@ -269,6 +269,119 @@ describe("createGraphSync", () => {
 	});
 });
 
+describe("createGraphSync conflict retries", () => {
+	const conflict: GraphSyncResult = {
+		ok: false,
+		error: { kind: "conflict", attempts: 3 },
+	};
+
+	/** Ports that answer each sync with the next scripted result. */
+	function scriptedPorts(results: GraphSyncResult[]) {
+		const calls: Call[] = [];
+		const next = () => results.shift() ?? synced;
+		const ports: GraphSyncPorts = {
+			rootOf: async (d) => d,
+			syncAll: async (root) => {
+				calls.push({ root, op: "all" });
+				return next();
+			},
+			syncPaths: async (root, paths) => {
+				calls.push({ root, op: [...paths] });
+				return next();
+			},
+		};
+		return { ports, calls };
+	}
+
+	test("paths dropped by a conflict are synced again, and the event waits for the retry", async () => {
+		const errors: unknown[] = [];
+		const scripted = scriptedPorts([conflict]);
+		const sync = createGraphSync(scripted.ports, {
+			onError: (_root, error) => errors.push(error),
+		});
+
+		await sync.observe(edit("/repo", "a.ts"));
+
+		expect(scripted.calls).toEqual([
+			{ root: "/repo", op: ["/repo/a.ts"] },
+			{ root: "/repo", op: ["/repo/a.ts"] },
+		]);
+		expect(errors).toEqual([]);
+	});
+
+	test("a conflicted session sync is retried as a full sync", async () => {
+		const scripted = scriptedPorts([conflict]);
+		const sync = createGraphSync(scripted.ports);
+		await sync.observe(session("/repo"));
+		expect(scripted.calls).toEqual([
+			{ root: "/repo", op: "all" },
+			{ root: "/repo", op: "all" },
+		]);
+	});
+
+	test("the retry folds in edits that arrived while the conflicted sync ran", async () => {
+		const gate = Promise.withResolvers<GraphSyncResult>();
+		const calls: Call[] = [];
+		const sync = createGraphSync({
+			rootOf: async (d) => d,
+			syncAll: async () => synced,
+			syncPaths: (root, paths) => {
+				calls.push({ root, op: [...paths] });
+				return calls.length === 1 ? gate.promise : Promise.resolve(synced);
+			},
+		});
+
+		const first = sync.observe(edit("/repo", "a.ts"));
+		await flush();
+		const second = sync.observe(edit("/repo", "b.ts"));
+		await flush();
+		gate.resolve(conflict);
+		await Promise.all([first, second]);
+
+		expect(calls).toEqual([
+			{ root: "/repo", op: ["/repo/a.ts"] },
+			{ root: "/repo", op: ["/repo/a.ts", "/repo/b.ts"] },
+		]);
+	});
+
+	test("retries are bounded: a root that keeps conflicting is reported once and not wedged", async () => {
+		const errors: unknown[] = [];
+		const scripted = scriptedPorts([conflict, conflict, conflict, conflict]);
+		const sync = createGraphSync(scripted.ports, {
+			conflictRetries: 2,
+			onError: (_root, error) => errors.push(error),
+		});
+
+		await sync.observe(edit("/repo", "a.ts"));
+		// One attempt plus two retries, then the paths are given up on.
+		expect(scripted.calls).toHaveLength(3);
+		expect(errors).toEqual([conflict.ok ? null : conflict.error]);
+
+		// The retry budget is per run of conflicts: the next event gets its own.
+		await sync.observe(edit("/repo", "b.ts"));
+		expect(scripted.calls.slice(3)).toEqual([
+			{ root: "/repo", op: ["/repo/b.ts"] },
+			{ root: "/repo", op: ["/repo/b.ts"] },
+		]);
+		expect(errors).toHaveLength(1);
+	});
+
+	test("errors other than a conflict are not retried", async () => {
+		const errors: unknown[] = [];
+		const failure: GraphSyncResult = {
+			ok: false,
+			error: { kind: "db", message: "locked" },
+		};
+		const scripted = scriptedPorts([failure]);
+		const sync = createGraphSync(scripted.ports, {
+			onError: (_root, error) => errors.push(error),
+		});
+		await sync.observe(edit("/repo", "a.ts"));
+		expect(scripted.calls).toHaveLength(1);
+		expect(errors).toHaveLength(1);
+	});
+});
+
 describe("runtime observe port", () => {
 	test("an observer that throws, rejects or never settles leaves the gate's answer alone", async () => {
 		const t = tempEndpoint();
