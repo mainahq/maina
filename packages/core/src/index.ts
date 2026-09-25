@@ -688,6 +688,14 @@ export {
 	reviewSpecCompliance,
 	runTwoStageReview,
 } from "./review/index";
+// Session summary of gate and routing outcomes (FR-RET-2)
+export {
+	formatSessionSummary,
+	type RoutingCosts,
+	type SessionSummary,
+	type SummaryOptions,
+	summarise,
+} from "./session/summary";
 // Stats
 export {
 	type CommitSnapshot,
