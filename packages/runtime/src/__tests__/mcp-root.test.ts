@@ -52,4 +52,16 @@ describe("mcpRootResolver", () => {
 			expect(result.error.message).toContain("/nowhere");
 		}
 	});
+
+	test("a relative explicit root is refused, never resolved against the cwd", async () => {
+		const result = await mcpRootResolver(
+			{ cwd: "/work/app/src" },
+			probe({ ...repos, "app/src": "/work/app" }),
+		)("app/src");
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error.kind).toBe("no_root");
+			expect(result.error.message).toContain("absolute");
+		}
+	});
 });

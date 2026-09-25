@@ -8,6 +8,7 @@ import type { PrReviewFinding } from "@mainahq/core";
 import { z } from "zod";
 import {
 	capped,
+	checkRef,
 	defineTool,
 	filesInput,
 	invalid,
@@ -83,16 +84,20 @@ export const reviewTriageTool = defineTool({
 	},
 	data,
 	run: async (args, { root, runtime }) => {
-		if (!args.diff?.trim() && !args.files?.length) {
+		// A blank diff counts as absent: reviewing it would pass vacuously.
+		const diff = args.diff?.trim() ? args.diff : undefined;
+		if (diff === undefined && !args.files?.length) {
 			return invalid("review_triage needs a `diff` or `files`");
 		}
 		const files = optionalRepoRelative(root, args.files);
 		if (!files.ok) return files;
+		const base = checkRef(args.base);
+		if (!base.ok) return base;
 		const result = await runtime.review({
 			root,
-			...(args.diff !== undefined ? { diff: args.diff } : {}),
+			...(diff !== undefined ? { diff } : {}),
 			...(files.value !== undefined ? { files: files.value } : {}),
-			...(args.base !== undefined ? { base: args.base } : {}),
+			...(base.value !== undefined ? { base: base.value } : {}),
 			...(args.planContent !== undefined
 				? { planContent: args.planContent }
 				: {}),

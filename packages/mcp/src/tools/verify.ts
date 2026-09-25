@@ -8,6 +8,7 @@ import type { DetectedTool, PipelineResult, ToolReport } from "@mainahq/core";
 import { z } from "zod";
 import {
 	capped,
+	checkRef,
 	defineTool,
 	filesInput,
 	ok,
@@ -172,10 +173,12 @@ export const verifyTool = defineTool({
 	run: async (args, { root, runtime }) => {
 		const files = optionalRepoRelative(root, args.files);
 		if (!files.ok) return files;
+		const base = checkRef(args.base);
+		if (!base.ok) return base;
 		const result = await runtime.verify({
 			root,
 			...(files.value !== undefined ? { files: files.value } : {}),
-			...(args.base !== undefined ? { base: args.base } : {}),
+			...(base.value !== undefined ? { base: base.value } : {}),
 		});
 		if (!result.ok) return result;
 		const pipeline = result.value;

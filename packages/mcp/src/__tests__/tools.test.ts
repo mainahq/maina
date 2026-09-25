@@ -6,6 +6,16 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+	mkdirSync,
+	mkdtempSync,
+	realpathSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
 	type Call,
 	call,
 	connect,
@@ -97,6 +107,42 @@ describe("verify", () => {
 			"/elsewhere/x.ts",
 		);
 		expect(calls.some((c) => c.method === "verify")).toBe(false);
+	});
+
+	test("a base ref that looks like an option is refused before the runtime runs", async () => {
+		const { runtime, calls } = fakeRuntime();
+		const client = await connect(runtime);
+		const result = await call(client, "verify", {
+			root: "/repo",
+			files: ["a.ts"],
+			base: "--output=/tmp/pwned",
+		});
+		expect(result.isError).toBe(true);
+		expect(result.structuredContent?.error?.kind).toBe("invalid_input");
+		expect(calls.some((c) => c.method === "verify")).toBe(false);
+	});
+
+	test("an absolute file reached through a symlink of the root is inside it", async () => {
+		const dir = realpathSync(mkdtempSync(join(tmpdir(), "maina-mcp-link-")));
+		try {
+			const real = join(dir, "real");
+			mkdirSync(join(real, "src"), { recursive: true });
+			writeFileSync(join(real, "src", "a.ts"), "export {};\n");
+			symlinkSync(real, join(dir, "link"));
+			const { runtime, calls } = fakeRuntime();
+			const client = await connect(runtime);
+			const result = await call(client, "verify", {
+				root: real,
+				files: [join(dir, "link", "src", "a.ts")],
+			});
+			expectEnvelope(result, "verify", real);
+			expect(argsOf(calls, "verify")).toEqual({
+				root: real,
+				files: ["src/a.ts"],
+			});
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	test("a root that does not resolve is a structured error", async () => {
@@ -273,6 +319,33 @@ describe("review_triage", () => {
 		};
 		// Findings in other files drop out; findings with no file stay.
 		expect(data.counts).toEqual({ blocking: 0, advisory: 1, info: 1 });
+	});
+
+	test("a blank diff counts as absent, so the files are diffed", async () => {
+		const { runtime, calls } = fakeRuntime();
+		const client = await connect(runtime);
+		await call(client, "review_triage", {
+			root: "/repo",
+			diff: "  \n",
+			files: ["src/b.ts"],
+		});
+		expect(argsOf(calls, "review")).toEqual({
+			root: "/repo",
+			files: ["src/b.ts"],
+		});
+	});
+
+	test("a base ref that looks like an option is refused before the runtime runs", async () => {
+		const { runtime, calls } = fakeRuntime();
+		const client = await connect(runtime);
+		const result = await call(client, "review_triage", {
+			root: "/repo",
+			files: ["src/b.ts"],
+			base: "--output=/tmp/pwned",
+		});
+		expect(result.isError).toBe(true);
+		expect(result.structuredContent?.error?.kind).toBe("invalid_input");
+		expect(calls.some((c) => c.method === "review")).toBe(false);
 	});
 
 	test("needs a diff or files", async () => {

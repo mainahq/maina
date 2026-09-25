@@ -8,6 +8,7 @@
  */
 
 import { realpathSync } from "node:fs";
+import { isAbsolute } from "node:path";
 import type { RootResolver } from "@mainahq/mcp";
 import { asyncGitProbe, resolveRootAsync } from "./root";
 
@@ -36,6 +37,16 @@ export function mcpRootResolver(
 ): RootResolver {
 	const home = realHome(inputs.home);
 	return async (explicit) => {
+		// A relative root would resolve against the server's cwd (FR-MCP-4).
+		if (explicit?.trim() && !isAbsolute(explicit)) {
+			return {
+				ok: false,
+				error: {
+					kind: "no_root",
+					message: `root must be an absolute path, got ${explicit}`,
+				},
+			};
+		}
 		const resolved = await resolveRootAsync(
 			{
 				cwd: inputs.cwd,

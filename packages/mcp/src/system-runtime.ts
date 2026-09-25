@@ -308,7 +308,15 @@ export function systemRuntime(options: SystemRuntimeOptions): McpRuntime {
 				let text = diff;
 				if (text === undefined) {
 					const out = await systemProcess.spawn(
-						["git", "diff", base ?? "HEAD", "--", ...(files ?? [])],
+						// `--end-of-options`: a base is never read as an option.
+						[
+							"git",
+							"diff",
+							"--end-of-options",
+							base ?? "HEAD",
+							"--",
+							...(files ?? []),
+						],
 						{ cwd: root },
 					);
 					if (!out.ok) return failed(`git diff: ${out.error.kind}`);

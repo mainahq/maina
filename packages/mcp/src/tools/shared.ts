@@ -5,6 +5,7 @@
  * server resolves the root, calls `run` and builds the MCP result here.
  */
 
+import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { Result } from "@mainahq/core";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -149,13 +150,44 @@ export function repoRelative(
 ): Result<string[], RuntimeError> {
 	const out: string[] = [];
 	for (const path of paths) {
-		const rel = relative(root, isAbsolute(path) ? path : resolve(root, path));
-		if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+		const abs = isAbsolute(path) ? path : resolve(root, path);
+		// The root is usually git's top level, with symlinks resolved; an
+		// absolute path spelled through a symlink (macOS /tmp, /var) is
+		// still inside it.
+		const rel = [relative(root, abs), relative(real(root), real(abs))].find(
+			(r) => !outside(r),
+		);
+		if (rel === undefined) {
 			return invalid(`${path} is outside the root ${root}`);
 		}
 		out.push(rel === "" ? "." : rel.split(sep).join("/"));
 	}
 	return ok(out);
+}
+
+const outside = (rel: string): boolean =>
+	rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
+
+/** `path` with symlinks resolved, or as given when it does not exist. */
+function real(path: string): string {
+	try {
+		return realpathSync(path);
+	} catch {
+		return path;
+	}
+}
+
+/**
+ * A git ref from a tool input: refused when it could be read as an option
+ * (`--output=<file>` would make `git diff` write a file).
+ */
+export function checkRef(
+	ref: string | undefined,
+): Result<string | undefined, RuntimeError> {
+	if (ref === undefined) return ok(undefined);
+	return ref.trim().startsWith("-")
+		? invalid(`base ${ref} is not a git ref`)
+		: ok(ref);
 }
 
 /** `repoRelative` for an optional list: `undefined` stays `undefined`. */
