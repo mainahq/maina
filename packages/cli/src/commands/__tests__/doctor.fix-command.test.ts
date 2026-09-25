@@ -37,7 +37,7 @@ mock.module("@mainahq/core", () => ({
 	}),
 	getApiKey: () => null,
 	isHostMode: () => false,
-	getFeedbackDb: () => ({ ok: false, error: "no db" }),
+	openFeedbackStore: () => ({ ok: false, error: "no db" }),
 }));
 
 mock.module("@clack/prompts", () => ({

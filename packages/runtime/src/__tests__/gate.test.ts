@@ -6,7 +6,6 @@
  * malformed event, a failing port) asks.
  */
 
-import { Database } from "bun:sqlite";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
 	existsSync,
@@ -33,9 +32,9 @@ import {
 	LOG_SALT_PATH,
 	loadShellParser,
 	migrateDecisionLog,
+	openDecisionStore,
 	type Policy,
 	queryDecisions,
-	toDbPort,
 } from "@mainahq/core";
 import { createHookClient } from "../client/hook-client";
 import {
@@ -386,8 +385,18 @@ describe("decision log", () => {
 	const SALT_A = "a".repeat(64);
 	const SALT_B = "b".repeat(64);
 
-	function memoryDb(): DbPort {
-		const db = toDbPort(new Database(":memory:"));
+	const stores: string[] = [];
+	afterAll(() => {
+		for (const dir of stores) rmSync(dir, { recursive: true, force: true });
+	});
+
+	/** A fresh, migrated decision store per test, opened the way the CLI opens it. */
+	function decisionDb(): DbPort {
+		const dir = mkdtempSync(join(tmpdir(), "maina-gate-db-"));
+		stores.push(dir);
+		const store = openDecisionStore(dir);
+		if (!store.ok) throw new Error(store.error);
+		const { db } = store.value;
 		const migrated = migrateDecisionLog(db);
 		if (!migrated.ok) throw new Error(migrated.error.message);
 		return db;
@@ -403,7 +412,7 @@ describe("decision log", () => {
 		salt: string,
 		event: GateEvent = shell("ls -la"),
 	): Promise<Readonly<{ decision: GateDecision; db: DbPort }>> {
-		const db = memoryDb();
+		const db = decisionDb();
 		const gate = createGateEvaluator(
 			deps({
 				logFor: async () => ({ ok: true, value: { db, salt, now: () => 42 } }),
@@ -440,7 +449,7 @@ describe("decision log", () => {
 	});
 
 	test("a verdict decided by a rule alone logs nothing", async () => {
-		const db = memoryDb();
+		const db = decisionDb();
 		const decision = await createGateEvaluator(
 			deps({
 				policyFor: async () => ({ ok: true, value: withDeny("git status") }),

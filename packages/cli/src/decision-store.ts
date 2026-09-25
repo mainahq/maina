@@ -7,21 +7,19 @@
 
 import {
 	type DbPort,
-	getDecisionDb,
 	migrateDecisionOutcomes,
 	migrateGateSubjects,
+	openDecisionStore,
 	type Result,
-	toDbPort,
 } from "@mainahq/core";
 
 /** Opens and migrates the decision database under `mainaDir`. Call `close` when done. */
 export function openDecisionDb(
 	mainaDir: string,
 ): Result<Readonly<{ db: DbPort; close: () => void }>, string> {
-	const handle = getDecisionDb(mainaDir);
-	if (!handle.ok) return handle;
-	const db = toDbPort(handle.value.db);
-	const close = () => handle.value.db.close();
+	const store = openDecisionStore(mainaDir);
+	if (!store.ok) return store;
+	const { db, close } = store.value;
 	const migrated = migrateDecisionOutcomes(db);
 	const subjects = migrated.ok ? migrateGateSubjects(db) : migrated;
 	if (!subjects.ok) {

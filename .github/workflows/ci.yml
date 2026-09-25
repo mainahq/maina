@@ -28,6 +28,11 @@ jobs:
       - name: Dead code (knip, zero findings)
         run: bun run knip
 
+      # Builds core and MCP, then typechecks their published dist/index.d.ts
+      # under Node types with skipLibCheck off: no bun:* or drizzle types (#392).
+      - name: Published types under Node
+        run: bun run check:dts
+
       - name: Path hygiene (Wave 4 G13 regression guard)
         run: bun run check:paths
 
