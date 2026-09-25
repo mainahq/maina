@@ -38,12 +38,12 @@ export type ClaudeHookRun = Readonly<{
 }>;
 
 /** What SessionStart tells the agent. */
-const GUARDRAILS_ACTIVE = "maina guardrails active for this repository.";
+export const GUARDRAILS_ACTIVE = "maina guardrails active for this repository.";
 
 const message = (e: unknown): string =>
 	e instanceof Error ? e.message : String(e);
 
-function parse(raw: string): unknown {
+export function parseHookInput(raw: string): unknown {
 	try {
 		return JSON.parse(raw);
 	} catch {
@@ -51,7 +51,7 @@ function parse(raw: string): unknown {
 	}
 }
 
-async function decide(
+export async function safeDecision(
 	ports: ClaudeHookPorts,
 	event: GateEvent,
 ): Promise<GateDecision> {
@@ -72,7 +72,7 @@ async function decide(
 	}
 }
 
-async function summary(
+export async function safeSummary(
 	ports: ClaudeHookPorts,
 	event: SessionEvent,
 ): Promise<string | undefined> {
@@ -92,10 +92,10 @@ export async function runClaudeHook(
 	ports: ClaudeHookPorts,
 	configured?: string,
 ): Promise<ClaudeHookRun> {
-	const event = fromClaude(parse(raw), configured);
+	const event = fromClaude(parseHookInput(raw), configured);
 	switch (event.type) {
 		case "gate": {
-			const decision = await decide(ports, event.event);
+			const decision = await safeDecision(ports, event.event);
 			return {
 				event,
 				decision,
@@ -114,7 +114,7 @@ export async function runClaudeHook(
 			};
 		}
 		case "session": {
-			const line = await summary(ports, event.event);
+			const line = await safeSummary(ports, event.event);
 			const context =
 				event.hookEvent === "SessionStart"
 					? [GUARDRAILS_ACTIVE, line].filter(Boolean).join(" ")

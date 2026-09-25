@@ -13,11 +13,13 @@
  * the CLI and a hook does not pay for the MCP server.
  */
 
+// Cursor's events (camelCase) come from its adapter, which is pure and cheap.
+import { CURSOR_HOOK_EVENTS } from "../adapters/cursor";
 import { failClosedHookOutput } from "./hook-fallback";
 
 /**
- * Claude Code's hook events, answered by the Claude Code adapter. Codex
- * (mainahq/maina#311) uses the same names and output shape.
+ * Claude Code's hook events (PascalCase), answered by the Claude Code
+ * adapter. Codex (mainahq/maina#311) uses the same names and output shape.
  */
 const CLAUDE_EVENTS: ReadonlySet<string> = new Set([
 	"PreToolUse",
@@ -37,17 +39,20 @@ switch (mode) {
 	}
 	case "hook": {
 		const event = rest[0] ?? "";
-		if (!CLAUDE_EVENTS.has(event)) {
-			// The Cursor adapter (mainahq/maina#310) is not wired in yet, so its
-			// hooks get the host's fail-closed answer: never an allow.
+		if (!CLAUDE_EVENTS.has(event) && !CURSOR_HOOK_EVENTS.has(event)) {
+			// No adapter answers this event: the fail-closed answer, never an allow.
 			process.stdout.write(
 				`${failClosedHookOutput(event, "gate_not_active")}\n`,
 			);
 			break;
 		}
 		try {
-			const { runClaudeHookProcess } = await import("../hook-system");
-			process.exitCode = await runClaudeHookProcess(event);
+			const { runClaudeHookProcess, runCursorHookProcess } = await import(
+				"../hook-system"
+			);
+			process.exitCode = CLAUDE_EVENTS.has(event)
+				? await runClaudeHookProcess(event)
+				: await runCursorHookProcess(event);
 		} catch {
 			process.stdout.write(`${failClosedHookOutput(event, "hook_crashed")}\n`);
 		}

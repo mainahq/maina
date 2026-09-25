@@ -165,7 +165,7 @@ function splitOnce(value: string, sep: string): readonly [string, string] {
  * `**\/*.pem` as a `.pem` file, and core's secret-path rules see the target.
  * Without this a Grep with `glob: ".env"` reads as a plain workspace read.
  */
-function searchTarget(dir: string, glob: string | undefined): string {
+export function searchTarget(dir: string, glob: string | undefined): string {
 	if (glob === undefined) return dir;
 	const literal = glob
 		.replace(/[*?]/g, "")
