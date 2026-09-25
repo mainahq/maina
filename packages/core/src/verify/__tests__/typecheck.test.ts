@@ -5,10 +5,25 @@
  * type checker and parses its output into Finding[].
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	setDefaultTimeout,
+} from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createFakeProcess } from "../../ports/testing";
+
+// The first test is the real-tool smoke test: it installs typescript and runs
+// the real `tsc`, which exceeded bun's 5s default under load (#434, seen on
+// #428 at 5007ms). It gets its own longer timeout; the rest of the suite
+// spawns at most a missing binary, or runs over a scripted ProcessPort.
+setDefaultTimeout(30_000);
+const REAL_TSC_TIMEOUT_MS = 120_000;
 
 describe("runTypecheck", () => {
 	let testDir: string;
@@ -22,42 +37,46 @@ describe("runTypecheck", () => {
 		rmSync(testDir, { recursive: true, force: true });
 	});
 
-	it("should parse tsc --noEmit output into Finding[]", async () => {
-		// Create a tsconfig.json and install typescript locally
-		writeFileSync(
-			join(testDir, "tsconfig.json"),
-			JSON.stringify({
-				compilerOptions: { strict: true, noEmit: true },
-				include: ["*.ts"],
-			}),
-		);
-		// Install typescript locally so tsc is in node_modules/.bin
-		const install = Bun.spawnSync(["bun", "add", "typescript"], {
-			cwd: testDir,
-		});
-		if (install.exitCode !== 0) {
-			// Skip if we can't install (CI without network, etc.)
-			return;
-		}
+	it(
+		"should parse tsc --noEmit output into Finding[]",
+		async () => {
+			// Create a tsconfig.json and install typescript locally
+			writeFileSync(
+				join(testDir, "tsconfig.json"),
+				JSON.stringify({
+					compilerOptions: { strict: true, noEmit: true },
+					include: ["*.ts"],
+				}),
+			);
+			// Install typescript locally so tsc is in node_modules/.bin
+			const install = Bun.spawnSync(["bun", "add", "typescript"], {
+				cwd: testDir,
+			});
+			if (install.exitCode !== 0) {
+				// Skip if we can't install (CI without network, etc.)
+				return;
+			}
 
-		// Create a file with a type error
-		writeFileSync(
-			join(testDir, "bad.ts"),
-			'const x: number = "not a number";\n',
-		);
+			// Create a file with a type error
+			writeFileSync(
+				join(testDir, "bad.ts"),
+				'const x: number = "not a number";\n',
+			);
 
-		const { runTypecheck } = await import("../typecheck");
-		const result = await runTypecheck(["bad.ts"], testDir);
+			const { runTypecheck } = await import("../typecheck");
+			const result = await runTypecheck(["bad.ts"], testDir);
 
-		expect(result.findings.length).toBeGreaterThan(0);
-		const first = result.findings[0];
-		if (!first) throw new Error("Expected at least one finding");
-		expect(first.tool).toBe("tsc");
-		expect(first.severity).toBe("error");
-		expect(first.file).toContain("bad.ts");
-		expect(first.line).toBeGreaterThan(0);
-		expect(result.duration).toBeGreaterThanOrEqual(0);
-	});
+			expect(result.findings.length).toBeGreaterThan(0);
+			const first = result.findings[0];
+			if (!first) throw new Error("Expected at least one finding");
+			expect(first.tool).toBe("tsc");
+			expect(first.severity).toBe("error");
+			expect(first.file).toContain("bad.ts");
+			expect(first.line).toBeGreaterThan(0);
+			expect(result.duration).toBeGreaterThanOrEqual(0);
+		},
+		REAL_TSC_TIMEOUT_MS,
+	);
 
 	it("should return empty findings for clean file", async () => {
 		writeFileSync(
@@ -67,15 +86,19 @@ describe("runTypecheck", () => {
 				include: ["*.ts"],
 			}),
 		);
-		Bun.spawnSync(["bun", "add", "typescript"], { cwd: testDir });
-
 		writeFileSync(join(testDir, "good.ts"), "const x: number = 42;\n");
+		// A clean project: tsc exits 0 with no output.
+		const proc = createFakeProcess({
+			"tsc -p . --noEmit --pretty false": {},
+		});
 
 		const { runTypecheck } = await import("../typecheck");
-		const result = await runTypecheck(["good.ts"], testDir);
+		const result = await runTypecheck(["good.ts"], testDir, { process: proc });
 
 		expect(result.findings).toEqual([]);
 		expect(result.tool).toBe("tsc");
+		expect(result.skipped).toBe(false);
+		expect(proc.calls()).toHaveLength(1);
 	});
 
 	it("should skip with info when tsc is not found", async () => {

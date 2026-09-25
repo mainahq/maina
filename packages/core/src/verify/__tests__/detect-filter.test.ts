@@ -1,13 +1,13 @@
-import { describe, expect, setDefaultTimeout, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
+import { createFakeProcess } from "../../ports/testing";
 import { detectTools, getToolsForLanguages, TOOL_REGISTRY } from "../detect";
 
 // Tests run from the repository; pass it as the explicit root (#290).
 const ROOT = process.cwd();
 
-// detectTools spawns every registered tool's version probe for real. The
-// isolated runner runs 8 test files at once, and when this file shares a
-// batch with the other detect suite the probes queue past bun's 5s default.
-setDefaultTimeout(30_000);
+// detectTools probes run over a scripted ProcessPort (every tool reports
+// "not installed"), so this suite spawns nothing; the real-system probe
+// smoke test lives in detect.test.ts (#434).
 
 // ─── TOOL_REGISTRY metadata ────────────────────────────────────────────────
 
@@ -252,12 +252,16 @@ describe("getToolsForLanguages", () => {
 
 describe("detectTools with language filter", () => {
 	test("without languages parameter returns all tools (backward compatible)", async () => {
-		const results = await detectTools(ROOT);
+		const results = await detectTools(ROOT, undefined, createFakeProcess());
 		expect(results.length).toBe(Object.keys(TOOL_REGISTRY).length);
 	});
 
 	test("with ['typescript'] only detects relevant tools", async () => {
-		const results = await detectTools(ROOT, ["typescript"]);
+		const results = await detectTools(
+			ROOT,
+			["typescript"],
+			createFakeProcess(),
+		);
 		const names = results.map((t) => t.name);
 
 		// Should include TS and universal tools
@@ -273,7 +277,7 @@ describe("detectTools with language filter", () => {
 	});
 
 	test("with ['python'] only detects relevant tools", async () => {
-		const results = await detectTools(ROOT, ["python"]);
+		const results = await detectTools(ROOT, ["python"], createFakeProcess());
 		const names = results.map((t) => t.name);
 
 		expect(names).toContain("ruff");
@@ -283,12 +287,12 @@ describe("detectTools with language filter", () => {
 	});
 
 	test("with ['unknown'] detects all tools", async () => {
-		const results = await detectTools(ROOT, ["unknown"]);
+		const results = await detectTools(ROOT, ["unknown"], createFakeProcess());
 		expect(results.length).toBe(Object.keys(TOOL_REGISTRY).length);
 	});
 
 	test("each filtered result has correct DetectedTool shape", async () => {
-		const results = await detectTools(ROOT, ["go"]);
+		const results = await detectTools(ROOT, ["go"], createFakeProcess());
 		for (const tool of results) {
 			expect(typeof tool.name).toBe("string");
 			expect(typeof tool.command).toBe("string");
