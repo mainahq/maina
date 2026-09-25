@@ -262,6 +262,32 @@ describe("prAction", () => {
 		expect(capturedBase).toBe("develop");
 	});
 
+	test("passes the system process port to the verification proof (#433)", async () => {
+		const { systemProcess } = await import("@mainahq/core");
+		let capturedProcess: unknown;
+
+		const deps = makeDeps({
+			gatherVerificationProof: async (options) => {
+				capturedProcess = options.process;
+				return {
+					pipeline: [],
+					pipelinePassed: true,
+					pipelineDuration: 0,
+					tests: null,
+					review: null,
+					slop: null,
+					visual: null,
+					workflowSummary: null,
+				};
+			},
+		});
+
+		const result = await prAction({ title: "Port", cwd: tmpDir }, deps);
+
+		expect(result.created).toBe(true);
+		expect(capturedProcess).toBe(systemProcess);
+	});
+
 	test("empty diff → aborts without creating PR", async () => {
 		const deps = makeDeps({
 			getDiff: async () => "",

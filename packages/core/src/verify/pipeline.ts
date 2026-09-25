@@ -84,9 +84,11 @@ export interface PipelineOptions {
 	 */
 	env?: SpawnEnv;
 	/**
-	 * Starts every child process the pipeline runs (syntax guard, tool
-	 * detection, external runners, type checker, wiki lint). Callers pass
-	 * `CorePorts.process`; the system adapter when omitted.
+	 * Starts the pipeline's tool processes (syntax guard, tool detection,
+	 * external runners, type checker, wiki lint). Callers pass
+	 * `CorePorts.process`; the system adapter when omitted. Git reads (base
+	 * branch, staged files, the diff filter) go through the git module's
+	 * `GitPort`, not this port.
 	 */
 	process?: CorePorts["process"];
 }

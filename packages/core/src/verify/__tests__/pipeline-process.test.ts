@@ -1,7 +1,8 @@
 /**
  * Issue #433: `runPipeline` threads the caller's `ProcessPort`
- * (`CorePorts.process`) into every child it starts: the syntax guard, tool
- * detection, the external runners, the type checker and wiki lint.
+ * (`CorePorts.process`) into every tool it starts: the syntax guard, tool
+ * detection, the external runners, the type checker and wiki lint. Git
+ * reads use the git module's `GitPort` and are out of scope here.
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
@@ -19,7 +20,7 @@ afterEach(() => {
 });
 
 describe("runPipeline over an injected ProcessPort", () => {
-	test("every child process goes through the injected port", async () => {
+	test("every tool process goes through the injected port", async () => {
 		const root = mkdtempSync(join(tmpdir(), "maina-pipeline-proc-"));
 		dirs.push(root);
 		writeFileSync(join(root, "tsconfig.json"), "{}\n");

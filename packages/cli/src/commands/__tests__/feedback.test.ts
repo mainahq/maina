@@ -99,6 +99,22 @@ describe("feedbackIngestAction", () => {
 		}
 	});
 
+	test("runs gh through the system process port in the repo root (#433)", async () => {
+		const { systemProcess } = await import("@mainahq/core");
+		let captured: { cwd?: string; process?: unknown } = {};
+		await feedbackIngestAction(
+			{ repo: "mainahq/maina", pr: ["1"], cwd: tmpDir },
+			{
+				ingest: async (_mainaDir, opts) => {
+					captured = { cwd: opts.cwd, process: opts.process };
+					return { ok: true, value: { ingested: 0, skipped: 0 } };
+				},
+			},
+		);
+		expect(captured.cwd).toBe(tmpDir);
+		expect(captured.process).toBe(systemProcess);
+	});
+
 	test("returns ok=false with error message when --pr contains invalid token", async () => {
 		const result = await feedbackIngestAction(
 			{
