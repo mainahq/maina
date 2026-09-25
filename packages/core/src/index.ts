@@ -14,7 +14,7 @@ export {
 	type DesignApproach,
 	generateDesignApproaches,
 } from "./ai/design-approaches";
-export { generate } from "./ai/index";
+export { type AIContext, generate } from "./ai/index";
 export { generatePrSummary } from "./ai/pr-summary";
 export {
 	generateSpecQuestions,

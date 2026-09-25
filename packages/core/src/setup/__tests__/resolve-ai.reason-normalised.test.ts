@@ -2,8 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { EnvPort } from "../../ports/env";
 import type { StackContext } from "../context";
 import { resolveSetupAI } from "../resolve-ai";
+
+/** Live view of the test process env (tests toggle process.env directly). */
+const liveEnv: EnvPort = { get: (name) => process.env[name] };
 
 const STACK: StackContext = {
 	languages: ["typescript"],
@@ -74,6 +78,7 @@ describe("resolveSetupAI — normalised degraded reason", () => {
 		const cwd = tmp();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -102,6 +107,7 @@ describe("resolveSetupAI — normalised degraded reason", () => {
 		const cwd = tmp();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -122,6 +128,7 @@ describe("resolveSetupAI — normalised degraded reason", () => {
 		const cwd = tmp();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -149,6 +156,7 @@ describe("resolveSetupAI — normalised degraded reason", () => {
 		process.env.OPENROUTER_API_KEY = "sk-test";
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -170,6 +178,7 @@ describe("resolveSetupAI — normalised degraded reason", () => {
 		const cwd = tmp();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -198,6 +207,7 @@ describe("resolveSetupAI — normalised degraded reason", () => {
 		const cwd = tmp();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -225,6 +235,7 @@ describe("resolveSetupAI — normalised degraded reason", () => {
 		const cwd = tmp();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,

@@ -9,6 +9,7 @@ import {
 	recordFeedbackWithCompression,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { processEnv } from "../env";
 import { exitCodeFromResult, outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -27,8 +28,15 @@ interface ReviewActionResult {
 }
 
 interface ReviewDeps {
-	getDiff: (ref1?: string, ref2?: string, cwd?: string) => Promise<string>;
-	getChangedFiles: (since?: string, cwd?: string) => Promise<string[]>;
+	getDiff: (
+		ref1: string | undefined,
+		ref2: string | undefined,
+		cwd: string,
+	) => Promise<string>;
+	getChangedFiles: (
+		since: string | undefined,
+		cwd: string,
+	) => Promise<string[]>;
 	comprehensiveReview: typeof comprehensiveReview;
 }
 
@@ -139,7 +147,7 @@ async function reviewAction(
 	const base = options.base ?? "HEAD~1";
 
 	// ── AI availability check ────────────────────────────────────────────
-	const ai = checkAIAvailability();
+	const ai = checkAIAvailability(processEnv);
 	if (!ai.available) {
 		log.warning("Running without AI — deterministic checks only.");
 	}

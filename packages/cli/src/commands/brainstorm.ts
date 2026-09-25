@@ -9,6 +9,7 @@ import {
 	recordFeedbackAsync,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { processEnv } from "../env";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -135,7 +136,7 @@ export async function brainstormAction(
 	const mainaDir = join(cwd, ".maina");
 
 	// ── AI availability check ────────────────────────────────────────────
-	const ai = checkAIAvailability();
+	const ai = checkAIAvailability(processEnv);
 	if (!ai.available) {
 		log.error(ai.reason ?? "AI features unavailable.");
 		log.message(

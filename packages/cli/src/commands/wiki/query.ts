@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
 import type { Command } from "commander";
+import { processEnv } from "../../env";
 import { EXIT_PASSED, outputJson } from "../../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ export async function wikiQueryAction(
 		question,
 		maxArticles: 10,
 		repoRoot: cwd,
+		env: processEnv,
 	});
 
 	if (!result.ok) {

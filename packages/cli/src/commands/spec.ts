@@ -14,6 +14,7 @@ import {
 	type SpecQuestion,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { aiContext } from "../env";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -158,7 +159,11 @@ export async function specAction(
 
 	if (!options.noInteractive) {
 		const mainaDir = join(cwd, ".maina");
-		const questionsResult = await generateSpecQuestions(planContent, mainaDir);
+		const questionsResult = await generateSpecQuestions(
+			planContent,
+			mainaDir,
+			aiContext(cwd),
+		);
 
 		if (questionsResult.ok && questionsResult.value.length > 0) {
 			const answers = await askClarifyingQuestions(questionsResult.value);

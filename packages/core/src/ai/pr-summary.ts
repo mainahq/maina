@@ -1,3 +1,4 @@
+import type { AIContext } from "./index";
 import { tryAIGenerate } from "./try-generate";
 
 /**
@@ -11,6 +12,7 @@ export async function generatePrSummary(
 	commits: Array<{ hash: string; message: string }>,
 	reviewSummary: string,
 	mainaDir: string,
+	ctx: AIContext,
 ): Promise<string> {
 	const commitList = commits
 		.map((c) => `- ${c.message} (${c.hash.slice(0, 7)})`)
@@ -35,6 +37,7 @@ Instructions:
 - Do not repeat commit hashes or the full commit log
 - Do not include a review section (that's added separately)
 - Use markdown formatting`,
+		ctx,
 	);
 
 	if (aiResult.text && aiResult.fromAI) {

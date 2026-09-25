@@ -17,6 +17,7 @@ import {
 } from "@mainahq/core";
 import { Command } from "commander";
 import pkg from "../../package.json";
+import { processEnv } from "../env";
 import { EXIT_PASSED, outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -416,10 +417,10 @@ function checkAIStatus(cwd: string, cacheStats: CacheStats | null): AIStatus {
 	const mainaDir = join(cwd, ".maina");
 
 	// API Key
-	const apiKey = getApiKey() !== null;
+	const apiKey = getApiKey(processEnv) !== null;
 
 	// Host Mode
-	const hostMode = isHostMode();
+	const hostMode = isHostMode(processEnv);
 
 	// Feedback stats
 	let feedbackTotal = 0;

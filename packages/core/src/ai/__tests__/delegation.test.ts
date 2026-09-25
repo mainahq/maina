@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import type { EnvPort } from "../../ports/env";
 import {
 	type DelegationRequest,
 	formatDelegationRequest,
 	outputDelegationRequest,
 	parseDelegationRequest,
 } from "../delegation";
+
+/** Live view of the test process env (tests toggle process.env directly). */
+const liveEnv: EnvPort = { get: (name) => process.env[name] };
 
 describe("formatDelegationRequest", () => {
 	it("should format a request with all fields", () => {
@@ -150,7 +154,7 @@ describe("outputDelegationRequest", () => {
 			expectedFormat: "text",
 		};
 
-		outputDelegationRequest(req);
+		outputDelegationRequest(req, liveEnv);
 
 		// Must write to stderr
 		expect(stderrChunks.length).toBeGreaterThan(0);
@@ -170,12 +174,15 @@ describe("outputDelegationRequest", () => {
 		process.env.MAINA_MCP_SERVER = "1";
 		process.env.CLAUDE_CODE = "1";
 
-		outputDelegationRequest({
-			task: "test",
-			context: "ctx",
-			prompt: "p",
-			expectedFormat: "text",
-		});
+		outputDelegationRequest(
+			{
+				task: "test",
+				context: "ctx",
+				prompt: "p",
+				expectedFormat: "text",
+			},
+			liveEnv,
+		);
 
 		expect(stderrChunks.length).toBe(0);
 		expect(stdoutChunks.length).toBe(0);
@@ -190,12 +197,15 @@ describe("outputDelegationRequest", () => {
 		delete process.env.CURSOR_TRACE_ID;
 		delete process.env.MAINA_MCP_SERVER;
 
-		outputDelegationRequest({
-			task: "test",
-			context: "ctx",
-			prompt: "p",
-			expectedFormat: "text",
-		});
+		outputDelegationRequest(
+			{
+				task: "test",
+				context: "ctx",
+				prompt: "p",
+				expectedFormat: "text",
+			},
+			liveEnv,
+		);
 
 		expect(stderrChunks.length).toBe(0);
 		expect(stdoutChunks.length).toBe(0);

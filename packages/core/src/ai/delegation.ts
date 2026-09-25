@@ -6,6 +6,8 @@
  * parse and process with its own AI.
  */
 
+import type { EnvPort } from "../ports/env";
+
 // ─── Types ────────────────────────────────────────────────────────────────
 
 export interface DelegationRequest {
@@ -107,18 +109,21 @@ export function parseDelegationRequest(text: string): DelegationRequest | null {
  * (detected via CLAUDE_CODE, CURSOR, or similar env vars).
  * Silent in bare terminal to avoid confusing users.
  */
-export function outputDelegationRequest(req: DelegationRequest): void {
+export function outputDelegationRequest(
+	req: DelegationRequest,
+	env: EnvPort,
+): void {
 	// Never output in MCP mode — corrupts JSON-RPC communication
-	if (process.env.MAINA_MCP_SERVER === "1") {
+	if (env.get("MAINA_MCP_SERVER") === "1") {
 		return;
 	}
 
 	// Only output in bare CLI when inside an AI tool that can process it
 	const inAITool =
-		process.env.CLAUDE_CODE === "1" ||
-		process.env.CLAUDE_PROJECT_DIR ||
-		process.env.CURSOR_TRACE_ID ||
-		process.env.CONTINUE_GLOBAL_DIR;
+		env.get("CLAUDE_CODE") === "1" ||
+		env.get("CLAUDE_PROJECT_DIR") ||
+		env.get("CURSOR_TRACE_ID") ||
+		env.get("CONTINUE_GLOBAL_DIR");
 
 	if (!inAITool) {
 		return;

@@ -448,6 +448,7 @@ describe("maina wiki query", () => {
 			wikiDir,
 			question: "how does auth work?",
 			repoRoot: tmpDir,
+			env: { get: () => undefined },
 			_aiGenerate: async () => ({
 				text: "Auth uses JWT tokens [[decisions/use-jwt.md]]. The core module exposes authenticate() [[modules/core.md]].",
 				fromAI: true,

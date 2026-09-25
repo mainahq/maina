@@ -1,5 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { TryAIResult } from "../../ai/try-generate";
+import { createFakeEnv } from "../../ports/testing";
+
+const TEST_AI = { root: ".", env: createFakeEnv() };
 
 let mockAIResult: TryAIResult = {
 	text: null,
@@ -58,7 +61,7 @@ Empty diff returns no findings`;
 
 		mockAIResult = { text: hldLldContent, fromAI: true, hostDelegation: false };
 
-		const result = await generateHldLld("Test spec content", ".maina");
+		const result = await generateHldLld("Test spec content", ".maina", TEST_AI);
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
@@ -69,7 +72,7 @@ Empty diff returns no findings`;
 	it("should return error when AI is unavailable", async () => {
 		mockAIResult = { text: null, fromAI: false, hostDelegation: false };
 
-		const result = await generateHldLld("Test spec", ".maina");
+		const result = await generateHldLld("Test spec", ".maina", TEST_AI);
 
 		expect(result.ok).toBe(false);
 	});
@@ -81,7 +84,7 @@ Empty diff returns no findings`;
 			hostDelegation: true,
 		};
 
-		const result = await generateHldLld("Test spec content", ".maina");
+		const result = await generateHldLld("Test spec content", ".maina", TEST_AI);
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
@@ -101,7 +104,7 @@ Empty diff returns no findings`;
 			},
 		};
 
-		const result = await generateHldLld("Test spec", ".maina");
+		const result = await generateHldLld("Test spec", ".maina", TEST_AI);
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.value).toContain("Test spec");

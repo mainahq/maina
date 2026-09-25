@@ -24,6 +24,7 @@ import {
 	tryAIGenerate,
 } from "../ai/try-generate";
 import { getApiKey, isHostMode } from "../config/index";
+import type { EnvPort } from "../ports/env";
 import type { Rule } from "./adopt";
 import { formatProvenanceComment } from "./adopt";
 import type { StackContext } from "./context";
@@ -63,6 +64,8 @@ export type SetupAIResult =
 
 export interface ResolveAIOptions {
 	cwd: string;
+	/** Environment deciding host mode and the BYOK key. */
+	env: EnvPort;
 	stack: StackContext;
 	repoSummary: string;
 	/** Pre-computed device fingerprint for the cloud rate-limit header. */
@@ -150,7 +153,7 @@ export async function resolveSetupAI(
 
 	// ── 1. Host ────────────────────────────────────────────────────────────────
 	let hostFailed = false;
-	if (wantTier("host") && isHostMode()) {
+	if (wantTier("host") && isHostMode(opts.env)) {
 		attempted.push("host");
 		const hostResult = await runHostTier(opts, prompt);
 		if (hostResult !== null) {
@@ -234,7 +237,7 @@ export async function resolveSetupAI(
 	let byokAttempted = false;
 	if (wantTier("byok")) {
 		attempted.push("byok");
-		const apiKey = getApiKey();
+		const apiKey = getApiKey(opts.env);
 		if (apiKey !== null || opts.byokGenerate !== undefined) {
 			byokAttempted = true;
 			const text = await runByokTier(opts, prompt);
@@ -264,7 +267,7 @@ export async function resolveSetupAI(
 		reason = "forced";
 	} else if (degradedHint.reason !== undefined) {
 		reason = degradedHint.reason;
-	} else if (!byokAttempted && getApiKey() === null) {
+	} else if (!byokAttempted && getApiKey(opts.env) === null) {
 		reason = "no_key";
 	} else {
 		reason = "ai_unavailable";
@@ -306,7 +309,11 @@ async function runHostTier(
 	try {
 		const fn =
 			opts.hostGenerate ??
-			((p: string, d: string) => tryAIGenerate("setup", d, variables, p));
+			((p: string, d: string) =>
+				tryAIGenerate("setup", d, variables, p, {
+					root: opts.cwd,
+					env: opts.env,
+				}));
 		result = await fn(prompt, mainaDir);
 	} catch {
 		return null;
@@ -433,6 +440,8 @@ async function runByokTier(
 				"You are the maina setup assistant. Produce a project constitution as concise markdown.",
 			userPrompt: prompt,
 			mainaDir: join(opts.cwd, ".maina"),
+			root: opts.cwd,
+			env: opts.env,
 		});
 		const text = result.text ?? "";
 		// `generate()` returns explanatory strings on failure — filter those out

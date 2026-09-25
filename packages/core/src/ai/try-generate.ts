@@ -1,5 +1,6 @@
 import { getApiKey, isHostMode } from "../config/index";
 import { outputDelegationRequest } from "./delegation";
+import type { AIContext } from "./index";
 
 export interface DelegationPrompt {
 	task: string;
@@ -31,11 +32,12 @@ export async function tryAIGenerate(
 	mainaDir: string,
 	variables: Record<string, string>,
 	userPrompt: string,
+	ctx: AIContext,
 ): Promise<TryAIResult> {
-	const apiKey = getApiKey();
+	const apiKey = getApiKey(ctx.env);
 
 	// Not in host mode and no key → unavailable
-	if (!apiKey && !isHostMode()) {
+	if (!apiKey && !isHostMode(ctx.env)) {
 		return { text: null, fromAI: false, hostDelegation: false };
 	}
 
@@ -53,6 +55,8 @@ export async function tryAIGenerate(
 				systemPrompt: builtPrompt.prompt,
 				userPrompt,
 				mainaDir,
+				root: ctx.root,
+				env: ctx.env,
 			});
 
 			// Skip delegation responses from generate() — we handle it below
@@ -71,20 +75,23 @@ export async function tryAIGenerate(
 		}
 
 		// Output structured request for host agent to process
-		outputDelegationRequest({
-			task,
-			context: `AI ${task} requested — process with host AI`,
-			prompt: userPrompt,
-			expectedFormat:
-				task === "commit"
-					? "text"
-					: task.includes("review")
-						? "json"
-						: "markdown",
-			schema: task.includes("review")
-				? '{"findings":[{"file":"path","line":42,"message":"desc","severity":"warning"}]}'
-				: undefined,
-		});
+		outputDelegationRequest(
+			{
+				task,
+				context: `AI ${task} requested — process with host AI`,
+				prompt: userPrompt,
+				expectedFormat:
+					task === "commit"
+						? "text"
+						: task.includes("review")
+							? "json"
+							: "markdown",
+				schema: task.includes("review")
+					? '{"findings":[{"file":"path","line":42,"message":"desc","severity":"warning"}]}'
+					: undefined,
+			},
+			ctx.env,
+		);
 
 		// Host mode — return structured delegation for host agent to process
 		return {

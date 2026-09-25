@@ -16,6 +16,7 @@ import {
 import { join, relative } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { processEnv } from "../env";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -156,6 +157,7 @@ export function registerWikiTools(server: McpServer): void {
 					question,
 					maxArticles: 10,
 					repoRoot: cwd,
+					env: processEnv,
 				});
 
 				if (!result.ok) {

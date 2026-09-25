@@ -5,6 +5,7 @@
 import { join } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { aiContext } from "../env";
 
 export function registerFeatureTools(server: McpServer): void {
 	server.tool(
@@ -25,6 +26,7 @@ export function registerFeatureTools(server: McpServer): void {
 					planPath.includes(".maina")
 						? planPath.slice(0, planPath.indexOf(".maina") + ".maina".length)
 						: ".maina",
+					aiContext(process.cwd()),
 				);
 				const durationMs = Date.now() - start;
 

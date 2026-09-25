@@ -6,6 +6,7 @@
  * - standard (--deep): adds spec/plan context, can emit errors
  */
 
+import type { AIContext } from "../ai/index";
 import { tryAIGenerate } from "../ai/try-generate";
 import { buildCacheKey, hashContent } from "../cache/keys";
 import { createCacheManager } from "../cache/manager";
@@ -28,7 +29,8 @@ export interface EntityWithBody {
 	body: string;
 }
 
-export interface AIReviewOptions {
+/** `root` + `env` decide the AI provider, key and host delegation. */
+export interface AIReviewOptions extends AIContext {
 	diff: string;
 	entities: EntityWithBody[];
 	deep?: boolean;
@@ -190,6 +192,8 @@ export async function runAIReview(
 		specContext,
 		planContext,
 		mainaDir,
+		root,
+		env,
 	} = options;
 
 	if (!diff.trim()) {
@@ -253,7 +257,10 @@ export async function runAIReview(
 
 	const userPrompt = `Review this diff for semantic issues:\n\n${diff}`;
 
-	const aiResult = await tryAIGenerate(task, mainaDir, variables, userPrompt);
+	const aiResult = await tryAIGenerate(task, mainaDir, variables, userPrompt, {
+		root,
+		env,
+	});
 
 	const duration = Math.round(performance.now() - start);
 	const tier = deep ? "standard" : "mechanical";

@@ -12,27 +12,30 @@ import {
 	parseShortstat,
 } from "../index";
 
+/** This repository: the tests read real git state from it. */
+const REPO = import.meta.dir;
+
 describe("git operations", () => {
 	test("getCurrentBranch() returns a non-empty string", async () => {
-		const branch = await getCurrentBranch();
+		const branch = await getCurrentBranch(REPO);
 		expect(typeof branch).toBe("string");
 		expect(branch.length).toBeGreaterThan(0);
 	});
 
 	test("getBranchName() is an alias for getCurrentBranch()", async () => {
-		const branch = await getBranchName();
+		const branch = await getBranchName(REPO);
 		expect(typeof branch).toBe("string");
 		expect(branch.length).toBeGreaterThan(0);
 	});
 
 	test("getRepoRoot() returns a path that contains 'maina'", async () => {
-		const root = await getRepoRoot();
+		const root = await getRepoRoot(REPO);
 		expect(typeof root).toBe("string");
 		expect(root).toContain("maina");
 	});
 
 	test("getRecentCommits(5) returns an array (may be empty for new repo)", async () => {
-		const commits = await getRecentCommits(5);
+		const commits = await getRecentCommits(5, REPO);
 		expect(Array.isArray(commits)).toBe(true);
 		for (const commit of commits) {
 			expect(typeof commit.hash).toBe("string");
@@ -43,7 +46,7 @@ describe("git operations", () => {
 	});
 
 	test("getChangedFiles() returns an array of strings", async () => {
-		const files = await getChangedFiles();
+		const files = await getChangedFiles(undefined, REPO);
 		expect(Array.isArray(files)).toBe(true);
 		for (const file of files) {
 			expect(typeof file).toBe("string");
@@ -51,7 +54,7 @@ describe("git operations", () => {
 	});
 
 	test("getStagedFiles() returns an array", async () => {
-		const files = await getStagedFiles();
+		const files = await getStagedFiles(REPO);
 		expect(Array.isArray(files)).toBe(true);
 		for (const file of files) {
 			expect(typeof file).toBe("string");
@@ -59,7 +62,7 @@ describe("git operations", () => {
 	});
 
 	test("getDiff() returns a string", async () => {
-		const diff = await getDiff();
+		const diff = await getDiff(undefined, undefined, REPO);
 		expect(typeof diff).toBe("string");
 	});
 
@@ -102,7 +105,7 @@ describe("git operations", () => {
 	});
 
 	test("getDiffStats() returns a stats object (may be zero)", async () => {
-		const stats = await getDiffStats();
+		const stats = await getDiffStats({ cwd: REPO });
 		expect(typeof stats.additions).toBe("number");
 		expect(typeof stats.deletions).toBe("number");
 		expect(typeof stats.files).toBe("number");
@@ -112,12 +115,12 @@ describe("git operations", () => {
 	});
 
 	test("getDiffStats() returns zeros when only `from` or `to` is set", async () => {
-		expect(await getDiffStats({ from: "HEAD" })).toEqual({
+		expect(await getDiffStats({ from: "HEAD", cwd: REPO })).toEqual({
 			additions: 0,
 			deletions: 0,
 			files: 0,
 		});
-		expect(await getDiffStats({ to: "HEAD" })).toEqual({
+		expect(await getDiffStats({ to: "HEAD", cwd: REPO })).toEqual({
 			additions: 0,
 			deletions: 0,
 			files: 0,
@@ -125,7 +128,7 @@ describe("git operations", () => {
 	});
 
 	test("getRepoSlug() returns owner/repo format", async () => {
-		const slug = await getRepoSlug();
+		const slug = await getRepoSlug(REPO);
 		expect(typeof slug).toBe("string");
 		// Should contain a slash (owner/repo) or at minimum be non-empty
 		expect(slug.length).toBeGreaterThan(0);

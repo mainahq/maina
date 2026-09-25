@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Result } from "../db/index";
+import type { EnvPort } from "../ports/env";
 import type { CorePorts } from "../ports/index";
 import {
 	type Config,
@@ -79,12 +80,13 @@ export async function loadConfig(
 }
 
 /**
- * Walks up the directory tree starting at `startDir` (defaults to
- * process.cwd()) looking for `maina.config.ts` then `maina.config.js`.
- * Returns the absolute path of the first match, or null if none found.
+ * Walks up the directory tree starting at the explicit `startDir` (the
+ * repository root or a directory inside it) looking for `maina.config.ts`
+ * then `maina.config.js`. Returns the path of the first match, or null if
+ * none found.
  */
-export function findConfigFile(startDir?: string): string | null {
-	let dir = startDir ?? process.cwd();
+export function findConfigFile(startDir: string): string | null {
+	let dir = startDir;
 	const names = ["maina.config.ts", "maina.config.js"];
 
 	while (true) {
@@ -136,7 +138,7 @@ function fromLegacyModule(raw: unknown): unknown {
  * validates it and merges it over the defaults with the same defined merge
  * as {@link loadConfig}. Falls back to the defaults on any error.
  */
-export async function loadConfigModule(startDir?: string): Promise<Config> {
+export async function loadConfigModule(startDir: string): Promise<Config> {
 	const configPath = findConfigFile(startDir);
 
 	if (configPath === null) {
@@ -163,11 +165,11 @@ export async function loadConfigModule(startDir?: string): Promise<Config> {
  * ANTHROPIC_API_KEY (set by Claude Code and similar host agents).
  * Returns null when no key is found.
  */
-export function getApiKey(): string | null {
+export function getApiKey(env: EnvPort): string | null {
 	return (
-		process.env.MAINA_API_KEY ??
-		process.env.OPENROUTER_API_KEY ??
-		process.env.ANTHROPIC_API_KEY ??
+		env.get("MAINA_API_KEY") ??
+		env.get("OPENROUTER_API_KEY") ??
+		env.get("ANTHROPIC_API_KEY") ??
 		null
 	);
 }
@@ -181,20 +183,20 @@ export function getApiKey(): string | null {
  * - ANTHROPIC_API_KEY → "anthropic"
  * - Otherwise → config default
  */
-export function resolveProvider(config: Pick<Config, "provider">): string {
+export function resolveProvider(
+	config: Pick<Config, "provider">,
+	env: EnvPort,
+): string {
 	// Explicit override always wins
-	if (process.env.MAINA_PROVIDER) {
-		return process.env.MAINA_PROVIDER;
+	const override = env.get("MAINA_PROVIDER");
+	if (override) {
+		return override;
 	}
 
 	// Host mode auto-detection: if running inside Claude Code or similar,
 	// ANTHROPIC_API_KEY is available but no explicit Maina key
-	if (isHostMode()) {
-		if (
-			process.env.ANTHROPIC_API_KEY &&
-			!process.env.MAINA_API_KEY &&
-			!process.env.OPENROUTER_API_KEY
-		) {
+	if (isHostMode(env)) {
+		if (onlyAnthropicKey(env)) {
 			return "anthropic";
 		}
 	}
@@ -213,21 +215,23 @@ export function resolveProvider(config: Pick<Config, "provider">): string {
  * - CURSOR=1 (Cursor sets this)
  * - ANTHROPIC_API_KEY without MAINA_API_KEY
  */
-export function isHostMode(): boolean {
-	if (process.env.MAINA_HOST_MODE === "true") return true;
+export function isHostMode(env: EnvPort): boolean {
+	if (env.get("MAINA_HOST_MODE") === "true") return true;
 	// Claude Code sets CLAUDECODE=1 (no underscore) and CLAUDE_CODE_ENTRYPOINT
-	if (process.env.CLAUDECODE === "1") return true;
-	if (process.env.CLAUDE_CODE_ENTRYPOINT) return true;
-	if (process.env.CURSOR === "1") return true;
+	if (env.get("CLAUDECODE") === "1") return true;
+	if (env.get("CLAUDE_CODE_ENTRYPOINT")) return true;
+	if (env.get("CURSOR") === "1") return true;
 	// Infer host mode when we have an Anthropic key but no explicit Maina config
-	if (
-		process.env.ANTHROPIC_API_KEY &&
-		!process.env.MAINA_API_KEY &&
-		!process.env.OPENROUTER_API_KEY
-	) {
-		return true;
-	}
-	return false;
+	return onlyAnthropicKey(env);
+}
+
+/** An Anthropic key is present without an explicit Maina/OpenRouter key. */
+function onlyAnthropicKey(env: EnvPort): boolean {
+	return Boolean(
+		env.get("ANTHROPIC_API_KEY") &&
+			!env.get("MAINA_API_KEY") &&
+			!env.get("OPENROUTER_API_KEY"),
+	);
 }
 
 /**
@@ -239,11 +243,11 @@ export function isHostMode(): boolean {
  * this function's delegation. The generate() function handles this by
  * returning a [HOST_DELEGATION] prompt string.
  */
-export function shouldDelegateToHost(): boolean {
-	if (!isHostMode()) return false;
+export function shouldDelegateToHost(env: EnvPort): boolean {
+	if (!isHostMode(env)) return false;
 	// If user has their own API key, use it directly
-	if (process.env.MAINA_API_KEY || process.env.OPENROUTER_API_KEY) return false;
-	if (process.env.ANTHROPIC_API_KEY) return false;
+	if (env.get("MAINA_API_KEY") || env.get("OPENROUTER_API_KEY")) return false;
+	if (env.get("ANTHROPIC_API_KEY")) return false;
 	// In host mode with no key — delegate to host agent
 	return true;
 }
