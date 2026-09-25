@@ -67,7 +67,16 @@ export type GateResult = Readonly<{
 	confidence?: number;
 	/** A rewrite of the tool input for the host to run instead. */
 	rewrittenInput?: Readonly<Record<string, unknown>>;
+	/**
+	 * What the decision log needs for each of `decisionIds`: the policy
+	 * `decide` ran with (after the trust stage) and every request with its
+	 * decision, in `decisionIds` order. Absent when no decision was made.
+	 */
+	decided?: Readonly<{ policy: Policy; answers: readonly GateAnswer[] }>;
 }>;
+
+/** One `action.risk` question the gate asked and the decision it got. */
+type GateAnswer = Readonly<{ request: DecideRequest; decision: Decision }>;
 
 /**
  * Appended to a gate decision's id to name the second half of its two-order
@@ -137,6 +146,9 @@ function evaluate(
 		decisionIds: model.ids,
 		degraded: blind || model.degraded,
 		...(model.confidence === undefined ? {} : { confidence: model.confidence }),
+		...(model.answers === undefined || model.answers.length === 0
+			? {}
+			: { decided: { policy: narrowed.policy, answers: model.answers } }),
 	};
 }
 
@@ -213,6 +225,8 @@ type ModelOutcome = Readonly<{
 	note: string | undefined;
 	/** The lowest confidence among the answers, when there were any. */
 	confidence?: number;
+	/** Every answer collected, in `ids` order. */
+	answers?: readonly GateAnswer[];
 }>;
 
 const NO_MODEL: ModelOutcome = {
@@ -249,21 +263,25 @@ function consultModel(
 	const id = ports.newId();
 	const started = ports.clock.now();
 	const orders = highRisk ? [false, true] : [false];
-	const decisions: Decision[] = [];
+	const answers: GateAnswer[] = [];
+	const decisions = () => answers.map((a) => a.decision);
 	for (const reversed of orders) {
 		const request = riskRequest(event, rules, policy, highRisk, id, reversed);
 		const result = decide(decidePorts, request);
-		const ids = decisions.map((d) => d.id);
-		if (!result.ok) return failed(result.error, ids);
+		const ids = decisions().map((d) => d.id);
+		if (!result.ok) return { ...failed(result.error, ids), answers };
 		const [decision] = result.value;
-		if (decision === undefined) return modelAsk(ids, true, "no decision");
-		decisions.push(decision);
+		if (decision === undefined) {
+			return { ...modelAsk(ids, true, "no decision"), answers };
+		}
+		answers.push({ request, decision });
 	}
 	const elapsed = ports.clock.now() - started;
-	const judged = judgeAnswers(decisions, policy, ports.budgetMs, elapsed);
+	const judged = judgeAnswers(decisions(), policy, ports.budgetMs, elapsed);
 	return {
 		...judged,
-		confidence: Math.min(...decisions.map((d) => d.confidence)),
+		answers,
+		confidence: Math.min(...decisions().map((d) => d.confidence)),
 	};
 }
 

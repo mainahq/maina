@@ -854,3 +854,51 @@ describe("latency budget (FR-GATE-6)", () => {
 		expect(p95).toBeLessThanOrEqual(50);
 	});
 });
+
+// ── Answers for the decision log ────────────────────────────────────────────
+
+describe("the action.risk answers behind a verdict, for the log", () => {
+	test("every decision id comes with its request, decision and policy", () => {
+		const result = evaluateGate(
+			withModel(() => ({ verdict: "allow", p: 0.99 })),
+			shellEvent("npm publish"),
+			modelPolicy(loosen("package.publish", "user")),
+		);
+		const answers = result.decided?.answers ?? [];
+		expect(answers.map((a) => a.decision.id)).toEqual([...result.decisionIds]);
+		expect(answers.length).toBe(2);
+		for (const { request, decision } of answers) {
+			expect(request.type).toBe("action.risk");
+			expect(request.questions.map((q) => q.id)).toContain(decision.id);
+		}
+		expect(result.decided?.policy.decisions["action.risk"]?.backend).toBe(
+			"system1",
+		);
+	});
+
+	test("a rule deciding alone has no answers", () => {
+		const result = evaluateGate(
+			gatePorts(),
+			shellEvent("git status"),
+			withRules({ deny: [{ match: "git status" }] }),
+		);
+		expect(result.decisionIds).toEqual([]);
+		expect(result.decided).toBeUndefined();
+	});
+
+	test("a second order that fails still reports the first answer", () => {
+		let calls = 0;
+		const result = evaluateGate(
+			withModel(() =>
+				++calls === 1 ? { verdict: "allow", p: 0.99 } : "unsupported",
+			),
+			shellEvent("npm publish"),
+			modelPolicy(loosen("package.publish", "user")),
+		);
+		expect(result.verdict).toBe("ask");
+		expect(result.decisionIds.length).toBe(1);
+		expect(result.decided?.answers.map((a) => a.decision.id)).toEqual([
+			...result.decisionIds,
+		]);
+	});
+});

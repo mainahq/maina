@@ -11,12 +11,17 @@
 
 import { isAbsolute, resolve } from "node:path";
 import {
+	appendDecision,
 	type BackendRegistry,
+	buildDecisionRecord,
 	type ClockPort,
 	type GateEvent as CoreGateEvent,
+	type DbPort,
 	DEFAULT_REGISTRY,
 	evaluateGate,
 	type GateContext,
+	type GateEvaluation,
+	logPrivacy,
 	type PermissionMode,
 	type Policy,
 	type Result,
@@ -150,6 +155,20 @@ export type GateEvaluatorDeps = Readonly<{
 	backends?: BackendRegistry;
 	/** Repo loosenings the user confirmed (see core `GatePorts`). */
 	confirmedLoosenings?: readonly string[];
+	/**
+	 * Where a root's gate decisions are logged, or null when that root keeps
+	 * no log. Absent: nothing is logged. A failure only skips the logging.
+	 */
+	logFor?: (root: string) => Promise<Result<GateLog | null, unknown>>;
+}>;
+
+/** A root's decision log (FR-DEC-3, FR-DEC-5). */
+export type GateLog = Readonly<{
+	db: DbPort;
+	/** The repo's salt (core `loadLogSalt`): every record is keyed by it. */
+	salt: string;
+	/** Wall-clock milliseconds, for the records' `ts`. */
+	now: () => number;
 }>;
 
 /**
@@ -195,6 +214,7 @@ export function createGateEvaluator(
 					? withBackend(policy.value, "action.risk", "rules")
 					: policy.value,
 			);
+			await logDecisions(deps, root, core, result);
 			return {
 				verdict: result.verdict,
 				reason: result.reason,
@@ -207,6 +227,47 @@ export function createGateEvaluator(
 			);
 		}
 	};
+}
+
+/**
+ * Appends each `action.risk` decision behind `result` to the root's log,
+ * keyed by the repo's salt. Never rejects and never changes the verdict: a
+ * log that cannot be opened, or a salt that cannot be loaded, logs nothing
+ * (never an unsalted record), and a failed append skips that record.
+ */
+async function logDecisions(
+	deps: GateEvaluatorDeps,
+	root: string,
+	event: CoreGateEvent,
+	result: GateEvaluation,
+): Promise<void> {
+	const { decided } = result;
+	if (deps.logFor === undefined || decided === undefined) return;
+	try {
+		const log = await deps.logFor(root);
+		if (!log.ok || log.value === null) return;
+		const { db, salt, now } = log.value;
+		const privacy = logPrivacy(decided.policy, salt);
+		const ts = now();
+		for (const { request, decision } of decided.answers) {
+			const record = buildDecisionRecord(
+				{
+					id: decision.id,
+					ts,
+					request,
+					decision,
+					policy: decided.policy,
+					finalAction: result.verdict,
+					host: event.host,
+					sessionId: event.sessionId === "" ? undefined : event.sessionId,
+				},
+				privacy,
+			);
+			if (record.ok) appendDecision({ db, privacy }, record.value);
+		}
+	} catch {
+		// The log is evidence, not the gate: losing a record never blocks.
+	}
 }
 
 // ── Wire event → core event ─────────────────────────────────────────────────
