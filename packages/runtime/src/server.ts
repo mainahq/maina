@@ -128,10 +128,8 @@ export function startRuntime(
 
 	let requests = 0;
 	let stopping: StopReason | null = null;
-	let resolveClosed: (reason: StopReason) => void = () => {};
-	const closed = new Promise<StopReason>((resolve) => {
-		resolveClosed = resolve;
-	});
+	const { promise: closed, resolve: resolveClosed } =
+		Promise.withResolvers<StopReason>();
 	const conns = new Set<Socket<Conn>>();
 	let listener: UnixSocketListener<Conn> | null = null;
 	let graceTimer: ReturnType<typeof setTimeout> | undefined;
