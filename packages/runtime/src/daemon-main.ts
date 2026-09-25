@@ -14,6 +14,8 @@ import { parseArgs } from "node:util";
 import { systemGates } from "./gate-system";
 import { createGraphSync, systemGraphSyncPorts } from "./graph-hooks";
 import { startRuntime } from "./server";
+import { createStopVerify } from "./stop-verify";
+import { systemStopVerifyPorts } from "./stop-verify-system";
 
 type Args = Readonly<{
 	address: string;
@@ -64,8 +66,17 @@ export async function runDaemon(argv: readonly string[]): Promise<number> {
 			);
 		},
 	});
+	// Remembers each session's edits and verifies them on its stop (FR-VER-7).
+	const stops = createStopVerify(systemStopVerifyPorts());
 	const started = startRuntime(
-		{ gate: systemGates().runtime, observe: graph.observe },
+		{
+			gate: systemGates().runtime,
+			observe: (event) => {
+				stops.observe(event);
+				return graph.observe(event);
+			},
+			stop: stops.stop,
+		},
 		{
 			endpoint: {
 				address: args.address,
