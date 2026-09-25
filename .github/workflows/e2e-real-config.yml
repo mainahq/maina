@@ -1,0 +1,85 @@
+name: E2E real-config
+
+# v1 task 0.1 (FR-INS-6): for every OS × host × install path, run the real
+# installer in a throwaway HOME, read the MCP config from the location the
+# host actually reads, spawn that exact command with a GUI-launched env and
+# complete an MCP handshake plus one `verify` call.
+#
+# Known failures (P1–P4, missing plugins) are listed in
+# ci/e2e/real-config/matrix.ts `KNOWN_FAILURES`, each linked to the issue
+# that fixes it. A cell goes red when a known failure fails for a different
+# reason, or starts passing (then delete its entry).
+#
+# Separate from the `CI` workflow on purpose: these cells need the network
+# (bunx resolution) and spawn real processes, so they never gate `ci`.
+
+on:
+  pull_request:
+    branches: [master, "v1/**"]
+    paths:
+      - "install.sh"
+      - "packages/cli/src/**"
+      - "packages/core/src/mcp/**"
+      - "packages/core/src/setup/**"
+      - "packages/mcp/src/**"
+      - "ci/e2e/real-config/**"
+      - ".github/workflows/e2e-real-config.yml"
+  push:
+    branches: ["v1/main"]
+    paths:
+      - "install.sh"
+      - "packages/cli/src/**"
+      - "packages/core/src/mcp/**"
+      - "packages/core/src/setup/**"
+      - "packages/mcp/src/**"
+      - "ci/e2e/real-config/**"
+      - ".github/workflows/e2e-real-config.yml"
+  schedule:
+    - cron: "30 9 * * *" # 09:30 UTC daily
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-real-config-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    name: harness typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc -p ci/e2e/real-config
+
+  matrix:
+    name: ${{ matrix.os }} / ${{ matrix.host }} / ${{ matrix.path }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        host: [claude-code, cursor, codex]
+        path: [plugin, cli-setup, cli-mcp-add, install-sh]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Run cell (all env modes)
+        env:
+          E2E_HOST: ${{ matrix.host }}
+          E2E_INSTALL_PATH: ${{ matrix.path }}
+        run: bun test ci/e2e/real-config 2>&1 | tee e2e.log; exit "${PIPESTATUS[0]}"
+        shell: bash
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-real-config-${{ matrix.os }}-${{ matrix.host }}-${{ matrix.path }}
+          path: e2e.log

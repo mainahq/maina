@@ -23,7 +23,8 @@
     "check:paths": "bun scripts/check-paths.ts",
     "docs:manifest": "bun scripts/docs-manifest.ts",
     "docs:check": "bun scripts/docs-manifest.ts --check",
-    "e2e:onboarding": "bun ci/e2e/run-local.ts ts claude-code"
+    "e2e:onboarding": "bun ci/e2e/run-local.ts ts claude-code",
+    "e2e:real-config": "bun test ci/e2e/real-config"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.12",
