@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "cursor.after-file-edit.input",
+  "description": "Cursor afterFileEdit hook stdin payload (common fields + hook-specific fields). Unknown properties are allowed.",
+  "x-source": {
+    "url": "https://cursor.com/docs/hooks#afterfileedit",
+    "retrieved": "2026-09-26"
+  },
+  "type": "object",
+  "required": [
+    "conversation_id",
+    "generation_id",
+    "model",
+    "hook_event_name",
+    "cursor_version",
+    "workspace_roots",
+    "user_email",
+    "transcript_path",
+    "file_path",
+    "edits"
+  ],
+  "properties": {
+    "conversation_id": {
+      "type": "string"
+    },
+    "generation_id": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "model_id": {
+      "type": "string"
+    },
+    "model_params": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "value"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "cursor_version": {
+      "type": "string"
+    },
+    "workspace_roots": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "user_email": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "transcript_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hook_event_name": {
+      "const": "afterFileEdit"
+    },
+    "file_path": {
+      "type": "string"
+    },
+    "edits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "old_string",
+          "new_string"
+        ],
+        "properties": {
+          "old_string": {
+            "type": "string"
+          },
+          "new_string": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

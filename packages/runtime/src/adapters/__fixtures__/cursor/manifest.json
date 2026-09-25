@@ -122,6 +122,15 @@
       "origin": "docs"
     },
     {
+      "file": "after-file-edit.input.json",
+      "schema": "schemas/after-file-edit.input.schema.json",
+      "event": "afterFileEdit",
+      "direction": "input",
+      "covers": "post-tool",
+      "origin": "docs",
+      "notes": "afterFileEdit is observational: Cursor documents no output fields, so the hook prints `{}`."
+    },
+    {
       "file": "stop.input.json",
       "schema": "schemas/stop.input.schema.json",
       "event": "stop",

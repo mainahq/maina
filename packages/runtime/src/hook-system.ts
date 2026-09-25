@@ -1,5 +1,6 @@
 /**
- * The real Claude Code hook (FR-GATE-7): `runClaudeHook` over the machine.
+ * The real Claude Code and Cursor hooks (FR-GATE-7): `runClaudeHook` and
+ * `runCursorHook` over the machine.
  *
  * - The gate is the fail-closed hook client (ADR 0044): it asks the resident
  *   runtime, spawning one when none answers, and falls back to the
@@ -9,8 +10,9 @@
  *   from the repository's decision log (`.maina/decisions.db`), when there
  *   is one; a repository without one gets no summary.
  *
- * `runClaudeHookProcess` is the whole hook process: stdin in, the host's
- * answer out. The standalone runtime's `hook` mode runs it.
+ * `runClaudeHookProcess` and `runCursorHookProcess` are the whole hook
+ * process: stdin in, the host's answer out. The standalone runtime's `hook`
+ * mode runs them.
  */
 
 import { existsSync } from "node:fs";
@@ -26,6 +28,7 @@ import {
 	runClaudeHook,
 } from "./claude-hook";
 import { createHookClient } from "./client/hook-client";
+import { runCursorHook } from "./cursor-hook";
 import { systemGates } from "./gate-system";
 import { daemonSpawner } from "./lifecycle";
 import { defaultRuntimeDir, resolveEndpoint } from "./registry";
@@ -94,6 +97,21 @@ export function systemClaudeHookPorts(
  */
 export async function runClaudeHookProcess(hookEvent: string): Promise<number> {
 	const run: ClaudeHookRun = await runClaudeHook(
+		await Bun.stdin.text(),
+		systemClaudeHookPorts(),
+		hookEvent,
+	);
+	process.stdout.write(run.output.stdout);
+	if (run.output.stderr !== "") process.stderr.write(run.output.stderr);
+	return run.output.exitCode;
+}
+
+/**
+ * One hook process for Cursor event `hookEvent` (mainahq/maina#310): the
+ * same gate and summary as Claude Code, in Cursor's wire format.
+ */
+export async function runCursorHookProcess(hookEvent: string): Promise<number> {
+	const run = await runCursorHook(
 		await Bun.stdin.text(),
 		systemClaudeHookPorts(),
 		hookEvent,
