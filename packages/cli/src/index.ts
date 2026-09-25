@@ -9,6 +9,7 @@
 
 import { sendCliErrorReport, VERSION } from "@mainahq/core";
 import { processEnv } from "./env";
+import { fetchNetwork, nodeFs } from "./ports";
 
 // ── Top-level error handling ────────────────────────────────────────────────
 
@@ -49,9 +50,13 @@ function printAndReport(err: unknown, origin: string): void {
 	process.exitCode = exitCode;
 
 	// Fire-and-forget; never block the crash path on the network call.
-	// `sendCliErrorReport` already swallows its own errors and times out at 1s.
+	// `sendCliErrorReport` sends nothing unless crash reports are opted in,
+	// swallows its own errors and times out at 1s.
 	void sendCliErrorReport(e, {
 		env: processEnv,
+		fs: nodeFs,
+		network: fetchNetwork,
+		root: process.cwd(),
 		mainaVersion: VERSION,
 		argv: process.argv,
 	}).finally(() => {

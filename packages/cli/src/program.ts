@@ -18,6 +18,7 @@ import { loginCommand, logoutCommand } from "./commands/login";
 import { mcpCommand } from "./commands/mcp";
 import { planCommand } from "./commands/plan";
 import { prCommand } from "./commands/pr";
+import { privacyCommand } from "./commands/privacy";
 import { promptCommand } from "./commands/prompt";
 import { receiptCommand } from "./commands/receipt";
 import { reviewCommand } from "./commands/review";
@@ -161,6 +162,7 @@ Setup & Config:
 	program.addCommand(logoutCommand());
 	program.addCommand(configureCommand());
 	program.addCommand(mcpCommand());
+	program.addCommand(privacyCommand());
 
 	// ── Internals ───────────────────────────────────────────────────────
 	//

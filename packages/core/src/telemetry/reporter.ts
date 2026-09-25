@@ -1,17 +1,16 @@
 /**
  * Error Reporter — scrubs and formats error events for telemetry.
  *
- * Consent-gated: zero events produced until user opts in.
+ * Consent-gated: zero events produced until the user opts in to
+ * `crash_reports` (see `./consent`).
  * Uses the PII scrubber for all string fields before formatting.
  * Events are plain objects — the actual send is handled by the caller
  * (PostHog client or HTTP POST).
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { generateErrorId } from "../errors/error-id";
 import type { EnvPort } from "../ports/env";
+import { isChannelEnabled, type TelemetryContext } from "./consent";
 import { scrubErrorEvent } from "./scrubber";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -54,22 +53,15 @@ export interface ErrorEvent {
 
 // ── Config ─────────────────────────────────────────────────────────────
 
-const CONFIG_PATH = join(homedir(), ".maina", "config.yml");
-
 /**
- * Check if error reporting is enabled.
- * Reads `errors: true` from `~/.maina/config.yml`.
- * Returns false if config doesn't exist or doesn't contain the opt-in.
+ * Check if error reporting is enabled: the `crash_reports` channel of the
+ * effective collection config, read through the injected ports. False on
+ * any read or policy error.
  */
-export function isErrorReportingEnabled(): boolean {
-	try {
-		if (!existsSync(CONFIG_PATH)) return false;
-		const content = readFileSync(CONFIG_PATH, "utf-8");
-		// Simple YAML check: errors: true
-		return /^errors:\s*true$/m.test(content);
-	} catch {
-		return false;
-	}
+export function isErrorReportingEnabled(
+	ctx: TelemetryContext,
+): Promise<boolean> {
+	return isChannelEnabled(ctx, "crash_reports");
 }
 
 // ── Event Building ─────────────────────────────────────────────────────
@@ -104,13 +96,13 @@ export function buildErrorEvent(
 
 /**
  * Build and return an error event, respecting consent.
- * Returns null if error reporting is disabled.
+ * Resolves to null if error reporting is disabled.
  */
-export function reportError(
+export async function reportError(
 	error: Error,
-	context: ErrorEventContext,
-): ErrorEvent | null {
-	if (!isErrorReportingEnabled()) return null;
+	context: ErrorEventContext & TelemetryContext,
+): Promise<ErrorEvent | null> {
+	if (!(await isErrorReportingEnabled(context))) return null;
 	return buildErrorEvent(error, context);
 }
 

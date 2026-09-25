@@ -1,26 +1,26 @@
 /**
- * CLI crash reporter — fire-and-forget anonymous telemetry for CLI errors.
+ * CLI crash reporter — anonymous crash reports, opt-in only (FR-PRIV-1).
  *
- * Consent model is opt-OUT.
- * User can opt out in three ways (any one suffices):
- *   - `~/.maina/telemetry.json` with `{ "optOut": true }`
- *   - `MAINA_TELEMETRY=0`
- *   - `DO_NOT_TRACK=1`
+ * Nothing is sent unless the effective collection config opts in to
+ * `crash_reports` (the user policy `telemetry.crash_reports: true`, or the
+ * legacy `errors: true` in `~/.maina/config.yml`). Kill switches
+ * (`DO_NOT_TRACK=1`, `MAINA_TELEMETRY=0`, `~/.maina/telemetry.json`
+ * `{ "optOut": true }`) beat any opt-in. See `./consent`.
  *
  * Payload matches the server validator at maina-cloud `POST /v1/cli/errors`.
  * All string fields are scrubbed (paths → basenames, secrets → [REDACTED], etc.)
  * defensively; the server scrubs again.
  *
- * The send is fire-and-forget: 1s timeout, all errors swallowed, never blocks
- * the crash path. Callers print the original error to the user BEFORE calling
- * this.
+ * The send goes through the injected network port: 1s timeout, all errors
+ * swallowed, never blocks the crash path. Callers print the original error to
+ * the user BEFORE calling this.
  */
 
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { basename, join, win32 as winPath } from "node:path";
+import { basename, win32 as winPath } from "node:path";
 import type { EnvPort } from "../ports/env";
+import type { NetworkPort } from "../ports/network";
+import { isChannelEnabled, type TelemetryContext } from "./consent";
 import { scrubPii, scrubStackTrace } from "./scrubber";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -38,42 +38,22 @@ export interface CliErrorPayload {
 	ci: boolean;
 }
 
-export interface SendOptions {
+export interface PayloadOptions {
 	mainaVersion: string;
 	command?: string;
 	argv?: string[];
-	baseUrl?: string;
-	timeoutMs?: number;
-	/** Environment for opt-out flags, `HOME`, `CI` and `MAINA_CLOUD_URL`. */
+	/** Environment for `CI`. */
 	env: EnvPort;
 }
 
-// ── Consent ─────────────────────────────────────────────────────────────────
-
-function telemetryConfigPath(env: EnvPort): string {
-	// Honour $HOME first so tests (and container users overriding $HOME) work;
-	// fall back to the OS-reported home directory.
-	return join(env.get("HOME") ?? homedir(), ".maina", "telemetry.json");
-}
-
-/**
- * Returns true when the user has opted out of CLI telemetry.
- * Any one of env var, DO_NOT_TRACK, or file flag is sufficient.
- */
-export function isCliTelemetryOptedOut(env: EnvPort): boolean {
-	if (env.get("MAINA_TELEMETRY") === "0") return true;
-	if (env.get("DO_NOT_TRACK") === "1") return true;
-
-	try {
-		const path = telemetryConfigPath(env);
-		if (!existsSync(path)) return false;
-		const raw = readFileSync(path, "utf-8");
-		const parsed = JSON.parse(raw) as { optOut?: boolean };
-		return parsed.optOut === true;
-	} catch {
-		return false;
-	}
-}
+export type SendOptions = PayloadOptions &
+	TelemetryContext & {
+		/** Every byte sent goes through this port. */
+		network: NetworkPort;
+		/** Overrides `MAINA_CLOUD_URL` and the default endpoint. */
+		baseUrl?: string;
+		timeoutMs?: number;
+	};
 
 // ── Payload ────────────────────────────────────────────────────────────────
 
@@ -138,7 +118,7 @@ function pathsToBasenames(text: string): string {
 
 export function buildCliErrorPayload(
 	error: unknown,
-	opts: SendOptions,
+	opts: PayloadOptions,
 ): CliErrorPayload {
 	const errObj =
 		error instanceof Error ? error : new Error(String(error ?? "unknown"));
@@ -169,43 +149,31 @@ export function buildCliErrorPayload(
 // ── Transport ───────────────────────────────────────────────────────────────
 
 /**
- * Send a CLI error report to the cloud. Fire-and-forget: resolves whether or
- * not the POST succeeded, never throws, never blocks longer than `timeoutMs`.
+ * Send a CLI error report to the cloud when crash reports are opted in.
+ * Resolves whether or not the POST succeeded, never rejects, never blocks
+ * longer than `timeoutMs` (the network adapter enforces it).
  */
 export async function sendCliErrorReport(
 	error: unknown,
 	opts: SendOptions,
 ): Promise<void> {
-	if (isCliTelemetryOptedOut(opts.env)) return;
-
-	const baseUrl =
-		opts.baseUrl ??
-		opts.env.get("MAINA_CLOUD_URL") ??
-		"https://api.mainahq.com";
-	const timeoutMs = opts.timeoutMs ?? 1000;
-
-	let payload: CliErrorPayload;
 	try {
-		payload = buildCliErrorPayload(error, opts);
-	} catch {
-		return; // Never let telemetry amplify the crash
-	}
-
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	try {
-		await fetch(`${baseUrl}/v1/cli/errors`, {
-			method: "POST",
+		if (!(await isChannelEnabled(opts, "crash_reports"))) return;
+		const payload = buildCliErrorPayload(error, opts);
+		const baseUrl =
+			opts.baseUrl ??
+			opts.env.get("MAINA_CLOUD_URL") ??
+			"https://api.mainahq.com";
+		await opts.network.post({
+			url: `${baseUrl}/v1/cli/errors`,
+			body: JSON.stringify(payload),
 			headers: {
 				"Content-Type": "application/json",
 				Accept: "application/json",
 			},
-			body: JSON.stringify(payload),
-			signal: controller.signal,
+			timeoutMs: opts.timeoutMs ?? 1000,
 		});
 	} catch {
-		// Swallow network/timeout/abort — never block the crash path
-	} finally {
-		clearTimeout(timer);
+		// Never let telemetry amplify the crash.
 	}
 }

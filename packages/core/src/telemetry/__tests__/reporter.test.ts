@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { envFromRecord } from "../../ports/env";
-import { buildErrorEvent, reportError } from "../reporter";
+import { createMemoryFs } from "../../ports/testing";
+import {
+	buildErrorEvent,
+	isErrorReportingEnabled,
+	reportError,
+} from "../reporter";
 
 const env = envFromRecord({});
 
@@ -57,11 +62,22 @@ describe("buildErrorEvent", () => {
 });
 
 describe("reportError", () => {
-	test("returns null when reporting is disabled (no config)", () => {
-		// Default: no ~/.maina/config.yml with errors: true
-		const result = reportError(new Error("test"), { env });
-		// May or may not be null depending on local config — test the function doesn't throw
-		expect(result === null || result.event === "maina.error").toBe(true);
+	test("returns null when reporting is disabled (no config)", async () => {
+		const result = await reportError(new Error("test"), {
+			env: envFromRecord({ HOME: "/home/dev" }),
+			fs: createMemoryFs(),
+		});
+		expect(result).toBeNull();
+	});
+
+	test("reads the legacy errors: true opt-in through the fs port", async () => {
+		const ctx = {
+			env: envFromRecord({ HOME: "/home/dev" }),
+			fs: createMemoryFs({ "/home/dev/.maina/config.yml": "errors: true\n" }),
+		};
+		expect(await isErrorReportingEnabled(ctx)).toBe(true);
+		const result = await reportError(new Error("test"), ctx);
+		expect(result?.event).toBe("maina.error");
 	});
 
 	test("produces event when called with buildErrorEvent directly", () => {

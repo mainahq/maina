@@ -5,15 +5,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { envFromRecord } from "../../ports/env";
+import { createMemoryFs, createNetworkSpy } from "../../ports/testing";
 import {
 	buildCliErrorPayload,
-	isCliTelemetryOptedOut,
 	sendCliErrorReport,
 } from "../cli-error-reporter";
+import { isChannelEnabled } from "../consent";
 import { createPosthogClient } from "../posthog-client";
 import { buildErrorEvent } from "../reporter";
 import { buildUsageEvent } from "../usage";
@@ -37,7 +35,7 @@ let home: string;
 beforeEach(() => {
 	saved = {};
 	for (const key of [...POISONED, "HOME"]) saved[key] = process.env[key];
-	home = mkdtempSync(join(tmpdir(), "maina-292-telemetry-"));
+	home = "/home/maina-292";
 });
 
 afterEach(() => {
@@ -45,7 +43,6 @@ afterEach(() => {
 		if (prev === undefined) delete process.env[key];
 		else process.env[key] = prev;
 	}
-	rmSync(home, { recursive: true, force: true });
 });
 
 describe("reporter — agent detection", () => {
@@ -65,28 +62,52 @@ describe("reporter — agent detection", () => {
 });
 
 describe("cli-error-reporter — consent and payload", () => {
-	test("opt-out flags come from the injected env, not process.env", () => {
+	const optedIn = () =>
+		createMemoryFs({
+			[`${home}/.maina/policy.json`]: JSON.stringify({
+				telemetry: { crash_reports: true },
+			}),
+		});
+
+	test("kill switches come from the injected env, not process.env", async () => {
 		process.env.MAINA_TELEMETRY = "0";
 		process.env.DO_NOT_TRACK = "1";
-		expect(isCliTelemetryOptedOut(envFromRecord({ HOME: home }))).toBe(false);
+		const fs = optedIn();
 		expect(
-			isCliTelemetryOptedOut(
-				envFromRecord({ HOME: home, MAINA_TELEMETRY: "0" }),
+			await isChannelEnabled(
+				{ fs, env: envFromRecord({ HOME: home }) },
+				"crash_reports",
 			),
 		).toBe(true);
 		expect(
-			isCliTelemetryOptedOut(envFromRecord({ HOME: home, DO_NOT_TRACK: "1" })),
-		).toBe(true);
+			await isChannelEnabled(
+				{ fs, env: envFromRecord({ HOME: home, MAINA_TELEMETRY: "0" }) },
+				"crash_reports",
+			),
+		).toBe(false);
+		expect(
+			await isChannelEnabled(
+				{ fs, env: envFromRecord({ HOME: home, DO_NOT_TRACK: "1" }) },
+				"crash_reports",
+			),
+		).toBe(false);
 	});
 
-	test("the telemetry.json opt-out is read under the injected HOME", () => {
-		mkdirSync(join(home, ".maina"), { recursive: true });
-		writeFileSync(
-			join(home, ".maina", "telemetry.json"),
-			JSON.stringify({ optOut: true }),
-		);
-		process.env.HOME = tmpdir();
-		expect(isCliTelemetryOptedOut(envFromRecord({ HOME: home }))).toBe(true);
+	test("opt-ins are read under the injected HOME, not the process HOME", async () => {
+		process.env.HOME = "/somewhere/else";
+		const fs = optedIn();
+		expect(
+			await isChannelEnabled(
+				{ fs, env: envFromRecord({ HOME: home }) },
+				"crash_reports",
+			),
+		).toBe(true);
+		expect(
+			await isChannelEnabled(
+				{ fs, env: envFromRecord({ HOME: "/somewhere/else" }) },
+				"crash_reports",
+			),
+		).toBe(false);
 	});
 
 	test("the ci flag comes from the injected env", () => {
@@ -108,25 +129,20 @@ describe("cli-error-reporter — consent and payload", () => {
 
 	test("the cloud URL comes from the injected env", async () => {
 		process.env.MAINA_CLOUD_URL = "https://wrong.example";
-		const urls: string[] = [];
-		const originalFetch = globalThis.fetch;
-		globalThis.fetch = (async (input: string | URL | Request) => {
-			urls.push(String(input));
-			return new Response("{}", { status: 200 });
-		}) as typeof fetch;
-		try {
-			await sendCliErrorReport(new Error("x"), {
-				mainaVersion: "1.0.0",
-				command: "verify",
-				env: envFromRecord({
-					HOME: home,
-					MAINA_CLOUD_URL: "https://cloud.test",
-				}),
-			});
-		} finally {
-			globalThis.fetch = originalFetch;
-		}
-		expect(urls).toEqual(["https://cloud.test/v1/cli/errors"]);
+		const network = createNetworkSpy();
+		await sendCliErrorReport(new Error("x"), {
+			mainaVersion: "1.0.0",
+			command: "verify",
+			env: envFromRecord({
+				HOME: home,
+				MAINA_CLOUD_URL: "https://cloud.test",
+			}),
+			fs: optedIn(),
+			network,
+		});
+		expect(network.calls().map((c) => c.url)).toEqual([
+			"https://cloud.test/v1/cli/errors",
+		]);
 	});
 });
 

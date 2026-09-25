@@ -2,7 +2,7 @@
  * Tests for `packages/cli/src/onboarding/setup/telemetry.ts`.
  *
  * Coverage:
- *   - Opt-out precedence: flag > env > config > default(opted in)
+ *   - Opt-in only: flag / env / config opt-outs beat the user's opt-in; default out
  *   - `anonymizeStack` strips non-enum fields (subprojects, buildTool, cicd)
  *   - `sendSetupTelemetry` never throws: success, timeout, 5xx, network err
  *   - Payload contains zero PII keys (no cwd, no paths, no repoUrl, etc.)
@@ -76,116 +76,87 @@ afterEach(() => {
 
 // ── Opt-out resolution ─────────────────────────────────────────────────────
 
-describe("isTelemetryOptedOut — precedence", () => {
-	test("default: no flag / no env / no config → opted in", () => {
+describe("isTelemetryOptedOut — opt-in only (FR-PRIV-1)", () => {
+	test("default: no opt-in → opted out, reason=default", () => {
 		expect(isTelemetryOptedOut({ env: {} })).toEqual({
-			optedOut: false,
-			reason: null,
-		});
-	});
-
-	test("--no-telemetry flag → opted out, reason=flag", () => {
-		expect(isTelemetryOptedOut({ flag: false, env: {} })).toEqual({
 			optedOut: true,
-			reason: "flag",
+			reason: "default",
 		});
 	});
 
-	test("flag:true (default/not-passed) is treated as opted-in if no other signal", () => {
+	test("flag:true (default/not-passed) is not an opt-in", () => {
 		expect(isTelemetryOptedOut({ flag: true, env: {} })).toEqual({
-			optedOut: false,
-			reason: null,
+			optedOut: true,
+			reason: "default",
 		});
 	});
 
-	test("MAINA_TELEMETRY=0 → opted out, reason=env", () => {
-		expect(
-			isTelemetryOptedOut({
-				env: { MAINA_TELEMETRY: "0" } as NodeJS.ProcessEnv,
-			}),
-		).toEqual({ optedOut: true, reason: "env" });
-	});
-
-	test("MAINA_TELEMETRY=false|no|off → opted out", () => {
-		for (const v of ["false", "FALSE", "no", "NO", "off"]) {
-			expect(
-				isTelemetryOptedOut({
-					env: { MAINA_TELEMETRY: v } as NodeJS.ProcessEnv,
-				}),
-			).toEqual({ optedOut: true, reason: "env" });
-		}
-	});
-
-	test("MAINA_TELEMETRY=1|true|yes|on → opted in", () => {
+	test("MAINA_TELEMETRY=1|true|yes|on is not an opt-in", () => {
 		for (const v of ["1", "true", "yes", "on"]) {
 			expect(
 				isTelemetryOptedOut({
 					env: { MAINA_TELEMETRY: v } as NodeJS.ProcessEnv,
 				}),
-			).toEqual({ optedOut: false, reason: null });
+			).toEqual({ optedOut: true, reason: "default" });
 		}
 	});
 
-	test(".maina/config.json: { telemetry: false } → opted out, reason=config", () => {
+	test("the user's usage opt-in → opted in", () => {
+		expect(isTelemetryOptedOut({ env: {}, optedIn: true })).toEqual({
+			optedOut: false,
+			reason: null,
+		});
+	});
+
+	test("--no-telemetry flag beats an opt-in, reason=flag", () => {
+		expect(
+			isTelemetryOptedOut({ flag: false, env: {}, optedIn: true }),
+		).toEqual({ optedOut: true, reason: "flag" });
+	});
+
+	test("MAINA_TELEMETRY=0|false|no|off beats an opt-in, reason=env", () => {
+		for (const v of ["0", "false", "FALSE", "no", "NO", "off"]) {
+			expect(
+				isTelemetryOptedOut({
+					env: { MAINA_TELEMETRY: v } as NodeJS.ProcessEnv,
+					optedIn: true,
+				}),
+			).toEqual({ optedOut: true, reason: "env" });
+		}
+	});
+
+	test(".maina/config.json: { telemetry: false } beats an opt-in, reason=config", () => {
 		const cfgDir = join(tmpDir, ".maina");
 		mkdirSync(cfgDir, { recursive: true });
 		const cfgPath = join(cfgDir, "config.json");
 		writeFileSync(cfgPath, JSON.stringify({ telemetry: false }));
+		expect(
+			isTelemetryOptedOut({ env: {}, configPath: cfgPath, optedIn: true }),
+		).toEqual({ optedOut: true, reason: "config" });
+	});
+
+	test(".maina/config.json: { telemetry: true } is not an opt-in (repo files cannot opt in)", () => {
+		const cfgDir = join(tmpDir, ".maina");
+		mkdirSync(cfgDir, { recursive: true });
+		const cfgPath = join(cfgDir, "config.json");
+		writeFileSync(cfgPath, JSON.stringify({ telemetry: true }));
 		expect(isTelemetryOptedOut({ env: {}, configPath: cfgPath })).toEqual({
 			optedOut: true,
-			reason: "config",
+			reason: "default",
 		});
 	});
 
-	test("config file missing → opted in (default)", () => {
-		const cfgPath = join(tmpDir, ".maina", "config.json");
-		expect(isTelemetryOptedOut({ env: {}, configPath: cfgPath })).toEqual({
-			optedOut: false,
-			reason: null,
-		});
-	});
-
-	test("config file malformed JSON → opted in (silent)", () => {
+	test("config file missing or malformed → falls through to the opt-in", () => {
 		const cfgDir = join(tmpDir, ".maina");
 		mkdirSync(cfgDir, { recursive: true });
-		const cfgPath = join(cfgDir, "config.json");
-		writeFileSync(cfgPath, "{not json");
-		expect(isTelemetryOptedOut({ env: {}, configPath: cfgPath })).toEqual({
-			optedOut: false,
-			reason: null,
-		});
-	});
-
-	test("flag beats env beats config", () => {
-		const cfgDir = join(tmpDir, ".maina");
-		mkdirSync(cfgDir, { recursive: true });
-		const cfgPath = join(cfgDir, "config.json");
-		writeFileSync(cfgPath, JSON.stringify({ telemetry: false }));
-
-		// Flag=false (opt-out) with env opted-in → flag wins.
-		expect(
-			isTelemetryOptedOut({
-				flag: false,
-				env: { MAINA_TELEMETRY: "1" } as NodeJS.ProcessEnv,
-				configPath: cfgPath,
-			}),
-		).toEqual({ optedOut: true, reason: "flag" });
-
-		// No flag, env opted-in, config opted-out → env wins.
-		expect(
-			isTelemetryOptedOut({
-				env: { MAINA_TELEMETRY: "1" } as NodeJS.ProcessEnv,
-				configPath: cfgPath,
-			}),
-		).toEqual({ optedOut: false, reason: null });
-
-		// No flag, no env, config opted-out → config wins.
-		expect(
-			isTelemetryOptedOut({
-				env: {},
-				configPath: cfgPath,
-			}),
-		).toEqual({ optedOut: true, reason: "config" });
+		const missing = join(cfgDir, "missing.json");
+		const malformed = join(cfgDir, "config.json");
+		writeFileSync(malformed, "{not json");
+		for (const configPath of [missing, malformed]) {
+			expect(
+				isTelemetryOptedOut({ env: {}, configPath, optedIn: true }),
+			).toEqual({ optedOut: false, reason: null });
+		}
 	});
 });
 

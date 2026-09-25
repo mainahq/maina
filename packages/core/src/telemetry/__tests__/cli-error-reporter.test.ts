@@ -1,60 +1,36 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import type { EnvPort } from "../../ports/env";
+import { describe, expect, test } from "bun:test";
+import { envFromRecord } from "../../ports/env";
+import type { NetworkPort } from "../../ports/network";
+import { createMemoryFs, createNetworkSpy } from "../../ports/testing";
 import {
 	buildCliErrorPayload,
-	isCliTelemetryOptedOut,
 	sendCliErrorReport,
 } from "../cli-error-reporter";
 
-// ── Env hygiene ─────────────────────────────────────────────────────────────
+// Payload tests read only `CI` from the env; each test hands core its own.
+const env = envFromRecord({});
 
-// Only capture and restore the specific keys this suite touches — assigning to
-// `process.env` wholesale isn't portable across runtimes and flakes in CI.
-const MANAGED_ENV_KEYS = [
-	"MAINA_TELEMETRY",
-	"DO_NOT_TRACK",
-	"CI",
-	"HOME",
-] as const;
-const savedEnv: Record<string, string | undefined> = {};
-const originalFetch = globalThis.fetch;
-// The suite drives the env through the keys it manages above; hand core a
-// live view of them the way the CLI edge does.
-const env: EnvPort = { get: (name) => process.env[name] };
+const HOME = "/home/dev";
+const OPTED_IN = {
+	[`${HOME}/.maina/policy.json`]: JSON.stringify({
+		telemetry: { crash_reports: true },
+	}),
+};
 
-function makeTempHome(): string {
-	const dir = join(
-		tmpdir(),
-		`maina-cli-tel-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-	);
-	mkdirSync(join(dir, ".maina"), { recursive: true });
-	return dir;
+function sendWith(
+	files: Record<string, string>,
+	vars: Record<string, string> = {},
+	network: NetworkPort = createNetworkSpy(),
+) {
+	return sendCliErrorReport(new Error("kaboom"), {
+		env: envFromRecord({ HOME, ...vars }),
+		fs: createMemoryFs(files),
+		network,
+		mainaVersion: "1.5.1",
+		command: "sync pull",
+		baseUrl: "https://api.test.maina.dev",
+	});
 }
-
-beforeEach(() => {
-	for (const key of MANAGED_ENV_KEYS) {
-		savedEnv[key] = process.env[key];
-	}
-	delete process.env.MAINA_TELEMETRY;
-	delete process.env.DO_NOT_TRACK;
-	delete process.env.CI;
-	process.env.HOME = makeTempHome();
-});
-
-afterEach(() => {
-	for (const key of MANAGED_ENV_KEYS) {
-		const prev = savedEnv[key];
-		if (prev === undefined) {
-			delete process.env[key];
-		} else {
-			process.env[key] = prev;
-		}
-	}
-	globalThis.fetch = originalFetch;
-});
 
 // ── Payload shape ──────────────────────────────────────────────────────────
 
@@ -91,9 +67,8 @@ describe("buildCliErrorPayload", () => {
 	});
 
 	test("ci flag reflects CI env var", () => {
-		process.env.CI = "true";
 		const payload = buildCliErrorPayload(new Error("x"), {
-			env,
+			env: envFromRecord({ CI: "true" }),
 			mainaVersion: "1.5.1",
 			command: "verify",
 		});
@@ -182,132 +157,87 @@ describe("buildCliErrorPayload", () => {
 	});
 });
 
-// ── Opt-out ─────────────────────────────────────────────────────────────────
+// ── Consent (opt-in) ────────────────────────────────────────────────────────
 
-describe("isCliTelemetryOptedOut", () => {
-	test("returns false by default", () => {
-		expect(isCliTelemetryOptedOut(env)).toBe(false);
+describe("sendCliErrorReport — consent", () => {
+	test("sends nothing by default", async () => {
+		const spy = createNetworkSpy();
+		await sendWith({}, {}, spy);
+		expect(spy.calls()).toEqual([]);
 	});
 
-	test("respects MAINA_TELEMETRY=0", () => {
-		process.env.MAINA_TELEMETRY = "0";
-		expect(isCliTelemetryOptedOut(env)).toBe(true);
+	test("sends once the user policy opts in to crash_reports", async () => {
+		const spy = createNetworkSpy();
+		await sendWith(OPTED_IN, {}, spy);
+		expect(spy.calls()).toHaveLength(1);
 	});
 
-	test("respects DO_NOT_TRACK=1", () => {
-		process.env.DO_NOT_TRACK = "1";
-		expect(isCliTelemetryOptedOut(env)).toBe(true);
-	});
-
-	test("respects ~/.maina/telemetry.json { optOut: true }", () => {
-		const home = process.env.HOME;
-		if (!home) throw new Error("test HOME not set");
-		writeFileSync(
-			join(home, ".maina", "telemetry.json"),
-			JSON.stringify({ optOut: true }),
-			"utf-8",
+	test("the legacy errors: true opt-in still counts", async () => {
+		const spy = createNetworkSpy();
+		await sendWith(
+			{ [`${HOME}/.maina/config.yml`]: "errors: true\n" },
+			{},
+			spy,
 		);
-		expect(isCliTelemetryOptedOut(env)).toBe(true);
+		expect(spy.calls()).toHaveLength(1);
 	});
 
-	test("does not opt out for { optOut: false }", () => {
-		const home = process.env.HOME;
-		if (!home) throw new Error("test HOME not set");
-		writeFileSync(
-			join(home, ".maina", "telemetry.json"),
-			JSON.stringify({ optOut: false }),
-			"utf-8",
+	const killSwitches: Record<string, string>[] = [
+		{ MAINA_TELEMETRY: "0" },
+		{ DO_NOT_TRACK: "1" },
+	];
+	for (const vars of killSwitches) {
+		test(`${Object.keys(vars)[0]} beats an opt-in`, async () => {
+			const spy = createNetworkSpy();
+			await sendWith(OPTED_IN, vars, spy);
+			expect(spy.calls()).toEqual([]);
+		});
+	}
+
+	test("~/.maina/telemetry.json { optOut: true } beats an opt-in", async () => {
+		const spy = createNetworkSpy();
+		await sendWith(
+			{
+				...OPTED_IN,
+				[`${HOME}/.maina/telemetry.json`]: JSON.stringify({ optOut: true }),
+			},
+			{},
+			spy,
 		);
-		expect(isCliTelemetryOptedOut(env)).toBe(false);
+		expect(spy.calls()).toEqual([]);
 	});
 
-	test("handles malformed telemetry.json gracefully", () => {
-		const home = process.env.HOME;
-		if (!home) throw new Error("test HOME not set");
-		writeFileSync(
-			join(home, ".maina", "telemetry.json"),
-			"{ not valid json",
-			"utf-8",
-		);
-		expect(isCliTelemetryOptedOut(env)).toBe(false);
+	test("a malformed user policy fails closed", async () => {
+		const spy = createNetworkSpy();
+		await sendWith({ [`${HOME}/.maina/policy.json`]: "{ nope" }, {}, spy);
+		expect(spy.calls()).toEqual([]);
 	});
 });
 
 // ── Transport ───────────────────────────────────────────────────────────────
 
-describe("sendCliErrorReport", () => {
-	test("POSTs payload to /v1/cli/errors", async () => {
-		const seen: { url: string; body: unknown } = { url: "", body: null };
-		const mockFetch = mock((url: string, init?: RequestInit) => {
-			seen.url = url;
-			seen.body = JSON.parse(String(init?.body ?? "null"));
-			return Promise.resolve(new Response(null, { status: 202 }));
-		});
-		globalThis.fetch = mockFetch as unknown as typeof fetch;
-
-		await sendCliErrorReport(new Error("kaboom"), {
-			env,
-			mainaVersion: "1.5.1",
-			command: "sync pull",
-			baseUrl: "https://api.test.maina.dev",
-		});
-
-		expect(mockFetch).toHaveBeenCalledTimes(1);
-		expect(seen.url).toBe("https://api.test.maina.dev/v1/cli/errors");
-		expect((seen.body as { command: string }).command).toBe("sync pull");
+describe("sendCliErrorReport — transport", () => {
+	test("POSTs the payload to /v1/cli/errors with the timeout", async () => {
+		const spy = createNetworkSpy();
+		await sendWith(OPTED_IN, {}, spy);
+		const [call] = spy.calls();
+		expect(call?.url).toBe("https://api.test.maina.dev/v1/cli/errors");
+		expect(call?.timeoutMs).toBe(1000);
+		expect(
+			(JSON.parse(call?.body ?? "{}") as { command: string }).command,
+		).toBe("sync pull");
 	});
 
-	test("skips POST when opted out", async () => {
-		process.env.MAINA_TELEMETRY = "0";
-		const mockFetch = mock(() =>
-			Promise.resolve(new Response(null, { status: 202 })),
-		);
-		globalThis.fetch = mockFetch as unknown as typeof fetch;
-
-		await sendCliErrorReport(new Error("x"), {
-			env,
-			mainaVersion: "1.5.1",
-			command: "verify",
-			baseUrl: "https://api.test.maina.dev",
-		});
-
-		expect(mockFetch).not.toHaveBeenCalled();
-	});
-
-	test("swallows network errors (never throws)", async () => {
-		globalThis.fetch = (() =>
-			Promise.reject(
-				new Error("network unreachable"),
-			)) as unknown as typeof fetch;
-
+	test("swallows a failed POST (never rejects)", async () => {
 		await expect(
-			sendCliErrorReport(new Error("x"), {
-				env,
-				mainaVersion: "1.5.1",
-				command: "y",
-				baseUrl: "https://api.test.maina.dev",
-			}),
+			sendWith(OPTED_IN, {}, createNetworkSpy(503)),
 		).resolves.toBeUndefined();
 	});
 
-	test("resolves within timeout when server hangs", async () => {
-		globalThis.fetch = ((_url: string, init?: RequestInit) =>
-			new Promise((_resolve, reject) => {
-				// Honour abort so AbortController can short-circuit the hang
-				init?.signal?.addEventListener("abort", () =>
-					reject(new Error("aborted")),
-				);
-			})) as unknown as typeof fetch;
-
-		const start = Date.now();
-		await sendCliErrorReport(new Error("x"), {
-			env,
-			mainaVersion: "1.5.1",
-			command: "y",
-			baseUrl: "https://api.test.maina.dev",
-			timeoutMs: 50,
-		});
-		const elapsed = Date.now() - start;
-		expect(elapsed).toBeLessThan(500);
+	test("swallows a network port that rejects", async () => {
+		const broken: NetworkPort = {
+			post: () => Promise.reject(new Error("adapter bug")),
+		};
+		await expect(sendWith(OPTED_IN, {}, broken)).resolves.toBeUndefined();
 	});
 });

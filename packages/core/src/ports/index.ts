@@ -20,6 +20,11 @@ export type {
 	ModelResponse,
 } from "./model";
 export type {
+	NetworkError,
+	NetworkPort,
+	NetworkRequest,
+} from "./network";
+export type {
 	ProcessEnv,
 	ProcessError,
 	ProcessOutput,

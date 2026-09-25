@@ -27,6 +27,7 @@ import {
 	VERSION,
 } from "@mainahq/core";
 import { processEnv } from "../env";
+import { telemetryContext } from "../ports";
 
 const CLI_VERSION = VERSION;
 
@@ -193,7 +194,7 @@ export async function cloudVerifyAction(
 			{ cloud: true, deep: false, visual: false, all: false },
 			CLI_VERSION,
 		),
-		processEnv,
+		telemetryContext(process.cwd()),
 	);
 
 	// ── Step 1: Auth ──────────────────────────────────────────────────────
@@ -334,7 +335,7 @@ export async function cloudVerifyAction(
 			},
 			CLI_VERSION,
 		),
-		processEnv,
+		telemetryContext(process.cwd()),
 	);
 
 	return {
@@ -376,7 +377,7 @@ export async function verifyAction(
 			},
 			CLI_VERSION,
 		),
-		processEnv,
+		telemetryContext(process.cwd()),
 	);
 
 	// ── AI availability check ────────────────────────────────────────────
@@ -561,7 +562,7 @@ export async function verifyAction(
 			},
 			CLI_VERSION,
 		),
-		processEnv,
+		telemetryContext(process.cwd()),
 	);
 
 	return result;

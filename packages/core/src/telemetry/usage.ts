@@ -1,14 +1,13 @@
 /**
  * Usage Telemetry — opt-in anonymous usage tracking.
  *
- * Separate from error reporting (#121). Reads `telemetry: true` from
- * `~/.maina/config.yml`. Events are plain objects — no PostHog SDK dependency.
+ * Separate from error reporting (#121). Gated on the `usage` channel of the
+ * effective collection config (see `./consent`). Events are plain objects —
+ * no PostHog SDK dependency.
  * Zero PII in any event.
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { isChannelEnabled, type TelemetryContext } from "./consent";
 
 // ── Event Types ────────────────────────────────────────────────────────
 
@@ -33,21 +32,13 @@ export interface UsageEvent {
 
 // ── Config ─────────────────────────────────────────────────────────────
 
-const CONFIG_PATH = join(homedir(), ".maina", "config.yml");
-
 /**
- * Check if usage telemetry is enabled.
- * Reads `telemetry: true` from `~/.maina/config.yml`.
- * Separate from error reporting consent (`errors: true`).
+ * Check if usage telemetry is enabled: the `usage` channel of the effective
+ * collection config, read through the injected ports. Separate from error
+ * reporting consent (`crash_reports`). False on any read or policy error.
  */
-export function isTelemetryEnabled(): boolean {
-	try {
-		if (!existsSync(CONFIG_PATH)) return false;
-		const content = readFileSync(CONFIG_PATH, "utf-8");
-		return /^telemetry:\s*true$/m.test(content);
-	} catch {
-		return false;
-	}
+export function isTelemetryEnabled(ctx: TelemetryContext): Promise<boolean> {
+	return isChannelEnabled(ctx, "usage");
 }
 
 // ── Event Building ─────────────────────────────────────────────────────
@@ -72,13 +63,14 @@ export function buildUsageEvent(
 
 /**
  * Build and return a usage event, respecting consent.
- * Returns null if telemetry is disabled.
+ * Resolves to null if telemetry is disabled.
  */
-export function trackUsageEvent(
+export async function trackUsageEvent(
+	ctx: TelemetryContext,
 	name: UsageEventName,
 	properties: Record<string, string | number | boolean> = {},
 	version = "unknown",
-): UsageEvent | null {
-	if (!isTelemetryEnabled()) return null;
+): Promise<UsageEvent | null> {
+	if (!(await isTelemetryEnabled(ctx))) return null;
 	return buildUsageEvent(name, properties, version);
 }
