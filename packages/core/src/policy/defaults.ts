@@ -58,6 +58,8 @@ const REVERSIBLE_ACTION_CLASSES = {
 	/** A command the gate cannot see through (`eval "$X"`, `$CMD`, a syntax error). */
 	"shell.opaque": asked,
 	"fs.write": allowed,
+	/** A read inside the workspace or temp dirs that is not a credential. */
+	"fs.read": allowed,
 	"fs.read.outside": asked,
 	"git.commit": allowed,
 	"git.push": allowed,

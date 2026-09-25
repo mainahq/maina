@@ -2,11 +2,11 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit|Read|Grep",
+        "matcher": "Bash|Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|WebFetch|mcp__.*",
         "hooks": [
           {
             "type": "command",
-            "command": "bun \"$CLAUDE_PROJECT_DIR/.maina/dogfood/hook-bootstrap.ts\" 2>/dev/null || printf '%s\\n' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"maina dogfood guard: hook crash (failed closed to ask)\"}}'",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/scripts/dogfood/hook.ts\"; s=$?; if [ $s -eq 0 ] || [ $s -eq 2 ]; then exit $s; fi; printf '%s\\n' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"maina dogfood guard: hook crash (failed closed to ask)\"}}'",
             "timeout": 10
           }
         ]

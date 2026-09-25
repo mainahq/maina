@@ -109,14 +109,17 @@ receipt for you (`--no-publish --no-fail`, never blocks a push); the command
 above then just publishes it.
 
 Claude Code sessions in this repo also load `.claude/settings.json`, which
-runs a small rules-only `PreToolUse` hook (`.maina/dogfood/hook-bootstrap.ts`).
-It denies a fixed list only (destructive shell, writes outside the repo,
-secrets, publishing, pushes to `master`/`main`/`v1/main`), stays silent for
-everything else, and fails closed to `ask` if it crashes. To override a deny,
-start Claude Code with `MAINA_DOGFOOD_OVERRIDE=1` (denies become `ask`).
-Decisions are logged to `.maina/dogfood/log.jsonl`; `bun run dogfood:report`
-writes the weekly summary to `docs/dogfood/<yyyy-ww>.md`. Report friction with
-the **Dogfood friction** issue template.
+runs maina's own gate as a `PreToolUse` hook (`scripts/dogfood/hook.ts`): the
+Claude Code adapter and the fail-closed hook client from source, the same path
+as `maina hook PreToolUse`. The first call spawns the resident runtime; if it
+cannot answer in time, the rules-only gate runs in process and never allows.
+The hook only tightens: `ask` and `deny` are passed on, an `allow` stays silent
+so Claude Code's own permission flow applies, and it fails closed to `ask` if
+it cannot run. To override a deny, start Claude Code with
+`MAINA_DOGFOOD_OVERRIDE=1` (denies become `ask`). Decisions are logged to
+`.maina/dogfood/log.jsonl`; `bun run dogfood:report` writes the weekly summary
+to `docs/dogfood/<yyyy-ww>.md`. Report friction with the **Dogfood friction**
+issue template.
 
 ## Getting Help
 
