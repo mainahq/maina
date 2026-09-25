@@ -29,6 +29,7 @@ import {
 	type GitProbe,
 	gitProbe,
 	type NoRepo,
+	probeEnv,
 	type Root,
 	type RootInputs,
 	type RootSource,
@@ -390,5 +391,26 @@ describe("resolveRoot with real repositories", () => {
 			if (saved === undefined) delete process.env.GIT_DIR;
 			else process.env.GIT_DIR = saved;
 		}
+	});
+});
+
+describe("probeEnv", () => {
+	test("drops every repo-local GIT_* variable core's process adapter drops", () => {
+		expect(
+			probeEnv({
+				PATH: "/bin",
+				GIT_DIR: "/outer/.git",
+				GIT_CONFIG_PARAMETERS: "'core.worktree'='/elsewhere'",
+				GIT_CONFIG_COUNT: "1",
+				GIT_NO_REPLACE_OBJECTS: "1",
+				GIT_ALTERNATE_OBJECT_DIRECTORIES: "/outer/.git/objects",
+				GIT_CEILING_DIRECTORIES: "/home",
+				GIT_SSH_COMMAND: "ssh",
+			}),
+		).toEqual({
+			PATH: "/bin",
+			GIT_CEILING_DIRECTORIES: "/home",
+			GIT_SSH_COMMAND: "ssh",
+		});
 	});
 });

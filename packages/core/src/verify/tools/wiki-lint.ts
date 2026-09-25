@@ -8,6 +8,8 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import type { ProcessPort } from "../../ports/process";
+import { systemProcess } from "../../process/index";
 import { extractDecisions } from "../../wiki/extractors/decision";
 import { extractFeatures } from "../../wiki/extractors/feature";
 import { hashFile, loadState } from "../../wiki/state";
@@ -21,6 +23,8 @@ interface WikiLintOptions {
 	repoRoot: string;
 	featuresDir?: string;
 	adrDir?: string;
+	/** Runs `git log` for the missing-rationale check; the system adapter by default. */
+	process?: ProcessPort;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -640,21 +644,21 @@ function checkDecisionViolations(
 
 /**
  * Count commits for a file using git log.
- * Uses Bun.spawnSync for synchronous operation.
  * Returns 0 if git is unavailable or fails.
  */
-function countFileCommits(filePath: string, repoRoot: string): number {
-	try {
-		const proc = Bun.spawnSync(
-			["git", "log", "--oneline", "--follow", "--", filePath],
-			{ cwd: repoRoot, stdout: "pipe", stderr: "pipe" },
-		);
-		if (proc.exitCode !== 0) return 0;
-		const output = new TextDecoder().decode(proc.stdout);
-		return output.split("\n").filter((line) => line.trim().length > 0).length;
-	} catch {
-		return 0;
-	}
+async function countFileCommits(
+	filePath: string,
+	repoRoot: string,
+	processPort: ProcessPort,
+): Promise<number> {
+	const result = await processPort.spawn(
+		["git", "log", "--oneline", "--follow", "--", filePath],
+		{ cwd: repoRoot },
+	);
+	if (!result.ok || result.value.exitCode !== 0) return 0;
+	return result.value.stdout
+		.split("\n")
+		.filter((line) => line.trim().length > 0).length;
 }
 
 /**
@@ -663,11 +667,12 @@ function countFileCommits(filePath: string, repoRoot: string): number {
  * Deterministic: counts commits per tracked source file via git log,
  * then checks if any decision mentions that file path.
  */
-function checkMissingRationale(
+async function checkMissingRationale(
 	wikiDir: string,
 	adrDir: string,
 	repoRoot: string,
-): WikiLintFinding[] {
+	processPort: ProcessPort,
+): Promise<WikiLintFinding[]> {
 	const findings: WikiLintFinding[] = [];
 
 	// Load wiki state to get tracked files
@@ -700,7 +705,7 @@ function checkMissingRationale(
 
 		if (hasMention) continue;
 
-		const commitCount = countFileCommits(file, repoRoot);
+		const commitCount = await countFileCommits(file, repoRoot, processPort);
 		if (commitCount >= COMMIT_THRESHOLD) {
 			findings.push({
 				check: "missing_rationale",
@@ -878,7 +883,9 @@ function checkFeatureTaskContradiction(
  *
  * Auto-skips gracefully if .maina/wiki/ doesn't exist — returns empty result.
  */
-export function runWikiLint(options: WikiLintOptions): WikiLintResult {
+export async function runWikiLint(
+	options: WikiLintOptions,
+): Promise<WikiLintResult> {
 	const { wikiDir, repoRoot } = options;
 	const featuresDir =
 		options.featuresDir ?? join(repoRoot, ".maina", "features");
@@ -913,7 +920,12 @@ export function runWikiLint(options: WikiLintOptions): WikiLintResult {
 	// Run advanced checks (6-9)
 	const specDrift = checkSpecDrift(featuresDir, repoRoot);
 	const decisionViolations = checkDecisionViolations(adrDir, repoRoot);
-	const missingRationale = checkMissingRationale(wikiDir, adrDir, repoRoot);
+	const missingRationale = await checkMissingRationale(
+		wikiDir,
+		adrDir,
+		repoRoot,
+		options.process ?? systemProcess,
+	);
 	const contradictions = checkContradictions(wikiDir, repoRoot, featuresDir);
 
 	return {

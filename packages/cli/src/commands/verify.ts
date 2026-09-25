@@ -24,6 +24,7 @@ import {
 	resolveBaseBranch,
 	runPipeline,
 	runVisualVerification,
+	systemProcess,
 	VERSION,
 } from "@mainahq/core";
 import { processEnv } from "../env";
@@ -395,6 +396,7 @@ export async function verifyAction(
 		cwd: string;
 		mainaDir: string;
 		env: NodeJS.ProcessEnv;
+		process: typeof systemProcess;
 	} = {
 		baseBranch,
 		diffOnly: !options.all,
@@ -402,6 +404,7 @@ export async function verifyAction(
 		cwd,
 		mainaDir,
 		env: process.env,
+		process: systemProcess,
 	};
 
 	if (options.all) {
@@ -468,7 +471,11 @@ export async function verifyAction(
 
 	// ── Step 4b: Visual verification (if --visual) ──────────────────────
 	if (options.visual) {
-		const visualResult = await runVisualVerification(mainaDir);
+		const visualResult = await runVisualVerification(
+			mainaDir,
+			undefined,
+			systemProcess,
+		);
 
 		if (!visualResult.skipped && visualResult.findings.length > 0) {
 			if (!options.json) {

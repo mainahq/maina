@@ -1,3 +1,6 @@
+import type { ProcessPort } from "../ports/process";
+import { systemProcess } from "../process/index";
+
 export interface SearchResult {
 	filePath: string;
 	line: number;
@@ -9,6 +12,18 @@ export interface RetrievalOptions {
 	maxResults?: number; // default 20
 	tokenBudget?: number; // max tokens for results
 	cwd: string; // explicit directory to search in
+	/** Spawns zoekt / rg / grep; the system adapter by default. */
+	process?: ProcessPort;
+}
+
+/** Stdout of a finished child, or null when it could not be started. */
+async function run(
+	processPort: ProcessPort,
+	argv: readonly string[],
+	cwd: string,
+): Promise<string | null> {
+	const result = await processPort.spawn(argv, { cwd });
+	return result.ok ? result.value.stdout : null;
 }
 
 /**
@@ -16,17 +31,13 @@ export interface RetrievalOptions {
  * Uses --version instead of `which` because tools may be shell functions
  * (e.g., Claude Code wraps rg as a function).
  */
-export async function isToolAvailable(tool: string): Promise<boolean> {
-	try {
-		const proc = Bun.spawn([tool, "--version"], {
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-		await proc.exited;
-		return proc.exitCode === 0;
-	} catch {
-		return false;
-	}
+export async function isToolAvailable(
+	tool: string,
+	cwd: string,
+	processPort: ProcessPort = systemProcess,
+): Promise<boolean> {
+	const result = await processPort.spawn([tool, "--version"], { cwd });
+	return result.ok && result.value.exitCode === 0;
 }
 
 /**
@@ -125,23 +136,19 @@ export async function searchWithZoekt(
 	const cwd = options.cwd;
 	const maxResults = options.maxResults ?? 20;
 
-	const zoektAvailable = await isToolAvailable("zoekt");
+	const processPort = options.process ?? systemProcess;
+
+	const zoektAvailable = await isToolAvailable("zoekt", cwd, processPort);
 	if (!zoektAvailable) {
 		return [];
 	}
 
-	try {
-		const proc = Bun.spawn(["zoekt", "-n", String(maxResults), query], {
-			cwd,
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-		const output = await new Response(proc.stdout).text();
-		await proc.exited;
-		return parseZoektOutput(output);
-	} catch {
-		return [];
-	}
+	const output = await run(
+		processPort,
+		["zoekt", "-n", String(maxResults), query],
+		cwd,
+	);
+	return output === null ? [] : parseZoektOutput(output);
 }
 
 /**
@@ -154,62 +161,23 @@ async function searchWithRipgrep(
 ): Promise<SearchResult[]> {
 	const cwd = options.cwd;
 	const maxResults = options.maxResults ?? 20;
+	const processPort = options.process ?? systemProcess;
+	const filters = [
+		"--max-count",
+		String(maxResults),
+		"--glob",
+		"!node_modules",
+		"--glob",
+		"!dist",
+		"--glob",
+		"!.git",
+	];
 
-	try {
-		// Try JSON mode first (rg --json)
-		const proc = Bun.spawn(
-			[
-				"rg",
-				"--json",
-				"--max-count",
-				String(maxResults),
-				"--glob",
-				"!node_modules",
-				"--glob",
-				"!dist",
-				"--glob",
-				"!.git",
-				query,
-			],
-			{
-				cwd,
-				stdout: "pipe",
-				stderr: "pipe",
-			},
-		);
-		const output = await new Response(proc.stdout).text();
-		await proc.exited;
-		return parseRipgrepJson(output);
-	} catch {
-		// Try plain mode (rg -n)
-		try {
-			const proc = Bun.spawn(
-				[
-					"rg",
-					"-n",
-					"--max-count",
-					String(maxResults),
-					"--glob",
-					"!node_modules",
-					"--glob",
-					"!dist",
-					"--glob",
-					"!.git",
-					query,
-				],
-				{
-					cwd,
-					stdout: "pipe",
-					stderr: "pipe",
-				},
-			);
-			const output = await new Response(proc.stdout).text();
-			await proc.exited;
-			return parsePlainOutput(output);
-		} catch {
-			return [];
-		}
-	}
+	// Try JSON mode first (rg --json), then plain mode (rg -n)
+	const json = await run(processPort, ["rg", "--json", ...filters, query], cwd);
+	if (json !== null) return parseRipgrepJson(json);
+	const plain = await run(processPort, ["rg", "-n", ...filters, query], cwd);
+	return plain === null ? [] : parsePlainOutput(plain);
 }
 
 /**
@@ -223,41 +191,31 @@ async function searchWithGrep(
 	const cwd = options.cwd;
 	const maxResults = options.maxResults ?? 20;
 
-	try {
-		const proc = Bun.spawn(
-			[
-				"grep",
-				"-rn",
-				"-E",
-				"--include=*.ts",
-				"--include=*.tsx",
-				"--include=*.js",
-				"--include=*.jsx",
-				"--include=*.py",
-				"--include=*.go",
-				"--include=*.rs",
-				"--include=*.cs",
-				"--include=*.java",
-				"--include=*.kt",
-				"--exclude-dir=node_modules",
-				"--exclude-dir=dist",
-				"--exclude-dir=.git",
-				query,
-				".",
-			],
-			{
-				cwd,
-				stdout: "pipe",
-				stderr: "pipe",
-			},
-		);
-		const output = await new Response(proc.stdout).text();
-		await proc.exited;
-		const results = parsePlainOutput(output);
-		return results.slice(0, maxResults);
-	} catch {
-		return [];
-	}
+	const output = await run(
+		options.process ?? systemProcess,
+		[
+			"grep",
+			"-rn",
+			"-E",
+			"--include=*.ts",
+			"--include=*.tsx",
+			"--include=*.js",
+			"--include=*.jsx",
+			"--include=*.py",
+			"--include=*.go",
+			"--include=*.rs",
+			"--include=*.cs",
+			"--include=*.java",
+			"--include=*.kt",
+			"--exclude-dir=node_modules",
+			"--exclude-dir=dist",
+			"--exclude-dir=.git",
+			query,
+			".",
+		],
+		cwd,
+	);
+	return output === null ? [] : parsePlainOutput(output).slice(0, maxResults);
 }
 
 /**
@@ -286,7 +244,11 @@ export async function search(
 		if (zoektResults.length > 0) {
 			results = zoektResults;
 		} else {
-			const rgAvailable = await isToolAvailable("rg");
+			const rgAvailable = await isToolAvailable(
+				"rg",
+				options.cwd,
+				options.process ?? systemProcess,
+			);
 			if (rgAvailable) {
 				results = await searchWithRipgrep(query, options);
 			} else {

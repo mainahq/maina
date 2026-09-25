@@ -13,6 +13,8 @@ import { join } from "node:path";
 import type { Result } from "../db/index";
 import type { LanguageProfile } from "../language/profile";
 import { TYPESCRIPT_PROFILE } from "../language/profile";
+import type { ProcessError, ProcessPort } from "../ports/process";
+import { systemProcess } from "../process/index";
 import { parseCheckstyleOutput } from "./linters/checkstyle";
 import { parseClippyOutput } from "./linters/clippy";
 import { parseDotnetFormatOutput } from "./linters/dotnet-format";
@@ -111,6 +113,26 @@ export function parseBiomeOutput(output: string): SyntaxDiagnostic[] {
 	}
 }
 
+/** The single error diagnostic reported when a checker cannot run. */
+function failedToRun(tool: string, error: ProcessError): SyntaxGuardResult {
+	const reason =
+		error.kind === "timeout"
+			? `timed out after ${error.timeoutMs}ms`
+			: error.message;
+	return {
+		ok: false,
+		error: [
+			{
+				file: "",
+				line: 0,
+				column: 0,
+				message: `Failed to run ${tool}: ${reason}`,
+				severity: "error",
+			},
+		],
+	};
+}
+
 /**
  * Run Biome check on the provided files and return a Result.
  *
@@ -123,6 +145,7 @@ export async function syntaxGuard(
 	files: string[],
 	cwd: string,
 	profile?: LanguageProfile,
+	processPort: ProcessPort = systemProcess,
 ): Promise<SyntaxGuardResult> {
 	if (files.length === 0) {
 		return { ok: true, value: undefined };
@@ -133,64 +156,42 @@ export async function syntaxGuard(
 
 	// Route to language-specific linter for non-TypeScript
 	if (lang.id !== "typescript") {
-		return runLanguageLinter(files, workDir, lang);
+		return runLanguageLinter(files, workDir, lang, processPort);
 	}
 	const biomeBin = findBiomeBinary(workDir);
 
-	try {
-		const proc = Bun.spawn(
-			[
-				biomeBin,
-				"check",
-				"--reporter=json",
-				"--no-errors-on-unmatched",
-				"--colors=off",
-				...files,
-			],
-			{
-				cwd: workDir,
-				stdout: "pipe",
-				stderr: "pipe",
-			},
-		);
+	const result = await processPort.spawn(
+		[
+			biomeBin,
+			"check",
+			"--reporter=json",
+			"--no-errors-on-unmatched",
+			"--colors=off",
+			...files,
+		],
+		{ cwd: workDir },
+	);
+	// Biome not found or spawn failure
+	if (!result.ok) return failedToRun("biome", result.error);
 
-		const stdout = await new Response(proc.stdout).text();
-		const exitCode = await proc.exited;
-
-		if (exitCode === 0) {
-			return { ok: true, value: undefined };
-		}
-
-		// Parse diagnostics from JSON output
-		const allDiagnostics = parseBiomeOutput(stdout);
-
-		// Only reject on errors, not warnings
-		const errors = allDiagnostics.filter((d) => d.severity === "error");
-
-		if (errors.length === 0) {
-			// Only warnings — pass
-			return { ok: true, value: undefined };
-		}
-
-		// Return all diagnostics (errors + warnings) for context,
-		// but the presence of errors triggers the rejection.
-		return { ok: false, error: allDiagnostics };
-	} catch (e) {
-		// Biome not found or spawn failure
-		const message = e instanceof Error ? e.message : String(e);
-		return {
-			ok: false,
-			error: [
-				{
-					file: "",
-					line: 0,
-					column: 0,
-					message: `Failed to run biome: ${message}`,
-					severity: "error",
-				},
-			],
-		};
+	if (result.value.exitCode === 0) {
+		return { ok: true, value: undefined };
 	}
+
+	// Parse diagnostics from JSON output
+	const allDiagnostics = parseBiomeOutput(result.value.stdout);
+
+	// Only reject on errors, not warnings
+	const errors = allDiagnostics.filter((d) => d.severity === "error");
+
+	if (errors.length === 0) {
+		// Only warnings — pass
+		return { ok: true, value: undefined };
+	}
+
+	// Return all diagnostics (errors + warnings) for context,
+	// but the presence of errors triggers the rejection.
+	return { ok: false, error: allDiagnostics };
 }
 
 /**
@@ -201,59 +202,38 @@ async function runLanguageLinter(
 	files: string[],
 	cwd: string,
 	profile: LanguageProfile,
+	processPort: ProcessPort,
 ): Promise<SyntaxGuardResult> {
 	const args = profile.syntaxArgs(files, cwd);
 
-	try {
-		const proc = Bun.spawn(args, {
-			cwd,
-			stdout: "pipe",
-			stderr: "pipe",
-		});
+	const result = await processPort.spawn(args, { cwd });
+	if (!result.ok) return failedToRun(profile.syntaxTool, result.error);
+	const { stdout, stderr } = result.value;
 
-		const stdout = await new Response(proc.stdout).text();
-		const stderr = await new Response(proc.stderr).text();
-		await proc.exited;
+	let diagnostics: SyntaxDiagnostic[] = [];
 
-		let diagnostics: SyntaxDiagnostic[] = [];
-
-		switch (profile.id) {
-			case "python":
-				diagnostics = parseRuffOutput(stdout);
-				break;
-			case "go":
-				diagnostics = parseGoVetOutput(stderr);
-				break;
-			case "rust":
-				diagnostics = parseClippyOutput(stdout);
-				break;
-			case "csharp":
-				diagnostics = parseDotnetFormatOutput(stdout);
-				break;
-			case "java":
-				diagnostics = parseCheckstyleOutput(stdout);
-				break;
-		}
-
-		const errors = diagnostics.filter((d) => d.severity === "error");
-		if (errors.length === 0) {
-			return { ok: true, value: undefined };
-		}
-
-		return { ok: false, error: diagnostics };
-	} catch (e) {
-		const message = e instanceof Error ? e.message : String(e);
-		return {
-			ok: false,
-			error: [
-				{
-					file: "",
-					line: 0,
-					column: 0,
-					message: `Failed to run ${profile.syntaxTool}: ${message}`,
-					severity: "error",
-				},
-			],
-		};
+	switch (profile.id) {
+		case "python":
+			diagnostics = parseRuffOutput(stdout);
+			break;
+		case "go":
+			diagnostics = parseGoVetOutput(stderr);
+			break;
+		case "rust":
+			diagnostics = parseClippyOutput(stdout);
+			break;
+		case "csharp":
+			diagnostics = parseDotnetFormatOutput(stdout);
+			break;
+		case "java":
+			diagnostics = parseCheckstyleOutput(stdout);
+			break;
 	}
+
+	const errors = diagnostics.filter((d) => d.severity === "error");
+	if (errors.length === 0) {
+		return { ok: true, value: undefined };
+	}
+
+	return { ok: false, error: diagnostics };
 }

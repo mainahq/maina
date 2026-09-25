@@ -8,6 +8,8 @@
 
 import type { Result } from "../db/index.ts";
 import { getContextDb } from "../db/index.ts";
+import type { ProcessPort } from "../ports/process";
+import { systemProcess } from "../process/index";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,7 +24,8 @@ export interface TicketOptions {
 	 * them as `skippedLabels` so the caller can warn. See issue #170.
 	 */
 	strictLabels?: boolean;
-	cwd?: string;
+	/** Working directory for `gh` (explicit; core never reads the process cwd). */
+	cwd: string;
 	repo?: string; // Cross-repo: "owner/name" for gh --repo flag
 }
 
@@ -37,30 +40,32 @@ export interface TicketResult {
 export interface SpawnDeps {
 	spawn: (
 		args: string[],
-		opts?: { cwd?: string },
+		opts: { cwd: string },
 	) => Promise<{ exitCode: number; stdout: string; stderr: string }>;
 }
 
-// ── Default spawn via Bun.spawn ──────────────────────────────────────────────
+// ── Default spawn via the ProcessPort ────────────────────────────────────────
 
-async function defaultSpawn(
-	args: string[],
-	opts?: { cwd?: string },
-): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-	const proc = Bun.spawn(args, {
-		cwd: opts?.cwd,
-		stdout: "pipe",
-		stderr: "pipe",
-	});
-
-	const stdout = await new Response(proc.stdout).text();
-	const stderr = await new Response(proc.stderr).text();
-	const exitCode = await proc.exited;
-
-	return { exitCode, stdout, stderr };
+/**
+ * `SpawnDeps` over a `ProcessPort`. A child that cannot be started (or
+ * times out) reads as a failed command, exit code 127 with the reason on
+ * stderr, so callers keep one error path.
+ */
+export function processSpawnDeps(processPort: ProcessPort): SpawnDeps {
+	return {
+		spawn: async (args, opts) => {
+			const result = await processPort.spawn(args, { cwd: opts.cwd });
+			if (result.ok) return result.value;
+			const reason =
+				result.error.kind === "timeout"
+					? `${args[0]} timed out after ${result.error.timeoutMs}ms`
+					: result.error.message;
+			return { exitCode: 127, stdout: "", stderr: reason };
+		},
+	};
 }
 
-const defaultDeps: SpawnDeps = { spawn: defaultSpawn };
+const defaultDeps: SpawnDeps = processSpawnDeps(systemProcess);
 
 // ── detectModules ────────────────────────────────────────────────────────────
 
@@ -148,7 +153,7 @@ export function buildIssueBody(body: string, modules: string[]): string {
  * labels through unchanged and letting `gh issue create` surface the error.
  */
 async function listAvailableLabels(
-	opts: { cwd?: string; repo?: string },
+	opts: { cwd: string; repo?: string },
 	deps: SpawnDeps,
 ): Promise<Set<string> | null> {
 	try {

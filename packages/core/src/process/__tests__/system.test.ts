@@ -16,6 +16,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	createSystemProcess,
 	indexFileBelongsTo,
 	stripRepoLocalGitEnv,
 	systemProcess,
@@ -220,5 +221,47 @@ describe("systemProcess.spawn", () => {
 			ok: true,
 			value: { exitCode: 0, stdout: "set|/explicit/.git", stderr: "" },
 		});
+	});
+
+	test("feeds stdin to the child when given", async () => {
+		const result = await systemProcess.spawn(
+			[BUN, "-e", "process.stdout.write(await Bun.stdin.text())"],
+			{ cwd: tmpdir(), stdin: '{"event":"pre-commit"}' },
+		);
+		expect(result).toEqual({
+			ok: true,
+			value: { exitCode: 0, stdout: '{"event":"pre-commit"}', stderr: "" },
+		});
+	});
+
+	test("a timed-out child that ignores SIGTERM is SIGKILLed after the grace period", async () => {
+		const cwd = realpathSync(mkdtempSync(join(tmpdir(), "maina-kill-")));
+		dirs.push(cwd);
+		const pidFile = join(cwd, "pid");
+		const stubborn = [
+			"process.on('SIGTERM', () => {});",
+			`require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));`,
+			"setInterval(() => {}, 1000);",
+		].join(" ");
+		const result = await createSystemProcess({ killGraceMs: 100 }).spawn(
+			[BUN, "-e", stubborn],
+			{ cwd, timeoutMs: 1000 },
+		);
+		expect(result).toEqual({
+			ok: false,
+			error: { kind: "timeout", timeoutMs: 1000 },
+		});
+		const pid = Number(await Bun.file(pidFile).text());
+		const alive = (): boolean => {
+			try {
+				process.kill(pid, 0);
+				return true;
+			} catch {
+				return false;
+			}
+		};
+		const deadline = Date.now() + 3000;
+		while (alive() && Date.now() < deadline) await Bun.sleep(25);
+		expect(alive()).toBe(false);
 	});
 });

@@ -7,12 +7,15 @@
 
 import { existsSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
+import type { ProcessPort } from "../../ports/process";
 import type { Finding } from "../diff-filter";
 import { runWikiLint, wikiLintToFindings } from "./wiki-lint";
 
 interface WikiLintRunnerOptions {
 	cwd: string;
 	mainaDir?: string;
+	/** Spawns wiki lint's `git log`; the system adapter by default. */
+	process?: ProcessPort;
 }
 
 /**
@@ -36,7 +39,11 @@ export async function runWikiLintTool(
 		return { findings: [], skipped: true };
 	}
 
-	const result = runWikiLint({ wikiDir, repoRoot: cwd });
+	const result = await runWikiLint({
+		wikiDir,
+		repoRoot: cwd,
+		process: options.process,
+	});
 	const findings = wikiLintToFindings(result);
 
 	return { findings, skipped: false };

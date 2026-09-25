@@ -155,6 +155,7 @@ describe("createTicket", () => {
 			{
 				title: "Test issue",
 				body: "Test body",
+				cwd: "/repo",
 				labels: ["bug"],
 			},
 			{ spawn: mockSpawn },
@@ -181,6 +182,7 @@ describe("createTicket", () => {
 			{
 				title: "Test",
 				body: "Body",
+				cwd: "/repo",
 				labels: ["bug", "context"],
 			},
 			{ spawn: mockSpawn },
@@ -201,6 +203,7 @@ describe("createTicket", () => {
 			{
 				title: "Test",
 				body: "Body",
+				cwd: "/repo",
 			},
 			{ spawn: mockSpawn },
 		);
@@ -219,6 +222,7 @@ describe("createTicket", () => {
 			{
 				title: "Test",
 				body: "Body",
+				cwd: "/repo",
 			},
 			{ spawn: mockSpawn },
 		);
@@ -239,6 +243,7 @@ describe("createTicket", () => {
 			{
 				title: "Test",
 				body: "Body",
+				cwd: "/repo",
 			},
 			{ spawn: mockSpawn },
 		);
@@ -302,6 +307,7 @@ describe("createTicket", () => {
 			{
 				title: "t",
 				body: "b",
+				cwd: "/repo",
 				labels: ["bug", "templates", "commands", "context"],
 			},
 			{ spawn: mockSpawn },
@@ -331,7 +337,12 @@ describe("createTicket", () => {
 		};
 
 		const result = await createTicket(
-			{ title: "t", body: "b", labels: ["templates", "commands"] },
+			{
+				title: "t",
+				body: "b",
+				cwd: "/repo",
+				labels: ["templates", "commands"],
+			},
 			{ spawn: mockSpawn },
 		);
 
@@ -361,6 +372,7 @@ describe("createTicket", () => {
 			{
 				title: "t",
 				body: "b",
+				cwd: "/repo",
 				labels: ["templates"],
 				strictLabels: true,
 			},
@@ -393,7 +405,7 @@ describe("createTicket", () => {
 		};
 
 		const result = await createTicket(
-			{ title: "t", body: "b", labels: ["bug"] },
+			{ title: "t", body: "b", cwd: "/repo", labels: ["bug"] },
 			{ spawn: mockSpawn },
 		);
 
@@ -421,6 +433,7 @@ describe("createTicket", () => {
 			{
 				title: "t",
 				body: "b",
+				cwd: "/repo",
 				labels: ["bug"],
 				repo: "beeeku/workkit",
 			},
@@ -445,7 +458,10 @@ describe("createTicket", () => {
 			};
 		};
 
-		await createTicket({ title: "t", body: "b" }, { spawn: mockSpawn });
+		await createTicket(
+			{ title: "t", body: "b", cwd: "/repo" },
+			{ spawn: mockSpawn },
+		);
 
 		expect(labelListCalled).toBe(false);
 	});

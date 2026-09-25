@@ -69,6 +69,12 @@ let recordedOutcomes: Array<{
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 mock.module("@mainahq/core", () => ({
+	systemProcess: {
+		spawn: async () => ({
+			ok: false as const,
+			error: { kind: "spawn_failed" as const, message: "test" },
+		}),
+	},
 	getStagedFiles: async () => mockStagedFiles,
 	getCurrentBranch: async () => mockBranch,
 	getDiff: async () => "+ some diff content",

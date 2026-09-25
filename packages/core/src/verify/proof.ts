@@ -8,6 +8,8 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createCacheManager } from "../cache/manager";
+import type { ProcessPort } from "../ports/process";
+import { systemProcess } from "../process/index";
 import { loadWorkflowContext } from "../workflow/context";
 import type { PipelineOptions, PipelineResult } from "./pipeline";
 import { runPipeline } from "./pipeline";
@@ -44,6 +46,8 @@ export interface ProofOptions {
 	cwd: string;
 	/** Environment for the pipeline's type checker (see `PipelineOptions.env`). */
 	env?: PipelineOptions["env"];
+	/** Spawns the pipeline's tools, the test run and screenshots; the system adapter by default. */
+	process?: ProcessPort;
 	mainaDir?: string;
 	baseBranch?: string;
 	skipTests?: boolean;
@@ -63,32 +67,21 @@ export interface ProofOptions {
  */
 async function runTests(
 	cwd: string,
+	processPort: ProcessPort,
 ): Promise<{ passed: number; failed: number; files: number } | null> {
-	try {
-		const proc = Bun.spawn(["bun", "test"], {
-			cwd,
-			stdout: "pipe",
-			stderr: "pipe",
-		});
+	const result = await processPort.spawn(["bun", "test"], { cwd });
+	if (!result.ok) return null;
 
-		const stdout = await new Response(proc.stdout).text();
-		await proc.exited;
-
-		// Parse "980 pass, 0 fail across 87 files."
-		const match = stdout.match(/(\d+)\s+pass,?\s+(\d+)\s+fail.*?(\d+)\s+file/);
-		if (match) {
-			return {
-				passed: Number.parseInt(match[1] ?? "0", 10),
-				failed: Number.parseInt(match[2] ?? "0", 10),
-				files: Number.parseInt(match[3] ?? "0", 10),
-			};
-		}
-
-		// Fallback: just check exit code
-		return null;
-	} catch {
-		return null;
-	}
+	// Parse "980 pass, 0 fail across 87 files."
+	const match = result.value.stdout.match(
+		/(\d+)\s+pass,?\s+(\d+)\s+fail.*?(\d+)\s+file/,
+	);
+	if (!match) return null;
+	return {
+		passed: Number.parseInt(match[1] ?? "0", 10),
+		failed: Number.parseInt(match[2] ?? "0", 10),
+		files: Number.parseInt(match[3] ?? "0", 10),
+	};
 }
 
 /**
@@ -100,6 +93,7 @@ export async function gatherVerificationProof(
 	const cwd = options.cwd;
 	const mainaDir = options.mainaDir ?? join(cwd, ".maina");
 	const baseBranch = options.baseBranch;
+	const processPort = options.process ?? systemProcess;
 
 	// Pipeline
 	let pipelineResult = options.pipelineResult;
@@ -110,6 +104,7 @@ export async function gatherVerificationProof(
 			cwd,
 			mainaDir,
 			env: options.env,
+			process: processPort,
 		});
 	}
 
@@ -121,7 +116,7 @@ export async function gatherVerificationProof(
 	}));
 
 	// Tests
-	const tests = options.skipTests ? null : await runTests(cwd);
+	const tests = options.skipTests ? null : await runTests(cwd, processPort);
 
 	// Review (passed from caller if available)
 	const review = options.reviewResult
@@ -149,7 +144,11 @@ export async function gatherVerificationProof(
 		const baselineDir = join(mainaDir, "visual-baselines");
 		if (existsSync(baselineDir)) {
 			try {
-				const visualResult = await runVisualVerification(mainaDir);
+				const visualResult = await runVisualVerification(
+					mainaDir,
+					undefined,
+					processPort,
+				);
 				if (!visualResult.skipped) {
 					const regressions = visualResult.findings.filter(
 						(f) => f.ruleId === "visual/regression",

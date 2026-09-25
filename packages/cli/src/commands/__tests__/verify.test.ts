@@ -88,8 +88,17 @@ let mockAuthResult: {
 let mockDiffOutput =
 	"diff --git a/src/index.ts b/src/index.ts\n--- a/src/index.ts\n+++ b/src/index.ts";
 
+/** Stands in for core's system `ProcessPort`, so tests can see it forwarded. */
+const fakeSystemProcess = {
+	spawn: async () => ({
+		ok: false as const,
+		error: { kind: "spawn_failed" as const, message: "test" },
+	}),
+};
+
 mock.module("@mainahq/core", () => ({
 	VERSION: "0.0.0-test",
+	systemProcess: fakeSystemProcess,
 	runPipeline: async (opts?: Record<string, unknown>) => {
 		pipelineCalledWith = opts;
 		return mockPipelineResult;
@@ -314,6 +323,12 @@ describe("maina verify", () => {
 
 		expect(pipelineCalledWith).toBeDefined();
 		expect(pipelineCalledWith?.diffOnly).toBe(false);
+	});
+
+	test("passes the process port to the pipeline (#433)", async () => {
+		await verifyAction({ cwd: tmpDir });
+
+		expect(pipelineCalledWith?.process).toBe(fakeSystemProcess);
 	});
 
 	test("passes --base flag to pipeline", async () => {

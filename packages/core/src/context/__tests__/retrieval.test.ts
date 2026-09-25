@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { tmpdir } from "node:os";
 import type { SearchResult } from "../retrieval";
 import {
 	assembleRetrievalText,
@@ -9,12 +10,12 @@ import {
 
 describe("isToolAvailable", () => {
 	test("returns true for 'git' (always available)", async () => {
-		const result = await isToolAvailable("git");
+		const result = await isToolAvailable("git", tmpdir());
 		expect(result).toBe(true);
 	});
 
 	test("returns false for 'nonexistent-tool-xyz'", async () => {
-		const result = await isToolAvailable("nonexistent-tool-xyz");
+		const result = await isToolAvailable("nonexistent-tool-xyz", tmpdir());
 		expect(result).toBe(false);
 	});
 });

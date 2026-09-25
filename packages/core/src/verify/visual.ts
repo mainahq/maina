@@ -7,6 +7,8 @@
 
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import type { ProcessPort } from "../ports/process";
+import { systemProcess } from "../process/index";
 import { isToolAvailable } from "./detect";
 import type { Finding } from "./diff-filter";
 
@@ -23,6 +25,8 @@ export interface ScreenshotOptions {
 	root: string;
 	viewport?: { width: number; height: number };
 	available?: boolean;
+	/** Spawns Playwright; the system adapter by default. */
+	process?: ProcessPort;
 }
 
 export interface ScreenshotResult {
@@ -164,8 +168,10 @@ export async function captureScreenshot(
 	outputPath: string,
 	options: ScreenshotOptions,
 ): Promise<ScreenshotResult> {
+	const processPort = options.process ?? systemProcess;
 	const playwrightAvailable =
-		options.available ?? (await isToolAvailable("playwright", options.root));
+		options.available ??
+		(await isToolAvailable("playwright", options.root, processPort));
 	if (!playwrightAvailable) {
 		return { captured: false, skipped: true };
 	}
@@ -175,39 +181,6 @@ export async function captureScreenshot(
 	try {
 		const dir = join(outputPath, "..");
 		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-
-		const proc = Bun.spawn(
-			[
-				"npx",
-				"playwright",
-				"screenshot",
-				"--browser",
-				"chromium",
-				`--viewport-size=${viewport.width},${viewport.height}`,
-				url,
-				outputPath,
-			],
-			{
-				// Run from the root the tool was detected in, so `npx` resolves
-				// the same (root-local) Playwright install.
-				cwd: options.root,
-				stdout: "pipe",
-				stderr: "pipe",
-			},
-		);
-
-		await new Response(proc.stderr).text();
-		const exitCode = await proc.exited;
-
-		if (exitCode === 0) {
-			return { captured: true, skipped: false, path: outputPath };
-		}
-
-		return {
-			captured: false,
-			skipped: false,
-			error: `Playwright exited with code ${exitCode}`,
-		};
 	} catch (e) {
 		return {
 			captured: false,
@@ -215,6 +188,43 @@ export async function captureScreenshot(
 			error: e instanceof Error ? e.message : String(e),
 		};
 	}
+
+	const result = await processPort.spawn(
+		[
+			"npx",
+			"playwright",
+			"screenshot",
+			"--browser",
+			"chromium",
+			`--viewport-size=${viewport.width},${viewport.height}`,
+			url,
+			outputPath,
+		],
+		// Run from the root the tool was detected in, so `npx` resolves the
+		// same (root-local) Playwright install.
+		{ cwd: options.root },
+	);
+	if (!result.ok) {
+		return {
+			captured: false,
+			skipped: true,
+			error:
+				result.error.kind === "timeout"
+					? `Playwright timed out after ${result.error.timeoutMs}ms`
+					: result.error.message,
+		};
+	}
+
+	const { exitCode } = result.value;
+	if (exitCode === 0) {
+		return { captured: true, skipped: false, path: outputPath };
+	}
+
+	return {
+		captured: false,
+		skipped: false,
+		error: `Playwright exited with code ${exitCode}`,
+	};
 }
 
 // ─── Pixel Comparison ─────────────────────────────────────────────────────
@@ -276,6 +286,7 @@ export function compareImages(
 export async function runVisualVerification(
 	mainaDir: string,
 	config?: VisualConfig,
+	processPort: ProcessPort = systemProcess,
 ): Promise<VisualVerifyResult> {
 	const cfg = config ?? loadVisualConfig(mainaDir);
 
@@ -328,6 +339,7 @@ export async function runVisualVerification(
 		const result = await captureScreenshot(url, currentPath, {
 			root: dirname(mainaDir),
 			viewport: cfg.viewport,
+			process: processPort,
 		});
 
 		if (result.skipped) {
@@ -433,6 +445,7 @@ export async function runVisualVerification(
 export async function updateBaselines(
 	mainaDir: string,
 	config?: VisualConfig,
+	processPort: ProcessPort = systemProcess,
 ): Promise<{ updated: string[]; errors: string[] }> {
 	const cfg = config ?? loadVisualConfig(mainaDir);
 	const baselineDir = join(mainaDir, "visual-baselines");
@@ -456,6 +469,7 @@ export async function updateBaselines(
 		const result = await captureScreenshot(url, outputPath, {
 			root: dirname(mainaDir),
 			viewport: cfg.viewport,
+			process: processPort,
 		});
 
 		if (result.captured) {

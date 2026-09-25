@@ -13,7 +13,12 @@ export type SpawnOptions = Readonly<{
 	 * hook never points a child at the wrong repository.
 	 */
 	env?: ProcessEnv;
-	/** Kill the child and report `timeout` after this many milliseconds. */
+	/** Written to the child's stdin, which is then closed. Default: no stdin. */
+	stdin?: string;
+	/**
+	 * Report `timeout` after this many milliseconds. The real adapter sends
+	 * SIGTERM, then SIGKILL if the child is still alive after a grace period.
+	 */
 	timeoutMs?: number;
 }>;
 
