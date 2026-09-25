@@ -60,17 +60,30 @@ const provided = (value: string | undefined): value is string =>
 /** A URI scheme of two or more chars, so a Windows drive letter is not one. */
 const URI_SCHEME = /^[a-z][a-z0-9+.-]+:/i;
 
-/** Absolute dir for a path or file: URI; null for a URI that names no local path. */
-const toDir = (value: string, cwd: string): string | null => {
-	if (URI_SCHEME.test(value)) {
-		if (!value.startsWith("file:")) return null;
-		try {
-			return fileURLToPath(value);
-		} catch {
-			return null;
-		}
+/**
+ * Local path for a `file:` URI with no host (URL parsing folds `localhost` to
+ * ""); null for any other URI. The host check comes before `fileURLToPath`,
+ * which would otherwise turn `file://host/...` into a UNC path on Windows.
+ */
+const fileUriToDir = (value: string): string | null => {
+	try {
+		const url = new URL(value);
+		if (url.protocol !== "file:" || url.hostname !== "") return null;
+		return fileURLToPath(url);
+	} catch {
+		return null;
 	}
-	return isAbsolute(value) ? resolve(value) : resolve(cwd, value);
+};
+
+/**
+ * Absolute dir for a path or file: URI; null for a URI that names no local
+ * path, or for a relative value when `cwd` is itself relative (resolving it
+ * would silently depend on the process working directory).
+ */
+const toDir = (value: string, cwd: string): string | null => {
+	if (URI_SCHEME.test(value)) return fileUriToDir(value);
+	if (isAbsolute(value)) return resolve(value);
+	return isAbsolute(cwd) ? resolve(cwd, value) : null;
 };
 
 /** The highest-precedence source that was provided, with its raw values. */
@@ -103,7 +116,9 @@ export function resolveRoot(
 /**
  * Variables that point git at a specific repository regardless of the
  * directory it runs in (set, for example, inside git hooks). The probe drops
- * them so the answer depends only on `dir`.
+ * them so the answer depends only on `dir`. Discovery limits such as
+ * `GIT_CEILING_DIRECTORIES` are the user's own policy and only narrow the
+ * search, so they are kept: honouring them can refuse, never widen.
  */
 const REPO_LOCATING_ENV = [
 	"GIT_DIR",

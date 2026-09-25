@@ -135,6 +135,16 @@ describe("resolveRoot precedence", () => {
 			{ mcpRoots: ["file:/repo/mcp/a"], cwd: "/repo/cwd" },
 			found("/repo/mcp", "mcp"),
 		],
+		[
+			"file URI schemes are case-insensitive",
+			{ mcpRoots: ["FILE:///repo/mcp/a"], cwd: "/repo/cwd" },
+			found("/repo/mcp", "mcp"),
+		],
+		[
+			"file://localhost/ URIs name a local path",
+			{ mcpRoots: ["file://localhost/repo/mcp/a"], cwd: "/repo/cwd" },
+			found("/repo/mcp", "mcp"),
+		],
 	];
 
 	for (const [name, inputs, expected] of cases) {
@@ -174,6 +184,23 @@ describe("resolveRoot refusal", () => {
 		expect(resolveRoot({ mcpRoots: remote, cwd: "/repo/cwd" }, git)).toEqual(
 			refused("mcp", remote),
 		);
+	});
+
+	test("relative inputs with a relative cwd refuse without probing", () => {
+		const probed: string[] = [];
+		const anyDir: GitProbe = {
+			toplevel: (dir) => {
+				probed.push(dir);
+				return dir;
+			},
+		};
+		expect(resolveRoot({ explicit: "sub", cwd: "rel" }, anyDir)).toEqual(
+			refused("explicit", ["sub"]),
+		);
+		expect(resolveRoot({ cwd: "rel" }, anyDir)).toEqual(
+			refused("cwd", ["rel"]),
+		);
+		expect(probed).toEqual([]);
 	});
 
 	test("a cwd outside a repo refuses", () => {
@@ -301,6 +328,17 @@ describe("resolveRoot with real repositories", () => {
 		expect(resolveRoot({ explicit: missing, cwd: outer }, gitProbe)).toEqual(
 			refused("explicit", [missing]),
 		);
+	});
+
+	test("the probe honours GIT_CEILING_DIRECTORIES and refuses above it", () => {
+		const saved = process.env.GIT_CEILING_DIRECTORIES;
+		process.env.GIT_CEILING_DIRECTORIES = outer;
+		try {
+			expect(gitProbe.toplevel(join(outer, "src", "deep"))).toBeNull();
+		} finally {
+			if (saved === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
+			else process.env.GIT_CEILING_DIRECTORIES = saved;
+		}
 	});
 
 	test("the probe ignores an inherited GIT_DIR", () => {
