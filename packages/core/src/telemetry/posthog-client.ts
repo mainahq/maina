@@ -39,7 +39,8 @@ export interface PosthogLike {
 	shutdown(): Promise<void>;
 }
 
-export type PosthogFactory = (apiKey: string) => PosthogLike;
+/** Builds the SDK for `apiKey`, sending to `host` (resolved from the env). */
+export type PosthogFactory = (apiKey: string, host: string) => PosthogLike;
 
 export interface PosthogClientOptions {
 	/**
@@ -111,9 +112,8 @@ export function createPosthogClient(opts: PosthogClientOptions): PosthogClient {
 		sdkAttempted = true;
 		if (!hasKey) return null;
 		try {
-			const factory =
-				opts.createPosthog ?? ((key: string) => defaultFactory(key, host));
-			sdk = factory(apiKey);
+			const factory = opts.createPosthog ?? defaultFactory;
+			sdk = factory(apiKey, host);
 		} catch {
 			sdk = null;
 		}
