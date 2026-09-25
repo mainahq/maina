@@ -1,0 +1,18 @@
+{
+  "name": "@mainahq/harness",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Maina harness: drives coding agents over the Agent Client Protocol and normalises what they do",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "^1.5.0",
+    "@mainahq/core": "workspace:*"
+  }
+}

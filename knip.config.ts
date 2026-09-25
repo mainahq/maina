@@ -70,6 +70,16 @@ const config: KnipConfig = {
 				"launcher/**/*.ts",
 			],
 		},
+		"packages/harness": {
+			// Private until release: the orchestrator is the entry. The fake
+			// ACP agent is spawned by path from the orchestrator tests.
+			entry: ["src/orchestrator.ts!", TESTS, "src/__fixtures__/*.ts"],
+			project: [
+				"src/**/*.ts!",
+				"!src/**/__tests__/**!",
+				"!src/__fixtures__/**!",
+			],
+		},
 		"packages/mcp": {
 			// The stdio fixture is spawned by path from the resilience test.
 			entry: ["src/index.ts!", TESTS, "src/__tests__/stdio-fixture.ts"],

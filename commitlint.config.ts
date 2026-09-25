@@ -4,7 +4,17 @@ export default {
 		"scope-enum": [
 			2,
 			"always",
-			["cli", "core", "runtime", "adapters", "mcp", "skills", "docs", "ci"],
+			[
+				"cli",
+				"core",
+				"runtime",
+				"harness",
+				"adapters",
+				"mcp",
+				"skills",
+				"docs",
+				"ci",
+			],
 		],
 	},
 };
