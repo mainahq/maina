@@ -11,6 +11,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { Result } from "../db/index";
 import { decide, defaultDecidePorts, scoreAnswers } from "../decide/decide";
+import {
+	FEATURE_TEMPLATES,
+	mandatorySections,
+} from "../prompts/templates/index";
+import { findClarificationMarkers } from "./clarify";
 
 /**
  * Extract criteria from both "Acceptance Criteria" and "Success Criteria" sections.
@@ -103,9 +108,11 @@ const WEASEL_WORDS = new Set([
 ]);
 
 /**
- * Required sections in a well-formed spec.
+ * Required sections in a well-formed legacy (`# Feature:`) spec. A spec
+ * written from the shipped spec template is held to that template's
+ * `*(mandatory)*` sections instead.
  */
-const REQUIRED_SECTIONS = [
+const LEGACY_REQUIRED_SECTIONS: readonly string[] = [
 	"Problem Statement",
 	"User Stories",
 	"Success Criteria",
@@ -125,6 +132,16 @@ const TESTABLE_PATTERNS = [
 	/\b(error|Error|ERROR)\s+(code|message|status)\b/i, // error references
 ];
 
+const TEMPLATE_REQUIRED_SECTIONS = mandatorySections(FEATURE_TEMPLATES.spec);
+
+/** Whether `content` follows the shipped spec template. */
+function followsTemplate(content: string): boolean {
+	return (
+		/^#\s+Verification Specification\b/m.test(content) ||
+		/^##\s+.+\*\(mandatory\)\*/m.test(content)
+	);
+}
+
 /** Counts the four dimensions are scored from. */
 interface SpecCounts {
 	criteria: number;
@@ -132,6 +149,7 @@ interface SpecCounts {
 	vague: number;
 	testable: number;
 	weaselWords: number;
+	requiredSections: number;
 	missingSections: string[];
 	clarificationMarkers: number;
 }
@@ -191,8 +209,11 @@ function countWeaselWords(content: string): number {
 }
 
 /** Required sections that have no `##` heading in the spec. */
-function findMissingSections(content: string): string[] {
-	return REQUIRED_SECTIONS.filter((section) => {
+function findMissingSections(
+	content: string,
+	required: readonly string[],
+): string[] {
+	return required.filter((section) => {
 		// Check for heading containing the section name (case-insensitive)
 		const pattern = new RegExp(`^##\\s+${escapeRegex(section)}`, "im");
 		return !pattern.test(content);
@@ -202,15 +223,23 @@ function findMissingSections(content: string): string[] {
 function countSpec(content: string): SpecCounts {
 	const criteria = extractCriteria(content);
 	const { measurable, vague } = countMeasurable(criteria);
+	const template = followsTemplate(content);
+	const required = template
+		? TEMPLATE_REQUIRED_SECTIONS
+		: LEGACY_REQUIRED_SECTIONS;
 	return {
 		criteria: criteria.length,
 		measurable,
 		vague,
 		testable: countTestable(criteria),
 		weaselWords: countWeaselWords(content),
-		missingSections: findMissingSections(content),
-		clarificationMarkers:
-			content.match(/\[NEEDS CLARIFICATION\]/g)?.length ?? 0,
+		requiredSections: required.length,
+		missingSections: findMissingSections(content, required),
+		// Template specs count real markers (`[NEEDS CLARIFICATION: …]` too,
+		// quoted ones skipped); legacy specs keep their historic bare count.
+		clarificationMarkers: template
+			? findClarificationMarkers(content).length
+			: (content.match(/\[NEEDS CLARIFICATION\]/g)?.length ?? 0),
 	};
 }
 
@@ -239,7 +268,7 @@ function describeScores(
 			? "Testability: 0 — no acceptance criteria"
 			: `Testability: ${score.testability} — ${counts.testable}/${total} criteria contain testable patterns`;
 	const ambiguity = `Ambiguity: ${score.ambiguity} — ${counts.weaselWords} weasel word(s) found`;
-	const present = REQUIRED_SECTIONS.length - counts.missingSections.length;
+	const present = counts.requiredSections - counts.missingSections.length;
 	const markerCount = counts.clarificationMarkers;
 	const missingStr =
 		counts.missingSections.length > 0
@@ -249,7 +278,7 @@ function describeScores(
 		markerCount > 0
 			? ` — ${markerCount} [NEEDS CLARIFICATION] marker(s) (-${markerCount * 10})`
 			: "";
-	const completeness = `Completeness: ${score.completeness} — ${present}/${REQUIRED_SECTIONS.length} sections present${missingStr}${markerStr}`;
+	const completeness = `Completeness: ${score.completeness} — ${present}/${counts.requiredSections} sections present${missingStr}${markerStr}`;
 	return [
 		measurability,
 		testability,
@@ -302,8 +331,8 @@ export function scoreSpec(specPath: string): Result<QualityScore> {
 				testable: counts.testable,
 				weaselWords: counts.weaselWords,
 				sectionsPresent:
-					REQUIRED_SECTIONS.length - counts.missingSections.length,
-				sectionsRequired: REQUIRED_SECTIONS.length,
+					counts.requiredSections - counts.missingSections.length,
+				sectionsRequired: counts.requiredSections,
 				clarificationMarkers: counts.clarificationMarkers,
 			},
 			untrusted: { spec: content },

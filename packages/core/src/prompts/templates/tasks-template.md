@@ -8,11 +8,11 @@
 > implemented. Each task traces to a journey from the spec and to a module
 > from the plan; if it doesn't trace, the task isn't justified yet.
 >
-> Mark tasks `[x]` as you complete them. Reviewers (and future
-> contributors reading the receipt walkthrough) lean on the checkbox
-> state to gauge completeness; gating `maina pr` on full task
-> completion is a follow-up automation, not a current enforcement
-> guarantee.
+> A task is ticked `[x]` only by a `decide` id or a human action, and the
+> tick records its source (`<!-- ticked-by: decide:<id> -->` or
+> `<!-- ticked-by: human:<name> -->`). The agent that writes the code
+> cannot tick its own checklist; a tick without a source is reported as
+> unattested.
 
 ## TDD discipline
 

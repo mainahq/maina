@@ -1,15 +1,17 @@
 import type { Result } from "../db/index";
+import { MAX_CLARIFY_QUESTIONS } from "../features/clarify";
 import type { AIContext } from "./index";
 import { tryAIGenerate } from "./try-generate";
 
 export interface SpecQuestion {
 	question: string;
 	type: "text" | "select";
+	/** Multiple-choice answers, the recommendation first. */
 	options?: string[];
+	/** The answer the model recommends; always one of `options`. */
+	recommended?: string;
 	reason: string;
 }
-
-const MAX_QUESTIONS = 5;
 
 /**
  * Generates clarifying questions from plan.md content by asking the AI
@@ -43,8 +45,8 @@ export async function generateSpecQuestions(
 
 	try {
 		const parsed = parseQuestionsJSON(result.text);
-		const validated = parsed.filter(isValidQuestion);
-		return { ok: true, value: validated.slice(0, MAX_QUESTIONS) };
+		const validated = parsed.filter(isValidQuestion).map(recommendationFirst);
+		return { ok: true, value: validated.slice(0, MAX_CLARIFY_QUESTIONS) };
 	} catch {
 		return { ok: true, value: [] };
 	}
@@ -63,6 +65,27 @@ function parseQuestionsJSON(text: string): unknown[] {
 		return [];
 	}
 	return parsed;
+}
+
+/**
+ * The question with its recommended option moved to the front; a
+ * recommendation that is not one of the options is dropped.
+ */
+function recommendationFirst(q: SpecQuestion): SpecQuestion {
+	const { recommended, ...rest } = q;
+	const options = Array.isArray(q.options) ? q.options : undefined;
+	if (
+		typeof recommended !== "string" ||
+		options === undefined ||
+		!options.includes(recommended)
+	) {
+		return rest;
+	}
+	return {
+		...rest,
+		options: [recommended, ...options.filter((o) => o !== recommended)],
+		recommended,
+	};
 }
 
 function isValidQuestion(item: unknown): item is SpecQuestion {

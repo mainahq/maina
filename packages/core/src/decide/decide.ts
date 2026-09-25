@@ -286,6 +286,18 @@ export function scoreAnswers(
 
 type Fields = Readonly<Record<string, unknown>>;
 
+type DecideEachRequest = Readonly<{
+	type: DecisionType;
+	check: string;
+	trusted?: readonly Fields[];
+	untrusted?: readonly Fields[];
+	shared?: Readonly<{ trusted?: Fields; untrusted?: Fields }>;
+	fallback?: boolean;
+}>;
+
+/** A bool answer with the confidence `decide` gave it. */
+export type JudgedAnswer = Readonly<{ answer: boolean; confidence: number }>;
+
 /**
  * Asks one bool question per candidate, `<check>:<i>`, with candidate `i`'s
  * observations at `state.trusted.candidates[i]` / `state.untrusted.candidates[i]`
@@ -295,15 +307,19 @@ type Fields = Readonly<Record<string, unknown>>;
  */
 export function decideEach(
 	ports: DecidePorts,
-	request: Readonly<{
-		type: DecisionType;
-		check: string;
-		trusted?: readonly Fields[];
-		untrusted?: readonly Fields[];
-		shared?: Readonly<{ trusted?: Fields; untrusted?: Fields }>;
-		fallback?: boolean;
-	}>,
+	request: DecideEachRequest,
 ): readonly boolean[] {
+	return judgeEach(ports, request).map((j) => j.answer);
+}
+
+/**
+ * `decideEach` keeping each answer's confidence, for callers that calibrate
+ * on it. When `decide` fails every candidate gets `fallback` at confidence 0.
+ */
+export function judgeEach(
+	ports: DecidePorts,
+	request: DecideEachRequest,
+): readonly JudgedAnswer[] {
 	const count = Math.max(
 		request.trusted?.length ?? 0,
 		request.untrusted?.length ?? 0,
@@ -324,7 +340,14 @@ export function decideEach(
 			id: `${request.check}:${i}`,
 		})),
 	});
-	return boolAnswers(result, count, request.fallback ?? false);
+	if (!result.ok) {
+		const answer = request.fallback ?? false;
+		return Array.from({ length: count }, () => ({ answer, confidence: 0 }));
+	}
+	return result.value.map((d) => ({
+		answer: d.answer === true,
+		confidence: d.confidence,
+	}));
 }
 
 /** The answer to a single choice question, or `fallback` when `decide` fails. */

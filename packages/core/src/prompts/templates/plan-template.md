@@ -31,8 +31,15 @@
 - [ ] **Cross-agent rules (C4)** — `.maina/constitution.md` is canonical;
       derived agent rule files are emitted, not hand-edited.
 
-If any box is unchecked, the plan must say *why* and capture a
-`[NEEDS CLARIFICATION: …]` marker until the gap is resolved.
+A rule left unchecked is a violation. A MUST violation blocks the plan
+unless the justification table below records why it is needed; a rule
+whose text says SHOULD is advisory and never blocks.
+
+### Justifications
+
+| Rule | Justification |
+|---|---|
+| [Rule name, exactly as written above] | [Why the violation is needed and which simpler option was rejected] |
 
 ## Architecture summary
 

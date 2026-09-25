@@ -144,4 +144,32 @@ describe("traceFeature", () => {
 
 		expect(result.error).toContain("does not exist");
 	});
+
+	test("traces tasks written in the shipped tasks template format", async () => {
+		writeFileSync(
+			join(featureDir, "tasks.md"),
+			`# Verification Tasks: Login
+
+## Phases
+
+- [ ] **T-001** Test (red): login validates email — covers FR-001
+- [x] **T-002** Implement: email validation
+`,
+		);
+		const testDir = join(tmpDir, "src", "__tests__");
+		mkdirSync(testDir, { recursive: true });
+		writeFileSync(join(testDir, "login.test.ts"), "// T-001: email\n");
+
+		const result = await traceFeature(featureDir, tmpDir, {
+			gitLog: async () => "",
+		});
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.tasks.map((t) => t.taskId)).toEqual(["T-001", "T-002"]);
+		expect(result.value.tasks[0]?.testFile).toContain("login.test.ts");
+		expect(result.value.tasks[0]?.description).toBe(
+			"Test (red): login validates email — covers FR-001",
+		);
+	});
 });

@@ -307,15 +307,58 @@ export {
 } from "./explain/index";
 // Features
 export {
+	ANALYSIS_CATEGORIES,
+	type AnalysisCategory,
 	type AnalysisFinding,
 	type AnalysisReport,
+	type AnalysisSeverity,
 	analyze,
+	analyzeArtifacts,
+	type CalibratedFinding,
+	type CalibratedReport,
 } from "./features/analyzer";
 export {
 	type CheckResult,
+	type TickError,
+	type TickOptions,
+	type TickSource,
+	tickChecklistItem,
+	type UnattestedTick,
+	unattestedTicks,
 	type VerificationReport,
 	verifyPlan,
 } from "./features/checklist";
+export {
+	answerQuestion,
+	type ClarifyAnswer,
+	type ClarifyError,
+	type ClarifyQuestion,
+	type ClarifySession,
+	type ClarifySuggestion,
+	clarify,
+	findClarificationMarkers,
+	MAX_CLARIFY_MARKERS,
+	MAX_CLARIFY_QUESTIONS,
+	nextQuestion,
+} from "./features/clarify";
+export {
+	type ConstitutionGateReport,
+	constitutionGate,
+	type GateRule,
+	type GateViolation,
+	type RuleLevel,
+} from "./features/constitution-gate";
+export {
+	type ConvergeError,
+	type ConvergeGap,
+	type ConvergeReport,
+	converge,
+	convergeArtifacts,
+	convergeCheck,
+	type FeatureConvergeReport,
+	GAP_TYPES,
+	type GapType,
+} from "./features/converge";
 export {
 	createFeatureDir,
 	type DesignChoices,

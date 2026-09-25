@@ -75,6 +75,8 @@ export interface BuildReceiptInput {
 	env: EnvPort;
 	/** Git port; defaults to the real git binary. */
 	git?: GitPort;
+	/** Checks produced outside the pipeline, e.g. `convergeCheck`. */
+	extraChecks?: readonly Check[];
 }
 
 export type BuildReceiptResult =
@@ -93,6 +95,7 @@ const REPO_SLUG_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 export function deriveChecksAndStatus(
 	pipeline: PipelineResult,
 	retries = 0,
+	extraChecks: readonly Check[] = [],
 ): { checks: Check[]; status: "passed" | "failed" | "partial" } {
 	const mappedChecks = pipeline.tools
 		.map((report): Check | null => {
@@ -114,8 +117,14 @@ export function deriveChecksAndStatus(
 		})
 		.filter((c): c is Check => c !== null);
 
-	const checks = surfaceHiddenFailures(pipeline, mappedChecks);
-	const baseStatus = derivePipelineStatus(pipeline, checks);
+	const checks = [
+		...surfaceHiddenFailures(pipeline, mappedChecks),
+		...extraChecks,
+	];
+	// A failed extra check (e.g. spec convergence) fails a passing run.
+	const baseStatus = extraChecks.some((c) => c.status === "failed")
+		? "failed"
+		: derivePipelineStatus(pipeline, checks);
 	const status = retries >= 3 ? "partial" : baseStatus;
 	return { checks, status };
 }
@@ -134,7 +143,11 @@ export async function buildReceipt(
 	});
 
 	const retries = input.retries ?? 0;
-	const { checks, status } = deriveChecksAndStatus(input.pipeline, retries);
+	const { checks, status } = deriveChecksAndStatus(
+		input.pipeline,
+		retries,
+		input.extraChecks,
+	);
 
 	const receiptWithoutHash: Omit<Receipt, "hash"> = {
 		prTitle: input.prTitle,

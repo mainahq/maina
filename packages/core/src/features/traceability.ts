@@ -46,13 +46,15 @@ interface ParsedTask {
 }
 
 /**
- * Parse task lines from plan.md content.
- * Matches: - T001: description, - [ ] T001: description, - [x] T001: description
+ * Parse task lines from plan.md or tasks.md content.
+ * Matches: - T001: description, - [ ] T001: description, - [x] T001: description,
+ * and the tasks template's - [ ] **T-001** description.
  */
-function parseTasks(planContent: string): ParsedTask[] {
-	const lines = planContent.split("\n");
+function parseTasks(content: string): ParsedTask[] {
+	const lines = content.split("\n");
 	const tasks: ParsedTask[] = [];
 	const taskPattern = /^-\s+(?:\[[ x]\]\s+)?T(\d+):\s*(.+)$/;
+	const templatePattern = /^-\s+(?:\[[ xX]\]\s+)?\*\*(T-\d+)\*\*\s*(.+)$/;
 
 	for (const line of lines) {
 		const trimmed = line.trim();
@@ -61,6 +63,14 @@ function parseTasks(planContent: string): ParsedTask[] {
 			tasks.push({
 				id: `T${match[1]}`,
 				description: match[2].trim(),
+			});
+			continue;
+		}
+		const template = trimmed.match(templatePattern);
+		if (template?.[1] && template[2]) {
+			tasks.push({
+				id: template[1],
+				description: template[2].replace(/<!--.*?-->/g, "").trim(),
 			});
 		}
 	}
@@ -210,15 +220,22 @@ export async function traceFeature(
 	}
 
 	const planPath = join(featureDir, "plan.md");
-	if (!existsSync(planPath)) {
+	const tasksPath = join(featureDir, "tasks.md");
+	const sources = [planPath, tasksPath].filter((p) => existsSync(p));
+	if (sources.length === 0) {
 		return {
 			ok: false,
-			error: `plan.md not found at ${planPath}`,
+			error: `plan.md not found at ${planPath} (and no tasks.md beside it)`,
 		};
 	}
 
-	const planContent = readFileSync(planPath, "utf-8");
-	const parsedTasks = parseTasks(planContent);
+	// plan.md first; a task id listed in both files is traced once.
+	const parsedTasks: ParsedTask[] = [];
+	for (const path of sources) {
+		for (const task of parseTasks(readFileSync(path, "utf-8"))) {
+			if (!parsedTasks.some((t) => t.id === task.id)) parsedTasks.push(task);
+		}
+	}
 
 	// Collect all files from repo root
 	const allFiles = collectFiles(repoRoot);
