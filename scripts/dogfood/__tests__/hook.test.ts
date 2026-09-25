@@ -40,7 +40,12 @@ function gate(
 	reason = "why",
 ): ClaudeHookPorts {
 	return {
-		evaluate: async () => ({ verdict, reason }),
+		evaluate: async () => ({
+			verdict,
+			reason,
+			decisionIds: [],
+			degraded: false,
+		}),
 		sessionSummary: async () => undefined,
 	};
 }
