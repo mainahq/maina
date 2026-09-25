@@ -14,7 +14,11 @@ type CanonicalizeResult =
 	| { ok: true; data: string }
 	| {
 			ok: false;
-			code: "unsupported-type" | "non-finite-number" | "cyclic-reference";
+			code:
+				| "unsupported-type"
+				| "non-finite-number"
+				| "cyclic-reference"
+				| "unreadable-value";
 			message: string;
 	  };
 
@@ -24,10 +28,21 @@ type CanonicalizeResult =
  * have to wrap in try/catch. The first unsupported value found (depth-first,
  * in canonical key order) short-circuits the walk. A value that contains
  * itself comes back as `cyclic-reference` instead of overflowing the stack;
- * shared references that are not cycles canonicalize normally.
+ * shared references that are not cycles canonicalize normally. Reading the
+ * value can still run foreign code (a throwing getter or Proxy trap) or
+ * exhaust the stack on absurdly deep nesting; those come back as
+ * `unreadable-value`, so the function stays total over `unknown`.
  */
 export function canonicalize(value: unknown): CanonicalizeResult {
-	return canonicalizeWithin(value, []);
+	try {
+		return canonicalizeWithin(value, []);
+	} catch (e) {
+		return {
+			ok: false,
+			code: "unreadable-value",
+			message: `Cannot read value to canonicalize: ${e instanceof Error ? e.message : String(e)}`,
+		};
+	}
 }
 
 /** `ancestors` holds the arrays/objects on the path from the root to `value`. */
