@@ -69,6 +69,12 @@ export type GateResult = Readonly<{
 	rewrittenInput?: Readonly<Record<string, unknown>>;
 }>;
 
+/**
+ * Appended to a gate decision's id to name the second half of its two-order
+ * check: both halves belong to one gate event.
+ */
+export const REVERSED_SUFFIX = ":reversed";
+
 /** Default decide-stage budget. */
 export const DEFAULT_GATE_BUDGET_MS = 250;
 
@@ -352,7 +358,7 @@ function riskRequest(
 		questions: [
 			{
 				kind: "choice",
-				id: reversed ? `${id}:reversed` : id,
+				id: reversed ? `${id}${REVERSED_SUFFIX}` : id,
 				options: reversed ? [...VERDICTS].reverse() : [...VERDICTS],
 			},
 		],
