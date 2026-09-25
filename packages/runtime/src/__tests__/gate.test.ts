@@ -110,7 +110,7 @@ describe("toCoreGateEvent", () => {
 			),
 		).toMatchObject({
 			kind: "file.write",
-			action: { path: "src/a.ts", content: "x" },
+			action: { path: "/work/repo/src/a.ts", content: "x" },
 		});
 		expect(
 			toCoreGateEvent(
@@ -141,6 +141,38 @@ describe("toCoreGateEvent", () => {
 		).toMatchObject({
 			kind: "network",
 			action: { url: "https://x.dev", method: "POST" },
+		});
+	});
+
+	test("a relative file path resolves against the event's cwd, not the root", () => {
+		const write = (path: string, cwd?: string): GateEvent =>
+			cwd === undefined
+				? { kind: "file.write", input: { path } }
+				: { kind: "file.write", input: { path }, cwd };
+		expect(
+			toCoreGateEvent(write("../x.ts", "/work/repo/src"), ROOT)?.action,
+		).toEqual({ path: "/work/repo/x.ts" });
+		expect(
+			toCoreGateEvent(
+				{
+					kind: "file.read.outside",
+					input: { file_path: "../../etc/hosts" },
+					cwd: "/work/repo",
+				},
+				ROOT,
+			)?.action,
+		).toEqual({ path: "/etc/hosts" });
+		// Absolute and home-relative paths are left for core to resolve.
+		expect(toCoreGateEvent(write("/abs/a", ROOT), ROOT)?.action).toEqual({
+			path: "/abs/a",
+		});
+		for (const home of ["~", "~/a", "$HOME/a", "${HOME}/a"]) {
+			expect(toCoreGateEvent(write(home, ROOT), ROOT)?.action).toEqual({
+				path: home,
+			});
+		}
+		expect(toCoreGateEvent(write("a.ts"), ROOT)?.action).toEqual({
+			path: "a.ts",
 		});
 	});
 
@@ -194,6 +226,19 @@ describe("createGateEvaluator", () => {
 		const decision = await gate(shell("rm -rf /"));
 		expect(decision.verdict).toBe("ask");
 		expect(decision.reason).toContain("irreversible");
+	});
+
+	test("a relative write from a subdirectory that lands outside the repo asks", async () => {
+		// From /work/repo/sub, ../../work/repo/x is /work/work/repo/x: outside.
+		// Read against the root it would be /work/repo/x, inside, and allowed.
+		const gate = createGateEvaluator(deps());
+		const decision = await gate({
+			kind: "file.write",
+			input: { file_path: "../../work/repo/x", content: "x" },
+			cwd: "/work/repo/sub",
+		});
+		expect(decision.verdict).toBe("ask");
+		expect(decision.reason).toContain("fs.write.outside");
 	});
 
 	test("the policy for the event's root applies", async () => {

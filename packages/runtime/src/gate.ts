@@ -9,6 +9,7 @@
  * the real dependencies.
  */
 
+import { isAbsolute, resolve } from "node:path";
 import {
 	type BackendRegistry,
 	type ClockPort,
@@ -191,6 +192,25 @@ const text = (value: unknown): string | undefined =>
 	typeof value === "string" && value !== "" ? value : undefined;
 
 /**
+ * A relative file path made absolute against the directory the host ran the
+ * tool in. Core resolves relative paths against the workspace root, which
+ * is wrong from a subdirectory: `../../w/repo/x` from `/w/repo/sub` is
+ * outside the repo, but reads as inside against `/w/repo`. Absolute and
+ * home-relative paths are left for core, which expands them.
+ */
+function againstCwd(
+	path: string | undefined,
+	cwd: string | undefined,
+): string | undefined {
+	if (path === undefined || cwd === undefined || isAbsolute(path)) return path;
+	const home = HOME_WORDS.some((w) => path === w || path.startsWith(`${w}/`));
+	return home ? path : resolve(cwd, path);
+}
+
+/** Home spellings core's path resolution expands (see core `gate/paths`). */
+const HOME_WORDS: readonly string[] = ["~", "$HOME", "${HOME}"];
+
+/**
  * The core event for a wire event under workspace `root`, or null when the
  * kind is unknown or a required field is missing. Metadata of the wrong
  * type falls back to neutral values.
@@ -210,7 +230,7 @@ export function toCoreGateEvent(
 			? input.untrusted.filter((u): u is string => typeof u === "string")
 			: [],
 	} as const;
-	const path = text(input.path) ?? text(input.file_path);
+	const path = againstCwd(text(input.path) ?? text(input.file_path), event.cwd);
 	switch (event.kind) {
 		case "shell": {
 			const command = text(input.command);

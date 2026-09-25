@@ -87,7 +87,11 @@ function mergeActionClasses(base: Policy, layer: Layer): Merged {
 			continue;
 		}
 		if (attempts.length > 0) {
-			loosened.push({ actionClass: id, source: layer.source });
+			loosened.push({
+				actionClass: id,
+				source: layer.source,
+				before: prev.verdict,
+			});
 		}
 		classes[id] = next;
 	}

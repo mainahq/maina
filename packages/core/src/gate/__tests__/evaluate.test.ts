@@ -21,6 +21,7 @@ import {
 } from "../../decide/registry";
 import type { Backend, BackendAnswer, BackendInput } from "../../decide/types";
 import { DEFAULT_POLICY } from "../../policy/defaults";
+import { loadPolicy } from "../../policy/load";
 import {
 	GATE_EVENT_KINDS,
 	type Policy,
@@ -28,6 +29,7 @@ import {
 	VERDICTS,
 	type Verdict,
 } from "../../policy/schema";
+import { createMemoryFs } from "../../ports/testing";
 import { evaluateGate, type GatePorts } from "../evaluate";
 import type { GateContext, GateEvent } from "../events";
 import { evaluateRules } from "../rules";
@@ -35,6 +37,7 @@ import {
 	gateContext,
 	mcpEvent,
 	networkEvent,
+	ROOT,
 	shellEvent,
 	writeEvent,
 } from "./helpers";
@@ -135,8 +138,30 @@ function loosen(
 			...base.action_classes,
 			[actionClass]: { irreversible: true, verdict: "allow" },
 		},
-		loosened: [...base.loosened, { actionClass, source }],
+		loosened: [
+			...base.loosened,
+			{
+				actionClass,
+				source,
+				before: base.action_classes[actionClass]?.verdict ?? "ask",
+			},
+		],
 	};
+}
+
+/** The policy the loader builds from a user layer and a repo layer. */
+async function layered(user: unknown, repo: unknown): Promise<Policy> {
+	const loaded = await loadPolicy(
+		{
+			fs: createMemoryFs({
+				[`${ROOT}/.maina/policy.json`]: JSON.stringify(repo),
+			}),
+		},
+		ROOT,
+		user,
+	);
+	expect(loaded.ok).toBe(true);
+	return loaded.ok ? loaded.value : DEFAULT_POLICY;
 }
 
 function gatePorts(overrides: Partial<GatePorts> = {}): GatePorts {
@@ -539,6 +564,27 @@ describe("irreversible classes ask unless explicitly allowed", () => {
 			policy,
 		);
 		expect(otherClass.verdict).toBe("ask");
+	});
+
+	test.each([
+		"allow",
+		"ask",
+	] as const)("an unconfirmed repo loosening to %s never softens a user-level deny", async (verdict) => {
+		const policy = await layered(
+			{ action_classes: { "package.publish": { verdict: "deny" } } },
+			{
+				explicitly_allow: ["package.publish"],
+				action_classes: { "package.publish": { verdict } },
+			},
+		);
+		const result = evaluateGate(gatePorts(), shellEvent("npm publish"), policy);
+		expect(result.verdict).toBe("deny");
+		const confirmed = evaluateGate(
+			gatePorts({ confirmedLoosenings: ["package.publish"] }),
+			shellEvent("npm publish"),
+			policy,
+		);
+		expect(confirmed.verdict).toBe(verdict);
 	});
 
 	test("an explicitly allowed class still denies when a deny rule matches", () => {

@@ -137,8 +137,16 @@ const PolicyBody = z.strictObject({
 	telemetry: Telemetry,
 });
 
-/** An irreversible class a layer deliberately loosened via `explicitly_allow`. */
-export type Loosening = Readonly<{ actionClass: string; source: PolicySource }>;
+/**
+ * An irreversible class a layer deliberately loosened via `explicitly_allow`.
+ * `before` is the class's verdict ahead of that layer, so a consumer that
+ * does not trust the layer can restore it (a user-level `deny` stays `deny`).
+ */
+export type Loosening = Readonly<{
+	actionClass: string;
+	source: PolicySource;
+	before: Verdict;
+}>;
 
 /** The effective policy: defaults < user < repo, plus an audit of loosenings. */
 export type Policy = DeepReadonly<z.infer<typeof PolicyBody>> &

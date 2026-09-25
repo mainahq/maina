@@ -145,9 +145,11 @@ function isIrreversible(id: string, policy: Policy): boolean {
 
 /**
  * `policy` with every irreversible class the user does not stand behind put
- * back to `ask` (a `deny` stays), and `loosened` cut to the trusted entries.
- * A class counts as irreversible when the built-in defaults or the policy
- * say so, so a layer cannot dodge this by flipping `irreversible` off.
+ * back to `ask`, or to `deny` when the policy or any verdict an untrusted
+ * layer loosened says `deny` (so a user-level `deny` stays `deny`), and
+ * `loosened` cut to the trusted entries. A class counts as irreversible when
+ * the built-in defaults or the policy say so, so a layer cannot dodge this
+ * by flipping `irreversible` off.
  */
 function trustPolicy(policy: Policy, confirmed: readonly string[]): Narrowed {
 	const confirmedSet = new Set(confirmed);
@@ -168,7 +170,9 @@ function trustPolicy(policy: Policy, confirmed: readonly string[]): Narrowed {
 	]);
 	for (const id of ids) {
 		if (trusted.has(id) || !isIrreversible(id, policy)) continue;
-		const denied = policy.action_classes[id]?.verdict === "deny";
+		const denied =
+			policy.action_classes[id]?.verdict === "deny" ||
+			policy.loosened.some((l) => l.actionClass === id && l.before === "deny");
 		classes[id] = { irreversible: true, verdict: denied ? "deny" : "ask" };
 	}
 	return {
