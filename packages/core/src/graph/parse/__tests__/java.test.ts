@@ -103,6 +103,18 @@ describe("parseFile — Java", () => {
 		]);
 	});
 
+	test("type-parameter bounds on types and methods are type refs; the parameters are not", async () => {
+		const file = await parseSource(
+			"Box.java",
+			[
+				"class Box<T extends Base> {",
+				"    <U extends Bound> void put(T t, U u) {}",
+				"}",
+			].join("\n"),
+		);
+		expect(refRows(file)).toEqual(["type Box Base", "type Box.put Bound"]);
+	});
+
 	test("detects JUnit test methods and their class as a suite", async () => {
 		const file = await parseFixture("Shapes.java");
 		expect(testRows(file)).toEqual([

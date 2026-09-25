@@ -102,6 +102,26 @@ describe("parseFile — Rust", () => {
 		});
 	});
 
+	test("generic bounds and where clauses are type refs; the parameters are not", async () => {
+		const file = await parseSource(
+			"bounds.rs",
+			[
+				"struct Boxed<T: Base> where T: Other { v: T }",
+				"impl<T: Show> Trait for Boxed<T> where T: Extra {}",
+				"fn f<U: Bound>(u: U) where U: Also {}",
+			].join("\n"),
+		);
+		expect(refRows(file)).toEqual([
+			"type Boxed Base",
+			"type Boxed Other",
+			"type Boxed Show",
+			"type Boxed Extra",
+			"inherit Boxed Trait",
+			"type f Bound",
+			"type f Also",
+		]);
+	});
+
 	test("comments between a test attribute and its function do not hide the test", async () => {
 		const file = await parseSource(
 			"lib.rs",

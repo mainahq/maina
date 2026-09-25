@@ -151,6 +151,14 @@ export function extractRust(root: Node, sink: Sink): void {
 		}
 	};
 
+	/** Bounds in `<T: Base>` and `where T: Other`; the parameter names are skipped by `ctx.typeParams`. */
+	const generics = (node: Node, ctx: Ctx): void => {
+		walkParts(node, ctx, ["type_parameters"]);
+		for (const kid of namedKids(node)) {
+			if (kid.type === "where_clause") walk(kid, ctx);
+		}
+	};
+
 	const enter = (ctx: Ctx, qn: string, decl: Node): Ctx => ({
 		...ctx,
 		parent: qn,
@@ -180,12 +188,9 @@ export function extractRust(root: Node, sink: Sink): void {
 				qualifiedName: qn,
 			});
 		}
-		walkParts(node, enter(ctx, qn, node), [
-			"type_parameters",
-			"parameters",
-			"return_type",
-			"body",
-		]);
+		const inner = enter(ctx, qn, node);
+		generics(node, inner);
+		walkParts(node, inner, ["parameters", "return_type", "body"]);
 	};
 
 	const typeItem = (node: Node, ctx: Ctx): void => {
@@ -200,6 +205,7 @@ export function extractRust(root: Node, sink: Sink): void {
 			exported,
 		});
 		const inner = enter(ctx, qn, node);
+		generics(node, inner);
 		const bounds = field(node, "bounds");
 		if (bounds) {
 			for (const bound of namedKids(bounds)) inherit(bound, inner);
@@ -238,6 +244,7 @@ export function extractRust(root: Node, sink: Sink): void {
 				typeParamNames(field(node, "type_parameters")),
 			),
 		};
+		generics(node, inner);
 		const trait = field(node, "trait");
 		if (trait) inherit(trait, inner);
 		const body = field(node, "body");

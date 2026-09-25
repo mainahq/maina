@@ -189,8 +189,8 @@ export function extractJava(root: Node, sink: Sink): void {
 			)
 				inherit(kid, inner);
 		}
-		// Record components: `record Point(Coord x, int y)`.
-		walkParts(node, inner, ["parameters"]);
+		// Bounds (`<T extends Base>`) and record components (`record P(Coord x)`).
+		walkParts(node, inner, ["type_parameters", "parameters"]);
 		const body = field(node, "body");
 		if (!body) return;
 		const from = sink.tests.length;

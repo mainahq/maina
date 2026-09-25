@@ -98,8 +98,10 @@ export async function parseFile(
 	if (!loaded.ok) return loaded;
 
 	const { runtime: ts, language } = loaded.value;
-	const parser = new ts.Parser();
+	// Constructed inside the guard: a WASM failure here must stay an error value.
+	let parser: TreeSitter.Parser | null = null;
 	try {
+		parser = new ts.Parser();
 		parser.setLanguage(language);
 		const tree = parser.parse(content);
 		if (tree === null) {
@@ -129,6 +131,6 @@ export async function parseFile(
 			error: { kind: "parse_failed", path, message: message(e) },
 		};
 	} finally {
-		parser.delete();
+		parser?.delete();
 	}
 }
