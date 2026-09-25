@@ -6,7 +6,12 @@
  * they introduced. This eliminates noise from legacy code.
  */
 
-import { getDiff, getMergeBase, resolveBaseBranch } from "../git/index";
+import {
+	getDiff,
+	getMergeBase,
+	getStagedDiff,
+	resolveBaseBranch,
+} from "../git/index";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -172,13 +177,16 @@ export async function filterByDiff(
 	const base = await resolveBaseBranch(cwd, baseBranch);
 	const mergeBase = await getMergeBase(base, cwd);
 
-	// Working tree (staged + unstaged) vs the merge-base, then uncommitted only.
+	// Working tree (staged + unstaged) vs the merge-base, then uncommitted
+	// only, then staged only (works before the first commit, where both
+	// ref-based diffs fail and would otherwise fall open).
 	const diff =
 		(await getDiff(mergeBase, undefined, cwd)) ||
-		(await getDiff("HEAD", undefined, cwd));
+		(await getDiff("HEAD", undefined, cwd)) ||
+		(await getStagedDiff(cwd));
 
-	// Clean tree on the base itself: nothing is "changed", keep legacy
-	// behaviour of surfacing everything.
+	// Clean tree on the base itself (or not a git repo): nothing is
+	// "changed", keep legacy behaviour of surfacing everything.
 	if (!diff.trim()) {
 		return { shown: findings, hidden: 0 };
 	}

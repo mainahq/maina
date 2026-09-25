@@ -240,6 +240,7 @@ export async function runPipeline(
 	toolPromises.push(
 		runToolWithTiming("diff-cover", () =>
 			runCoverage({
+				baseBranch,
 				cwd,
 				available: toolAvailability.get("diff-cover") ?? false,
 			}),

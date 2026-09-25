@@ -266,6 +266,7 @@ export {
 	getRecentCommits,
 	getRepoRoot,
 	getRepoSlug,
+	getStagedDiff,
 	getStagedFiles,
 	getTrackedFiles,
 	parseShortstat,

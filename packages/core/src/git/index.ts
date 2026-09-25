@@ -131,6 +131,11 @@ export async function resolveBaseBranch(
 	return "HEAD";
 }
 
+/** Staged changes vs HEAD (or vs the empty tree before the first commit). */
+export async function getStagedDiff(cwd?: string): Promise<string> {
+	return exec(["diff", "--cached"], cwd);
+}
+
 /** Merge-base of `base` and HEAD, or `base` itself when there is none. */
 export async function getMergeBase(
 	base: string,

@@ -93,4 +93,21 @@ describe("filterByDiff without an explicit base", () => {
 
 		expect(result.shown.map((f) => f.file)).toEqual(["new.md"]);
 	});
+
+	test("a repo with no commits yet uses the staged diff, not fall-open", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "maina-base-"));
+		dirs.push(dir);
+		git(dir, "init", "-q", "-b", "master");
+		writeFileSync(join(dir, "a.ts"), "export const a = 1;\n");
+		git(dir, "add", "a.ts");
+
+		const result = await filterByDiff(
+			[finding("a.ts", 1), finding("elsewhere.ts", 3)],
+			undefined,
+			dir,
+		);
+
+		expect(result.shown.map((f) => f.file)).toEqual(["a.ts"]);
+		expect(result.hidden).toBe(1);
+	});
 });
