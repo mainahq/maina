@@ -278,6 +278,35 @@ describe("produceReceipt", () => {
 		expect(f.calls).toContain("gh run rerun 9");
 	});
 
+	test("re-runs a Dogfood run that appears shortly after publishing", async () => {
+		let lists = 0;
+		const f = fake();
+		const exec = f.ports.exec;
+		const ports: ReceiptPorts = {
+			...f.ports,
+			exec: async (cmd) => {
+				if (cmd.join(" ").startsWith("gh run list --commit")) {
+					lists++;
+					const runs =
+						lists < 2
+							? []
+							: [
+									{
+										databaseId: 7,
+										workflowName: "Dogfood",
+										status: "completed",
+									},
+								];
+					return { code: 0, stdout: JSON.stringify(runs), stderr: "" };
+				}
+				return exec(cmd);
+			},
+		};
+		const r = await produceReceipt({ publish: true }, ports);
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value.rerun).toBe(7);
+	});
+
 	test("no Dogfood run yet is fine: the next run picks the receipt up", async () => {
 		const f = fake({
 			"gh run list --commit": { code: 0, stdout: "[]", stderr: "" },

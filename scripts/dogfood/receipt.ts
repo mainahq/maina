@@ -91,6 +91,7 @@ interface PrInfo {
 const DOGFOOD_WORKFLOW = "Dogfood";
 const RUN_POLL_MS = 5_000;
 const RUN_POLL_ATTEMPTS = 24;
+const RUN_APPEAR_ATTEMPTS = 4;
 const HEAD_POLL_MS = 3_000;
 const HEAD_POLL_ATTEMPTS = 6;
 
@@ -199,7 +200,13 @@ async function rerunCheck(
 		const latest = runs
 			.filter((r) => r.workflowName === DOGFOOD_WORKFLOW)
 			.sort((a, b) => b.databaseId - a.databaseId)[0];
-		if (!latest) return undefined;
+		if (!latest) {
+			// Right after a push the run may not be listed yet; wait a little,
+			// but not forever (repos without the workflow have none).
+			if (attempt + 1 >= RUN_APPEAR_ATTEMPTS) return undefined;
+			await ports.sleep(RUN_POLL_MS);
+			continue;
+		}
 		if (latest.status === "completed") {
 			const rr = await ports.exec([
 				"gh",
