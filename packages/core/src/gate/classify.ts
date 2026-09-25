@@ -634,6 +634,7 @@ const RUNNERS: ReadonlySet<string> = new Set([
 type Classifier = (args: Argv, cwd: string | null, ctx: ShellCtx) => void;
 
 function rmClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
+	flagUnresolvedDelete(args, ctx);
 	const recursive = literalArgs(args).some(
 		(a) => /^-[a-zA-Z]*[rR]/.test(a) || a === "--recursive",
 	);
@@ -647,6 +648,14 @@ function rmClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
 	}
 }
 
+/**
+ * A delete whose operand the gate cannot resolve (`rm "$X"`) might remove
+ * anything, so it asks (#455): unsure means ask.
+ */
+function flagUnresolvedDelete(args: Argv, ctx: ShellCtx): void {
+	if (isOpaque(args)) ctx.out.add("shell.opaque");
+}
+
 function flagDelete(
 	target: string,
 	cwd: string | null,
@@ -655,9 +664,12 @@ function flagDelete(
 ): void {
 	const cleaned = target.replace(/\/+\*+$/, "").replace(/\/?\*+$/, "") || ".";
 	const resolved = resolvePath(cleaned, cwd, ctx.gate.home);
-	// A relative path after an unknown `cd`: recursion still matters, but we
-	// cannot know whether it is outside.
-	if (resolved === null) return;
+	// A relative path after an unknown `cd`: we cannot know what it removes,
+	// so it asks (#455).
+	if (resolved === null) {
+		ctx.out.add("shell.opaque");
+		return;
+	}
 	const root = ctx.event.root;
 	// Outside the workspace, the workspace root itself, or an ancestor of it:
 	// each removes the whole tree from outside.
@@ -961,10 +973,12 @@ function fetchClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
 const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 	rm: rmClassifier,
 	unlink: (args, cwd, ctx) => {
+		flagUnresolvedDelete(args, ctx);
 		for (const t of positional(args)) flagDelete(t, cwd, false, ctx);
 	},
 	shred: (args, cwd, ctx) => {
 		ctx.out.add("fs.delete.recursive");
+		flagUnresolvedDelete(args, ctx);
 		for (const t of positional(args)) flagDelete(t, cwd, true, ctx);
 	},
 	rimraf: (_args, _cwd, ctx) => ctx.out.add("fs.delete.recursive"),
@@ -1538,7 +1552,12 @@ function redirectClasses(
 			// A substitution in the target still runs (`> >(rm -rf ~)`).
 			scanWordSubstitutions(r.target, scope, ctx);
 			const text = resolveWord(r.target, scope);
-			if (text === null) continue;
+			if (text === null) {
+				// A write to a target the gate cannot resolve (`> "$T"`) might land
+				// anywhere, so it asks (#455). An unresolved read stays clear.
+				if (!r.op.startsWith("<")) ctx.out.add("shell.opaque");
+				continue;
+			}
 			const resolved = resolvePath(text, cwd, ctx.gate.home);
 			const path = resolved ?? text;
 			if (r.op.startsWith("<")) {
@@ -1856,6 +1875,8 @@ function shellCScript(args: Argv): string | null | undefined {
 }
 
 function nextCwd(args: Argv, cwd: string | null, ctx: ShellCtx): string | null {
+	// `cd "$DIR"`: the directory is unknown, not home.
+	if (isOpaque(args)) return null;
 	const target = positional(args)[0];
 	if (target === undefined) return ctx.gate.home ?? cwd;
 	if (target === "-") return null;

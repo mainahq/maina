@@ -366,6 +366,39 @@ describe("what the gate cannot see is opaque", () => {
 		});
 	}
 
+	// Unsure means ask (#455): a write or delete whose target the gate cannot
+	// resolve might land anywhere, so it is opaque rather than unclassified.
+	for (const command of [
+		'echo x > "$T"',
+		"bun test >> $LOG",
+		"cat a.txt 2> $ERR",
+		"{ echo a; echo b; } > $OUT",
+		'rm "$X"',
+		"rm -f $X",
+		'rm -rf "$DIR"',
+		'unlink "$F"',
+		'rm -- "$X"',
+		'cd "$DIR" && rm notes.txt',
+	]) {
+		test(`an unresolved write or delete target: ${JSON.stringify(command)}`, () => {
+			expect(classesOf(command)).toContain("shell.opaque");
+		});
+	}
+
+	for (const command of [
+		'T=out.log; echo x > "$T"',
+		'F=build/a.js; rm "$F"',
+		"bun test > /dev/null 2>&1",
+		"ls 2>/dev/null",
+		'cat < "$IN"',
+		"rm build/out.js",
+		'echo "$X" > out.txt',
+	]) {
+		test(`a resolved target stays clear: ${JSON.stringify(command)}`, () => {
+			expect(classesOf(command)).not.toContain("shell.opaque");
+		});
+	}
+
 	test("a syntax error is opaque", () => {
 		expect(classesOf("rm -rf ( build")).toContain("shell.opaque");
 	});
