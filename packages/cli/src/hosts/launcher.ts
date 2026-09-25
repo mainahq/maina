@@ -163,6 +163,16 @@ export function isMainaLauncher(l: Launcher): boolean {
 	return false;
 }
 
+/**
+ * Whether `l` is the `bunx`/`npx` form of `isMainaLauncher`: it names a
+ * package, not a file, so what runs is whatever copy of `@mainahq/cli` the
+ * runner resolves, and npx prefers a matching one in the cwd's node_modules.
+ */
+export function isPackageRunnerLauncher(l: Launcher): boolean {
+	const name = executableName(l.command);
+	return (name === "bunx" || name === "npx") && isMainaLauncher(l);
+}
+
 interface RunningCliInput {
 	/** Absolute path of the runtime (`process.execPath`). */
 	readonly execPath: string;

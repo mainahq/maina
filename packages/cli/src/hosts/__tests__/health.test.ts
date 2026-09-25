@@ -9,6 +9,8 @@ import {
 	evaluateLaunch,
 	launchEnv,
 	launchSpecOf,
+	localCliCopies,
+	localNpmrcs,
 	modelCheck,
 	rootCheck,
 	trustedProjectLaunch,
@@ -226,5 +228,96 @@ describe("trustedProjectLaunch", () => {
 		expect(
 			trustedProjectLaunch(spec("maina", ["--mcp"], { PATH: "/p/bin" }), repo),
 		).toBe(false);
+	});
+
+	// #418: npx resolves `@mainahq/cli@X` to a copy the repo ships in its own
+	// node_modules when that copy's version matches, so the pinned
+	// package-runner form runs repo code there.
+	test("a package-runner launch is not trusted when the repo ships its own @mainahq/cli", () => {
+		const shipped = { packageShadow: "/p/node_modules/@mainahq/cli" };
+		expect(
+			trustedProjectLaunch(
+				spec("/u/bin/npx", ["@mainahq/cli@1.0.0", "--mcp"]),
+				repo,
+				shipped,
+			),
+		).toBe(false);
+		expect(
+			trustedProjectLaunch(
+				spec("/u/bin/bunx", ["@mainahq/cli@1.0.0", "--mcp"]),
+				repo,
+				shipped,
+			),
+		).toBe(false);
+		expect(
+			trustedProjectLaunch(spec("npx", ["@mainahq/cli@1.0.0", "--mcp"]), repo, {
+				packageShadow: null,
+			}),
+		).toBe(true);
+	});
+
+	// A project .npmrc can point npx at another registry (checked with real
+	// npx 11: `registry=` in the cwd's .npmrc is honoured), which can then
+	// serve its own @mainahq/cli at the pinned version.
+	test("a package-runner launch is not trusted when the repo ships an .npmrc", () => {
+		expect(
+			trustedProjectLaunch(
+				spec("/u/bin/npx", ["@mainahq/cli@1.0.0", "--mcp"]),
+				repo,
+				{ packageShadow: "/p/.npmrc" },
+			),
+		).toBe(false);
+	});
+
+	test("launches that never consult node_modules stay trusted when the repo ships @mainahq/cli", () => {
+		const shipped = { packageShadow: "/p/node_modules/@mainahq/cli" };
+		expect(
+			trustedProjectLaunch(spec("/u/bin/maina", ["--mcp"]), repo, shipped),
+		).toBe(true);
+		expect(
+			trustedProjectLaunch(
+				spec("/u/bin/bun", ["/u/cli/dist/index.js", "--mcp"]),
+				repo,
+				shipped,
+			),
+		).toBe(true);
+	});
+});
+
+describe("localCliCopies", () => {
+	const copy = (dir: string) => join(dir, "node_modules", "@mainahq", "cli");
+
+	test("every copy a runner started in cwd could resolve, up to the repo root", () => {
+		expect(localCliCopies("/p/packages/app", "/p")).toEqual([
+			copy("/p/packages/app"),
+			copy("/p/packages"),
+			copy("/p"),
+		]);
+	});
+
+	test("only cwd's own outside a git repository", () => {
+		expect(localCliCopies("/p", null)).toEqual([copy("/p")]);
+	});
+
+	test("only cwd's own when cwd is not below the repo root", () => {
+		expect(localCliCopies("/elsewhere", "/p")).toEqual([copy("/elsewhere")]);
+	});
+
+	// The walk must end on path equality, not string equality: a root spelled
+	// differently from what dirname yields (a trailing slash here; on Windows
+	// git's `C:/x` against dirname's `C:\x`) must still stop it.
+	test("stops at a repo root spelled differently from dirname's output", () => {
+		expect(localCliCopies("/p/a", "/p/")).toEqual([copy("/p/a"), copy("/p")]);
+	});
+});
+
+describe("localNpmrcs", () => {
+	test("every project .npmrc npx started in cwd could read, up to the repo root", () => {
+		expect(localNpmrcs("/p/packages/app", "/p")).toEqual([
+			join("/p/packages/app", ".npmrc"),
+			join("/p/packages", ".npmrc"),
+			join("/p", ".npmrc"),
+		]);
+		expect(localNpmrcs("/p", null)).toEqual([join("/p", ".npmrc")]);
 	});
 });
