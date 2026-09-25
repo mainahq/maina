@@ -122,6 +122,14 @@ describe("parseFile — Rust", () => {
 		]);
 	});
 
+	test("a #[cfg(test)] module with no test cases is not a suite", async () => {
+		const file = await parseSource(
+			"lib.rs",
+			"#[cfg(test)]\nmod helpers {\n    pub fn fixture() {}\n}",
+		);
+		expect(file.tests).toEqual([]);
+	});
+
 	test("comments between a test attribute and its function do not hide the test", async () => {
 		const file = await parseSource(
 			"lib.rs",

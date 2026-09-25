@@ -271,7 +271,8 @@ export function extractRust(root: Node, sink: Sink): void {
 		const from = sink.tests.length;
 		for (const kid of namedKids(body))
 			walk(kid, { ...TOP, module: qn, parent: qn, scope: qn });
-		if (attributesOf(node).includes("cfg(test)")) {
+		const hasCase = sink.tests.slice(from).some((t) => t.kind === "case");
+		if (hasCase && attributesOf(node).includes("cfg(test)")) {
 			insertSuite(sink, from, node, {
 				name: name.text,
 				scope: ctx.parent,
