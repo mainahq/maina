@@ -100,28 +100,30 @@ export const COMPILER_OWNED_DIRS = [
 ] as const;
 
 /**
- * Article paths the compiler may delete: a flat `wiki/<owned-dir>/<name>.md`
- * page. Both `/` and `\\` count as separators and `..` is never a name, so
- * a malformed `.state.json` key cannot reach outside the wiki, and user notes
- * (`wiki/raw/`) or hand-written top-level pages are never candidates.
+ * Canonical form of an article path the compiler may delete, or `null`.
+ * Prunable means a flat `wiki/<owned-dir>/<name>.md` page. Both `/` and `\\`
+ * count as separators (the result always uses `/`) and `..` is never a name,
+ * so a malformed `.state.json` key cannot reach outside the wiki, and user
+ * notes (`wiki/raw/`) or hand-written top-level pages are never candidates.
  */
-function isPrunableArticlePath(path: string): boolean {
+function toPrunableArticlePath(path: string): string | null {
 	const segments = path.split(/[\\/]/);
-	if (segments.length !== 3) return false;
+	if (segments.length !== 3) return null;
 	const [root, dir, name] = segments;
-	return (
+	const ok =
 		root === "wiki" &&
 		(COMPILER_OWNED_DIRS as readonly string[]).includes(dir ?? "") &&
 		name?.endsWith(".md") === true &&
 		name !== ".md" &&
-		!name.startsWith("..")
-	);
+		!name.startsWith("..");
+	return ok ? segments.join("/") : null;
 }
 
 /**
- * Articles a previous compile produced that the current compile did not.
- * These belong to deleted or renamed sources and must be removed so the
- * wiki stops serving them to search, query and context (#377).
+ * Articles a previous compile produced that the current compile did not,
+ * in canonical forward-slash form. These belong to deleted or renamed
+ * sources and must be removed so the wiki stops serving them to search,
+ * query and context (#377).
  */
 export function findStaleArticlePaths(
 	previousPaths: Iterable<string>,
@@ -130,7 +132,8 @@ export function findStaleArticlePaths(
 	const current = new Set(currentPaths);
 	const stale = new Set<string>();
 	for (const path of previousPaths) {
-		if (!current.has(path) && isPrunableArticlePath(path)) stale.add(path);
+		const canonical = toPrunableArticlePath(path);
+		if (canonical !== null && !current.has(canonical)) stale.add(canonical);
 	}
 	return [...stale].sort();
 }

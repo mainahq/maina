@@ -5,10 +5,11 @@ import {
 	mkdirSync,
 	readFileSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { CompileOptions } from "../compiler";
 import { compile } from "../compiler";
 
@@ -562,6 +563,64 @@ describe("Wiki Compiler", () => {
 				expect(readStateJson().articleHashes[entity.path]).toBeDefined();
 			},
 		);
+
+		it.skipIf(!canChmod)(
+			"keeps entity pages when a source directory is unreadable",
+			async () => {
+				const first = await compile(makeOptions());
+				expect(first.ok).toBe(true);
+				if (!first.ok) return;
+				const entity = first.value.articles.find((a) => a.type === "entity");
+				expect(entity).toBeDefined();
+				if (!entity) return;
+				const sourceRel =
+					entity.content.match(/- \*\*File:\*\* `([^`]+)`/)?.[1] ?? "";
+				expect(sourceRel).not.toBe("");
+				const entityPath = join(wikiDir, entity.path.replace(/^wiki\//, ""));
+
+				const sourceDir = dirname(join(repoRoot, sourceRel));
+				chmodSync(sourceDir, 0o000);
+				try {
+					const second = await compile(makeOptions());
+					expect(second.ok).toBe(true);
+				} finally {
+					chmodSync(sourceDir, 0o755);
+				}
+				expect(existsSync(entityPath)).toBe(true);
+				expect(readStateJson().articleHashes[entity.path]).toBeDefined();
+			},
+		);
+
+		it("still prunes when the repo contains a dangling symlink", async () => {
+			symlinkSync(
+				join(repoRoot, "src", "does-not-exist.ts"),
+				join(repoRoot, "src", "dangling.ts"),
+			);
+			const orphan = join(wikiDir, "entities", "ghostEntity.md");
+			mkdirSync(join(wikiDir, "entities"), { recursive: true });
+			writeFileSync(orphan, "# Entity: ghostEntity\n");
+
+			const result = await compile(makeOptions());
+			expect(result.ok).toBe(true);
+			expect(existsSync(orphan)).toBe(false);
+		});
+
+		it("prunes a stale state key written with backslashes", async () => {
+			await compile(makeOptions());
+			const stale = join(wikiDir, "entities", "legacyGone.md");
+			writeFileSync(stale, "# Entity: legacyGone\n");
+			const statePath = join(wikiDir, ".state.json");
+			const state = JSON.parse(readFileSync(statePath, "utf-8"));
+			state.articleHashes["wiki\\entities\\legacyGone.md"] = "x";
+			writeFileSync(statePath, JSON.stringify(state));
+
+			const result = await compile(makeOptions());
+			expect(result.ok).toBe(true);
+			expect(existsSync(stale)).toBe(false);
+			expect(
+				readStateJson().articleHashes["wiki\\entities\\legacyGone.md"],
+			).toBeUndefined();
+		});
 
 		it("never deletes user-owned raw/ notes", async () => {
 			const rawNote = join(wikiDir, "raw", "query-1.md");

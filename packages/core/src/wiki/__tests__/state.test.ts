@@ -213,6 +213,22 @@ describe("Wiki State", () => {
 			]);
 		});
 
+		it("normalises backslash-separated keys to the forward-slash form", () => {
+			const stale = findStaleArticlePaths(
+				["wiki\\entities\\gone.md", "wiki/entities/gone.md"],
+				[],
+			);
+			expect(stale).toEqual(["wiki/entities/gone.md"]);
+		});
+
+		it("does not report a backslash key the current compile produced", () => {
+			const stale = findStaleArticlePaths(
+				["wiki\\entities\\keep.md"],
+				["wiki/entities/keep.md"],
+			);
+			expect(stale).toEqual([]);
+		});
+
 		it("dedupes and sorts the result", () => {
 			const stale = findStaleArticlePaths(
 				["wiki/modules/b.md", "wiki/entities/a.md", "wiki/modules/b.md"],

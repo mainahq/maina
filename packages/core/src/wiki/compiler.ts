@@ -186,11 +186,22 @@ async function enhanceWithAI(
 
 // ─── File Discovery ─────────────────────────────────────────────────────
 
+/** True when a filesystem error means "not there" rather than "can't look". */
+function isMissingPathError(e: unknown): boolean {
+	return (e as { code?: unknown } | null)?.code === "ENOENT";
+}
+
 /**
  * Recursively find all TypeScript files under the repo root.
- * Skips node_modules, dist, .git, and hidden directories.
+ * Skips node_modules, dist, .git, and hidden directories. Paths that exist
+ * but cannot be listed or stat-ed are appended to `unreadable`; missing
+ * paths (dangling symlinks, files removed mid-walk) are simply absent.
  */
-function findSourceFiles(dir: string, rootDir: string): string[] {
+function findSourceFiles(
+	dir: string,
+	rootDir: string,
+	unreadable: string[] = [],
+): string[] {
 	const files: string[] = [];
 	const skipDirs = new Set([
 		"node_modules",
@@ -203,7 +214,8 @@ function findSourceFiles(dir: string, rootDir: string): string[] {
 	let entries: string[];
 	try {
 		entries = readdirSync(dir);
-	} catch {
+	} catch (e) {
+		if (!isMissingPathError(e)) unreadable.push(relative(rootDir, dir) || ".");
 		return files;
 	}
 
@@ -214,12 +226,13 @@ function findSourceFiles(dir: string, rootDir: string): string[] {
 		let stat: ReturnType<typeof statSync> | null = null;
 		try {
 			stat = statSync(fullPath);
-		} catch {
+		} catch (e) {
+			if (!isMissingPathError(e)) unreadable.push(relative(rootDir, fullPath));
 			continue;
 		}
 
 		if (stat?.isDirectory()) {
-			files.push(...findSourceFiles(fullPath, rootDir));
+			files.push(...findSourceFiles(fullPath, rootDir, unreadable));
 		} else if (
 			entry.endsWith(".ts") &&
 			!entry.endsWith(".test.ts") &&
@@ -1159,7 +1172,10 @@ export async function compile(
 
 	try {
 		// ── Step 1: Run extractors ──────────────────────────────────────
-		let sourceFiles = findSourceFiles(repoRoot, repoRoot);
+		// Paths the walk could not list or stat: their subtree is unknown,
+		// not deleted, so they block pruning below (#377).
+		const undiscoverable: string[] = [];
+		let sourceFiles = findSourceFiles(repoRoot, repoRoot, undiscoverable);
 		let sampleTruncated = false;
 		if (options.sample === true && sourceFiles.length > SAMPLE_FILE_LIMIT) {
 			// Sort by mtime desc — most recently modified first — then cap.
@@ -1418,8 +1434,8 @@ export async function compile(
 		// ── Step 9a: Prune articles for deleted sources (#377) ─────────
 		// Pruning treats "not produced" as "deleted", so it runs only when the
 		// article set is authoritative. It is not when a sampled compile saw
-		// only a slice of the repo, when a source file exists but could not be
-		// read, or when an existing `adr/` directory could not be read (an
+		// only a slice of the repo, when a source directory or file could not
+		// be listed, stat-ed or read, or when an existing `adr/` directory could not be read (an
 		// absent one is a genuinely empty decision set). Fail closed: keep
 		// the pages rather than delete real ones.
 		// Prune BEFORE writing: on a case-insensitive filesystem a case-only
@@ -1428,6 +1444,7 @@ export async function compile(
 		const previousState = loadState(wikiDir);
 		const canPrune =
 			!sampleTruncated &&
+			undiscoverable.length === 0 &&
 			entityScan.unreadable.length === 0 &&
 			(decisionsResult.ok || !existsSync(adrDir));
 		if (!dryRun && canPrune) {
