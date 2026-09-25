@@ -4,6 +4,7 @@
  */
 
 import type { Result } from "../../db/index";
+import { ID_PATTERN } from "../log/schema";
 import { decisionsForCommit, linkOutcome } from "./link";
 import type { OutcomeError, OutcomePorts, OutcomeRecord } from "./types";
 
@@ -14,13 +15,23 @@ const ALLOW_ACTION = "allow";
  * Links `test_failed_after_allow` to the `allow` decisions made for `commit`
  * (a full sha), with `ref` (a CI run or test run id) as the evidence.
  * Returns only the outcomes this call created, so repeating a report is a
- * no-op.
+ * no-op. An invalid `ref` is an error even when no decision would be linked,
+ * so a malformed report never passes silently.
  */
 export function linkTestFailure(
 	ports: OutcomePorts,
 	commit: string,
 	ref: string,
 ): Result<readonly OutcomeRecord[], OutcomeError> {
+	if (!ID_PATTERN.test(ref)) {
+		return {
+			ok: false,
+			error: {
+				kind: "invalid_outcome",
+				message: "ref must be an id such as a CI run id",
+			},
+		};
+	}
 	const decisions = decisionsForCommit(ports, commit);
 	if (!decisions.ok) return decisions;
 	const created: OutcomeRecord[] = [];

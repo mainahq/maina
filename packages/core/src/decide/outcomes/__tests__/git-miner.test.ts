@@ -253,6 +253,29 @@ describe("mineGitOutcomes: idempotence and errors", () => {
 		expect(seen).toEqual([ROOT]);
 	});
 
+	test("diffs are read raw, without textconv or external diff drivers", async () => {
+		const ports = outcomePorts();
+		const feat: FakeCommit = {
+			sha: sha("feat"),
+			subject: "feat: parser",
+			diff: hunk("src/p.ts", 5, 1, 5, 3),
+		};
+		const fix: FakeCommit = {
+			sha: sha("fix"),
+			subject: "fix: parser",
+			diff: hunk("src/p.ts", 6, 1, 6, 1),
+		};
+		decisionsOn(ports, feat.sha, { d1: "diff.needs_review" });
+		const git = fakeRepo([base, feat, fix]);
+		unwrap(await mineGitOutcomes({ ...ports, git }, base.sha, { root: ROOT }));
+		const shows = git.calls().filter((c) => c.startsWith("show "));
+		expect(shows).toHaveLength(2);
+		for (const call of shows) {
+			expect(call).toContain("--no-textconv");
+			expect(call).toContain("--no-ext-diff");
+		}
+	});
+
 	test("a git failure is a git error, not a throw", async () => {
 		const ports = outcomePorts();
 		const result = await mineGitOutcomes(

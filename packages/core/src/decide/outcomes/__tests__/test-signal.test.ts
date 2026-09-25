@@ -40,4 +40,20 @@ describe("linkTestFailure", () => {
 		expect(unwrap(linkTestFailure(ports, sha("c1"), "ci-run-42"))).toEqual([]);
 		expect(unwrap(queryOutcomes(ports, {}))).toHaveLength(1);
 	});
+
+	test("an invalid run ref is rejected even when no decision allowed the commit", () => {
+		const ports = outcomePorts();
+		logDecision(ports.db, {
+			id: "flagged",
+			type: "diff.sensitive",
+			finalAction: "flag",
+		});
+		unwrap(linkDecisionCommit(ports, "flagged", sha("c1")));
+		for (const commit of [sha("c1"), sha("no-decisions")]) {
+			const result = linkTestFailure(ports, commit, "src/secret path.ts");
+			expect(result.ok).toBe(false);
+			if (!result.ok) expect(result.error.kind).toBe("invalid_outcome");
+		}
+		expect(unwrap(queryOutcomes(ports, {}))).toEqual([]);
+	});
 });

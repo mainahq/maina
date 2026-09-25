@@ -209,6 +209,7 @@ export async function mineGitOutcomes(
 			"--unified=0",
 			"--no-color",
 			"--no-ext-diff",
+			"--no-textconv",
 			"--no-renames",
 			sha,
 		]);
