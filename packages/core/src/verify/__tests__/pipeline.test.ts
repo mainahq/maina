@@ -43,6 +43,8 @@ let capturedSyntaxGuardFiles: string[] | null = null;
 // its explicit root and injected environment through (#290).
 let capturedDetectToolsArgs: unknown[] | null = null;
 let capturedTypecheckArgs: unknown[] | null = null;
+// Options each external runner received, keyed by runner name (#389).
+let capturedRunnerOptions: Record<string, Record<string, unknown>> = {};
 
 // Mock the modules
 // NOTE: These mocks are intentionally minimal — they only export what pipeline.ts
@@ -75,43 +77,49 @@ mock.module("../slop", () => ({
 }));
 
 mock.module("../semgrep", () => ({
-	runSemgrep: async (..._args: unknown[]) => {
+	runSemgrep: async (options: Record<string, unknown>) => {
 		callOrder.push("runSemgrep");
+		capturedRunnerOptions.runSemgrep = options;
 		return mockSemgrepResult;
 	},
 }));
 
 mock.module("../trivy", () => ({
-	runTrivy: async (..._args: unknown[]) => {
+	runTrivy: async (options: Record<string, unknown>) => {
 		callOrder.push("runTrivy");
+		capturedRunnerOptions.runTrivy = options;
 		return mockTrivyResult;
 	},
 }));
 
 mock.module("../secretlint", () => ({
-	runSecretlint: async (..._args: unknown[]) => {
+	runSecretlint: async (options: Record<string, unknown>) => {
 		callOrder.push("runSecretlint");
+		capturedRunnerOptions.runSecretlint = options;
 		return mockSecretlintResult;
 	},
 }));
 
 mock.module("../sonar", () => ({
-	runSonar: async (..._args: unknown[]) => {
+	runSonar: async (options: Record<string, unknown>) => {
 		callOrder.push("runSonar");
+		capturedRunnerOptions.runSonar = options;
 		return { findings: [], skipped: true };
 	},
 }));
 
 mock.module("../mutation", () => ({
-	runMutation: async (..._args: unknown[]) => {
+	runMutation: async (options: Record<string, unknown>) => {
 		callOrder.push("runMutation");
+		capturedRunnerOptions.runMutation = options;
 		return { findings: [], skipped: true };
 	},
 }));
 
 mock.module("../coverage", () => ({
-	runCoverage: async (..._args: unknown[]) => {
+	runCoverage: async (options: Record<string, unknown>) => {
 		callOrder.push("runCoverage");
+		capturedRunnerOptions.runCoverage = options;
 		return { findings: [], skipped: true };
 	},
 }));
@@ -233,6 +241,7 @@ describe("VerifyPipeline", () => {
 		capturedSyntaxGuardFiles = null;
 		capturedDetectToolsArgs = null;
 		capturedTypecheckArgs = null;
+		capturedRunnerOptions = {};
 		mockSyntaxGuardResult = { ok: true, value: undefined };
 		mockDetectedTools = [
 			makeDetectedTool("biome", true),
@@ -582,6 +591,77 @@ describe("VerifyPipeline", () => {
 
 		const pipelineWarning = result.findings.find((f) => f.tool === "pipeline");
 		expect(pipelineWarning).toBeUndefined();
+	});
+
+	it("passes each external runner the command path detection resolved (#389)", async () => {
+		const local = (bin: string) => `${ROOT}/node_modules/.bin/${bin}`;
+		mockDetectedTools = [
+			{
+				name: "semgrep",
+				command: local("semgrep"),
+				version: "1.0.0",
+				available: true,
+			},
+			{
+				name: "trivy",
+				command: local("trivy"),
+				version: "1.0.0",
+				available: true,
+			},
+			{
+				name: "secretlint",
+				command: local("secretlint"),
+				version: "1.0.0",
+				available: true,
+			},
+			{
+				name: "sonarqube",
+				command: local("sonar-scanner"),
+				version: "1.0.0",
+				available: true,
+			},
+			{
+				name: "stryker",
+				command: local("stryker"),
+				version: "1.0.0",
+				available: true,
+			},
+			{
+				name: "diff-cover",
+				command: local("diff-cover"),
+				version: "1.0.0",
+				available: true,
+			},
+		];
+
+		await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
+
+		expect(capturedRunnerOptions.runSemgrep?.command).toBe(local("semgrep"));
+		expect(capturedRunnerOptions.runTrivy?.command).toBe(local("trivy"));
+		expect(capturedRunnerOptions.runSecretlint?.command).toBe(
+			local("secretlint"),
+		);
+		expect(capturedRunnerOptions.runSonar?.command).toBe(
+			local("sonar-scanner"),
+		);
+		expect(capturedRunnerOptions.runMutation?.command).toBe(local("stryker"));
+		expect(capturedRunnerOptions.runCoverage?.command).toBe(
+			local("diff-cover"),
+		);
+		expect(capturedRunnerOptions.runSemgrep?.available).toBe(true);
+	});
+
+	it("surfaces a runner's spawn-failure notice on its tool report (#389)", async () => {
+		const notice = "semgrep was detected but could not be started";
+		mockSemgrepResult = { findings: [], skipped: true, notice };
+
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
+
+		const semgrepReport = result.tools.find((t) => t.tool === "semgrep");
+		expect(semgrepReport?.skipped).toBe(true);
+		expect(semgrepReport?.notice).toBe(notice);
+		const trivyReport = result.tools.find((t) => t.tool === "trivy");
+		expect(trivyReport?.notice).toBeUndefined();
 	});
 
 	it("should run AI review after diff filter and include findings", async () => {

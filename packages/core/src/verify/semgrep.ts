@@ -6,8 +6,8 @@
  * Gracefully skips if semgrep is not installed.
  */
 
-import { isToolAvailable } from "./detect";
 import type { Finding } from "./diff-filter";
+import { resolveTool, spawnFailureNotice, spawnTool } from "./tool-spawn";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -19,11 +19,15 @@ interface SemgrepOptions {
 	cwd: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */
 	available?: boolean;
+	/** Pre-resolved command path from detection (may be root-local node_modules/.bin). */
+	command?: string;
 }
 
 export interface SemgrepResult {
 	findings: Finding[];
 	skipped: boolean;
+	/** Why the tool was skipped although detected, e.g. it could not be started. */
+	notice?: string;
 }
 
 // ─── SARIF Parsing ────────────────────────────────────────────────────────
@@ -128,21 +132,26 @@ export function parseSarif(sarifJson: string): Finding[] {
  * Run Semgrep and return parsed findings.
  *
  * If semgrep is not installed, returns `{ findings: [], skipped: true }`.
- * If semgrep fails, returns `{ findings: [], skipped: false }`.
+ * Spawns the command detection resolved (it may be root-local); if it cannot
+ * be started, returns `{ findings: [], skipped: true, notice }`.
  */
 export async function runSemgrep(
 	options: SemgrepOptions,
 ): Promise<SemgrepResult> {
-	const toolAvailable =
-		options.available ?? (await isToolAvailable("semgrep", options.cwd));
-	if (!toolAvailable) {
+	const resolved = await resolveTool("semgrep", options);
+	if (!resolved.available) {
 		return { findings: [], skipped: true };
 	}
 
 	const config = options.config ?? "auto";
 	const cwd = options.cwd;
 
-	const args = ["semgrep", "scan", "--sarif", `--config=${config}`];
+	const args: [string, ...string[]] = [
+		resolved.command,
+		"scan",
+		"--sarif",
+		`--config=${config}`,
+	];
 
 	if (options.rulesDir) {
 		args.push(`--config=${options.rulesDir}`);
@@ -152,20 +161,13 @@ export async function runSemgrep(
 		args.push(...options.files);
 	}
 
-	try {
-		const proc = Bun.spawn(args, {
-			cwd,
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-
-		const stdout = await new Response(proc.stdout).text();
-		await new Response(proc.stderr).text();
-		await proc.exited;
-
-		const findings = parseSarif(stdout);
-		return { findings, skipped: false };
-	} catch {
-		return { findings: [], skipped: false };
+	const run = await spawnTool(args, cwd);
+	if (!run.ok) {
+		return {
+			findings: [],
+			skipped: true,
+			notice: spawnFailureNotice("semgrep", run.error),
+		};
 	}
+	return { findings: parseSarif(run.value.stdout), skipped: false };
 }

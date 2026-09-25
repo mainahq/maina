@@ -6,8 +6,8 @@
  * Gracefully skips if secretlint is not installed.
  */
 
-import { isToolAvailable } from "./detect";
 import type { Finding } from "./diff-filter";
+import { resolveTool, spawnFailureNotice, spawnTool } from "./tool-spawn";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -17,11 +17,15 @@ interface SecretlintOptions {
 	cwd: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */
 	available?: boolean;
+	/** Pre-resolved command path from detection (may be root-local node_modules/.bin). */
+	command?: string;
 }
 
 export interface SecretlintResult {
 	findings: Finding[];
 	skipped: boolean;
+	/** Why the tool was skipped although detected, e.g. it could not be started. */
+	notice?: string;
 }
 
 // ─── JSON Parsing ─────────────────────────────────────────────────────────
@@ -129,20 +133,20 @@ export function parseSecretlintOutput(output: string): Finding[] {
  * Run Secretlint and return parsed findings.
  *
  * If secretlint is not installed, returns `{ findings: [], skipped: true }`.
- * If secretlint fails, returns `{ findings: [], skipped: false }`.
+ * Spawns the command detection resolved (it may be root-local); if it cannot
+ * be started, returns `{ findings: [], skipped: true, notice }`.
  */
 export async function runSecretlint(
 	options: SecretlintOptions,
 ): Promise<SecretlintResult> {
-	const toolAvailable =
-		options.available ?? (await isToolAvailable("secretlint", options.cwd));
-	if (!toolAvailable) {
+	const resolved = await resolveTool("secretlint", options);
+	if (!resolved.available) {
 		return { findings: [], skipped: true };
 	}
 
 	const cwd = options.cwd;
 
-	const args = ["secretlint", "--format", "json"];
+	const args: [string, ...string[]] = [resolved.command, "--format", "json"];
 
 	if (options.files && options.files.length > 0) {
 		args.push(...options.files);
@@ -150,20 +154,13 @@ export async function runSecretlint(
 		args.push("**/*");
 	}
 
-	try {
-		const proc = Bun.spawn(args, {
-			cwd,
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-
-		const stdout = await new Response(proc.stdout).text();
-		await new Response(proc.stderr).text();
-		await proc.exited;
-
-		const findings = parseSecretlintOutput(stdout);
-		return { findings, skipped: false };
-	} catch {
-		return { findings: [], skipped: false };
+	const run = await spawnTool(args, cwd);
+	if (!run.ok) {
+		return {
+			findings: [],
+			skipped: true,
+			notice: spawnFailureNotice("secretlint", run.error),
+		};
 	}
+	return { findings: parseSecretlintOutput(run.value.stdout), skipped: false };
 }

@@ -48,6 +48,8 @@ export interface ToolReport {
 	findings: Finding[];
 	skipped: boolean;
 	duration: number; // ms
+	/** Why a detected tool was skipped anyway, e.g. it could not be started (#389). */
+	notice?: string;
 }
 
 export interface PipelineResult {
@@ -89,7 +91,7 @@ export interface PipelineOptions {
  */
 async function runToolWithTiming(
 	toolName: string,
-	fn: () => Promise<{ findings: Finding[]; skipped: boolean }>,
+	fn: () => Promise<{ findings: Finding[]; skipped: boolean; notice?: string }>,
 ): Promise<ToolReport> {
 	const start = performance.now();
 	const result = await fn();
@@ -100,6 +102,7 @@ async function runToolWithTiming(
 		findings: result.findings,
 		skipped: result.skipped,
 		duration,
+		...(result.notice ? { notice: result.notice } : {}),
 	};
 }
 
@@ -170,11 +173,21 @@ export async function runPipeline(
 	const detectedTools = await detectTools(cwd);
 
 	// ── Step 4: Run all available tools in PARALLEL ───────────────────────
-	// Build a lookup from detection results to avoid redundant subprocess spawns
-	const toolAvailability = new Map<string, boolean>();
+	// Build a lookup from detection results to avoid redundant subprocess
+	// spawns. Runners get the resolved command too: detection may have found
+	// the tool only in <root>/node_modules/.bin, which the bare name misses.
+	const detectedByName = new Map<string, DetectedTool>();
 	for (const t of detectedTools) {
-		toolAvailability.set(t.name, t.available);
+		detectedByName.set(t.name, t);
 	}
+	const resolvedTool = (
+		name: string,
+	): { available: boolean; command?: string } => {
+		const t = detectedByName.get(name);
+		return t
+			? { available: t.available, command: t.command }
+			: { available: false };
+	};
 
 	const toolPromises: Promise<ToolReport>[] = [];
 
@@ -205,7 +218,7 @@ export async function runPipeline(
 			runSemgrep({
 				files,
 				cwd,
-				available: toolAvailability.get("semgrep") ?? false,
+				...resolvedTool("semgrep"),
 			}),
 		),
 	);
@@ -213,7 +226,7 @@ export async function runPipeline(
 	// Trivy — pass pre-resolved availability
 	toolPromises.push(
 		runToolWithTiming("trivy", () =>
-			runTrivy({ cwd, available: toolAvailability.get("trivy") ?? false }),
+			runTrivy({ cwd, ...resolvedTool("trivy") }),
 		),
 	);
 
@@ -223,7 +236,7 @@ export async function runPipeline(
 			runSecretlint({
 				files,
 				cwd,
-				available: toolAvailability.get("secretlint") ?? false,
+				...resolvedTool("secretlint"),
 			}),
 		),
 	);
@@ -233,7 +246,7 @@ export async function runPipeline(
 		runToolWithTiming("sonarqube", () =>
 			runSonar({
 				cwd,
-				available: toolAvailability.get("sonarqube") ?? false,
+				...resolvedTool("sonarqube"),
 			}),
 		),
 	);
@@ -243,7 +256,7 @@ export async function runPipeline(
 		runToolWithTiming("stryker", () =>
 			runMutation({
 				cwd,
-				available: toolAvailability.get("stryker") ?? false,
+				...resolvedTool("stryker"),
 			}),
 		),
 	);
@@ -254,7 +267,7 @@ export async function runPipeline(
 			runCoverage({
 				baseBranch,
 				cwd,
-				available: toolAvailability.get("diff-cover") ?? false,
+				...resolvedTool("diff-cover"),
 			}),
 		),
 	);
