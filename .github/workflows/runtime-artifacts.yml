@@ -144,6 +144,12 @@ jobs:
         run: |
           set -euo pipefail
           version=$(jq -r '.version' dist/runtime/manifest.json)
+          # The CLI package pins the version: a tag that names another one
+          # would publish a release under a name nobody asked for.
+          if [ "${GITHUB_REF_TYPE}" = tag ] && [ "${GITHUB_REF_NAME}" != "runtime-v${version}" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match the CLI version ${version} (expected runtime-v${version})" >&2
+            exit 1
+          fi
           gh release create "runtime-v${version}" dist/runtime/* \
             --title "maina runtime ${version}" \
             --notes "Standalone maina runtime ${version}. Verify with the launcher's pinned key (ADR 0045)."

@@ -35,6 +35,7 @@ here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P) || exit 70
 manifest=$here/manifest.json
 pubkey=$here/release.pub.pem
 reason=
+version=
 
 # ── Degraded modes ──────────────────────────────────────────────────────────
 # Keep these outputs byte-identical to src/standalone/hook-fallback.ts.
@@ -55,13 +56,31 @@ fail_closed() {
 	esac
 }
 
-# First match of `"key": <string or integer>` in $2 (raw JSON token).
+# The raw token (string or integer) of key $1 in the object at depth $2 of the
+# JSON line $3: depth 1 is the message, depth 2 its params. A nested key of the
+# same name never matches, whatever the key order.
 json_token() {
-	printf '%s\n' "$2" | awk -v k="\"$1\"" '{
-		if (match($0, k "[ \t]*:[ \t]*(\"[^\"\\\\]*\"|-?[0-9]+)")) {
-			s = substr($0, RSTART, RLENGTH); sub(/^"[^"]*"[ \t]*:[ \t]*/, "", s); print s
+	printf '%s\n' "$3" | awk -v want="\"$1\"" -v at="$2" '{
+		n = length($0); d = 0; grab = 0; last = ""; after = 0
+		for (i = 1; i <= n; i++) {
+			c = substr($0, i, 1)
+			if (c == " " || c == "\t" || c == "\r") continue
+			if (c == "\"") {
+				j = i + 1
+				while (j <= n && (e = substr($0, j, 1)) != "\"") j += (e == "\\") ? 2 : 1
+				s = substr($0, i, j - i + 1); i = j
+				if (grab) { print s; exit }
+				last = s; after = 1; continue
+			}
+			if (grab) {
+				if (match(substr($0, i), /^-?[0-9]+/)) print substr($0, i, RLENGTH)
+				exit
+			}
+			if (c == ":") { grab = after && d == at && last == want; after = 0; continue }
+			after = 0
+			if (c == "{" || c == "[") d++
+			else if (c == "}" || c == "]") d--
 		}
-		exit
 	}'
 }
 
@@ -71,19 +90,19 @@ rules_only_mcp() {
 	notice="maina runtime unavailable ($1): running in rules-only mode, so verification tools are off. Check network access to the maina release and restart the MCP server."
 	status_tool='{"name":"status","description":"Why maina is running in rules-only mode.","inputSchema":{"type":"object","properties":{}}}'
 	while IFS= read -r line || [ -n "$line" ]; do
-		id=$(json_token id "$line")
+		id=$(json_token id 1 "$line")
 		[ -n "$id" ] || continue # a notification: nothing to answer
-		method=$(json_token method "$line")
+		method=$(json_token method 1 "$line")
 		case $method in
 		'"initialize"')
-			pv=$(json_token protocolVersion "$line")
+			pv=$(json_token protocolVersion 2 "$line")
 			case $pv in '"'*'"') ;; *) pv='"2024-11-05"' ;; esac
 			reply "$id" "{\"protocolVersion\":$pv,\"capabilities\":{\"tools\":{}},\"serverInfo\":{\"name\":\"maina\",\"version\":\"$version\"},\"instructions\":\"$notice\"}" ;;
 		'"ping"') reply "$id" '{}' ;;
 		'"tools/list"') reply "$id" "{\"tools\":[$status_tool]}" ;;
 		'"tools/call"')
 			err=true
-			[ "$(json_token name "$line")" = '"status"' ] && err=false
+			[ "$(json_token name 2 "$line")" = '"status"' ] && err=false
 			reply "$id" "{\"content\":[{\"type\":\"text\",\"text\":\"$notice\"}],\"isError\":$err}" ;;
 		*)
 			printf '{"jsonrpc":"2.0","id":%s,"error":{"code":-32601,"message":"%s"}}\n' "$id" "$notice" ;;
@@ -119,7 +138,7 @@ artifact_value() {
 
 [ -f "$manifest" ] || degrade no_manifest
 version=$(top_value version)
-case $version in '' | *[!0-9A-Za-z.+_-]*) degrade bad_manifest ;; esac
+case $version in '' | *[!0-9A-Za-z.+_-]*) version=; degrade bad_manifest ;; esac
 
 case $(uname -s) in
 Darwin) os=darwin ;;

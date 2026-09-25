@@ -15,7 +15,7 @@
  */
 
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { failClosedHookOutput } from "../../src/standalone/hook-fallback";
 import {
@@ -412,6 +412,39 @@ for (const interp of INTERPRETERS) {
 				expect(ping?.result).toEqual({});
 			});
 
+			test("rules-only MCP reads the top-level id, method and params, not nested ones", async () => {
+				const staged = stageOffline();
+				// The MCP SDK serializes `{ ...request, jsonrpc, id }`: the
+				// top-level id comes after params, which may carry their own
+				// `id`, `method` or `name` keys.
+				const raw = (text: string): string => `${text}\n`;
+				const out = await runLauncher(["mcp"], {
+					command: interp.command(staged),
+					staged,
+					stdin: [
+						raw(
+							'{"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{"x":{"id":99}},"clientInfo":{"name":"c","version":"1"}},"jsonrpc":"2.0","id":0}',
+						),
+						raw(
+							'{"method":"tools/call","params":{"name":"status","arguments":{"id":7}},"jsonrpc":"2.0","id":3}',
+						),
+						raw(
+							'{"params":{"arguments":{"name":"status","method":"ping"},"name":"verify"},"method":"tools/call","jsonrpc":"2.0","id":"a\\"b"}',
+						),
+						raw(
+							'{"method":"notifications/cancelled","params":{"requestId":3,"id":5},"jsonrpc":"2.0"}',
+						),
+					].join(""),
+				});
+				expect(out.exitCode).toBe(0);
+				const lines = rpcLines(out.stdout);
+				expect(lines.map((l) => l.id)).toEqual([0, 3, 'a"b']);
+				const [init, status, verify] = lines;
+				expect(init?.result?.protocolVersion).toBe("2025-06-18");
+				expect(status?.result?.isError).toBe(false);
+				expect(verify?.result?.isError).toBe(true);
+			});
+
 			test("CLI mode exits non-zero with the reason", async () => {
 				const staged = stageOffline();
 				const out = await runLauncher(["cli", "verify"], {
@@ -422,6 +455,62 @@ for (const interp of INTERPRETERS) {
 				expect(out.stdout).toBe("");
 				expect(out.stderr).toContain("download_failed");
 			});
+		});
+
+		describe("without a usable manifest", () => {
+			const stageBroken = (manifest: string | null): Staged => {
+				const staged = track(
+					stageLauncher({
+						target,
+						pinned: FAKE_RUNTIME,
+						url: `${offlineUrl()}${ARTIFACT_PATH}`,
+						key,
+					}),
+				);
+				const path = join(staged.dir, "manifest.json");
+				if (manifest === null) rmSync(path);
+				else writeFileSync(path, manifest);
+				return staged;
+			};
+
+			for (const [cause, manifest] of [
+				["no_manifest", null],
+				[
+					"bad_manifest",
+					'{\n  "schema": 1,\n  "version": "1.0 beta",\n  "artifacts": {}\n}\n',
+				],
+			] as const) {
+				test(`${cause}: MCP mode still serves rules-only`, async () => {
+					const staged = stageBroken(manifest);
+					const out = await runLauncher(["mcp"], {
+						command: interp.command(staged),
+						staged,
+						stdin: [INITIALIZE, rpc({ id: 2, method: "ping" })].join(""),
+					});
+					expect(out.exitCode).toBe(0);
+					expect(out.stderr).toContain(cause);
+					const [init, ping] = rpcLines(out.stdout);
+					expect(init?.id).toBe(1);
+					expect(init?.result?.serverInfo).toEqual({
+						name: "maina",
+						version: "",
+					});
+					expect(String(init?.result?.instructions)).toContain(cause);
+					expect(ping?.result).toEqual({});
+				});
+
+				test(`${cause}: hook mode fails closed`, async () => {
+					const staged = stageBroken(manifest);
+					const out = await runLauncher(["hook", "PreToolUse"], {
+						command: interp.command(staged),
+						staged,
+					});
+					expect(out.exitCode).toBe(0);
+					expect(out.stdout.trim()).toBe(
+						failClosedHookOutput("PreToolUse", cause),
+					);
+				});
+			}
 		});
 
 		test("cold MCP start from cache is at most 1.5 s", async () => {
