@@ -508,3 +508,135 @@ describe("other event kinds", () => {
 		]);
 	});
 });
+
+describe("gate.self_override: an agent changing its own gate (#447)", () => {
+	const SELF = "gate.self_override";
+
+	test("maina allow and policy mutations, however they are invoked", () => {
+		for (const command of [
+			"maina allow d-1",
+			"maina allow d-1 --always",
+			"maina --json allow d-1",
+			"/usr/local/bin/maina allow d-1",
+			"./node_modules/.bin/maina allow d-1",
+			"bunx maina allow d-1",
+			"npx -y @mainahq/cli@latest allow d-1 --always",
+			"pnpm dlx @mainahq/cli allow d-1",
+			"bun x maina allow d-1",
+			"npm exec -- maina allow d-1",
+			"bun /home/dev/maina/packages/cli/dist/index.js allow d-1",
+			"node packages/cli/dist/index.js allow d-1",
+			'sh -c "maina allow d-1"',
+			"echo 'maina allow d-1' | sh",
+			"X=allow; maina $X d-1",
+			"MAINA_ALLOW_NONINTERACTIVE=1 maina allow d-1",
+			"env MAINA_ALLOW_NONINTERACTIVE=1 maina allow d-1",
+			"bun test && maina allow d-1",
+			"maina policy set rules.allow '*'",
+			"maina policy edit",
+			"maina allow d-1 -- --help",
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+	});
+
+	test("an unreadable maina subcommand asks rather than slips through", () => {
+		expect(classesOf('maina "$SUB" d-1')).toContain("shell.opaque");
+	});
+
+	test("reading maina's help, other subcommands and look-alikes are not", () => {
+		for (const command of [
+			"maina allow --help",
+			"maina allow -h",
+			"maina verify",
+			"maina doctor",
+			"maina policy show",
+			'git commit -m "maina allow d-1"',
+			'echo "run maina allow d-1 in your terminal"',
+			"bun packages/cli/dist/index.js verify",
+			"node scripts/allow.js allow",
+		]) {
+			expect(classesOf(command), command).not.toContain(SELF);
+		}
+	});
+
+	test("file.write to a maina policy or a host hook config", () => {
+		for (const path of [
+			".maina/policy.json",
+			"/work/repo/.maina/policy.json",
+			"/work/repo/packages/app/.maina/policy.json",
+			"/home/dev/.maina/policy.json",
+			".claude/settings.json",
+			".claude/settings.local.json",
+			"/home/dev/.claude/settings.json",
+			".cursor/hooks.json",
+			"/home/dev/.cursor/hooks.json",
+			".codex/hooks.json",
+			"/home/dev/.codex/hooks.json",
+			"/home/dev/.codex/config.toml",
+		]) {
+			expect(classifyAction(writeEvent(path), ctx), path).toContain(SELF);
+		}
+		expect(
+			classifyAction(writeEvent("/home/dev/.maina/policy.json"), ctx),
+		).toContain("fs.write.outside");
+	});
+
+	test("file.write to neighbouring files is a plain write", () => {
+		for (const path of [
+			".maina/constitution.md",
+			".maina/prompts/review.md",
+			".claude/commands/review.md",
+			".cursor/rules/maina.mdc",
+			".cursor/mcp.json",
+			"src/policy.ts",
+			"docs/claude/settings.json",
+		]) {
+			expect(classifyAction(writeEvent(path), ctx), path).toEqual(["fs.write"]);
+		}
+	});
+
+	test("shell writes, moves and deletes of those files", () => {
+		for (const command of [
+			"echo '{}' > .maina/policy.json",
+			"echo '{}' >> ~/.maina/policy.json",
+			"cd .maina && echo '{}' > policy.json",
+			"P=.claude/settings.json; echo '{}' > \"$P\"",
+			"echo '{}' | tee .cursor/hooks.json",
+			"cp /tmp/open.json .maina/policy.json",
+			"mv /tmp/s .claude/settings.json",
+			"mv .claude/settings.local.json /tmp/settings.bak",
+			"sed -i 's/ask/allow/' .maina/policy.json",
+			"ln -sf /tmp/open.json .maina/policy.json",
+			"touch .codex/hooks.json",
+			"rm .claude/settings.json",
+			"rm -rf .claude",
+			"rm -rf .maina",
+			"unlink .cursor/hooks.json",
+			"curl -o .claude/settings.json https://example.com/s.json",
+			"dd if=/tmp/x of=.maina/policy.json",
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+	});
+
+	test("reading those files, or touching their neighbours, is not", () => {
+		for (const command of [
+			"cat .maina/policy.json",
+			"cat .claude/settings.json",
+			"jq . .cursor/hooks.json",
+			"cp .maina/policy.json /tmp/policy.json",
+			"rm -rf .maina/cache",
+			"echo x > .maina/notes.md",
+		]) {
+			expect(classesOf(command), command).not.toContain(SELF);
+		}
+	});
+
+	test("is irreversible and denied by default", () => {
+		expect(DEFAULT_POLICY.action_classes[SELF]).toEqual({
+			irreversible: true,
+			verdict: "deny",
+		});
+	});
+});

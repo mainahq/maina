@@ -902,3 +902,38 @@ describe("the action.risk answers behind a verdict, for the log", () => {
 		]);
 	});
 });
+
+describe("gate.self_override (#447)", () => {
+	test("an agent's maina allow is denied, whatever the model says", () => {
+		const result = evaluateGate(
+			withModel(() => ({ verdict: "allow", p: 0.99 })),
+			shellEvent("maina allow d-1 --always"),
+			modelPolicy(),
+		);
+		expect(result.verdict).toBe("deny");
+		expect(result.reason).toContain("gate.self_override");
+	});
+
+	test("an unconfirmed repo explicitly_allow leaves it denied", async () => {
+		const policy = await layered(undefined, {
+			explicitly_allow: ["gate.self_override"],
+			action_classes: { "gate.self_override": { verdict: "allow" } },
+		});
+		const result = evaluateGate(
+			gatePorts(),
+			writeEvent(".claude/settings.json"),
+			policy,
+		);
+		expect(result.verdict).toBe("deny");
+	});
+
+	test("a policy that omits the class still denies it", () => {
+		const { "gate.self_override": _omitted, ...rest } =
+			DEFAULT_POLICY.action_classes;
+		const result = evaluateGate(gatePorts(), writeEvent(".maina/policy.json"), {
+			...DEFAULT_POLICY,
+			action_classes: rest,
+		});
+		expect(result.verdict).toBe("deny");
+	});
+});

@@ -194,8 +194,12 @@ function trustPolicy(policy: Policy, confirmed: readonly string[]): Narrowed {
 	]);
 	for (const id of ids) {
 		if (trusted.has(id) || !isIrreversible(id, policy)) continue;
+		// A class the policy omits keeps its built-in verdict, so a partial
+		// policy cannot drop a default deny to `ask`.
+		const current =
+			policy.action_classes[id] ?? DEFAULT_POLICY.action_classes[id];
 		const denied =
-			policy.action_classes[id]?.verdict === "deny" ||
+			current?.verdict === "deny" ||
 			policy.loosened.some((l) => l.actionClass === id && l.before === "deny");
 		classes[id] = { irreversible: true, verdict: denied ? "deny" : "ask" };
 	}

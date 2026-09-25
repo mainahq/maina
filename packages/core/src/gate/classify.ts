@@ -119,6 +119,7 @@ function classifyWrite(
 	}
 	if (content !== undefined && containsSecret(content))
 		out.add("secrets.write");
+	if (isGateControlFile(resolved ?? path)) out.add("gate.self_override");
 	if (isOutsideWorkspace(resolved, event.root)) out.add("fs.write.outside");
 	if (out.size === 0) out.add("fs.write");
 }
@@ -140,6 +141,45 @@ function classifyRead(
 		// without one it would reach the backend with no class and ask.
 		out.add("fs.read");
 	}
+}
+
+// ── Gate control files (#447) ───────────────────────────────────────────────
+
+/**
+ * Files that configure the gate itself: a maina policy (`.maina/policy*`, in
+ * the repo or the user's home) and the host hook configs that run maina
+ * (`.claude/settings*.json`, `.cursor/hooks.json`, `.codex/hooks.json`,
+ * `.codex/config.toml`). An agent writing, moving or deleting one could
+ * override its own gate, so each is `gate.self_override`.
+ */
+function isGateControlFile(path: string): boolean {
+	const segments = path.split(/[\\/]+/);
+	const name = segments.at(-1) ?? "";
+	switch (segments.at(-2)) {
+		case ".maina":
+			return name.startsWith("policy");
+		case ".claude":
+			return /^settings(\.[^.]+)*\.json$/.test(name);
+		case ".cursor":
+			return name === "hooks.json";
+		case ".codex":
+			return name === "hooks.json" || name === "config.toml";
+		default:
+			return false;
+	}
+}
+
+const GATE_CONTROL_DIRS: ReadonlySet<string> = new Set([
+	".maina",
+	".claude",
+	".cursor",
+	".codex",
+]);
+
+/** Deleting or moving a path removes a control file when it is one or holds one. */
+function removesGateControl(path: string): boolean {
+	const name = path.split(/[\\/]+/).at(-1) ?? "";
+	return GATE_CONTROL_DIRS.has(name) || isGateControlFile(path);
 }
 
 /** True only when the path is known and lands outside the workspace and scratch dirs. */
@@ -595,17 +635,83 @@ function classifyCommand(
 		}
 	}
 	CLASSIFIERS[cmd]?.(args, cwd, ctx);
-	// Package runners that take a program name (`npx rimraf`, `time git push`).
+	// Package runners that take a program name (`npx rimraf`, `npx -y @mainahq/cli`).
 	if (RUNNERS.has(cmd)) {
-		const first = literalArgs(args)[0];
+		const first = positional(args)[0];
 		if (first !== undefined) {
-			CLASSIFIERS[baseCommand(first)]?.(
+			programClassifier(first)?.(
 				args.slice(indexOfArg(args, first) + 1),
 				cwd,
 				ctx,
 			);
 		}
 	}
+	// A JavaScript runtime running maina's entry file (`bun …/cli/dist/index.js allow`).
+	if (JS_RUNTIMES.has(cmd)) {
+		const pos = positional(args);
+		const script = pos[0] === "run" ? pos[1] : pos[0];
+		if (script !== undefined && MAINA_ENTRY.test(script)) {
+			mainaClassifier(args.slice(indexOfArg(args, script) + 1), cwd, ctx);
+		}
+	}
+}
+
+const JS_RUNTIMES: ReadonlySet<string> = new Set([
+	"bun",
+	"node",
+	"nodejs",
+	"deno",
+	"tsx",
+]);
+
+/** maina's bin, or its entry file in the package or the monorepo. */
+const MAINA_ENTRY =
+	/(^|\/)(maina|(@mainahq|packages)\/cli\/(dist|src)\/index\.[cm]?[jt]s)$/;
+
+const MAINA_PACKAGE = "@mainahq/cli";
+
+/**
+ * The classifier for the program a runner names: its version stripped
+ * (`rimraf@5`, `@mainahq/cli@latest`) and maina's package mapped to maina.
+ */
+function programClassifier(program: string): Classifier | undefined {
+	const bare = program.replace(/(.)@[^/]*$/, "$1");
+	return bare === MAINA_PACKAGE
+		? mainaClassifier
+		: CLASSIFIERS[baseCommand(bare)];
+}
+
+/** `maina policy` subcommands that only read. */
+const POLICY_READS: ReadonlySet<string> = new Set([
+	"show",
+	"list",
+	"get",
+	"check",
+	"validate",
+	"explain",
+	"path",
+]);
+
+/**
+ * `maina allow` and `maina policy` mutations change what the gate lets
+ * through, so an agent running one is overriding its own gate (#447). Help
+ * is harmless; a subcommand the gate cannot read asks.
+ */
+function mainaClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
+	const words = args.map((a) => a.text ?? UNKNOWN_WORD);
+	// A help flag after `--` is an operand, not help.
+	const end = words.indexOf("--");
+	const options = end < 0 ? words : words.slice(0, end);
+	if (options.includes("--help") || options.includes("-h")) return;
+	const [sub, action] = words.filter((w) => !w.startsWith("-"));
+	if (sub === UNKNOWN_WORD) ctx.out.add("shell.opaque");
+	else if (sub === "allow") ctx.out.add("gate.self_override");
+	else if (
+		sub === "policy" &&
+		action !== undefined &&
+		!POLICY_READS.has(action)
+	)
+		ctx.out.add("gate.self_override");
 }
 
 const literalArgs = (args: Argv): readonly string[] =>
@@ -670,6 +776,7 @@ function flagDelete(
 		ctx.out.add("shell.opaque");
 		return;
 	}
+	if (removesGateControl(resolved)) ctx.out.add("gate.self_override");
 	const root = ctx.event.root;
 	// Outside the workspace, the workspace root itself, or an ancestor of it:
 	// each removes the whole tree from outside.
@@ -897,10 +1004,10 @@ function publishManagerClassifier(
 	// A package manager running another publisher (`pnpm changeset publish`).
 	if (pos[0] === "changeset" && pos[1] === "publish")
 		ctx.out.add("package.publish");
-	if (pos[0] === "dlx" || pos[0] === "exec") {
+	if (pos[0] === "dlx" || pos[0] === "exec" || pos[0] === "x") {
 		const first = pos[1];
 		if (first !== undefined)
-			CLASSIFIERS[baseCommand(first)]?.(
+			programClassifier(first)?.(
 				args.slice(indexOfArg(args, first) + 1),
 				cwd,
 				ctx,
@@ -941,6 +1048,8 @@ function fetchClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
 	const record = (target: string): void => {
 		ctx.downloads.add(baseCommand(target));
 		const resolved = resolvePath(target, cwd, ctx.gate.home);
+		if (isGateControlFile(resolved ?? target))
+			ctx.out.add("gate.self_override");
 		if (
 			isCredentialStorePath(resolved ?? target) ||
 			isSecretPath(resolved ?? target)
@@ -982,6 +1091,7 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 		for (const t of positional(args)) flagDelete(t, cwd, true, ctx);
 	},
 	rimraf: (_args, _cwd, ctx) => ctx.out.add("fs.delete.recursive"),
+	maina: mainaClassifier,
 	find: findClassifier,
 	git: gitClassifier,
 	npm: publishManagerClassifier,
@@ -1040,6 +1150,8 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 			if (isBlockDevice(target)) ctx.out.add("system.destructive");
 			else {
 				const resolved = resolvePath(target, cwd, ctx.gate.home);
+				if (isGateControlFile(resolved ?? target))
+					ctx.out.add("gate.self_override");
 				if (isOutsideWorkspace(resolved, ctx.event.root))
 					ctx.out.add("fs.write.outside");
 			}
@@ -1129,7 +1241,15 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 		writeTargets(positional(args).slice(-1), cwd, ctx);
 	},
 	cp: copyClassifier,
-	mv: copyClassifier,
+	mv: (args, cwd, ctx) => {
+		copyClassifier(args, cwd, ctx);
+		// A move deletes its sources.
+		for (const source of positional(args).slice(0, -1)) {
+			const resolved = resolvePath(source, cwd, ctx.gate.home);
+			if (removesGateControl(resolved ?? source))
+				ctx.out.add("gate.self_override");
+		}
+	},
 	ln: (args, cwd, ctx) => {
 		flagUnresolvedDestination(args, ctx);
 		writeTargets(positional(args).slice(-1), cwd, ctx);
@@ -1275,6 +1395,7 @@ function writeTargets(
 	for (const t of targets) {
 		const resolved = resolvePath(t, cwd, ctx.gate.home);
 		const path = resolved ?? t;
+		if (isGateControlFile(path)) ctx.out.add("gate.self_override");
 		if (isCredentialStorePath(path) || isSecretPath(path))
 			ctx.out.add("secrets.write");
 		else if (resolved !== null && isSafeDevice(resolved)) continue;
@@ -1598,6 +1719,7 @@ function redirectClasses(
 			if (r.op.startsWith("<")) {
 				readTargets(text, cwd, ctx);
 			} else {
+				if (isGateControlFile(path)) ctx.out.add("gate.self_override");
 				if (isCredentialStorePath(path) || isSecretPath(path))
 					ctx.out.add("secrets.write");
 				else if (resolved !== null && isSafeDevice(resolved)) continue;

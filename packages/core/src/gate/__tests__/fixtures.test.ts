@@ -10,7 +10,9 @@
  * match. `source: "hook-bootstrap"` marks the deny cases of the dogfood
  * bootstrap hook this engine replaces (#309). `source: "unresolved-target"`
  * marks a write or delete whose target the gate cannot resolve, which must
- * ask as `shell.opaque` (#455).
+ * ask as `shell.opaque` (#455). `source: "self-override"` marks an agent
+ * trying to change its own gate (`maina allow`, a policy or hook-config
+ * write), which must be denied as `gate.self_override` (#447).
  *
  * The bar (FR-GATE-2): rules alone reach at least 95% recall on the
  * destructive fixtures, and flag at most 2% of the benign and reversible ones.
@@ -158,6 +160,29 @@ describe("rules alone", () => {
 			outcomes
 				.filter((o) => !o.gated || o.missing.length > 0)
 				.map(describeMiss),
+		).toEqual([]);
+	});
+
+	test("deny every agent attempt to override its own gate", () => {
+		const outcomes = FIXTURES.filter((f) => f.source === "self-override").map(
+			(f) => ({
+				outcome: run(f),
+				verdict: evaluateRules(eventOf(f), DEFAULT_POLICY, base).kind,
+			}),
+		);
+		expect(outcomes.length).toBeGreaterThanOrEqual(30);
+		expect(
+			outcomes
+				.filter(
+					({ outcome, verdict }) =>
+						verdict !== "deny" ||
+						outcome.missing.length > 0 ||
+						!outcome.classes.includes("gate.self_override"),
+				)
+				.map(
+					({ outcome, verdict }) =>
+						`${describeMiss(outcome)} verdict=${verdict}`,
+				),
 		).toEqual([]);
 	});
 

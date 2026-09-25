@@ -625,6 +625,7 @@ export {
 export type { ActionClass } from "./policy/defaults";
 export {
 	DEFAULT_POLICY,
+	DENIED_ACTION_CLASSES,
 	IRREVERSIBLE_ACTION_CLASSES,
 } from "./policy/defaults";
 export { loadPolicy, readUserPolicy, userPolicyFile } from "./policy/load";
