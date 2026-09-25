@@ -5,7 +5,7 @@ import {
 	linkOutcome,
 	queryOutcomes,
 } from "../link";
-import { OUTCOMES } from "../types";
+import { OUTCOMES, type OutcomeInput } from "../types";
 import { logDecision, outcomePorts, sha, unwrap } from "./fixtures";
 
 describe("linkOutcome", () => {
@@ -100,8 +100,11 @@ describe("linkOutcome", () => {
 			{ kind: "accepted", source: "gate", ref: "src/secret path.ts" },
 		] as const;
 		for (const outcome of bad) {
-			// biome-ignore lint/suspicious/noExplicitAny: invalid input on purpose
-			const result = linkOutcome(ports, "d1", outcome as any);
+			const result = linkOutcome(
+				ports,
+				"d1",
+				outcome as unknown as OutcomeInput,
+			);
 			expect(result.ok).toBe(false);
 			if (!result.ok) expect(result.error.kind).toBe("invalid_outcome");
 		}
