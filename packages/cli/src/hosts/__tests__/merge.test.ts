@@ -216,4 +216,22 @@ describe("mergeEntry — TOML (Codex)", () => {
 		expect(inline.action).toBe("skipped");
 		expect(inline.content).toBeUndefined();
 	});
+
+	test("never writes TOML that would break Codex: an unsafe append is skipped", () => {
+		for (const text of [
+			// Inline table: a later [mcp_servers.maina] header redefines it.
+			'mcp_servers = { other = { command = "x" } }\n',
+			// Not a table at all.
+			'model = "o3"\nmcp_servers = "oops"\n',
+			// Array of tables: the header would land inside its last element.
+			'[[mcp_servers]]\nname = "x"\n',
+			// A header-looking line inside a multi-line string.
+			'[a]\ns = """\n[mcp_servers.maina]\nfoo\n"""\n',
+		]) {
+			const op = mergeEntry(codex, ENTRY, { text, backup: null });
+			expect(op.action).toBe("skipped");
+			expect(op.content).toBeUndefined();
+			expect(op.backup).toBeUndefined();
+		}
+	});
 });

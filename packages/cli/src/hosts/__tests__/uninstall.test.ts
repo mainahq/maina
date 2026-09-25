@@ -102,6 +102,24 @@ describe("uninstall restores the pre-maina state exactly", () => {
 		expect(op.content).toBeUndefined();
 	});
 
+	test("a TOML edit that would change the user's own values is skipped", () => {
+		// The header-looking line sits inside the user's multi-line string;
+		// cutting it would silently rewrite their value.
+		const text = [
+			"[mcp_servers.maina]",
+			'command = "m"',
+			"[b]",
+			's = """',
+			"[mcp_servers.maina.env]",
+			"x",
+			'"""',
+			"",
+		].join("\n");
+		const op = removeEntry(only("codex", "global"), { text, backup: null });
+		expect(op.action).toBe("skipped");
+		expect(op.content).toBeUndefined();
+	});
+
 	test("uninstall(host, scope) plans one op per target the host reads", () => {
 		const reads: string[] = [];
 		const ops = uninstall("claude", "both", ctx, (t) => {

@@ -289,6 +289,62 @@ function hasEntry(t: TargetFile, text: string): Read {
 			};
 }
 
+/** JSON with object keys sorted, so key order never counts as a change. */
+function canonical(v: unknown): string {
+	return JSON.stringify(v, (_k, x: unknown) =>
+		isObj(x)
+			? Object.fromEntries(
+					Object.keys(x)
+						.sort()
+						.map((k) => [k, x[k]]),
+				)
+			: x,
+	);
+}
+
+/** `doc` minus maina's entry, dropping containers that end up empty. */
+function withoutEntry(doc: unknown, path: readonly string[]): unknown {
+	const [head, ...rest] = path;
+	if (head === undefined || !isObj(doc) || !(head in doc)) return doc;
+	const { [head]: child, ...others } = doc;
+	if (rest.length === 0) return others;
+	const next = withoutEntry(child, rest);
+	return isObj(next) && Object.keys(next).length === 0
+		? others
+		: { ...others, [head]: next };
+}
+
+/**
+ * Fail closed on a text edit: `after` must parse, hold exactly `expected`
+ * as maina's entry (undefined = none), and otherwise mean the same as
+ * `before`. A layout the line editor misreads (an inline or array
+ * `mcp_servers`, a header-looking line inside a multi-line string) is
+ * skipped instead of breaking the user's config.
+ */
+function verifiedToml(
+	t: TargetFile,
+	before: string,
+	after: string,
+	expected: unknown,
+): Edit {
+	const unsafe: Edit = {
+		ok: false,
+		reason: `cannot edit [${[...t.containerPath, t.entryKey].join(".")}] safely in this file; left untouched`,
+	};
+	const prev = parseToml(before);
+	const next = parseToml(after);
+	if (!prev.ok || !next.ok) return unsafe;
+	const entry = readToml(t, after);
+	if (!entry.ok || canonical(entry.value) !== canonical(expected)) {
+		return unsafe;
+	}
+	const own = [...t.containerPath, t.entryKey];
+	return canonical(withoutEntry(next.value, own)) ===
+		canonical(withoutEntry(prev.value, own))
+		? { ok: true, text: after }
+		: unsafe;
+}
+
 function setToml(t: TargetFile, text: string, entry: unknown): Edit {
 	const current = hasEntry(t, text);
 	if (!current.ok) return current;
@@ -301,11 +357,11 @@ function setToml(t: TargetFile, text: string, entry: unknown): Edit {
 	const lines = text.split("\n");
 	const ranges = ownedRanges(t, lines);
 	if (ranges.length === 0) {
-		if (text.length === 0) return { ok: true, text: block };
-		return {
-			ok: true,
-			text: `${text.endsWith("\n") ? text : `${text}\n`}\n${block}`,
-		};
+		const appended =
+			text.length === 0
+				? block
+				: `${text.endsWith("\n") ? text : `${text}\n`}\n${block}`;
+		return verifiedToml(t, text, appended, entry);
 	}
 	const blockLines = block.replace(/\n$/, "").split("\n");
 	const out = lines.flatMap((line, i) => {
@@ -313,7 +369,7 @@ function setToml(t: TargetFile, text: string, entry: unknown): Edit {
 		if (r === undefined) return [line];
 		return r === ranges[0] && i === r.start ? blockLines : [];
 	});
-	return { ok: true, text: out.join("\n") };
+	return verifiedToml(t, text, out.join("\n"), entry);
 }
 
 function deleteToml(t: TargetFile, text: string): Edit {
@@ -330,7 +386,12 @@ function deleteToml(t: TargetFile, text: string): Edit {
 		lines.slice(last.end).every((l) => l.trim().length === 0);
 	const out = kept.join("\n");
 	// Undo the blank separator an append added.
-	return { ok: true, text: atEnd ? out.replace(/\n{2,}$/, "\n") : out };
+	return verifiedToml(
+		t,
+		text,
+		atEnd ? out.replace(/\n{2,}$/, "\n") : out,
+		undefined,
+	);
 }
 
 // ── Format dispatch ─────────────────────────────────────────────────────────
