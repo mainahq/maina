@@ -634,7 +634,7 @@ const RUNNERS: ReadonlySet<string> = new Set([
 type Classifier = (args: Argv, cwd: string | null, ctx: ShellCtx) => void;
 
 function rmClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
-	flagUnresolvedDelete(args, ctx);
+	flagUnresolvedTarget(args, ctx);
 	const recursive = literalArgs(args).some(
 		(a) => /^-[a-zA-Z]*[rR]/.test(a) || a === "--recursive",
 	);
@@ -649,10 +649,10 @@ function rmClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
 }
 
 /**
- * A delete whose operand the gate cannot resolve (`rm "$X"`) might remove
- * anything, so it asks (#455): unsure means ask.
+ * A delete or write whose operand the gate cannot resolve (`rm "$X"`,
+ * `tee "$T"`) might touch anything, so it asks (#455): unsure means ask.
  */
-function flagUnresolvedDelete(args: Argv, ctx: ShellCtx): void {
+function flagUnresolvedTarget(args: Argv, ctx: ShellCtx): void {
 	if (isOpaque(args)) ctx.out.add("shell.opaque");
 }
 
@@ -973,12 +973,12 @@ function fetchClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
 const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 	rm: rmClassifier,
 	unlink: (args, cwd, ctx) => {
-		flagUnresolvedDelete(args, ctx);
+		flagUnresolvedTarget(args, ctx);
 		for (const t of positional(args)) flagDelete(t, cwd, false, ctx);
 	},
 	shred: (args, cwd, ctx) => {
 		ctx.out.add("fs.delete.recursive");
-		flagUnresolvedDelete(args, ctx);
+		flagUnresolvedTarget(args, ctx);
 		for (const t of positional(args)) flagDelete(t, cwd, true, ctx);
 	},
 	rimraf: (_args, _cwd, ctx) => ctx.out.add("fs.delete.recursive"),
@@ -1031,6 +1031,9 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 	su: (_args, _cwd, ctx) => ctx.out.add("privilege.escalate"),
 	pkexec: (_args, _cwd, ctx) => ctx.out.add("privilege.escalate"),
 	dd: (args, cwd, ctx) => {
+		// `dd of=$T`: an output the gate cannot resolve (#455).
+		if (args.some((a) => a.text === null && a.raw.startsWith("of=")))
+			ctx.out.add("shell.opaque");
 		for (const a of literalArgs(args)) {
 			if (!a.startsWith("of=")) continue;
 			const target = a.slice(3);
@@ -1114,13 +1117,23 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 	},
 	chmod: permissionClassifier,
 	chown: permissionClassifier,
-	tee: (args, cwd, ctx) => writeTargets(positional(args), cwd, ctx),
+	tee: (args, cwd, ctx) => {
+		// Every operand of `tee` is a file it truncates, so any unresolved one
+		// is an unresolved write (#455).
+		flagUnresolvedTarget(args, ctx);
+		writeTargets(positional(args), cwd, ctx);
+	},
 	touch: (args, cwd, ctx) => writeTargets(positional(args), cwd, ctx),
-	install: (args, cwd, ctx) =>
-		writeTargets(positional(args).slice(-1), cwd, ctx),
+	install: (args, cwd, ctx) => {
+		flagUnresolvedDestination(args, ctx);
+		writeTargets(positional(args).slice(-1), cwd, ctx);
+	},
 	cp: copyClassifier,
 	mv: copyClassifier,
-	ln: (args, cwd, ctx) => writeTargets(positional(args).slice(-1), cwd, ctx),
+	ln: (args, cwd, ctx) => {
+		flagUnresolvedDestination(args, ctx);
+		writeTargets(positional(args).slice(-1), cwd, ctx);
+	},
 	sed: sedClassifier,
 	printenv: (args, _cwd, ctx) => {
 		if (
@@ -1248,6 +1261,7 @@ function permissionClassifier(
 
 /** `cp`/`mv`: the last positional is the destination, the rest are sources. */
 function copyClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
+	flagUnresolvedDestination(args, ctx);
 	const pos = positional(args);
 	writeTargets(pos.slice(-1), cwd, ctx);
 	for (const source of pos.slice(0, -1)) readTargets(source, cwd, ctx);
@@ -1279,7 +1293,28 @@ function sedClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
 		!literalArgs(args).some((a) => /^-[a-zA-Z]*i/.test(a) || a === "--in-place")
 	)
 		return;
+	// `sed -i … "$F"`: the file operands come last; an unresolved script
+	// (`sed -i "s/$A/$B/" notes.txt`) is not a target.
+	if (args.at(-1)?.text === null) ctx.out.add("shell.opaque");
 	writeTargets(positional(args), cwd, ctx);
+}
+
+/**
+ * `cp`/`mv`/`install`/`ln` write to `-t DIR` or else the last operand. When
+ * the gate cannot resolve that destination the write might land anywhere,
+ * so it asks (#455). An unresolved source is only a read.
+ */
+function flagUnresolvedDestination(args: Argv, ctx: ShellCtx): void {
+	const at = args.findIndex(
+		(a) => a.text === "-t" || a.text === "--target-directory",
+	);
+	const destination =
+		at >= 0
+			? args[at + 1]
+			: (args.find(
+					(a) => a.text === null && a.raw.startsWith("--target-directory="),
+				) ?? args.at(-1));
+	if (destination?.text === null) ctx.out.add("shell.opaque");
 }
 
 function dockerClassifier(

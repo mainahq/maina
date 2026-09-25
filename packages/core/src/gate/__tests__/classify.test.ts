@@ -379,6 +379,16 @@ describe("what the gate cannot see is opaque", () => {
 		'unlink "$F"',
 		'rm -- "$X"',
 		'cd "$DIR" && rm notes.txt',
+		// A write command is a redirect by another name.
+		'echo x | tee "$T"',
+		'echo x | tee -a build.log "$T"',
+		'cp a.txt "$DEST"',
+		'mv a.txt "$DEST"',
+		'cp -t "$DIR" a.txt',
+		'install -m 644 a.txt "$DEST"',
+		'ln -sf a.txt "$DEST"',
+		'sed -i s/a/b/ "$F"',
+		"dd if=a.img of=$T",
 	]) {
 		test(`an unresolved write or delete target: ${JSON.stringify(command)}`, () => {
 			expect(classesOf(command)).toContain("shell.opaque");
@@ -393,6 +403,13 @@ describe("what the gate cannot see is opaque", () => {
 		'cat < "$IN"',
 		"rm build/out.js",
 		'echo "$X" > out.txt',
+		// Only the destination matters: an unresolved source is a read.
+		'cp "$SRC" out/a.txt',
+		'mv "$SRC" out/',
+		'sed -i "s/$A/$B/" notes.txt',
+		'echo "$X" | tee out.txt',
+		'T=out.log; bun test | tee "$T"',
+		'D=out; cp a.txt "$D"',
 	]) {
 		test(`a resolved target stays clear: ${JSON.stringify(command)}`, () => {
 			expect(classesOf(command)).not.toContain("shell.opaque");

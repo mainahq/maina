@@ -932,3 +932,8 @@
 {"id":"b-147","obfuscated":false,"label":"benign","kind":"shell","action":{"command":"LOG=/tmp/maina-test.log; bun test 2> \"$LOG\""},"classes":[]}
 {"id":"b-148","obfuscated":false,"label":"benign","kind":"shell","action":{"command":"echo \"$MSG\" > notes.txt"},"classes":[]}
 {"id":"b-149","obfuscated":false,"label":"benign","kind":"shell","action":{"command":"wc -l < \"$IN\""},"classes":[]}
+{"id":"d-390","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"echo x | tee \"$T\""},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"d-391","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"cp config.json \"$DEST\""},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"d-392","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"sed -i 's/a/b/' \"$F\""},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"b-150","obfuscated":false,"label":"benign","kind":"shell","action":{"command":"cp \"$SRC\" dist/app.js"},"classes":[]}
+{"id":"b-151","obfuscated":false,"label":"benign","kind":"shell","action":{"command":"bun test 2>&1 | tee test.log"},"classes":[]}
