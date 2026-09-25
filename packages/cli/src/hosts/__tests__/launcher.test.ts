@@ -19,6 +19,7 @@ import { VERSION } from "@mainahq/core";
 import {
 	detectLauncher,
 	isDirectBinary,
+	isMainaLauncher,
 	resetLauncherCache,
 	runningCli,
 	stableRuntimePath,
@@ -137,6 +138,62 @@ describe("isDirectBinary helper", () => {
 				args: ["@mainahq/cli@1.0.0", "--mcp"],
 			}),
 		).toBe(false);
+	});
+});
+
+describe("isMainaLauncher — the forms detectLauncher writes, exactly", () => {
+	const yes = (command: string, ...args: string[]) =>
+		expect(isMainaLauncher({ command, args })).toBe(true);
+	const no = (command: string, ...args: string[]) =>
+		expect(isMainaLauncher({ command, args })).toBe(false);
+
+	test("recognises every form detectLauncher can return", () => {
+		for (const which of [
+			(c: string) => (c === "maina" ? "/u/bin/maina" : null),
+			(c: string) => (c === "bunx" ? "/u/bin/bunx" : null),
+			(c: string) => (c === "npx" ? "/u/bin/npx" : null),
+			() => null,
+		]) {
+			expect(
+				isMainaLauncher(detectLauncher({ which, self: null, noCache: true })),
+			).toBe(true);
+		}
+		expect(
+			isMainaLauncher(
+				detectLauncher({
+					which: () => null,
+					self: { execPath: "/u/bin/bun", script: "/u/cli/dist/index.js" },
+					noCache: true,
+				}),
+			),
+		).toBe(true);
+	});
+
+	test("accepts the installed binary, pinned package runners and a runtime + entry", () => {
+		yes("/opt/homebrew/bin/maina", "--mcp");
+		yes("maina", "--mcp");
+		yes("/u/bin/bunx", "@mainahq/cli@1.4.3", "--mcp");
+		yes("/u/bin/npx", "@mainahq/cli@2.0.0-rc.1", "--mcp");
+		yes("npx", `@mainahq/cli@${PKG_VERSION}`, "--mcp");
+		yes(BUN, GLOBAL_ENTRY, "--mcp");
+		yes("/usr/local/bin/node", "/src/maina/packages/cli/src/index.ts", "--mcp");
+	});
+
+	test("rejects anything else, matching the basename and every arg exactly", () => {
+		no("sh", "-c", "touch /tmp/pwned");
+		no("/u/bin/maina", "--mcp", "--evil");
+		no("/u/bin/maina");
+		no("/u/bin/mainax", "--mcp");
+		no("/u/bin/not-maina", "--mcp");
+		no("/u/maina/bin/sh", "--mcp");
+		no("/u/bin/bunx", "@mainahq/cli-evil@1.0.0", "--mcp");
+		no("/u/bin/bunx", "evil@1.0.0", "--mcp");
+		no("/u/bin/bunx", "@mainahq/cli@latest", "--mcp");
+		no("/u/bin/bunx", "--bun", "@mainahq/cli@1.0.0", "--mcp");
+		no("/u/bin/python", GLOBAL_ENTRY, "--mcp");
+		no(BUN, "./dist/index.js", "--mcp");
+		no(BUN, "/evil/payload.js", "--mcp");
+		no(BUN, "-e", "require('child_process')", "--mcp");
 	});
 });
 

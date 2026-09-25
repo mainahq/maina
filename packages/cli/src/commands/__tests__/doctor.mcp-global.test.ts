@@ -64,6 +64,17 @@ afterAll(() => {
 
 const { doctorAction } = await import("../doctor");
 
+/**
+ * These fixtures name `npx` / `maina`, which a runner's GUI PATH may hold
+ * (`/usr/local/bin` on Linux). Detection is under test here, not launching:
+ * never spawn them.
+ */
+const notLaunched = async (spec: { command: string }) => ({
+	kind: "not-found" as const,
+	command: spec.command,
+	path: "",
+});
+
 function makeHome(): string {
 	const d = join(
 		tmpdir(),
@@ -117,7 +128,7 @@ describe("doctor — global MCP detection", () => {
 		writeFileSync(join(home, ".claude", "settings.json"), MAINA_SERVERS);
 		mkdirSync(join(cwd, ".claude"), { recursive: true });
 		writeFileSync(join(cwd, ".claude", "settings.json"), MAINA_SERVERS);
-		const result = await doctorAction({ cwd, home });
+		const result = await doctorAction({ cwd, home, probe: notLaunched });
 		const claude = result.mcpHealth.integrations?.find(
 			(i) => i.client === "claude",
 		);
@@ -126,7 +137,7 @@ describe("doctor — global MCP detection", () => {
 
 	test("reports claude as global when only ~/.claude.json is wired", async () => {
 		writeGlobalClaudeMcp(home);
-		const result = await doctorAction({ cwd, home });
+		const result = await doctorAction({ cwd, home, probe: notLaunched });
 		const claude = result.mcpHealth.integrations?.find(
 			(i) => i.client === "claude",
 		);
@@ -136,7 +147,7 @@ describe("doctor — global MCP detection", () => {
 
 	test("reports other clients as missing with fix strings", async () => {
 		writeGlobalClaudeMcp(home);
-		const result = await doctorAction({ cwd, home });
+		const result = await doctorAction({ cwd, home, probe: notLaunched });
 		const missing = result.mcpHealth.integrations?.filter(
 			(i) => i.scope === "missing",
 		);
@@ -149,7 +160,7 @@ describe("doctor — global MCP detection", () => {
 
 	test("with no global and no project config, claude is missing", async () => {
 		// no writes
-		const result = await doctorAction({ cwd, home });
+		const result = await doctorAction({ cwd, home, probe: notLaunched });
 		const claude = result.mcpHealth.integrations?.find(
 			(i) => i.client === "claude",
 		);
@@ -167,7 +178,7 @@ describe("doctor — global MCP detection", () => {
 				},
 			}),
 		);
-		const result = await doctorAction({ cwd, home });
+		const result = await doctorAction({ cwd, home, probe: notLaunched });
 		const claude = result.mcpHealth.integrations?.find(
 			(i) => i.client === "claude",
 		);
@@ -185,7 +196,7 @@ describe("doctor — global MCP detection", () => {
 				},
 			}),
 		);
-		const result = await doctorAction({ cwd, home });
+		const result = await doctorAction({ cwd, home, probe: notLaunched });
 		const claude = result.mcpHealth.integrations?.find(
 			(i) => i.client === "claude",
 		);

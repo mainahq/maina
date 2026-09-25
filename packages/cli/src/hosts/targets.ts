@@ -209,6 +209,53 @@ export function targetsFor(
 }
 
 /**
+ * Files installers are known to have written `host`'s MCP entry into that
+ * the host never reads (P1): Claude Code's `settings.json` files. Nothing
+ * writes here; `maina doctor` reports an entry found in one as broken.
+ */
+const IGNORED: Readonly<
+	Partial<
+		Record<
+			McpClientId,
+			{
+				readonly global: readonly (readonly string[])[];
+				readonly project: readonly (readonly string[])[];
+			}
+		>
+	>
+> = {
+	claude: {
+		global: [[".claude", "settings.json"]],
+		project: [
+			[".claude", "settings.json"],
+			[".claude", "settings.local.json"],
+		],
+	},
+};
+
+/** The files `host` ignores that may still hold a maina entry. */
+export function ignoredTargets(
+	host: McpClientId,
+	ctx: PathContext,
+): readonly TargetFile[] {
+	const ignored = IGNORED[host];
+	if (ignored === undefined) return [];
+	const c = resolveContext(ctx);
+	const file = (scope: TargetScope, path: string): TargetFile => ({
+		host,
+		scope,
+		path,
+		...MCP_SERVERS,
+		// Never written, so never backed up; kept for the `TargetFile` shape.
+		backupPath: path,
+	});
+	return [
+		...ignored.global.map((rel) => file("global", join(c.home, ...rel))),
+		...ignored.project.map((rel) => file("project", join(c.cwd, ...rel))),
+	];
+}
+
+/**
  * Whether `maina setup` wires `host` per project: its project file holds
  * servers under `mcpServers`, which the onboarding plan merges into.
  */

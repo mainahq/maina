@@ -1,17 +1,27 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import { platform } from "node:os";
 import { join } from "node:path";
 import { confirm, intro, log, outro, spinner } from "@clack/prompts";
-import type { CacheStats, DetectedTool } from "@mainahq/core";
+import type { CacheStats, DetectedTool, FsPort } from "@mainahq/core";
 import {
 	createCacheManager,
 	detectTools,
 	getApiKey,
 	getFeedbackDb,
+	getRepoRoot,
 	isHostMode,
+	loadPolicy,
 	VERSION,
 } from "@mainahq/core";
 import { Command } from "commander";
 import { processEnv } from "../env";
+import {
+	type CheckStatus,
+	checkHostHealth,
+	type HealthCheck,
+	type HostHealth,
+	type HostHealthPorts,
+} from "../hosts/health";
 import type { McpClientId } from "../hosts/index";
 import {
 	buildClientRegistry,
@@ -19,8 +29,9 @@ import {
 	listClientIds,
 } from "../hosts/index";
 import { readEntry } from "../hosts/merge";
+import { type Probe, probeMcp } from "../hosts/probe";
 import { type TargetFile, targetsFor } from "../hosts/targets";
-import { EXIT_PASSED, outputJson } from "../json";
+import { EXIT_FINDINGS, EXIT_PASSED, outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +46,13 @@ interface DoctorActionOptions {
 	execFn?: DoctorExecFn;
 	/** Override $HOME root for global-config lookups in tests. */
 	home?: string;
+	/** DI seam for tests; defaults to launching the entry for real. */
+	probe?: Probe;
+	/**
+	 * Launch project-scope entries that are not maina's own launcher. They
+	 * run code the repo controls, so this is off unless the user opts in.
+	 */
+	launchProject?: boolean;
 }
 
 interface EngineHealth {
@@ -88,6 +106,8 @@ interface DoctorActionResult {
 	aiStatus: AIStatus;
 	wikiHealth: WikiHealth;
 	mcpHealth: McpHealth;
+	/** doctor v2: every configured entry launched under its host's env. */
+	hostHealth: HostHealth;
 }
 
 // ── Formatting Helpers ───────────────────────────────────────────────────────
@@ -265,19 +285,48 @@ async function defaultExec(cmd: string): Promise<{ exitCode: number }> {
 	return { exitCode };
 }
 
+interface FixRow {
+	readonly label: string;
+	readonly fix: string;
+}
+
+/**
+ * What `--fix` runs: each missing integration's fix, then each broken
+ * host entry's re-registration. Only `maina mcp add` fixes are run; the
+ * rest (editing a file, pulling a model) stay advice. Deduplicated.
+ */
+function fixRows(health: McpHealth, hosts: HostHealth): readonly FixRow[] {
+	const rows: FixRow[] = [
+		...health.integrations.flatMap((i) =>
+			i.scope === "missing" && typeof i.fix === "string"
+				? [{ label: i.label, fix: i.fix }]
+				: [],
+		),
+		...hosts.hosts.flatMap((h) =>
+			h.checks.flatMap((c) =>
+				c.status === "fail" && c.fix?.startsWith("maina mcp add ")
+					? [{ label: `${h.label} (${h.scope})`, fix: c.fix }]
+					: [],
+			),
+		),
+	];
+	const seen = new Set<string>();
+	return rows.filter((r) => {
+		if (seen.has(r.fix)) return false;
+		seen.add(r.fix);
+		return true;
+	});
+}
+
 async function runFixFlow(
-	health: McpHealth,
+	rows: readonly FixRow[],
 	opts: { yes: boolean; execFn: DoctorExecFn; jsonMode: boolean },
 ): Promise<void> {
-	const missing = health.integrations.filter(
-		(i) => i.scope === "missing" && typeof i.fix === "string",
-	);
-	if (missing.length === 0) {
+	if (rows.length === 0) {
 		if (!opts.jsonMode) log.success("No MCP integrations to fix.");
 		return;
 	}
-	for (const row of missing) {
-		if (!row.fix) continue;
+	for (const row of rows) {
 		if (!opts.yes) {
 			const proceed = await confirm({
 				message: `Run fix for ${row.label}? ${row.fix}`,
@@ -315,6 +364,121 @@ function formatMcpHealth(health: McpHealth): string {
 	} else {
 		lines.push("  MCP Server         \u2717 not configured");
 	}
+	return lines.join("\n");
+}
+
+// ── Host Launch Check (doctor v2) ─────────────────────────────────────────
+
+function readOrNull(path: string): string | null {
+	try {
+		return readFileSync(path, "utf-8");
+	} catch {
+		return null;
+	}
+}
+
+/** Read-only `FsPort` for `loadPolicy`; doctor never writes through it. */
+const readOnlyFs: FsPort = {
+	readFile: async (path) => {
+		const text = readOrNull(path);
+		if (text !== null) return { ok: true, value: text };
+		return existsSync(path)
+			? { ok: false, error: { kind: "io", path, message: "unreadable" } }
+			: { ok: false, error: { kind: "not_found", path } };
+	},
+	writeFile: async (path) => ({
+		ok: false,
+		error: { kind: "io", path, message: "doctor is read-only" },
+	}),
+	exists: async (path) => existsSync(path),
+	readDir: async (path) => {
+		try {
+			return { ok: true, value: readdirSync(path).sort() };
+		} catch {
+			return { ok: false, error: { kind: "not_found", path } };
+		}
+	},
+	remove: async (path) => ({
+		ok: false,
+		error: { kind: "io", path, message: "doctor is read-only" },
+	}),
+};
+
+function hostHealthPorts(probe: Probe): HostHealthPorts {
+	return {
+		readFile: readOrNull,
+		listDir: (path) => {
+			try {
+				return readdirSync(path);
+			} catch {
+				return null;
+			}
+		},
+		realpath: (path) => {
+			try {
+				return realpathSync(path);
+			} catch {
+				return path;
+			}
+		},
+		repoRoot: async (cwd) => (await getRepoRoot(cwd)) || null,
+		// The user default layer is read by the runtime (not yet built), so
+		// doctor validates the defaults plus the repo's `.maina/policy.json`.
+		loadPolicy: (root) => loadPolicy({ fs: readOnlyFs }, root, undefined),
+		probe,
+	};
+}
+
+function checkHosts(
+	cwd: string,
+	home: string | undefined,
+	probe: Probe,
+	launchProject: boolean,
+): Promise<HostHealth> {
+	return checkHostHealth(
+		{
+			ctx: hostPathContext(cwd, home),
+			launchProject,
+			version: VERSION,
+			platform: platform(),
+			inheritedEnv: Object.fromEntries(
+				Object.entries(process.env).filter(
+					(kv): kv is [string, string] => kv[1] !== undefined,
+				),
+			),
+		},
+		hostHealthPorts(probe),
+	);
+}
+
+const MARK: Readonly<Record<CheckStatus, string>> = {
+	pass: "\u2713",
+	skipped: "-",
+	warn: "!",
+	fail: "\u2717",
+};
+
+function formatCheck(c: HealthCheck, indent: string): string {
+	return `${indent}${MARK[c.status]} ${c.id.padEnd(10)} ${c.message}${
+		c.fix ? `\n${indent}  fix: ${c.fix}` : ""
+	}`;
+}
+
+function formatHostHealth(health: HostHealth): string {
+	const lines: string[] = [
+		`  Launched under the host's ${health.launchEnv.mode} env (PATH=${health.launchEnv.PATH})`,
+	];
+	if (health.hosts.length === 0) {
+		lines.push("  No configured maina entries to launch");
+	}
+	for (const h of health.hosts) {
+		lines.push(`  ${MARK[h.status]} ${h.label} (${h.scope}) ${h.path}`);
+		for (const c of h.checks) {
+			if (c.status !== "pass") lines.push(formatCheck(c, "      "));
+		}
+	}
+	lines.push("  Runtime:");
+	for (const c of health.runtime) lines.push(formatCheck(c, "    "));
 	return lines.join("\n");
 }
 
@@ -533,15 +697,26 @@ export async function doctorAction(
 		log.message(formatMcpHealth(mcpHealth));
 	}
 
-	// ── Step 8: --fix flow (optional) ────────────────────────────────
+	// ── Step 8: Host launch (doctor v2) ──────────────────────────────
+	const probe = options.probe ?? probeMcp;
+	const launchProject = options.launchProject ?? false;
+	const hostHealth = await checkHosts(cwd, options.home, probe, launchProject);
+	if (!jsonMode) {
+		log.step("Host Launch:");
+		log.message(formatHostHealth(hostHealth));
+	}
+
+	// ── Step 9: --fix flow (optional) ────────────────────────────────
 	let finalMcpHealth = mcpHealth;
+	let finalHostHealth = hostHealth;
 	if (options.fix) {
 		// jsonMode implies non-interactive: a CI caller passing --json --fix
 		// without --yes must not block on a terminal prompt. Auto-approve
 		// when json is set (they asked for machine-readable, they get
 		// machine-driven).
 		const yes = (options.yes ?? false) || jsonMode;
-		await runFixFlow(mcpHealth, {
+		const rows = fixRows(mcpHealth, hostHealth);
+		await runFixFlow(rows, {
 			yes,
 			execFn: options.execFn ?? defaultExec,
 			jsonMode,
@@ -555,6 +730,11 @@ export async function doctorAction(
 			log.step("MCP Integration (after --fix):");
 			log.message(formatMcpHealth(finalMcpHealth));
 		}
+		finalHostHealth = await checkHosts(cwd, options.home, probe, launchProject);
+		if (!jsonMode) {
+			log.step("Host Launch (after --fix):");
+			log.message(formatHostHealth(finalHostHealth));
+		}
 	}
 
 	return {
@@ -565,6 +745,7 @@ export async function doctorAction(
 		aiStatus,
 		wikiHealth,
 		mcpHealth: finalMcpHealth,
+		hostHealth: finalHostHealth,
 	};
 }
 
@@ -572,10 +753,19 @@ export async function doctorAction(
 
 export function doctorCommand(): Command {
 	return new Command("doctor")
-		.description("Check tool installation and engine health")
+		.description(
+			"Check tool installation, engine health, and launch every configured MCP entry under its host's env",
+		)
 		.option("--json", "Output JSON for CI")
-		.option("--fix", "Run the remediation command for each missing MCP row")
+		.option(
+			"--fix",
+			"Run the `maina mcp add` fix for each missing MCP row and broken host entry",
+		)
 		.option("-y, --yes", "Skip confirmations (with --fix)")
+		.option(
+			"--launch-project",
+			"Also launch project-scope MCP entries (e.g. .mcp.json) that are not maina's own launcher. Warning: this runs repo-controlled code; use it only in repos you trust",
+		)
 		.action(async (options) => {
 			const jsonMode = options.json ?? false;
 
@@ -592,13 +782,21 @@ export function doctorCommand(): Command {
 				json: jsonMode,
 				fix: options.fix,
 				yes: options.yes,
+				launchProject: options.launchProject,
 			});
 
+			// A failed check exits non-zero so CI and scripts can gate on it.
+			const exitCode = result.hostHealth.ok ? EXIT_PASSED : EXIT_FINDINGS;
 			if (!jsonMode) {
 				s.stop("Health check complete.");
-				outro("Done.");
+				outro(
+					result.hostHealth.ok
+						? "Done."
+						: "Some checks failed; run each printed fix.",
+				);
+				process.exitCode = exitCode;
 			} else {
-				outputJson(result, EXIT_PASSED);
+				outputJson(result, exitCode);
 			}
 		});
 }
