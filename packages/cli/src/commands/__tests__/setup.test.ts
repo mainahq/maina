@@ -16,7 +16,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentKind, SetupAIResult, StackContext } from "@mainahq/core";
+import type {
+	AgentKind,
+	SetupAIResult,
+	StackContext,
+} from "../../onboarding/setup/index";
 import {
 	detectEnvironment,
 	resolveCiMode,

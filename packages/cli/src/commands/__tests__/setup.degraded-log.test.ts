@@ -10,7 +10,7 @@ import type {
 	SetupAIResult,
 	SetupDegradedReason,
 	StackContext,
-} from "@mainahq/core";
+} from "../../onboarding/setup/index";
 import { type SetupActionDeps, setupAction } from "../setup";
 
 function makeTmpDir(): string {

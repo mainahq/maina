@@ -45,7 +45,7 @@ export type {
 	Tier3Results,
 	Tier3Totals,
 } from "./benchmark/types";
-// Bootstrap — shared scaffolding used by `init` and `setup`
+// Bootstrap — shared scaffolding used by the CLI's `init` and `setup`
 export {
 	COMMIT_PROMPT_TEMPLATE,
 	CONFIG_YML_STUB,
@@ -307,16 +307,9 @@ export {
 	runHooks,
 	scanHooks,
 } from "./hooks/index";
-// Init
-export {
-	bootstrap,
-	buildMainaSection,
-	type DetectedStack,
-	type InitOptions,
-	type InitReport,
-} from "./init/index";
 // Language
 export {
+	detectFileLanguage,
 	detectLanguages,
 	getPrimaryLanguage,
 } from "./language/detect";
@@ -332,28 +325,6 @@ export {
 	RUST_PROFILE,
 	TYPESCRIPT_PROFILE,
 } from "./language/profile";
-export { buildMainaEntry, MAINA_MCP_KEY } from "./mcp/entry";
-// MCP install/remove across clients
-export {
-	type ApplyResult,
-	buildClientRegistry,
-	type ListEntry,
-	listClientIds,
-	type McpClientId,
-	type McpClientInfo,
-	type McpScope,
-	type RunOptions,
-	type RunReport,
-	runAdd,
-	runList,
-	runRemove,
-} from "./mcp/index";
-export {
-	detectLauncher,
-	isDirectBinary,
-	type Launcher,
-	resetLauncherCache,
-} from "./mcp/launcher";
 // Policy (gate policy schema, FR-GATE-9)
 export {
 	DEFAULT_POLICY,
@@ -474,90 +445,6 @@ export {
 	reviewSpecCompliance,
 	runTwoStageReview,
 } from "./review/index";
-// Setup (wizard primitives)
-export {
-	type AgentKind,
-	ALL_AGENTS,
-	adoptRules,
-	anonymizeStack,
-	assembleStackContext,
-	buildGenericConstitution,
-	buildGenericConstitutionFromInput,
-	type ConfirmOptions,
-	type ConfirmResult,
-	type CursorMcpEntry,
-	confirmRules,
-	contextHash,
-	type DeploySkillsOptions,
-	type DeploySkillsReport,
-	degradedBanner,
-	deploySkills,
-	detectExistingRuleFiles,
-	deviceFingerprint,
-	extractManaged,
-	formatProvenanceComment,
-	generateAgentsMd,
-	generateClaudeMd,
-	generateCopilotInstructions,
-	generateCursorRules,
-	generateWindsurfRules,
-	getUniversalPromptPath,
-	isTelemetryOptedOut,
-	loadUniversalPrompt,
-	MAINA_REGION_END,
-	MAINA_REGION_START,
-	type MainaMcpEntry,
-	type MergeJsonKeyedOptions,
-	type MergeJsonKeyedResult,
-	mergeJsonKeyed,
-	mergeManaged,
-	newSetupId,
-	type OptOutResult,
-	type PackageManager,
-	type RepoSize,
-	type ResolveAIOptions,
-	type Rule,
-	type RuleCategory,
-	type RuleSourceKind,
-	recoveryCommand,
-	renderFileLayoutSection,
-	renderWorkflowSection,
-	resolveSetupAI,
-	type ScanReport,
-	type SendTelemetryOptions,
-	type SetupAIMetadata,
-	type SetupAIResult,
-	type SetupAISource,
-	type SetupDegradedReason,
-	type SetupTelemetryEvent,
-	type SetupTelemetryPhase,
-	type SetupTelemetryStack,
-	type StackContext,
-	scanGitLog,
-	scanLintConfig,
-	scanRepo,
-	scanTreeSitter,
-	sendSetupTelemetry,
-	summarizeRepo,
-	type TailorInput,
-	type TailorOutput,
-	type TelemetryOptOutSources,
-	tailorConstitution,
-	type UniversalPromptInputs,
-	type ValidateResult,
-	validateConstitution,
-	type WriteClaudeSettingsAction,
-	type WriteClaudeSettingsOptions,
-	type WriteClaudeSettingsReport,
-	type WriteCursorMcpAction,
-	type WriteCursorMcpOptions,
-	type WriteCursorMcpReport,
-	wrapManaged,
-	writeAllAgentFiles,
-	writeClaudeMd,
-	writeClaudeSettings,
-	writeCursorMcp,
-} from "./setup/index";
 // Stats
 export {
 	type CommitSnapshot,

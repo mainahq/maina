@@ -7,15 +7,14 @@ import {
 import { join } from "node:path";
 import { intro, isCancel, log, outro, select } from "@clack/prompts";
 import {
-	bootstrap,
 	getApiKey,
 	getToolsForLanguages,
-	type InitReport,
 	isHostMode,
 	type Result,
 } from "@mainahq/core";
 import { Command } from "commander";
 import { processEnv } from "../env";
+import { bootstrap, type InitReport } from "../onboarding/init/index";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

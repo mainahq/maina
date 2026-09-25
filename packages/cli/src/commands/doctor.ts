@@ -1,14 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { confirm, intro, log, outro, spinner } from "@clack/prompts";
-import type {
-	CacheStats,
-	DetectedTool,
-	McpClientId,
-	McpClientInfo,
-} from "@mainahq/core";
+import type { CacheStats, DetectedTool } from "@mainahq/core";
 import {
-	buildClientRegistry,
 	createCacheManager,
 	detectTools,
 	getApiKey,
@@ -18,6 +12,8 @@ import {
 import { Command } from "commander";
 import pkg from "../../package.json";
 import { processEnv } from "../env";
+import type { McpClientId, McpClientInfo } from "../hosts/index";
+import { buildClientRegistry } from "../hosts/index";
 import { EXIT_PASSED, outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
