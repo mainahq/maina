@@ -344,11 +344,9 @@ export async function reclaim(
 			failed.push({ runId, error: loaded.error });
 			continue;
 		}
-		const { owner } = loaded.value.lease;
-		if (
-			owner.pid === deps.processes.self ||
-			liveness(deps.processes, owner) !== "gone"
-		) {
+		// Not a pid comparison: a restarted process may reuse its crashed
+		// predecessor's pid, and only the start time tells them apart.
+		if (liveness(deps.processes, loaded.value.lease.owner) !== "gone") {
 			live.push(runId);
 			continue;
 		}

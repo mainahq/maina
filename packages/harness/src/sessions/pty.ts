@@ -58,9 +58,15 @@ function checkStartable(
 	cwd: string,
 	path: string | undefined,
 ): string | undefined {
-	if (!statSync(cwd, { throwIfNoEntry: false })?.isDirectory()) {
-		return `no directory ${cwd}`;
+	let isDirectory: boolean;
+	try {
+		isDirectory =
+			statSync(cwd, { throwIfNoEntry: false })?.isDirectory() ?? false;
+	} catch {
+		// ENOTDIR, EACCES: not a directory this process can start in.
+		isDirectory = false;
 	}
+	if (!isDirectory) return `no directory ${cwd}`;
 	return Bun.which(command.command, { cwd, PATH: path ?? "" }) === null
 		? `no executable ${command.command}`
 		: undefined;

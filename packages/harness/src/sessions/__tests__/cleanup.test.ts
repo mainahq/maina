@@ -303,4 +303,27 @@ describe("reclaim", () => {
 		bystander.kill("SIGKILL");
 		await bystander.exited;
 	});
+
+	test("reclaims a crashed owner whose pid this process now reuses", async () => {
+		// Common in containers: the restarted harness gets the pid its crashed
+		// predecessor had. Same pid, different start time: that owner is gone.
+		const root = makeRepo();
+		const wt = await claim(root, "predecessor");
+		const lease = await readLease(root, "predecessor");
+		if (!lease.ok) throw new Error(lease.error.message);
+		writeFileSync(
+			lease.value.file,
+			JSON.stringify({
+				...lease.value.lease,
+				owner: { pid: process.pid, start: "long ago" },
+			}),
+		);
+
+		const report = await reclaim(root);
+		expect(report.ok).toBe(true);
+		if (!report.ok) return;
+		expect(report.value.reclaimed.map((o) => o.runId)).toEqual(["predecessor"]);
+		expect(report.value.live).toEqual([]);
+		expect(existsSync(wt.path)).toBe(false);
+	});
 });

@@ -72,7 +72,9 @@ function exists(pid: number): boolean {
 export const systemProcesses: ProcessTable = {
 	self: process.pid,
 	probe: (pid) => {
-		if (!Number.isInteger(pid) || pid <= 1 || !exists(pid)) {
+		// pid 1 runs (a container's entrypoint may be the harness itself); only
+		// signalling it is off limits, in `signalGroup`.
+		if (!Number.isInteger(pid) || pid < 1 || !exists(pid)) {
 			return { state: "gone" };
 		}
 		return probeProc(pid) ?? probePs(pid);

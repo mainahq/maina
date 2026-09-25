@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, realpathSync } from "node:fs";
+import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnPty } from "../pty";
@@ -64,6 +64,15 @@ describe("spawnPty", () => {
 			{ name: "missing", command: "/definitely/not/here-317" },
 			CWD,
 		);
+		expect(spawned.ok).toBe(false);
+		if (spawned.ok) return;
+		expect(spawned.error.code).toBe("spawn_failed");
+	});
+
+	test("a cwd beneath a file is an error, not a throw", () => {
+		const file = join(CWD, "plain-file");
+		writeFileSync(file, "not a directory\n");
+		const spawned = spawnPty(sh("true"), join(file, "below"));
 		expect(spawned.ok).toBe(false);
 		if (spawned.ok) return;
 		expect(spawned.error.code).toBe("spawn_failed");
