@@ -28,6 +28,14 @@ function tagged(tag: string, value: string): string {
 	return `{${JSON.stringify(tag)}:${value}}`;
 }
 
+/**
+ * Object keys starting with `$` get one more `$`, so a plain object such as
+ * `{ $date: "..." }` can never encode like a tagged form (`$date`, `$set`, ...).
+ */
+function escapeKey(key: string): string {
+	return key.startsWith("$") ? `$${key}` : key;
+}
+
 function encode(value: unknown, seen: ReadonlySet<object>): string | undefined {
 	switch (typeof value) {
 		case "string":
@@ -55,7 +63,8 @@ function encodeList(
 	values: readonly unknown[],
 	seen: ReadonlySet<object>,
 ): string {
-	return `[${values.map((v) => encode(v, seen) ?? "null").join(",")}]`;
+	// Array.from visits holes (as undefined), so a sparse array encodes as JSON.
+	return `[${Array.from(values, (v) => encode(v, seen) ?? "null").join(",")}]`;
 }
 
 function sortedEncodings(
@@ -89,7 +98,9 @@ function encodeObject(value: object, outer: ReadonlySet<object>): string {
 		.sort()
 		.flatMap((key) => {
 			const encoded = encode((value as Record<string, unknown>)[key], seen);
-			return encoded === undefined ? [] : [`${JSON.stringify(key)}:${encoded}`];
+			return encoded === undefined
+				? []
+				: [`${JSON.stringify(escapeKey(key))}:${encoded}`];
 		});
 	return `{${fields.join(",")}}`;
 }
@@ -98,7 +109,8 @@ function encodeObject(value: object, outer: ReadonlySet<object>): string {
  * Canonical JSON: sorted keys, no whitespace. `undefined`, functions and
  * symbols are dropped from objects and become `null` in arrays (as in
  * JSON); bigints, non-finite numbers, dates, bytes, maps, sets and cycles
- * get tagged forms instead of throwing. Never throws.
+ * get tagged forms instead of throwing; object keys starting with `$` are
+ * escaped so no plain object encodes like a tagged form. Never throws.
  */
 export function canonicalJson(value: unknown): string {
 	return encode(value, new Set()) ?? "null";

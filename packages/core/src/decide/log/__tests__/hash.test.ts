@@ -42,6 +42,28 @@ describe("canonicalJson", () => {
 		}
 	});
 
+	test("array holes encode as null, like JSON (valid JSON output)", () => {
+		// biome-ignore lint/suspicious/noSparseArray: the hole is the point
+		const sparse = [, 1];
+		expect(canonicalJson(sparse)).toBe("[null,1]");
+		expect(canonicalJson(sparse)).toBe(canonicalJson([undefined, 1]));
+		expect(JSON.parse(canonicalJson({ a: sparse }))).toEqual({ a: [null, 1] });
+	});
+
+	test("a plain object never encodes like a tagged form", () => {
+		const date = new Date(0);
+		expect(canonicalJson({ $date: date.toISOString() })).not.toBe(
+			canonicalJson(date),
+		);
+		expect(canonicalJson({ $set: [1, 2] })).not.toBe(
+			canonicalJson(new Set([1, 2])),
+		);
+		expect(canonicalJson({ $bigint: "10" })).not.toBe(canonicalJson(10n));
+		expect(canonicalJson({ $circular: true })).not.toBe(
+			canonicalJson({ $$circular: true }),
+		);
+	});
+
 	test("distinguishes values JSON.stringify would conflate", () => {
 		expect(canonicalJson(Number.NaN)).not.toBe(canonicalJson(null));
 		expect(canonicalJson(10n)).not.toBe(canonicalJson("10"));
