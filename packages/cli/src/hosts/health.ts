@@ -26,6 +26,7 @@
 import { dirname, isAbsolute, join, normalize, relative } from "node:path";
 import type { PolicyError } from "@mainahq/core";
 import { buildClientRegistry, listClientIds } from "./clients";
+import { codexApplyPatchCheck, codexHookFiles } from "./codex-rules";
 import { type EnvVars, hostOs, minimalEnv } from "./host-env";
 import { isMainaLauncher, isPackageRunnerLauncher } from "./launcher";
 import { readEntry } from "./merge";
@@ -53,7 +54,7 @@ export interface HealthCheck<Id extends string = string> {
 }
 
 type HostCheckId = "config" | "launch" | "handshake" | "runtime";
-type RuntimeCheckId = "root" | "policy" | "model";
+type RuntimeCheckId = "root" | "policy" | "model" | "codex";
 
 /** One configured maina entry, launched the way its host launches it. */
 export interface HostLaunchReport {
@@ -676,6 +677,10 @@ export async function checkHostHealth(
 	const policyFile = join(mainaDir, "policy.json");
 	const modelDir = join(ctx.home, ".maina", "models");
 	const models = ports.listDir(modelDir);
+	// Codex runs maina's PreToolUse hook for apply_patch but ignores its deny.
+	const codex = codexApplyPatchCheck(
+		codexHookFiles(ctx).map((path) => ({ path, text: ports.readFile(path) })),
+	);
 	const runtime: HealthCheck<RuntimeCheckId>[] = [
 		rootCheck(
 			cwd,
@@ -688,6 +693,7 @@ export async function checkHostHealth(
 				? { state: "present", dir: modelDir }
 				: { state: "absent", dir: modelDir },
 		),
+		...(codex === null ? [] : [codex]),
 	];
 
 	const all = [...hosts.flatMap((h) => h.checks), ...runtime];
