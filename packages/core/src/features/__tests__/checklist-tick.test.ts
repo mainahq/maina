@@ -104,4 +104,18 @@ describe("unattestedTicks", () => {
 		if (!ticked.ok) return;
 		expect(unattestedTicks(ticked.value)).toEqual([{ item: "T-003", line: 7 }]);
 	});
+
+	test("a tag with a malformed or unknown source is unattested", () => {
+		const content = [
+			"- [x] **T-001** a <!-- ticked-by: decide:a/b -->",
+			"- [x] **T-002** b <!-- ticked-by: decide:dec-unknown -->",
+			"- [x] **T-003** c <!-- ticked-by: decide:dec-42 -->",
+		].join("\n");
+		expect(
+			unattestedTicks(content, { isKnownDecision: (id) => id === "dec-42" }),
+		).toEqual([
+			{ item: "T-001", line: 1 },
+			{ item: "T-002", line: 2 },
+		]);
+	});
 });

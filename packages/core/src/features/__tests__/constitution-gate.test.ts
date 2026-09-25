@@ -17,13 +17,15 @@ Lives in core.
 `;
 }
 
+const BY = "<!-- ticked-by: human:bikash -->";
+
 const ALL_CHECKED = [
-	"- [x] **Stack alignment** — uses the locked stack.",
-	"- [x] **Result<T, E> error model** — no throws.",
+	`- [x] **Stack alignment** — uses the locked stack. ${BY}`,
+	`- [x] **Result<T, E> error model** — no throws. ${BY}`,
 ].join("\n");
 
 const ONE_UNCHECKED = [
-	"- [x] **Stack alignment** — uses the locked stack.",
+	`- [x] **Stack alignment** — uses the locked stack. ${BY}`,
 	"- [ ] **Single LLM call per command** — exception needs a note.",
 ].join("\n");
 
@@ -128,5 +130,45 @@ describe("constitutionGate", () => {
 		expect(report.rules.length).toBeGreaterThanOrEqual(7);
 		expect(report.rules.every((r) => r.level === "must")).toBe(true);
 		expect(report.passed).toBe(false);
+	});
+});
+
+describe("constitutionGate review fixes (#332)", () => {
+	test("a gate section with no rules blocks", () => {
+		const report = constitutionGate(plan("Nothing to check yet."));
+		expect(report.passed).toBe(false);
+		expect(report.violations).toEqual([
+			{
+				rule: "Constitution gate",
+				level: "must",
+				line: 3,
+				justification: undefined,
+				blocking: true,
+			},
+		]);
+	});
+
+	test("a MUST rule ticked with no decide or human source blocks", () => {
+		const gate = "- [x] **Stack alignment** — the agent ticked this itself.";
+		const report = constitutionGate(plan(gate));
+		expect(report.passed).toBe(false);
+		expect(report.rules[0]?.attested).toBe(false);
+		expect(report.violations.map((v) => [v.rule, v.blocking])).toEqual([
+			["Stack alignment", true],
+		]);
+	});
+
+	test("a rule ticked by a decide id counts as checked", () => {
+		const gate =
+			"- [x] **Stack alignment** — ok. <!-- ticked-by: decide:dec-42 -->";
+		const report = constitutionGate(plan(gate));
+		expect(report.passed).toBe(true);
+		expect(report.rules[0]?.attested).toBe(true);
+	});
+
+	test("a ticked-by tag with a malformed source does not count", () => {
+		const gate =
+			"- [x] **Stack alignment** — ok. <!-- ticked-by: decide:a/b -->";
+		expect(constitutionGate(plan(gate)).passed).toBe(false);
 	});
 });

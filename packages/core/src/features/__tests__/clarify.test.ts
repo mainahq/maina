@@ -4,6 +4,7 @@ import {
 	answerQuestion,
 	type ClarifySuggestion,
 	clarify,
+	findClarificationMarkers,
 	MAX_CLARIFY_MARKERS,
 	MAX_CLARIFY_QUESTIONS,
 	nextQuestion,
@@ -181,5 +182,50 @@ describe("clarify writes answers back into the spec", () => {
 
 	test("the shipped spec template stays within the marker cap", () => {
 		expect(clarify(FEATURE_TEMPLATES.spec).overflowMarkers).toEqual([]);
+	});
+});
+
+describe("clarify review fixes (#332)", () => {
+	test("finds markers wrapped across lines, as the shipped spec template writes them", () => {
+		// FR-006 / FR-007 wrap; the marker quoted in inline code is skipped.
+		expect(findClarificationMarkers(FEATURE_TEMPLATES.spec)).toHaveLength(2);
+		const [first] = clarify(FEATURE_TEMPLATES.spec).questions;
+		expect(first?.options).toEqual([
+			"SSO",
+			"email+password",
+			"OAuth",
+			"device code",
+		]);
+		expect(first?.question).toContain("System MUST authenticate via");
+	});
+
+	test("a wrapped marker is replaced by its answer", () => {
+		const result = answerQuestion(clarify(FEATURE_TEMPLATES.spec), "Q1", "SSO");
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.spec).toContain("System MUST authenticate via SSO");
+		expect(result.value.spec).not.toContain("[NEEDS CLARIFICATION: SSO,");
+	});
+
+	test("a marker body does not run past a blank line", () => {
+		const spec = "- A: [NEEDS CLARIFICATION: open\n\nnext paragraph] x\n";
+		expect(findClarificationMarkers(spec)).toEqual([]);
+	});
+
+	test("the answer replaces the real marker, not a copy quoted in inline code", () => {
+		const spec =
+			"Use `[NEEDS CLARIFICATION]` for gaps.\n\n- Auth: [NEEDS CLARIFICATION]\n";
+		const result = answerQuestion(clarify(spec), "Q1", "SSO");
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.spec).toContain(
+			"Use `[NEEDS CLARIFICATION]` for gaps.",
+		);
+		expect(result.value.spec).toContain("- Auth: SSO");
+	});
+
+	test("a bare marker after a label asks about the label", () => {
+		const [q] = clarify("- Auth: [NEEDS CLARIFICATION]\n").questions;
+		expect(q?.question).toBe("Auth");
 	});
 });

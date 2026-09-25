@@ -6,7 +6,8 @@
  * reports every gap as one of four types:
  *
  * - `missing`: a requirement no task cites.
- * - `partial`: a requirement cited by tasks that are not all ticked.
+ * - `partial`: a requirement cited by tasks that are not all ticked by a
+ *   decide id or a human (an unattested tick does not count).
  * - `contradicts`: a task doing what the spec's Out of scope list rules out.
  * - `unrequested`: a task citing a requirement the spec does not define, or
  *   citing none while its text maps to nothing in the spec.
@@ -25,6 +26,7 @@ import {
 } from "../decide/decide";
 import type { Check, Finding } from "../receipt/types";
 import { STOP_WORDS } from "../utils";
+import { isAttestedTick } from "./checklist";
 
 export const GAP_TYPES = [
 	"missing",
@@ -104,11 +106,13 @@ function parseTasks(tasks: string): Task[] {
 		const match = line.match(TASK);
 		const id = match?.[2] ?? match?.[3];
 		if (!match || id === undefined) continue;
-		const text = (match[4] ?? "").replace(/<!--.*?-->/g, "").trim();
+		const raw = match[4] ?? "";
+		const text = raw.replace(/<!--.*?-->/g, "").trim();
 		parsed.push({
 			id,
 			text,
-			done: match[1] !== " ",
+			// Only a decide or human tick delivers a task (FR-SPEC-6).
+			done: match[1] !== " " && isAttestedTick(raw),
 			cites: [...new Set(text.match(CITATION) ?? [])],
 			line: i + 1,
 		});

@@ -295,8 +295,16 @@ type DecideEachRequest = Readonly<{
 	fallback?: boolean;
 }>;
 
-/** A bool answer with the confidence `decide` gave it. */
-export type JudgedAnswer = Readonly<{ answer: boolean; confidence: number }>;
+/**
+ * A bool answer with the confidence `decide` gave it. `decided` is false
+ * when `decide` failed and the answer is the request's fallback, so callers
+ * can fail closed instead of reading confidence 0 as "unsure".
+ */
+export type JudgedAnswer = Readonly<{
+	answer: boolean;
+	confidence: number;
+	decided: boolean;
+}>;
 
 /**
  * Asks one bool question per candidate, `<check>:<i>`, with candidate `i`'s
@@ -342,11 +350,16 @@ export function judgeEach(
 	});
 	if (!result.ok) {
 		const answer = request.fallback ?? false;
-		return Array.from({ length: count }, () => ({ answer, confidence: 0 }));
+		return Array.from({ length: count }, () => ({
+			answer,
+			confidence: 0,
+			decided: false,
+		}));
 	}
 	return result.value.map((d) => ({
 		answer: d.answer === true,
 		confidence: d.confidence,
+		decided: true,
 	}));
 }
 

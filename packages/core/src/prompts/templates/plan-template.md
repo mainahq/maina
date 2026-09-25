@@ -31,7 +31,10 @@
 - [ ] **Cross-agent rules (C4)** — `.maina/constitution.md` is canonical;
       derived agent rule files are emitted, not hand-edited.
 
-A rule left unchecked is a violation. A MUST violation blocks the plan
+A rule counts as checked only when its tick records a `decide` id or a
+human (`<!-- ticked-by: decide:<id> -->` or `<!-- ticked-by: human:<name> -->`);
+the agent writing the plan cannot tick its own gate. A rule left unchecked,
+or ticked with no source, is a violation. A MUST violation blocks the plan
 unless the justification table below records why it is needed; a rule
 whose text says SHOULD is advisory and never blocks.
 

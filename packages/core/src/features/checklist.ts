@@ -402,7 +402,7 @@ export type TickOptions = Readonly<{
 export type UnattestedTick = Readonly<{ item: string; line: number }>;
 
 const CHECKLIST_ITEM = /^(\s*-\s+\[)([ xX])(\]\s+)(.*)$/;
-const TICKED_BY = /<!--\s*ticked-by:\s*(decide|human):\S+\s*-->/;
+const TICKED_BY = /<!--\s*ticked-by:\s*(decide|human):(\S+?)\s*-->/;
 /** Human actors: a name without whitespace or comment terminators. */
 const ACTOR = /^[^\s<>]{1,128}$/;
 
@@ -485,14 +485,41 @@ export function tickChecklistItem(
 	return { ok: true, value: lines.join("\n") };
 }
 
-/** Ticked items that carry no `ticked-by` decide or human source. */
-export function unattestedTicks(content: string): readonly UnattestedTick[] {
+/**
+ * Whether a ticked item's text records a source that may tick: a
+ * `ticked-by` tag naming a well-formed decide id (known to the log when
+ * `isKnownDecision` is given) or a human actor. Checks that grade ticked
+ * items (constitution gate, converge) count only attested ticks.
+ */
+export function isAttestedTick(
+	text: string,
+	options: TickOptions = {},
+): boolean {
+	const tag = text.match(TICKED_BY);
+	const kind = tag?.[1];
+	const id = tag?.[2] ?? "";
+	if (kind === undefined) return false;
+	const source: TickSource =
+		kind === "decide"
+			? { kind: "decide", decisionId: id }
+			: { kind: "human", actor: id };
+	return provenance(source, options).ok;
+}
+
+/**
+ * Ticked items that carry no valid `ticked-by` decide or human source
+ * (see `isAttestedTick`).
+ */
+export function unattestedTicks(
+	content: string,
+	options: TickOptions = {},
+): readonly UnattestedTick[] {
 	const found: UnattestedTick[] = [];
 	for (const [i, line] of content.split("\n").entries()) {
 		const match = line.match(CHECKLIST_ITEM);
 		const text = match?.[4];
 		if (text === undefined || match?.[2] === " ") continue;
-		if (TICKED_BY.test(text)) continue;
+		if (isAttestedTick(text, options)) continue;
 		found.push({ item: itemLabel(text) ?? text.trim(), line: i + 1 });
 	}
 	return found;

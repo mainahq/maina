@@ -32,11 +32,11 @@ const TASKS = `# Verification Tasks: Export
 
 ## Phases
 
-- [x] **T-001** Test (red): CSV export — covers FR-001
-- [x] **T-002** Implement: CSV export — covers FR-001
-- [x] **T-003** Test (red): email link — covers FR-002
+- [x] **T-001** Test (red): CSV export — covers FR-001 <!-- ticked-by: human:bikash -->
+- [x] **T-002** Implement: CSV export — covers FR-001 <!-- ticked-by: decide:dec-7 -->
+- [x] **T-003** Test (red): email link — covers FR-002 <!-- ticked-by: human:bikash -->
 - [ ] **T-004** Implement: email link — covers FR-002
-- [x] **T-005** Benchmark export latency — covers SC-001
+- [x] **T-005** Benchmark export latency — covers SC-001 <!-- ticked-by: human:bikash -->
 - [ ] **T-006** Add audit trail — covers FR-009
 - [ ] **T-007** Implement scheduled recurring exports every night
 `;
@@ -72,10 +72,21 @@ describe("convergeArtifacts", () => {
 
 	test("a fully delivered spec converges", () => {
 		const spec = "## Requirements\n\n- **FR-001**: System MUST export CSV\n";
-		const tasks = "## Phases\n\n- [x] **T-001** Export CSV — covers FR-001\n";
+		const tasks =
+			"## Phases\n\n- [x] **T-001** Export CSV — covers FR-001 <!-- ticked-by: human:bikash -->\n";
 		const report = convergeArtifacts(spec, tasks);
 		expect(report.gaps).toEqual([]);
 		expect(report.converged).toBe(true);
+	});
+
+	test("a task ticked with no decide or human source is not delivered", () => {
+		const spec = "## Requirements\n\n- **FR-001**: System MUST export CSV\n";
+		const tasks = "## Phases\n\n- [x] **T-001** Export CSV — covers FR-001\n";
+		const report = convergeArtifacts(spec, tasks);
+		expect(report.gaps.map((g) => [g.type, g.subject])).toEqual([
+			["partial", "FR-001"],
+		]);
+		expect(report.converged).toBe(false);
 	});
 });
 

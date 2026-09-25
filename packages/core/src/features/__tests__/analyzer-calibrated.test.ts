@@ -131,6 +131,18 @@ describe("analyzeArtifacts", () => {
 		expect(leak?.blocking).toBe(false);
 	});
 
+	test("when decide fails, findings keep their severity and errors block (fail closed)", () => {
+		const broken: DecidePorts = { ...defaultDecidePorts, backends: new Map() };
+		const report = analyzeArtifacts(SPEC, PLAN, TASKS, broken);
+		const coverage = report.findings.find(
+			(f) => f.category === "spec-coverage",
+		);
+		expect(coverage?.confidence).toBe(0);
+		expect(coverage?.severity).toBe("error");
+		expect(coverage?.blocking).toBe(true);
+		expect(report.blocking).toBe(true);
+	});
+
 	test("reads tasks written in the shipped template format", () => {
 		const tasks = `# Verification Tasks: Export
 

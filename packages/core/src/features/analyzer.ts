@@ -85,6 +85,8 @@ type JudgedFinding = AnalysisFinding & {
 	confidence: number;
 	/** The decision type that produced it; absent for exact checks. */
 	decisionType?: DecisionType;
+	/** False when `decide` failed and the finding is its fallback. */
+	decided?: boolean;
 };
 
 /**
@@ -232,11 +234,11 @@ function flagged<T>(
 	candidates: readonly T[],
 	judged: readonly JudgedAnswer[],
 	want: boolean,
-): Array<{ item: T; confidence: number }> {
+): Array<{ item: T; confidence: number; decided: boolean }> {
 	return candidates.flatMap((item, i) => {
 		const j = judged[i];
 		return j !== undefined && j.answer === want
-			? [{ item, confidence: j.confidence }]
+			? [{ item, confidence: j.confidence, decided: j.decided }]
 			: [];
 	});
 }
@@ -271,12 +273,12 @@ function checkSpecCoverage(
 		trusted: counted.map(({ matched, total }) => ({ matched, total })),
 		untrusted: counted.map(({ criterion }) => ({ text: criterion })),
 	});
-	return flagged(counted, covered, false).map(({ item, confidence }) => ({
+	return flagged(counted, covered, false).map(({ item, ...judged }) => ({
 		severity: "error",
 		category: "spec-coverage",
 		message: `Acceptance criterion not covered by any task: "${item.criterion}"`,
 		file: "spec.md",
-		confidence,
+		...judged,
 		decisionType: "spec.coverage",
 	}));
 }
@@ -335,12 +337,12 @@ function checkOrphanedTasks(
 		})),
 		untrusted: candidates.map(({ task }) => ({ text: task.fullLine })),
 	});
-	return flagged(candidates, orphaned, true).map(({ item, confidence }) => ({
+	return flagged(candidates, orphaned, true).map(({ item, ...judged }) => ({
 		severity: "warning",
 		category: "orphaned-task",
 		message: `Task does not map to any spec requirement: "${item.task.fullLine}"`,
 		file: planTasks.includes(item.task) ? "plan.md" : "tasks.md",
-		confidence,
+		...judged,
 		decisionType: "spec.orphan",
 	}));
 }
@@ -381,13 +383,13 @@ function checkSeparation(
 			untrusted: lines.map(({ text }) => ({ text })),
 		});
 		return flagged(lines, leaks, true).map(
-			({ item, confidence }): JudgedFinding => ({
+			({ item, ...judged }): JudgedFinding => ({
 				severity: "warning",
 				category: "separation-violation",
 				message: describe(item.text.trim()),
 				file,
 				line: item.line,
-				confidence,
+				...judged,
 				decisionType: "spec.impl_leak",
 			}),
 		);
@@ -460,11 +462,11 @@ function checkContradictions(
 		trusted: pairs.map(({ matched, total }) => ({ matched, total })),
 		untrusted: pairs.map(({ plan, tasks }) => ({ plan, tasks })),
 	});
-	return flagged(pairs, contradicts, true).map(({ item, confidence }) => ({
+	return flagged(pairs, contradicts, true).map(({ item, ...judged }) => ({
 		severity: "warning",
 		category: "contradiction",
 		message: `${item.id} has conflicting descriptions — plan.md: "${item.plan}" vs tasks.md: "${item.tasks}"`,
-		confidence,
+		...judged,
 		decisionType: "spec.contradiction",
 	}));
 }
@@ -514,7 +516,8 @@ const DOWNGRADE: Readonly<Record<AnalysisSeverity, AnalysisSeverity>> = {
  * calibrates every finding: under its decision type's policy confidence
  * threshold it drops one severity level; an error at or over the threshold
  * blocks. Exact checks (missing files, task counts) have confidence 1 and
- * threshold 0.
+ * threshold 0. When `decide` fails, its fallback findings keep their
+ * severity (fail closed) rather than being downgraded as unsure.
  */
 export function analyzeArtifacts(
 	spec: string | null,
@@ -523,13 +526,18 @@ export function analyzeArtifacts(
 	ports: DecidePorts = defaultDecidePorts,
 ): CalibratedReport {
 	const findings = judgeArtifacts(ports, spec, plan, tasks).map(
-		({ confidence, decisionType, ...finding }): CalibratedFinding => {
+		({
+			confidence,
+			decisionType,
+			decided = true,
+			...finding
+		}): CalibratedFinding => {
 			const threshold =
 				decisionType === undefined
 					? 0
 					: ports.policy.decisions[decisionType].thresholds.confidence;
 			const severity =
-				confidence >= threshold
+				!decided || confidence >= threshold
 					? finding.severity
 					: DOWNGRADE[finding.severity];
 			return {
@@ -569,7 +577,9 @@ export function analyze(featureDir: string): Result<AnalysisReport, string> {
 		readOptionalFile(join(featureDir, "spec.md")),
 		readOptionalFile(join(featureDir, "plan.md")),
 		readOptionalFile(join(featureDir, "tasks.md")),
-	).map(({ confidence: _c, decisionType: _t, ...finding }) => finding);
+	).map(
+		({ confidence: _c, decisionType: _t, decided: _d, ...finding }) => finding,
+	);
 
 	return {
 		ok: true,

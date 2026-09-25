@@ -59,9 +59,21 @@ export type ClarifyError = Readonly<{
 	message: string;
 }>;
 
-type Marker = Readonly<{ text: string; body: string; context: string }>;
+type Marker = Readonly<{
+	/** The exact source text, line breaks included for a wrapped marker. */
+	text: string;
+	/** Offset of `text` in the spec. */
+	start: number;
+	body: string;
+	context: string;
+}>;
 
-const MARKER = /\[NEEDS CLARIFICATION(?::\s*([^\]]*))?\]/g;
+/**
+ * A marker; its body may wrap onto following lines (as the spec template's
+ * examples do) but never runs past a blank line.
+ */
+const MARKER =
+	/\[NEEDS CLARIFICATION(?::\s*((?:[^\]\n]|\n(?![ \t]*(?:\n|$)))*))?\]/g;
 
 /** `line` with inline code spans blanked, so quoted markers are skipped. */
 function maskInlineCode(line: string): string {
@@ -69,29 +81,29 @@ function maskInlineCode(line: string): string {
 }
 
 function findMarkers(spec: string): Marker[] {
-	const markers: Marker[] = [];
-	for (const line of spec.split("\n")) {
-		const masked = maskInlineCode(line);
-		for (const match of masked.matchAll(MARKER)) {
-			const start = match.index ?? 0;
-			const text = line.slice(start, start + match[0].length);
-			const context = line
-				.slice(0, start)
-				.replace(/^\s*[-*]\s*(\[.\]\s*)?/, "")
-				.replaceAll("**", "")
-				.trim();
-			const rest = line
-				.slice(start + match[0].length)
-				.replaceAll("**", "")
-				.trim();
-			markers.push({
-				text,
-				body: (match[1] ?? "").trim() || rest,
-				context,
-			});
-		}
-	}
-	return markers;
+	// Masking keeps every offset, so matches index straight into `spec`.
+	const masked = spec.split("\n").map(maskInlineCode).join("\n");
+	return [...masked.matchAll(MARKER)].map((match): Marker => {
+		const start = match.index ?? 0;
+		const end = start + match[0].length;
+		const lineStart = spec.lastIndexOf("\n", start - 1) + 1;
+		const lineEnd = spec.indexOf("\n", end);
+		const context = spec
+			.slice(lineStart, start)
+			.replace(/^\s*[-*]\s*(\[.\]\s*)?/, "")
+			.replaceAll("**", "")
+			.trim();
+		const rest = spec
+			.slice(end, lineEnd === -1 ? spec.length : lineEnd)
+			.replaceAll("**", "")
+			.trim();
+		return {
+			text: spec.slice(start, end),
+			start,
+			body: (match[1] ?? "").replace(/\s+/g, " ").trim() || rest,
+			context,
+		};
+	});
 }
 
 /**
@@ -130,10 +142,10 @@ function recommendationFirst(
 
 function markerQuestion(marker: Marker, index: number): ClarifyQuestion {
 	const options = markerOptions(marker.body);
+	const label = marker.context.replace(/[:\s]+$/, "");
 	const question =
-		marker.context.length > 0
-			? `${marker.context.replace(/[:\s]+$/, "")}: ${marker.body}`
-			: marker.body || "Resolve this open item";
+		[label, marker.body].filter((part) => part.length > 0).join(": ") ||
+		"Resolve this open item";
 	return {
 		id: `Q${index + 1}`,
 		question,
@@ -248,10 +260,16 @@ export function answerQuestion(
 			error: { kind: "empty_answer", message: "the answer is empty" },
 		};
 	}
-	const resolved =
+	// Earlier markers are already replaced, so the first live (not quoted in
+	// inline code) marker with this text is the one the question asked about.
+	const target =
 		current.marker === undefined
+			? undefined
+			: findMarkers(session.spec).find((m) => m.text === current.marker);
+	const resolved =
+		target === undefined
 			? session.spec
-			: session.spec.replace(current.marker, () => text);
+			: `${session.spec.slice(0, target.start)}${text}${session.spec.slice(target.start + target.text.length)}`;
 	const spec = logClarification(
 		resolved,
 		`- Q: ${current.question} → A: ${text}`,
