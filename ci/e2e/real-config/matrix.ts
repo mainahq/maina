@@ -117,6 +117,12 @@ export interface KnownFailure {
 	readonly problems: readonly KnownProblem[];
 	/** Issue whose fix makes this case pass. */
 	readonly issue: number;
+	/**
+	 * The outcome depends on registry latency (a cold download can beat
+	 * the budget on a fast runner), so a pass is tolerated. When it does
+	 * fail it must still be for a listed reason. P4-only entries only.
+	 */
+	readonly mayPass?: true;
 }
 
 const GUI_LAUNCH: readonly EnvMode[] = ["minimal", "gui"];
@@ -194,13 +200,14 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
 		issue: 299,
 	},
 	// …and P4 from a terminal: unpinned `bunx @mainahq/cli` downloads the
-	// package on first spawn, well past the cold-start budget.
+	// package on first spawn (2.6–5.2 s on a laptop, ~1.1 s on a CI runner).
 	{
 		host: "cursor",
 		installPath: "install-sh",
 		envs: ["full"],
 		problems: ["P4"],
 		issue: 298,
+		mayPass: true,
 	},
 ];
 

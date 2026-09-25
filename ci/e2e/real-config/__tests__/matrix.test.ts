@@ -261,6 +261,12 @@ describe("KNOWN_FAILURES", () => {
 		}
 	});
 
+	test("only latency-bound (P4-only) entries may pass", () => {
+		for (const k of KNOWN_FAILURES.filter((k) => k.mayPass === true)) {
+			expect(k.problems).toEqual(["P4"]);
+		}
+	});
+
 	test("P1–P4 are each reproduced by at least one case", () => {
 		const covered = new Set(KNOWN_FAILURES.flatMap((k) => k.problems));
 		for (const p of ["P1", "P2", "P3", "P4"] as const) {
@@ -288,12 +294,13 @@ describe.skipIf(!osResult.ok)("real-config matrix", () => {
 					? undefined
 					: expectedFailure({ host, installPath, env });
 				const label = known
-					? `${host} × ${installPath} × ${env} (expected-fail ${known.problems.join("|")}, fixed by #${known.issue})`
+					? `${host} × ${installPath} × ${env} (expected-fail ${known.problems.join("|")}${known.mayPass ? " or pass" : ""}, fixed by #${known.issue})`
 					: `${host} × ${installPath} × ${env}`;
 
 				test(label, async () => {
 					const r = await runCase({ host, os, installPath, env });
 					if (known) {
+						if (known.mayPass && r.started && r.toolCallOk) return;
 						expect(r.started && r.toolCallOk).toBe(false);
 						expect(r.error).toBeDefined();
 						const problem = r.error ? classifyProblem(r.error) : undefined;
