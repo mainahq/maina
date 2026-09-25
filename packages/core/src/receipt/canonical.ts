@@ -41,8 +41,10 @@ export function canonicalize(value: unknown): CanonicalizeResult {
 	if (typeof value === "string")
 		return { ok: true, data: JSON.stringify(value) };
 	if (Array.isArray(value)) {
+		// Array.from visits holes as `undefined` (unsupported), where `map`
+		// would skip them and leave a gap that `joinAll` cannot call.
 		return joinAll(
-			value.map((item) => () => canonicalize(item)),
+			Array.from(value, (item) => () => canonicalize(item)),
 			"[",
 			"]",
 		);

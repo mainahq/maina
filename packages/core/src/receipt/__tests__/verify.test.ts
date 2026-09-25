@@ -87,6 +87,15 @@ describe("canonicalize", () => {
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.code).toBe("unsupported-type");
 	});
+
+	test("returns a structured error (never throws) for sparse arrays", () => {
+		// A hole reads as `undefined`, which is unsupported inside an array.
+		const sparse: unknown[] = [1];
+		sparse[2] = 2;
+		const result = canonicalize({ list: sparse });
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.code).toBe("unsupported-type");
+	});
 });
 
 describe("computeHash", () => {
