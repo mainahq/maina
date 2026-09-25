@@ -219,57 +219,67 @@ describe.skipIf(npm === null || node === null)("packed CLI install", () => {
 		expect(existsSync(join(core, "src"))).toBe(false);
 	});
 
-	test("the installed MCP server answers initialize with VERSION", async () => {
-		const entry = join(
-			prefix,
-			"node_modules",
-			"@mainahq",
-			"cli",
-			"dist",
-			"index.js",
-		);
-		const proc = Bun.spawn([process.execPath, entry, "--mcp"], {
-			cwd: prefix,
-			env: {
-				PATH: nodeOnlyPath,
-				HOME: prefix,
-				MAINA_TELEMETRY: "0",
-				DO_NOT_TRACK: "1",
-			},
-			stdin: "pipe",
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-		try {
-			proc.stdin.write(
-				`${JSON.stringify({
-					jsonrpc: "2.0",
-					id: 1,
-					method: "initialize",
-					params: {
-						protocolVersion: "2024-11-05",
-						capabilities: {},
-						clientInfo: { name: "packed-install-test", version: "0.0.0" },
-					},
-				})}\n`,
+	// A host spawns the runtime by absolute path with a GUI PATH that has no
+	// Bun (P2). Cover both runtimes the launcher may write: Bun (the usual
+	// case) and Node (a CLI installed and run without Bun).
+	test.each([
+		["node", () => node as string],
+		["bun", () => process.execPath],
+	] as const)(
+		"the installed MCP server answers initialize with VERSION under %s",
+		async (_name, runtime) => {
+			const entry = join(
+				prefix,
+				"node_modules",
+				"@mainahq",
+				"cli",
+				"dist",
+				"index.js",
 			);
-			proc.stdin.flush();
-			const decoder = new TextDecoder();
-			let buffer = "";
-			for await (const chunk of proc.stdout) {
-				buffer += decoder.decode(chunk, { stream: true });
-				if (buffer.includes("\n")) break;
-			}
-			const reply = JSON.parse(buffer.split("\n")[0] ?? "") as {
-				result?: { serverInfo?: { name?: string; version?: string } };
-			};
-			expect(reply.result?.serverInfo).toEqual({
-				name: "maina",
-				version: VERSION,
+			const proc = Bun.spawn([runtime(), entry, "--mcp"], {
+				cwd: prefix,
+				env: {
+					PATH: nodeOnlyPath,
+					HOME: prefix,
+					MAINA_TELEMETRY: "0",
+					DO_NOT_TRACK: "1",
+				},
+				stdin: "pipe",
+				stdout: "pipe",
+				stderr: "pipe",
 			});
-		} finally {
-			proc.kill();
-			await proc.exited;
-		}
-	}, 30_000);
+			try {
+				proc.stdin.write(
+					`${JSON.stringify({
+						jsonrpc: "2.0",
+						id: 1,
+						method: "initialize",
+						params: {
+							protocolVersion: "2024-11-05",
+							capabilities: {},
+							clientInfo: { name: "packed-install-test", version: "0.0.0" },
+						},
+					})}\n`,
+				);
+				proc.stdin.flush();
+				const decoder = new TextDecoder();
+				let buffer = "";
+				for await (const chunk of proc.stdout) {
+					buffer += decoder.decode(chunk, { stream: true });
+					if (buffer.includes("\n")) break;
+				}
+				const reply = JSON.parse(buffer.split("\n")[0] ?? "") as {
+					result?: { serverInfo?: { name?: string; version?: string } };
+				};
+				expect(reply.result?.serverInfo).toEqual({
+					name: "maina",
+					version: VERSION,
+				});
+			} finally {
+				proc.kill();
+				await proc.exited;
+			}
+		},
+		30_000,
+	);
 });

@@ -19,7 +19,10 @@ import {
 } from "../version-source";
 
 const ROOT = resolve(import.meta.dir, "..", "..");
+/** Packages whose runtime source is scanned for stray version reads. */
 const PUBLISHED = ["core", "cli", "mcp"] as const;
+/** The changesets `fixed` group: every one must carry `VERSION`. */
+const FIXED_GROUP = [...PUBLISHED, "skills"] as const;
 
 function manifestVersion(pkg: string): string {
 	const raw = readFileSync(
@@ -60,7 +63,15 @@ describe("renderVersionModule", () => {
 	});
 
 	test("rejects a value that is not a semver version", () => {
-		for (const v of ["", "latest", "1.2", 'x"; process.exit(1); "']) {
+		for (const v of [
+			"",
+			"latest",
+			"1.2",
+			'x"; process.exit(1); "',
+			// semver 2.0 §9: numeric prerelease identifiers have no leading zeros
+			"1.0.0-01",
+			"1.0.0-rc.007",
+		]) {
 			expect(renderVersionModule(v).ok).toBe(false);
 		}
 	});
@@ -106,8 +117,8 @@ describe("VERSION", () => {
 		});
 	});
 
-	test("matches the changeset version of every published package", () => {
-		for (const pkg of PUBLISHED) {
+	test("matches the changeset version of every package in the fixed group", () => {
+		for (const pkg of FIXED_GROUP) {
 			expect({ pkg, version: manifestVersion(pkg) }).toEqual({
 				pkg,
 				version: VERSION,
@@ -115,16 +126,35 @@ describe("VERSION", () => {
 		}
 	});
 
-	test("changesets versions cli, core and mcp as one fixed group", () => {
+	test("changesets versions cli, core, mcp and skills as one fixed group", () => {
 		const config = JSON.parse(
 			readFileSync(join(ROOT, ".changeset", "config.json"), "utf-8"),
 		) as { fixed?: string[][]; linked?: string[][] };
 		const group = (config.fixed ?? []).find((g) => g.includes("@mainahq/cli"));
 		expect(group).toBeDefined();
-		for (const pkg of PUBLISHED) expect(group).toContain(`@mainahq/${pkg}`);
+		for (const pkg of FIXED_GROUP) expect(group).toContain(`@mainahq/${pkg}`);
 		for (const g of config.linked ?? []) {
-			for (const pkg of PUBLISHED) expect(g).not.toContain(`@mainahq/${pkg}`);
+			for (const pkg of FIXED_GROUP) {
+				expect(g).not.toContain(`@mainahq/${pkg}`);
+			}
 		}
+	});
+
+	test("internal @mainahq dependencies are pinned exactly to VERSION", () => {
+		// A caret range lets `@mainahq/cli@X` install a newer core, and then
+		// `--version`, doctor, telemetry and the launcher pin all report the
+		// core's version instead of the CLI's. Exact pins keep them one.
+		const ranges: { pkg: string; dep: string; range: string }[] = [];
+		for (const pkg of PUBLISHED) {
+			const manifest = JSON.parse(
+				readFileSync(join(ROOT, "packages", pkg, "package.json"), "utf-8"),
+			) as { dependencies?: Record<string, string> };
+			for (const [dep, range] of Object.entries(manifest.dependencies ?? {})) {
+				if (dep.startsWith("@mainahq/")) ranges.push({ pkg, dep, range });
+			}
+		}
+		expect(ranges.length).toBeGreaterThan(0);
+		for (const r of ranges) expect(r).toEqual({ ...r, range: VERSION });
 	});
 
 	test("`bun run version` regenerates the module after changeset version", () => {

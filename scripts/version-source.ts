@@ -24,9 +24,14 @@ type Result<T, E = string> =
 export const VERSION_MODULE = "packages/core/src/version.ts";
 const MANIFEST = "packages/core/package.json";
 
-/** semver 2.0: MAJOR.MINOR.PATCH, optional -prerelease and +build. */
-const SEMVER =
-	/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
+/**
+ * semver 2.0: MAJOR.MINOR.PATCH, optional -prerelease and +build. Numeric
+ * prerelease identifiers have no leading zeros (§9); build ones may.
+ */
+const PRERELEASE_ID = "(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)";
+const SEMVER = new RegExp(
+	`^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-${PRERELEASE_ID}(\\.${PRERELEASE_ID})*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$`,
+);
 
 export function renderVersionModule(version: string): Result<string> {
 	if (!SEMVER.test(version)) {
