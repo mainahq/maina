@@ -134,6 +134,11 @@ function classifyRead(
 		out.add("secrets.read");
 	} else if (isOutsideWorkspace(resolved, event.root)) {
 		out.add("fs.read.outside");
+	} else {
+		// Hosts report every file read (Claude Code's Read, Grep, Glob), so a
+		// plain workspace read needs a class of its own, like `fs.write`;
+		// without one it would reach the backend with no class and ask.
+		out.add("fs.read");
 	}
 }
 

@@ -5,6 +5,7 @@
  */
 
 import { beforeAll, describe, expect, test } from "bun:test";
+import { DEFAULT_POLICY } from "../../policy/defaults";
 import { classifyAction } from "../classify";
 import type { GateContext } from "../events";
 import {
@@ -418,9 +419,22 @@ describe("other event kinds", () => {
 		expect(classifyAction(readEvent("/etc/passwd"), ctx)).toEqual([
 			"fs.read.outside",
 		]);
-		expect(classifyAction(readEvent("/work/repo/.env.example"), ctx)).toEqual(
-			[],
-		);
+		expect(classifyAction(readEvent("/work/repo/.env.example"), ctx)).toEqual([
+			"fs.read",
+		]);
+	});
+
+	test("file.read.outside: a plain workspace read is fs.read, which is allowed", () => {
+		expect(classifyAction(readEvent("/work/repo/src/a.ts"), ctx)).toEqual([
+			"fs.read",
+		]);
+		expect(classifyAction(readEvent("/tmp/scratch/a.log"), ctx)).toEqual([
+			"fs.read",
+		]);
+		expect(DEFAULT_POLICY.action_classes["fs.read"]).toEqual({
+			irreversible: false,
+			verdict: "allow",
+		});
 	});
 
 	test("mcp calls: SQL and shell inputs are classified too", () => {

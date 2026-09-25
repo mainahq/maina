@@ -31,6 +31,7 @@ import {
 	startArtifactServer,
 	TEST_VERSION,
 } from "../../../../packages/runtime/launcher/__tests__/fixture";
+import { runClaudeHook } from "../../../../packages/runtime/src/claude-hook";
 import { failClosedHookOutput } from "../../../../packages/runtime/src/standalone/hook-fallback";
 import { currentOs, hostEnv } from "../env";
 import { createWorkspace, probeLaunch, type Workspace } from "../matrix";
@@ -124,10 +125,29 @@ describe.skipIf(!runsHere)(
 				]);
 				return { stdout, exitCode };
 			};
+			// Empty stdin reaches the Claude Code adapter (#309), which asks: the
+			// compiled runtime loaded the hook path rather than crashing into
+			// the launcher's fail-closed answer. Cursor events are not wired yet.
 			const hook = await run(["hook", "PreToolUse"]);
 			expect(hook.exitCode).toBe(0);
-			expect(hook.stdout.trim()).toBe(
-				failClosedHookOutput("PreToolUse", "gate_not_active"),
+			const asked = await runClaudeHook(
+				"",
+				{
+					evaluate: async () => {
+						throw new Error("unreachable: malformed input asks");
+					},
+					sessionSummary: async () => undefined,
+				},
+				"PreToolUse",
+			);
+			expect(hook.stdout).toBe(asked.output.stdout);
+			expect(hook.stdout.trim()).not.toBe(
+				failClosedHookOutput("PreToolUse", "hook_crashed"),
+			);
+			const cursor = await run(["hook", "beforeShellExecution"]);
+			expect(cursor.exitCode).toBe(0);
+			expect(cursor.stdout.trim()).toBe(
+				failClosedHookOutput("beforeShellExecution", "gate_not_active"),
 			);
 			const cli = await run(["cli", "--version"]);
 			expect(cli.exitCode).toBe(0);

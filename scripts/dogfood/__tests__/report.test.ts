@@ -1,7 +1,7 @@
 /**
  * Tests for the weekly dogfood report (#286, FR-DOG-4).
  *
- * The report reads the bootstrap hook's log.jsonl, keeps one ISO week and
+ * The report reads the dogfood hook's log.jsonl, keeps one ISO week and
  * computes the gate metrics: decision counts, deny/ask rates, overrides and
  * crashes (fail-closed asks).
  */

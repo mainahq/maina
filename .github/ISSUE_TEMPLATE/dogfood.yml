@@ -20,7 +20,7 @@ body:
     attributes:
       label: Surface
       options:
-        - PreToolUse bootstrap hook (.maina/dogfood/hook-bootstrap.ts)
+        - PreToolUse gate hook (scripts/dogfood/hook.ts)
         - Receipt check (Dogfood workflow / receipt-check)
         - "bun run dogfood:receipt"
         - maina verify / maina commit

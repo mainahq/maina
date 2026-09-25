@@ -15,6 +15,18 @@
 
 import { failClosedHookOutput } from "./hook-fallback";
 
+/**
+ * Claude Code's hook events, answered by the Claude Code adapter. Codex
+ * (mainahq/maina#311) uses the same names and output shape.
+ */
+const CLAUDE_EVENTS: ReadonlySet<string> = new Set([
+	"PreToolUse",
+	"PermissionRequest",
+	"PostToolUse",
+	"SessionStart",
+	"Stop",
+]);
+
 const [mode, ...rest] = process.argv.slice(2);
 
 switch (mode) {
@@ -24,11 +36,21 @@ switch (mode) {
 		break;
 	}
 	case "hook": {
-		// The gate adapters (mainahq/maina#309–#311) are not wired in yet, so
-		// every hook gets the host's fail-closed answer: never an allow.
-		process.stdout.write(
-			`${failClosedHookOutput(rest[0] ?? "", "gate_not_active")}\n`,
-		);
+		const event = rest[0] ?? "";
+		if (!CLAUDE_EVENTS.has(event)) {
+			// The Cursor adapter (mainahq/maina#310) is not wired in yet, so its
+			// hooks get the host's fail-closed answer: never an allow.
+			process.stdout.write(
+				`${failClosedHookOutput(event, "gate_not_active")}\n`,
+			);
+			break;
+		}
+		try {
+			const { runClaudeHookProcess } = await import("../hook-system");
+			process.exitCode = await runClaudeHookProcess(event);
+		} catch {
+			process.stdout.write(`${failClosedHookOutput(event, "hook_crashed")}\n`);
+		}
 		break;
 	}
 	case "cli": {
