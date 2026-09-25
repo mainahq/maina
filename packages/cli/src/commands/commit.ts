@@ -222,6 +222,7 @@ export async function commitAction(
 			baseBranch: process.env.MAINA_BASE,
 			cwd,
 			mainaDir,
+			env: process.env,
 		});
 
 		// Syntax failure → abort immediately

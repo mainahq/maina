@@ -13,7 +13,8 @@ import type { Finding } from "./diff-filter";
 
 interface TrivyOptions {
 	scanType?: "fs" | "repo";
-	cwd?: string;
+	/** Repository root the tool runs in; required, core never reads the process cwd. */
+	cwd: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */
 	available?: boolean;
 }
@@ -123,14 +124,15 @@ export function parseTrivyJson(json: string): Finding[] {
  * If trivy is not installed, returns `{ findings: [], skipped: true }`.
  * If trivy fails, returns `{ findings: [], skipped: false }`.
  */
-export async function runTrivy(options?: TrivyOptions): Promise<TrivyResult> {
-	const toolAvailable = options?.available ?? (await isToolAvailable("trivy"));
+export async function runTrivy(options: TrivyOptions): Promise<TrivyResult> {
+	const toolAvailable =
+		options.available ?? (await isToolAvailable("trivy", options.cwd));
 	if (!toolAvailable) {
 		return { findings: [], skipped: true };
 	}
 
-	const scanType = options?.scanType ?? "fs";
-	const cwd = options?.cwd ?? process.cwd();
+	const scanType = options.scanType ?? "fs";
+	const cwd = options.cwd;
 
 	const args = [
 		"trivy",

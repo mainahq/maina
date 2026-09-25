@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createCacheManager } from "../cache/manager";
 import { loadWorkflowContext } from "../workflow/context";
-import type { PipelineResult } from "./pipeline";
+import type { PipelineOptions, PipelineResult } from "./pipeline";
 import { runPipeline } from "./pipeline";
 import { detectSlop } from "./slop";
 import { runVisualVerification } from "./visual";
@@ -40,7 +40,10 @@ export interface VerificationProof {
 }
 
 export interface ProofOptions {
-	cwd?: string;
+	/** Repository root (explicit; core never reads the process cwd). */
+	cwd: string;
+	/** Environment for the pipeline's type checker (see `PipelineOptions.env`). */
+	env?: PipelineOptions["env"];
 	mainaDir?: string;
 	baseBranch?: string;
 	skipTests?: boolean;
@@ -92,9 +95,9 @@ async function runTests(
  * Gather all verification proof.
  */
 export async function gatherVerificationProof(
-	options: ProofOptions = {},
+	options: ProofOptions,
 ): Promise<VerificationProof> {
-	const cwd = options.cwd ?? process.cwd();
+	const cwd = options.cwd;
 	const mainaDir = options.mainaDir ?? join(cwd, ".maina");
 	const baseBranch = options.baseBranch;
 
@@ -106,6 +109,7 @@ export async function gatherVerificationProof(
 			diffOnly: true,
 			cwd,
 			mainaDir,
+			env: options.env,
 		});
 	}
 

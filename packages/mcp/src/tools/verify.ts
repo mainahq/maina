@@ -29,6 +29,7 @@ export function registerVerifyTools(server: McpServer): void {
 					files: targetFiles,
 					cwd,
 					mainaDir,
+					env: process.env,
 				});
 				const durationMs = Date.now() - start;
 

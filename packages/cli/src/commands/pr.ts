@@ -275,6 +275,7 @@ export async function prAction(
 	try {
 		const proof = await deps.gatherVerificationProof({
 			cwd,
+			env: process.env,
 			mainaDir,
 			baseBranch: base,
 			reviewResult: reviewResult,

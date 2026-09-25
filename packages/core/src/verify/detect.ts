@@ -8,7 +8,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export type ToolName =
 	| "biome"
@@ -212,31 +212,32 @@ async function tryCommand(
 }
 
 /**
- * Find the nearest node_modules/.bin directory by walking up from cwd.
+ * Find the nearest node_modules/.bin directory by walking up from `startDir`.
  * Returns the path if found, null otherwise.
  */
-function findLocalBinDir(startDir: string = process.cwd()): string | null {
+function findLocalBinDir(startDir: string): string | null {
 	let dir = startDir;
-	const root = "/";
-
-	while (dir !== root) {
+	for (;;) {
 		const binDir = join(dir, "node_modules", ".bin");
 		if (existsSync(binDir)) {
 			return binDir;
 		}
-		const parent = join(dir, "..");
-		if (parent === dir) break;
+		const parent = dirname(dir);
+		if (parent === dir) return null;
 		dir = parent;
 	}
-	return null;
 }
 
 /**
  * Detect whether a single tool is available on the system.
- * Tries the global PATH first, then falls back to node_modules/.bin/.
+ * Tries the global PATH first, then falls back to the nearest
+ * node_modules/.bin/ at or above the explicit repository `root`.
  * Never throws — unavailable tools return `{ available: false }`.
  */
-export async function detectTool(name: ToolName): Promise<DetectedTool> {
+export async function detectTool(
+	name: ToolName,
+	root: string,
+): Promise<DetectedTool> {
 	const entry = TOOL_REGISTRY[name];
 
 	// Try global PATH first
@@ -251,7 +252,7 @@ export async function detectTool(name: ToolName): Promise<DetectedTool> {
 	}
 
 	// Try local node_modules/.bin/
-	const localBin = findLocalBinDir();
+	const localBin = findLocalBinDir(root);
 	if (localBin) {
 		const localCommand = join(localBin, entry.command);
 		if (existsSync(localCommand)) {
@@ -276,12 +277,13 @@ export async function detectTool(name: ToolName): Promise<DetectedTool> {
 }
 
 /**
- * Detect registered tools in parallel.
+ * Detect registered tools in parallel, resolving local binaries from `root`.
  * When `languages` is provided, only tools relevant to those languages are detected.
  * When omitted, all registered tools are detected (backward compatible).
  * Returns an array of DetectedTool in registry order.
  */
 export async function detectTools(
+	root: string,
 	languages?: string[],
 ): Promise<DetectedTool[]> {
 	let names: ToolName[];
@@ -293,14 +295,19 @@ export async function detectTools(
 		names = Object.keys(TOOL_REGISTRY) as ToolName[];
 	}
 
-	const results = await Promise.all(names.map((name) => detectTool(name)));
+	const results = await Promise.all(
+		names.map((name) => detectTool(name, root)),
+	);
 	return results;
 }
 
 /**
  * Quick check: is a specific tool available?
  */
-export async function isToolAvailable(name: ToolName): Promise<boolean> {
-	const tool = await detectTool(name);
+export async function isToolAvailable(
+	name: ToolName,
+	root: string,
+): Promise<boolean> {
+	const tool = await detectTool(name, root);
 	return tool.available;
 }

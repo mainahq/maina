@@ -163,6 +163,7 @@ async function runVerifyPipeline(
 	}
 	return runPipeline({
 		cwd,
+		env: process.env,
 		baseBranch: options.base ?? DEFAULT_BASE_BRANCH,
 		// When the caller pinned a file list (e.g. backfill computing a
 		// PR's diff scope), keep the diff filter on so findings still

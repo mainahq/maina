@@ -121,7 +121,7 @@ export function parseBiomeOutput(output: string): SyntaxDiagnostic[] {
  */
 export async function syntaxGuard(
 	files: string[],
-	cwd?: string,
+	cwd: string,
 	profile?: LanguageProfile,
 ): Promise<SyntaxGuardResult> {
 	if (files.length === 0) {
@@ -129,7 +129,7 @@ export async function syntaxGuard(
 	}
 
 	const lang = profile ?? TYPESCRIPT_PROFILE;
-	const workDir = cwd ?? process.cwd();
+	const workDir = cwd;
 
 	// Route to language-specific linter for non-TypeScript
 	if (lang.id !== "typescript") {

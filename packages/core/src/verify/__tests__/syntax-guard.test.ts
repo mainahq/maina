@@ -5,6 +5,9 @@ import { join } from "node:path";
 import { getProfile } from "../../language/profile";
 import { parseBiomeOutput, syntaxGuard } from "../syntax-guard";
 
+// Tests run from the repository; pass it as the explicit root (#290).
+const ROOT = process.cwd();
+
 // ─── Fixtures ──────────────────────────────────────────────────────────────
 
 const TMP_DIR = join(tmpdir(), `maina-syntax-guard-test-${Date.now()}`);
@@ -39,13 +42,13 @@ function writeFixture(name: string, content: string): string {
 describe("SyntaxGuard", () => {
 	it("should pass valid TypeScript files", async () => {
 		const file = writeFixture("valid.ts", VALID_TS);
-		const result = await syntaxGuard([file]);
+		const result = await syntaxGuard([file], ROOT);
 		expect(result.ok).toBe(true);
 	});
 
 	it("should reject files with syntax errors", async () => {
 		const file = writeFixture("broken.ts", INVALID_TS_MISSING_BRACKET);
-		const result = await syntaxGuard([file]);
+		const result = await syntaxGuard([file], ROOT);
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
 			expect(result.error.length).toBeGreaterThan(0);
@@ -62,7 +65,7 @@ describe("SyntaxGuard", () => {
 			);
 		}
 		const start = performance.now();
-		const result = await syntaxGuard(files);
+		const result = await syntaxGuard(files, ROOT);
 		const elapsed = performance.now() - start;
 		expect(result.ok).toBe(true);
 		expect(elapsed).toBeLessThan(500);
@@ -70,7 +73,7 @@ describe("SyntaxGuard", () => {
 
 	it("should return structured error with file + line + message", async () => {
 		const file = writeFixture("structured.ts", INVALID_TS_PARSE_ERROR);
-		const result = await syntaxGuard([file]);
+		const result = await syntaxGuard([file], ROOT);
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
 			expect(result.error.length).toBeGreaterThan(0);
@@ -87,7 +90,7 @@ describe("SyntaxGuard", () => {
 	});
 
 	it("should return Ok immediately for empty file list", async () => {
-		const result = await syntaxGuard([]);
+		const result = await syntaxGuard([], ROOT);
 		expect(result.ok).toBe(true);
 	});
 
@@ -97,7 +100,7 @@ describe("SyntaxGuard", () => {
 			"warn_only.ts",
 			`const used = 1;\nexport const result = used + 1;\n`,
 		);
-		const result = await syntaxGuard([file]);
+		const result = await syntaxGuard([file], ROOT);
 		// This should pass because there are no errors (only possible warnings)
 		expect(result.ok).toBe(true);
 	});
@@ -108,32 +111,32 @@ describe("SyntaxGuard", () => {
 describe("syntaxGuard with language profile", () => {
 	it("should accept a language profile parameter", async () => {
 		const profile = getProfile("typescript");
-		const result = await syntaxGuard([], undefined, profile);
+		const result = await syntaxGuard([], ROOT, profile);
 		expect(result.ok).toBe(true);
 	});
 
 	it("should use biome for typescript profile (default behavior)", async () => {
-		const result = await syntaxGuard(["nonexistent.ts"]);
+		const result = await syntaxGuard(["nonexistent.ts"], ROOT);
 		expect(result).toBeDefined();
 	});
 
 	it("should attempt ruff for python profile", async () => {
 		const profile = getProfile("python");
 		// ruff likely not installed — should fail gracefully
-		const result = await syntaxGuard(["test.py"], undefined, profile);
+		const result = await syntaxGuard(["test.py"], ROOT, profile);
 		expect(result).toBeDefined();
 		// Either ok (if ruff found nothing) or error (if ruff not installed)
 	});
 
 	it("should attempt go vet for go profile", async () => {
 		const profile = getProfile("go");
-		const result = await syntaxGuard(["test.go"], undefined, profile);
+		const result = await syntaxGuard(["test.go"], ROOT, profile);
 		expect(result).toBeDefined();
 	});
 
 	it("should attempt clippy for rust profile", async () => {
 		const profile = getProfile("rust");
-		const result = await syntaxGuard(["test.rs"], undefined, profile);
+		const result = await syntaxGuard(["test.rs"], ROOT, profile);
 		expect(result).toBeDefined();
 	});
 });

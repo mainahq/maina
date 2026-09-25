@@ -7,6 +7,9 @@ import {
 	type ToolName,
 } from "../detect";
 
+// Tests run from the repository; pass it as the explicit root (#290).
+const ROOT = process.cwd();
+
 // ─── Type checks ────────────────────────────────────────────────────────────
 
 describe("detect types", () => {
@@ -35,7 +38,7 @@ describe("detect types", () => {
 
 describe("detectTool", () => {
 	test("returns a DetectedTool shape", async () => {
-		const result = await detectTool("biome");
+		const result = await detectTool("biome", ROOT);
 		expect(result).toHaveProperty("name");
 		expect(result).toHaveProperty("command");
 		expect(result).toHaveProperty("version");
@@ -46,7 +49,7 @@ describe("detectTool", () => {
 	});
 
 	test("detects biome as available (installed in project)", async () => {
-		const result = await detectTool("biome");
+		const result = await detectTool("biome", ROOT);
 		expect(result.name).toBe("biome");
 		// command may be "biome" (global) or a local node_modules/.bin path
 		expect(result.command).toContain("biome");
@@ -56,7 +59,7 @@ describe("detectTool", () => {
 	});
 
 	test("detects sonarqube status correctly", async () => {
-		const result = await detectTool("sonarqube");
+		const result = await detectTool("sonarqube", ROOT);
 		expect(result.name).toBe("sonarqube");
 		expect(result.command).toBe("sonar-scanner");
 		// sonarqube may or may not be installed — just verify shape
@@ -68,13 +71,13 @@ describe("detectTool", () => {
 
 describe("detectTools", () => {
 	test("returns an array of DetectedTool for all registered tools", async () => {
-		const results = await detectTools();
+		const results = await detectTools(ROOT);
 		expect(Array.isArray(results)).toBe(true);
 		expect(results.length).toBe(Object.keys(TOOL_REGISTRY).length);
 	});
 
 	test("each result has the correct shape", async () => {
-		const results = await detectTools();
+		const results = await detectTools(ROOT);
 		for (const tool of results) {
 			expect(typeof tool.name).toBe("string");
 			expect(typeof tool.command).toBe("string");
@@ -89,7 +92,7 @@ describe("detectTools", () => {
 	});
 
 	test("should auto-detect installed tools", async () => {
-		const results = await detectTools();
+		const results = await detectTools(ROOT);
 		const biome = results.find((t) => t.name === "biome");
 		expect(biome).toBeDefined();
 		expect(biome?.available).toBe(true);
@@ -97,14 +100,14 @@ describe("detectTools", () => {
 	});
 
 	test("detects sonarqube status in detectTools", async () => {
-		const results = await detectTools();
+		const results = await detectTools(ROOT);
 		const sonarqube = results.find((t) => t.name === "sonarqube");
 		expect(sonarqube).toBeDefined();
 		expect(typeof sonarqube?.available).toBe("boolean");
 	});
 
 	test("detects tools in parallel (all results returned)", async () => {
-		const results = await detectTools();
+		const results = await detectTools(ROOT);
 		const names = results.map((t) => t.name);
 		expect(names).toContain("biome");
 		expect(names).toContain("semgrep");
@@ -119,12 +122,12 @@ describe("detectTools", () => {
 
 describe("isToolAvailable", () => {
 	test("returns true for biome", async () => {
-		const available = await isToolAvailable("biome");
+		const available = await isToolAvailable("biome", ROOT);
 		expect(available).toBe(true);
 	});
 
 	test("returns boolean for sonarqube", async () => {
-		const available = await isToolAvailable("sonarqube");
+		const available = await isToolAvailable("sonarqube", ROOT);
 		expect(typeof available).toBe("boolean");
 	});
 });
@@ -154,7 +157,7 @@ describe("language-specific linter tools", () => {
 
 describe("VerifyPipeline", () => {
 	it("should auto-detect installed tools", async () => {
-		const results = await detectTools();
+		const results = await detectTools(ROOT);
 		const installed = results.filter((t) => t.available);
 		expect(installed.length).toBeGreaterThan(0);
 		// biome is always installed in this project
@@ -164,7 +167,7 @@ describe("VerifyPipeline", () => {
 	});
 
 	it("should skip missing tools with info note", async () => {
-		const results = await detectTools();
+		const results = await detectTools(ROOT);
 		const missing = results.filter((t) => !t.available);
 		expect(missing.length).toBeGreaterThan(0);
 		for (const tool of missing) {

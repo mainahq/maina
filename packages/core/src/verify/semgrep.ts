@@ -15,7 +15,8 @@ interface SemgrepOptions {
 	files?: string[];
 	rulesDir?: string;
 	config?: string;
-	cwd?: string;
+	/** Repository root the tool runs in; required, core never reads the process cwd. */
+	cwd: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */
 	available?: boolean;
 }
@@ -130,24 +131,24 @@ export function parseSarif(sarifJson: string): Finding[] {
  * If semgrep fails, returns `{ findings: [], skipped: false }`.
  */
 export async function runSemgrep(
-	options?: SemgrepOptions,
+	options: SemgrepOptions,
 ): Promise<SemgrepResult> {
 	const toolAvailable =
-		options?.available ?? (await isToolAvailable("semgrep"));
+		options.available ?? (await isToolAvailable("semgrep", options.cwd));
 	if (!toolAvailable) {
 		return { findings: [], skipped: true };
 	}
 
-	const config = options?.config ?? "auto";
-	const cwd = options?.cwd ?? process.cwd();
+	const config = options.config ?? "auto";
+	const cwd = options.cwd;
 
 	const args = ["semgrep", "scan", "--sarif", `--config=${config}`];
 
-	if (options?.rulesDir) {
+	if (options.rulesDir) {
 		args.push(`--config=${options.rulesDir}`);
 	}
 
-	if (options?.files && options.files.length > 0) {
+	if (options.files && options.files.length > 0) {
 		args.push(...options.files);
 	}
 

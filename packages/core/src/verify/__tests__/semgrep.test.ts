@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { parseSarif, runSemgrep } from "../semgrep";
 
+// Tests run from the repository; pass it as the explicit root (#290).
+const ROOT = process.cwd();
+
 // ─── parseSarif ────────────────────────────────────────────────────────────
 
 describe("parseSarif", () => {
@@ -189,14 +192,14 @@ describe("parseSarif", () => {
 
 describe("runSemgrep", () => {
 	it("should return skipped when availability is false", async () => {
-		const result = await runSemgrep({ available: false });
+		const result = await runSemgrep({ cwd: ROOT, available: false });
 		expect(result.findings).toEqual([]);
 		expect(result.skipped).toBe(true);
 	});
 
 	it("should return correct result shape", async () => {
 		// Use available: false to avoid running the actual tool in tests
-		const result = await runSemgrep({ available: false });
+		const result = await runSemgrep({ cwd: ROOT, available: false });
 		expect(result).toHaveProperty("findings");
 		expect(result).toHaveProperty("skipped");
 		expect(Array.isArray(result.findings)).toBe(true);

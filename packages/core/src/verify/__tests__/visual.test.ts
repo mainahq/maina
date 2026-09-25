@@ -3,6 +3,9 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { detectWebProject, loadVisualConfig } from "../visual";
 
+// Tests run from the repository; pass it as the explicit root (#290).
+const ROOT = process.cwd();
+
 describe("detectWebProject", () => {
 	const testDir = join(import.meta.dir, "__fixtures__/visual-detect");
 
@@ -105,7 +108,7 @@ describe("captureScreenshot", () => {
 		const result = await captureScreenshot(
 			"http://localhost:9999",
 			"/tmp/test-screenshot.png",
-			{ available: false },
+			{ root: ROOT, available: false },
 		);
 		expect(result.captured).toBe(false);
 		expect(result.skipped).toBe(true);

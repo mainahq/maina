@@ -434,13 +434,14 @@ export function detectCommentedCode(
  */
 export async function detectSlop(
 	files: string[],
-	options?: {
+	options: {
 		cache?: CacheManager;
-		cwd?: string;
+		/** Repository root relative paths resolve against (explicit). */
+		cwd: string;
 	},
 ): Promise<SlopResult> {
-	const cwd = options?.cwd ?? process.cwd();
-	const cache = options?.cache;
+	const cwd = options.cwd;
+	const cache = options.cache;
 
 	// Slop patterns are code patterns: data/docs files (.json, .yml, .md, …)
 	// are skipped so snippets stored in their strings aren't misread (#372)

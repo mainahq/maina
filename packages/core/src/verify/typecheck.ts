@@ -20,6 +20,12 @@ export interface TypecheckResult {
 	skipped: boolean;
 }
 
+/**
+ * Environment for spawned checkers, injected by the caller (for example the
+ * CLI passes its process environment). Core never reads `process.env`.
+ */
+export type SpawnEnv = Readonly<Record<string, string | undefined>>;
+
 interface TypecheckCommand {
 	tool: string;
 	command: string;
@@ -156,16 +162,31 @@ function resolveLocalBin(command: string, dir: string, root: string): string {
 	}
 }
 
+/**
+ * Spawn env for a checker: the injected env with `NO_COLOR` forced on top, or
+ * `undefined` (inherit the parent environment) when none was injected.
+ */
+function withNoColor(env: SpawnEnv | undefined): SpawnEnv | undefined {
+	return env ? { ...env, NO_COLOR: "1" } : undefined;
+}
+
 async function runTscProject(
 	projectDir: string,
 	root: string,
+	env: SpawnEnv | undefined,
 ): Promise<{ findings: Finding[]; ran: boolean }> {
 	const cwd = join(root, projectDir);
 	const command = resolveLocalBin("tsc", cwd, root);
+	const spawnEnv = withNoColor(env);
 	try {
 		const proc = Bun.spawn(
 			[command, "-p", ".", "--noEmit", "--pretty", "false"],
-			{ cwd, stdout: "pipe", stderr: "pipe" },
+			{
+				cwd,
+				stdout: "pipe",
+				stderr: "pipe",
+				...(spawnEnv ? { env: spawnEnv } : {}),
+			},
 		);
 		const output =
 			(await new Response(proc.stdout).text()) +
@@ -185,7 +206,7 @@ async function runTscProject(
 export async function runTypecheck(
 	files: string[],
 	cwd: string,
-	options?: { command?: string; language?: LanguageId },
+	options?: { command?: string; language?: LanguageId; env?: SpawnEnv },
 ): Promise<TypecheckResult> {
 	const language = options?.language ?? "typescript";
 	const cmd = TYPECHECK_COMMANDS[language];
@@ -197,7 +218,7 @@ export async function runTypecheck(
 		const groups = groupFilesByProject(files, cwd, existsSync);
 		if (groups.size > 0) {
 			const runs = await Promise.all(
-				[...groups.keys()].map((dir) => runTscProject(dir, cwd)),
+				[...groups.keys()].map((dir) => runTscProject(dir, cwd, options?.env)),
 			);
 			return {
 				findings: runs.flatMap((r) => r.findings),
@@ -224,11 +245,15 @@ export async function runTypecheck(
 		options?.command ?? (existsSync(localBin) ? localBin : cmd.command);
 
 	try {
+		// With an injected env, force NO_COLOR on top of it; without one the
+		// checker inherits the parent environment and relies on its no-colour
+		// flags (piped output is not a TTY either).
+		const env = withNoColor(options?.env);
 		const proc = Bun.spawn([command, ...cmd.args], {
 			cwd,
 			stdout: "pipe",
 			stderr: "pipe",
-			env: { ...process.env, NO_COLOR: "1" },
+			...(env ? { env } : {}),
 		});
 
 		const stdout = await new Response(proc.stdout).text();
