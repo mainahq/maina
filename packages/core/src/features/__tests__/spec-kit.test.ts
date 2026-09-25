@@ -119,6 +119,30 @@ describe("resolveSpecKitFeature", () => {
 		}
 	});
 
+	test("a timestamp branch matches its spec folder by the full timestamp", () => {
+		const specsDirs = ["20260319-091500-albums", "20260319-143022-sharing"];
+		const result = resolveSpecKitFeature(
+			facts({ branch: "20260319-143022-share-links", specsDirs }),
+		);
+		expect(result).toEqual({
+			ok: true,
+			value: {
+				dir: join(ROOT, "specs", "20260319-143022-sharing"),
+				source: "branch",
+			},
+		});
+	});
+
+	test("a timestamp branch never matches another feature from the same day", () => {
+		const result = resolveSpecKitFeature(
+			facts({
+				branch: "20260319-143022-sharing",
+				specsDirs: ["20260319-091500-albums"],
+			}),
+		);
+		expect(result).toEqual({ ok: true, value: null });
+	});
+
 	test("a branch that names no spec folder has no feature", () => {
 		expect(resolveSpecKitFeature(facts({ branch: "main" }))).toEqual({
 			ok: true,

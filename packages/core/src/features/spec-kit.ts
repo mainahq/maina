@@ -5,10 +5,12 @@
  * `.specify/feature.json`, branch, the `specs/` listing) and this module only
  * decides.
  *
- * The lookup order is Spec Kit's own (`scripts/bash/common.sh`):
+ * The lookup starts with Spec Kit v1's own order (`scripts/bash/common.sh`):
  * `SPECIFY_FEATURE_DIRECTORY`, then `.specify/feature.json`'s
- * `feature_directory`, then the branch (`SPECIFY_FEATURE` or the git branch)
- * matched to a `specs/` folder by name or by its number prefix.
+ * `feature_directory`. Where Spec Kit v1 stops with an error, Maina falls
+ * back to the branch (`SPECIFY_FEATURE` or the git branch) matched to a
+ * `specs/` folder by name or by its prefix: the whole `YYYYMMDD-HHMMSS`
+ * stamp of a timestamp feature, else the sequential number.
  */
 
 import { isAbsolute, join } from "node:path";
@@ -43,6 +45,8 @@ export type SpecKitError =
 	  }>;
 
 const FEATURE_DIR = /^(\d+)-/;
+/** A timestamp feature (`20260319-143022-name`): its prefix is the whole stamp. */
+const TIMESTAMP_DIR = /^(\d{8}-\d{6})-/;
 
 function underRoot(root: string, dir: string): string {
 	return isAbsolute(dir) ? dir : join(root, dir);
@@ -84,7 +88,7 @@ function fromBranch(
 		value: { dir: join(facts.root, "specs", dir), source: "branch" as const },
 	});
 	if (facts.specsDirs.includes(name)) return found(name);
-	const number = name.match(FEATURE_DIR)?.[1];
+	const number = (name.match(TIMESTAMP_DIR) ?? name.match(FEATURE_DIR))?.[1];
 	if (number === undefined) return { ok: true, value: null };
 	const matches = facts.specsDirs.filter((d) => d.startsWith(`${number}-`));
 	const [only] = matches;
