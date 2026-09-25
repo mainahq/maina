@@ -156,6 +156,17 @@ export {
 	decide,
 	defaultDecidePorts,
 } from "./decide/decide";
+// Drift guard (FR-DEC-8)
+export {
+	applyDriftAction,
+	checkDrift,
+	type DriftAction,
+	type DriftBreach,
+	type DriftMetrics,
+	type DriftNotice,
+	type DriftThresholds,
+	driftThresholds,
+} from "./decide/drift";
 // Decision log (append-only, FR-DEC-3/5)
 export {
 	appendDecision,
@@ -206,6 +217,24 @@ export {
 	type OutcomePorts,
 	type OutcomeRecord,
 } from "./decide/outcomes/types";
+// Shadow mode and promotion (FR-DEC-2/8)
+export {
+	evaluatePromotion,
+	type GateResult,
+	type LogSlice,
+	PROMOTION_METRICS,
+	type PromotionEntry,
+	type PromotionGate,
+	type PromotionGates,
+	type PromotionMetrics,
+	type PromotionReport,
+	readLogSlice,
+	SHADOW_ACTION,
+	type ShadowPorts,
+	type ShadowRunInput,
+	type ShadowRunResult,
+	shadowRun,
+} from "./decide/promotion";
 export {
 	type BackendRegistry,
 	createRegistry,
