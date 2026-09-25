@@ -28,6 +28,7 @@ const POISONED = [
 	"MAINA_CLOUD_URL",
 	"MAINA_POSTHOG_API_KEY",
 	"MAINA_DEVICE_FINGERPRINT",
+	"MAINA_POSTHOG_HOST",
 ] as const;
 
 let saved: Record<string, string | undefined> = {};
@@ -172,5 +173,37 @@ describe("posthog-client — key and identity", () => {
 		});
 		client.captureUsage(buildUsageEvent("maina.commit", {}, "1.0.0"));
 		expect(constructed).toBe(0);
+	});
+});
+
+describe("posthog-client — host", () => {
+	function hostSeen(vars: Record<string, string>): string[] {
+		const hosts: string[] = [];
+		const client = createPosthogClient({
+			env: envFromRecord({ MAINA_POSTHOG_API_KEY: "phc_injected", ...vars }),
+			consent: { usage: true, errors: true },
+			createPosthog: (_apiKey, host) => {
+				hosts.push(host);
+				return {
+					capture: () => {},
+					captureException: () => {},
+					shutdown: async () => {},
+				};
+			},
+		});
+		client.captureUsage(buildUsageEvent("maina.commit", {}, "1.0.0"));
+		return hosts;
+	}
+
+	test("the SDK is built for the MAINA_POSTHOG_HOST from the injected env", () => {
+		process.env.MAINA_POSTHOG_HOST = "https://wrong.example";
+		expect(hostSeen({ MAINA_POSTHOG_HOST: "https://ph.test" })).toEqual([
+			"https://ph.test",
+		]);
+	});
+
+	test("falls back to the EU host when the injected env names none", () => {
+		process.env.MAINA_POSTHOG_HOST = "https://wrong.example";
+		expect(hostSeen({})).toEqual(["https://eu.i.posthog.com"]);
 	});
 });
