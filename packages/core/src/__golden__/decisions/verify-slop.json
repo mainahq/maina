@@ -22,16 +22,7 @@
 				"content": "#!/usr/bin/env bun\n/**\n * Receipts index link-integrity guard (#269).\n *\n * Parses `.maina/receipts/index.html`, extracts every per-receipt link\n * (`href=\"./<64-hex>/index.html\"`), and asserts:\n *   1. every linked hash directory exists on disk under `.maina/receipts/`\n *   2. each directory contains both `index.html` and `receipt.json`\n *   3. no link is duplicated\n *   4. the index file itself exists when the receipts directory does\n *\n * Exits 0 on clean, 1 on any failure (prints the offending hashes for\n * grep-to-IDE navigation). The Pages workflow runs this before staging\n * receipts under `dist/` so we never publish a 404 to mainahq.com.\n *\n * Run manually:\n *     bun scripts/check-receipts-index.ts\n *\n * CI wires this in via the docs.yml \"Stage receipts\" step.\n */\n\nimport { existsSync, readFileSync, statSync } from \"node:fs\";\nimport { join } from \"node:path\";\n\nconst RECEIPTS_DIR = \".maina/receipts\";\nconst INDEX_PATH = join(RECEIPTS_DIR, \"index.html\");\nconst HASH_HREF = /href=\"\\.\\/([0-9a-f]{64})\\/index\\.html\"/g;\n\nexport interface CheckResult {\n\tmissingDirs: string[];\n\tmissingHtml: string[];\n\tmissingJson: string[];\n\tduplicateHashes: string[];\n\t/** Total link count seen in the index (including duplicates). Computed\n\t * once during parse so the CLI doesn't have to re-read + re-regex the\n\t * index file just to print the count. */\n\ttotal: number;\n}\n\n/** True when `statSync` reports a directory. Wrapped in try/catch because\n * a TOCTOU race or a permission flip between `existsSync` and `statSync`\n * would otherwise crash the guard with an unstructured throw. */\nfunction isDirectorySafe(dir: string): boolean {\n\ttry {\n\t\treturn statSync(dir).isDirectory();\n\t} catch {\n\t\treturn false;\n\t}\n}\n\nexport function checkReceiptsIndex(\n\tindexPath: string,\n\treceiptsDir: string,\n): CheckResult {\n\tconst result: CheckResult = {\n\t\tmissingDirs: [],\n\t\tmissingHtml: [],\n\t\tmissingJson: [],\n\t\tduplicateHashes: [],\n\t\ttotal: 0,\n\t};\n\n\tconst html = readFileSync(indexPath, \"utf-8\");\n\tconst matches = [...html.matchAll(HASH_HREF)];\n\tconst hashes = matches.map((m) => m[1]).filter((h): h is string => !!h);\n\tresult.total = hashes.length;\n\n\tconst seen = new Set<string>();\n\tfor (const hash of hashes) {\n\t\tif (seen.has(hash)) {\n\t\t\tresult.duplicateHashes.push(hash);\n\t\t\tcontinue;\n\t\t}\n\t\tseen.add(hash);\n\n\t\tconst dir = join(receiptsDir, hash);\n\t\tif (!isDirectorySafe(dir)) {\n\t\t\tresult.missingDirs.push(hash);\n\t\t\tcontinue;\n\t\t}\n\t\tif (!existsSync(join(dir, \"index.html\"))) result.missingHtml.push(hash);\n\t\tif (!existsSync(join(dir, \"receipt.json\"))) result.missingJson.push(hash);\n\t}\n\treturn result;\n}\n\nexport function isClean(r: CheckResult): boolean {\n\treturn (\n\t\tr.missingDirs.length === 0 &&\n\t\tr.missingHtml.length === 0 &&\n\t\tr.missingJson.length === 0 &&\n\t\tr.duplicateHashes.length === 0\n\t);\n}\n\nfunction reportAndExit(r: CheckResult): never {\n\tif (isClean(r)) {\n\t\tprocess.stdout.write(\n\t\t\t`Receipt index integrity: ${r.total} link(s) checked, all resolve.\\n`,\n\t\t);\n\t\tprocess.exit(0);\n\t}\n\tprocess.stderr.write(\"Receipt index integrity FAILED:\\n\");\n\t// Print full hashes so the offending directory is grep-uniquely\n\t// identifiable — short prefixes can collide.\n\tfor (const h of r.missingDirs) {\n\t\tprocess.stderr.write(`  missing directory: ${h}\\n`);\n\t}\n\tfor (const h of r.missingHtml) {\n\t\tprocess.stderr.write(`  missing index.html: ${h}\\n`);\n\t}\n\tfor (const h of r.missingJson) {\n\t\tprocess.stderr.write(`  missing receipt.json: ${h}\\n`);\n\t}\n\tfor (const h of r.duplicateHashes) {\n\t\tprocess.stderr.write(`  duplicate link: ${h}\\n`);\n\t}\n\tprocess.exit(1);\n}\n\nif (import.meta.main) {\n\tif (!existsSync(RECEIPTS_DIR)) {\n\t\t// No receipts directory at all → nothing to check (e.g. fresh\n\t\t// checkout). The docs workflow has its own \"fail if missing\"\n\t\t// guard for the publish path; this script stays advisory here.\n\t\tprocess.stdout.write(\"Receipts directory absent — nothing to check.\\n\");\n\t\tprocess.exit(0);\n\t}\n\tif (!existsSync(INDEX_PATH)) {\n\t\tprocess.stderr.write(\n\t\t\t`Receipts directory exists but ${INDEX_PATH} is missing.\\n`,\n\t\t);\n\t\tprocess.exit(1);\n\t}\n\treportAndExit(checkReceiptsIndex(INDEX_PATH, RECEIPTS_DIR));\n}\n",
 				"existing": []
 			},
-			"output": [
-				{
-					"tool": "slop",
-					"file": "scripts/check-receipts-index.ts",
-					"line": 123,
-					"message": "3 consecutive lines of commented-out code",
-					"severity": "warning",
-					"ruleId": "slop/commented-code"
-				}
-			]
+			"output": []
 		},
 		{
 			"site": "verify/slop.ts",
@@ -69,14 +60,6 @@
 					"message": "Empty function/method body detected",
 					"severity": "warning",
 					"ruleId": "slop/empty-body"
-				},
-				{
-					"tool": "slop",
-					"file": "packages/cli/src/commands/setup-wiki.ts",
-					"line": 131,
-					"message": "3 consecutive lines of commented-out code",
-					"severity": "warning",
-					"ruleId": "slop/commented-code"
 				}
 			]
 		},
@@ -221,16 +204,7 @@
 				"content": "/**\n * `maina sync push` — Upload local prompts to maina cloud.\n * `maina sync pull` — Download team prompts from maina cloud.\n */\n\nimport { createHash } from \"node:crypto\";\nimport {\n\texistsSync,\n\tmkdirSync,\n\treaddirSync,\n\treadFileSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { join } from \"node:path\";\nimport { intro, log, outro, spinner } from \"@clack/prompts\";\nimport type { PromptRecord } from \"@mainahq/core\";\nimport { createCloudClient, loadAuthConfig } from \"@mainahq/core\";\nimport { Command } from \"commander\";\n\n// ── Constants ───────────────────────────────────────────────────────────────\n\nconst DEFAULT_CLOUD_URL =\n\tprocess.env.MAINA_CLOUD_URL ?? \"https://api.mainahq.com\";\n\n// ── Helpers ─────────────────────────────────────────────────────────────────\n\nfunction hashContent(content: string): string {\n\treturn createHash(\"sha256\").update(content).digest(\"hex\");\n}\n\nfunction loadLocalPrompts(promptsDir: string): PromptRecord[] {\n\tif (!existsSync(promptsDir)) {\n\t\treturn [];\n\t}\n\n\tconst files = readdirSync(promptsDir).filter((f) => f.endsWith(\".md\"));\n\treturn files.map((file) => {\n\t\tconst filePath = join(promptsDir, file);\n\t\tconst content = readFileSync(filePath, \"utf-8\");\n\t\treturn {\n\t\t\tid: file.replace(/\\.md$/, \"\"),\n\t\t\tname: file.replace(/\\.md$/, \"\"),\n\t\t\tpath: file,\n\t\t\tcontent,\n\t\t\thash: hashContent(content),\n\t\t\tupdatedAt: new Date().toISOString(),\n\t\t};\n\t});\n}\n\n// ── Push Action ─────────────────────────────────────────────────────────────\n\nexport interface SyncActionResult {\n\tsynced: boolean;\n\tcount: number;\n\treason?: string;\n}\n\nexport async function syncPushAction(cwd?: string): Promise<SyncActionResult> {\n\tconst root = cwd ?? process.cwd();\n\tconst promptsDir = join(root, \".maina\", \"prompts\");\n\n\tconst authResult = loadAuthConfig();\n\tif (!authResult.ok) {\n\t\treturn { synced: false, count: 0, reason: authResult.error };\n\t}\n\n\tconst prompts = loadLocalPrompts(promptsDir);\n\tif (prompts.length === 0) {\n\t\treturn {\n\t\t\tsynced: false,\n\t\t\tcount: 0,\n\t\t\treason: \"No prompts found in .maina/prompts/\",\n\t\t};\n\t}\n\n\tconst client = createCloudClient({\n\t\tbaseUrl: DEFAULT_CLOUD_URL,\n\t\ttoken: authResult.value.accessToken,\n\t});\n\n\tconst result = await client.putPrompts(prompts);\n\tif (!result.ok) {\n\t\tconst errMsg =\n\t\t\ttypeof result.error === \"string\"\n\t\t\t\t? result.error\n\t\t\t\t: JSON.stringify(result.error);\n\t\treturn { synced: false, count: 0, reason: errMsg };\n\t}\n\n\treturn { synced: true, count: prompts.length };\n}\n\n// ── Pull Action ─────────────────────────────────────────────────────────────\n\nexport async function syncPullAction(cwd?: string): Promise<SyncActionResult> {\n\tconst root = cwd ?? process.cwd();\n\tconst promptsDir = join(root, \".maina\", \"prompts\");\n\n\tconst authResult = loadAuthConfig();\n\tif (!authResult.ok) {\n\t\treturn { synced: false, count: 0, reason: authResult.error };\n\t}\n\n\tconst client = createCloudClient({\n\t\tbaseUrl: DEFAULT_CLOUD_URL,\n\t\ttoken: authResult.value.accessToken,\n\t});\n\n\tconst result = await client.getPrompts();\n\tif (!result.ok) {\n\t\tconst errMsg =\n\t\t\ttypeof result.error === \"string\"\n\t\t\t\t? result.error\n\t\t\t\t: JSON.stringify(result.error);\n\t\treturn { synced: false, count: 0, reason: errMsg };\n\t}\n\n\tconst prompts = result.value ?? [];\n\tif (prompts.length === 0) {\n\t\treturn {\n\t\t\tsynced: true,\n\t\t\tcount: 0,\n\t\t\treason: \"No team prompts yet.\",\n\t\t};\n\t}\n\n\ttry {\n\t\tmkdirSync(promptsDir, { recursive: true });\n\t} catch (e) {\n\t\treturn {\n\t\t\tsynced: false,\n\t\t\tcount: 0,\n\t\t\treason: `Could not create ${promptsDir}: ${e instanceof Error ? e.message : String(e)}`,\n\t\t};\n\t}\n\n\tlet written = 0;\n\tconst skipped: string[] = [];\n\n\tfor (const prompt of prompts) {\n\t\t// Defensive: a malformed server payload (missing path/content) used to\n\t\t// throw out of the loop and leave `@clack/prompts`' spinner monitor to\n\t\t// print a generic \"Something went wrong\" (see #196).\n\t\tif (typeof prompt?.path !== \"string\" || prompt.path.length === 0) {\n\t\t\tskipped.push(`<unknown id=${String(prompt?.id ?? \"?\")}>`);\n\t\t\tcontinue;\n\t\t}\n\t\tif (typeof prompt.content !== \"string\") {\n\t\t\tskipped.push(prompt.path);\n\t\t\tcontinue;\n\t\t}\n\n\t\ttry {\n\t\t\tconst filePath = join(promptsDir, prompt.path);\n\t\t\twriteFileSync(filePath, prompt.content, \"utf-8\");\n\t\t\twritten++;\n\t\t} catch (e) {\n\t\t\tskipped.push(\n\t\t\t\t`${prompt.path} (${e instanceof Error ? e.message : String(e)})`,\n\t\t\t);\n\t\t}\n\t}\n\n\tif (written === 0 && skipped.length > 0) {\n\t\treturn {\n\t\t\tsynced: false,\n\t\t\tcount: 0,\n\t\t\treason: `All ${skipped.length} prompt(s) skipped: ${skipped.join(\", \")}`,\n\t\t};\n\t}\n\n\treturn {\n\t\tsynced: true,\n\t\tcount: written,\n\t\treason:\n\t\t\tskipped.length > 0\n\t\t\t\t? `Skipped ${skipped.length}: ${skipped.join(\", \")}`\n\t\t\t\t: undefined,\n\t};\n}\n\n// ── Commander Command ───────────────────────────────────────────────────────\n\nexport function syncCommand(): Command {\n\tconst cmd = new Command(\"sync\").description(\"Sync prompts with maina cloud\");\n\n\tcmd\n\t\t.command(\"push\")\n\t\t.description(\"Upload local prompts to the cloud\")\n\t\t.action(async () => {\n\t\t\tintro(\"maina sync push\");\n\n\t\t\tconst s = spinner();\n\t\t\ts.start(\"Uploading prompts...\");\n\n\t\t\tconst result = await syncPushAction();\n\n\t\t\tif (result.synced) {\n\t\t\t\ts.stop(\"Done\");\n\t\t\t\tlog.success(`Pushed ${result.count} prompt(s) to cloud.`);\n\t\t\t\toutro(\"Sync complete.\");\n\t\t\t} else {\n\t\t\t\ts.stop(\"Failed\");\n\t\t\t\tlog.error(\n\t\t\t\t\ttypeof result.reason === \"string\"\n\t\t\t\t\t\t? result.reason\n\t\t\t\t\t\t: String(result.reason ?? \"Unknown error\"),\n\t\t\t\t);\n\t\t\t\toutro(\"Sync failed.\");\n\t\t\t}\n\t\t});\n\n\tcmd\n\t\t.command(\"pull\")\n\t\t.description(\"Download team prompts from the cloud\")\n\t\t.action(async () => {\n\t\t\tintro(\"maina sync pull\");\n\n\t\t\tconst s = spinner();\n\t\t\ts.start(\"Downloading prompts...\");\n\n\t\t\tconst result = await syncPullAction();\n\n\t\t\tif (result.synced) {\n\t\t\t\ts.stop(\"Done\");\n\t\t\t\tif (result.count === 0 && result.reason) {\n\t\t\t\t\t// Empty team — show the friendly message instead of \"Pulled 0\".\n\t\t\t\t\tlog.info(result.reason);\n\t\t\t\t} else {\n\t\t\t\t\tlog.success(`Pulled ${result.count} prompt(s) from cloud.`);\n\t\t\t\t\tif (result.reason) {\n\t\t\t\t\t\t// Partial success: some records were malformed and skipped.\n\t\t\t\t\t\tlog.warning(result.reason);\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\toutro(\"Sync complete.\");\n\t\t\t} else {\n\t\t\t\ts.stop(\"Failed\");\n\t\t\t\tlog.error(\n\t\t\t\t\ttypeof result.reason === \"string\"\n\t\t\t\t\t\t? result.reason\n\t\t\t\t\t\t: String(result.reason ?? \"Unknown error\"),\n\t\t\t\t);\n\t\t\t\toutro(\"Sync failed.\");\n\t\t\t}\n\t\t});\n\n\treturn cmd;\n}\n",
 				"existing": []
 			},
-			"output": [
-				{
-					"tool": "slop",
-					"file": "packages/cli/src/commands/sync.ts",
-					"line": 142,
-					"message": "3 consecutive lines of commented-out code",
-					"severity": "warning",
-					"ruleId": "slop/commented-code"
-				}
-			]
+			"output": []
 		},
 		{
 			"site": "verify/slop.ts",
@@ -344,16 +318,7 @@
 					}
 				]
 			},
-			"output": [
-				{
-					"tool": "slop",
-					"file": "packages/cli/src/index.ts",
-					"line": 53,
-					"message": "3 consecutive lines of commented-out code",
-					"severity": "warning",
-					"ruleId": "slop/commented-code"
-				}
-			]
+			"output": []
 		},
 		{
 			"site": "verify/slop.ts",
@@ -549,16 +514,7 @@
 					}
 				]
 			},
-			"output": [
-				{
-					"tool": "slop",
-					"file": "packages/cli/src/program.ts",
-					"line": 177,
-					"message": "3 consecutive lines of commented-out code",
-					"severity": "warning",
-					"ruleId": "slop/commented-code"
-				}
-			]
+			"output": []
 		},
 		{
 			"site": "verify/slop.ts",
@@ -610,16 +566,7 @@
 				"content": "import { existsSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\n\nexport interface MainaConfig {\n\tmodels: {\n\t\tmechanical: string;\n\t\tstandard: string;\n\t\tarchitectural: string;\n\t\tlocal: string;\n\t};\n\tprovider: string;\n\tbudget: {\n\t\tdaily: number;\n\t\tperTask: number;\n\t\talertAt: number;\n\t};\n\tapiKey?: string;\n}\n\nconst DEFAULT_CONFIG: MainaConfig = {\n\t// Defaults lock to the current-generation Claude 4.X family (April 2026):\n\t// - mechanical → Haiku 4.5 (cheap + fast, same-provider as the other tiers\n\t//   so one key covers every call; replaces Gemini 2.5 Flash as the cheap\n\t//   default — Gemini can still be set per-tier via `maina.config.ts`).\n\t// - standard → Sonnet 4.6 (replaces Sonnet 4 from May 2025).\n\t// - architectural → Opus 4.7 (actual top tier, not a clone of standard).\n\t//   The earlier default aliased architectural to the same Sonnet 4 as\n\t//   standard, which silently downgraded `maina design-review`, `learn`,\n\t//   and architecture work to a mid-tier model.\n\tmodels: {\n\t\tmechanical: \"anthropic/claude-haiku-4-5\",\n\t\tstandard: \"anthropic/claude-sonnet-4-6\",\n\t\tarchitectural: \"anthropic/claude-opus-4-7\",\n\t\tlocal: \"ollama/qwen3-coder-8b\",\n\t},\n\tprovider: \"openrouter\",\n\tbudget: {\n\t\tdaily: 5.0,\n\t\tperTask: 0.5,\n\t\talertAt: 0.8,\n\t},\n};\n\n/**\n * Returns a deep copy of the default config so callers cannot mutate the\n * internal defaults.\n */\nexport function getDefaultConfig(): MainaConfig {\n\treturn {\n\t\t...DEFAULT_CONFIG,\n\t\tmodels: { ...DEFAULT_CONFIG.models },\n\t\tbudget: { ...DEFAULT_CONFIG.budget },\n\t};\n}\n\n/**\n * Walks up the directory tree starting at `startDir` (defaults to\n * process.cwd()) looking for `maina.config.ts` then `maina.config.js`.\n * Returns the absolute path of the first match, or null if none found.\n */\nexport function findConfigFile(startDir?: string): string | null {\n\tlet dir = startDir ?? process.cwd();\n\tconst names = [\"maina.config.ts\", \"maina.config.js\"];\n\n\twhile (true) {\n\t\tfor (const name of names) {\n\t\t\tconst candidate = join(dir, name);\n\t\t\tif (existsSync(candidate)) {\n\t\t\t\treturn candidate;\n\t\t\t}\n\t\t}\n\n\t\tconst parent = dirname(dir);\n\t\t// Reached filesystem root — stop\n\t\tif (parent === dir) {\n\t\t\treturn null;\n\t\t}\n\t\tdir = parent;\n\t}\n}\n\n/**\n * Finds and dynamically imports the maina config file, then deep-merges it\n * with the defaults.  Falls back to defaults silently on any error.\n */\nexport async function loadConfig(startDir?: string): Promise<MainaConfig> {\n\tconst configPath = findConfigFile(startDir);\n\n\tif (configPath === null) {\n\t\treturn getDefaultConfig();\n\t}\n\n\ttry {\n\t\tconst mod = await import(configPath);\n\t\tconst userConfig: Partial<MainaConfig> = mod.default ?? mod;\n\t\treturn { ...DEFAULT_CONFIG, ...userConfig };\n\t} catch {\n\t\treturn getDefaultConfig();\n\t}\n}\n\n/**\n * Returns the API key from environment variables, preferring MAINA_API_KEY\n * over OPENROUTER_API_KEY.  When MAINA_HOST_MODE is set, also checks for\n * ANTHROPIC_API_KEY (set by Claude Code and similar host agents).\n * Returns null when no key is found.\n */\nexport function getApiKey(): string | null {\n\treturn (\n\t\tprocess.env.MAINA_API_KEY ??\n\t\tprocess.env.OPENROUTER_API_KEY ??\n\t\tprocess.env.ANTHROPIC_API_KEY ??\n\t\tnull\n\t);\n}\n\n/**\n * Resolves the active provider, allowing the MAINA_PROVIDER environment\n * variable to override whatever is in the config.\n *\n * When running in host mode (MAINA_HOST_MODE=true or ANTHROPIC_API_KEY is set\n * without explicit provider), auto-detects the appropriate provider:\n * - ANTHROPIC_API_KEY → \"anthropic\"\n * - Otherwise → config default\n */\nexport function resolveProvider(config: MainaConfig): string {\n\t// Explicit override always wins\n\tif (process.env.MAINA_PROVIDER) {\n\t\treturn process.env.MAINA_PROVIDER;\n\t}\n\n\t// Host mode auto-detection: if running inside Claude Code or similar,\n\t// ANTHROPIC_API_KEY is available but no explicit Maina key\n\tif (isHostMode()) {\n\t\tif (\n\t\t\tprocess.env.ANTHROPIC_API_KEY &&\n\t\t\t!process.env.MAINA_API_KEY &&\n\t\t\t!process.env.OPENROUTER_API_KEY\n\t\t) {\n\t\t\treturn \"anthropic\";\n\t\t}\n\t}\n\n\treturn config.provider;\n}\n\n/**\n * Detect if Maina is running inside a host agent environment\n * (e.g., Claude Code, Cursor, Codex).\n *\n * Checks for:\n * - MAINA_HOST_MODE=true (explicit opt-in)\n * - CLAUDECODE=1 (Claude Code sets this — note: no underscore)\n * - CLAUDE_CODE_ENTRYPOINT (Claude Code sets this to \"cli\")\n * - CURSOR=1 (Cursor sets this)\n * - ANTHROPIC_API_KEY without MAINA_API_KEY\n */\nexport function isHostMode(): boolean {\n\tif (process.env.MAINA_HOST_MODE === \"true\") return true;\n\t// Claude Code sets CLAUDECODE=1 (no underscore) and CLAUDE_CODE_ENTRYPOINT\n\tif (process.env.CLAUDECODE === \"1\") return true;\n\tif (process.env.CLAUDE_CODE_ENTRYPOINT) return true;\n\tif (process.env.CURSOR === \"1\") return true;\n\t// Infer host mode when we have an Anthropic key but no explicit Maina config\n\tif (\n\t\tprocess.env.ANTHROPIC_API_KEY &&\n\t\t!process.env.MAINA_API_KEY &&\n\t\t!process.env.OPENROUTER_API_KEY\n\t) {\n\t\treturn true;\n\t}\n\treturn false;\n}\n\n/**\n * When running inside a host agent (Claude Code, Cursor), AI calls should\n * be delegated to the host rather than making direct API calls.\n *\n * Returns structured prompt data that the host agent can process.\n * The MCP server or skills package uses this to pass context to the host.\n *\n * NOTE: Currently unused — retained for MCP/skills host delegation (Sprint 10+).\n */\nexport interface HostDelegation {\n\tmode: \"host\";\n\tsystemPrompt: string;\n\tuserPrompt: string;\n\ttask: string;\n}\n\n/**\n * Check if AI should be delegated to host instead of direct API call.\n *\n * NOTE: In practice this currently returns true only when MAINA_HOST_MODE=true\n * is set explicitly with no API keys. The common Claude Code scenario\n * (CLAUDECODE=1 without API keys) triggers isHostMode() but also triggers\n * this function's delegation. The generate() function handles this by\n * returning a [HOST_DELEGATION] prompt string.\n */\nexport function shouldDelegateToHost(): boolean {\n\tif (!isHostMode()) return false;\n\t// If user has their own API key, use it directly\n\tif (process.env.MAINA_API_KEY || process.env.OPENROUTER_API_KEY) return false;\n\tif (process.env.ANTHROPIC_API_KEY) return false;\n\t// In host mode with no key — delegate to host agent\n\treturn true;\n}\n",
 				"existing": []
 			},
-			"output": [
-				{
-					"tool": "slop",
-					"file": "packages/core/src/config/index.ts",
-					"line": 21,
-					"message": "6 consecutive lines of commented-out code",
-					"severity": "warning",
-					"ruleId": "slop/commented-code"
-				}
-			]
+			"output": []
 		},
 		{
 			"site": "verify/slop.ts",
@@ -668,16 +615,7 @@
 					}
 				]
 			},
-			"output": [
-				{
-					"tool": "slop",
-					"file": "packages/core/src/mcp/index.ts",
-					"line": 137,
-					"message": "3 consecutive lines of commented-out code",
-					"severity": "warning",
-					"ruleId": "slop/commented-code"
-				}
-			]
+			"output": []
 		},
 		{
 			"site": "verify/slop.ts",
@@ -727,16 +665,7 @@
 					}
 				]
 			},
-			"output": [
-				{
-					"tool": "slop",
-					"file": "packages/core/src/setup/confirm.ts",
-					"line": 269,
-					"message": "4 consecutive lines of commented-out code",
-					"severity": "warning",
-					"ruleId": "slop/commented-code"
-				}
-			]
+			"output": []
 		},
 		{
 			"site": "verify/slop.ts",
@@ -772,16 +701,7 @@
 				"content": "/**\n * Verify Ignore — default file/directory exclusions for the verify pipeline.\n *\n * Bundled artifacts (dist/, build/, *.min.js, ncc/esbuild/rollup output)\n * are not source code; running pattern-based slop detection on a minified\n * bundle produces tens of thousands of false positives (#207). These are\n * filtered out before any verify tool sees the file list.\n *\n * Project-local extras live in `.maina/ignore`, one pattern per line, `#` for\n * comments. The matcher is a deliberately small subset of `.gitignore` — see\n * the comment on `matchesPattern` for the exact supported syntax and the\n * features that are NOT implemented (negation, `**`, character classes).\n */\n\nimport { existsSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\n\n// ─── Patterns ─────────────────────────────────────────────────────────────\n\n/**\n * Directory names whose contents are always skipped. Matched as path segments\n * — `dist/index.js` is ignored, but `distribute/foo.ts` is not.\n */\nexport const DEFAULT_IGNORE_DIRS: readonly string[] = [\n\t\"node_modules\",\n\t\"dist\",\n\t\"build\",\n\t\"out\",\n\t\".next\",\n\t\".nuxt\",\n\t\".svelte-kit\",\n\t\".turbo\",\n\t\".vercel\",\n\t\".netlify\",\n\t\".output\",\n\t\".cache\",\n\t\"coverage\",\n\t\"target\", // Rust/Java\n\t\"vendor\", // Go/PHP\n\t\".venv\",\n\t\"__pycache__\",\n\t\".pytest_cache\",\n\t\".tox\",\n\t\".mypy_cache\",\n\t\".gradle\",\n\t\".idea\",\n\t\".vscode-test\",\n];\n\n/**\n * Filename suffix patterns that mark bundled or minified output.\n * Suffix-only is enough to catch the common ncc/esbuild/rollup/webpack\n * outputs without inspecting file contents.\n */\nexport const DEFAULT_IGNORE_SUFFIXES: readonly string[] = [\n\t\".min.js\",\n\t\".min.css\",\n\t\".min.mjs\",\n\t\".min.cjs\",\n\t\".bundle.js\",\n\t\".bundle.mjs\",\n\t\".bundle.cjs\",\n\t\"-bundle.js\",\n\t\".chunk.js\",\n\t\".d.ts\", // declaration files — not user source\n\t\".map\", // source maps\n];\n\n// ─── Path Helpers ─────────────────────────────────────────────────────────\n\n/**\n * Normalize a path to forward slashes so the same pattern works on Windows.\n */\nfunction normalize(p: string): string {\n\treturn p.replace(/\\\\/g, \"/\");\n}\n\nfunction pathSegments(p: string): string[] {\n\treturn normalize(p)\n\t\t.split(\"/\")\n\t\t.filter((s) => s.length > 0);\n}\n\n// ─── Core Predicate ────────────────────────────────────────────────────────\n\n/**\n * Returns true when the file should be excluded from verify.\n *\n * Checks (in order):\n *   1. Path segments against `DEFAULT_IGNORE_DIRS` plus any `extraDirs`.\n *   2. Filename suffix against `DEFAULT_IGNORE_SUFFIXES`.\n *   3. Each pattern in `extraPatterns` evaluated with the matcher described\n *      on `matchesPattern` (small `.gitignore` subset; not a full\n *      implementation).\n */\nexport function isIgnored(\n\tfile: string,\n\toptions?: {\n\t\textraDirs?: readonly string[];\n\t\textraPatterns?: readonly string[];\n\t},\n): boolean {\n\tconst norm = normalize(file);\n\tconst segments = pathSegments(norm);\n\tconst lower = norm.toLowerCase();\n\n\tconst dirSet = new Set<string>([\n\t\t...DEFAULT_IGNORE_DIRS,\n\t\t...(options?.extraDirs ?? []),\n\t]);\n\tfor (const seg of segments) {\n\t\tif (dirSet.has(seg)) return true;\n\t}\n\n\tfor (const suffix of DEFAULT_IGNORE_SUFFIXES) {\n\t\tif (lower.endsWith(suffix)) return true;\n\t}\n\n\tfor (const pattern of options?.extraPatterns ?? []) {\n\t\tif (matchesPattern(norm, pattern)) return true;\n\t}\n\n\treturn false;\n}\n\n/**\n * Pattern matcher for `.maina/ignore`. This is a deliberately small subset\n * of `.gitignore` — enough for the hand-written project-local extras we\n * expect (block a fixture dir, ignore a `*.snap` suffix) without pulling in\n * `ignore` or `micromatch`.\n *\n * Supported (with the same semantics gitignore uses):\n *\n *   - `foo/`           — directory; matches any path with `foo` as a segment.\n *   - `foo`            — bare name; matches `foo` as a segment (file or dir).\n *   - `/foo`           — anchored to the repo root; only matches `foo` and\n *                        files inside `foo/`.\n *   - `*.snap`         — suffix glob; the leading `*` matches any chars\n *                        (including none) inside one path segment.\n *   - `dir/*.js`       — directory + suffix glob; `*` matches within a\n *                        single segment, so `dir/a.js` matches but\n *                        `dir/sub/a.js` does NOT.\n *\n * Explicitly NOT supported (so we don't surprise users who reach for them):\n *\n *   - `**` recursive globs            (use a directory pattern instead)\n *   - `!pattern` negation             (no allow-listing)\n *   - `[a-z]` character classes\n *   - `?` single-char wildcards\n *   - Patterns with more than one `*`\n *   - Mid-segment matching of bare names other than via `*.suffix`\n */\nfunction matchesPattern(norm: string, raw: string): boolean {\n\tconst pattern = raw.trim();\n\tif (pattern.length === 0 || pattern.startsWith(\"#\")) return false;\n\n\tconst anchored = pattern.startsWith(\"/\");\n\tlet body = anchored ? pattern.slice(1) : pattern;\n\n\t// Trailing slash → directory match (gitignore convention).\n\tconst isDirOnly = body.endsWith(\"/\");\n\tif (isDirOnly) body = body.slice(0, -1);\n\n\t// Pure suffix glob, e.g. *.snap — `*` matches within a single segment.\n\tif (body.startsWith(\"*.\")) {\n\t\tconst suffix = body.slice(1).toLowerCase();\n\t\tconst lower = norm.toLowerCase();\n\t\tif (!lower.endsWith(suffix)) return false;\n\t\t// Ensure the `*` did not span a `/` — final segment must contain\n\t\t// the entire match.\n\t\tconst segStart = lower.lastIndexOf(\"/\") + 1;\n\t\treturn lower.indexOf(suffix, segStart) !== -1;\n\t}\n\n\t// `dir/*.js` style — directory prefix + single-segment suffix glob.\n\t// The `*` must NOT cross a `/`, so `dir/*.js` matches `dir/a.js` but not\n\t// `dir/sub/a.js`. Patterns with more than one `*` are unsupported.\n\tconst starIdx = body.indexOf(\"*\");\n\tif (starIdx !== -1) {\n\t\tif (body.indexOf(\"*\", starIdx + 1) !== -1) return false;\n\t\tconst prefix = body.slice(0, starIdx);\n\t\tconst suffix = body.slice(starIdx + 1);\n\t\tconst tryMatch = (hay: string, hayStart: number) => {\n\t\t\tif (!hay.startsWith(prefix, hayStart)) return false;\n\t\t\tconst tailStart = hayStart + prefix.length;\n\t\t\tif (!hay.endsWith(suffix)) return false;\n\t\t\tconst tailEnd = hay.length - suffix.length;\n\t\t\tif (tailEnd < tailStart) return false;\n\t\t\t// The wildcard span must not include a path separator.\n\t\t\treturn (\n\t\t\t\thay.indexOf(\"/\", tailStart) === -1 ||\n\t\t\t\thay.indexOf(\"/\", tailStart) >= tailEnd\n\t\t\t);\n\t\t};\n\t\tif (anchored) return tryMatch(norm, 0);\n\t\t// Non-anchored: try every segment boundary as the prefix start.\n\t\tif (tryMatch(norm, 0)) return true;\n\t\tfor (let i = 0; i < norm.length; i++) {\n\t\t\tif (norm[i] === \"/\" && tryMatch(norm, i + 1)) return true;\n\t\t}\n\t\treturn false;\n\t}\n\n\t// Bare name or `dir/` — match the segment anywhere in the path (for\n\t// non-anchored patterns) or only at the path root (anchored). A\n\t// trailing-slash pattern (`dir/`) requires the name to appear as a\n\t// directory segment, never as a bare file basename.\n\tif (anchored) {\n\t\tif (isDirOnly) return norm.startsWith(`${body}/`);\n\t\treturn norm === body || norm.startsWith(`${body}/`);\n\t}\n\tif (!isDirOnly && norm === body) return true;\n\tif (norm.startsWith(`${body}/`)) return true;\n\tif (norm.includes(`/${body}/`)) return true;\n\tif (!isDirOnly && norm.endsWith(`/${body}`)) return true;\n\treturn false;\n}\n\n// ─── File Filter ───────────────────────────────────────────────────────────\n\nexport interface FilterIgnoredResult {\n\tkept: string[];\n\tignored: string[];\n}\n\n/**\n * Filter a list of file paths, removing ignored ones.\n *\n * Reads optional patterns from `<cwd>/.maina/ignore` (one pattern per line,\n * `#` comments) and merges them with the built-in defaults. The pattern\n * syntax is the small `.gitignore` subset documented on `matchesPattern`,\n * not full gitignore. Missing or unreadable files are silently treated as\n * empty.\n */\nexport function filterIgnoredFiles(\n\tfiles: readonly string[],\n\tcwd?: string,\n): FilterIgnoredResult {\n\tconst extras = loadMainaIgnore(cwd ?? process.cwd());\n\tconst kept: string[] = [];\n\tconst ignored: string[] = [];\n\tfor (const file of files) {\n\t\tif (isIgnored(file, { extraPatterns: extras })) {\n\t\t\tignored.push(file);\n\t\t} else {\n\t\t\tkept.push(file);\n\t\t}\n\t}\n\treturn { kept, ignored };\n}\n\n/**\n * Read `.maina/ignore` if present. Returns the list of non-comment,\n * non-empty pattern lines.\n */\nexport function loadMainaIgnore(cwd: string): string[] {\n\tconst path = join(cwd, \".maina\", \"ignore\");\n\tif (!existsSync(path)) return [];\n\tlet raw: string;\n\ttry {\n\t\traw = readFileSync(path, \"utf-8\");\n\t} catch {\n\t\treturn [];\n\t}\n\treturn raw\n\t\t.split(/\\r?\\n/)\n\t\t.map((line) => line.trim())\n\t\t.filter((line) => line.length > 0 && !line.startsWith(\"#\"));\n}\n",
 				"existing": []
 			},
-			"output": [
-				{
-					"tool": "slop",
-					"file": "packages/core/src/verify/ignore.ts",
-					"line": 204,
-					"message": "3 consecutive lines of commented-out code",
-					"severity": "warning",
-					"ruleId": "slop/commented-code"
-				}
-			]
+			"output": []
 		},
 		{
 			"site": "verify/slop.ts",

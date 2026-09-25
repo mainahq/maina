@@ -52,6 +52,15 @@ interface CommitActionResult {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Header shape accepted by `@commitlint/config-conventional` (the repo's
+ * commitlint preset): its full `type-enum`, an optional scope, an optional
+ * `!` breaking marker. Must not be stricter than commitlint, or the soft
+ * warning fires on messages the commit-msg hook accepts (#394).
+ */
+const CONVENTIONAL_HEADER =
+	/^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^()\r\n]+\))?!?: .+/;
+
 function formatFindings(
 	findings: Array<{
 		file: string;
@@ -396,9 +405,7 @@ export async function commitAction(
 
 	// ── Step 5: Validate commit message format ───────────────────────────
 	if (!options.noVerify) {
-		const commitMsgPattern =
-			/^(feat|fix|refactor|test|docs|chore|ci|perf)(\([a-z0-9-]+\))?!?: .+/;
-		if (!commitMsgPattern.test(message) && !options.json) {
+		if (!CONVENTIONAL_HEADER.test(message) && !options.json) {
 			log.warning(
 				"Commit message does not follow conventional format: <type>(<scope>): <description>",
 			);

@@ -218,6 +218,84 @@ function double(n: number): number {
 			const findings = detectCommentedCode(content, "src/app.ts");
 			expect(findings.length).toBe(0);
 		});
+
+		it("should still detect commented-out code without semicolons", () => {
+			const content = `// if (user.isAdmin) {
+//   grantAccess(user)
+//   audit.log("granted", user.id)
+// }
+export const x = 1;`;
+			const findings = detectCommentedCode(content, "src/app.ts");
+			expect(findings.length).toBe(1);
+			expect(findings[0]?.line).toBe(1);
+		});
+
+		// Review on #394: keywords are not prose words, so keyword-dense
+		// code without statement terminators is still caught.
+		it.each([
+			[
+				"control flow",
+				`// for (const item of items)
+//   if (item) return item
+//   else if (fallback) return other`,
+			],
+			[
+				"type casts",
+				`// const foo = bar as unknown as Baz
+// const qux = foo as unknown as Quux
+// return foo satisfies Baz as Q`,
+			],
+			[
+				"type-only imports",
+				`// import type Foo from "./foo"
+// import type Bar from "./bar"
+// import type Baz from "./baz"`,
+			],
+			[
+				"class declarations",
+				`// export default class Foo extends Bar
+// export class Qux extends Base implements Thing
+// export const y = z as unknown as Z`,
+			],
+		])("should still detect keyword-dense commented-out code (%s)", (_label, code) => {
+			const content = `${code}\nexport const x = 1;`;
+			const findings = detectCommentedCode(content, "src/app.ts");
+			expect(findings.length).toBe(1);
+			expect(findings[0]?.line).toBe(1);
+		});
+
+		// #394: prose explanations that happen to contain parentheses,
+		// backtick code spans or keywords are not commented-out code.
+		it.each([
+			[
+				"parenthetical asides",
+				`		// No receipts directory at all → nothing to check (e.g. fresh
+		// checkout). The docs workflow has its own "fail if missing"
+		// guard for the publish path; this script stays advisory here.`,
+			],
+			[
+				"backtick code spans",
+				`	// Commander does not expose a public \`.hidden()\` method but respects
+	// the internal \`_hidden\` flag when rendering \`helpInformation()\`.
+	// Setting it keeps the command callable while removing it from the`,
+			],
+			[
+				"issue references and quoted output",
+				`		// Defensive: a malformed server payload (missing path/content) used to
+		// throw out of the loop and leave \`@clack/prompts\`' spinner monitor to
+		// print a generic "Something went wrong" (see #196).`,
+			],
+			[
+				"sentences that start with keywords",
+				`	// If the file is missing, return an Err so the caller decides;
+	// for a stale cache (older than one day) we fall back to the
+	// default config (which is always safe to load).`,
+			],
+		])("should not flag prose comment blocks with %s", (_label, prose) => {
+			const content = `function f() {\n${prose}\n\treturn 1;\n}\n`;
+			const findings = detectCommentedCode(content, "src/app.ts");
+			expect(findings).toEqual([]);
+		});
 	});
 
 	// ─── Cache integration ───────────────────────────────────────────────────

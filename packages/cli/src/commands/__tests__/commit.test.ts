@@ -124,6 +124,7 @@ mock.module("@mainahq/core", () => ({
 }));
 
 let loggedErrors: string[] = [];
+let loggedWarnings: string[] = [];
 
 mock.module("@clack/prompts", () => ({
 	intro: () => {},
@@ -133,7 +134,9 @@ mock.module("@clack/prompts", () => ({
 		error: (msg: string) => {
 			loggedErrors.push(msg);
 		},
-		warning: () => {},
+		warning: (msg: string) => {
+			loggedWarnings.push(msg);
+		},
 		success: () => {},
 		message: () => {},
 		step: () => {},
@@ -195,6 +198,7 @@ beforeEach(() => {
 	mockGitCommitStderr = "";
 	recordedOutcomes = [];
 	loggedErrors = [];
+	loggedWarnings = [];
 });
 
 afterEach(() => {
@@ -204,6 +208,35 @@ afterEach(() => {
 	} catch {
 		// ignore
 	}
+});
+
+// ── Conventional-format warning (#394) ─────────────────────────────────────
+
+describe("commit message format warning", () => {
+	const FORMAT_WARNING =
+		"Commit message does not follow conventional format: <type>(<scope>): <description>";
+
+	test.each([
+		"build: ship compiled JS and a single version source (#294)",
+		"style: reformat with biome",
+		"revert: undo the launcher change",
+		"build(cli)!: drop the node 18 bin",
+	])("does not warn on commitlint-accepted header %p", async (message) => {
+		const result = await commitAction({ message, cwd: tmpDir }, mockDeps);
+
+		expect(result.committed).toBe(true);
+		expect(loggedWarnings).not.toContain(FORMAT_WARNING);
+	});
+
+	test("still warns on a non-conventional message", async () => {
+		const result = await commitAction(
+			{ message: "updated some stuff", cwd: tmpDir },
+			mockDeps,
+		);
+
+		expect(result.committed).toBe(true);
+		expect(loggedWarnings).toContain(FORMAT_WARNING);
+	});
 });
 
 describe("CommitGate", () => {

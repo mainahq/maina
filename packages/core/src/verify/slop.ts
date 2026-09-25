@@ -289,6 +289,90 @@ export function detectTodosWithoutTickets(
 	return judgeCandidates("todo-without-ticket", candidates);
 }
 
+/** A bare natural-language word, optionally wrapped in `(`/`)` or trailing punctuation. */
+const PROSE_WORD = /^\(?[A-Za-z][A-Za-z'’-]*[.,:;!?]?\)?[.,:;!?]?$/;
+/** Consecutive prose words that mark a comment line as a sentence. */
+const PROSE_RUN = 4;
+/**
+ * Lowercase JS/TS keywords. They are skipped when counting a prose run
+ * (neither extending nor breaking it), so keyword-dense code such as
+ * `for (const item of items)` or `bar as unknown as Baz` is not mistaken
+ * for a sentence, while prose that merely contains "if"/"return" still is.
+ */
+const CODE_KEYWORDS = new Set([
+	"as",
+	"async",
+	"await",
+	"break",
+	"case",
+	"catch",
+	"class",
+	"const",
+	"continue",
+	"default",
+	"delete",
+	"do",
+	"else",
+	"enum",
+	"export",
+	"extends",
+	"for",
+	"from",
+	"function",
+	"if",
+	"implements",
+	"import",
+	"in",
+	"instanceof",
+	"interface",
+	"keyof",
+	"let",
+	"new",
+	"of",
+	"return",
+	"satisfies",
+	"switch",
+	"throw",
+	"try",
+	"type",
+	"typeof",
+	"unknown",
+	"var",
+	"void",
+	"while",
+	"yield",
+]);
+
+/**
+ * True when a comment line (prefix already stripped) reads as a sentence
+ * rather than code. Prose explanations routinely contain parentheses,
+ * backtick code spans, quotes and keywords like "if"/"return", which the
+ * code patterns would otherwise match (#394).
+ *
+ * A line ending in a statement/block terminator is never prose. Otherwise
+ * inline code spans and double-quoted strings are dropped, and a run of
+ * `PROSE_RUN` plain non-keyword words in a row marks the line as prose: real
+ * code rarely has four bare identifiers separated only by spaces and
+ * keywords.
+ */
+function looksLikeProse(stripped: string): boolean {
+	if (/(?:[;{}]|=>)\s*$/.test(stripped)) return false;
+	const withoutSpans = stripped
+		.replace(/`[^`]*`/g, " ")
+		.replace(/"[^"]*"/g, " ");
+	let run = 0;
+	for (const token of withoutSpans.split(/\s+/)) {
+		if (!PROSE_WORD.test(token)) {
+			run = 0;
+			continue;
+		}
+		if (CODE_KEYWORDS.has(token.replace(/[^A-Za-z]/g, ""))) continue;
+		run++;
+		if (run >= PROSE_RUN) return true;
+	}
+	return false;
+}
+
 /**
  * Detect commented-out code blocks (3+ consecutive comment lines with code patterns).
  *
@@ -328,6 +412,7 @@ export function detectCommentedCode(
 			.replace(/^\s*\/\*\s?/, "")
 			.trim();
 		if (stripped.length === 0) return false;
+		if (looksLikeProse(stripped)) return false;
 
 		return codePatterns.some((p) => p.test(stripped));
 	}
