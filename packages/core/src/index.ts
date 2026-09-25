@@ -18,6 +18,7 @@ export {
 	generateSpecQuestions,
 	type SpecQuestion,
 } from "./ai/spec-questions";
+export { currentSpendTask, runAsSpendTask } from "./ai/spend";
 export {
 	type DelegationPrompt,
 	type TryAIResult,
