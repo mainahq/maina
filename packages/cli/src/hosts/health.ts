@@ -679,7 +679,10 @@ export async function checkHostHealth(
 	const models = ports.listDir(modelDir);
 	// Codex runs maina's PreToolUse hook for apply_patch but ignores its deny.
 	const codex = codexApplyPatchCheck(
-		codexHookFiles(ctx).map((path) => ({ path, text: ports.readFile(path) })),
+		codexHookFiles(ctx, repoRoot).map((path) => ({
+			path,
+			text: ports.readFile(path),
+		})),
 	);
 	const runtime: HealthCheck<RuntimeCheckId>[] = [
 		rootCheck(

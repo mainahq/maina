@@ -116,8 +116,8 @@ describe("emitCodexRules", () => {
 		};
 		expect(emitCodexRules(policy(shuffled))).toBe(text);
 		const duplicated: Rules = {
-			deny: [...SAMPLE.deny, ...SAMPLE.deny],
-			allow: [...SAMPLE.allow, { match: "bun  test" }],
+			deny: [...SAMPLE.deny, ...SAMPLE.deny, { match: " npm  publish " }],
+			allow: [...SAMPLE.allow, ...SAMPLE.allow],
 		};
 		expect(emitCodexRules(policy(duplicated))).toBe(text);
 		expect(text.endsWith("\n")).toBe(true);
@@ -157,6 +157,20 @@ describe("emitCodexRules", () => {
 		expect(parseRules(text)).toEqual([]);
 		expect(text).toContain('# skipped allow rule "curl *"');
 		expect(text).toContain('# skipped allow rule "npm *x"');
+	});
+
+	test("never widens an allow whose spacing maina itself would never match", () => {
+		// maina matches a plain rule against single-spaced argv, so "bun  test"
+		// matches nothing there; the prefix ["bun", "test"] would allow `bun test`.
+		const text = emitCodexRules(
+			policy({
+				deny: [],
+				allow: [{ match: "bun  test" }, { match: " ls -la" }],
+			}),
+		);
+		expect(parseRules(text)).toEqual([]);
+		expect(text).toContain('# skipped allow rule "bun test"');
+		expect(text).toContain('# skipped allow rule "ls -la"');
 	});
 
 	test("a wildcard a prefix cannot express is skipped for deny too", () => {
@@ -262,7 +276,15 @@ describe("codexApplyPatchCheck", () => {
 	});
 
 	test("a maina hook that sees apply_patch warns that Codex ignores its deny", () => {
-		for (const matcher of [undefined, "", "*", "apply_patch|Edit|Write"]) {
+		// Codex also matches apply_patch by its `Edit` and `Write` aliases.
+		for (const matcher of [
+			undefined,
+			"",
+			"*",
+			"apply_patch|Edit|Write",
+			"^Edit$",
+			"Bash|Write",
+		]) {
 			const check = codexApplyPatchCheck([file(PATH, hooksJson(matcher))]);
 			expect(check, String(matcher)).toEqual({
 				id: "codex",
@@ -281,20 +303,53 @@ describe("codexApplyPatchCheck", () => {
 		});
 	});
 
-	test("looks in $CODEX_HOME and the project's .codex", () => {
-		expect(codexHookFiles({ home: "/h", cwd: "/p" })).toEqual([
+	test("looks in $CODEX_HOME and the project's .codex, hooks.json and config.toml", () => {
+		expect(codexHookFiles({ home: "/h", cwd: "/p" }, null)).toEqual([
 			join("/h", ".codex", "hooks.json"),
+			join("/h", ".codex", "config.toml"),
 			join("/p", ".codex", "hooks.json"),
+			join("/p", ".codex", "config.toml"),
 		]);
 		expect(
-			codexHookFiles({ home: "/h", cwd: "/p", codexHome: "/opt/codex" }),
+			codexHookFiles({ home: "/h", cwd: "/p", codexHome: "/opt/codex" }, "/p"),
 		).toEqual([
 			join("/opt/codex", "hooks.json"),
+			join("/opt/codex", "config.toml"),
 			join("/p", ".codex", "hooks.json"),
+			join("/p", ".codex", "config.toml"),
 		]);
 	});
 
+	test("from a subdirectory it also looks in the repo root's .codex", () => {
+		expect(codexHookFiles({ home: "/h", cwd: "/p/pkg" }, "/p")).toEqual([
+			join("/h", ".codex", "hooks.json"),
+			join("/h", ".codex", "config.toml"),
+			join("/p", ".codex", "hooks.json"),
+			join("/p", ".codex", "config.toml"),
+			join("/p/pkg", ".codex", "hooks.json"),
+			join("/p/pkg", ".codex", "config.toml"),
+		]);
+	});
+
+	test("inline [hooks] in config.toml count too", () => {
+		const path = "/h/.codex/config.toml";
+		const toml = [
+			"[[hooks.PreToolUse]]",
+			'matcher = "Edit|Write"',
+			"",
+			"[[hooks.PreToolUse.hooks]]",
+			'type = "command"',
+			'command = "/home/u/.maina/bin/maina hook PreToolUse"',
+			"",
+		].join("\n");
+		expect(codexApplyPatchCheck([file(path, toml)])?.message).toContain(
+			CODEX_APPLY_PATCH_ISSUE,
+		);
+		expect(codexApplyPatchCheck([file(path, "not = [toml")])).toBeNull();
+	});
+
 	test("doctor reports the gap among its runtime checks", async () => {
+		// Run from a subdirectory: Codex reads the repo root's .codex.
 		const hooks = join("/p", ".codex", "hooks.json");
 		const ports: HostHealthPorts = {
 			readFile: (path) => (path === hooks ? hooksJson(undefined) : null),
@@ -306,7 +361,7 @@ describe("codexApplyPatchCheck", () => {
 		};
 		const health = await checkHostHealth(
 			{
-				ctx: { home: "/h", cwd: "/p", platform: "linux" },
+				ctx: { home: "/h", cwd: "/p/pkg", platform: "linux" },
 				version: "0.0.0",
 				platform: "linux",
 				inheritedEnv: {},

@@ -28,6 +28,7 @@
  */
 
 import { join } from "node:path";
+import * as toml from "@iarna/toml";
 import type { Policy } from "@mainahq/core";
 import type { HealthCheck } from "./health";
 import type { PathContext } from "./targets";
@@ -77,6 +78,11 @@ function translate(
 	const skip = (why: string): Skipped => ({
 		skipped: `# skipped ${list} rule ${quote(normal)}: ${why}`,
 	});
+	// maina matches a plain rule against single-spaced argv, so a rule with
+	// other spacing matches nothing there; as a prefix it would allow.
+	if (list === "allow" && normal !== rule.match) {
+		return skip("maina matches its spacing literally, which no command has");
+	}
 	let pattern = words;
 	if (normal.includes("*")) {
 		const prefix = words.slice(0, -1);
@@ -175,19 +181,29 @@ type MainaHook = Readonly<{ path: string; matcher: string | undefined }>;
 const isObj = (v: unknown): v is Readonly<Record<string, unknown>> =>
 	typeof v === "object" && v !== null && !Array.isArray(v);
 
-/** The `hooks.json` files Codex reads: `$CODEX_HOME`'s and the project's. */
+/**
+ * The files Codex reads hooks from: `hooks.json` and inline `[hooks]` in
+ * `config.toml`, in `$CODEX_HOME` and in each project `.codex` layer (the
+ * repo root's, which Codex also reads from a subdirectory, and the cwd's).
+ */
 export function codexHookFiles(
 	ctx: Pick<PathContext, "home" | "cwd" | "codexHome">,
+	repoRoot: string | null,
 ): readonly string[] {
-	return [
-		join(ctx.codexHome ?? join(ctx.home, ".codex"), "hooks.json"),
-		join(ctx.cwd, ".codex", "hooks.json"),
+	const layers = [
+		ctx.codexHome ?? join(ctx.home, ".codex"),
+		...(repoRoot === null ? [] : [join(repoRoot, ".codex")]),
+		join(ctx.cwd, ".codex"),
 	];
+	return [...new Set(layers)].flatMap((dir) => [
+		join(dir, "hooks.json"),
+		join(dir, "config.toml"),
+	]);
 }
 
-function parse(text: string): unknown {
+function parse(path: string, text: string): unknown {
 	try {
-		return JSON.parse(text);
+		return path.endsWith(".toml") ? toml.parse(text) : JSON.parse(text);
 	} catch {
 		return null;
 	}
@@ -196,10 +212,10 @@ function parse(text: string): unknown {
 /** maina's hook command: its launcher or CLI running `hook <event>`. */
 const MAINA_HOOK = /maina.*\shook(\s|$)/;
 
-/** maina's PreToolUse hook groups in one `hooks.json`. */
+/** maina's PreToolUse hook groups in one `hooks.json` or `config.toml`. */
 function mainaHooks(file: HookFile): readonly MainaHook[] {
 	if (file.text === null) return [];
-	const config = parse(file.text);
+	const config = parse(file.path, file.text);
 	const hooks = isObj(config) && isObj(config.hooks) ? config.hooks : {};
 	const groups = Array.isArray(hooks.PreToolUse) ? hooks.PreToolUse : [];
 	return groups.flatMap((group): MainaHook[] => {
@@ -214,18 +230,22 @@ function mainaHooks(file: HookFile): readonly MainaHook[] {
 	});
 }
 
+/** The names a Codex matcher can hit apply_patch by: its own and two aliases. */
+const APPLY_PATCH_NAMES = ["apply_patch", "Edit", "Write"] as const;
+
 /** Whether a Codex matcher (a regex; empty or `*` for all) hits apply_patch. */
 function coversApplyPatch(matcher: string | undefined): boolean {
 	if (matcher === undefined || matcher === "" || matcher === "*") return true;
 	try {
-		return new RegExp(matcher).test("apply_patch");
+		const regex = new RegExp(matcher);
+		return APPLY_PATCH_NAMES.some((name) => regex.test(name));
 	} catch {
 		return false;
 	}
 }
 
 /**
- * The apply_patch gap for the Codex `hooks.json` files given, or null when
+ * The apply_patch gap for the Codex hook files given, or null when
  * none registers maina's PreToolUse hook. A warning, not a failure: nothing
  * maina can fix, but a deny it logs for an edit does not stop the edit.
  */
