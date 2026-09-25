@@ -9,7 +9,7 @@
 
 import { sendCliErrorReport, VERSION } from "@mainahq/core";
 import { processEnv } from "./env";
-import { fetchNetwork, nodeFs } from "./ports";
+import { fetchNetwork, nodeFs, safeCwd } from "./ports";
 
 // ── Top-level error handling ────────────────────────────────────────────────
 
@@ -51,12 +51,16 @@ function printAndReport(err: unknown, origin: string): void {
 
 	// Fire-and-forget; never block the crash path on the network call.
 	// `sendCliErrorReport` sends nothing unless crash reports are opted in,
-	// swallows its own errors and times out at 1s.
+	// swallows its own errors and times out at 1s. Without a readable working
+	// directory the repo policy (which may opt out) can't be read, so send
+	// nothing (fail closed).
+	const root = safeCwd();
+	if (root === undefined) process.exit(exitCode);
 	void sendCliErrorReport(e, {
 		env: processEnv,
 		fs: nodeFs,
 		network: fetchNetwork,
-		root: process.cwd(),
+		root,
 		mainaVersion: VERSION,
 		argv: process.argv,
 	}).finally(() => {

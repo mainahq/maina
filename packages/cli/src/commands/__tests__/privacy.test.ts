@@ -124,6 +124,24 @@ describe("maina privacy", () => {
 		expect(parsed.data).toEqual(effective(expected));
 	});
 
+	test("each channel's description names every field that channel sends", async () => {
+		const { text } = await run({ HOME: home });
+		const line = (channel: string): string =>
+			text.split("\n").find((l) => l.trim().startsWith(`- ${channel}:`)) ?? "";
+		// CliErrorPayload fields.
+		for (const field of ["Node version", "CI flag", "report id"]) {
+			expect(line("crash_reports")).toContain(field);
+		}
+		// UsageEvent properties and the `maina setup` stack summary.
+		for (const field of ["event properties", "languages", "repo size"]) {
+			expect(line("usage")).toContain(field);
+		}
+		// Every key of the outcome share payload.
+		for (const field of ["model hash", "confidence", "outcome label"]) {
+			expect(line("outcome_sharing")).toContain(field);
+		}
+	});
+
 	test("an invalid policy is reported, not treated as consent", async () => {
 		writeJson(repo, "policy.json", { telemetry: { usage: true } });
 		const { result, text } = await run({ HOME: home });

@@ -44,10 +44,11 @@ const SOURCE_LABEL: Readonly<Record<ConsentSource, string>> = {
 
 const SENDS: Readonly<Record<TelemetryChannel, string>> = {
 	crash_reports:
-		"error class, scrubbed message and stack, maina version, OS, arch, command name",
-	usage: "event name (such as maina.commit), OS, runtime, maina version",
+		"random report id, error class, scrubbed message and stack (paths cut to file names), command name, maina version, Node version, OS, arch, CI flag",
+	usage:
+		"event name (such as maina.verify.completed) with its event properties (counts and flags), OS, runtime, maina version, an anonymous device id; `maina setup` also sends a stack summary (languages, frameworks, package manager, linters, test runners, repo size in files and bytes), phase timings and the AI source",
 	outcome_sharing:
-		"decision type, answer label, confidence, final action, latency, host, outcome label",
+		"decision type, model hash, answer (only a yes/no, number or fixed option), confidence, final action, latency, host, outcome label",
 };
 
 function renderReport(config: CollectionConfig): string {
@@ -71,7 +72,7 @@ function renderReport(config: CollectionConfig): string {
 		"When on, each channel sends only:",
 		...TELEMETRY_CHANNELS.map((c) => `  - ${c}: ${SENDS[c]}`),
 		"",
-		"Always local: the decision log, outcomes, code, diffs and file paths.",
+		"Never sent: code, diffs, file paths, decision inputs, ids and timestamps.",
 		'Opt in: add { "telemetry": { "<channel>": true } } to ~/.maina/policy.json',
 		"Switch everything off: DO_NOT_TRACK=1 or MAINA_TELEMETRY=0",
 	].join("\n");

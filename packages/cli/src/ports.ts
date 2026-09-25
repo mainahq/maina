@@ -112,3 +112,17 @@ export const fetchNetwork: NetworkPort = {
 export function telemetryContext(root: string): TelemetryContext {
 	return { fs: nodeFs, env: processEnv, root };
 }
+
+/**
+ * The working directory, or undefined when it cannot be read (for example,
+ * it was deleted). For the crash path, which must never throw.
+ */
+export function safeCwd(
+	cwd: () => string = () => process.cwd(),
+): string | undefined {
+	try {
+		return cwd();
+	} catch {
+		return undefined;
+	}
+}

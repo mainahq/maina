@@ -363,8 +363,8 @@ export async function verifyAction(
 	);
 	const startedAt = Date.now();
 
-	// Consent-gated — `captureUsage` is a no-op unless `telemetry: true` and
-	// the build-time key are both set. Emitting at the action boundary keeps
+	// Consent-gated — `captureUsage` is a no-op unless the user opted in to
+	// `usage` and the build-time key is set. Emitting at the action boundary keeps
 	// cohort metrics honest even if the command bails later on a tool error.
 	captureUsage(
 		buildUsageEvent(
