@@ -176,24 +176,29 @@ describe("skillsRootCandidates", () => {
 		["source", "/repo/packages/cli/src/onboarding/setup"],
 		["bundle entry", "/repo/packages/cli/dist"],
 		["bundle chunk", "/repo/packages/cli/dist/shared"],
-	])("from the %s reaches packages/skills first", (_layout, here) => {
-		expect(skillsRootCandidates(here, hasPackageJson)[0]).toBe(
+	])("from the %s reaches packages/skills", (_layout, here) => {
+		// In the monorepo the nested path is the workspace link to
+		// packages/skills, so both candidates name the same package.
+		expect(skillsRootCandidates(here, hasPackageJson)).toEqual([
+			"/repo/packages/cli/node_modules/@mainahq/skills",
 			"/repo/packages/skills",
-		);
+		]);
 	});
 
-	test("from an installed chunk reaches the hoisted sibling, then the nested dependency (#384)", () => {
-		// Hoisted (bun/pnpm-style global dir) keeps `@mainahq/skills` next to
-		// `@mainahq/cli`; npm's global install nests the CLI's dependencies in
-		// its own node_modules. Both must be found.
+	test("from an installed chunk reaches the nested dependency, then the hoisted sibling (#384)", () => {
+		// npm's global install nests the CLI's own (pinned) dependency in its
+		// node_modules; a hoisted layout (bun/pnpm) keeps it next to the CLI.
+		// The nested copy comes first: under npm the sibling is a separate
+		// global `@mainahq/skills` install (what the old warning told users
+		// to add), which may be stale and must not shadow the CLI's version.
 		expect(
 			skillsRootCandidates(
 				"/g/node_modules/@mainahq/cli/dist/shared",
 				hasPackageJson,
 			),
 		).toEqual([
-			"/g/node_modules/@mainahq/skills",
 			"/g/node_modules/@mainahq/cli/node_modules/@mainahq/skills",
+			"/g/node_modules/@mainahq/skills",
 		]);
 	});
 

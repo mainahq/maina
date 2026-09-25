@@ -30,8 +30,9 @@ interface DeploySkillsOptions {
 	 * copied.
 	 *
 	 * When omitted, the deployer tries:
-	 *   1. the sibling `skills` package (monorepo, or a hoisted install)
-	 *   2. the CLI's nested `node_modules/@mainahq/skills` (npm global)
+	 *   1. the CLI's nested `node_modules/@mainahq/skills` (npm global, or
+	 *      the workspace link in the monorepo)
+	 *   2. the sibling `skills` package (monorepo, or a hoisted install)
 	 *   3. node resolution of `@mainahq/skills` from this module
 	 */
 	sourceRoot?: string;
@@ -107,9 +108,12 @@ export async function deploySkills(
  * From source this module sits in `cli/src/onboarding/setup`; bundled by
  * bunup it lands in a code-split chunk (`cli/dist/shared/…`). Anchoring on
  * the nearest `package.json` (the CLI package root) instead of a fixed `..`
- * count keeps every layout pointing at the same places: the sibling
- * (`packages/skills` in the monorepo, a hoisted `@mainahq/skills` in an
- * install), then the CLI's own nested dependency (npm's global layout).
+ * count keeps every layout pointing at the same places: the CLI's own
+ * nested dependency first (npm's global layout, or the workspace link in
+ * the monorepo), then the sibling (`packages/skills` in the monorepo, a
+ * hoisted `@mainahq/skills` in an install). Nested wins so a separately
+ * installed, possibly stale global `@mainahq/skills` next to the CLI never
+ * shadows the version the CLI depends on.
  */
 export function skillsRootCandidates(
 	hereDir: string,
@@ -120,8 +124,8 @@ export function skillsRootCandidates(
 	for (;;) {
 		if (hasPackageJson(dir)) {
 			return [
-				join(dir, "..", "skills"),
 				join(dir, "node_modules", "@mainahq", "skills"),
+				join(dir, "..", "skills"),
 			];
 		}
 		const parent = dirname(dir);
