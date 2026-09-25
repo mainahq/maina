@@ -437,6 +437,13 @@ export async function verifyAction(
 		log.message(formatFindingsTable(pipelineResult.findings));
 	}
 
+	// Tools that were detected but could not run are skipped, not passed (#389).
+	if (!options.json) {
+		for (const t of pipelineResult.tools) {
+			if (t.notice) log.warning(t.notice);
+		}
+	}
+
 	if (!options.json && pipelineResult.hiddenCount > 0) {
 		log.info(
 			`${pipelineResult.hiddenCount} pre-existing issue(s) hidden (diff-only mode).`,
@@ -498,6 +505,7 @@ export async function verifyAction(
 				findingsCount: t.findings.length,
 				skipped: t.skipped,
 				duration: t.duration,
+				...(t.notice ? { notice: t.notice } : {}),
 			})),
 			duration: pipelineResult.duration,
 			fixSuggestions: result.fixSuggestions,

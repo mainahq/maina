@@ -6,8 +6,14 @@
  * Gracefully skips if stryker is not installed.
  */
 
-import { isToolAvailable } from "./detect";
 import type { Finding } from "./diff-filter";
+import {
+	exitFailureNotice,
+	isFreshReport,
+	resolveTool,
+	spawnFailureNotice,
+	spawnTool,
+} from "./tool-spawn";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -16,11 +22,15 @@ export interface MutationOptions {
 	cwd: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */
 	available?: boolean;
+	/** Pre-resolved command path from detection (may be root-local node_modules/.bin). */
+	command?: string;
 }
 
 export interface MutationResult {
 	findings: Finding[];
 	skipped: boolean;
+	/** Why the tool was skipped although detected, e.g. it could not be started. */
+	notice?: string;
 }
 
 // ─── JSON Parsing ─────────────────────────────────────────────────────────
@@ -101,37 +111,52 @@ export function parseStrykerReport(json: string): Finding[] {
  * Run Stryker mutation testing and return parsed findings.
  *
  * If stryker is not installed, returns `{ findings: [], skipped: true }`.
- * If stryker fails, returns `{ findings: [], skipped: false }`.
+ * Spawns the command detection resolved (it may be root-local); if it cannot
+ * be started, returns `{ findings: [], skipped: true, notice }`.
  */
 export async function runMutation(
 	options: MutationOptions,
 ): Promise<MutationResult> {
-	const toolAvailable =
-		options.available ?? (await isToolAvailable("stryker", options.cwd));
-	if (!toolAvailable) {
+	const resolved = await resolveTool("stryker", options);
+	if (!resolved.available) {
 		return { findings: [], skipped: true };
 	}
 
 	const cwd = options.cwd;
 
-	const args = ["stryker", "run", "--reporters", "json"];
+	const args: [string, ...string[]] = [
+		resolved.command,
+		"run",
+		"--reporters",
+		"json",
+	];
+
+	const run = await spawnTool(args, cwd);
+	if (!run.ok) {
+		return {
+			findings: [],
+			skipped: true,
+			notice: spawnFailureNotice("stryker", run.error),
+		};
+	}
 
 	try {
-		const proc = Bun.spawn(args, {
-			cwd,
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-
-		await new Response(proc.stdout).text();
-		await new Response(proc.stderr).text();
-		await proc.exited;
-
 		// Read the generated report file
 		const reportPath = `${cwd}/reports/mutation/mutation.json`;
 		const reportFile = Bun.file(reportPath);
-		const exists = await reportFile.exists();
-		if (!exists) {
+		// A report older than this run is a leftover, not this run's result.
+		const fresh =
+			(await reportFile.exists()) &&
+			isFreshReport(reportFile.lastModified, run.value);
+		if (!fresh) {
+			// A failed run that left no report produced nothing to trust.
+			if (run.value.exitCode !== 0) {
+				return {
+					findings: [],
+					skipped: true,
+					notice: exitFailureNotice("stryker", run.value),
+				};
+			}
 			return { findings: [], skipped: false };
 		}
 

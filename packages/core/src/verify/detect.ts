@@ -8,7 +8,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 export type ToolName =
 	| "biome"
@@ -213,10 +213,12 @@ async function tryCommand(
 
 /**
  * Find the nearest node_modules/.bin directory by walking up from `startDir`.
- * Returns the path if found, null otherwise.
+ * Returns an absolute path if found, null otherwise. Absolute because runners
+ * spawn the resolved command with `cwd` set to the root, so a path relative
+ * to the process cwd would miss (#389).
  */
 function findLocalBinDir(startDir: string): string | null {
-	let dir = startDir;
+	let dir = resolve(startDir);
 	for (;;) {
 		const binDir = join(dir, "node_modules", ".bin");
 		if (existsSync(binDir)) {

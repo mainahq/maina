@@ -6,8 +6,14 @@
  * Gracefully skips if trivy is not installed.
  */
 
-import { isToolAvailable } from "./detect";
 import type { Finding } from "./diff-filter";
+import {
+	exitFailureNotice,
+	failedWithoutResults,
+	resolveTool,
+	spawnFailureNotice,
+	spawnTool,
+} from "./tool-spawn";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -17,11 +23,15 @@ interface TrivyOptions {
 	cwd: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */
 	available?: boolean;
+	/** Pre-resolved command path from detection (may be root-local node_modules/.bin). */
+	command?: string;
 }
 
 export interface TrivyResult {
 	findings: Finding[];
 	skipped: boolean;
+	/** Why the tool was skipped although detected, e.g. it could not be started. */
+	notice?: string;
 }
 
 // ─── JSON Parsing ─────────────────────────────────────────────────────────
@@ -122,20 +132,20 @@ export function parseTrivyJson(json: string): Finding[] {
  * Run Trivy and return parsed findings.
  *
  * If trivy is not installed, returns `{ findings: [], skipped: true }`.
- * If trivy fails, returns `{ findings: [], skipped: false }`.
+ * Spawns the command detection resolved (it may be root-local); if it cannot
+ * be started, returns `{ findings: [], skipped: true, notice }`.
  */
 export async function runTrivy(options: TrivyOptions): Promise<TrivyResult> {
-	const toolAvailable =
-		options.available ?? (await isToolAvailable("trivy", options.cwd));
-	if (!toolAvailable) {
+	const resolved = await resolveTool("trivy", options);
+	if (!resolved.available) {
 		return { findings: [], skipped: true };
 	}
 
 	const scanType = options.scanType ?? "fs";
 	const cwd = options.cwd;
 
-	const args = [
-		"trivy",
+	const args: [string, ...string[]] = [
+		resolved.command,
 		scanType,
 		"--format",
 		"json",
@@ -144,20 +154,20 @@ export async function runTrivy(options: TrivyOptions): Promise<TrivyResult> {
 		".",
 	];
 
-	try {
-		const proc = Bun.spawn(args, {
-			cwd,
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-
-		const stdout = await new Response(proc.stdout).text();
-		await new Response(proc.stderr).text();
-		await proc.exited;
-
-		const findings = parseTrivyJson(stdout);
-		return { findings, skipped: false };
-	} catch {
-		return { findings: [], skipped: false };
+	const run = await spawnTool(args, cwd);
+	if (!run.ok) {
+		return {
+			findings: [],
+			skipped: true,
+			notice: spawnFailureNotice("trivy", run.error),
+		};
 	}
+	if (failedWithoutResults(run.value)) {
+		return {
+			findings: [],
+			skipped: true,
+			notice: exitFailureNotice("trivy", run.value),
+		};
+	}
+	return { findings: parseTrivyJson(run.value.stdout), skipped: false };
 }

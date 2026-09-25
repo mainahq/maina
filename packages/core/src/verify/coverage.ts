@@ -7,8 +7,14 @@
  */
 
 import { resolveBaseBranch } from "../git/index";
-import { isToolAvailable } from "./detect";
 import type { Finding } from "./diff-filter";
+import {
+	exitFailureNotice,
+	failedWithoutResults,
+	resolveTool,
+	spawnFailureNotice,
+	spawnTool,
+} from "./tool-spawn";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -19,11 +25,15 @@ export interface CoverageOptions {
 	cwd: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */
 	available?: boolean;
+	/** Pre-resolved command path from detection (may be root-local node_modules/.bin). */
+	command?: string;
 }
 
 export interface CoverageResult {
 	findings: Finding[];
 	skipped: boolean;
+	/** Why the tool was skipped although detected, e.g. it could not be started. */
+	notice?: string;
 }
 
 // ─── JSON Parsing ─────────────────────────────────────────────────────────
@@ -95,14 +105,14 @@ export function parseDiffCoverJson(json: string): Finding[] {
  * Run diff-cover and return parsed findings.
  *
  * If diff-cover is not installed, returns `{ findings: [], skipped: true }`.
- * If diff-cover fails, returns `{ findings: [], skipped: false }`.
+ * Spawns the command detection resolved (it may be root-local); if it cannot
+ * be started, returns `{ findings: [], skipped: true, notice }`.
  */
 export async function runCoverage(
 	options: CoverageOptions,
 ): Promise<CoverageResult> {
-	const toolAvailable =
-		options.available ?? (await isToolAvailable("diff-cover", options.cwd));
-	if (!toolAvailable) {
+	const resolved = await resolveTool("diff-cover", options);
+	if (!resolved.available) {
 		return { findings: [], skipped: true };
 	}
 
@@ -110,27 +120,27 @@ export async function runCoverage(
 	const coverageXml = options.coverageXml ?? "coverage/cobertura-coverage.xml";
 	const baseBranch = await resolveBaseBranch(cwd, options.baseBranch);
 
-	const args = [
-		"diff-cover",
+	const args: [string, ...string[]] = [
+		resolved.command,
 		coverageXml,
 		`--compare-branch=${baseBranch}`,
 		"--json",
 	];
 
-	try {
-		const proc = Bun.spawn(args, {
-			cwd,
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-
-		const stdout = await new Response(proc.stdout).text();
-		await new Response(proc.stderr).text();
-		await proc.exited;
-
-		const findings = parseDiffCoverJson(stdout);
-		return { findings, skipped: false };
-	} catch {
-		return { findings: [], skipped: false };
+	const run = await spawnTool(args, cwd);
+	if (!run.ok) {
+		return {
+			findings: [],
+			skipped: true,
+			notice: spawnFailureNotice("diff-cover", run.error),
+		};
 	}
+	if (failedWithoutResults(run.value)) {
+		return {
+			findings: [],
+			skipped: true,
+			notice: exitFailureNotice("diff-cover", run.value),
+		};
+	}
+	return { findings: parseDiffCoverJson(run.value.stdout), skipped: false };
 }

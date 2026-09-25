@@ -31,6 +31,7 @@ let mockPipelineResult = {
 		}>;
 		skipped: boolean;
 		duration: number;
+		notice?: string;
 	}>,
 	findings: [] as Array<{
 		file: string;
@@ -70,6 +71,7 @@ let mockFixResult = {
 
 let mockStagedFiles: string[] = ["src/index.ts"];
 let pipelineCalledWith: Record<string, unknown> | undefined;
+let warningMessages: string[] = [];
 let fixCalledWith: { findings: unknown[]; options: unknown } | undefined;
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
@@ -162,7 +164,9 @@ mock.module("@clack/prompts", () => ({
 	log: {
 		info: () => {},
 		error: () => {},
-		warning: () => {},
+		warning: (msg: string) => {
+			warningMessages.push(msg);
+		},
 		success: () => {},
 		message: () => {},
 		step: () => {},
@@ -195,6 +199,7 @@ beforeEach(() => {
 
 	// Reset mock state
 	mockStagedFiles = ["src/index.ts"];
+	warningMessages = [];
 	mockPipelineResult = {
 		passed: true,
 		syntaxPassed: true,
@@ -337,6 +342,31 @@ describe("maina verify", () => {
 		expect(parsed.passed).toBe(true);
 		expect(parsed.findings).toEqual([]);
 		expect(parsed.duration).toBe(42);
+	});
+
+	test("shows a tool's could-not-start notice instead of passing silently (#389)", async () => {
+		const notice =
+			"semgrep was detected but could not be started (semgrep): ENOENT. Skipped, no results from this tool.";
+		mockPipelineResult = {
+			...mockPipelineResult,
+			tools: [
+				{ tool: "semgrep", findings: [], skipped: true, duration: 1, notice },
+				{ tool: "slop", findings: [], skipped: false, duration: 1 },
+			],
+		};
+
+		await verifyAction({ cwd: tmpDir });
+		expect(warningMessages).toContain(notice);
+
+		const result = await verifyAction({ json: true, cwd: tmpDir });
+		const parsed = JSON.parse(result.json ?? "{}");
+		const semgrep = parsed.tools.find(
+			(t: { tool: string }) => t.tool === "semgrep",
+		);
+		expect(semgrep.skipped).toBe(true);
+		expect(semgrep.notice).toBe(notice);
+		const slop = parsed.tools.find((t: { tool: string }) => t.tool === "slop");
+		expect(slop.notice).toBeUndefined();
 	});
 
 	test("--fix triggers AI fix generation when findings exist", async () => {

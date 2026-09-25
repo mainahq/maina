@@ -5,8 +5,14 @@
  * Gracefully skips if sonar-scanner is not installed.
  */
 
-import { isToolAvailable } from "./detect";
 import type { Finding } from "./diff-filter";
+import {
+	exitFailureNotice,
+	isFreshReport,
+	resolveTool,
+	spawnFailureNotice,
+	spawnTool,
+} from "./tool-spawn";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -15,11 +21,15 @@ export interface SonarOptions {
 	cwd: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */
 	available?: boolean;
+	/** Pre-resolved command path from detection (may be root-local node_modules/.bin). */
+	command?: string;
 }
 
 export interface SonarResult {
 	findings: Finding[];
 	skipped: boolean;
+	/** Why the tool was skipped although detected, e.g. it could not be started. */
+	notice?: string;
 }
 
 // ─── JSON Parsing ─────────────────────────────────────────────────────────
@@ -102,39 +112,49 @@ export function parseSonarReport(json: string): Finding[] {
  * Run SonarQube scanner and return parsed findings.
  *
  * If sonar-scanner is not installed, returns `{ findings: [], skipped: true }`.
- * If sonar-scanner fails, returns `{ findings: [], skipped: false }`.
+ * Spawns the command detection resolved (it may be root-local); if it cannot
+ * be started, returns `{ findings: [], skipped: true, notice }`.
  */
 export async function runSonar(options: SonarOptions): Promise<SonarResult> {
-	const toolAvailable =
-		options.available ?? (await isToolAvailable("sonarqube", options.cwd));
-	if (!toolAvailable) {
+	const resolved = await resolveTool("sonarqube", options);
+	if (!resolved.available) {
 		return { findings: [], skipped: true };
 	}
 
 	const cwd = options.cwd;
 
-	const args = [
-		"sonar-scanner",
+	const args: [string, ...string[]] = [
+		resolved.command,
 		"-Dsonar.analysis.mode=issues",
 		"-Dsonar.report.export.path=sonar-report.json",
 	];
 
+	const run = await spawnTool(args, cwd);
+	if (!run.ok) {
+		return {
+			findings: [],
+			skipped: true,
+			notice: spawnFailureNotice("sonarqube", run.error),
+		};
+	}
+
 	try {
-		const proc = Bun.spawn(args, {
-			cwd,
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-
-		await new Response(proc.stdout).text();
-		await new Response(proc.stderr).text();
-		await proc.exited;
-
 		// Read the generated report file
 		const reportPath = `${cwd}/.scannerwork/sonar-report.json`;
 		const reportFile = Bun.file(reportPath);
-		const exists = await reportFile.exists();
-		if (!exists) {
+		// A report older than this run is a leftover, not this run's result.
+		const fresh =
+			(await reportFile.exists()) &&
+			isFreshReport(reportFile.lastModified, run.value);
+		if (!fresh) {
+			// A failed run that left no report produced nothing to trust.
+			if (run.value.exitCode !== 0) {
+				return {
+					findings: [],
+					skipped: true,
+					notice: exitFailureNotice("sonarqube", run.value),
+				};
+			}
 			return { findings: [], skipped: false };
 		}
 
