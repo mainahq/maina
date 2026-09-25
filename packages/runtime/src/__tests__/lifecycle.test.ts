@@ -1,0 +1,338 @@
+/**
+ * Runtime lifecycle (FR-GATE-1, FR-S1-5).
+ *
+ * One runtime per user per version: the endpoint (socket, pid file, spawn
+ * lock) is keyed by both. The hook client spawns the runtime on demand behind
+ * a single-flight lock, a client of another version restarts it, and an idle
+ * runtime exits after a configurable TTL. Spawn tests run the real daemon
+ * entry in a child process.
+ */
+
+import { afterEach, describe, expect, test } from "bun:test";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createHookClient } from "../client/hook-client";
+import { createRequest, sendRequest } from "../ipc";
+import { daemonSpawner, type SpawnRuntime } from "../lifecycle";
+import { defaultRuntimeDir, resolveEndpoint } from "../registry";
+import { type Runtime, startRuntime } from "../server";
+import {
+	deadPid,
+	fixedGate,
+	isAlive,
+	killQuietly,
+	shellEvent,
+	type TempEndpoint,
+	tempEndpoint,
+	waitFor,
+} from "./support";
+
+const temps: TempEndpoint[] = [];
+const runtimes: Runtime[] = [];
+const daemons: number[] = [];
+
+afterEach(() => {
+	for (const rt of runtimes.splice(0)) rt.stop();
+	for (const pid of daemons.splice(0)) killQuietly(pid);
+	for (const t of temps.splice(0)) t.cleanup();
+});
+
+function temp(version = "1.0.0"): TempEndpoint {
+	const t = tempEndpoint(version);
+	temps.push(t);
+	return t;
+}
+
+/** Wraps a spawner to count calls and remember the daemons it started. */
+function tracked(spawn: SpawnRuntime): {
+	spawn: SpawnRuntime;
+	calls: () => number;
+} {
+	let calls = 0;
+	return {
+		spawn: () => {
+			calls++;
+			const spawned = spawn();
+			if (spawned.ok) daemons.push(spawned.value.pid);
+			return spawned;
+		},
+		calls: () => calls,
+	};
+}
+
+async function statusOf(
+	address: string,
+	version: string,
+): Promise<Record<string, unknown> | null> {
+	const sent = await sendRequest(
+		address,
+		createRequest("status", undefined, version),
+		1000,
+	);
+	if (!sent.ok || !sent.value.ok) return null;
+	return sent.value.result as Record<string, unknown>;
+}
+
+describe("endpoint registry", () => {
+	const base = {
+		platform: "darwin" as const,
+		dir: "/home/u/.maina/run",
+		user: "u",
+		tmpDir: "/tmp",
+	};
+
+	test("each version gets its own socket, pid file and spawn lock", () => {
+		const a = resolveEndpoint({ ...base, version: "1.0.0" });
+		const b = resolveEndpoint({ ...base, version: "1.1.0" });
+		expect(a.address).toBe("/home/u/.maina/run/rt-1.0.0.sock");
+		expect(a.pidFile).toBe("/home/u/.maina/run/rt-1.0.0.pid");
+		expect(a.spawnLock).toBe("/home/u/.maina/run/rt-1.0.0.lock");
+		expect(b.address).not.toBe(a.address);
+		expect(b.pidFile).not.toBe(a.pidFile);
+	});
+
+	test("Windows uses a per-user, per-version named pipe", () => {
+		const e = resolveEndpoint({
+			...base,
+			platform: "win32",
+			dir: "C:\\Users\\u\\.maina\\run",
+			version: "1.0.0",
+		});
+		expect(e.address).toBe("\\\\.\\pipe\\maina-u-1.0.0");
+	});
+
+	test("unsafe characters in a version never reach the path", () => {
+		const e = resolveEndpoint({ ...base, version: "1.0.0/../../x" });
+		expect(e.address.startsWith(`${base.dir}/`)).toBe(true);
+		expect(e.address.slice(base.dir.length + 1)).not.toContain("/");
+	});
+
+	test("an over-long socket path falls back to a short one under tmp", () => {
+		const dir = `/home/${"u".repeat(120)}/.maina/run`;
+		const e = resolveEndpoint({ ...base, dir, version: "1.0.0" });
+		expect(e.address.startsWith("/tmp/")).toBe(true);
+		expect(Buffer.byteLength(e.address)).toBeLessThan(104);
+		expect(e.pidFile.startsWith(dir)).toBe(true);
+	});
+
+	test("the runtime dir is per user: XDG_RUNTIME_DIR, else ~/.maina/run", () => {
+		expect(
+			defaultRuntimeDir({ XDG_RUNTIME_DIR: "/run/user/501" }, "/home/u"),
+		).toBe("/run/user/501/maina");
+		expect(defaultRuntimeDir({}, "/home/u")).toBe("/home/u/.maina/run");
+		expect(defaultRuntimeDir({ XDG_RUNTIME_DIR: "" }, "/home/u")).toBe(
+			"/home/u/.maina/run",
+		);
+	});
+});
+
+describe("runtime exclusivity", () => {
+	test("a second runtime on a live endpoint is refused", () => {
+		const t = temp();
+		const config = {
+			endpoint: t.endpoint,
+			version: "1.0.0",
+			idleTtlMs: 60_000,
+		};
+		const first = startRuntime({ gate: fixedGate("allow") }, config);
+		expect(first.ok).toBe(true);
+		if (first.ok) runtimes.push(first.value);
+		const second = startRuntime({ gate: fixedGate("allow") }, config);
+		expect(second.ok).toBe(false);
+		if (!second.ok) expect(second.error.kind).toBe("already_running");
+	});
+
+	test("a pid file left by a dead process is taken over", async () => {
+		const t = temp();
+		writeFileSync(
+			t.endpoint.pidFile,
+			JSON.stringify({ pid: await deadPid(), at: Date.now() }),
+		);
+		const started = startRuntime(
+			{ gate: fixedGate("allow") },
+			{ endpoint: t.endpoint, version: "1.0.0", idleTtlMs: 60_000 },
+		);
+		expect(started.ok).toBe(true);
+		if (!started.ok) return;
+		runtimes.push(started.value);
+		expect(JSON.parse(readFileSync(t.endpoint.pidFile, "utf8")).pid).toBe(
+			process.pid,
+		);
+	});
+
+	test("a pid file from before the last boot is stale even if the pid is reused", () => {
+		const t = temp();
+		writeFileSync(
+			t.endpoint.pidFile,
+			JSON.stringify({ pid: process.pid, at: 0 }),
+		);
+		const started = startRuntime(
+			{ gate: fixedGate("allow") },
+			{ endpoint: t.endpoint, version: "1.0.0", idleTtlMs: 60_000 },
+		);
+		expect(started.ok).toBe(true);
+		if (started.ok) runtimes.push(started.value);
+	});
+});
+
+describe("spawn on demand", () => {
+	test("the client spawns the runtime when none is running", async () => {
+		const t = temp();
+		const spawner = tracked(
+			daemonSpawner({
+				endpoint: t.endpoint,
+				version: "1.0.0",
+				idleTtlMs: 10_000,
+			}),
+		);
+		const client = createHookClient({
+			endpoint: t.endpoint,
+			version: "1.0.0",
+			spawn: spawner.spawn,
+			fallback: fixedGate("deny"),
+		});
+		const result = await client.evaluate(shellEvent, { timeoutMs: 8000 });
+		expect(result.degraded).toBe(false);
+		expect(result.source).toBe("runtime");
+		expect(spawner.calls()).toBe(1);
+		const status = await statusOf(t.endpoint.address, "1.0.0");
+		expect(status?.pid).toBe(daemons[0]);
+	}, 15_000);
+
+	test("concurrent clients spawn exactly one daemon", async () => {
+		const t = temp();
+		const spawner = tracked(
+			daemonSpawner({
+				endpoint: t.endpoint,
+				version: "1.0.0",
+				idleTtlMs: 10_000,
+			}),
+		);
+		const results = await Promise.all(
+			Array.from({ length: 6 }, () =>
+				createHookClient({
+					endpoint: t.endpoint,
+					version: "1.0.0",
+					spawn: spawner.spawn,
+					fallback: fixedGate("deny"),
+				}).evaluate(shellEvent, { timeoutMs: 8000 }),
+			),
+		);
+		expect(results.every((r) => !r.degraded)).toBe(true);
+		expect(spawner.calls()).toBe(1);
+		expect(daemons.filter(isAlive)).toHaveLength(1);
+	}, 20_000);
+});
+
+describe("version mismatch", () => {
+	test("a runtime answering another version's client stops and frees its endpoint", async () => {
+		const t = temp();
+		const started = startRuntime(
+			{ gate: fixedGate("allow") },
+			{ endpoint: t.endpoint, version: "1.0.0", idleTtlMs: 60_000 },
+		);
+		if (!started.ok) throw new Error(JSON.stringify(started.error));
+		runtimes.push(started.value);
+		const sent = await sendRequest(
+			t.endpoint.address,
+			createRequest("status", undefined, "2.0.0"),
+			1000,
+		);
+		if (!sent.ok || sent.value.ok) throw new Error("expected an rpc error");
+		expect(sent.value.error.code).toBe("version_mismatch");
+		expect(sent.value.runtimeVersion).toBe("1.0.0");
+		expect(await started.value.closed).toBe("version_mismatch");
+		expect(existsSync(t.endpoint.pidFile)).toBe(false);
+	});
+
+	test("the client restarts a runtime of another version and gets its answer", async () => {
+		const t = temp();
+		const old = tracked(
+			daemonSpawner({
+				endpoint: t.endpoint,
+				version: "1.0.0",
+				idleTtlMs: 10_000,
+			}),
+		);
+		const oldSpawn = old.spawn();
+		if (!oldSpawn.ok) throw new Error(oldSpawn.error.message);
+		expect(
+			await waitFor(
+				async () => (await statusOf(t.endpoint.address, "1.0.0")) !== null,
+				5000,
+			),
+		).toBe(true);
+
+		const next = tracked(
+			daemonSpawner({
+				endpoint: t.endpoint,
+				version: "2.0.0",
+				idleTtlMs: 10_000,
+			}),
+		);
+		const client = createHookClient({
+			endpoint: t.endpoint,
+			version: "2.0.0",
+			spawn: next.spawn,
+			fallback: fixedGate("deny"),
+		});
+		const result = await client.evaluate(shellEvent, { timeoutMs: 8000 });
+		expect(result.degraded).toBe(false);
+		expect(next.calls()).toBe(1);
+		expect(await waitFor(() => !isAlive(oldSpawn.value.pid), 3000)).toBe(true);
+		const status = await statusOf(t.endpoint.address, "2.0.0");
+		expect(status?.version).toBe("2.0.0");
+	}, 20_000);
+});
+
+describe("idle TTL", () => {
+	test("an idle runtime exits after the configured TTL", async () => {
+		const t = temp();
+		const started = startRuntime(
+			{ gate: fixedGate("allow") },
+			{ endpoint: t.endpoint, version: "1.0.0", idleTtlMs: 150 },
+		);
+		if (!started.ok) throw new Error(JSON.stringify(started.error));
+		runtimes.push(started.value);
+		const t0 = Date.now();
+		expect(await started.value.closed).toBe("idle");
+		expect(Date.now() - t0).toBeGreaterThanOrEqual(140);
+		expect(existsSync(t.endpoint.pidFile)).toBe(false);
+		expect(existsSync(t.endpoint.address)).toBe(false);
+	});
+
+	test("requests reset the idle clock", async () => {
+		const t = temp();
+		const started = startRuntime(
+			{ gate: fixedGate("allow") },
+			{ endpoint: t.endpoint, version: "1.0.0", idleTtlMs: 200 },
+		);
+		if (!started.ok) throw new Error(JSON.stringify(started.error));
+		runtimes.push(started.value);
+		let closed = false;
+		void started.value.closed.then(() => {
+			closed = true;
+		});
+		for (let i = 0; i < 5; i++) {
+			await Bun.sleep(100);
+			expect(await statusOf(t.endpoint.address, "1.0.0")).not.toBeNull();
+		}
+		expect(closed).toBe(false);
+	});
+
+	test("a spawned daemon process exits once idle", async () => {
+		const t = temp();
+		const spawner = tracked(
+			daemonSpawner({ endpoint: t.endpoint, version: "1.0.0", idleTtlMs: 300 }),
+		);
+		const spawned = spawner.spawn();
+		if (!spawned.ok) throw new Error(spawned.error.message);
+		expect(
+			await waitFor(
+				async () => (await statusOf(t.endpoint.address, "1.0.0")) !== null,
+				5000,
+			),
+		).toBe(true);
+		expect(await waitFor(() => !isAlive(spawned.value.pid), 5000)).toBe(true);
+		expect(existsSync(t.endpoint.pidFile)).toBe(false);
+	}, 15_000);
+});
