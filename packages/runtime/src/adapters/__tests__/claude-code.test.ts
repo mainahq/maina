@@ -230,6 +230,18 @@ describe("fromClaude", () => {
 		).toMatchObject({ kind: "network", input: { url: "https://x.dev" } });
 	});
 
+	test("a Grep glob narrows what it reads, so a secret glob reads as the secret", () => {
+		const path = (toolInput: Record<string, unknown>) =>
+			gateOf(fromClaude(pre("Grep", { pattern: "KEY", ...toolInput }))).input
+				.path;
+		expect(path({ glob: ".env" })).toBe("/home/user/project/.env");
+		// Wildcards are dropped: `.env*` matches `.env`, `**/*.pem` any `.pem`.
+		expect(path({ glob: ".env*" })).toBe("/home/user/project/.env");
+		expect(path({ glob: "**/*.pem", path: "/srv/app/" })).toBe("/srv/app/.pem");
+		// A glob that is all wildcards reads the whole directory.
+		expect(path({ glob: "**/*" })).toBe("/home/user/project");
+	});
+
 	test("an MCP tool without mcp_server is split from its name", () => {
 		expect(
 			gateOf(fromClaude(pre("mcp__github__get_issue", { number: 1 }))),

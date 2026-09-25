@@ -159,6 +159,23 @@ function splitOnce(value: string, sep: string): readonly [string, string] {
 		: [value.slice(0, at), value.slice(at + sep.length)];
 }
 
+/**
+ * What a Grep over `dir` reads when its `glob` narrows the files: the glob
+ * under `dir` with its wildcards dropped, so `.env*` reads as `.env` and
+ * `**\/*.pem` as a `.pem` file, and core's secret-path rules see the target.
+ * Without this a Grep with `glob: ".env"` reads as a plain workspace read.
+ */
+function searchTarget(dir: string, glob: string | undefined): string {
+	if (glob === undefined) return dir;
+	const literal = glob
+		.replace(/[*?]/g, "")
+		.replace(/\/{2,}/g, "/")
+		.replace(/^\/+/, "");
+	return literal === "" || literal === "/"
+		? dir
+		: `${dir.replace(/\/+$/, "")}/${literal}`;
+}
+
 function mapTool(
 	tool: string,
 	input: ToolInput,
@@ -191,12 +208,13 @@ function mapTool(
 				: { kind: "file.read.outside", input: { path } };
 		}
 		// Searches read what is under `path`, the working directory by default.
+		// Glob only lists names; Grep reads contents, narrowed by its `glob`.
 		case "Grep":
 		case "Glob": {
-			const path = text(input.path) ?? cwd;
-			return path === undefined
-				? needs(tool, "a path")
-				: { kind: "file.read.outside", input: { path } };
+			const dir = text(input.path) ?? cwd;
+			if (dir === undefined) return needs(tool, "a path");
+			const path = tool === "Grep" ? searchTarget(dir, text(input.glob)) : dir;
+			return { kind: "file.read.outside", input: { path } };
 		}
 		case "WebFetch": {
 			const url = text(input.url);

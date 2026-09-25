@@ -256,4 +256,25 @@ describe("runClaudeHook over the real rules-only gate", () => {
 			(await runClaudeHook(read("/etc/hosts"), real)).decision?.verdict,
 		).not.toBe("allow");
 	});
+
+	test("a Grep whose glob names a secret file is not allowed", async () => {
+		const grep = (toolInput: Record<string, unknown>): string =>
+			JSON.stringify({
+				session_id: "s1",
+				cwd: repo,
+				permission_mode: "default",
+				hook_event_name: "PreToolUse",
+				tool_name: "Grep",
+				tool_input: { pattern: "KEY", ...toolInput },
+			});
+		for (const glob of [".env", ".env*", "**/*.pem"]) {
+			expect(
+				(await runClaudeHook(grep({ glob }), real)).decision?.verdict,
+				glob,
+			).not.toBe("allow");
+		}
+		expect(
+			(await runClaudeHook(grep({ glob: "*.ts" }), real)).decision?.verdict,
+		).toBe("allow");
+	});
 });
