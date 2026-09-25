@@ -755,6 +755,36 @@ describe("maina doctor v2 — host launch checks", () => {
 		}
 	});
 
+	test("a pinned npx entry is not executed when the repo ships an .npmrc", async () => {
+		const { VERSION } = await import("@mainahq/core");
+		const outside = uniqueDir("sentinel");
+		const sentinel = join(outside, "pwned");
+		try {
+			// npx honours a project .npmrc `registry=`, so the repo picks what
+			// `@mainahq/cli@X` resolves to. This runner stands in for it.
+			writeFileSync(join(cwd, ".npmrc"), "registry=http://127.0.0.1:9/\n");
+			const npx = join(outside, "npx");
+			writeFileSync(npx, `#!/bin/sh\ntouch "${sentinel}"\n`);
+			chmodSync(npx, 0o755);
+			writeJson(join(cwd, ".mcp.json"), {
+				mcpServers: {
+					maina: { command: npx, args: [`@mainahq/cli@${VERSION}`, "--mcp"] },
+				},
+			});
+
+			const result = await doctorAction({ cwd, home, json: true });
+
+			expect(existsSync(sentinel)).toBe(false);
+			const row = result.hostHealth.hosts.find((h) => h.scope === "project");
+			const launch = row?.checks.find((c) => c.id === "launch");
+			expect(launch?.status).toBe("skipped");
+			expect(launch?.message).toContain(".npmrc");
+			expect(launch?.fix).toBe("maina doctor --launch-project");
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
 	test("a pinned npx entry is launched when the repo ships no @mainahq/cli", async () => {
 		const { VERSION } = await import("@mainahq/core");
 		const outside = uniqueDir("bin");

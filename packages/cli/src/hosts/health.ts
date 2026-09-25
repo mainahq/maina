@@ -16,7 +16,8 @@
  * (`trustedProjectLaunch`); any other is reported `skipped` unless the
  * caller opts in with `launchProject` (`maina doctor --launch-project`).
  * The `bunx`/`npx` launcher form counts as maina's only while the repo
- * ships no `node_modules/@mainahq/cli` the runner could resolve instead.
+ * ships no `node_modules/@mainahq/cli` the runner could resolve instead
+ * and no project `.npmrc` that could point it at another registry.
  * User-scope entries are the user's own and always launch.
  * This module is pure apart from the injected ports: `./probe.ts` does the
  * spawning, `commands/doctor.ts` wires the real filesystem and git.
@@ -348,9 +349,9 @@ function worst(checks: readonly HealthCheck[]): CheckStatus {
 const SKIPPED_REASON =
 	"project command not recognised as maina's launcher; not executed";
 const CLI_PACKAGE_DIR = join("node_modules", "@mainahq", "cli");
-const SHADOWED_REASON =
-	`the repo ships its own ${CLI_PACKAGE_DIR}, which the package runner ` +
-	"can resolve in place of the published CLI; not executed";
+const shadowedReason = (shadow: string): string =>
+	`the repo ships ${shadow}, which can make the package runner resolve ` +
+	"something other than the published CLI; not executed";
 const LAUNCH_PROJECT_FIX = "maina doctor --launch-project";
 
 /** Whether absolute `path` is `dir` or below it. */
@@ -360,33 +361,53 @@ function within(dir: string, path: string): boolean {
 }
 
 /**
- * Every `node_modules/@mainahq/cli` a package runner started in `cwd` could
- * resolve that the repo controls: cwd's own and each ancestor's up to the
- * repo root (npx looks up from the cwd). Outside a repo, or when cwd is not
- * below its root, only cwd's own.
+ * The repo-controlled directories a package runner started in `cwd` reads
+ * project state from: cwd and each ancestor up to the repo root (npx looks
+ * up from the cwd). Outside a repo, or when cwd is not below its root, only
+ * cwd. The walk ends on path equality (`relative` is empty), not string
+ * equality, so a root spelled unlike `dirname`'s output (Windows git's
+ * `C:/x`) still ends it; the filesystem root is a hard stop.
  */
+function runnerDirs(cwd: string, repoRoot: string | null): readonly string[] {
+	const dirs = [cwd];
+	if (repoRoot === null || !within(repoRoot, cwd)) return dirs;
+	let dir = cwd;
+	while (relative(repoRoot, dir) !== "") {
+		const parent = dirname(dir);
+		if (parent === dir) break;
+		dir = parent;
+		dirs.push(dir);
+	}
+	return dirs;
+}
+
+/** Every repo-controlled `node_modules/@mainahq/cli` npx could resolve. */
 export function localCliCopies(
 	cwd: string,
 	repoRoot: string | null,
 ): readonly string[] {
-	const dirs = [cwd];
-	if (repoRoot !== null && cwd !== repoRoot && within(repoRoot, cwd)) {
-		let dir = cwd;
-		while (dir !== repoRoot) {
-			dir = dirname(dir);
-			dirs.push(dir);
-		}
-	}
-	return dirs.map((d) => join(d, CLI_PACKAGE_DIR));
+	return runnerDirs(cwd, repoRoot).map((d) => join(d, CLI_PACKAGE_DIR));
+}
+
+/**
+ * Every repo-controlled project `.npmrc` npx could read: its `registry=`
+ * (or `@mainahq:registry=`) picks where `@mainahq/cli@X` comes from.
+ */
+export function localNpmrcs(
+	cwd: string,
+	repoRoot: string | null,
+): readonly string[] {
+	return runnerDirs(cwd, repoRoot).map((d) => join(d, ".npmrc"));
 }
 
 interface TrustOptions {
 	readonly realpath?: (path: string) => string;
 	/**
-	 * The repo ships its own `node_modules/@mainahq/cli` (`localCliCopies`).
-	 * A `bunx`/`npx` entry could then run that copy instead of the release.
+	 * A repo file that can redirect a package runner's resolution of
+	 * `@mainahq/cli@X` (`localCliCopies`, `localNpmrcs`), or null. A
+	 * `bunx`/`npx` entry could then run something other than the release.
 	 */
-	readonly repoShipsCli?: boolean;
+	readonly packageShadow?: string | null;
 }
 
 /**
@@ -395,17 +416,17 @@ interface TrustOptions {
  * own (an `env` can preload code or move `PATH`; maina never writes one),
  * and neither its executable nor its CLI entry is a file the repo ships.
  * A bare executable name is looked up on the host's PATH, not in the repo.
- * The `bunx`/`npx` form is trusted only while the repo ships no copy of
- * `@mainahq/cli` for the runner to resolve in its place.
+ * The `bunx`/`npx` form is trusted only while the repo ships nothing that
+ * can redirect the runner's resolution of `@mainahq/cli` (`packageShadow`).
  */
 export function trustedProjectLaunch(
 	spec: LaunchSpec,
 	repoDirs: readonly string[],
-	{ realpath = (p) => p, repoShipsCli = false }: TrustOptions = {},
+	{ realpath = (p) => p, packageShadow = null }: TrustOptions = {},
 ): boolean {
 	if (Object.keys(spec.env).length > 0) return false;
 	if (!isMainaLauncher(spec)) return false;
-	if (repoShipsCli && isPackageRunnerLauncher(spec)) return false;
+	if (packageShadow !== null && isPackageRunnerLauncher(spec)) return false;
 	// The executable when given as a path, and the CLI entry of the runtime
 	// form (`isMainaLauncher` only accepts that one as an absolute path).
 	const files = [
@@ -502,8 +523,8 @@ interface LaunchContext {
 	/** The repo's directories; a project entry must not run a file in one. */
 	readonly repoDirs: readonly string[];
 	readonly realpath: (path: string) => string;
-	/** The repo ships a `node_modules/@mainahq/cli` (`localCliCopies`). */
-	readonly repoShipsCli: boolean;
+	/** A repo file that can redirect a package runner (`TrustOptions`). */
+	readonly packageShadow: string | null;
 	readonly probe: Probe;
 }
 
@@ -560,7 +581,9 @@ async function hostReport(
 		input.launchProject !== true &&
 		!trustedProjectLaunch(spec.value, launch.repoDirs, launch)
 	) {
-		const shadowed = launch.repoShipsCli && isPackageRunnerLauncher(spec.value);
+		const shadow = isPackageRunnerLauncher(spec.value)
+			? launch.packageShadow
+			: null;
 		return {
 			...base,
 			command,
@@ -571,7 +594,7 @@ async function hostReport(
 				{
 					id: "launch",
 					status: "skipped",
-					message: shadowed ? SHADOWED_REASON : SKIPPED_REASON,
+					message: shadow === null ? SKIPPED_REASON : shadowedReason(shadow),
 					fix: LAUNCH_PROJECT_FIX,
 				},
 			],
@@ -614,16 +637,24 @@ export async function checkHostHealth(
 	if (repoRoot !== null && realRoot !== null) {
 		repoDirs.push(repoRoot, realRoot);
 	}
-	const cliCopies = [
-		...localCliCopies(ctx.cwd, repoRoot),
-		...localCliCopies(cwd, realRoot),
-	];
+	const lookups = [
+		[ctx.cwd, repoRoot],
+		[cwd, realRoot],
+	] as const;
+	const packageShadow =
+		lookups
+			.flatMap(([dir, root]) => localCliCopies(dir, root))
+			.find((copy) => ports.listDir(copy) !== null) ??
+		lookups
+			.flatMap(([dir, root]) => localNpmrcs(dir, root))
+			.find((npmrc) => ports.readFile(npmrc) !== null) ??
+		null;
 	const launch: LaunchContext = {
 		env: env.env,
 		cwd: ctx.cwd,
 		repoDirs,
 		realpath: ports.realpath,
-		repoShipsCli: cliCopies.some((dir) => ports.listDir(dir) !== null),
+		packageShadow,
 		probe: ports.probe,
 	};
 
