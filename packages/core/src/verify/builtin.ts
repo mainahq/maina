@@ -195,9 +195,77 @@ export function checkFileSize(filePath: string, content: string): Finding[] {
 
 // ─── Check 5: Secrets patterns ──────────────────────────────────────────
 
+/** Secret-bearing key names; `-`/`_` separators cover JSON/YAML spellings. */
+const SECRET_KEY =
+	"(password|secret|token|api[-_]?key|api[-_]?secret|private[-_]?key|auth[-_]?token)";
+
 /**
- * Detect hardcoded secrets: password=, secret=, token=, api_key=
- * followed by a quoted or literal non-empty value (not a variable reference).
+ * Key followed by `=` or `:` and a quoted literal. The optional quote after
+ * the key covers JSON/YAML quoted keys (`"api_key": "..."`, #391). Values
+ * containing `$` or whitespace (variable references, prose) never match.
+ */
+const QUOTED_SECRET_PATTERN = new RegExp(
+	`\\b${SECRET_KEY}["'\`]?\\s*[=:]\\s*["'\`]([^"'\`\\s$]{2,})["'\`]`,
+	"i",
+);
+
+/**
+ * YAML block-mapping entry with an unquoted scalar value:
+ * `  api_key: value  # comment` or `- token: value`. The whole key must be a
+ * secret key; flow, anchor, tag, block-scalar and placeholder values are skipped.
+ */
+const YAML_UNQUOTED_SECRET_PATTERN = new RegExp(
+	`^\\s*(?:-\\s+)?["']?${SECRET_KEY}["']?\\s*:\\s+([^\\s"'\`$!&*{}\\[\\]<>|#][^\\s#$]+)\\s*(?:#.*)?$`,
+	"i",
+);
+
+/** Values that are obviously test fixtures or placeholders, not real secrets. */
+const TEST_VALUE_PATTERN =
+	/^(test|fake|mock|dummy|example|placeholder|xxx|changeme|TODO|your-|my-|not-real|sk-test|pk-test|<.*>$|\.\.\.|…)/i;
+
+/** Type names and scalar keywords that schema-like files put in the value slot. */
+const NON_SECRET_VALUES = new Set([
+	"string",
+	"str",
+	"number",
+	"int",
+	"integer",
+	"float",
+	"boolean",
+	"bool",
+	"object",
+	"array",
+	"null",
+	"none",
+	"nil",
+	"true",
+	"false",
+	"yes",
+	"no",
+	"required",
+	"optional",
+]);
+
+function isYamlFile(filePath: string): boolean {
+	return /\.ya?ml$/i.test(filePath);
+}
+
+const normalizeKey = (s: string): string =>
+	s.toLowerCase().replace(/[-_]/g, "");
+
+/** Rejects fixtures, schema type names and labels echoing the key ("Password"). */
+function isRealSecretValue(key: string, value: string): boolean {
+	return (
+		!TEST_VALUE_PATTERN.test(value) &&
+		!NON_SECRET_VALUES.has(value.toLowerCase()) &&
+		normalizeKey(value) !== normalizeKey(key)
+	);
+}
+
+/**
+ * Detect hardcoded secrets: password=, secret=, token=, api_key=, including
+ * JSON/YAML key forms (`"api_key": "..."`, and `api_key: value` in YAML),
+ * followed by a literal non-empty value (not a variable reference).
  */
 export function checkSecrets(filePath: string, content: string): Finding[] {
 	// Skip test files — they use fake credentials by definition
@@ -205,19 +273,13 @@ export function checkSecrets(filePath: string, content: string): Finding[] {
 
 	const findings: Finding[] = [];
 	const lines = content.split("\n");
-
-	// Patterns: key followed by = and a hardcoded value (quoted string or bare literal)
-	// Does NOT match variable references like process.env.X, ${VAR}, etc.
-	const secretPattern =
-		/\b(password|secret|token|api_key|apikey|api_secret|private_key|auth_token)\s*[=:]\s*["'`]([^"'`\s$]{2,})["'`]/i;
-
-	// Values that are obviously test fixtures, not real secrets
-	const testValuePattern =
-		/^(test|fake|mock|dummy|example|placeholder|xxx|changeme|TODO|your-|my-|not-real|sk-test|pk-test)/i;
+	const yaml = isYamlFile(filePath);
 
 	for (const [i, line] of lines.entries()) {
-		const match = line.match(secretPattern);
-		if (match?.[2] && !testValuePattern.test(match[2])) {
+		const match =
+			line.match(QUOTED_SECRET_PATTERN) ??
+			(yaml ? line.match(YAML_UNQUOTED_SECRET_PATTERN) : null);
+		if (match?.[1] && match[2] && isRealSecretValue(match[1], match[2])) {
 			findings.push({
 				tool: "builtin",
 				file: filePath,
