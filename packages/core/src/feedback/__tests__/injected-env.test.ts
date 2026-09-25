@@ -8,7 +8,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { envFromRecord } from "../../ports/env";
-import { recordFeedbackAsync } from "../collector";
+import {
+	recordFeedbackAsync,
+	recordFeedbackWithCompression,
+} from "../collector";
 
 let dir: string;
 let authDir: string;
@@ -57,6 +60,33 @@ describe("recordFeedbackAsync cloud sync", () => {
 			},
 		);
 		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(urls.length).toBeGreaterThan(0);
+		expect(urls.every((u) => u.startsWith("https://cloud.test/"))).toBe(true);
+	});
+});
+
+describe("recordFeedbackWithCompression cloud sync", () => {
+	test("posts the episodic entry to the MAINA_CLOUD_URL from the injected env", async () => {
+		const mainaDir = join(dir, ".maina");
+		mkdirSync(mainaDir, { recursive: true });
+		recordFeedbackWithCompression(
+			mainaDir,
+			{
+				promptHash: "review-292",
+				task: "review",
+				accepted: true,
+				timestamp: new Date().toISOString(),
+				aiOutput: "Overall: looks good. Warning: missing null check.",
+				diff: "--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1 +1,2 @@\n+const a = 1;",
+			},
+			{
+				env: envFromRecord({ MAINA_CLOUD_URL: "https://cloud.test" }),
+				authDir,
+			},
+		);
+		for (let i = 0; i < 40 && urls.length === 0; i++) {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		}
 		expect(urls.length).toBeGreaterThan(0);
 		expect(urls.every((u) => u.startsWith("https://cloud.test/"))).toBe(true);
 	});
