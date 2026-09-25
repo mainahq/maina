@@ -7,7 +7,13 @@
  */
 
 import type { Finding } from "./diff-filter";
-import { resolveTool, spawnFailureNotice, spawnTool } from "./tool-spawn";
+import {
+	exitFailureNotice,
+	failedWithoutOutput,
+	resolveTool,
+	spawnFailureNotice,
+	spawnTool,
+} from "./tool-spawn";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -154,6 +160,13 @@ export async function runTrivy(options: TrivyOptions): Promise<TrivyResult> {
 			findings: [],
 			skipped: true,
 			notice: spawnFailureNotice("trivy", run.error),
+		};
+	}
+	if (failedWithoutOutput(run.value)) {
+		return {
+			findings: [],
+			skipped: true,
+			notice: exitFailureNotice("trivy", run.value),
 		};
 	}
 	return { findings: parseTrivyJson(run.value.stdout), skipped: false };

@@ -7,7 +7,13 @@
  */
 
 import type { Finding } from "./diff-filter";
-import { resolveTool, spawnFailureNotice, spawnTool } from "./tool-spawn";
+import {
+	exitFailureNotice,
+	failedWithoutOutput,
+	resolveTool,
+	spawnFailureNotice,
+	spawnTool,
+} from "./tool-spawn";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -167,6 +173,13 @@ export async function runSemgrep(
 			findings: [],
 			skipped: true,
 			notice: spawnFailureNotice("semgrep", run.error),
+		};
+	}
+	if (failedWithoutOutput(run.value)) {
+		return {
+			findings: [],
+			skipped: true,
+			notice: exitFailureNotice("semgrep", run.value),
 		};
 	}
 	return { findings: parseSarif(run.value.stdout), skipped: false };

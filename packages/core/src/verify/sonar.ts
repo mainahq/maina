@@ -6,7 +6,12 @@
  */
 
 import type { Finding } from "./diff-filter";
-import { resolveTool, spawnFailureNotice, spawnTool } from "./tool-spawn";
+import {
+	exitFailureNotice,
+	resolveTool,
+	spawnFailureNotice,
+	spawnTool,
+} from "./tool-spawn";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -138,6 +143,14 @@ export async function runSonar(options: SonarOptions): Promise<SonarResult> {
 		const reportFile = Bun.file(reportPath);
 		const exists = await reportFile.exists();
 		if (!exists) {
+			// A failed run that left no report produced nothing to trust.
+			if (run.value.exitCode !== 0) {
+				return {
+					findings: [],
+					skipped: true,
+					notice: exitFailureNotice("sonarqube", run.value),
+				};
+			}
 			return { findings: [], skipped: false };
 		}
 

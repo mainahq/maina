@@ -97,3 +97,21 @@ export function spawnFailureNotice(
 ): string {
 	return `${tool} was detected but could not be started (${error.command}): ${error.message}. Skipped, no results from this tool.`;
 }
+
+/**
+ * Notice for a tool that started but exited non-zero and left no results
+ * (e.g. a rules fetch or config error). Such a run is a skip, not a pass
+ * with zero findings. Callers decide what "no results" means: empty stdout
+ * for stdout-reporting tools, a missing report file for the others. A
+ * non-zero exit that did produce results is kept: several tools exit
+ * non-zero precisely because they found issues.
+ */
+export function exitFailureNotice(tool: string, output: ToolOutput): string {
+	const detail = output.stderr.trim().slice(0, 300);
+	return `${tool} exited with code ${output.exitCode} without results${detail ? `: ${detail}` : ""}. Skipped, no results from this tool.`;
+}
+
+/** True when a run exited non-zero and wrote nothing to stdout. */
+export function failedWithoutOutput(output: ToolOutput): boolean {
+	return output.exitCode !== 0 && output.stdout.trim() === "";
+}

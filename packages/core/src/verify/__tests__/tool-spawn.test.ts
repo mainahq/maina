@@ -297,5 +297,34 @@ describe("runners spawn the tool path resolved by detection (#389)", () => {
 			expect(result.notice).toContain(c.bin);
 			expect(result.notice).toMatch(/could not be started/);
 		}, 20_000);
+
+		test(`${c.fn} reports a run that exits non-zero with no results as skipped, never a silent pass`, async () => {
+			// Started fine, then failed (e.g. rules fetch, bad config): no output.
+			writeFakeTool(
+				join(root, "node_modules", ".bin", c.bin),
+				'echo "boom: config unreachable" >&2\nexit 2',
+			);
+
+			const result = await runInChild(c, { cwd: root, baseBranch: "HEAD" });
+
+			expect(result.skipped).toBe(true);
+			expect(result.findings).toEqual([]);
+			expect(result.notice).toContain(c.tool);
+			expect(result.notice).toContain("exited with code 2");
+			expect(result.notice).toContain("boom: config unreachable");
+		}, 20_000);
+
+		test(`${c.fn} keeps findings when the tool exits non-zero because it found issues`, async () => {
+			writeFakeTool(
+				join(root, "node_modules", ".bin", c.bin),
+				`${c.body}\nexit 1`,
+			);
+
+			const result = await runInChild(c, { cwd: root, baseBranch: "HEAD" });
+
+			expect(result.notice).toBeUndefined();
+			expect(result.skipped).toBe(false);
+			expect(result.findings).toHaveLength(1);
+		}, 20_000);
 	}
 });
