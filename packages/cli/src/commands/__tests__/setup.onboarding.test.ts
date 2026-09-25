@@ -16,12 +16,14 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { SetupTelemetryEvent } from "../../onboarding/setup/telemetry";
 import {
 	type SetupActionDeps,
 	type SetupActionOptions,
 	setupAction,
 	setupCommand,
 } from "../setup";
+import { jsonEmitter, type PhaseEvent } from "../setup-emitter";
 
 const LEGACY = [
 	".aider.conf.yml",
@@ -288,5 +290,137 @@ describe("setupAction — single onboarding flow", () => {
 		const flags = setupCommand().options.map((o) => o.long);
 		expect(flags).toContain("--legacy-agents");
 		expect(flags).toContain("--plugin");
+	});
+});
+
+describe("setupAction — kept constitution skips the AI call (#406)", () => {
+	function countingDeps(
+		source: "byok" | "degraded" = "byok",
+	): SetupActionDeps & { calls: () => number; warnings: string[] } {
+		let calls = 0;
+		const warnings: string[] = [];
+		const base = deps();
+		return {
+			...base,
+			log: { ...base.log, warning: (m: string) => warnings.push(m) },
+			resolveAI: async () => {
+				calls++;
+				return source === "byok"
+					? {
+							source: "byok",
+							text: "# Project Constitution\n\n- Generated rule.\n",
+							metadata: {
+								source: "byok",
+								attemptedSources: ["byok"],
+								durationMs: 1,
+							},
+						}
+					: {
+							source: "degraded",
+							text: "# Project Constitution\n\n- Offline rule.\n",
+							metadata: {
+								source: "degraded",
+								attemptedSources: ["degraded"],
+								durationMs: 1,
+								reason: "no_key",
+							},
+						};
+			},
+			calls: () => calls,
+			warnings,
+		};
+	}
+
+	function keepConstitution(): void {
+		mkdirSync(join(cwd, ".maina"), { recursive: true });
+		writeFileSync(
+			join(cwd, ".maina", "constitution.md"),
+			"# Ours\n\n- Kept.\n",
+		);
+	}
+
+	test("a second run never calls resolveAI and reports aiSource=skipped", async () => {
+		const d = countingDeps();
+		const first = await run({ deps: d });
+		expect(first.aiSource).toBe("byok");
+		expect(d.calls()).toBe(1);
+
+		const second = await run({ deps: d });
+		expect(d.calls()).toBe(1);
+		expect(second.bailed).toBe(false);
+		expect(second.aiSource).toBe("skipped");
+		expect(second.degraded).toBe(false);
+	});
+
+	test("plugin re-runs skip the AI call too", async () => {
+		keepConstitution();
+		const d = countingDeps();
+		const result = await run({ deps: d, plugin: true });
+		expect(d.calls()).toBe(0);
+		expect(result.aiSource).toBe("skipped");
+	});
+
+	test("infer phase is skipped with reason constitution_exists; done is not degraded", async () => {
+		keepConstitution();
+		const lines: string[] = [];
+		const result = await run({
+			deps: countingDeps(),
+			ci: true,
+			emitter: jsonEmitter((l) => lines.push(l)),
+		});
+		expect(result.bailed).toBe(false);
+		const events = lines.map((l) => JSON.parse(l) as PhaseEvent);
+		const infer = events.find((e) => e.phase === "infer");
+		expect(infer?.status).toBe("skipped");
+		expect(infer?.reason).toBe("constitution_exists");
+		const done = events.find((e) => e.phase === "done");
+		expect(done?.status).toBe("ok");
+		expect(done?.aiSource).toBe("skipped");
+		expect(done?.degraded).toBe(false);
+		expect(done?.tailored).toBe(false);
+	});
+
+	test("telemetry reports skipped, neither degraded nor tailored", async () => {
+		keepConstitution();
+		const savedTelemetry = process.env.MAINA_TELEMETRY;
+		delete process.env.MAINA_TELEMETRY;
+		let event: SetupTelemetryEvent | undefined;
+		try {
+			await run({
+				deps: countingDeps(),
+				telemetry: undefined,
+				sendTelemetry: async (opts) => {
+					event = opts.event;
+					return { sent: true, error: null };
+				},
+			});
+		} finally {
+			if (savedTelemetry !== undefined)
+				process.env.MAINA_TELEMETRY = savedTelemetry;
+		}
+		expect(event?.aiSource).toBe("skipped");
+		expect(event?.degraded).toBe(false);
+		expect(event?.tailored).toBe(false);
+	});
+
+	test("a kept constitution never writes a degraded setup.log entry or banner", async () => {
+		keepConstitution();
+		const d = countingDeps("degraded");
+		const result = await run({ deps: d });
+		expect(d.calls()).toBe(0);
+		expect(result.degraded).toBe(false);
+		expect(existsSync(join(cwd, ".maina", "setup.log"))).toBe(false);
+		expect(d.warnings.some((w) => w.toLowerCase().includes("degraded"))).toBe(
+			false,
+		);
+	});
+
+	test("--reset still regenerates through resolveAI", async () => {
+		keepConstitution();
+		const d = countingDeps();
+		const result = await run({ deps: d, mode: "reset" });
+		expect(d.calls()).toBe(1);
+		expect(result.aiSource).toBe("byok");
+		expect(result.constitutionWritten).toBe(true);
 	});
 });

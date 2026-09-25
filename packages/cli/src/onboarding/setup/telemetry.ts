@@ -22,6 +22,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { StackContext } from "./context";
+import type { SetupAISource } from "./resolve-ai";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,13 +43,20 @@ export interface SetupTelemetryPhase {
 	durationMs?: number;
 }
 
+/**
+ * Where the constitution text came from. `"skipped"`: the repo already had
+ * `.maina/constitution.md`, which setup keeps, so no AI call was made. It is
+ * neither tailored nor degraded.
+ */
+export type SetupTelemetryAISource = SetupAISource | "skipped";
+
 export interface SetupTelemetryEvent {
 	/** SHA-256(deviceFingerprint + Date.now() + random) truncated to 32 hex. */
 	setupId: string;
 	stack: SetupTelemetryStack;
 	durationMs: number;
 	phases: SetupTelemetryPhase[];
-	aiSource: "host" | "cloud" | "byok" | "degraded";
+	aiSource: SetupTelemetryAISource;
 	tailored: boolean;
 	degraded: boolean;
 	mainaVersion: string;

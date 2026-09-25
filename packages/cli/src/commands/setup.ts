@@ -69,6 +69,7 @@ import {
 	type SetupAIResult,
 	type SetupAISource,
 	type SetupDegradedReason,
+	type SetupTelemetryAISource,
 	type SetupTelemetryEvent,
 	type SetupTelemetryPhase,
 	type StackContext,
@@ -117,8 +118,10 @@ interface SetupResult {
 	mode: SetupMode;
 	environment: AgentEnvironment;
 	stack: StackContext;
-	aiSource: SetupAISource;
-	aiMetadata: SetupAIMetadata;
+	/** `"skipped"` when an existing constitution was kept: no AI call ran. */
+	aiSource: SetupTelemetryAISource;
+	/** Null when the AI call was skipped. */
+	aiMetadata: SetupAIMetadata | null;
 	constitutionWritten: boolean;
 	agentFilesWritten: string[];
 	agentFilesWarnings: string[];
@@ -684,89 +687,109 @@ export async function setupAction(
 	});
 
 	// ── Phase 2: infer (AI) ─────────────────────────────────────────────────
-	const sp2 = deps.spinner();
-	sp2.start("Generating tailored constitution…");
-	const repoSummary = await summarizeRepo(cwd, result.stack);
-	const aiResolveOptions: Parameters<typeof resolveSetupAI>[0] = {
-		cwd,
-		env: processEnv,
-		stack: result.stack,
-		repoSummary,
-		fingerprint: deviceFingerprint(),
-		userAgent: userAgent(ci),
-	};
-	if (options.forceAISource !== undefined) {
-		aiResolveOptions.forceSource = options.forceAISource;
-	}
-	let ai: SetupAIResult;
-	try {
-		ai = await deps.resolveAI(aiResolveOptions);
-	} catch (e) {
-		sp2.stop("AI resolution failed.");
-		deps.log.error(
-			`AI resolution threw: ${e instanceof Error ? e.message : String(e)}`,
+	// Setup never overwrites an existing constitution (`--reset` has moved
+	// `.maina/` aside by now), so generating one would be thrown away: skip
+	// the AI call. Same readable-file check as after apply below.
+	const onboardingFs = nodeOnboardingFs(cwd);
+	const kept = onboardingFs.read(".maina/constitution.md");
+	let constitutionText: string;
+	if (kept.ok && kept.value !== null) {
+		constitutionText = kept.value;
+		result.aiSource = "skipped";
+		result.aiMetadata = null;
+		deps.log.info(
+			"Keeping .maina/constitution.md (run `maina setup --reset` to regenerate it).",
 		);
-		result.bailed = true;
-		result.bailReason = "ai_resolve_failed";
 		emitter.phase({
 			phase: "infer",
-			status: "error",
-			reason: e instanceof Error ? e.message : String(e),
+			status: "skipped",
+			reason: "constitution_exists",
 		});
-		finalizeEmit(emitter, result, startedAt, ci);
-		result.durationMs = Date.now() - startedAt;
-		await dispatchTelemetry(result, {
-			cwd,
-			ci,
-			phases: phaseRecords,
-			options,
-		});
-		return result;
-	}
-	result.aiSource = ai.source;
-	result.aiMetadata = ai.metadata;
-	result.degraded = ai.source === "degraded";
-	emitter.phase({
-		phase: "infer",
-		status: result.degraded ? "degraded" : "ok",
-		aiSource: ai.source,
-		attemptedSources: ai.metadata.attemptedSources,
-		durationMs: ai.metadata.durationMs,
-	});
-
-	if (result.degraded) {
-		const reason: SetupDegradedReason = ai.metadata.reason ?? "ai_unavailable";
-		const recovery = recoveryCommand(reason);
-		deps.log.warning(degradedBanner(reason));
-		deps.log.info(`→ ${recovery}`);
-		writeDegradedLogEntry(cwd, {
-			reason,
-			reasonDetail: ai.metadata.reasonDetail,
-			retryAt: ai.metadata.retryAt,
-			recovery,
-		});
-	}
-
-	let constitutionText: string;
-	if (ai.source === "host") {
-		// Host delegation: the prompt has already been emitted to stdout for
-		// the host AI to fulfill. For now, fall back to the degraded text so
-		// the wizard can complete; sub-task 6/7 will tighten this once the
-		// host round-trip is wired through.
-		sp2.stop("Awaiting host AI response — using offline starter for now.");
-		constitutionText = buildHostFallbackConstitution(result.stack);
 	} else {
-		sp2.stop(`Constitution ready (${ai.source}).`);
-		constitutionText = ai.text;
+		const sp2 = deps.spinner();
+		sp2.start("Generating tailored constitution…");
+		const repoSummary = await summarizeRepo(cwd, result.stack);
+		const aiResolveOptions: Parameters<typeof resolveSetupAI>[0] = {
+			cwd,
+			env: processEnv,
+			stack: result.stack,
+			repoSummary,
+			fingerprint: deviceFingerprint(),
+			userAgent: userAgent(ci),
+		};
+		if (options.forceAISource !== undefined) {
+			aiResolveOptions.forceSource = options.forceAISource;
+		}
+		let ai: SetupAIResult;
+		try {
+			ai = await deps.resolveAI(aiResolveOptions);
+		} catch (e) {
+			sp2.stop("AI resolution failed.");
+			deps.log.error(
+				`AI resolution threw: ${e instanceof Error ? e.message : String(e)}`,
+			);
+			result.bailed = true;
+			result.bailReason = "ai_resolve_failed";
+			emitter.phase({
+				phase: "infer",
+				status: "error",
+				reason: e instanceof Error ? e.message : String(e),
+			});
+			finalizeEmit(emitter, result, startedAt, ci);
+			result.durationMs = Date.now() - startedAt;
+			await dispatchTelemetry(result, {
+				cwd,
+				ci,
+				phases: phaseRecords,
+				options,
+			});
+			return result;
+		}
+		result.aiSource = ai.source;
+		result.aiMetadata = ai.metadata;
+		result.degraded = ai.source === "degraded";
+		emitter.phase({
+			phase: "infer",
+			status: result.degraded ? "degraded" : "ok",
+			aiSource: ai.source,
+			attemptedSources: ai.metadata.attemptedSources,
+			durationMs: ai.metadata.durationMs,
+		});
+
+		if (result.degraded) {
+			const reason: SetupDegradedReason =
+				ai.metadata.reason ?? "ai_unavailable";
+			const recovery = recoveryCommand(reason);
+			deps.log.warning(degradedBanner(reason));
+			deps.log.info(`→ ${recovery}`);
+			writeDegradedLogEntry(cwd, {
+				reason,
+				reasonDetail: ai.metadata.reasonDetail,
+				retryAt: ai.metadata.retryAt,
+				recovery,
+			});
+		}
+
+		if (ai.source === "host") {
+			// Host delegation: the prompt has already been emitted to stdout for
+			// the host AI to fulfill. For now, fall back to the degraded text so
+			// the wizard can complete; sub-task 6/7 will tighten this once the
+			// host round-trip is wired through.
+			sp2.stop("Awaiting host AI response — using offline starter for now.");
+			constitutionText = buildHostFallbackConstitution(result.stack);
+		} else {
+			sp2.stop(`Constitution ready (${ai.source}).`);
+			constitutionText = ai.text;
+		}
+		// Enforce Wave 2 acceptance §6.2: every generated constitution — tailor,
+		// cloud, BYOK, degraded, host-fallback — MUST ship with the two required
+		// sections. Cloud returns raw LLM text that sometimes omits them; rather
+		// than retrying through tailor (expensive + requires a separate prompt
+		// contract with the gateway), we deterministically append any missing
+		// section from the shared renderer so file-layout discipline lands in
+		// every repo regardless of tier.
+		constitutionText = ensureRequiredSections(constitutionText, result.stack);
 	}
-	// Enforce Wave 2 acceptance §6.2: every generated constitution — tailor,
-	// cloud, BYOK, degraded, host-fallback — MUST ship with the two required
-	// sections. Cloud returns raw LLM text that sometimes omits them; rather
-	// than retrying through tailor (expensive + requires a separate prompt
-	// contract with the gateway), we deterministically append any missing
-	// section from the shared renderer so file-layout discipline lands in
-	// every repo regardless of tier.
-	constitutionText = ensureRequiredSections(constitutionText, result.stack);
 
 	// ── Phase 3: scaffold ───────────────────────────────────────────────────
 	const sp3 = deps.spinner();
@@ -828,7 +851,6 @@ export async function setupAction(
 		legacyAgents: options.legacyAgents === true,
 		managedOnly: options.plugin === true,
 	};
-	const onboardingFs = nodeOnboardingFs(cwd);
 	const ops = planOnboarding(
 		{
 			stack: result.stack,
@@ -1020,8 +1042,7 @@ export async function setupAction(
 					mode: result.mode,
 					aiSource: result.aiSource,
 					degraded: result.degraded,
-					tailored:
-						result.aiSource !== "degraded" && result.aiSource !== "host",
+					tailored: isTailored(result.aiSource),
 					durationMs: result.durationMs,
 					bailed: result.bailed,
 					bailReason: result.bailReason ?? "",
@@ -1033,6 +1054,15 @@ export async function setupAction(
 		);
 	}
 	return result;
+}
+
+/**
+ * A constitution was generated for this repo by a real model. Host output
+ * is not wired through yet, degraded is the offline starter, and skipped
+ * means the existing constitution was kept.
+ */
+function isTailored(source: SetupTelemetryAISource): boolean {
+	return source === "byok" || source === "cloud";
 }
 
 /**
@@ -1064,7 +1094,7 @@ async function dispatchTelemetry(
 		durationMs: result.durationMs,
 		phases: ctx.phases,
 		aiSource: result.aiSource,
-		tailored: result.aiSource !== "degraded" && result.aiSource !== "host",
+		tailored: isTailored(result.aiSource),
 		degraded: result.degraded,
 		mainaVersion: CLI_VERSION,
 		mode: result.mode,
@@ -1128,7 +1158,7 @@ function finalizeEmit(
 		phase: "done",
 		status,
 		findings,
-		tailored: result.aiSource === "byok" || result.aiSource === "cloud",
+		tailored: isTailored(result.aiSource),
 		aiSource: result.aiSource,
 		degraded: result.degraded,
 		durationMs,
@@ -1153,8 +1183,12 @@ function emitSummary(log: SetupLogger, r: SetupResult): void {
 	log.step("Setup summary");
 	log.message(`  Mode:            ${r.mode}`);
 	log.message(`  Stack:           ${r.stack.languages.join(", ") || "(none)"}`);
-	log.message(`  AI source:       ${r.aiSource}`);
-	if (r.degraded && r.aiMetadata.retryAt) {
+	const aiSource =
+		r.aiSource === "skipped"
+			? "skipped (kept .maina/constitution.md)"
+			: r.aiSource;
+	log.message(`  AI source:       ${aiSource}`);
+	if (r.degraded && r.aiMetadata?.retryAt) {
 		log.message(`  Cloud retry at:  ${r.aiMetadata.retryAt}`);
 	}
 	log.message(
