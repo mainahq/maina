@@ -1,0 +1,46 @@
+package com.acme.geo;
+
+import java.util.List;
+import java.util.function.*;
+import static java.lang.Math.PI;
+
+public interface Shape {
+    double area();
+}
+
+public class Circle extends Base implements Shape, Comparable<Circle> {
+    private final double r;
+
+    public Circle(double r) {
+        super();
+        this.r = r;
+    }
+
+    @Override
+    public double area() {
+        return PI * Geometry.square(scale());
+    }
+
+    private double scale() {
+        return this.r;
+    }
+
+    public static List<Circle> load(String p) {
+        Circle c = new Circle(p.length());
+        return List.of(c);
+    }
+}
+
+enum Color { RED, GREEN }
+
+class CircleTest {
+    @Test
+    void areaIsPositive() {
+        assertTrue(new Circle(1).area() > 0);
+    }
+
+    @ParameterizedTest
+    void scales(int n) {}
+
+    void helper() {}
+}

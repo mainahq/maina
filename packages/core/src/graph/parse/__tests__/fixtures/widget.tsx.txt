@@ -1,0 +1,17 @@
+import React, { useState } from "react";
+import { Button } from "./button";
+
+type Props = { label: string };
+
+export function Counter({ label }: Props) {
+	const [count, setCount] = useState(0);
+	return <Button onClick={() => setCount(count + 1)}>{label}</Button>;
+}
+
+export const Badge = (props: Props) => <span>{props.label}</span>;
+
+export default class Panel extends React.Component<Props> {
+	render() {
+		return <div>{this.props.label}</div>;
+	}
+}

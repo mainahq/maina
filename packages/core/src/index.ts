@@ -298,6 +298,25 @@ export {
 	computeProofHash,
 	hasVerifiedByTrailer,
 } from "./git/trailer";
+// Graph — parser layer (FR-GRAPH-1)
+export {
+	type CallKind,
+	detectLang as detectGraphLang,
+	type ImportBinding,
+	isTestPath,
+	type Lang as GraphLang,
+	type ParsedCall,
+	type ParsedFile,
+	type ParsedImport,
+	type ParsedRef,
+	type ParsedSymbol,
+	type ParsedTest,
+	type ParseError as GraphParseError,
+	parseFile,
+	type Span as SourceSpan,
+	type SymbolKind,
+	type SyntaxIssue,
+} from "./graph/parse/index";
 // Hooks
 export {
 	executeHook,

@@ -1,0 +1,25 @@
+import express from "express";
+import { log } from "./log.js";
+export { route } from "./routes.js";
+const fs = require("node:fs");
+
+export function start(port) {
+	const app = express();
+	app.listen(port, () => log("listening"));
+	return app;
+}
+
+export class Store {
+	items = [];
+
+	add(item) {
+		this.items.push(item);
+		fs.writeFileSync("store.json", JSON.stringify(this.items));
+	}
+
+	handle = (req) => this.add(req.body);
+}
+
+export default function main() {
+	start(3000);
+}

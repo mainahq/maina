@@ -1,0 +1,55 @@
+use std::collections::HashMap;
+use std::io::{self, Read as R};
+use crate::units::*;
+pub use crate::geo::{Point, Line};
+
+pub trait Shape {
+    fn area(&self) -> f64;
+}
+
+pub struct Circle {
+    r: f64,
+}
+
+pub enum Color {
+    Red,
+    Green,
+}
+
+impl Circle {
+    pub fn new(r: f64) -> Self {
+        Circle { r }
+    }
+
+    fn scale(&self) -> f64 {
+        self.r
+    }
+}
+
+impl Shape for Circle {
+    fn area(&self) -> f64 {
+        std::f64::consts::PI * square(self.scale())
+    }
+}
+
+fn square(x: f64) -> f64 {
+    x * x
+}
+
+pub fn load(cache: &mut HashMap<String, Circle>) -> io::Result<Circle> {
+    let c = Circle::new(1.0);
+    println!("{}", c.area());
+    Ok(c)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn area_is_positive() {
+        assert!(Circle::new(1.0).area() > 0.0);
+    }
+
+    fn helper() {}
+}

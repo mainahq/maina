@@ -1,0 +1,38 @@
+package shapes
+
+import (
+	"fmt"
+	m "math"
+	_ "embed"
+	"github.com/acme/geo/units"
+)
+
+type Shape interface {
+	Area() float64
+}
+
+type Circle struct {
+	R units.Length
+}
+
+type Radius = float64
+
+func NewCircle(r float64) *Circle {
+	return &Circle{R: units.Length(r)}
+}
+
+func (c *Circle) Area() float64 {
+	return m.Pi * square(c.scale())
+}
+
+func (c Circle) scale() float64 {
+	return float64(c.R)
+}
+
+func square(x float64) float64 {
+	return x * x
+}
+
+func Describe(s Shape) string {
+	return fmt.Sprintf("%v", s.Area())
+}
