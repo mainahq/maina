@@ -6,10 +6,20 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import {
+	mkdirSync,
+	mkdtempSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { stripRepoLocalGitEnv, systemProcess } from "../index";
+import {
+	indexFileBelongsTo,
+	stripRepoLocalGitEnv,
+	systemProcess,
+} from "../index";
 
 const BUN = process.execPath;
 
@@ -40,6 +50,75 @@ describe("stripRepoLocalGitEnv", () => {
 			GIT_ASKPASS: "/bin/askpass",
 			GIT_TERMINAL_PROMPT: "0",
 		});
+	});
+
+	test("keeps GIT_INDEX_FILE only when asked (the index belongs to the child's repo)", () => {
+		const env = {
+			PATH: "/bin",
+			GIT_DIR: "/repo/.git",
+			GIT_INDEX_FILE: "/repo/.git/index.lock",
+		};
+		expect(stripRepoLocalGitEnv(env, { keepIndexFile: true })).toEqual({
+			PATH: "/bin",
+			GIT_INDEX_FILE: "/repo/.git/index.lock",
+		});
+		expect(stripRepoLocalGitEnv(env, { keepIndexFile: false })).toEqual({
+			PATH: "/bin",
+		});
+	});
+});
+
+describe("indexFileBelongsTo", () => {
+	const dirs: string[] = [];
+
+	afterEach(() => {
+		for (const dir of dirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	function scratch(): string {
+		const dir = realpathSync(mkdtempSync(join(tmpdir(), "maina-idx-")));
+		dirs.push(dir);
+		return dir;
+	}
+
+	test("an index inside the cwd's .git directory belongs to it", () => {
+		const repo = scratch();
+		mkdirSync(join(repo, ".git"));
+		mkdirSync(join(repo, "src"));
+		expect(
+			indexFileBelongsTo(join(repo, ".git", "index.lock"), join(repo, "src")),
+		).toBe(true);
+		expect(
+			indexFileBelongsTo(join(repo, ".git", "next-index-42.lock"), repo),
+		).toBe(true);
+	});
+
+	test("a linked worktree's index belongs to the worktree named by its .git file", () => {
+		const main = scratch();
+		const wtGitDir = join(main, ".git", "worktrees", "wt");
+		mkdirSync(wtGitDir, { recursive: true });
+		const wt = scratch();
+		writeFileSync(join(wt, ".git"), `gitdir: ${wtGitDir}\n`);
+		expect(indexFileBelongsTo(join(wtGitDir, "index.lock"), wt)).toBe(true);
+		expect(indexFileBelongsTo(join(main, ".git", "index.lock"), wt)).toBe(
+			false,
+		);
+	});
+
+	test("another repository's index, a relative path or no repo does not belong", () => {
+		const outer = scratch();
+		const fixture = scratch();
+		mkdirSync(join(outer, ".git"));
+		mkdirSync(join(fixture, ".git"));
+		expect(indexFileBelongsTo(join(outer, ".git", "index"), fixture)).toBe(
+			false,
+		);
+		expect(indexFileBelongsTo(".git/index.lock", fixture)).toBe(false);
+		expect(indexFileBelongsTo(join(outer, ".git", "index"), scratch())).toBe(
+			false,
+		);
 	});
 });
 
@@ -87,6 +166,21 @@ describe("systemProcess.spawn", () => {
 			ok: false,
 			error: { kind: "timeout", timeoutMs: 100 },
 		});
+	});
+
+	test("a timeout returns promptly even when a grandchild holds the pipes", async () => {
+		// `sh` forks `sleep`, which inherits stdout/stderr; killing `sh` alone
+		// leaves the pipes open until `sleep` exits.
+		const startedAt = Date.now();
+		const result = await systemProcess.spawn(
+			["sh", "-c", "sleep 5; echo done"],
+			{ cwd: tmpdir(), timeoutMs: 200 },
+		);
+		expect(result).toEqual({
+			ok: false,
+			error: { kind: "timeout", timeoutMs: 200 },
+		});
+		expect(Date.now() - startedAt).toBeLessThan(2000);
 	});
 
 	test("does not leak the parent's GIT_DIR / GIT_INDEX_FILE by default", async () => {

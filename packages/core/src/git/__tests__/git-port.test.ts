@@ -4,7 +4,15 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import {
+	chmodSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFakeGit, createFakeProcess } from "../../ports/testing";
@@ -176,7 +184,11 @@ describe("default git adapter ignores a leaked GIT_DIR (#408, #420)", () => {
 			cwd: base,
 			stdout: "pipe",
 			stderr: "pipe",
-			env: { ...process.env, GIT_DIR: join(outer, ".git") },
+			env: {
+				...process.env,
+				GIT_DIR: join(outer, ".git"),
+				GIT_INDEX_FILE: join(outer, ".git", "index"),
+			},
 		});
 		const [stdout, stderr] = await Promise.all([
 			new Response(proc.stdout).text(),
@@ -184,5 +196,61 @@ describe("default git adapter ignores a leaked GIT_DIR (#408, #420)", () => {
 		]);
 		expect(stderr).toBe("");
 		expect(stdout).toBe("leak-fixture");
+	});
+
+	test("inside a pre-commit hook of the same repo, `commit -a` staging stays visible", () => {
+		// `git commit -a` / `git commit <path>` stage into a temporary index
+		// and export GIT_INDEX_FILE to hooks. A `maina verify` pre-commit hook
+		// must read that index, or it sees no staged files and checks nothing.
+		const repo = join(base, "hooked");
+		mkdirSync(repo);
+		initRepo(repo, "hooked");
+		writeFileSync(join(repo, "a.txt"), "a\n");
+		gitIn(repo, ["add", "a.txt"]);
+		gitIn(repo, [
+			"-c",
+			"user.name=t",
+			"-c",
+			"user.email=t@t",
+			"commit",
+			"-qm",
+			"a",
+		]);
+		writeFileSync(join(repo, "a.txt"), "a\nb\n");
+		const out = join(base, "hook-out.txt");
+		const probe = join(base, "hook-probe.ts");
+		writeFileSync(
+			probe,
+			[
+				`import { getStagedFiles } from ${JSON.stringify(join(import.meta.dir, "..", "index.ts"))};`,
+				`await Bun.write(${JSON.stringify(out)}, (await getStagedFiles(${JSON.stringify(repo)})).join(","));`,
+			].join("\n"),
+		);
+		const hook = join(repo, ".git", "hooks", "pre-commit");
+		writeFileSync(
+			hook,
+			`#!/bin/sh\n'${process.execPath}' '${probe}'\nexit 1\n`,
+		);
+		chmodSync(hook, 0o755);
+		const env = Object.fromEntries(
+			Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")),
+		);
+		const commit = Bun.spawnSync(
+			[
+				"git",
+				"-c",
+				"user.name=t",
+				"-c",
+				"user.email=t@t",
+				"commit",
+				"-a",
+				"-m",
+				"x",
+			],
+			{ cwd: repo, env },
+		);
+		// The hook exits 1, so the commit is aborted after the probe ran.
+		expect(commit.exitCode).not.toBe(0);
+		expect(readFileSync(out, "utf8")).toBe("a.txt");
 	});
 });
