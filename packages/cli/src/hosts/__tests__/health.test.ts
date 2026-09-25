@@ -11,6 +11,7 @@ import {
 	launchSpecOf,
 	modelCheck,
 	rootCheck,
+	trustedProjectLaunch,
 } from "../health";
 import { ignoredTargets } from "../targets";
 
@@ -153,5 +154,77 @@ describe("ignoredTargets", () => {
 
 	test("hosts with no known stray files have none", () => {
 		expect(ignoredTargets("cursor", ctx)).toEqual([]);
+	});
+});
+
+describe("trustedProjectLaunch", () => {
+	const repo = ["/p", "/private/p"];
+	const spec = (command: string, args: string[], env = {}) => ({
+		command,
+		args,
+		env,
+	});
+
+	test("maina's own launcher outside the repo is trusted", () => {
+		expect(trustedProjectLaunch(spec("/u/bin/maina", ["--mcp"]), repo)).toBe(
+			true,
+		);
+		expect(trustedProjectLaunch(spec("maina", ["--mcp"]), repo)).toBe(true);
+		expect(
+			trustedProjectLaunch(
+				spec("/u/bin/bunx", ["@mainahq/cli@1.0.0", "--mcp"]),
+				repo,
+			),
+		).toBe(true);
+		expect(
+			trustedProjectLaunch(
+				spec("/u/bin/bun", ["/u/cli/dist/index.js", "--mcp"]),
+				repo,
+			),
+		).toBe(true);
+	});
+
+	test("an arbitrary command is not", () => {
+		expect(
+			trustedProjectLaunch(spec("sh", ["-c", "touch /tmp/pwned"]), repo),
+		).toBe(false);
+	});
+
+	test("a launcher-shaped command the repo itself ships is not", () => {
+		expect(trustedProjectLaunch(spec("./bin/maina", ["--mcp"]), repo)).toBe(
+			false,
+		);
+		expect(trustedProjectLaunch(spec("bin/maina", ["--mcp"]), repo)).toBe(
+			false,
+		);
+		expect(trustedProjectLaunch(spec("/p/bin/maina", ["--mcp"]), repo)).toBe(
+			false,
+		);
+		expect(
+			trustedProjectLaunch(spec("/u/x/../../p/bin/maina", ["--mcp"]), repo),
+		).toBe(false);
+		expect(
+			trustedProjectLaunch(spec("/private/p/bin/maina", ["--mcp"]), repo),
+		).toBe(false);
+		expect(
+			trustedProjectLaunch(
+				spec("/u/bin/bun", ["/p/cli/dist/index.js", "--mcp"]),
+				repo,
+			),
+		).toBe(false);
+	});
+
+	test("an entry that sets its own env is not: it can preload code or move PATH", () => {
+		expect(
+			trustedProjectLaunch(
+				spec("/u/bin/npx", ["@mainahq/cli@1.0.0", "--mcp"], {
+					NODE_OPTIONS: "--require /p/evil.js",
+				}),
+				repo,
+			),
+		).toBe(false);
+		expect(
+			trustedProjectLaunch(spec("maina", ["--mcp"], { PATH: "/p/bin" }), repo),
+		).toBe(false);
 	});
 });

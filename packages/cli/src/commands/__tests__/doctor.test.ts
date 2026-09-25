@@ -8,6 +8,8 @@ import {
 	test,
 } from "bun:test";
 import {
+	chmodSync,
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -99,7 +101,7 @@ afterAll(() => {
 
 // ── Import the module under test AFTER mocks ────────────────────────────────
 
-const { doctorAction } = await import("../doctor");
+const { doctorAction, doctorCommand } = await import("../doctor");
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
@@ -496,7 +498,12 @@ describe("maina doctor v2 — host launch checks", () => {
 			},
 		});
 
-		const result = await doctorAction({ cwd, home, json: true });
+		const result = await doctorAction({
+			cwd,
+			home,
+			json: true,
+			launchProject: true,
+		});
 
 		const row = result.hostHealth.hosts.find(
 			(h) => h.host === "claude" && h.scope === "project",
@@ -515,7 +522,12 @@ describe("maina doctor v2 — host launch checks", () => {
 		});
 		process.env.MAINA_DOCTOR_LEAK = "1";
 
-		const result = await doctorAction({ cwd, home, json: true });
+		const result = await doctorAction({
+			cwd,
+			home,
+			json: true,
+			launchProject: true,
+		});
 
 		const row = result.hostHealth.hosts.find(
 			(h) => h.host === "claude" && h.scope === "project",
@@ -545,7 +557,12 @@ describe("maina doctor v2 — host launch checks", () => {
 			mcpServers: { maina: fakeServerEntry("crash", "0.0.0") },
 		});
 
-		const result = await doctorAction({ cwd, home, json: true });
+		const result = await doctorAction({
+			cwd,
+			home,
+			json: true,
+			launchProject: true,
+		});
 
 		const row = result.hostHealth.hosts.find((h) => h.scope === "project");
 		const handshake = row?.checks.find((c) => c.id === "handshake");
@@ -559,13 +576,149 @@ describe("maina doctor v2 — host launch checks", () => {
 			mcpServers: { maina: fakeServerEntry("ok", "0.0.1") },
 		});
 
-		const result = await doctorAction({ cwd, home, json: true });
+		const result = await doctorAction({
+			cwd,
+			home,
+			json: true,
+			launchProject: true,
+		});
 
 		const row = result.hostHealth.hosts.find((h) => h.scope === "project");
 		const runtime = row?.checks.find((c) => c.id === "runtime");
 		expect(runtime?.status).toBe("warn");
 		expect(runtime?.message).toContain("0.0.1");
 		expect(runtime?.fix).toBe(PROJECT_FIX);
+	});
+
+	// ── Untrusted repos (review 5831394987 on #415) ──────────────────────
+
+	const SKIP_REASON =
+		"project command not recognised as maina's launcher; not executed";
+
+	/** An entry that only proves it ran by creating `sentinel`. */
+	const touchEntry = (sentinel: string) => ({
+		command: "sh",
+		args: ["-c", `touch ${sentinel}`],
+	});
+
+	test("an unrecognised project command is not executed and is reported skipped", async () => {
+		const outside = uniqueDir("sentinel");
+		const sentinel = join(outside, "pwned");
+		try {
+			writeJson(join(cwd, ".mcp.json"), {
+				mcpServers: { maina: touchEntry(sentinel) },
+			});
+
+			const result = await doctorAction({ cwd, home, json: true });
+
+			expect(existsSync(sentinel)).toBe(false);
+			const row = result.hostHealth.hosts.find(
+				(h) => h.host === "claude" && h.scope === "project",
+			);
+			expect(row?.status).toBe("skipped");
+			expect(row?.command).toEqual(["sh", "-c", `touch ${sentinel}`]);
+			expect(row?.handshakeMs).toBeNull();
+			expect(row?.checks.map((c) => [c.id, c.status])).toEqual([
+				["config", "pass"],
+				["launch", "skipped"],
+			]);
+			// Machine-readable output carries the status, reason and fix.
+			const json = JSON.parse(JSON.stringify(result.hostHealth));
+			const launch = json.hosts[0].checks[1];
+			expect(launch).toEqual({
+				id: "launch",
+				status: "skipped",
+				message: SKIP_REASON,
+				fix: "maina doctor --launch-project",
+			});
+			expect(result.hostHealth.ok).toBe(true);
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
+	test("a project entry in maina's own launcher form is launched", async () => {
+		const { VERSION } = await import("@mainahq/core");
+		const bin = uniqueDir("bin");
+		try {
+			const script = join(bin, "fake-mcp.cjs");
+			writeFileSync(script, FAKE_SERVER);
+			const launcher = join(bin, "maina");
+			writeFileSync(
+				launcher,
+				`#!/bin/sh\nexec "${process.execPath}" "${script}" ok "${VERSION}" "${join(bin, "spawn-env.json")}"\n`,
+			);
+			chmodSync(launcher, 0o755);
+			writeJson(join(cwd, ".mcp.json"), {
+				mcpServers: { maina: { command: launcher, args: ["--mcp"] } },
+			});
+
+			const result = await doctorAction({ cwd, home, json: true });
+
+			const row = result.hostHealth.hosts.find((h) => h.scope === "project");
+			expect(row?.checks.map((c) => [c.id, c.status])).toEqual([
+				["config", "pass"],
+				["launch", "pass"],
+				["handshake", "pass"],
+				["runtime", "pass"],
+			]);
+			expect(existsSync(join(bin, "spawn-env.json"))).toBe(true);
+		} finally {
+			rmSync(bin, { recursive: true, force: true });
+		}
+	});
+
+	test("--launch-project launches an unrecognised project command", async () => {
+		const outside = uniqueDir("sentinel");
+		const sentinel = join(outside, "pwned");
+		try {
+			writeJson(join(cwd, ".mcp.json"), {
+				mcpServers: { maina: touchEntry(sentinel) },
+			});
+
+			const result = await doctorAction({
+				cwd,
+				home,
+				json: true,
+				launchProject: true,
+			});
+
+			expect(existsSync(sentinel)).toBe(true);
+			const row = result.hostHealth.hosts.find((h) => h.scope === "project");
+			const launch = row?.checks.find((c) => c.id === "launch");
+			expect(launch?.status).toBe("pass");
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
+	test("user-scope entries are launched as configured", async () => {
+		const outside = uniqueDir("sentinel");
+		const sentinel = join(outside, "pwned");
+		try {
+			writeJson(join(home, ".claude.json"), {
+				mcpServers: { maina: touchEntry(sentinel) },
+			});
+
+			const result = await doctorAction({ cwd, home, json: true });
+
+			expect(existsSync(sentinel)).toBe(true);
+			const row = result.hostHealth.hosts.find(
+				(h) => h.host === "claude" && h.scope === "global",
+			);
+			const launch = row?.checks.find((c) => c.id === "launch");
+			expect(launch?.status).toBe("pass");
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
+	test("--launch-project is a flag whose help warns it runs repo code", () => {
+		const flag = doctorCommand().options.find(
+			(o) => o.long === "--launch-project",
+		);
+		expect(flag).toBeDefined();
+		expect(flag?.description).toContain("repo-controlled");
 	});
 
 	test("a missing model is reported with a fix", async () => {

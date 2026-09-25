@@ -56,6 +56,7 @@ interface RunningCli {
 }
 
 const PINNED_PACKAGE = `@mainahq/cli@${VERSION}`;
+const MCP_FLAG = "--mcp";
 
 interface DetectLauncherOptions {
 	/**
@@ -83,26 +84,26 @@ export function detectLauncher(opts: DetectLauncherOptions = {}): Launcher {
 	let result: Launcher;
 	if (self !== null) {
 		// 1. This very CLI, runtime and entry by absolute path.
-		result = { command: self.execPath, args: [self.script, "--mcp"] };
+		result = { command: self.execPath, args: [self.script, MCP_FLAG] };
 	} else {
 		// 2. Direct maina binary — no package manager involved.
 		const mainaPath = which("maina");
 		if (mainaPath) {
-			result = { command: mainaPath, args: ["--mcp"] };
+			result = { command: mainaPath, args: [MCP_FLAG] };
 		} else {
 			// 3. bunx (preferred) or npx (fallback) — both with version pin so
 			//    the package manager hits its cache reliably across spawns.
 			const bunxPath = which("bunx");
 			if (bunxPath) {
-				result = { command: bunxPath, args: [PINNED_PACKAGE, "--mcp"] };
+				result = { command: bunxPath, args: [PINNED_PACKAGE, MCP_FLAG] };
 			} else {
 				const npxPath = which("npx");
 				if (npxPath) {
-					result = { command: npxPath, args: [PINNED_PACKAGE, "--mcp"] };
+					result = { command: npxPath, args: [PINNED_PACKAGE, MCP_FLAG] };
 				} else {
 					// 4. Truly nothing on PATH. Emit a syntactically valid entry
 					//    that the user can edit after they install Node/Bun.
-					result = { command: "npx", args: [PINNED_PACKAGE, "--mcp"] };
+					result = { command: "npx", args: [PINNED_PACKAGE, MCP_FLAG] };
 				}
 			}
 		}
@@ -128,6 +129,38 @@ export function isDirectBinary(launcher: Launcher): boolean {
 		launcher.args[launcher.args.length - 1] === "--mcp" &&
 		!launcher.args.some((a) => a.startsWith("@mainahq/cli"))
 	);
+}
+
+/** Last path segment, either separator, without a Windows `.exe`/`.cmd`. */
+function executableName(command: string): string {
+	return (command.split(/[\\/]/).pop() ?? "").replace(/\.(exe|cmd)$/i, "");
+}
+
+/** `@mainahq/cli@<semver>`: the pin `detectLauncher` writes, any release. */
+const PINNED_SPEC = /^@mainahq\/cli@\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
+
+/** The CLI entries `runningCli` accepts, as an absolute path. */
+const CLI_ENTRY =
+	/^(\/|[A-Za-z]:[\\/]).*[\\/](dist[\\/]index\.js|src[\\/]index\.ts)$/;
+
+/**
+ * Whether `l` is one of the launcher forms `detectLauncher` writes: the
+ * `maina` binary, `bunx`/`npx` with a pinned `@mainahq/cli`, or a
+ * `bun`/`node` runtime with an absolute CLI entry, each followed by
+ * `--mcp` and nothing else. The executable's basename and every argument
+ * must match exactly; a substring never does. Where the executable lives
+ * is the caller's concern (see `trustedProjectLaunch`).
+ */
+export function isMainaLauncher(l: Launcher): boolean {
+	const name = executableName(l.command);
+	const [first, second, ...rest] = l.args;
+	if (name === "maina") return first === MCP_FLAG && l.args.length === 1;
+	if (second !== MCP_FLAG || rest.length > 0 || first === undefined) {
+		return false;
+	}
+	if (name === "bunx" || name === "npx") return PINNED_SPEC.test(first);
+	if (name === "bun" || name === "node") return CLI_ENTRY.test(first);
+	return false;
 }
 
 interface RunningCliInput {

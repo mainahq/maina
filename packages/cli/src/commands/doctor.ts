@@ -48,6 +48,11 @@ interface DoctorActionOptions {
 	home?: string;
 	/** DI seam for tests; defaults to launching the entry for real. */
 	probe?: Probe;
+	/**
+	 * Launch project-scope entries that are not maina's own launcher. They
+	 * run code the repo controls, so this is off unless the user opts in.
+	 */
+	launchProject?: boolean;
 }
 
 interface EngineHealth {
@@ -428,10 +433,12 @@ function checkHosts(
 	cwd: string,
 	home: string | undefined,
 	probe: Probe,
+	launchProject: boolean,
 ): Promise<HostHealth> {
 	return checkHostHealth(
 		{
 			ctx: hostPathContext(cwd, home),
+			launchProject,
 			version: VERSION,
 			platform: platform(),
 			inheritedEnv: Object.fromEntries(
@@ -446,6 +453,7 @@ function checkHosts(
 
 const MARK: Readonly<Record<CheckStatus, string>> = {
 	pass: "\u2713",
+	skipped: "-",
 	warn: "!",
 	fail: "\u2717",
 };
@@ -691,7 +699,8 @@ export async function doctorAction(
 
 	// ── Step 8: Host launch (doctor v2) ──────────────────────────────
 	const probe = options.probe ?? probeMcp;
-	const hostHealth = await checkHosts(cwd, options.home, probe);
+	const launchProject = options.launchProject ?? false;
+	const hostHealth = await checkHosts(cwd, options.home, probe, launchProject);
 	if (!jsonMode) {
 		log.step("Host Launch:");
 		log.message(formatHostHealth(hostHealth));
@@ -721,7 +730,7 @@ export async function doctorAction(
 			log.step("MCP Integration (after --fix):");
 			log.message(formatMcpHealth(finalMcpHealth));
 		}
-		finalHostHealth = await checkHosts(cwd, options.home, probe);
+		finalHostHealth = await checkHosts(cwd, options.home, probe, launchProject);
 		if (!jsonMode) {
 			log.step("Host Launch (after --fix):");
 			log.message(formatHostHealth(finalHostHealth));
@@ -753,6 +762,10 @@ export function doctorCommand(): Command {
 			"Run the `maina mcp add` fix for each missing MCP row and broken host entry",
 		)
 		.option("-y, --yes", "Skip confirmations (with --fix)")
+		.option(
+			"--launch-project",
+			"Also launch project-scope MCP entries (e.g. .mcp.json) that are not maina's own launcher. Warning: this runs repo-controlled code; use it only in repos you trust",
+		)
 		.action(async (options) => {
 			const jsonMode = options.json ?? false;
 
@@ -769,6 +782,7 @@ export function doctorCommand(): Command {
 				json: jsonMode,
 				fix: options.fix,
 				yes: options.yes,
+				launchProject: options.launchProject,
 			});
 
 			// A failed check exits non-zero so CI and scripts can gate on it.

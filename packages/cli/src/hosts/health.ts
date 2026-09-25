@@ -8,15 +8,23 @@
  * answered. Once per repo it checks the root the server resolves, the
  * gate policy, and the local model.
  *
- * Every check is pass / warn / fail; every fail carries a fix command.
+ * Every check is pass / skipped / warn / fail; every fail carries a fix
+ * command.
+ *
+ * A project-scope entry comes from the repo, so launching it runs code the
+ * repo controls. Doctor launches one only when it is maina's own launcher
+ * (`trustedProjectLaunch`); any other is reported `skipped` unless the
+ * caller opts in with `launchProject` (`maina doctor --launch-project`).
+ * User-scope entries are the user's own and always launch.
  * This module is pure apart from the injected ports: `./probe.ts` does the
  * spawning, `commands/doctor.ts` wires the real filesystem and git.
  */
 
-import { join } from "node:path";
+import { isAbsolute, join, normalize, relative } from "node:path";
 import type { PolicyError } from "@mainahq/core";
 import { buildClientRegistry, listClientIds } from "./clients";
 import { type EnvVars, hostOs, minimalEnv } from "./host-env";
+import { isMainaLauncher } from "./launcher";
 import { readEntry } from "./merge";
 import type { LaunchSpec, Probe, ProbeOutcome } from "./probe";
 import {
@@ -30,13 +38,14 @@ import type { McpClientId } from "./types";
 
 // ── Report ──────────────────────────────────────────────────────────────────
 
-export type CheckStatus = "pass" | "warn" | "fail";
+/** `skipped`: not run, so neither verified nor broken. */
+export type CheckStatus = "pass" | "skipped" | "warn" | "fail";
 
 export interface HealthCheck<Id extends string = string> {
 	readonly id: Id;
 	readonly status: CheckStatus;
 	readonly message: string;
-	/** Shell command that fixes it; always set on `fail`. */
+	/** Shell command that fixes it; always set on `fail` and `skipped`. */
 	readonly fix?: string;
 }
 
@@ -320,8 +329,9 @@ export function modelCheck(model: ModelState): HealthCheck<"model"> {
 
 const RANK: Readonly<Record<CheckStatus, number>> = {
 	pass: 0,
-	warn: 1,
-	fail: 2,
+	skipped: 1,
+	warn: 2,
+	fail: 3,
 };
 
 function worst(checks: readonly HealthCheck[]): CheckStatus {
@@ -329,6 +339,45 @@ function worst(checks: readonly HealthCheck[]): CheckStatus {
 		(acc, c) => (RANK[c.status] > RANK[acc] ? c.status : acc),
 		"pass",
 	);
+}
+
+// ── Untrusted project entries ───────────────────────────────────────────────
+
+const SKIPPED_REASON =
+	"project command not recognised as maina's launcher; not executed";
+const LAUNCH_PROJECT_FIX = "maina doctor --launch-project";
+
+/** Whether absolute `path` is `dir` or below it. */
+function within(dir: string, path: string): boolean {
+	const rel = relative(dir, path);
+	return !rel.startsWith("..") && !isAbsolute(rel);
+}
+
+/**
+ * Whether a project-scope entry may be launched without asking: it is one
+ * of maina's own launcher forms (`isMainaLauncher`), sets no env of its
+ * own (an `env` can preload code or move `PATH`; maina never writes one),
+ * and neither its executable nor its CLI entry is a file the repo ships.
+ * A bare executable name is looked up on the host's PATH, not in the repo.
+ */
+export function trustedProjectLaunch(
+	spec: LaunchSpec,
+	repoDirs: readonly string[],
+	realpath: (path: string) => string = (p) => p,
+): boolean {
+	if (Object.keys(spec.env).length > 0) return false;
+	if (!isMainaLauncher(spec)) return false;
+	// The executable when given as a path, and the CLI entry of the runtime
+	// form (`isMainaLauncher` only accepts that one as an absolute path).
+	const files = [
+		...(/[\\/]/.test(spec.command) ? [spec.command] : []),
+		...spec.args.filter((a) => isAbsolute(a)),
+	];
+	return files.every((p) => {
+		if (!isAbsolute(p)) return false;
+		const forms = [normalize(p), realpath(normalize(p))];
+		return !forms.some((f) => repoDirs.some((dir) => within(dir, f)));
+	});
 }
 
 function addFix(host: McpClientId, scope: TargetScope): string {
@@ -387,6 +436,11 @@ interface HostHealthInput {
 	readonly platform: string;
 	/** Used as the launch env only where no GUI env is known. */
 	readonly inheritedEnv: EnvVars;
+	/**
+	 * Launch project-scope entries that are not maina's own launcher too.
+	 * They run code the repo controls; off unless the user opts in.
+	 */
+	readonly launchProject?: boolean;
 }
 
 export interface HostHealthPorts {
@@ -403,13 +457,20 @@ export interface HostHealthPorts {
 	readonly probe: Probe;
 }
 
+interface LaunchContext {
+	readonly env: EnvVars;
+	readonly cwd: string;
+	/** The repo's directories; a project entry must not run a file in one. */
+	readonly repoDirs: readonly string[];
+	readonly realpath: (path: string) => string;
+	readonly probe: Probe;
+}
+
 async function hostReport(
 	found: Found,
 	label: string,
-	env: EnvVars,
-	cwd: string,
 	input: HostHealthInput,
-	probe: Probe,
+	launch: LaunchContext,
 ): Promise<HostLaunchReport> {
 	const { target } = found;
 	const fix = addFix(target.host, target.scope);
@@ -448,9 +509,35 @@ async function hostReport(
 		return broken({ id: "config", status: "fail", message: spec.error, fix });
 	}
 	const command = [spec.value.command, ...spec.value.args];
-	const outcome = await probe(spec.value, env, cwd);
+	const config: HealthCheck<HostCheckId> = {
+		id: "config",
+		status: "pass",
+		message: `maina entry in ${target.path}`,
+	};
+	if (
+		target.scope === "project" &&
+		input.launchProject !== true &&
+		!trustedProjectLaunch(spec.value, launch.repoDirs, launch.realpath)
+	) {
+		return {
+			...base,
+			command,
+			handshakeMs: null,
+			status: "skipped",
+			checks: [
+				config,
+				{
+					id: "launch",
+					status: "skipped",
+					message: SKIPPED_REASON,
+					fix: LAUNCH_PROJECT_FIX,
+				},
+			],
+		};
+	}
+	const outcome = await launch.probe(spec.value, launch.env, launch.cwd);
 	const checks: HealthCheck<HostCheckId>[] = [
-		{ id: "config", status: "pass", message: `maina entry in ${target.path}` },
+		config,
 		...evaluateLaunch(outcome, input.version, fix),
 	];
 	return {
@@ -476,26 +563,33 @@ export async function checkHostHealth(
 		found.filter((f) => f.kind === "entry").map((f) => f.target.host),
 	);
 	const cwd = ports.realpath(ctx.cwd);
-
-	const [hosts, repoRoot, policy] = await Promise.all([
-		Promise.all(
-			found.map(async (f) => {
-				const report = await hostReport(
-					f,
-					registry[f.target.host].label,
-					env.env,
-					ctx.cwd,
-					input,
-					ports.probe,
-				);
-				return f.kind === "ignored" && wired.has(f.target.host)
-					? demote(report)
-					: report;
-			}),
-		),
+	const [repoRoot, policy] = await Promise.all([
 		ports.repoRoot(ctx.cwd),
 		ports.loadPolicy(ctx.cwd),
 	]);
+	const repoDirs = [ctx.cwd, cwd];
+	if (repoRoot !== null) repoDirs.push(repoRoot, ports.realpath(repoRoot));
+	const launch: LaunchContext = {
+		env: env.env,
+		cwd: ctx.cwd,
+		repoDirs,
+		realpath: ports.realpath,
+		probe: ports.probe,
+	};
+
+	const hosts = await Promise.all(
+		found.map(async (f) => {
+			const report = await hostReport(
+				f,
+				registry[f.target.host].label,
+				input,
+				launch,
+			);
+			return f.kind === "ignored" && wired.has(f.target.host)
+				? demote(report)
+				: report;
+		}),
+	);
 
 	const mainaDir = join(ctx.cwd, ".maina");
 	const policyFile = join(mainaDir, "policy.json");
