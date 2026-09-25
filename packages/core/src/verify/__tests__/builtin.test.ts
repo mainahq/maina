@@ -250,6 +250,24 @@ describe("checkSecrets JSON/YAML key forms (#391)", () => {
 		expect(checkSecrets("locales/en.yml", "token: Token")).toEqual([]);
 	});
 
+	it("checks every key on a line, not only the first (minified JSON)", () => {
+		const secret = "Zq8vN3pL5tR7wX2yB4cD";
+		for (const content of [
+			`{"password":"Password","api_key":"${secret}"}`,
+			`{"token":"test","secret":"${secret}"}`,
+			`{"api_key":"<your-key>","token":"${secret}"}`,
+		]) {
+			expect(checkSecrets("config/min.json", content)).toHaveLength(1);
+		}
+		// Still one finding per line even when several keys leak.
+		expect(
+			checkSecrets(
+				"config/min.json",
+				`{"token":"${secret}","secret":"${secret}"}`,
+			),
+		).toHaveLength(1);
+	});
+
 	it("does not treat unquoted type annotations in code as YAML values", () => {
 		const content = "interface Cfg {\n\tapi_key: string\n\ttoken: Token\n}\n";
 		expect(checkSecrets("src/types.ts", content)).toEqual([]);

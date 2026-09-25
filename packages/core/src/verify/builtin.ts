@@ -206,7 +206,7 @@ const SECRET_KEY =
  */
 const QUOTED_SECRET_PATTERN = new RegExp(
 	`\\b${SECRET_KEY}["'\`]?\\s*[=:]\\s*["'\`]([^"'\`\\s$]{2,})["'\`]`,
-	"i",
+	"gi",
 );
 
 /**
@@ -276,10 +276,17 @@ export function checkSecrets(filePath: string, content: string): Finding[] {
 	const yaml = isYamlFile(filePath);
 
 	for (const [i, line] of lines.entries()) {
-		const match =
-			line.match(QUOTED_SECRET_PATTERN) ??
-			(yaml ? line.match(YAML_UNQUOTED_SECRET_PATTERN) : null);
-		if (match?.[1] && match[2] && isRealSecretValue(match[1], match[2])) {
+		// Every quoted pair on the line is checked: in minified JSON a skipped
+		// placeholder (`"token":"test"`) must not hide a later real secret.
+		const candidates: RegExpMatchArray[] = [
+			...line.matchAll(QUOTED_SECRET_PATTERN),
+		];
+		const yamlMatch = yaml ? line.match(YAML_UNQUOTED_SECRET_PATTERN) : null;
+		if (yamlMatch) candidates.push(yamlMatch);
+		const match = candidates.find(
+			(m) => m[1] && m[2] && isRealSecretValue(m[1], m[2]),
+		);
+		if (match?.[1]) {
 			findings.push({
 				tool: "builtin",
 				file: filePath,
