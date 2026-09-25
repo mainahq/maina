@@ -62,6 +62,9 @@ const config: KnipConfig = {
 		css: (text: string) =>
 			[...text.matchAll(/(?<=@)import[^;]+/g)].map(([m]) => m).join("\n"),
 	},
+	// Built artifact invoked by workflows after `bun run build`; absent in a
+	// fresh CI checkout, so keep it ignored even if knip hints otherwise locally.
+	ignoreBinaries: ["packages/cli/dist/index.js"],
 };
 
 export default config;
