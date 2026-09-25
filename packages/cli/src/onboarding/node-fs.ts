@@ -16,6 +16,7 @@
  */
 
 import {
+	chmodSync,
 	existsSync,
 	linkSync,
 	lstatSync,
@@ -81,12 +82,18 @@ function removeQuietly(path: string): void {
  * and fails with EEXIST when the name exists (a dangling symlink included),
  * so a file created by someone else after our read is never replaced.
  * Filesystems without hard links fall back to an exclusive `wx` open.
+ * `mode` sets the new file's permissions (default: the umask's).
  */
-function createNoClobber(full: string, content: string): "created" | "exists" {
+export function createNoClobber(
+	full: string,
+	content: string,
+	mode?: number,
+): "created" | "exists" {
 	mkdirSync(dirname(full), { recursive: true });
 	const tmp = tempPath(full);
 	try {
-		writeFileSync(tmp, content, "utf-8");
+		writeFileSync(tmp, content, { encoding: "utf-8", mode: mode ?? 0o666 });
+		if (mode !== undefined) chmodSync(tmp, mode);
 		try {
 			linkSync(tmp, full);
 			return "created";
@@ -98,7 +105,12 @@ function createNoClobber(full: string, content: string): "created" | "exists" {
 			}
 		}
 		try {
-			writeFileSync(full, content, { encoding: "utf-8", flag: "wx" });
+			writeFileSync(full, content, {
+				encoding: "utf-8",
+				flag: "wx",
+				mode: mode ?? 0o666,
+			});
+			if (mode !== undefined) chmodSync(full, mode);
 			return "created";
 		} catch (e) {
 			if (errorCode(e) === "EEXIST") return "exists";

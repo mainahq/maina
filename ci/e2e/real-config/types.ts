@@ -32,16 +32,32 @@ export interface LaunchSpec {
 	readonly source: string;
 }
 
+/**
+ * A config file a real user of the host already has before installing
+ * maina, holding keys that are not maina's. The installer must keep them
+ * (P8).
+ */
+export interface SeedFile {
+	readonly path: string;
+	readonly format: "json" | "toml";
+	readonly content: string;
+	/** True when the parsed file still holds the seeded keys. */
+	readonly intact: (parsed: unknown) => boolean;
+}
+
 export interface HostSpec {
 	readonly id: HostId;
-	/** Tool id `install.sh` uses for this host. */
-	readonly installShTool: string;
 	/** Client id for `maina mcp add --client`. */
 	readonly mcpAddClient: string;
 	/** Files the host actually reads, highest precedence first. */
 	readonly configSources: (ctx: PathCtx) => readonly ConfigSource[];
 	/** Files installers are known to write that the host ignores. */
 	readonly strayPaths: (ctx: PathCtx) => readonly string[];
+	/**
+	 * The host's global config as its user already has it. Seeding it also
+	 * marks the host as installed, which is what maina's detection sees.
+	 */
+	readonly seeds: (ctx: PathCtx) => readonly SeedFile[];
 }
 
 /** Why a case did not reach a successful `verify` call. */
@@ -60,6 +76,11 @@ export type CaseError =
 	  }
 	| {
 			readonly kind: "config-invalid";
+			readonly message: string;
+			readonly path: string;
+	  }
+	| {
+			readonly kind: "config-clobbered";
 			readonly message: string;
 			readonly path: string;
 	  }

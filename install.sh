@@ -2,12 +2,15 @@
 # Maina — verification-first developer OS
 # Install: curl -fsSL https://api.mainahq.com/install | bash
 #
-# This script:
+# This script is a thin wrapper:
 # 1. Detects your OS and package manager
-# 2. Installs maina CLI
-# 3. Detects your installed AI coding tools
-# 4. Configures MCP for each tool
-# 5. Bootstraps maina in the current repo (optional)
+# 2. Installs the maina CLI globally
+# 3. Hands over to `maina setup`, which configures your AI coding tools
+#
+# It never writes a config file itself. `maina setup` merges maina into
+# the files each tool actually reads (Claude Code: .mcp.json /
+# ~/.claude.json), keeps every other key, backs the original up once, and
+# `maina mcp remove` restores it.
 
 set -euo pipefail
 
@@ -55,26 +58,6 @@ prompt_yn() {
   esac
 }
 
-prompt_select() {
-  local message="$1"
-  shift
-  local options=("$@")
-  # When piped, default to "all"
-  if [ ! -t 0 ]; then
-    echo "all"
-    return
-  fi
-  echo -e "${BLUE}?${NC} ${message}"
-  local i=1
-  for opt in "${options[@]}"; do
-    echo -e "  ${BOLD}${i})${NC} ${opt}"
-    ((i++))
-  done
-  printf "${DIM}Enter numbers (comma-separated, or 'all'):${NC} "
-  read -r selection </dev/tty
-  echo "$selection"
-}
-
 # ─── OS Detection ─────────────────────────────────────────────────────────
 
 detect_os() {
@@ -114,280 +97,6 @@ detect_pkg_manager() {
   else
     echo "none"
   fi
-}
-
-# ─── IDE/Tool Detection ──────────────────────────────────────────────────
-
-DETECTED_TOOLS=""
-DETECTED_COUNT=0
-
-add_tool() {
-  if [ -n "$DETECTED_TOOLS" ]; then
-    DETECTED_TOOLS="$DETECTED_TOOLS|$1"
-  else
-    DETECTED_TOOLS="$1"
-  fi
-  DETECTED_COUNT=$((DETECTED_COUNT + 1))
-}
-
-has_tool() {
-  echo "$DETECTED_TOOLS" | tr '|' '\n' | grep -q "^$1$"
-}
-
-detect_tools() {
-  local os="$1"
-
-  # Claude Code
-  if command -v claude &>/dev/null; then
-    add_tool "claude-code"
-  fi
-
-  # Cursor
-  if command -v cursor &>/dev/null || [ -d "$HOME/.cursor" ]; then
-    add_tool "cursor"
-  elif [ "$os" = "macos" ] && [ -d "/Applications/Cursor.app" ]; then
-    add_tool "cursor"
-  fi
-
-  # VS Code (Copilot)
-  if command -v code &>/dev/null; then
-    add_tool "vscode"
-  elif [ "$os" = "macos" ] && [ -d "/Applications/Visual Studio Code.app" ]; then
-    add_tool "vscode"
-  fi
-
-  # Windsurf
-  if command -v windsurf &>/dev/null || [ -d "$HOME/.codeium" ]; then
-    add_tool "windsurf"
-  elif [ "$os" = "macos" ] && [ -d "/Applications/Windsurf.app" ]; then
-    add_tool "windsurf"
-  fi
-
-  # Zed
-  if command -v zed &>/dev/null || [ -d "$HOME/.config/zed" ]; then
-    add_tool "zed"
-  elif [ "$os" = "macos" ] && [ -d "/Applications/Zed.app" ]; then
-    add_tool "zed"
-  fi
-
-  # Cline (VS Code extension)
-  local vscode_ext_dir="$HOME/.vscode/extensions"
-  if ls "$vscode_ext_dir"/saoudrizwan.claude-dev-* &>/dev/null 2>&1; then
-    add_tool "cline"
-  fi
-
-  # Roo Code (VS Code extension)
-  if ls "$vscode_ext_dir"/rooveterinaryinc.roo-cline-* &>/dev/null 2>&1; then
-    add_tool "roo"
-  fi
-
-  # Continue.dev
-  if ls "$vscode_ext_dir"/continue.continue-* &>/dev/null 2>&1 || [ -d "$HOME/.continue" ]; then
-    add_tool "continue"
-  fi
-
-  # Amazon Q
-  if command -v q &>/dev/null || [ -d "$HOME/.aws/amazonq" ]; then
-    add_tool "amazon-q"
-  fi
-
-  # Gemini CLI
-  if command -v gemini &>/dev/null; then
-    add_tool "gemini"
-  fi
-
-  # Aider
-  if command -v aider &>/dev/null; then
-    add_tool "aider"
-  fi
-
-  # Codex CLI
-  if command -v codex &>/dev/null; then
-    add_tool "codex"
-  fi
-}
-
-# ─── MCP Configuration ───────────────────────────────────────────────────
-
-get_mcp_command() {
-  local pkg_mgr="$1"
-  case "$pkg_mgr" in
-    bun) echo "bunx" ;;
-    pnpm) echo "pnpx" ;;
-    *) echo "npx" ;;
-  esac
-}
-
-configure_mcp_claude() {
-  local cmd="$1"
-  local settings_dir="$HOME/.claude"
-  local settings_file="$settings_dir/settings.json"
-
-  mkdir -p "$settings_dir"
-
-  if [ -f "$settings_file" ]; then
-    # Merge into existing — check if maina already configured
-    if grep -q '"maina"' "$settings_file" 2>/dev/null; then
-      dim "  Already configured in ~/.claude/settings.json"
-      return
-    fi
-    # Use a simple approach: if mcpServers exists, we need to merge
-    # For safety, back up and rewrite
-    cp "$settings_file" "$settings_file.bak"
-  fi
-
-  cat > "$settings_file" <<JSONEOF
-{
-  "mcpServers": {
-    "maina": {
-      "command": "$cmd",
-      "args": ["@mainahq/cli", "--mcp"]
-    }
-  }
-}
-JSONEOF
-  success "  Configured ~/.claude/settings.json"
-}
-
-configure_mcp_cursor() {
-  local cmd="$1"
-  local config_dir="$HOME/.cursor"
-  local config_file="$config_dir/mcp.json"
-
-  mkdir -p "$config_dir"
-
-  if [ -f "$config_file" ] && grep -q '"maina"' "$config_file" 2>/dev/null; then
-    dim "  Already configured in ~/.cursor/mcp.json"
-    return
-  fi
-
-  cat > "$config_file" <<JSONEOF
-{
-  "mcpServers": {
-    "maina": {
-      "command": "$cmd",
-      "args": ["@mainahq/cli", "--mcp"]
-    }
-  }
-}
-JSONEOF
-  success "  Configured ~/.cursor/mcp.json"
-}
-
-configure_mcp_windsurf() {
-  local cmd="$1"
-  local config_dir="$HOME/.codeium/windsurf"
-  local config_file="$config_dir/mcp_config.json"
-
-  mkdir -p "$config_dir"
-
-  if [ -f "$config_file" ] && grep -q '"maina"' "$config_file" 2>/dev/null; then
-    dim "  Already configured"
-    return
-  fi
-
-  cat > "$config_file" <<JSONEOF
-{
-  "mcpServers": {
-    "maina": {
-      "command": "$cmd",
-      "args": ["@mainahq/cli", "--mcp"]
-    }
-  }
-}
-JSONEOF
-  success "  Configured ~/.codeium/windsurf/mcp_config.json"
-}
-
-configure_mcp_zed() {
-  local cmd="$1"
-  local config_dir="$HOME/.config/zed"
-  local config_file="$config_dir/settings.json"
-
-  mkdir -p "$config_dir"
-
-  if [ -f "$config_file" ] && grep -q '"maina"' "$config_file" 2>/dev/null; then
-    dim "  Already configured in zed settings"
-    return
-  fi
-
-  if [ ! -f "$config_file" ]; then
-    cat > "$config_file" <<JSONEOF
-{
-  "context_servers": {
-    "maina": {
-      "command": {
-        "path": "$cmd",
-        "args": ["@mainahq/cli", "--mcp"]
-      },
-      "source": "custom"
-    }
-  }
-}
-JSONEOF
-  else
-    warn "  Zed settings exist — add maina manually to context_servers in ~/.config/zed/settings.json"
-    dim "  Add: \"maina\": { \"command\": { \"path\": \"$cmd\", \"args\": [\"@mainahq/cli\", \"--mcp\"] }, \"source\": \"custom\" }"
-    return
-  fi
-  success "  Configured ~/.config/zed/settings.json"
-}
-
-configure_mcp_continue() {
-  local cmd="$1"
-  local config_dir="$HOME/.continue/mcpServers"
-
-  mkdir -p "$config_dir"
-
-  if [ -f "$config_dir/maina.json" ]; then
-    dim "  Already configured in ~/.continue/mcpServers/"
-    return
-  fi
-
-  cat > "$config_dir/maina.json" <<JSONEOF
-{
-  "maina": {
-    "command": "$cmd",
-    "args": ["@mainahq/cli", "--mcp"]
-  }
-}
-JSONEOF
-  success "  Configured ~/.continue/mcpServers/maina.json"
-}
-
-configure_mcp_vscode() {
-  local cmd="$1"
-  # Copilot reads from .vscode/mcp.json at project level
-  # Global: suggest user adds to settings
-  info "  Copilot uses project-level .vscode/mcp.json — run 'maina setup' in your repo"
-}
-
-configure_mcp_cline() {
-  local cmd="$1"
-  local os="$1"
-  # Cline stores MCP config in VS Code extension globalStorage
-  info "  Open Cline sidebar > MCP Servers > Add server:"
-  dim "  Command: $cmd @mainahq/cli --mcp"
-}
-
-configure_tool() {
-  local tool="$1"
-  local cmd="$2"
-
-  case "$tool" in
-    claude-code) configure_mcp_claude "$cmd" ;;
-    cursor) configure_mcp_cursor "$cmd" ;;
-    windsurf) configure_mcp_windsurf "$cmd" ;;
-    zed) configure_mcp_zed "$cmd" ;;
-    continue) configure_mcp_continue "$cmd" ;;
-    vscode) configure_mcp_vscode "$cmd" ;;
-    cline) configure_mcp_cline "$cmd" ;;
-    roo) info "  Roo Code uses project-level .roo/mcp.json — run 'maina setup --legacy-agents' in your repo" ;;
-    amazon-q) info "  Amazon Q uses project-level .amazonq/mcp.json — run 'maina setup --legacy-agents' in your repo" ;;
-    gemini) info "  Gemini CLI uses project-level .mcp.json — run 'maina setup' in your repo" ;;
-    aider) info "  Aider doesn't support MCP — run 'maina setup --legacy-agents' for CONVENTIONS.md" ;;
-    codex) info "  Codex CLI uses AGENTS.md — run 'maina setup' in your repo" ;;
-  esac
 }
 
 # ─── Installation ─────────────────────────────────────────────────────────
@@ -477,6 +186,26 @@ path_hint() {
   esac
 }
 
+# ─── Setup ────────────────────────────────────────────────────────────────
+
+# All configuration is done by the CLI, never by this script: inside a git
+# repo `maina setup` onboards the project and registers maina with the AI
+# tools it finds; elsewhere `maina mcp add` registers it globally.
+run_setup() {
+  if git rev-parse --is-inside-work-tree &>/dev/null; then
+    info "Git repo detected: $(basename "$(pwd)")"
+    if [ -t 0 ]; then
+      maina setup
+    else
+      maina setup --yes
+    fi
+  else
+    dim "Not in a git repo — registering maina with your AI tools globally"
+    maina mcp add
+    info "Run 'maina setup' inside your project to onboard it"
+  fi
+}
+
 # ─── Main ─────────────────────────────────────────────────────────────────
 
 main() {
@@ -523,96 +252,9 @@ main() {
   fi
   success "maina $(maina --version 2>/dev/null || echo '') installed"
 
-  # Step 3: Detect AI coding tools
-  step "3. Detecting AI coding tools"
-
-  detect_tools "$os"
-
-  if [ "$DETECTED_COUNT" -eq 0 ]; then
-    warn "No AI coding tools detected"
-    info "Supported: Claude Code, Cursor, Windsurf, VS Code (Copilot), Zed, Continue.dev, Cline, Roo Code, Amazon Q, Gemini CLI, Codex CLI, Aider"
-  else
-    for tool in $(echo "$DETECTED_TOOLS" | tr '|' ' '); do
-      local label
-      case "$tool" in
-        claude-code) label="Claude Code" ;;
-        cursor) label="Cursor" ;;
-        vscode) label="VS Code (GitHub Copilot)" ;;
-        windsurf) label="Windsurf" ;;
-        zed) label="Zed" ;;
-        cline) label="Cline" ;;
-        roo) label="Roo Code" ;;
-        continue) label="Continue.dev" ;;
-        amazon-q) label="Amazon Q" ;;
-        gemini) label="Gemini CLI" ;;
-        aider) label="Aider" ;;
-        codex) label="Codex CLI" ;;
-        *) label="$tool" ;;
-      esac
-      success "$label"
-    done
-  fi
-
-  # Step 4: Configure MCP
-  step "4. Configuring MCP servers"
-
-  local mcp_cmd
-  mcp_cmd=$(get_mcp_command "$pkg_mgr")
-
-  if [ "$DETECTED_COUNT" -gt 0 ]; then
-    if prompt_yn "Configure maina MCP for all detected tools?" "y"; then
-      for tool in $(echo "$DETECTED_TOOLS" | tr '|' ' '); do
-        info "Setting up ${tool}..."
-        configure_tool "$tool" "$mcp_cmd"
-      done
-    fi
-  else
-    dim "Skipping MCP configuration (no tools detected)"
-  fi
-
-  # Step 5: Initialize in current repo
-  step "5. Project setup"
-
-  if [ -d ".git" ]; then
-    local repo_name
-    repo_name=$(basename "$(pwd)")
-    info "Git repo detected: $repo_name"
-
-    if prompt_yn "Initialize maina in this repo?" "y"; then
-      if command -v maina &>/dev/null; then
-        maina setup
-      else
-        $mcp_cmd @mainahq/cli setup
-      fi
-      success "maina initialized"
-
-      # Optional wiki
-      if prompt_yn "Compile codebase knowledge wiki?" "y"; then
-        if command -v maina &>/dev/null; then
-          maina wiki init
-        else
-          $mcp_cmd @mainahq/cli wiki init
-        fi
-        success "Wiki compiled"
-      fi
-    fi
-  else
-    dim "Not in a git repo — skipping project setup"
-    info "Run 'maina setup' inside your project to get started"
-  fi
-
-  # Step 6: Verify
-  step "6. Verification"
-
-  if [ -d ".maina" ]; then
-    if command -v maina &>/dev/null; then
-      maina doctor
-    else
-      $mcp_cmd @mainahq/cli doctor
-    fi
-  else
-    success "Installation complete"
-  fi
+  # Step 3: Hand over to maina
+  step "3. Setting up maina"
+  run_setup
 
   # Done
   echo ""

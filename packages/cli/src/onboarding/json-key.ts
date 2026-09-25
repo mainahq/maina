@@ -65,6 +65,62 @@ function setAt(
 	};
 }
 
+/** Parse `text` as a JSON object; empty text counts as `{}`. */
+export function parseJsonObject(
+	text: string,
+):
+	| { readonly ok: true; readonly value: JsonObject }
+	| { readonly ok: false; readonly reason: string } {
+	if (text.trim().length === 0) return { ok: true, value: {} };
+	let root: unknown;
+	try {
+		root = JSON.parse(text);
+	} catch {
+		return { ok: false, reason: "malformed JSON" };
+	}
+	return isPlainObject(root)
+		? { ok: true, value: root }
+		: { ok: false, reason: "top level is not an object" };
+}
+
+/**
+ * Serialise `value` in the layout of `text`: its indentation, and its
+ * trailing newline (always one for a new file).
+ */
+export function serialiseLike(text: string, value: unknown): string {
+	const newline = text.trim().length === 0 || text.endsWith("\n");
+	return serialise(value, detectIndent(text), newline);
+}
+
+/** Remove `obj[keyPath]`, cloning along the path; missing hops are kept. */
+function deleteAt(obj: JsonObject, keyPath: readonly string[]): JsonObject {
+	const [head, ...rest] = keyPath;
+	if (head === undefined || !(head in obj)) return obj;
+	if (rest.length === 0) {
+		const { [head]: _removed, ...others } = obj;
+		return others;
+	}
+	const child = obj[head];
+	if (!isPlainObject(child)) return obj;
+	const nextChild = deleteAt(child, rest);
+	return nextChild === child ? obj : { ...obj, [head]: nextChild };
+}
+
+/**
+ * Remove the key at `keyPath` from `text`, keeping every other key and the
+ * file's layout. Containers along the path are left in place, even empty.
+ */
+export function removeJsonKey(
+	text: string,
+	keyPath: readonly string[],
+): JsonKeyMerge {
+	const parsed = parseJsonObject(text);
+	if (!parsed.ok) return { kind: "invalid", reason: parsed.reason };
+	const next = deleteAt(parsed.value, keyPath);
+	if (next === parsed.value) return { kind: "unchanged" };
+	return { kind: "merged", text: serialiseLike(text, next), hadKey: true };
+}
+
 /**
  * Merge `value` into `text` at `keyPath`. Empty text counts as `{}`.
  */
@@ -76,17 +132,9 @@ export function mergeJsonKey(
 	if (keyPath.length === 0) {
 		return { kind: "invalid", reason: "empty key path" };
 	}
-	let root: unknown = {};
-	if (text.trim().length > 0) {
-		try {
-			root = JSON.parse(text);
-		} catch {
-			return { kind: "invalid", reason: "malformed JSON" };
-		}
-	}
-	if (!isPlainObject(root)) {
-		return { kind: "invalid", reason: "top level is not an object" };
-	}
+	const parsed = parseJsonObject(text);
+	if (!parsed.ok) return { kind: "invalid", reason: parsed.reason };
+	const root = parsed.value;
 
 	let cursor: JsonObject = root;
 	for (const key of keyPath.slice(0, -1)) {
@@ -109,10 +157,9 @@ export function mergeJsonKey(
 	) {
 		return { kind: "unchanged" };
 	}
-	const newline = text.trim().length === 0 || text.endsWith("\n");
 	return {
 		kind: "merged",
-		text: serialise(setAt(root, keyPath, value), detectIndent(text), newline),
+		text: serialiseLike(text, setAt(root, keyPath, value)),
 		hadKey: current !== undefined,
 	};
 }

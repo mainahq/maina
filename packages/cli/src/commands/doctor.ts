@@ -12,8 +12,14 @@ import {
 } from "@mainahq/core";
 import { Command } from "commander";
 import { processEnv } from "../env";
-import type { McpClientId, McpClientInfo } from "../hosts/index";
-import { buildClientRegistry } from "../hosts/index";
+import type { McpClientId } from "../hosts/index";
+import {
+	buildClientRegistry,
+	hostPathContext,
+	listClientIds,
+} from "../hosts/index";
+import { readEntry } from "../hosts/merge";
+import { type TargetFile, targetsFor } from "../hosts/targets";
 import { EXIT_PASSED, outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -180,66 +186,30 @@ function formatWikiHealth(health: WikiHealth): string {
 
 // ── MCP Health Check ──────────────────────────────────────────────────────
 
-function readMainaPresent(
-	path: string,
-	shape: McpClientInfo["shape"],
-): boolean {
-	if (!existsSync(path)) return false;
+/** True when `target` exists and holds a maina entry. */
+function mainaPresent(target: TargetFile): boolean {
+	if (!existsSync(target.path)) return false;
 	try {
-		const raw = readFileSync(path, "utf-8");
-		// TOML clients (Codex) use a simple presence check: the entry key appears
-		// under the configured path. Parsing full TOML is out of scope for doctor.
-		if (path.endsWith(".toml")) {
-			return raw.includes(`[${shape.path.join(".")}.${shape.entryKey}]`);
-		}
-		const content = JSON.parse(raw) as Record<string, unknown>;
-		let cursor: unknown = content;
-		for (const key of shape.path) {
-			if (cursor && typeof cursor === "object" && key in (cursor as object)) {
-				cursor = (cursor as Record<string, unknown>)[key];
-			} else {
-				return false;
-			}
-		}
-		if (shape.container === "array") {
-			return (
-				Array.isArray(cursor) &&
-				(cursor as Array<Record<string, unknown>>).some(
-					(e) => e?.name === shape.entryKey,
-				)
-			);
-		}
-		return (
-			cursor !== null &&
-			typeof cursor === "object" &&
-			shape.entryKey in (cursor as object)
-		);
+		const found = readEntry(target, readFileSync(target.path, "utf-8"));
+		return found.ok && found.value !== undefined;
 	} catch {
 		return false;
 	}
 }
 
 function checkMcpHealth(cwd: string, home?: string): McpHealth {
-	const registry = buildClientRegistry(home);
+	const ctx = hostPathContext(cwd, home);
+	const registry = buildClientRegistry(ctx);
 	const integrations: McpIntegration[] = [];
-	// `.mcp.json` at repo root is Claude Code's shared project-level source
-	// alongside `.claude/settings.json`. Treat either as project-scope for Claude.
-	const sharedMcpJsonPath = join(cwd, ".mcp.json");
-	const sharedMcpJsonHasMaina = readMainaPresent(sharedMcpJsonPath, {
-		path: ["mcpServers"],
-		container: "object",
-		entryKey: "maina",
-	});
-	for (const [id, info] of Object.entries(registry) as Array<
-		[McpClientId, McpClientInfo]
-	>) {
-		const globalPath = info.globalConfigPath();
-		const globalPresent = readMainaPresent(globalPath, info.shape);
-		const projectPath = info.projectConfigPath?.(cwd) ?? null;
-		let projectPresent = projectPath
-			? readMainaPresent(projectPath, info.shape)
-			: false;
-		if (id === "claude" && sharedMcpJsonHasMaina) projectPresent = true;
+	// Paths come from the host targets, so doctor looks exactly where each
+	// host reads: Claude Code's `.mcp.json` / `~/.claude.json`, never a
+	// `settings.json` it ignores.
+	for (const id of listClientIds()) {
+		const info = registry[id];
+		const [global] = targetsFor(id, "global", ctx);
+		const [project] = targetsFor(id, "project", ctx);
+		const globalPresent = global !== undefined && mainaPresent(global);
+		const projectPresent = project !== undefined && mainaPresent(project);
 		let scope: McpScope;
 		if (globalPresent && projectPresent) scope = "both";
 		else if (globalPresent) scope = "global";
@@ -249,8 +219,8 @@ function checkMcpHealth(cwd: string, home?: string): McpHealth {
 			client: id,
 			label: info.label,
 			scope,
-			projectPath,
-			globalPath,
+			projectPath: project?.path ?? null,
+			globalPath: global?.path ?? "",
 		};
 		if (scope === "missing") {
 			integration.fix = `maina mcp add --client ${id} --scope global`;

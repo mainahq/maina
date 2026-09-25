@@ -238,9 +238,9 @@ describe("planOnboarding — preserves user content", () => {
 			mcpServers: { memory: { command: "mem", args: ["--x"] } },
 		};
 		const initial = `${JSON.stringify(user, null, 4)}\n`;
-		const { fs, files } = memoryFs({ ".claude/settings.json": initial });
+		const { fs, files } = memoryFs({ ".mcp.json": initial });
 		runOnce(fs);
-		const out = files.get(".claude/settings.json") ?? "";
+		const out = files.get(".mcp.json") ?? "";
 		const expected = {
 			...user,
 			mcpServers: { ...user.mcpServers, maina: MCP_ENTRY },
@@ -340,10 +340,22 @@ describe("planOnboarding — targets", () => {
 			".github/copilot-instructions.md",
 			".windsurf/rules/maina.md",
 			".mcp.json",
-			".claude/settings.json",
 			".cursor/mcp.json",
 		]) {
 			expect(paths).toContain(p);
+		}
+	});
+
+	test("a Claude MCP entry is never planned into settings.json (P1)", () => {
+		// Claude Code reads `.mcp.json` / `~/.claude.json`, never settings.
+		const { fs } = memoryFs(SCENARIOS["existing user files"]);
+		for (const options of [{}, { legacyAgents: true }] as PlanOptions[]) {
+			expect(onboardingTargets(options)).not.toContain(".claude/settings.json");
+			const paths = planOnboarding(factsFor(fs, options), options).map(
+				(o) => o.path,
+			);
+			expect(paths).not.toContain(".claude/settings.json");
+			expect(paths).not.toContain(".claude/settings.local.json");
 		}
 	});
 

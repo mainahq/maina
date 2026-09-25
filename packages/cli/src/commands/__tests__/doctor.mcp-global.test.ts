@@ -82,17 +82,15 @@ function makeCwd(): string {
 	return d;
 }
 
+const MAINA_SERVERS = JSON.stringify({
+	mcpServers: {
+		maina: { command: "npx", args: ["@mainahq/cli", "--mcp"] },
+	},
+});
+
+/** Claude Code's user scope: `~/.claude.json`. */
 function writeGlobalClaudeMcp(home: string): void {
-	const dir = join(home, ".claude");
-	mkdirSync(dir, { recursive: true });
-	writeFileSync(
-		join(dir, "settings.json"),
-		JSON.stringify({
-			mcpServers: {
-				maina: { command: "npx", args: ["@mainahq/cli", "--mcp"] },
-			},
-		}),
-	);
+	writeFileSync(join(home, ".claude.json"), MAINA_SERVERS);
 }
 
 let savedHome: string | undefined;
@@ -114,7 +112,19 @@ afterEach(() => {
 });
 
 describe("doctor — global MCP detection", () => {
-	test("reports claude as global when only ~/.claude/settings.json is wired", async () => {
+	test("an entry in ~/.claude/settings.json does not count: Claude never reads it (P1)", async () => {
+		mkdirSync(join(home, ".claude"), { recursive: true });
+		writeFileSync(join(home, ".claude", "settings.json"), MAINA_SERVERS);
+		mkdirSync(join(cwd, ".claude"), { recursive: true });
+		writeFileSync(join(cwd, ".claude", "settings.json"), MAINA_SERVERS);
+		const result = await doctorAction({ cwd, home });
+		const claude = result.mcpHealth.integrations?.find(
+			(i) => i.client === "claude",
+		);
+		expect(claude?.scope).toBe("missing");
+	});
+
+	test("reports claude as global when only ~/.claude.json is wired", async () => {
 		writeGlobalClaudeMcp(home);
 		const result = await doctorAction({ cwd, home });
 		const claude = result.mcpHealth.integrations?.find(
@@ -167,9 +177,8 @@ describe("doctor — global MCP detection", () => {
 
 	test("both project and global claude config → scope=both", async () => {
 		writeGlobalClaudeMcp(home);
-		mkdirSync(join(cwd, ".claude"), { recursive: true });
 		writeFileSync(
-			join(cwd, ".claude", "settings.json"),
+			join(cwd, ".mcp.json"),
 			JSON.stringify({
 				mcpServers: {
 					maina: { command: "maina", args: ["--mcp"] },

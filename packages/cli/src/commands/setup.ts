@@ -24,6 +24,7 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { confirm, intro, isCancel, log, outro, spinner } from "@clack/prompts";
 import {
@@ -35,6 +36,7 @@ import {
 import { Command } from "commander";
 import { processEnv } from "../env";
 import { buildMainaEntry } from "../hosts/entry";
+import { runSetupHosts } from "../hosts/index";
 import { EXIT_CONFIG_ERROR, EXIT_PASSED } from "../json";
 import { applyOps, snapshotFiles } from "../onboarding/apply";
 import { nodeOnboardingFs } from "../onboarding/node-fs";
@@ -114,6 +116,8 @@ interface SetupResult {
 	constitutionWritten: boolean;
 	agentFilesWritten: string[];
 	agentFilesWarnings: string[];
+	/** Global host config files maina was merged into (e.g. Codex). */
+	hostConfigsWritten: string[];
 	verifyFinding: VerifyFinding | null;
 	verifyClean: boolean;
 	verifyRan: boolean;
@@ -147,6 +151,13 @@ export interface SetupActionOptions {
 	 * `.maina/` and managed regions/keys of files that already exist.
 	 */
 	plugin?: boolean;
+	/**
+	 * Register maina in the global config of installed hosts that setup
+	 * does not wire through a project file (Codex, Windsurf, Zed, …).
+	 * Off unless given: the CLI passes the real home, tests a fake one.
+	 * Ignored in plugin mode, which never writes outside `.maina/`.
+	 */
+	globalHosts?: { readonly home: string };
 	ci?: boolean;
 	json?: boolean;
 	/**
@@ -494,6 +505,7 @@ export async function setupAction(
 		constitutionWritten: false,
 		agentFilesWritten: [],
 		agentFilesWarnings: [],
+		hostConfigsWritten: [],
 		verifyFinding: null,
 		verifyClean: false,
 		verifyRan: false,
@@ -840,6 +852,21 @@ export async function setupAction(
 		deps.log.info(`Backed up originals to ${report.backups.join(", ")}`);
 	}
 
+	// Hosts without a project MCP file only read their global config.
+	if (options.globalHosts !== undefined && options.plugin !== true) {
+		const hosts = await runSetupHosts({
+			home: options.globalHosts.home,
+			cwd,
+		});
+		for (const r of hosts.results) {
+			if (r.error !== undefined) {
+				result.agentFilesWarnings.push(`skip ${r.configPath}: ${r.error}`);
+			} else if (r.action === "created" || r.action === "updated") {
+				result.hostConfigsWritten.push(r.configPath);
+			}
+		}
+	}
+
 	// ── Skills materialisation ──────────────────────────────────────────────
 	// Best-effort copy of `@mainahq/skills/<name>/SKILL.md` into
 	// `.maina/skills/<name>/SKILL.md`. A missing skills package is a
@@ -1106,6 +1133,7 @@ function emitSummary(log: SetupLogger, r: SetupResult): void {
 		`  Files written:   ${[
 			r.constitutionWritten ? ".maina/constitution.md" : null,
 			...r.agentFilesWritten,
+			...r.hostConfigsWritten,
 		]
 			.filter(Boolean)
 			.join(", ")}`,
@@ -1418,6 +1446,7 @@ export async function runSetupCommand(
 		telemetry: opts.telemetry !== false,
 		legacyAgents: opts.legacyAgents === true,
 		plugin: opts.plugin === true,
+		globalHosts: { home: homedir() },
 	};
 	if (mode !== undefined) actionOpts.mode = mode;
 	if (agents !== null) actionOpts.agents = agents;

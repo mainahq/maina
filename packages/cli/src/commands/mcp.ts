@@ -3,14 +3,16 @@
  * supported AI clients.
  *
  * Three subcommands:
- *   maina mcp add        — write the maina entry into each detected client's
- *                          global config (or specified --client list)
- *   maina mcp remove     — strip the maina entry from those configs
+ *   maina mcp add        — merge the maina entry into each detected client's
+ *                          config (or specified --client list), backing the
+ *                          original up once
+ *   maina mcp remove     — take it out again, restoring the pre-maina file
+ *                          exactly when nothing else changed
  *   maina mcp list       — show install status per client
  *
- * Inspired by `npx @posthog/wizard mcp add`. The setup wizard handles the
- * project-scope (`.mcp.json`, `.claude/settings.json`); this command is
- * the cross-project (user-global) counterpart.
+ * Files come from the host targets (`../hosts/targets.ts`): Claude Code is
+ * `.mcp.json` (project) / `~/.claude.json` (global), never `settings.json`.
+ * Inspired by `npx @posthog/wizard mcp add`.
  */
 
 import { intro, log, outro } from "@clack/prompts";
@@ -28,6 +30,7 @@ import {
 	runRemove,
 } from "../hosts/index";
 import { detectLauncher, isDirectBinary } from "../hosts/launcher";
+import type { HostAction } from "../hosts/merge";
 import { EXIT_PASSED, outputJson } from "../json";
 
 // ── Option parsing ─────────────────────────────────────────────────────────
@@ -72,18 +75,23 @@ export function parseScope(raw: string | undefined): Result<McpScope, string> {
 
 // ── Pretty printing ────────────────────────────────────────────────────────
 
-function actionEmoji(action: string): string {
+function actionEmoji(action: HostAction): string {
 	switch (action) {
 		case "created":
 		case "updated":
 		case "removed":
+		case "restored":
 			return "+";
 		case "unchanged":
 			return "·";
 		case "absent":
 			return "—";
-		default:
-			return "?";
+		case "skipped":
+			return "!";
+		default: {
+			const unreachable: never = action;
+			return unreachable;
+		}
 	}
 }
 

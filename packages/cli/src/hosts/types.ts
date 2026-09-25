@@ -1,12 +1,12 @@
 /**
  * Types shared across the `maina mcp add/remove/list` machinery.
  *
- * The goal of this module: write the maina MCP server entry into the
- * GLOBAL config of any AI client the user has installed, so that
- * `maina --mcp` is reachable from every project without per-repo setup.
- * The setup wizard already writes per-project configs (`.mcp.json`,
- * `.claude/settings.json`); this is the cross-project counterpart.
+ * Where each host keeps its MCP config lives in `./targets.ts`; how the
+ * maina entry is merged in and removed again lives in `./merge.ts` and
+ * `./uninstall.ts`. This module describes the hosts themselves.
  */
+
+import type { HostAction } from "./merge";
 
 export type McpClientId =
 	| "claude"
@@ -20,49 +20,29 @@ export type McpClientId =
 
 export type McpScope = "global" | "project" | "both";
 
-export type ConfigFormat = "json" | "toml";
-
-/** Description of where a client keeps the field that lists MCP servers. */
-export interface ClientMcpShape {
-	/** Top-level (or dotted) path to the MCP servers container. */
-	path: string[];
-	/** Whether the container is an object keyed by server name, or an array. */
-	container: "object" | "array";
-	/** The key the maina entry should use when container is "object". */
-	entryKey: string;
-}
-
 export interface McpClientInfo {
-	id: McpClientId;
-	label: string;
-	configFormat: ConfigFormat;
-	/** Absolute path to the global config file (resolves `~` + platform). */
-	globalConfigPath: () => string;
-	/** Optional project-scoped config path (relative to cwd). */
-	projectConfigPath?: (cwd: string) => string;
+	readonly id: McpClientId;
+	readonly label: string;
 	/** Heuristic for "is this client installed/used on this machine?". */
-	detect: () => Promise<boolean>;
-	shape: ClientMcpShape;
+	readonly detect: () => Promise<boolean>;
 	/** Build the maina entry in the shape this client expects. */
-	buildEntry: () => unknown;
-	/** True if the client expects an MCP entry only when the file already exists. */
-	requiresExistingFile?: boolean;
+	readonly buildEntry: () => unknown;
 }
 
 export interface ApplyResult {
-	clientId: McpClientId;
-	configPath: string;
-	scope: "global" | "project";
-	action: "created" | "updated" | "unchanged" | "removed" | "absent";
-	dryRun: boolean;
-	error?: string;
+	readonly clientId: McpClientId;
+	readonly configPath: string;
+	readonly scope: "global" | "project";
+	readonly action: HostAction;
+	readonly dryRun: boolean;
+	readonly error?: string;
 }
 
 export interface RunOptions {
-	clients?: McpClientId[];
-	scope: McpScope;
-	dryRun: boolean;
-	cwd: string;
+	readonly clients?: McpClientId[];
+	readonly scope: McpScope;
+	readonly dryRun: boolean;
+	readonly cwd: string;
 	/** Override `os.homedir()` — primarily for tests. */
-	home?: string;
+	readonly home?: string;
 }

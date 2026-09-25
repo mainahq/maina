@@ -19,8 +19,12 @@
  *                  before that the entry pinned the checkout's version, and
  *                  any build not on the registry reproduced P3.
  *   - cli-mcp-add  `maina mcp add --client <host>` after `bun install -g`
- *   - install-sh   `curl … | bash`: global install, then install.sh's
- *                  own per-host config writer
+ *   - install-sh   `curl … | bash`: global install, then install.sh hands
+ *                  over to the installed CLI (`maina setup`); it writes no
+ *                  config itself (#299)
+ *
+ * Each case starts from a user who already has the host: its global config
+ * is seeded with keys that are not maina's, and must survive (P8).
  *
  * The global install is simulated with the layout bun's installer gives
  * every user: `~/.bun/bin/{bun,bunx}` plus a `maina` bin that is a symlink
@@ -39,7 +43,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
 	type EnvMode,
 	type EnvVars,
@@ -59,6 +63,7 @@ import type {
 	LaunchSpec,
 	PathCtx,
 	Result,
+	SeedFile,
 } from "./types";
 
 export type {
@@ -108,9 +113,11 @@ const INSTALLER_TIMEOUT_MS = 120_000;
  * - P2  launch needs a runtime missing from a GUI PATH (`env: bun` → 127)
  * - P3  launch pins a version the registry cannot resolve
  * - P4  cold start slower than the budget / host startup timeout
+ * - P8  installer rewrites a config the user already had, losing keys
+ *       that are not maina's (hooks, permissions, other servers)
  * - no-plugin  the host plugin package does not exist yet
  */
-export type KnownProblem = "P1" | "P2" | "P3" | "P4" | "no-plugin";
+export type KnownProblem = "P1" | "P2" | "P3" | "P4" | "P8" | "no-plugin";
 
 export interface KnownFailure {
 	readonly host: HostId;
@@ -130,8 +137,6 @@ export interface KnownFailure {
 	readonly mayPass?: true;
 }
 
-const GUI_LAUNCH: readonly EnvMode[] = ["minimal", "gui"];
-
 export const KNOWN_FAILURES: readonly KnownFailure[] = [
 	// Plugins: no host package yet (plan tasks 9.2–9.4).
 	{
@@ -146,43 +151,16 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
 	},
 	{ host: "codex", installPath: "plugin", fixes: { "no-plugin": 343 } },
 
-	// P1: these Claude installers write settings.json, which Claude ignores.
-	// (#288 fixed claude-code × cli-setup: `maina setup` now merges
+	// (#288 fixed claude-code × cli-setup: `maina setup` merges
 	// `mcpServers.maina` into the project `.mcp.json`.)
-	{
-		host: "claude-code",
-		installPath: "cli-mcp-add",
-		fixes: { P1: 299 },
-	},
-	{
-		host: "claude-code",
-		installPath: "install-sh",
-		fixes: { P1: 299 },
-	},
-	// P1: setup and install.sh never write a Codex MCP entry at all.
-	{ host: "codex", installPath: "cli-setup", fixes: { P1: 299 } },
-	{ host: "codex", installPath: "install-sh", fixes: { P1: 299 } },
-
 	// (#294 fixed P3 on cursor × cli-setup and P2 on cursor/codex ×
 	// cli-mcp-add: the CLI now writes its own runtime and entry by absolute
 	// path instead of a `bunx` pin or a `#!/usr/bin/env bun` script.)
-
-	// P2: install.sh writes a bare `bunx`, which a GUI PATH cannot resolve…
-	{
-		host: "cursor",
-		installPath: "install-sh",
-		envs: GUI_LAUNCH,
-		fixes: { P2: 299 },
-	},
-	// …and P4 from a terminal: unpinned `bunx @mainahq/cli` downloads the
-	// package on first spawn (2.6–5.2 s on a laptop, ~1.1 s on a CI runner).
-	{
-		host: "cursor",
-		installPath: "install-sh",
-		envs: ["full"],
-		fixes: { P4: 298 },
-		mayPass: true,
-	},
+	// (#299 fixed the rest of P1, P2 and P8: every installer resolves host
+	// files through the CLI's targets — Claude Code `.mcp.json` /
+	// `~/.claude.json`, Codex `config.toml` — merges without rewriting, and
+	// install.sh only hands over to `maina setup`, so it no longer writes a
+	// bare `bunx` whose first-spawn download also caused P4 there.)
 ];
 
 export function problemsOf(k: KnownFailure): readonly KnownProblem[] {
@@ -215,6 +193,8 @@ export function classifyProblem(error: CaseError): KnownProblem | undefined {
 			return "no-plugin";
 		case "config-not-found":
 			return "P1";
+		case "config-clobbered":
+			return "P8";
 		case "command-not-found":
 			return "P2";
 		case "exited":
@@ -322,6 +302,45 @@ export function resolveLaunch(
 			strays,
 		},
 	};
+}
+
+// ── Seeded configs (P8) ────────────────────────────────────────────────────
+
+/** The host configs a real user already has, written before installing. */
+export function seedsFor(host: HostId, ctx: PathCtx): readonly SeedFile[] {
+	return HOST_SPECS[host].seeds(ctx);
+}
+
+/** Every seeded config must still exist and hold its own keys. */
+export function checkSeeds(
+	host: HostId,
+	ctx: PathCtx,
+	readFile: (path: string) => string | null,
+): Result<void, CaseError> {
+	for (const seed of seedsFor(host, ctx)) {
+		const raw = readFile(seed.path);
+		const parsed = raw === null ? null : parseConfig(raw, seed.format);
+		if (parsed === null || !parsed.ok || !seed.intact(parsed.value)) {
+			return {
+				ok: false,
+				error: {
+					kind: "config-clobbered",
+					message: `installer ${
+						raw === null ? "deleted" : "rewrote"
+					} ${seed.path} and lost keys that are not maina's`,
+					path: seed.path,
+				},
+			};
+		}
+	}
+	return { ok: true, value: undefined };
+}
+
+function writeSeeds(host: HostId, ctx: PathCtx): void {
+	for (const seed of seedsFor(host, ctx)) {
+		mkdirSync(dirname(seed.path), { recursive: true });
+		writeFileSync(seed.path, seed.content);
+	}
 }
 
 // ── Workspace ──────────────────────────────────────────────────────────────
@@ -447,11 +466,11 @@ async function runInstaller(
 }
 
 /**
- * install.sh minus its `main "$@"` call, then only its per-host config
- * step, with the launcher it would pick for the detected package manager.
- * The global package install it would do first is simulated by the shim.
+ * install.sh minus its `main "$@"` call, then only its hand-off to the
+ * CLI (`run_setup`). The global package install it would do first is
+ * simulated by the shim.
  */
-function installShScript(tool: string): Result<string, CaseError> {
+function installShScript(): Result<string, CaseError> {
 	const source = readOrNull(INSTALL_SH);
 	const call = /^main "\$@"\s*$/m;
 	if (source === null || !call.test(source)) {
@@ -467,7 +486,7 @@ function installShScript(tool: string): Result<string, CaseError> {
 	}
 	return {
 		ok: true,
-		value: `${source.replace(call, "")}\nconfigure_tool ${tool} "$(get_mcp_command "$(detect_pkg_manager)")"\n`,
+		value: `${source.replace(call, "")}\nrun_setup\n`,
 	};
 }
 
@@ -509,7 +528,7 @@ async function install(
 				w,
 			);
 		case "install-sh": {
-			const script = installShScript(spec.installShTool);
+			const script = installShScript();
 			if (!script.ok) return script;
 			return runInstaller(["/bin/bash", "-c", script.value], w);
 		}
@@ -778,29 +797,22 @@ export async function runCase(spec: CaseSpec): Promise<CaseResult> {
 	const host = HOST_SPECS[spec.host];
 	const globalMaina = spec.installPath !== "cli-setup";
 	const w = createWorkspace(spec.os, globalMaina);
+	const ctx: PathCtx = { home: w.home, cwd: w.cwd };
+	const notStarted = (error: CaseError): CaseResult => ({
+		started: false,
+		handshakeMs: null,
+		toolCallOk: false,
+		error,
+	});
 	try {
+		writeSeeds(spec.host, ctx);
 		const installed = await install(host, spec.installPath, w);
-		if (!installed.ok) {
-			return {
-				started: false,
-				handshakeMs: null,
-				toolCallOk: false,
-				error: installed.error,
-			};
-		}
-		const launch = resolveLaunch(
-			spec.host,
-			{ home: w.home, cwd: w.cwd },
-			readOrNull,
-		);
-		if (!launch.ok) {
-			return {
-				started: false,
-				handshakeMs: null,
-				toolCallOk: false,
-				error: launch.error,
-			};
-		}
+		if (!installed.ok) return notStarted(installed.error);
+		// P1 (no entry where the host reads) outranks P8 (a clobbered file).
+		const launch = resolveLaunch(spec.host, ctx, readOrNull);
+		if (!launch.ok) return notStarted(launch.error);
+		const seeds = checkSeeds(spec.host, ctx, readOrNull);
+		if (!seeds.ok) return notStarted(seeds.error);
 		const env = hostEnv(spec.env, {
 			os: spec.os,
 			home: w.home,

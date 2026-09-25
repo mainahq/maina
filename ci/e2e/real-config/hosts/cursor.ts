@@ -9,8 +9,20 @@ import { at } from "./select";
 
 export const cursor: HostSpec = {
 	id: "cursor",
-	installShTool: "cursor",
 	mcpAddClient: "cursor",
+	seeds: ({ home }) => [
+		{
+			path: join(home, ".cursor", "mcp.json"),
+			format: "json",
+			content: `${JSON.stringify(
+				{ mcpServers: { memory: { command: "memory-server" } } },
+				null,
+				2,
+			)}\n`,
+			intact: (parsed) =>
+				at(parsed, ["mcpServers", "memory", "command"]) === "memory-server",
+		},
+	],
 	configSources: ({ home, cwd }) => [
 		{
 			path: join(cwd, ".cursor", "mcp.json"),

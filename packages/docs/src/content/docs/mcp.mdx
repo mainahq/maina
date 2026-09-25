@@ -25,12 +25,12 @@ Or scope to specific clients:
 
 ```bash
 maina mcp add --client claude,cursor,windsurf
-maina mcp add --scope project          # write to .mcp.json / .claude/settings.json instead of global
+maina mcp add --scope project          # write the repo's files (.mcp.json, .cursor/mcp.json) instead of global
 maina mcp add --dry-run                # preview the writes without touching disk
 maina mcp list                         # show install status per client
 ```
 
-Supported clients: **Claude Code, Cline, Codex, Continue, Copilot, Cursor, Gemini CLI, OpenHands, Roo Code, Windsurf, Zed AI** (any MCP client works — those eleven are auto-detected). The command preserves all other MCP servers and unrelated keys via an atomic merge — safe to run repeatedly.
+Supported clients: **Claude Code, Cline, Codex, Continue, Copilot, Cursor, Gemini CLI, OpenHands, Roo Code, Windsurf, Zed AI** (any MCP client works — those eleven are auto-detected). Each entry goes into the file the client actually reads — for Claude Code that is `~/.claude.json` (global) or `.mcp.json` (project), never `settings.json`. The command preserves all other MCP servers and unrelated keys (hooks, permissions, comments in Codex's TOML) via an atomic merge, backs the original up once under `.maina/backups/`, and is safe to run repeatedly. `maina mcp remove` restores the pre-maina file exactly when nothing else changed since, deletes a file maina created, and otherwise removes only the `maina` entry.
 
 The launcher is auto-detected per machine, in this priority order:
 
@@ -42,13 +42,13 @@ The launcher is auto-detected per machine, in this priority order:
 
 Tiers 1-4 are written using **absolute** paths (`/opt/homebrew/bin/bunx`, `/Users/.../.bun/bin/maina`, etc.) so MCP clients with stripped-PATH spawn contexts (Cursor, Zed, Claude Code desktop) can find them. Tier 5 is the only case where the bare command name is written. `<version>` is the version of the CLI that wrote the entry. Manual examples below use `npx` for portability.
 
-The setup wizard (`maina setup`) also writes the project-scoped configs (`.mcp.json`, `.claude/settings.json`, `.cursor/mcp.json`) for you using a **keyed JSON merge** — every existing `mcpServers.*` entry is preserved byte-for-byte and only the `maina` key is written. Safe to re-run; safe against hand-edited configs. Most users won't need `maina mcp add` unless they want maina available in every project from any client.
+The setup wizard (`maina setup`) also writes the project-scoped configs (`.mcp.json`, `.cursor/mcp.json`) for you using a **keyed JSON merge** — every existing `mcpServers.*` entry is preserved byte-for-byte and only the `maina` key is written — and registers maina in the global config of installed clients that have no project file (Codex, Windsurf, Zed, …). Safe to re-run; safe against hand-edited configs. The `curl … | bash` installer only installs the package and runs `maina setup`; it writes no config itself. Most users won't need `maina mcp add` unless they want maina available in every project from any client.
 
 Or configure manually per tool:
 
 <Tabs>
   <TabItem label="Claude Code">
-    `.claude/settings.json` (merged by `maina setup`):
+    `.mcp.json` in the repo (merged by `maina setup`) or `~/.claude.json` (`maina mcp add`). Claude Code does not read MCP servers from `settings.json`:
     ```json
     {"mcpServers":{"maina":{"command":"npx","args":["@mainahq/cli","--mcp"]}}}
     ```
