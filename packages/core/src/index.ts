@@ -333,6 +333,27 @@ export {
 	type Launcher,
 	resetLauncherCache,
 } from "./mcp/launcher";
+// Ports (functional core side-effect boundary)
+export type {
+	ClockPort,
+	CorePorts,
+	DbError,
+	DbPort,
+	DbRow,
+	DbValue,
+	EnvPort,
+	FsError,
+	FsPort,
+	GitError,
+	GitPort,
+	LogFields,
+	LoggerPort,
+	LogLevel,
+	ModelError,
+	ModelPort,
+	ModelRequest,
+	ModelResponse,
+} from "./ports/index";
 export { loadDefault, type PromptTask } from "./prompts/defaults/index";
 // Prompts
 export {
