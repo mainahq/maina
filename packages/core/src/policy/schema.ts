@@ -92,6 +92,17 @@ const Rule = z.strictObject({
 	reason: z.string().min(1).optional(),
 });
 
+/** A literal branch name, as `git push` would name it: no globbing. */
+const BranchName = z
+	.string()
+	.regex(/^[^\s]+$/, "Expected a branch name such as main or release/v1");
+
+const ProtectedBranches = z
+	.array(BranchName)
+	.describe(
+		"Branches a plain push to asks (git.push.protected) and a lease or delete push to counts as a force push (git.push.force). Lists accumulate across layers on top of main and master; none can be removed.",
+	);
+
 const probability = z.number().min(0).max(1);
 
 const Thresholds = z.strictObject({
@@ -149,6 +160,7 @@ const Log = z.strictObject({
 const PolicyBody = z.strictObject({
 	action_classes: z.record(ActionClassId, ActionClassSpec),
 	rules: z.strictObject({ allow: z.array(Rule), deny: z.array(Rule) }),
+	protected_branches: ProtectedBranches,
 	decisions: z.record(z.enum(DECISION_TYPES), DecisionSpec),
 	drift: Drift,
 	telemetry: Telemetry,
@@ -204,6 +216,7 @@ const PolicyLayerSchema = z
 			})
 			.describe("Rule lists accumulate across layers; none can be removed.")
 			.optional(),
+		protected_branches: ProtectedBranches.optional(),
 		decisions: z
 			.partialRecord(
 				z.enum(DECISION_TYPES),

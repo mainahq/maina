@@ -4,6 +4,8 @@
  * Merge rules (FR-GATE-9):
  * - Scalars and nested objects merge key by key; the later layer wins.
  * - Rule lists accumulate (deduplicated), so no layer can drop a rule.
+ * - Protected branches accumulate the same way: a layer can protect more
+ *   branches, never unprotect one (including the default main and master).
  * - An irreversible action class can always be tightened, but loosening it
  *   (a looser verdict, or `irreversible: false`) is an error unless that
  *   layer lists the class in `explicitly_allow`. Allowed loosenings are
@@ -122,6 +124,13 @@ function unionRules(
 	];
 }
 
+function unionBranches(
+	base: readonly string[],
+	added: readonly string[] | undefined,
+): readonly string[] {
+	return [...new Set([...base, ...(added ?? [])])];
+}
+
 function mergeDecisions(
 	base: Policy["decisions"],
 	layer: PolicyLayer["decisions"],
@@ -166,6 +175,10 @@ function mergeLayer(acc: Merged, layer: Layer): Merged {
 			allow: unionRules(acc.policy.rules.allow, value.rules?.allow),
 			deny: unionRules(acc.policy.rules.deny, value.rules?.deny),
 		},
+		protected_branches: unionBranches(
+			acc.policy.protected_branches,
+			value.protected_branches,
+		),
 		decisions: mergeDecisions(acc.policy.decisions, value.decisions),
 		drift: { ...acc.policy.drift, ...defined(value.drift) },
 		telemetry: { ...acc.policy.telemetry, ...defined(value.telemetry) },

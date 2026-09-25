@@ -229,3 +229,33 @@ export const asyncGitProbe: AsyncGitProbe = {
 		}
 	},
 };
+
+/**
+ * `symbolic-ref`, not `rev-parse --abbrev-ref`: it also names the branch of
+ * a repository with no commits yet, and fails on a detached HEAD instead of
+ * printing `HEAD`. The full ref, not `--short`: a tag of the same name
+ * would shorten it to `heads/<branch>`, which no protected branch matches.
+ */
+const BRANCH = ["git", "symbolic-ref", "--quiet", "HEAD"];
+const HEADS = "refs/heads/";
+
+/**
+ * The branch checked out in `dir`, or null for a detached HEAD or a
+ * directory outside any repository. Read-only; never rejects.
+ */
+export async function checkedOutBranch(dir: string): Promise<string | null> {
+	try {
+		const proc = Bun.spawn(BRANCH, probeOptions(dir));
+		const [stdout, exitCode] = await Promise.all([
+			new Response(proc.stdout).text(),
+			proc.exited,
+		]);
+		const ref = stdout.trim();
+		if (exitCode !== 0 || !ref.startsWith(HEADS)) return null;
+		const branch = ref.slice(HEADS.length);
+		return branch === "" ? null : branch;
+	} catch {
+		// Missing or unreadable dir: no branch.
+		return null;
+	}
+}

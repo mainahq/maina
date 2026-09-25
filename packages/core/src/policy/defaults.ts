@@ -3,6 +3,7 @@
  */
 
 import { DECISION_CATALOG } from "../decide/types-catalog";
+import { DEFAULT_PROTECTED_BRANCHES } from "../gate/events";
 import {
 	type ActionClassPolicy,
 	DECISION_TYPES,
@@ -81,7 +82,7 @@ const REVERSIBLE_ACTION_CLASSES = {
 	"fs.read.outside": asked,
 	"git.commit": allowed,
 	"git.push": allowed,
-	/** A plain push to a protected branch (`main`, `master`). */
+	/** A plain push to a protected branch (`main`, `master`, `protected_branches`). */
 	"git.push.protected": asked,
 	"deps.install": allowed,
 	"network.fetch": allowed,
@@ -124,6 +125,7 @@ export const DEFAULT_POLICY: Policy = {
 		...Object.fromEntries(DENIED_ACTION_CLASSES.map((id) => [id, denied])),
 	},
 	rules: { allow: [], deny: [] },
+	protected_branches: DEFAULT_PROTECTED_BRANCHES,
 	decisions: Object.fromEntries(
 		DECISION_TYPES.map((type) => [type, defaultDecision(type)]),
 	) as Record<DecisionType, DecisionPolicy>,

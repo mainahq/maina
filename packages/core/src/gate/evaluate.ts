@@ -9,6 +9,7 @@
  *                 irreversible class goes back to `ask` (or stays `deny`),
  *                 whatever the policy says.
  *   2. rules    — `evaluateRules` over the narrowed policy. A deny is final.
+ *                 The policy's `protected_branches` join the context's.
  *   3. decide   — `decide("action.risk")` with the policy's backend. Its
  *                 answer is folded in by `settleVerdict`, so it can tighten a
  *                 rule result or decide a `no_rule`, never loosen a result.
@@ -33,7 +34,12 @@ import {
 	type Verdict,
 } from "../policy/schema";
 import type { ClockPort } from "../ports/clock";
-import type { GateContext, GateEvent, PermissionMode } from "./events";
+import {
+	DEFAULT_PROTECTED_BRANCHES,
+	type GateContext,
+	type GateEvent,
+	type PermissionMode,
+} from "./events";
 import { evaluateRules, type RuleResult, settleVerdict } from "./rules";
 
 export type GatePorts = Readonly<{
@@ -120,7 +126,11 @@ function evaluate(
 		);
 	}
 	const narrowed = trustPolicy(policy, ports.confirmedLoosenings ?? []);
-	const rules = evaluateRules(event, narrowed.policy, ports.ctx);
+	const rules = evaluateRules(
+		event,
+		narrowed.policy,
+		withPolicyBranches(ports.ctx, policy),
+	);
 	// Without the grammar every shell event is opaque: the rules ask.
 	const blind = event.kind === "shell" && ports.ctx.shell === null;
 	const reason = [
@@ -149,6 +159,19 @@ function evaluate(
 		...(model.answers === undefined || model.answers.length === 0
 			? {}
 			: { decided: { policy: narrowed.policy, answers: model.answers } }),
+	};
+}
+
+/**
+ * `ctx` protecting the policy's branches as well as its own (or the
+ * defaults, when it names none). Protecting a branch only tightens, so every
+ * layer's list counts, a repo's included.
+ */
+function withPolicyBranches(ctx: GateContext, policy: Policy): GateContext {
+	const own = ctx.protectedBranches ?? DEFAULT_PROTECTED_BRANCHES;
+	return {
+		...ctx,
+		protectedBranches: [...new Set([...own, ...policy.protected_branches])],
 	};
 }
 

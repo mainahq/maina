@@ -149,6 +149,13 @@ export type GateEvaluatorDeps = Readonly<{
 	policyFor: (root: string) => Promise<Result<Policy, unknown>>;
 	/** Classification context: the shell grammar and the home directory. */
 	context: () => Promise<GateContext>;
+	/**
+	 * The branch checked out in a root, or null when there is none (detached
+	 * HEAD), for pushes with an implicit target (`git push`, `git push origin
+	 * HEAD`). Looked up for shell events only; a rejection makes the event
+	 * ask. Absent: no current branch is known.
+	 */
+	branchOf?: (root: string) => Promise<string | null>;
 	clock: ClockPort;
 	newId: () => string;
 	/** Defaults to core's `DEFAULT_REGISTRY`. */
@@ -205,7 +212,7 @@ export function createGateEvaluator(
 				{
 					clock: deps.clock,
 					backends: deps.backends ?? DEFAULT_REGISTRY,
-					ctx: await deps.context(),
+					ctx: await contextFor(deps, core),
 					newId: deps.newId,
 					confirmedLoosenings: deps.confirmedLoosenings,
 				},
@@ -227,6 +234,20 @@ export function createGateEvaluator(
 			);
 		}
 	};
+}
+
+/**
+ * The classification context for `event`: the shared one, plus the branch
+ * checked out in the event's root when a shell command may push to it.
+ */
+async function contextFor(
+	deps: GateEvaluatorDeps,
+	event: CoreGateEvent,
+): Promise<GateContext> {
+	const ctx = await deps.context();
+	if (event.kind !== "shell" || deps.branchOf === undefined) return ctx;
+	const branch = await deps.branchOf(event.root);
+	return branch === null ? ctx : { ...ctx, currentBranch: branch };
 }
 
 /**

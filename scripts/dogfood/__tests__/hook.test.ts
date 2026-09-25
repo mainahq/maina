@@ -17,6 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { ClaudeHookPorts } from "../../../packages/runtime/src/claude-hook";
+import { systemGates } from "../../../packages/runtime/src/gate-system";
 import { type LogRecord, runDogfoodHook } from "../hook";
 import { parseLog } from "../report";
 
@@ -69,9 +70,17 @@ async function run(
 }
 
 describe("runDogfoodHook", () => {
-	test("an allow prints nothing, so Claude Code's own permission flow stands", async () => {
+	test("an allow is passed to Claude Code (#459)", async () => {
 		const { out, logged } = await run(bash("bun test"), gate("allow", "ok"));
-		expect(out).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+		expect(out.exitCode).toBe(0);
+		expect(out.stderr).toBe("");
+		expect(JSON.parse(out.stdout)).toEqual({
+			hookSpecificOutput: {
+				hookEventName: "PreToolUse",
+				permissionDecision: "allow",
+				permissionDecisionReason: "ok",
+			},
+		});
 		expect(logged).toEqual([
 			{
 				ts: NOW,
@@ -247,6 +256,25 @@ describe("repo wiring", () => {
 			verdict: "ask",
 		});
 	}, 20_000);
+
+	test("the repo policy protects master and v1/main (#459)", async () => {
+		const gates = systemGates();
+		for (const branch of ["master", "v1/main", "main"]) {
+			const decided = await gates.runtime({
+				kind: "shell",
+				input: { command: `git push origin ${branch}` },
+				cwd: ROOT,
+			});
+			expect(decided.verdict).toBe("ask");
+			expect(decided.reason).toContain("git.push.protected");
+		}
+		const feature = await gates.runtime({
+			kind: "shell",
+			input: { command: "git push origin v1/459-some-feature" },
+			cwd: ROOT,
+		});
+		expect(feature.verdict).toBe("allow");
+	});
 
 	test("fails closed to ask when the hook cannot run", async () => {
 		const empty = join(scratch, "empty");

@@ -937,3 +937,74 @@ describe("gate.self_override (#447)", () => {
 		expect(result.verdict).toBe("deny");
 	});
 });
+
+describe("protected branches come from the policy (#459)", () => {
+	/** No protected branches of its own: only the policy's apply. */
+	let bare: GateContext;
+	beforeAll(async () => {
+		bare = await gateContext({ protectedBranches: undefined });
+	});
+
+	test("a push to a branch the repo policy protects asks", async () => {
+		const policy = await layered(undefined, {
+			protected_branches: ["v1/main"],
+		});
+		const result = evaluateGate(
+			gatePorts({ ctx: bare }),
+			shellEvent("git push origin v1/main"),
+			policy,
+		);
+		expect(result.verdict).toBe("ask");
+		expect(result.reason).toContain("git.push.protected");
+		const unprotected = evaluateGate(
+			gatePorts({ ctx: bare }),
+			shellEvent("git push origin v1/main"),
+			DEFAULT_POLICY,
+		);
+		expect(unprotected.verdict).toBe("allow");
+	});
+
+	test("a bare push while on a policy-protected branch asks", async () => {
+		const policy = await layered(undefined, {
+			protected_branches: ["v1/main"],
+		});
+		const on = (currentBranch: string) =>
+			evaluateGate(
+				gatePorts({ ctx: { ...bare, currentBranch } }),
+				shellEvent("git push"),
+				policy,
+			).verdict;
+		expect(on("v1/main")).toBe("ask");
+		expect(on("master")).toBe("ask");
+		expect(on("feature/x")).toBe("allow");
+	});
+
+	test("the context's own protected branches still apply", () => {
+		const ports = gatePorts({
+			ctx: { ...bare, protectedBranches: ["release"] },
+		});
+		const push = (branch: string) =>
+			evaluateGate(
+				ports,
+				shellEvent(`git push origin ${branch}`),
+				DEFAULT_POLICY,
+			).verdict;
+		expect(push("release")).toBe("ask");
+		expect(push("master")).toBe("ask");
+		expect(push("feature/x")).toBe("allow");
+	});
+
+	test("a lease push to a policy-protected branch is a force push, which the policy can deny", async () => {
+		const policy = await layered(undefined, {
+			protected_branches: ["v1/main"],
+			action_classes: { "git.push.force": { verdict: "deny" } },
+		});
+		const result = evaluateGate(
+			gatePorts({ ctx: bare }),
+			shellEvent("git push --force-with-lease origin v1/main"),
+			policy,
+		);
+		expect(result.verdict).toBe("deny");
+		expect(result.reason).toContain("git.push.force");
+	});
+});

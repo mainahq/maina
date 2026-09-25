@@ -346,6 +346,53 @@ describe("telemetry opt-ins", () => {
 	});
 });
 
+describe("protected branches (#459)", () => {
+	test("main and master are protected by default", () => {
+		expect(DEFAULT_POLICY.protected_branches).toEqual(["main", "master"]);
+	});
+
+	test("layers add protected branches; none can drop one", async () => {
+		const result = await loadPolicy(
+			repoPolicy({ protected_branches: ["v1/main", "main"] }),
+			ROOT,
+			{ protected_branches: ["develop"] },
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.protected_branches).toEqual([
+			"main",
+			"master",
+			"develop",
+			"v1/main",
+		]);
+	});
+
+	test("an empty list protects nothing less than the defaults", async () => {
+		const result = await loadPolicy(
+			repoPolicy({ protected_branches: [] }),
+			ROOT,
+			undefined,
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.protected_branches).toEqual(["main", "master"]);
+	});
+
+	test("rejects a blank or spaced branch name with its path", async () => {
+		const result = await loadPolicy(
+			repoPolicy({ protected_branches: ["ok", "", "two words"] }),
+			ROOT,
+			undefined,
+		);
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.map((e) => e.path)).toEqual([
+			"protected_branches[1]",
+			"protected_branches[2]",
+		]);
+	});
+});
+
 describe("log privacy (policy.log.paths)", () => {
 	test("paths are hashed by default", () => {
 		expect(DEFAULT_POLICY.log).toEqual({ paths: "hashed" });

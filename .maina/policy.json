@@ -1,0 +1,5 @@
+{
+	"$schema": "../schemas/policy.schema.json",
+	"version": 1,
+	"protected_branches": ["master", "v1/main"]
+}

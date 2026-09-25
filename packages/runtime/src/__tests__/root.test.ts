@@ -26,6 +26,7 @@ import { pathToFileURL } from "node:url";
 import type { Result } from "@mainahq/core";
 import {
 	asyncGitProbe,
+	checkedOutBranch,
 	type GitProbe,
 	gitProbe,
 	type NoRepo,
@@ -521,6 +522,45 @@ describe("resolveRoot with real repositories", () => {
 			if (saved === undefined) delete process.env.GIT_DIR;
 			else process.env.GIT_DIR = saved;
 		}
+	});
+});
+
+describe("checkedOutBranch (#459)", () => {
+	let base = "";
+	beforeAll(() => {
+		base = realpathSync(mkdtempSync(join(tmpdir(), "maina-branch-")));
+	});
+	afterAll(() => {
+		if (base) rmSync(base, { recursive: true, force: true });
+	});
+
+	test("names the branch checked out, even before the first commit", async () => {
+		const repo = join(base, "unborn");
+		initRepo(repo);
+		git(repo, "checkout", "-q", "-b", "v1/main");
+		expect(await checkedOutBranch(repo)).toBe("v1/main");
+		writeFileSync(join(repo, "a.txt"), "a\n");
+		git(repo, "add", "a.txt");
+		git(repo, "commit", "-q", "-m", "init");
+		git(repo, "checkout", "-q", "-b", "feature/x");
+		expect(await checkedOutBranch(repo)).toBe("feature/x");
+		// A tag of the same name makes `--short` print `heads/feature/x`.
+		git(repo, "tag", "feature/x");
+		expect(await checkedOutBranch(repo)).toBe("feature/x");
+	});
+
+	test("is null for a detached HEAD or a directory outside any repository", async () => {
+		const repo = join(base, "detached");
+		initRepo(repo);
+		writeFileSync(join(repo, "a.txt"), "a\n");
+		git(repo, "add", "a.txt");
+		git(repo, "commit", "-q", "-m", "init");
+		git(repo, "checkout", "-q", "--detach");
+		expect(await checkedOutBranch(repo)).toBeNull();
+		const plain = join(base, "plain");
+		mkdirSync(plain);
+		expect(await checkedOutBranch(plain)).toBeNull();
+		expect(await checkedOutBranch(join(base, "missing"))).toBeNull();
 	});
 });
 
