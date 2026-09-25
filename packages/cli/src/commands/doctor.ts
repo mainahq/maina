@@ -475,7 +475,14 @@ async function checkHosts(
 			hostHealthPorts(probe, launchCwd),
 		);
 	} finally {
-		rmSync(launchCwd, { recursive: true, force: true });
+		// Best effort: a launcher's grandchild can outlive the probe and keep
+		// the directory busy (Windows will not remove a process's cwd). A
+		// leftover empty temp dir must not discard the report.
+		try {
+			rmSync(launchCwd, { recursive: true, force: true });
+		} catch {
+			// Left for the OS temp cleaner.
+		}
 	}
 }
 

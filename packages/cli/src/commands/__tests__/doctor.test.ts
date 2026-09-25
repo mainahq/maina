@@ -771,6 +771,50 @@ describe("maina doctor v2 — host launch checks", () => {
 		}
 	});
 
+	test("the launch directory is removed, and a failed removal does not fail doctor", async () => {
+		// A launcher's grandchild can outlive the probe and keep the launch
+		// directory busy (Windows refuses to remove a process's cwd). The
+		// cleanup is best effort: the report must still come back.
+		writeJson(join(home, ".claude.json"), {
+			mcpServers: { maina: { command: "/u/bin/maina", args: ["--mcp"] } },
+		});
+		const seen: string[] = [];
+		let locked: string | null = null;
+		try {
+			const first = await doctorAction({
+				cwd,
+				home,
+				json: true,
+				probe: async (spec, _env, launchCwd) => {
+					seen.push(launchCwd);
+					return { kind: "not-found", command: spec.command, path: "" };
+				},
+			});
+			expect(first.hostHealth.hosts.length).toBeGreaterThan(0);
+			expect(seen.length).toBeGreaterThan(0);
+			expect(seen.every((d) => !existsSync(d))).toBe(true);
+
+			const result = await doctorAction({
+				cwd,
+				home,
+				json: true,
+				probe: async (spec, _env, launchCwd) => {
+					// A non-empty directory rmSync cannot descend into.
+					locked = join(launchCwd, "busy");
+					mkdirSync(join(locked, "inner"), { recursive: true });
+					chmodSync(locked, 0o000);
+					return { kind: "not-found", command: spec.command, path: "" };
+				},
+			});
+			expect(result.hostHealth.hosts.length).toBeGreaterThan(0);
+		} finally {
+			if (locked !== null) {
+				chmodSync(locked, 0o755);
+				rmSync(dirname(locked), { recursive: true, force: true });
+			}
+		}
+	});
+
 	test("--launch-project launches an unrecognised project command", async () => {
 		const outside = uniqueDir("sentinel");
 		const sentinel = join(outside, "pwned");
