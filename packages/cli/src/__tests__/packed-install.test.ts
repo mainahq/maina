@@ -72,8 +72,12 @@ function run(
 	};
 }
 
-function mustRun(argv: readonly string[], cwd: string): string {
-	const r = run(argv, cwd);
+function mustRun(
+	argv: readonly string[],
+	cwd: string,
+	env: Record<string, string | undefined> = process.env,
+): string {
+	const r = run(argv, cwd, env);
 	if (r.exitCode !== 0) {
 		// bunup reports build errors on stdout, so show both streams.
 		throw new Error(
@@ -94,7 +98,11 @@ beforeAll(() => {
 				scripts?: Record<string, string>;
 			}
 		).scripts;
-		if (scripts?.build !== undefined) mustRun(["bun", "run", "build"], dir);
+		// `CI=true` as in the release job: bunup then fails the build on
+		// declaration errors it only warns about locally.
+		if (scripts?.build !== undefined) {
+			mustRun(["bun", "run", "build"], dir, { ...process.env, CI: "true" });
+		}
 		const out = mustRun(
 			[npm, "pack", "--json", "--pack-destination", work],
 			dir,
@@ -118,6 +126,15 @@ describe.skipIf(npm === null)("npm pack", () => {
 				(f) => /\.(c|m)?tsx?$/.test(f) && !/\.d\.(c|m)?ts$/.test(f),
 			);
 			expect(sources).toEqual([]);
+		});
+
+		test(`@mainahq/${pkg} declarations keep every exported type`, () => {
+			// Isolated-declaration fallbacks emit `declare const x: unknown;`,
+			// which silently strips the type from consumers.
+			const types = join(ROOT, "packages", pkg, "dist", "index.d.ts");
+			if (!existsSync(types)) return;
+			const text = readFileSync(types, "utf-8");
+			expect(text.match(/declare const \w+: unknown;/g) ?? []).toEqual([]);
 		});
 
 		test(`@mainahq/${pkg} entry points are compiled files inside the tarball`, () => {

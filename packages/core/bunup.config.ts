@@ -6,7 +6,10 @@ export default defineConfig({
 	entry: ["src/index.ts"],
 	format: "esm",
 	target: "node",
-	dts: true,
+	// Declarations via tsc inference, not isolated declarations: exports like
+	// the drizzle tables have inferred types, which isolated mode emits as
+	// `unknown` (and fails the build under CI=true, as in the release job).
+	dts: { inferTypes: true },
 	clean: true,
 	sourcemap: "external",
 });
