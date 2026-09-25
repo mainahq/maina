@@ -92,10 +92,20 @@ const Rule = z.strictObject({
 	reason: z.string().min(1).optional(),
 });
 
-/** A literal branch name, as `git push` would name it: no globbing. */
+/**
+ * A literal short branch name, as `git push origin <name>` names it. The
+ * classifier compares names exactly (after stripping `refs/heads/`), so a
+ * name that could only ever fail to match is rejected here instead of
+ * silently protecting nothing: a glob (`release/*`), a full ref
+ * (`refs/heads/main`), refspec syntax (`+main`, `a:b`) and names git itself
+ * refuses (`..`, a trailing `/`, `.` or `.lock`).
+ */
 const BranchName = z
 	.string()
-	.regex(/^[^\s]+$/, "Expected a branch name such as main or release/v1");
+	.regex(
+		/^(?![-+/]|refs\/)(?!.*(?:\.\.|\/\/|@\{|\/$|\.$|\.lock$))[^\s*?[\\~^:]+$/,
+		"Expected a literal branch name such as main or release/v1 (no globs, refs/heads/ prefix or refspec syntax)",
+	);
 
 const ProtectedBranches = z
 	.array(BranchName)

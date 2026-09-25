@@ -239,11 +239,25 @@ export const asyncGitProbe: AsyncGitProbe = {
 const BRANCH = ["git", "symbolic-ref", "--quiet", "HEAD"];
 const HEADS = "refs/heads/";
 
+/** `symbolic-ref --quiet` exits 1, silently, only when HEAD is detached. */
+const DETACHED_EXIT = 1;
+
+type BranchLookupError = Readonly<
+	| { kind: "git_failed"; exitCode: number }
+	| { kind: "not_a_branch"; ref: string }
+	| { kind: "spawn_failed"; message: string }
+>;
+
 /**
- * The branch checked out in `dir`, or null for a detached HEAD or a
- * directory outside any repository. Read-only; never rejects.
+ * The branch checked out in `dir`, or null for a detached HEAD. Any other
+ * failure (git erroring, a directory outside any repository, a spawn that
+ * cannot start) is an error, never null: an unknown branch lets a bare
+ * `git push` through, so the gate must be able to tell the two apart and
+ * ask. Read-only; never rejects.
  */
-export async function checkedOutBranch(dir: string): Promise<string | null> {
+export async function checkedOutBranch(
+	dir: string,
+): Promise<Result<string | null, BranchLookupError>> {
 	try {
 		const proc = Bun.spawn(BRANCH, probeOptions(dir));
 		const [stdout, exitCode] = await Promise.all([
@@ -251,11 +265,24 @@ export async function checkedOutBranch(dir: string): Promise<string | null> {
 			proc.exited,
 		]);
 		const ref = stdout.trim();
-		if (exitCode !== 0 || !ref.startsWith(HEADS)) return null;
-		const branch = ref.slice(HEADS.length);
-		return branch === "" ? null : branch;
-	} catch {
-		// Missing or unreadable dir: no branch.
-		return null;
+		if (exitCode === DETACHED_EXIT && ref === "") {
+			return { ok: true, value: null };
+		}
+		if (exitCode !== 0) {
+			return { ok: false, error: { kind: "git_failed", exitCode } };
+		}
+		const branch = ref.startsWith(HEADS) ? ref.slice(HEADS.length) : "";
+		if (branch === "")
+			return { ok: false, error: { kind: "not_a_branch", ref } };
+		return { ok: true, value: branch };
+	} catch (e) {
+		// Missing or unreadable dir.
+		return {
+			ok: false,
+			error: {
+				kind: "spawn_failed",
+				message: e instanceof Error ? e.message : String(e),
+			},
+		};
 	}
 }

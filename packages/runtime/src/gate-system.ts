@@ -82,10 +82,10 @@ function systemDeps(options: SystemOptions): GateEvaluatorDeps {
  * event's push: a host runs a message's tool calls back to back, so even a
  * sub-second cache could miss it and allow the push.
  */
-export function branchCache(
-	lookup: (root: string) => Promise<string | null>,
-): (root: string) => Promise<string | null> {
-	const pending = new Map<string, Promise<string | null>>();
+export function branchCache<T>(
+	lookup: (root: string) => Promise<T>,
+): (root: string) => Promise<T> {
+	const pending = new Map<string, Promise<T>>();
 	return (root) => {
 		const running = pending.get(root);
 		if (running !== undefined) return running;

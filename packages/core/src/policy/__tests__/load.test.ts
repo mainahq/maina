@@ -391,6 +391,32 @@ describe("protected branches (#459)", () => {
 			"protected_branches[2]",
 		]);
 	});
+
+	// The classifier compares literal names after stripping `refs/heads/`,
+	// so any of these would load fine and then protect nothing.
+	test("rejects globs, full refs and refspec syntax, which would never match", async () => {
+		const bad = [
+			"release/*",
+			"release-?",
+			"[mv]aster",
+			"refs/heads/main",
+			"+main",
+			"main:main",
+			"-main",
+			"main/",
+			"a..b",
+		];
+		const result = await loadPolicy(
+			repoPolicy({ protected_branches: ["release/v1", ...bad] }),
+			ROOT,
+			undefined,
+		);
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.map((e) => e.path)).toEqual(
+			bad.map((_, i) => `protected_branches[${i + 1}]`),
+		);
+	});
 });
 
 describe("log privacy (policy.log.paths)", () => {

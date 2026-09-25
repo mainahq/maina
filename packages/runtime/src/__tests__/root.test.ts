@@ -538,29 +538,48 @@ describe("checkedOutBranch (#459)", () => {
 		const repo = join(base, "unborn");
 		initRepo(repo);
 		git(repo, "checkout", "-q", "-b", "v1/main");
-		expect(await checkedOutBranch(repo)).toBe("v1/main");
+		expect(await checkedOutBranch(repo)).toEqual({
+			ok: true,
+			value: "v1/main",
+		});
 		writeFileSync(join(repo, "a.txt"), "a\n");
 		git(repo, "add", "a.txt");
 		git(repo, "commit", "-q", "-m", "init");
 		git(repo, "checkout", "-q", "-b", "feature/x");
-		expect(await checkedOutBranch(repo)).toBe("feature/x");
+		expect(await checkedOutBranch(repo)).toEqual({
+			ok: true,
+			value: "feature/x",
+		});
 		// A tag of the same name makes `--short` print `heads/feature/x`.
 		git(repo, "tag", "feature/x");
-		expect(await checkedOutBranch(repo)).toBe("feature/x");
+		expect(await checkedOutBranch(repo)).toEqual({
+			ok: true,
+			value: "feature/x",
+		});
 	});
 
-	test("is null for a detached HEAD or a directory outside any repository", async () => {
+	test("is null for a detached HEAD", async () => {
 		const repo = join(base, "detached");
 		initRepo(repo);
 		writeFileSync(join(repo, "a.txt"), "a\n");
 		git(repo, "add", "a.txt");
 		git(repo, "commit", "-q", "-m", "init");
 		git(repo, "checkout", "-q", "--detach");
-		expect(await checkedOutBranch(repo)).toBeNull();
+		expect(await checkedOutBranch(repo)).toEqual({ ok: true, value: null });
+	});
+
+	// Fail closed: a lookup that fails for any other reason is an error, so
+	// the gate asks instead of treating the branch as unknown (which would
+	// let a bare `git push` on a protected branch through).
+	test("is an error, not null, when git fails or cannot start", async () => {
 		const plain = join(base, "plain");
 		mkdirSync(plain);
-		expect(await checkedOutBranch(plain)).toBeNull();
-		expect(await checkedOutBranch(join(base, "missing"))).toBeNull();
+		const outside = await checkedOutBranch(plain);
+		expect(outside.ok).toBe(false);
+		if (!outside.ok) expect(outside.error.kind).toBe("git_failed");
+		const missing = await checkedOutBranch(join(base, "missing"));
+		expect(missing.ok).toBe(false);
+		if (!missing.ok) expect(missing.error.kind).toBe("spawn_failed");
 	});
 });
 

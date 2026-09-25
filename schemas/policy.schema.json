@@ -126,7 +126,7 @@
 			"type": "array",
 			"items": {
 				"type": "string",
-				"pattern": "^[^\\s]+$"
+				"pattern": "^(?![-+/]|refs\\/)(?!.*(?:\\.\\.|\\/\\/|@\\{|\\/$|\\.$|\\.lock$))[^\\s*?[\\\\~^:]+$"
 			},
 			"description": "Branches a plain push to asks (git.push.protected) and a lease or delete push to counts as a force push (git.push.force). Lists accumulate across layers on top of main and master; none can be removed."
 		},

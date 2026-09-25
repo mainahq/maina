@@ -152,10 +152,11 @@ export type GateEvaluatorDeps = Readonly<{
 	/**
 	 * The branch checked out in a root, or null when there is none (detached
 	 * HEAD), for pushes with an implicit target (`git push`, `git push origin
-	 * HEAD`). Looked up for shell events only; a rejection makes the event
-	 * ask. Absent: no current branch is known.
+	 * HEAD`). Looked up for shell events only; an error (or a rejection)
+	 * makes the event ask, since an unknown branch would let a bare push to a
+	 * protected branch through. Absent: no current branch is known.
 	 */
-	branchOf?: (root: string) => Promise<string | null>;
+	branchOf?: (root: string) => Promise<Result<string | null, unknown>>;
 	clock: ClockPort;
 	newId: () => string;
 	/** Defaults to core's `DEFAULT_REGISTRY`. */
@@ -208,11 +209,15 @@ export function createGateEvaluator(
 			if (core === null) return asking(`malformed ${event.kind} event`);
 			const policy = await deps.policyFor(root);
 			if (!policy.ok) return asking(`the policy for ${root} is invalid`);
+			const ctx = await contextFor(deps, core);
+			if (!ctx.ok) {
+				return asking(`the checked-out branch in ${root} could not be read`);
+			}
 			const result = evaluateGate(
 				{
 					clock: deps.clock,
 					backends: deps.backends ?? DEFAULT_REGISTRY,
-					ctx: await contextFor(deps, core),
+					ctx: ctx.value,
 					newId: deps.newId,
 					confirmedLoosenings: deps.confirmedLoosenings,
 				},
@@ -238,16 +243,24 @@ export function createGateEvaluator(
 
 /**
  * The classification context for `event`: the shared one, plus the branch
- * checked out in the event's root when a shell command may push to it.
+ * checked out in the event's root when a shell command may push to it. An
+ * error when the branch could not be read.
  */
 async function contextFor(
 	deps: GateEvaluatorDeps,
 	event: CoreGateEvent,
-): Promise<GateContext> {
+): Promise<Result<GateContext, unknown>> {
 	const ctx = await deps.context();
-	if (event.kind !== "shell" || deps.branchOf === undefined) return ctx;
+	if (event.kind !== "shell" || deps.branchOf === undefined) {
+		return { ok: true, value: ctx };
+	}
 	const branch = await deps.branchOf(event.root);
-	return branch === null ? ctx : { ...ctx, currentBranch: branch };
+	if (!branch.ok) return branch;
+	return {
+		ok: true,
+		value:
+			branch.value === null ? ctx : { ...ctx, currentBranch: branch.value },
+	};
 }
 
 /**

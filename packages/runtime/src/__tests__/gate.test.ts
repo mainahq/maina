@@ -294,7 +294,7 @@ describe("createGateEvaluator", () => {
 					rootOf: (cwd) => `${cwd}/..`,
 					branchOf: async (root) => {
 						seen.push(root);
-						return branch;
+						return { ok: true, value: branch };
 					},
 				}),
 			);
@@ -325,7 +325,7 @@ describe("createGateEvaluator", () => {
 			deps({
 				branchOf: async () => {
 					lookups++;
-					return "main";
+					return { ok: true, value: "main" };
 				},
 			}),
 		);
@@ -344,6 +344,21 @@ describe("createGateEvaluator", () => {
 		const decision = await gate(shell("git push"));
 		expect(decision.verdict).toBe("ask");
 		expect(decision.degraded).toBe(true);
+	});
+
+	test("a branch lookup that returns an error asks, never allows (#459)", async () => {
+		const gate = createGateEvaluator(
+			deps({
+				branchOf: async () => ({
+					ok: false,
+					error: { kind: "git_failed", exitCode: 128 },
+				}),
+			}),
+		);
+		const decision = await gate(shell("git push"));
+		expect(decision.verdict).toBe("ask");
+		expect(decision.degraded).toBe(true);
+		expect(decision.reason).toContain("checked-out branch");
 	});
 
 	test("full mode consults the policy's model backend", async () => {
