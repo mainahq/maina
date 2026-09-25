@@ -169,6 +169,30 @@ function routeConsoleToStderr(): void {
 			Object.assign(console, { [name]: value.bind(quiet) });
 		}
 	}
+	// Bun's own `console.write` also goes straight to fd 1, and a node
+	// `Console` has no counterpart to rebind it to.
+	if ("write" in console) {
+		Object.assign(console, { write: writeToStderr });
+	}
+}
+
+function writeToStderr(
+	...data: ReadonlyArray<string | ArrayBufferView | ArrayBuffer>
+): number {
+	let written = 0;
+	for (const chunk of data) {
+		if (typeof chunk === "string") {
+			process.stderr.write(chunk);
+			written += Buffer.byteLength(chunk);
+			continue;
+		}
+		const bytes = ArrayBuffer.isView(chunk)
+			? new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)
+			: new Uint8Array(chunk);
+		process.stderr.write(bytes);
+		written += bytes.byteLength;
+	}
+	return written;
 }
 
 /**

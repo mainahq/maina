@@ -135,6 +135,11 @@ describe("stdout while serving (spy)", () => {
 					console.info("noise from info");
 					// biome-ignore lint/suspicious/noConsole: the capability prints on purpose
 					console.debug("noise from debug");
+					// biome-ignore lint/suspicious/noConsole: the capability prints on purpose
+					console.write(
+						"noise from write\n",
+						new TextEncoder().encode("bytes from write\n"),
+					);
 					return {
 						ok: true,
 						value: {
@@ -150,12 +155,21 @@ describe("stdout while serving (spy)", () => {
 			const client = new Client({ name: "resilience", version: "0" });
 			await client.connect(clientSide);
 			await call(client, "status", { root: "/repo" });
+			await client.close();
 
 			expect(stdout).not.toHaveBeenCalled();
-			const written = stderr.mock.calls.map((c) => String(c[0])).join("");
+			const written = stderr.mock.calls
+				.map(([chunk]) =>
+					chunk instanceof Uint8Array
+						? new TextDecoder().decode(chunk)
+						: String(chunk),
+				)
+				.join("");
 			expect(written).toContain("noise { from: 'log' }");
 			expect(written).toContain("noise from info");
 			expect(written).toContain("noise from debug");
+			expect(written).toContain("noise from write");
+			expect(written).toContain("bytes from write");
 		} finally {
 			stdout.mockRestore();
 			stderr.mockRestore();
@@ -245,5 +259,6 @@ describe("stdout of a real stdio server", () => {
 		expect(stderr).toContain("noise from console.info");
 		expect(stderr).toContain("noise from console.debug");
 		expect(stderr).toContain("from console.table");
+		expect(stderr).toContain("noise from console.write");
 	}, 20_000);
 });

@@ -17,6 +17,9 @@ const { runtime } = fakeRuntime({
 		console.debug("noise from console.debug");
 		// biome-ignore lint/suspicious/noConsole: the capability prints on purpose
 		console.table([{ noise: "from console.table" }]);
+		// Bun's own `console.write` writes straight to fd 1 as well.
+		// biome-ignore lint/suspicious/noConsole: the capability prints on purpose
+		console.write("noise from console.write\n");
 		return {
 			ok: true,
 			value: { graphIndexed: false, wikiInitialized: false, policyErrors: [] },
