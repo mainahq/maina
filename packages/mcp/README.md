@@ -36,6 +36,16 @@ The DeepWiki-compatible tools (`ask_question`, `read_wiki_structure`, `read_wiki
 maina --mcp --tools default,ask_question
 ```
 
+## Prompts
+
+| Prompt | Arguments | What it walks the agent through |
+|--------|-----------|---------------------------------|
+| `review-changes` | `base`, `files`, `focus` | `impact`, `verify`, `review_triage`, then `decide` (`finding.real`) for doubtful findings; a triaged report |
+| `pre-merge` | `base`, `files`, `feature`, `receipt` | `status`, `verify`, `review_triage`, plus `spec_check` and `receipt` when given paths; a READY / NOT READY verdict |
+| `plan-feature` | `description` (required), `feature` | `context`, `impact`, then spec.md / plan.md / tasks.md checked with `spec_check` |
+
+List arguments (`files`, `feature`, `receipt`) are comma-separated. A prompt is served only when every tool it names is in the allow-list, so a prompt never points at a tool the server does not register.
+
 ## Programmatic use
 
 ```ts

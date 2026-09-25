@@ -7,7 +7,8 @@
  * `registerTool`; tools outside the list are never registered. Every tool
  * resolves its root through the runtime, takes explicit files, paths or a
  * query, and answers with a `{ data, error, meta }` structured result plus
- * a text summary.
+ * a text summary. The prompts (FR-MCP-3) are registered through
+ * `registerPrompt`, each only when every tool it names is registered.
  *
  * `startMcp` serves a server over stdio. `startServer` is the process
  * entry the CLI (`maina --mcp`) and the standalone runtime (`maina mcp`)
@@ -25,6 +26,8 @@ import {
 	TOOLS_ENV,
 	type ToolName,
 } from "./allowlist";
+import { servablePrompts } from "./prompts";
+import type { PromptDefinition } from "./prompts/shared";
 import type { McpRuntime, RootResolver } from "./runtime";
 import { systemRuntime } from "./system-runtime";
 import { contextTool } from "./tools/context";
@@ -108,6 +111,19 @@ function register(
 	);
 }
 
+function registerPrompt(server: McpServer, def: PromptDefinition): void {
+	server.registerPrompt(
+		def.name,
+		{ title: def.title, description: def.description, argsSchema: def.args },
+		(args: Readonly<Record<string, string | undefined>>) => ({
+			description: def.description,
+			messages: [
+				{ role: "user", content: { type: "text", text: def.render(args) } },
+			],
+		}),
+	);
+}
+
 export function createMcpServer(
 	runtime: McpRuntime,
 	options: McpOptions = {},
@@ -122,6 +138,9 @@ export function createMcpServer(
 			: knownTools(options.tools);
 	for (const name of enabled) {
 		register(server, runtime, DEFINITIONS[name], enabled);
+	}
+	for (const prompt of servablePrompts(enabled)) {
+		registerPrompt(server, prompt);
 	}
 	return server;
 }
