@@ -104,11 +104,15 @@ const fail = (
 	error: { code, message },
 });
 
-async function currentPr(ports: ReceiptPorts): Promise<PrInfo | undefined> {
+async function prView(
+	ports: ReceiptPorts,
+	branch?: string,
+): Promise<PrInfo | undefined> {
 	const r = await ports.exec([
 		"gh",
 		"pr",
 		"view",
+		...(branch ? [branch] : []),
 		"--json",
 		"number,headRefOid,baseRefName,title",
 	]);
@@ -118,6 +122,27 @@ async function currentPr(ports: ReceiptPorts): Promise<PrInfo | undefined> {
 	} catch {
 		return undefined;
 	}
+}
+
+/**
+ * The PR for this branch. Falls back to the upstream branch name, so a
+ * local branch that tracks the PR branch under another name (worktrees)
+ * still finds it.
+ */
+async function currentPr(ports: ReceiptPorts): Promise<PrInfo | undefined> {
+	const direct = await prView(ports);
+	if (direct) return direct;
+	const up = await ports.exec([
+		"git",
+		"rev-parse",
+		"--abbrev-ref",
+		"--symbolic-full-name",
+		"@{upstream}",
+	]);
+	const upstream = up.code === 0 ? up.stdout.trim() : "";
+	const slash = upstream.indexOf("/");
+	if (slash <= 0) return undefined;
+	return prView(ports, upstream.slice(slash + 1));
 }
 
 async function mergeBase(

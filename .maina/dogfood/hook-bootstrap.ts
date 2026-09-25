@@ -49,6 +49,11 @@ export interface HookContext {
 	readonly currentBranch?: string;
 	readonly override: boolean;
 	readonly now: () => string;
+	/**
+	 * Where a path really lands after symlinks (port; the imperative shell
+	 * resolves the deepest existing ancestor). Identity when absent.
+	 */
+	readonly realpath?: (p: string) => string;
 }
 
 export interface Decision {
@@ -131,12 +136,16 @@ function isInside(p: string, dir: string): boolean {
 }
 
 function isWritable(p: string, ctx: HookContext): boolean {
-	return (
-		SAFE_DEVICES.has(p) ||
-		isInside(p, ctx.repoRoot) ||
-		ctx.tmpDirs.some((t) => isInside(p, t)) ||
-		isInside(p, `${ctx.home}/.claude/projects`)
-	);
+	if (SAFE_DEVICES.has(p)) return true;
+	const real = ctx.realpath ?? ((q: string) => q);
+	const roots = [ctx.repoRoot, ...ctx.tmpDirs, `${ctx.home}/.claude/projects`];
+	// Roots are accepted in both spellings so a symlinked checkout still works.
+	const allowed = [...roots, ...roots.map(real)];
+	const inAllowed = (q: string): boolean =>
+		allowed.some((root) => isInside(q, root));
+	// Both the spelled path and where it really lands (symlinks) must be
+	// inside an allowed root: `repo/link -> /etc` does not make /etc writable.
+	return inAllowed(p) && inAllowed(real(p));
 }
 
 function isSecretPath(raw: string): boolean {
@@ -213,15 +222,37 @@ const PATH_SENSITIVE: ReadonlySet<string> = new Set([
 	"chown",
 ]);
 
-/** Drop leading `VAR=x` assignments and trivial wrappers. */
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+
+/** `env` options that take a separate operand. */
+const ENV_OPERAND: ReadonlySet<string> = new Set([
+	"-u",
+	"--unset",
+	"-C",
+	"--chdir",
+]);
+
+/** Drop leading `VAR=x` assignments, `env [opts]` and trivial wrappers. */
 function stripPrefix(tokens: readonly string[]): readonly string[] {
 	let i = 0;
 	while (i < tokens.length) {
 		const t = tokens[i] ?? "";
 		const name = basename(t);
-		if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(t) || WRAPPERS.has(name)) i++;
-		else if (name === "env" && i + 1 < tokens.length) i++;
-		else break;
+		if (ASSIGNMENT.test(t) || WRAPPERS.has(name)) i++;
+		else if (name === "env" && i + 1 < tokens.length) {
+			// `env -i`, `env -u NAME`, `env --`, `env A=1`: skip to the command.
+			i++;
+			while (i < tokens.length) {
+				const a = tokens[i] ?? "";
+				if (a === "--") {
+					i++;
+					break;
+				}
+				if (ENV_OPERAND.has(a)) i += 2;
+				else if (a.startsWith("-") || ASSIGNMENT.test(a)) i++;
+				else break;
+			}
+		} else break;
 	}
 	return tokens.slice(i);
 }
@@ -280,12 +311,19 @@ function checkGitPush(
 	}
 	const isDelete = rest.includes("--delete") || rest.includes("-d");
 	const pos: string[] = [];
+	// `--repo <r>` / `--repo=<r>` names the remote, so every positional is
+	// then a refspec.
+	let repoOption = false;
 	for (let i = 0; i < rest.length; i++) {
 		const a = rest[i] ?? "";
-		if (a === "-o" || a === "--push-option" || a === "--repo") i++;
+		if (a === "--repo") {
+			repoOption = true;
+			i++;
+		} else if (a.startsWith("--repo=")) repoOption = true;
+		else if (a === "-o" || a === "--push-option") i++;
 		else if (!a.startsWith("-")) pos.push(a);
 	}
-	const refspecs = pos.slice(1);
+	const refspecs = repoOption ? pos : pos.slice(1);
 	if (refspecs.length === 0) {
 		return ctx.currentBranch && PROTECTED_BRANCHES.has(ctx.currentBranch)
 			? deny("protected-push", `git push while on ${ctx.currentBranch}`)
@@ -308,6 +346,32 @@ function checkGitPush(
 	return undefined;
 }
 
+/** The `-c` script of a shell invocation, skipping `-o/+o/-O/+O <opt>`. */
+function shellScript(args: readonly string[]): string | undefined {
+	for (let i = 0; i < args.length; i++) {
+		const a = args[i] ?? "";
+		if (/^[-+][oO]$/.test(a)) i++;
+		else if (/^-[a-zA-Z]*c[a-zA-Z]*$/.test(a)) return args[i + 1];
+		else if (!a.startsWith("-") && !a.startsWith("+")) return undefined;
+	}
+	return undefined;
+}
+
+/**
+ * `publish` as the package manager's subcommand, allowing global options
+ * (and their values) in front: `npm --registry <url> publish`.
+ */
+function isPmPublish(args: readonly string[]): boolean {
+	const at = args.indexOf("publish");
+	return (
+		at >= 0 &&
+		args.slice(0, at).every((a, j) => {
+			const prev = args[j - 1] ?? "";
+			return a.startsWith("-") || (prev.startsWith("-") && !prev.includes("="));
+		})
+	);
+}
+
 function checkSegment(
 	tokens0: readonly string[],
 	cwd: string,
@@ -319,18 +383,11 @@ function checkSegment(
 	const cmd = basename(exe);
 	const sub = args[0] ?? "";
 
-	// Nested shells (`sh -c`, `bash -lc`, `sh -e -c`) and eval: evaluate the
-	// inner script too.
+	// Nested shells (`sh -c`, `bash -lc`, `bash -o posix -c`) and eval:
+	// evaluate the inner script too.
 	if (/^(ba|z|da|k)?sh$/.test(cmd)) {
-		const ci = args.findIndex((a) => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(a));
-		const script = args[ci + 1];
-		if (
-			ci >= 0 &&
-			script &&
-			args.slice(0, ci).every((a) => a.startsWith("-"))
-		) {
-			return evaluateShell(script, cwd, ctx);
-		}
+		const script = shellScript(args);
+		if (script) return evaluateShell(script, cwd, ctx);
 	}
 	if (cmd === "eval" && args.length > 0) {
 		return evaluateShell(args.join(" "), cwd, ctx);
@@ -392,7 +449,7 @@ function checkSegment(
 	}
 
 	// Publishing.
-	if (["npm", "pnpm", "yarn", "bun"].includes(cmd) && sub === "publish") {
+	if (["npm", "pnpm", "yarn", "bun"].includes(cmd) && isPmPublish(args)) {
 		return deny("publish", `${cmd} publish`);
 	}
 	if (
@@ -466,8 +523,9 @@ function evaluateShell(
 		return undefined;
 	};
 
-	// Command substitution runs too: `$(...)` and backticks.
-	for (const m of command.matchAll(/\$\(([^()]*)\)|`([^`]*)`/g)) {
+	// Command and process substitution run too: `$(...)`, `<(...)`, `>(...)`
+	// and backticks.
+	for (const m of command.matchAll(/[$<>]\(([^()]*)\)|`([^`]*)`/g)) {
 		const inner = (m[1] ?? m[2] ?? "").trim();
 		if (inner.length === 0) continue;
 		const d = consider(evaluateShell(inner, cwd0, ctx));
@@ -644,11 +702,26 @@ export function runHook(
 // ── Imperative shell ─────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-	const { appendFileSync, mkdirSync } = await import("node:fs");
-	const { dirname } = await import("node:path");
+	const { appendFileSync, existsSync, mkdirSync, realpathSync } = await import(
+		"node:fs"
+	);
+	const { dirname, join } = await import("node:path");
 	const { homedir, tmpdir } = await import("node:os");
 	const raw = await Bun.stdin.text();
 	const repoRoot = resolve(import.meta.dir, "../..");
+
+	/** Resolve symlinks in the deepest existing ancestor of `p`. */
+	const realpath = (p: string): string => {
+		let dir = p;
+		const rest: string[] = [];
+		while (!existsSync(dir)) {
+			const parent = dirname(dir);
+			if (parent === dir) return p;
+			rest.unshift(basename(dir));
+			dir = parent;
+		}
+		return join(realpathSync(dir), ...rest);
+	};
 
 	let currentBranch: string | undefined;
 	if (/\bgit\b[\s\S]*\bpush\b/.test(raw)) {
@@ -674,6 +747,7 @@ async function main(): Promise<void> {
 		currentBranch,
 		override: process.env.MAINA_DOGFOOD_OVERRIDE === "1",
 		now: () => new Date().toISOString(),
+		realpath,
 	});
 
 	try {

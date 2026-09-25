@@ -158,6 +158,23 @@ describe("selectReceipt", () => {
 	});
 });
 
+describe("Dogfood workflow", () => {
+	// Copilot round 2 on #286: the checker ran from the PR's own checkout, so
+	// a PR could edit receipt-check.ts to approve itself.
+	test("runs the checker from the base commit, not the PR checkout", async () => {
+		const yml = await Bun.file(
+			new URL("../../../.github/workflows/dogfood.yml", import.meta.url),
+		).text();
+		// `$` + `{{` keeps these literal GitHub expressions out of JS templates.
+		const expr = (s: string): string => `$${"{{"} ${s} }}`;
+		expect(yml).toContain(`ref: ${expr("github.event.pull_request.base.sha")}`);
+		expect(yml).toContain(
+			`if: ${expr("hashFiles('scripts/dogfood/receipt-check.ts') == ''")}`,
+		);
+		expect(yml).not.toContain("pull_request_target");
+	});
+});
+
 describe("receipt-check CLI", () => {
 	// Review on #286: an exception (gh missing, bad JSON) escaped main() and
 	// failed the job even in report-only mode.

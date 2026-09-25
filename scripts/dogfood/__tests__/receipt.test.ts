@@ -182,6 +182,40 @@ describe("produceReceipt", () => {
 		expect(g.verifyCalls).toHaveLength(1);
 	});
 
+	test("finds the PR through the upstream branch when the local name differs", async () => {
+		// Dogfood friction on #286: a worktree branch `review-x` tracking
+		// origin/v1/286-x has no PR under its own name, so pre-push fell back
+		// to origin/master and publishing failed with no-pr.
+		const pr = JSON.stringify({
+			number: 42,
+			headRefOid: HEAD,
+			baseRefName: "v1/main",
+			title: "x",
+		});
+		const f = fake({
+			"gh pr view --json number,headRefOid,baseRefName,title": {
+				code: 1,
+				stdout: "",
+				stderr: 'no pull requests found for branch "review-x"',
+			},
+			"git rev-parse --abbrev-ref --symbolic-full-name @{upstream}": {
+				code: 0,
+				stdout: "origin/v1/286-x\n",
+				stderr: "",
+			},
+			"gh pr view v1/286-x --json number,headRefOid,baseRefName,title": {
+				code: 0,
+				stdout: pr,
+				stderr: "",
+			},
+		});
+		const r = await produceReceipt({ publish: true }, f.ports);
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		expect(r.value.pr).toBe(42);
+		expect(r.value.receipt.base).toBe(BASE);
+	});
+
 	test("the PR base wins over --base / MAINA_BASE when a PR exists", async () => {
 		const f = fake();
 		const r = await produceReceipt(

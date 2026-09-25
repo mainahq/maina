@@ -157,12 +157,44 @@ describe("evaluate: shell structure cannot hide a denied command", () => {
 		["eval", "eval 'rm -rf ~'"],
 		["negation", "! git push origin master"],
 		["deny wins over an earlier ask", 'cd "$DIR" && ls; rm -rf /'],
+		// Copilot round 2 on #286.
+		["env -i wrapper", "env -i /bin/rm -rf /"],
+		["env -- wrapper", "env -- /usr/bin/git push origin master"],
+		["env -u NAME wrapper", "env -u FOO rm -rf ~"],
+		["git push --repo=origin", "git push --repo=origin master"],
+		["git push --repo origin", "git push --repo origin master"],
+		["bash -o posix -c", "bash -o posix -c 'rm -rf /'"],
+		[
+			"npm --registry <url> publish",
+			"npm --registry https://r.example publish",
+		],
+		["bun --cwd <dir> publish", "bun --cwd packages/cli publish"],
+		["npm --dry-run publish", "npm --dry-run publish"],
+		["process substitution <()", "cat <(rm -rf /)"],
+		["process substitution >()", "echo x > >(rm -rf ~)"],
 	];
 	for (const [name, command] of denied) {
 		test(`denies: ${name}`, () => {
 			expect(evaluate(bash(command), ctx).verdict).toBe("deny");
 		});
 	}
+
+	test("a write through an in-repo symlink that points outside is denied", () => {
+		// Copilot round 2: `repo/link -> /etc`. The imperative shell injects a
+		// realpath port; here a fake maps the symlinked directory.
+		const linked: HookContext = {
+			...ctx,
+			realpath: (p) => p.replace(`${REPO}/link`, "/etc"),
+		};
+		expect(evaluate(write(`${REPO}/link/hosts`), linked).verdict).toBe("deny");
+		expect(evaluate(bash("echo x > link/hosts"), linked).verdict).toBe("deny");
+		expect(evaluate(write(`${REPO}/src/a.ts`), linked).verdict).toBe("allow");
+	});
+
+	test("publish as a later positional is not a publish", () => {
+		expect(evaluate(bash("bun test publish"), ctx).verdict).toBe("allow");
+		expect(evaluate(bash("bun run publish-docs"), ctx).verdict).toBe("allow");
+	});
 
 	test("asks when a relative rm follows a cd the hook cannot resolve", () => {
 		expect(evaluate(bash('cd "$DIR" && rm -rf build'), ctx).verdict).toBe(

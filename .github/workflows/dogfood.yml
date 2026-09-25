@@ -28,11 +28,30 @@ jobs:
   receipt:
     runs-on: ubuntu-latest
     steps:
+      # Run the checker from the trusted base commit, not the PR's merge ref,
+      # so a PR cannot edit receipt-check.ts to approve itself.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
+
+      # Bootstrap only: until the checker exists on the base branch (the PR
+      # that introduces it), fetch the PR's copy. Once merged, the base copy
+      # always wins and a PR cannot remove it from the base.
+      - name: Bootstrap checker from the PR head (base has none yet)
+        if: ${{ hashFiles('scripts/dogfood/receipt-check.ts') == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p scripts/dogfood
+          gh api -H "Accept: application/vnd.github.raw" \
+            "repos/$GITHUB_REPOSITORY/contents/scripts/dogfood/receipt-check.ts?ref=$PR_HEAD" \
+            > scripts/dogfood/receipt-check.ts
 
       - name: Check maina receipt for the PR head
         env:
