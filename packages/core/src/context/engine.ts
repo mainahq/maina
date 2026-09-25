@@ -165,8 +165,9 @@ async function loadSemanticLayer(
 		);
 	}
 
+	// Caller-supplied ports stay open: the caller owns their lifetime.
 	const opened: Result<OpenedGraph, OpenGraphError> = request.graph
-		? { ok: true, value: { ports: request.graph, close: () => {} } }
+		? { ok: true, value: { ports: request.graph, close: () => undefined } }
 		: openCodeGraph(mainaDir);
 	if (!opened.ok) return fallbackSemanticText(mainaDir);
 	try {
