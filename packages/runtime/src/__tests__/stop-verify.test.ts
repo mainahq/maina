@@ -132,10 +132,7 @@ describe("createStopVerify", () => {
 		stops.observe(edit("s1", "src/a.ts"));
 		expect((await stops.stop(stopEvent("s1"))).verdict).toBe("deny");
 		// The agent stops again without touching anything: no loop.
-		expect(await stops.stop(stopEvent("s1"))).toEqual({
-			verdict: "allow",
-			reason: "",
-		});
+		expect((await stops.stop(stopEvent("s1"))).verdict).toBe("allow");
 		stops.observe(edit("s1", "src/b.ts"));
 		await stops.stop(stopEvent("s1"));
 		expect(calls.map((c) => c.files)).toEqual([
@@ -192,6 +189,50 @@ describe("createStopVerify", () => {
 			reason: "",
 		});
 		expect(calls).toHaveLength(1);
+	});
+
+	test("a stop after a block with no new edits still says verify is failing", async () => {
+		const { ports, calls } = fakePorts(FAILED);
+		const stops = createStopVerify(ports);
+		stops.observe(edit("s1", "src/a.ts"));
+		const blocked = await stops.stop(stopEvent("s1"));
+		expect(blocked.verdict).toBe("deny");
+		// Let through (no loop), but never silently: the user sees it failed.
+		const again = await stops.stop(stopEvent("s1"));
+		expect(again.verdict).toBe("allow");
+		expect(again.reason).toContain("still failing");
+		expect(again.reason).toContain("3 findings in 2 changed files");
+		expect(calls).toHaveLength(1);
+	});
+
+	test("an edit that arrives while the root is looked up is verified at the next stop", async () => {
+		const { promise: rootAsked, resolve: askRoot } =
+			Promise.withResolvers<void>();
+		const { promise: rootKnown, resolve: answerRoot } = Promise.withResolvers<
+			string | null
+		>();
+		const calls: VerifyCall[] = [];
+		let first = true;
+		const stops = createStopVerify({
+			rootOf: async (dir) => {
+				if (!first) return dir.startsWith("/repo") ? "/repo" : null;
+				first = false;
+				askRoot();
+				return rootKnown;
+			},
+			verify: async (root, files) => {
+				calls.push({ root, files });
+				return PASSED;
+			},
+		});
+		stops.observe(edit("s1", "/elsewhere/x.ts", "/elsewhere"));
+		const pending = stops.stop(stopEvent("s1", "/elsewhere"));
+		await rootAsked;
+		stops.observe(edit("s1", "src/a.ts"));
+		answerRoot(null);
+		expect(await pending).toEqual({ verdict: "allow", reason: "" });
+		await stops.stop(stopEvent("s1"));
+		expect(calls).toEqual([{ root: "/repo", files: ["src/a.ts"] }]);
 	});
 });
 

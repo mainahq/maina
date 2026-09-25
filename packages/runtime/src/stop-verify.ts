@@ -11,8 +11,9 @@
  *   adapters render as their stop contract's block (Claude Code and Codex
  *   `decision: "block"`, Cursor `followup_message`). The files stay
  *   remembered, so the next stop checks them again, but only once the agent
- *   edits something: a stop with no new edits runs nothing, so a block can
- *   never loop.
+ *   edits something: a stop with no new edits runs nothing and is let
+ *   through, so a block can never loop, with a summary that verify is still
+ *   failing (never silently).
  * - `passed` or `skipped`: `allow` with a one-line summary; the session's
  *   files are forgotten.
  * - A verify that cannot run never holds up the stop: `allow`, saying why.
@@ -71,6 +72,8 @@ type SessionEdits = {
 	dirty: boolean;
 	/** Directory of the latest edit, for a stop that names none. */
 	dir: string;
+	/** The failed report that last blocked the stop, until a verify clears it. */
+	blocked: StopVerifyReport | null;
 };
 
 /** Sessions remembered at once; the oldest is dropped past this. */
@@ -88,21 +91,35 @@ const plural = (n: number, word: string): string =>
 const errorMessage = (err: unknown): string =>
 	err instanceof Error ? err.message : String(err);
 
+/** What a failed report found, as " (…)". Pure. */
+function failedCount(report: StopVerifyReport): string {
+	const changed = plural(report.files, "changed file");
+	// A syntax error fails verify with no finding to count.
+	return report.findings === 0
+		? ` (${changed})`
+		: ` (${plural(report.findings, "finding")} in ${changed})`;
+}
+
+/**
+ * A stop after a block with no new edits: let through, so a block never
+ * loops, but never silently. Pure.
+ */
+function stillFailing(report: StopVerifyReport): GateDecision {
+	return {
+		verdict: "allow",
+		reason: `maina verify: still failing on changed lines${failedCount(report)}; not re-run, nothing was edited since the block.`,
+	};
+}
+
 /** The stop decision for a verify report. Pure. */
 function stopDecision(report: StopVerifyReport): GateDecision {
 	const changed = plural(report.files, "changed file");
 	switch (report.status) {
-		case "failed": {
-			// A syntax error fails verify with no finding to count.
-			const counted =
-				report.findings === 0
-					? ` (${changed})`
-					: ` (${plural(report.findings, "finding")} in ${changed})`;
+		case "failed":
 			return {
 				verdict: "deny",
-				reason: `maina verify failed on changed lines${counted}; fix before finishing.`,
+				reason: `maina verify failed on changed lines${failedCount(report)}; fix before finishing.`,
 			};
-		}
 		case "passed":
 			return {
 				verdict: "allow",
@@ -132,6 +149,7 @@ export function createStopVerify(ports: StopVerifyPorts): StopVerify {
 			files: new Set<string>(),
 			dirty: false,
 			dir: trigger.dir,
+			blocked: null,
 		};
 		// Re-insert so the map stays ordered oldest-touched first.
 		sessions.delete(sessionId);
@@ -163,22 +181,29 @@ export function createStopVerify(ports: StopVerifyPorts): StopVerify {
 		dir: string,
 	): Promise<GateDecision> => {
 		edits.dirty = false;
+		// Edits that arrived while the ports ran are checked at the next stop;
+		// an entry evicted and recreated meanwhile is not this one to drop.
+		const forget = () => {
+			if (!edits.dirty && sessions.get(sessionId) === edits) {
+				sessions.delete(sessionId);
+			}
+		};
 		const root = await ports.rootOf(dir);
 		const files = root === null ? [] : filesUnder(root, edits.files);
 		if (root === null || files.length === 0) {
-			sessions.delete(sessionId);
+			forget();
 			return QUIET_STOP;
 		}
 		const report = await ports.verify(root, files);
-		// Edits that arrived while verify ran are checked at the next stop.
-		const forget = () => {
-			if (!edits.dirty) sessions.delete(sessionId);
-		};
 		if (report === null) {
 			forget();
 			return QUIET_STOP;
 		}
-		if (report.status !== "failed") forget();
+		if (report.status === "failed") edits.blocked = report;
+		else {
+			edits.blocked = null;
+			forget();
+		}
 		return stopDecision(report);
 	};
 
@@ -186,12 +211,16 @@ export function createStopVerify(ports: StopVerifyPorts): StopVerify {
 		const sessionId = event.input.sessionId;
 		if (!nonEmpty(sessionId)) return QUIET_STOP;
 		const edits = sessions.get(sessionId);
-		if (edits === undefined || !edits.dirty) return QUIET_STOP;
+		if (edits === undefined) return QUIET_STOP;
+		if (!edits.dirty) {
+			return edits.blocked === null ? QUIET_STOP : stillFailing(edits.blocked);
+		}
 		const root = event.input.root;
 		const dir = nonEmpty(root) ? root : (event.cwd ?? edits.dir);
 		try {
 			return await verifySession(sessionId, edits, dir);
 		} catch (err) {
+			edits.blocked = null;
 			return {
 				verdict: "allow",
 				reason: `maina verify could not run on this session's changes (${errorMessage(err)})`,
