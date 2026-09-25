@@ -57,9 +57,14 @@ export interface SyncResult {
 	errors: string[];
 }
 
-/** `text` with every tool block re-rendered from the catalog. */
+/**
+ * `text` with every tool block re-rendered from the catalog. Line endings
+ * are kept: a CRLF file (a Windows checkout) stays CRLF, so its markers are
+ * still found and a synced file is not reported stale.
+ */
 export function syncToolBlocks(text: string): SyncResult {
-	const lines = text.split("\n");
+	const eol = text.includes("\r\n") ? "\r\n" : "\n";
+	const lines = text.split(/\r?\n/);
 	const out: string[] = [];
 	const errors: string[] = [];
 	let blocks = 0;
@@ -91,7 +96,7 @@ export function syncToolBlocks(text: string): SyncResult {
 		out.push(lines[end] ?? "");
 		i = end + 1;
 	}
-	return { text: out.join("\n"), blocks, errors };
+	return { text: out.join(eol), blocks, errors };
 }
 
 export interface RetiredHit {

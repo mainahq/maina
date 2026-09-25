@@ -36,7 +36,7 @@ When setting up maina for the first time in a repository, configuring it for a n
 | `status` | Check the maina version, the enabled tools, and whether the code graph, wiki and policy are ready. |
 <!-- /maina:mcp-tools -->
 
-The DeepWiki-compatible wiki tools (`ask_question`, `read_wiki_structure`, `read_wiki_contents`) are off by default; enable them with `--tools default,ask_question` or `MAINA_MCP_TOOLS`.
+The DeepWiki-compatible wiki tools (`ask_question`, `read_wiki_structure`, `read_wiki_contents`) are off by default; enable them with `--tools default,ask_question,read_wiki_structure,read_wiki_contents` or `MAINA_MCP_TOOLS`.
 
 6. **Follow the standard workflow** for development:
 

@@ -28,7 +28,7 @@ triggers:
 
 ## MCP Tools
 
-The `status` tool reports whether the wiki is ready. The DeepWiki-compatible wiki tools are off by default; enable them with the allow-list (`--tools default,ask_question` or `MAINA_MCP_TOOLS`):
+The `status` tool reports whether the wiki is ready. The DeepWiki-compatible wiki tools are off by default; enable them with the allow-list (`--tools default,ask_question,read_wiki_structure,read_wiki_contents` or `MAINA_MCP_TOOLS`):
 
 <!-- maina:mcp-tools deepwiki list -->
 - `ask_question` — Ask the maina wiki a question about the codebase; answers cite source articles.

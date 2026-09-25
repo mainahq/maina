@@ -54,6 +54,20 @@ describe("syncToolBlocks", () => {
 		expect(result.errors[0]).toContain("everything grid");
 	});
 
+	test("keeps CRLF line endings and still finds the markers", () => {
+		const crlf = MD_BLOCK("| `getContext` | old |\n").replaceAll("\n", "\r\n");
+		const result = syncToolBlocks(crlf);
+		expect(result.errors).toEqual([]);
+		expect(result.blocks).toBe(1);
+		expect(result.text).toBe(
+			MD_BLOCK(`${renderToolList(DEFAULT_TOOLS, "table")}\n`).replaceAll(
+				"\n",
+				"\r\n",
+			),
+		);
+		expect(syncToolBlocks(result.text).text).toBe(result.text);
+	});
+
 	test("reports an unclosed block", () => {
 		const result = syncToolBlocks("<!-- maina:mcp-tools default list -->\n");
 		expect(result.errors).toHaveLength(1);
