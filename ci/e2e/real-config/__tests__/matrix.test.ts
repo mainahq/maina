@@ -480,6 +480,16 @@ describe("KNOWN_FAILURES", () => {
 		}
 	});
 
+	test("claude-code × cli-setup no longer fails P1 (#288 writes .mcp.json)", () => {
+		// `maina setup` merges `mcpServers.maina` into the project `.mcp.json`,
+		// which Claude Code reads, so the server starts on this path.
+		for (const env of ["minimal", "gui", "full"] as const) {
+			expect(
+				expectedFailure({ host: "claude-code", installPath: "cli-setup", env }),
+			).toBeUndefined();
+		}
+	});
+
 	test("only latency-bound (P4-only) entries may pass", () => {
 		for (const k of KNOWN_FAILURES.filter((k) => k.mayPass === true)) {
 			expect(problemsOf(k)).toEqual(["P4"]);

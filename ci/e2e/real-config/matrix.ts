@@ -146,12 +146,9 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
 	},
 	{ host: "codex", installPath: "plugin", fixes: { "no-plugin": 343 } },
 
-	// P1: every Claude installer writes settings.json, which Claude ignores.
-	{
-		host: "claude-code",
-		installPath: "cli-setup",
-		fixes: { P1: 299 },
-	},
+	// P1: these Claude installers write settings.json, which Claude ignores.
+	// (#288 fixed claude-code × cli-setup: `maina setup` now merges
+	// `mcpServers.maina` into the project `.mcp.json`.)
 	{
 		host: "claude-code",
 		installPath: "cli-mcp-add",
