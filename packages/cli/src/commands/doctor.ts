@@ -17,6 +17,7 @@ import {
 	isHostMode,
 	loadConfigModule,
 	loadPolicy,
+	systemProcess,
 	VERSION,
 } from "@mainahq/core";
 import { Command } from "commander";
@@ -656,7 +657,7 @@ export async function doctorAction(
 	}
 
 	// ── Step 2: Detect tools ─────────────────────────────────────────────
-	const tools = await detectTools(cwd);
+	const tools = await detectTools(cwd, undefined, systemProcess);
 	if (!jsonMode) {
 		log.step("Installed Tools:");
 		log.message(formatToolsTable(tools));

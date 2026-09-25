@@ -9,6 +9,8 @@
 
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import type { ProcessPort } from "../ports/process";
+import { systemProcess } from "../process/index";
 
 export type ToolName =
 	| "biome"
@@ -188,27 +190,15 @@ function parseVersion(output: string): string | null {
 async function tryCommand(
 	command: string,
 	versionFlag: string,
+	root: string,
+	processPort: ProcessPort,
 ): Promise<string | null> {
-	try {
-		const args = versionFlag.includes(" ")
-			? [command, ...versionFlag.split(" ")]
-			: [command, versionFlag];
-		const proc = Bun.spawn(args, {
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-
-		const stdout = await new Response(proc.stdout).text();
-		const stderr = await new Response(proc.stderr).text();
-		const exitCode = await proc.exited;
-
-		if (exitCode === 0) {
-			return parseVersion(stdout) ?? parseVersion(stderr);
-		}
-		return null;
-	} catch {
-		return null;
-	}
+	const args = versionFlag.includes(" ")
+		? [command, ...versionFlag.split(" ")]
+		: [command, versionFlag];
+	const result = await processPort.spawn(args, { cwd: root });
+	if (!result.ok || result.value.exitCode !== 0) return null;
+	return parseVersion(result.value.stdout) ?? parseVersion(result.value.stderr);
 }
 
 /**
@@ -239,11 +229,17 @@ function findLocalBinDir(startDir: string): string | null {
 export async function detectTool(
 	name: ToolName,
 	root: string,
+	processPort: ProcessPort = systemProcess,
 ): Promise<DetectedTool> {
 	const entry = TOOL_REGISTRY[name];
 
 	// Try global PATH first
-	const globalVersion = await tryCommand(entry.command, entry.versionFlag);
+	const globalVersion = await tryCommand(
+		entry.command,
+		entry.versionFlag,
+		root,
+		processPort,
+	);
 	if (globalVersion !== null) {
 		return {
 			name,
@@ -258,7 +254,12 @@ export async function detectTool(
 	if (localBin) {
 		const localCommand = join(localBin, entry.command);
 		if (existsSync(localCommand)) {
-			const localVersion = await tryCommand(localCommand, entry.versionFlag);
+			const localVersion = await tryCommand(
+				localCommand,
+				entry.versionFlag,
+				root,
+				processPort,
+			);
 			if (localVersion !== null) {
 				return {
 					name,
@@ -287,6 +288,7 @@ export async function detectTool(
 export async function detectTools(
 	root: string,
 	languages?: string[],
+	processPort: ProcessPort = systemProcess,
 ): Promise<DetectedTool[]> {
 	let names: ToolName[];
 
@@ -298,7 +300,7 @@ export async function detectTools(
 	}
 
 	const results = await Promise.all(
-		names.map((name) => detectTool(name, root)),
+		names.map((name) => detectTool(name, root, processPort)),
 	);
 	return results;
 }
@@ -309,7 +311,8 @@ export async function detectTools(
 export async function isToolAvailable(
 	name: ToolName,
 	root: string,
+	processPort: ProcessPort = systemProcess,
 ): Promise<boolean> {
-	const tool = await detectTool(name, root);
+	const tool = await detectTool(name, root, processPort);
 	return tool.available;
 }

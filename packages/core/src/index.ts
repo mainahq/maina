@@ -608,6 +608,8 @@ export type {
 	ProcessPort,
 	SpawnOptions,
 } from "./ports/index";
+// Process: the system ProcessPort adapter (#420, #433)
+export { stripRepoLocalGitEnv, systemProcess } from "./process/index";
 export { loadDefault, type PromptTask } from "./prompts/defaults/index";
 // Prompts
 export {

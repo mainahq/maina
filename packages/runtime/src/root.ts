@@ -23,7 +23,7 @@
 
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Result } from "@mainahq/core";
+import { type Result, stripRepoLocalGitEnv } from "@mainahq/core";
 
 export type RootSource = "explicit" | "host" | "mcp" | "cwd";
 
@@ -137,33 +137,24 @@ export async function resolveRootAsync(
 }
 
 /**
- * Variables that point git at a specific repository regardless of the
- * directory it runs in (set, for example, inside git hooks). The probe drops
- * them so the answer depends only on `dir`. Discovery limits such as
- * `GIT_CEILING_DIRECTORIES` are the user's own policy and only narrow the
- * search, so they are kept: honouring them can refuse, never widen.
+ * `parent` without the variables that point git at a specific repository
+ * regardless of the directory it runs in (set, for example, inside git
+ * hooks): core's repo-local `GIT_*` list, the one its process adapter drops
+ * (`git rev-parse --local-env-vars`). The probe answer then depends only on
+ * `dir`. Discovery limits such as `GIT_CEILING_DIRECTORIES` are the user's
+ * own policy and only narrow the search, so they are kept: honouring them
+ * can refuse, never widen.
  */
-const REPO_LOCATING_ENV = [
-	"GIT_DIR",
-	"GIT_WORK_TREE",
-	"GIT_COMMON_DIR",
-	"GIT_INDEX_FILE",
-	"GIT_OBJECT_DIRECTORY",
-	"GIT_PREFIX",
-] as const;
-
-const probeEnv = (): Record<string, string | undefined> => {
-	const env: Record<string, string | undefined> = { ...process.env };
-	for (const key of REPO_LOCATING_ENV) delete env[key];
-	return env;
-};
+export const probeEnv = (
+	parent: Readonly<Record<string, string | undefined>>,
+): Record<string, string | undefined> => ({ ...stripRepoLocalGitEnv(parent) });
 
 const TOPLEVEL = ["git", "rev-parse", "--show-toplevel"];
 
 const probeOptions = (dir: string) =>
 	({
 		cwd: dir,
-		env: probeEnv(),
+		env: probeEnv(process.env),
 		stdin: "ignore",
 		stdout: "pipe",
 		stderr: "ignore",

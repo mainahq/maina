@@ -4,6 +4,7 @@ import {
 	appendWorkflowStep,
 	detectWebProject,
 	loadVisualConfig,
+	systemProcess,
 	updateBaselines,
 } from "@mainahq/core";
 import { Command } from "commander";
@@ -32,7 +33,7 @@ async function visualUpdateAction(
 		return { updated: [], errors: ["No URLs configured"] };
 	}
 
-	const result = await updateBaselines(mainaDir, config);
+	const result = await updateBaselines(mainaDir, config, systemProcess);
 
 	return result;
 }

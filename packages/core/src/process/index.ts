@@ -119,64 +119,97 @@ type Finished =
 	| Readonly<{ done: "exited"; output: ProcessOutput }>
 	| Readonly<{ done: "timeout"; timeoutMs: number }>;
 
-export const systemProcess: ProcessPort = {
-	spawn: async (argv, options) => {
-		let proc: Bun.Subprocess<"ignore", "pipe", "pipe">;
-		try {
-			proc = Bun.spawn([...argv], {
-				cwd: options.cwd,
-				stdin: "ignore",
-				stdout: "pipe",
-				stderr: "pipe",
-				// Adapter boundary: the child inherits the parent environment
-				// (minus repo-local git variables) unless an env is injected.
-				env: { ...(options.env ?? inheritedEnv(process.env, options.cwd)) },
+/** How long a timed-out child gets to exit on SIGTERM before it is SIGKILLed. */
+const DEFAULT_KILL_GRACE_MS = 2000;
+
+/**
+ * The system `ProcessPort`. On timeout it sends SIGTERM and, if the child
+ * has not exited `killGraceMs` later, SIGKILL, so a child that traps or
+ * ignores SIGTERM cannot outlive its deadline.
+ */
+export function createSystemProcess(
+	config: Readonly<{ killGraceMs?: number }> = {},
+): ProcessPort {
+	const killGraceMs = config.killGraceMs ?? DEFAULT_KILL_GRACE_MS;
+	return {
+		spawn: async (argv, options) => {
+			let proc: Bun.Subprocess<Blob | "ignore", "pipe", "pipe">;
+			try {
+				proc = Bun.spawn([...argv], {
+					cwd: options.cwd,
+					stdin:
+						options.stdin === undefined ? "ignore" : new Blob([options.stdin]),
+					stdout: "pipe",
+					stderr: "pipe",
+					// Adapter boundary: the child inherits the parent environment
+					// (minus repo-local git variables) unless an env is injected.
+					env: { ...(options.env ?? inheritedEnv(process.env, options.cwd)) },
+				});
+			} catch (error) {
+				return {
+					ok: false,
+					error: { kind: "spawn_failed", message: message(error) },
+				};
+			}
+
+			const collected: Promise<Finished> = Promise.all([
+				new Response(proc.stdout).text(),
+				new Response(proc.stderr).text(),
+				proc.exited,
+			]).then(([stdout, stderr, exitCode]) => ({
+				done: "exited",
+				output: { exitCode, stdout, stderr },
+			}));
+			// A late stream error after a timeout must not become unhandled.
+			collected.catch(() => undefined);
+
+			const { timeoutMs } = options;
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			// Settles on timeout without waiting for the pipes: a grandchild that
+			// inherited them (`sh -c "a; b"`, npx/bunx wrappers) can hold them
+			// open long after the direct child is killed.
+			const deadline = new Promise<Finished>((settle) => {
+				if (timeoutMs === undefined) return;
+				timer = setTimeout(() => {
+					terminate(proc, killGraceMs);
+					settle({ done: "timeout", timeoutMs });
+				}, timeoutMs);
 			});
-		} catch (error) {
-			return {
-				ok: false,
-				error: { kind: "spawn_failed", message: message(error) },
-			};
-		}
+			try {
+				const finished = await Promise.race([collected, deadline]);
+				return finished.done === "timeout"
+					? {
+							ok: false,
+							error: { kind: "timeout", timeoutMs: finished.timeoutMs },
+						}
+					: { ok: true, value: finished.output };
+			} catch (error) {
+				return {
+					ok: false,
+					error: { kind: "spawn_failed", message: message(error) },
+				};
+			} finally {
+				clearTimeout(timer);
+			}
+		},
+	};
+}
 
-		const collected: Promise<Finished> = Promise.all([
-			new Response(proc.stdout).text(),
-			new Response(proc.stderr).text(),
-			proc.exited,
-		]).then(([stdout, stderr, exitCode]) => ({
-			done: "exited",
-			output: { exitCode, stdout, stderr },
-		}));
-		// A late stream error after a timeout must not become unhandled.
-		collected.catch(() => undefined);
-
-		const { timeoutMs } = options;
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		// Settles on timeout without waiting for the pipes: a grandchild that
-		// inherited them (`sh -c "a; b"`, npx/bunx wrappers) can hold them
-		// open long after the direct child is killed.
-		const deadline = new Promise<Finished>((settle) => {
-			if (timeoutMs === undefined) return;
-			timer = setTimeout(() => {
-				proc.kill();
-				settle({ done: "timeout", timeoutMs });
-			}, timeoutMs);
-		});
+/** SIGTERM now; SIGKILL after `graceMs` unless the child has exited by then. */
+function terminate(proc: Bun.Subprocess, graceMs: number): void {
+	const signal = (sig: NodeJS.Signals): void => {
 		try {
-			const finished = await Promise.race([collected, deadline]);
-			return finished.done === "timeout"
-				? {
-						ok: false,
-						error: { kind: "timeout", timeoutMs: finished.timeoutMs },
-					}
-				: { ok: true, value: finished.output };
-		} catch (error) {
-			return {
-				ok: false,
-				error: { kind: "spawn_failed", message: message(error) },
-			};
-		} finally {
-			clearTimeout(timer);
+			proc.kill(sig);
+		} catch {
+			// Already gone.
 		}
-	},
-};
+	};
+	signal("SIGTERM");
+	const escalate = setTimeout(() => signal("SIGKILL"), graceMs);
+	proc.exited.then(
+		() => clearTimeout(escalate),
+		() => clearTimeout(escalate),
+	);
+}
+
+export const systemProcess: ProcessPort = createSystemProcess();

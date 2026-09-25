@@ -46,8 +46,8 @@ function writeSourceFile(relPath: string, content: string): void {
 
 describe("Wiki Lint Tool", () => {
 	describe("graceful skip", () => {
-		it("should return empty result when wiki dir does not exist", () => {
-			const result = runWikiLint({
+		it("should return empty result when wiki dir does not exist", async () => {
+			const result = await runWikiLint({
 				wikiDir: join(tmpDir, "nonexistent", "wiki"),
 				repoRoot,
 			});
@@ -59,8 +59,8 @@ describe("Wiki Lint Tool", () => {
 			expect(result.coveragePercent).toBe(0);
 		});
 
-		it("should return empty result with zero coverage for empty wiki dir", () => {
-			const result = runWikiLint({ wikiDir, repoRoot });
+		it("should return empty result with zero coverage for empty wiki dir", async () => {
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			// Empty wiki dir: no articles at all → info-level "missing" finding
 			expect(result.gaps.length).toBeGreaterThanOrEqual(1);
@@ -70,7 +70,7 @@ describe("Wiki Lint Tool", () => {
 	});
 
 	describe("stale detection", () => {
-		it("should detect stale source files with mismatched hashes", () => {
+		it("should detect stale source files with mismatched hashes", async () => {
 			// Write a source file
 			writeSourceFile("src/auth.ts", "export function login() {}");
 
@@ -90,7 +90,7 @@ describe("Wiki Lint Tool", () => {
 				"# Auth Module\n\nHandles authentication.",
 			);
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			// Should find stale source file
 			const staleFindings = result.stale;
@@ -100,7 +100,7 @@ describe("Wiki Lint Tool", () => {
 			expect(staleFindings[0]?.message).toContain("src/auth.ts");
 		});
 
-		it("should not flag files with matching hashes", () => {
+		it("should not flag files with matching hashes", async () => {
 			writeSourceFile("src/ok.ts", "export const x = 1;");
 
 			// Compute correct hash from the file
@@ -116,7 +116,7 @@ describe("Wiki Lint Tool", () => {
 			};
 			saveState(wikiDir, state);
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			const staleSourceFindings = result.stale.filter((f) =>
 				f.message.includes("src/ok.ts"),
@@ -126,13 +126,13 @@ describe("Wiki Lint Tool", () => {
 	});
 
 	describe("broken link detection", () => {
-		it("should detect broken [[entity:nonexistent]] links", () => {
+		it("should detect broken [[entity:nonexistent]] links", async () => {
 			writeArticle(
 				"modules/auth.md",
 				"# Auth Module\n\nReferences [[entity:nonexistent]] and [[module:missing]].",
 			);
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			expect(result.brokenLinks.length).toBe(2);
 			expect(result.brokenLinks[0]?.severity).toBe("error");
@@ -140,35 +140,35 @@ describe("Wiki Lint Tool", () => {
 			expect(result.brokenLinks[0]?.message).toContain("entity:nonexistent");
 		});
 
-		it("should not flag valid links to existing articles", () => {
+		it("should not flag valid links to existing articles", async () => {
 			writeArticle("modules/auth.md", "# Auth Module\n\nSee [[entity:user]].");
 			writeArticle("entities/user.md", "# User Entity\n\nThe user model.");
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			expect(result.brokenLinks).toHaveLength(0);
 		});
 
-		it("should detect multiple broken links across articles", () => {
+		it("should detect multiple broken links across articles", async () => {
 			writeArticle("modules/auth.md", "# Auth\n\n[[entity:ghost]]");
 			writeArticle("modules/db.md", "# DB\n\n[[decision:phantom]]");
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			expect(result.brokenLinks.length).toBe(2);
 		});
 	});
 
 	describe("coverage calculation", () => {
-		it("should report 0% coverage when no state exists", () => {
+		it("should report 0% coverage when no state exists", async () => {
 			writeArticle("modules/auth.md", "# Auth Module");
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			expect(result.coveragePercent).toBe(0);
 		});
 
-		it("should calculate correct coverage percentage", () => {
+		it("should calculate correct coverage percentage", async () => {
 			const state: WikiState = {
 				fileHashes: {
 					"src/a.ts": "h1",
@@ -191,7 +191,7 @@ describe("Wiki Lint Tool", () => {
 				writeArticle(`modules/m${i}.md`, `# Module ${i}`);
 			}
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			// 2 articles / 4 source files = 50%
 			expect(result.coveragePercent).toBe(50);
@@ -199,11 +199,11 @@ describe("Wiki Lint Tool", () => {
 	});
 
 	describe("missing articles", () => {
-		it("should warn when wiki has fewer than 5 articles", () => {
+		it("should warn when wiki has fewer than 5 articles", async () => {
 			writeArticle("modules/auth.md", "# Auth Module");
 			writeArticle("modules/db.md", "# DB Module");
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			const missingFindings = result.gaps.filter((f) =>
 				f.message.includes("article(s)"),
@@ -212,12 +212,12 @@ describe("Wiki Lint Tool", () => {
 			expect(missingFindings[0]?.severity).toBe("info");
 		});
 
-		it("should not warn when wiki has 5+ articles", () => {
+		it("should not warn when wiki has 5+ articles", async () => {
 			for (let i = 0; i < 6; i++) {
 				writeArticle(`modules/mod${i}.md`, `# Module ${i}`);
 			}
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			const missingFindings = result.gaps.filter((f) =>
 				f.message.includes("article(s)"),
@@ -227,10 +227,10 @@ describe("Wiki Lint Tool", () => {
 	});
 
 	describe("wikiLintToFindings conversion", () => {
-		it("should convert WikiLintResult to Finding[]", () => {
+		it("should convert WikiLintResult to Finding[]", async () => {
 			writeArticle("modules/auth.md", "# Auth\n\n[[entity:broken]]");
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 			const findings = wikiLintToFindings(result);
 
 			expect(findings.length).toBeGreaterThan(0);
@@ -242,10 +242,10 @@ describe("Wiki Lint Tool", () => {
 			}
 		});
 
-		it("should map broken link to error severity", () => {
+		it("should map broken link to error severity", async () => {
 			writeArticle("modules/auth.md", "# Auth\n\n[[entity:missing-ref]]");
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 			const findings = wikiLintToFindings(result);
 
 			const brokenLinkFindings = findings.filter(
@@ -255,8 +255,8 @@ describe("Wiki Lint Tool", () => {
 			expect(brokenLinkFindings[0]?.severity).toBe("error");
 		});
 
-		it("should return empty findings for empty result", () => {
-			const result = runWikiLint({
+		it("should return empty findings for empty result", async () => {
+			const result = await runWikiLint({
 				wikiDir: join(tmpDir, "nonexistent"),
 				repoRoot,
 			});
@@ -264,7 +264,7 @@ describe("Wiki Lint Tool", () => {
 			expect(findings).toHaveLength(0);
 		});
 
-		it("should include new check types in findings conversion", () => {
+		it("should include new check types in findings conversion", async () => {
 			// Set up spec drift scenario
 			const featuresDir = join(tmpDir, ".maina", "features");
 			const featureDir = join(featuresDir, "001-auth");
@@ -287,7 +287,7 @@ describe("Wiki Lint Tool", () => {
 				'export function login() { throw new Error("fail"); }\n',
 			);
 
-			const result = runWikiLint({
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				featuresDir,
@@ -304,7 +304,7 @@ describe("Wiki Lint Tool", () => {
 	// ─── Check 6: Spec Drift ────────────────────────────────────────────
 
 	describe("spec drift detection", () => {
-		it("should detect throw in code when spec says Result pattern", () => {
+		it("should detect throw in code when spec says Result pattern", async () => {
 			const featuresDir = join(tmpDir, ".maina", "features");
 			const featureDir = join(featuresDir, "001-auth");
 			mkdirSync(featureDir, { recursive: true });
@@ -326,7 +326,7 @@ describe("Wiki Lint Tool", () => {
 				'export function login() {\n  throw new Error("failed");\n}\n',
 			);
 
-			const result = runWikiLint({
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				featuresDir,
@@ -339,7 +339,7 @@ describe("Wiki Lint Tool", () => {
 			expect(result.specDrift[0]?.message).toContain("throw");
 		});
 
-		it("should detect throw when spec says never throw", () => {
+		it("should detect throw when spec says never throw", async () => {
 			const featuresDir = join(tmpDir, ".maina", "features");
 			const featureDir = join(featuresDir, "002-errors");
 			mkdirSync(featureDir, { recursive: true });
@@ -360,7 +360,7 @@ describe("Wiki Lint Tool", () => {
 				'export function handle() {\n  throw "oops";\n}\n',
 			);
 
-			const result = runWikiLint({
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				featuresDir,
@@ -370,7 +370,7 @@ describe("Wiki Lint Tool", () => {
 			expect(result.specDrift[0]?.message).toContain("never-throw");
 		});
 
-		it("should not flag when code uses Result correctly (no throw)", () => {
+		it("should not flag when code uses Result correctly (no throw)", async () => {
 			const featuresDir = join(tmpDir, ".maina", "features");
 			const featureDir = join(featuresDir, "001-auth");
 			mkdirSync(featureDir, { recursive: true });
@@ -392,7 +392,7 @@ describe("Wiki Lint Tool", () => {
 				'export function login(): Result<User, string> {\n  return { ok: true, value: { name: "test" } };\n}\n',
 			);
 
-			const result = runWikiLint({
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				featuresDir,
@@ -401,7 +401,7 @@ describe("Wiki Lint Tool", () => {
 			expect(result.specDrift).toHaveLength(0);
 		});
 
-		it("should skip comments containing throw", () => {
+		it("should skip comments containing throw", async () => {
 			const featuresDir = join(tmpDir, ".maina", "features");
 			const featureDir = join(featuresDir, "001-auth");
 			mkdirSync(featureDir, { recursive: true });
@@ -422,7 +422,7 @@ describe("Wiki Lint Tool", () => {
 				"// We never throw here, we use Result\nexport function login() { return { ok: true, value: null }; }\n",
 			);
 
-			const result = runWikiLint({
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				featuresDir,
@@ -431,8 +431,8 @@ describe("Wiki Lint Tool", () => {
 			expect(result.specDrift).toHaveLength(0);
 		});
 
-		it("should handle missing features dir gracefully", () => {
-			const result = runWikiLint({
+		it("should handle missing features dir gracefully", async () => {
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				featuresDir: join(tmpDir, "nonexistent", "features"),
@@ -445,7 +445,7 @@ describe("Wiki Lint Tool", () => {
 	// ─── Check 7: Decision Violations ───────────────────────────────────
 
 	describe("decision violation detection", () => {
-		it("should detect jest import when ADR says bun:test", () => {
+		it("should detect jest import when ADR says bun:test", async () => {
 			const adrDir = join(tmpDir, "adr");
 			mkdirSync(adrDir, { recursive: true });
 
@@ -462,7 +462,7 @@ describe("Wiki Lint Tool", () => {
 				'import { describe, it } from "jest";\n\ndescribe("auth", () => {});\n',
 			);
 
-			const result = runWikiLint({
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				adrDir,
@@ -475,7 +475,7 @@ describe("Wiki Lint Tool", () => {
 			expect(result.decisionViolations[0]?.message).toContain("jest");
 		});
 
-		it("should detect vitest import when ADR says bun:test", () => {
+		it("should detect vitest import when ADR says bun:test", async () => {
 			const adrDir = join(tmpDir, "adr");
 			mkdirSync(adrDir, { recursive: true });
 
@@ -491,7 +491,7 @@ describe("Wiki Lint Tool", () => {
 				'import { expect } from "vitest";\n',
 			);
 
-			const result = runWikiLint({
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				adrDir,
@@ -501,7 +501,7 @@ describe("Wiki Lint Tool", () => {
 			expect(result.decisionViolations[0]?.message).toContain("vitest");
 		});
 
-		it("should detect eslintrc when ADR says Biome", () => {
+		it("should detect eslintrc when ADR says Biome", async () => {
 			const adrDir = join(tmpDir, "adr");
 			mkdirSync(adrDir, { recursive: true });
 
@@ -513,7 +513,7 @@ describe("Wiki Lint Tool", () => {
 			// Create eslintrc file at repo root
 			writeFileSync(join(tmpDir, ".eslintrc.json"), '{ "extends": [] }');
 
-			const result = runWikiLint({
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				adrDir,
@@ -527,7 +527,7 @@ describe("Wiki Lint Tool", () => {
 			expect(eslintViolation?.severity).toBe("error");
 		});
 
-		it("should not flag compliant code", () => {
+		it("should not flag compliant code", async () => {
 			const adrDir = join(tmpDir, "adr");
 			mkdirSync(adrDir, { recursive: true });
 
@@ -544,7 +544,7 @@ describe("Wiki Lint Tool", () => {
 				'import { describe, it, expect } from "bun:test";\n\ndescribe("auth", () => { it("works", () => { expect(true).toBe(true); }); });\n',
 			);
 
-			const result = runWikiLint({
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				adrDir,
@@ -553,7 +553,7 @@ describe("Wiki Lint Tool", () => {
 			expect(result.decisionViolations).toHaveLength(0);
 		});
 
-		it("should ignore non-accepted decisions", () => {
+		it("should ignore non-accepted decisions", async () => {
 			const adrDir = join(tmpDir, "adr");
 			mkdirSync(adrDir, { recursive: true });
 
@@ -570,7 +570,7 @@ describe("Wiki Lint Tool", () => {
 				'import { describe } from "jest";\n',
 			);
 
-			const result = runWikiLint({
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				adrDir,
@@ -579,8 +579,8 @@ describe("Wiki Lint Tool", () => {
 			expect(result.decisionViolations).toHaveLength(0);
 		});
 
-		it("should handle missing adr dir gracefully", () => {
-			const result = runWikiLint({
+		it("should handle missing adr dir gracefully", async () => {
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				adrDir: join(tmpDir, "nonexistent", "adr"),
@@ -589,7 +589,7 @@ describe("Wiki Lint Tool", () => {
 			expect(result.decisionViolations).toHaveLength(0);
 		});
 
-		it("should not scan .claude/worktrees/ (agent worktree duplicates) — #208", () => {
+		it("should not scan .claude/worktrees/ (agent worktree duplicates) — #208", async () => {
 			const adrDir = join(tmpDir, "adr");
 			mkdirSync(adrDir, { recursive: true });
 			writeFileSync(
@@ -603,7 +603,7 @@ describe("Wiki Lint Tool", () => {
 				'import { describe } from "jest";\n',
 			);
 
-			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+			const result = await runWikiLint({ wikiDir, repoRoot, adrDir });
 
 			const underWorktree = result.decisionViolations.filter((f) =>
 				f.source?.includes(".claude/worktrees/"),
@@ -611,7 +611,7 @@ describe("Wiki Lint Tool", () => {
 			expect(underWorktree).toHaveLength(0);
 		});
 
-		it("should not scan .maina/ (own tooling state) — #208", () => {
+		it("should not scan .maina/ (own tooling state) — #208", async () => {
 			const adrDir = join(tmpDir, "adr");
 			mkdirSync(adrDir, { recursive: true });
 			writeFileSync(
@@ -624,7 +624,7 @@ describe("Wiki Lint Tool", () => {
 				'import { describe } from "jest";\n',
 			);
 
-			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+			const result = await runWikiLint({ wikiDir, repoRoot, adrDir });
 
 			const underMaina = result.decisionViolations.filter((f) =>
 				f.source?.includes("/.maina/"),
@@ -632,7 +632,7 @@ describe("Wiki Lint Tool", () => {
 			expect(underMaina).toHaveLength(0);
 		});
 
-		it("should NOT flag *.test.ts files that throw against a result< ADR — #210", () => {
+		it("should NOT flag *.test.ts files that throw against a result< ADR — #210", async () => {
 			const adrDir = join(tmpDir, "adr");
 			mkdirSync(adrDir, { recursive: true });
 			writeFileSync(
@@ -646,7 +646,7 @@ describe("Wiki Lint Tool", () => {
 				'import { expect, it } from "bun:test";\nit("x", () => { throw new Error("boom"); });\n',
 			);
 
-			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+			const result = await runWikiLint({ wikiDir, repoRoot, adrDir });
 
 			const resultViolations = result.decisionViolations.filter((f) =>
 				f.message.includes("throws instead of returning Result"),
@@ -654,7 +654,7 @@ describe("Wiki Lint Tool", () => {
 			expect(resultViolations).toHaveLength(0);
 		});
 
-		it("should still flag production *.ts files that throw against result< — #210 regression guard", () => {
+		it("should still flag production *.ts files that throw against result< — #210 regression guard", async () => {
 			const adrDir = join(tmpDir, "adr");
 			mkdirSync(adrDir, { recursive: true });
 			writeFileSync(
@@ -667,7 +667,7 @@ describe("Wiki Lint Tool", () => {
 				'export function x() { throw new Error("boom"); }\n',
 			);
 
-			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+			const result = await runWikiLint({ wikiDir, repoRoot, adrDir });
 
 			const resultViolations = result.decisionViolations.filter((f) =>
 				f.message.includes("throws instead of returning Result"),
@@ -675,7 +675,7 @@ describe("Wiki Lint Tool", () => {
 			expect(resultViolations.length).toBeGreaterThanOrEqual(1);
 		});
 
-		it("should still flag jest import in a test file (bun:test constraint applies to tests) — #210 regression guard", () => {
+		it("should still flag jest import in a test file (bun:test constraint applies to tests) — #210 regression guard", async () => {
 			// skipTests must NOT apply to import-form constraints like bun:test —
 			// a test file importing jest is still a violation.
 			const adrDir = join(tmpDir, "adr");
@@ -687,13 +687,13 @@ describe("Wiki Lint Tool", () => {
 
 			writeSourceFile("src/a.test.ts", 'import { describe } from "jest";\n');
 
-			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+			const result = await runWikiLint({ wikiDir, repoRoot, adrDir });
 
 			expect(result.decisionViolations.length).toBeGreaterThanOrEqual(1);
 			expect(result.decisionViolations[0]?.message).toContain("jest");
 		});
 
-		it("should NOT flag files that merely mention 'eslint.config' as strings — #209", () => {
+		it("should NOT flag files that merely mention 'eslint.config' as strings — #209", async () => {
 			const adrDir = join(tmpDir, "adr");
 			mkdirSync(adrDir, { recursive: true });
 			writeFileSync(
@@ -707,7 +707,7 @@ describe("Wiki Lint Tool", () => {
 				'export const ESLINT_CONFIG_NAMES = [".eslintrc", "eslint.config.js"];\n',
 			);
 
-			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+			const result = await runWikiLint({ wikiDir, repoRoot, adrDir });
 
 			const eslintContentHits = result.decisionViolations.filter(
 				(f) =>
@@ -717,7 +717,7 @@ describe("Wiki Lint Tool", () => {
 			expect(eslintContentHits).toHaveLength(0);
 		});
 
-		it("should still flag real ESLint imports against a Biome ADR — #209 regression guard", () => {
+		it("should still flag real ESLint imports against a Biome ADR — #209 regression guard", async () => {
 			const adrDir = join(tmpDir, "adr");
 			mkdirSync(adrDir, { recursive: true });
 			writeFileSync(
@@ -730,7 +730,7 @@ describe("Wiki Lint Tool", () => {
 				'import { ESLint } from "eslint";\nconst e = new ESLint();\n',
 			);
 
-			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+			const result = await runWikiLint({ wikiDir, repoRoot, adrDir });
 
 			const eslintHits = result.decisionViolations.filter((f) =>
 				f.message.toLowerCase().includes("eslint"),
@@ -738,7 +738,7 @@ describe("Wiki Lint Tool", () => {
 			expect(eslintHits.length).toBeGreaterThanOrEqual(1);
 		});
 
-		it('should flag side-effect `import "eslint"` against a Biome ADR — PR #212 review', () => {
+		it('should flag side-effect `import "eslint"` against a Biome ADR — PR #212 review', async () => {
 			const adrDir = join(tmpDir, "adr");
 			mkdirSync(adrDir, { recursive: true });
 			writeFileSync(
@@ -748,7 +748,7 @@ describe("Wiki Lint Tool", () => {
 
 			writeSourceFile("src/side-effect.ts", 'import "eslint";\n');
 
-			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+			const result = await runWikiLint({ wikiDir, repoRoot, adrDir });
 
 			const hits = result.decisionViolations.filter((f) =>
 				f.message.toLowerCase().includes("eslint"),
@@ -756,7 +756,7 @@ describe("Wiki Lint Tool", () => {
 			expect(hits.length).toBeGreaterThanOrEqual(1);
 		});
 
-		it('should flag top-level dynamic `await import("eslint")` against a Biome ADR — PR #212 review', () => {
+		it('should flag top-level dynamic `await import("eslint")` against a Biome ADR — PR #212 review', async () => {
 			// Line-anchored detection catches dynamic imports that appear as a
 			// top-level statement. Deeply-nested dynamic imports (e.g. inside a
 			// function body, on the same line as other tokens) are not matched
@@ -771,7 +771,7 @@ describe("Wiki Lint Tool", () => {
 
 			writeSourceFile("src/dynamic.ts", 'await import("eslint");\n');
 
-			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+			const result = await runWikiLint({ wikiDir, repoRoot, adrDir });
 
 			const hits = result.decisionViolations.filter((f) =>
 				f.message.toLowerCase().includes("eslint"),
@@ -779,7 +779,7 @@ describe("Wiki Lint Tool", () => {
 			expect(hits.length).toBeGreaterThanOrEqual(1);
 		});
 
-		it('should flag bare `require("eslint")` against a Biome ADR — PR #212 review', () => {
+		it('should flag bare `require("eslint")` against a Biome ADR — PR #212 review', async () => {
 			const adrDir = join(tmpDir, "adr");
 			mkdirSync(adrDir, { recursive: true });
 			writeFileSync(
@@ -792,7 +792,7 @@ describe("Wiki Lint Tool", () => {
 				'module.exports = require("eslint");\n',
 			);
 
-			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+			const result = await runWikiLint({ wikiDir, repoRoot, adrDir });
 
 			const hits = result.decisionViolations.filter((f) =>
 				f.message.toLowerCase().includes("eslint"),
@@ -800,7 +800,7 @@ describe("Wiki Lint Tool", () => {
 			expect(hits.length).toBeGreaterThanOrEqual(1);
 		});
 
-		it("should still flag a real eslint import inside a test file (no skipTests on biome) — PR #212 review", () => {
+		it("should still flag a real eslint import inside a test file (no skipTests on biome) — PR #212 review", async () => {
 			// CodeRabbit flagged that a blanket skipTests on biome would turn
 			// a genuine eslint static import inside a test file into a false
 			// negative. The tightened regex excludes lines whose prefix
@@ -819,7 +819,7 @@ describe("Wiki Lint Tool", () => {
 				'import { ESLint } from "eslint";\ntest("x", () => { new ESLint(); });\n',
 			);
 
-			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+			const result = await runWikiLint({ wikiDir, repoRoot, adrDir });
 
 			const hits = result.decisionViolations.filter((f) =>
 				f.message.toLowerCase().includes("eslint"),
@@ -827,7 +827,7 @@ describe("Wiki Lint Tool", () => {
 			expect(hits.length).toBeGreaterThanOrEqual(1);
 		});
 
-		it("should NOT flag fixture strings that LOOK like eslint imports inside quoted literals — PR #212 review", () => {
+		it("should NOT flag fixture strings that LOOK like eslint imports inside quoted literals — PR #212 review", async () => {
 			// Reciprocal guard: a test file whose content quotes a fake import
 			// like `'import { X } from "eslint"'` must not self-flag. This is
 			// exactly the shape wiki-lint's own tests use.
@@ -852,7 +852,7 @@ describe("Wiki Lint Tool", () => {
 				].join("\n"),
 			);
 
-			const result = runWikiLint({ wikiDir, repoRoot, adrDir });
+			const result = await runWikiLint({ wikiDir, repoRoot, adrDir });
 
 			const hits = result.decisionViolations.filter(
 				(f) =>
@@ -866,8 +866,8 @@ describe("Wiki Lint Tool", () => {
 	// ─── Check 8: Missing Rationale ─────────────────────────────────────
 
 	describe("missing rationale detection", () => {
-		it("should return empty when no wiki state exists", () => {
-			const result = runWikiLint({
+		it("should return empty when no wiki state exists", async () => {
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 			});
@@ -875,7 +875,7 @@ describe("Wiki Lint Tool", () => {
 			expect(result.missingRationale).toHaveLength(0);
 		});
 
-		it("should not flag files mentioned in an ADR", () => {
+		it("should not flag files mentioned in an ADR", async () => {
 			// Create state with tracked file
 			const state: WikiState = {
 				fileHashes: { "src/auth.ts": "hash1" },
@@ -899,7 +899,7 @@ describe("Wiki Lint Tool", () => {
 				writeArticle(`modules/mod${i}.md`, `# Module ${i}`);
 			}
 
-			const result = runWikiLint({
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				adrDir,
@@ -912,7 +912,7 @@ describe("Wiki Lint Tool", () => {
 			expect(authRationale).toHaveLength(0);
 		});
 
-		it("should handle missing adr dir gracefully for rationale check", () => {
+		it("should handle missing adr dir gracefully for rationale check", async () => {
 			const state: WikiState = {
 				fileHashes: { "src/foo.ts": "hash1" },
 				articleHashes: {},
@@ -923,7 +923,7 @@ describe("Wiki Lint Tool", () => {
 			saveState(wikiDir, state);
 
 			// No adr dir — should still run without errors
-			const result = runWikiLint({
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				adrDir: join(tmpDir, "nonexistent", "adr"),
@@ -937,14 +937,14 @@ describe("Wiki Lint Tool", () => {
 	// ─── Check 9: Contradiction Detection ───────────────────────────────
 
 	describe("contradiction detection", () => {
-		it("should detect entity article pointing to non-existent file", () => {
+		it("should detect entity article pointing to non-existent file", async () => {
 			writeArticle(
 				"entities/user.md",
 				"# User Entity\n\n<!-- source: src/models/user.ts:42 -->\n",
 			);
 			// src/models/user.ts does NOT exist
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			expect(result.contradictions.length).toBeGreaterThanOrEqual(1);
 			expect(result.contradictions[0]?.check).toBe("contradiction");
@@ -952,7 +952,7 @@ describe("Wiki Lint Tool", () => {
 			expect(result.contradictions[0]?.message).toContain("no longer exists");
 		});
 
-		it("should detect entity article with wrong line number", () => {
+		it("should detect entity article with wrong line number", async () => {
 			// Create a source file with only 3 lines
 			writeSourceFile("src/tiny.ts", "line1\nline2\nline3\n");
 
@@ -962,7 +962,7 @@ describe("Wiki Lint Tool", () => {
 				"# Tiny Entity\n\n<!-- source: src/tiny.ts:100 -->\n",
 			);
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			const lineContradictions = result.contradictions.filter((f) =>
 				f.message.includes("only has"),
@@ -971,7 +971,7 @@ describe("Wiki Lint Tool", () => {
 			expect(lineContradictions[0]?.message).toContain("100");
 		});
 
-		it("should not flag entity with valid line reference", () => {
+		it("should not flag entity with valid line reference", async () => {
 			// Create a source file with 50 lines
 			const lines = Array.from(
 				{ length: 50 },
@@ -984,7 +984,7 @@ describe("Wiki Lint Tool", () => {
 				"# Big Entity\n\n<!-- source: src/big.ts:10 -->\n",
 			);
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			const lineContradictions = result.contradictions.filter(
 				(f) => f.message.includes("only has") && f.message.includes("big.ts"),
@@ -992,7 +992,7 @@ describe("Wiki Lint Tool", () => {
 			expect(lineContradictions).toHaveLength(0);
 		});
 
-		it("should detect module listing non-existent entity", () => {
+		it("should detect module listing non-existent entity", async () => {
 			writeArticle(
 				"modules/auth.md",
 				"# Auth Module\n\n<!-- entity: src/auth/handler.ts -->\n<!-- entity: src/auth/gone.ts -->\n",
@@ -1001,7 +1001,7 @@ describe("Wiki Lint Tool", () => {
 			// Only handler exists, gone does not
 			writeSourceFile("src/auth/handler.ts", "export function handle() {}");
 
-			const result = runWikiLint({ wikiDir, repoRoot });
+			const result = await runWikiLint({ wikiDir, repoRoot });
 
 			const moduleContradictions = result.contradictions.filter((f) =>
 				f.message.includes("gone.ts"),
@@ -1010,7 +1010,7 @@ describe("Wiki Lint Tool", () => {
 			expect(moduleContradictions[0]?.message).toContain("no longer exists");
 		});
 
-		it("should detect feature task status mismatch", () => {
+		it("should detect feature task status mismatch", async () => {
 			const featuresDir = join(tmpDir, ".maina", "features");
 			const featureDir = join(featuresDir, "001-auth");
 			mkdirSync(featureDir, { recursive: true });
@@ -1031,7 +1031,7 @@ describe("Wiki Lint Tool", () => {
 				"# Auth Feature\n\n<!-- feature: 001-auth -->\n\n- [x] T001: Implement login\n- [x] T002: Add tests\n",
 			);
 
-			const result = runWikiLint({
+			const result = await runWikiLint({
 				wikiDir,
 				repoRoot,
 				featuresDir,
@@ -1045,8 +1045,8 @@ describe("Wiki Lint Tool", () => {
 			expect(taskContradictions[0]?.message).toContain("incomplete");
 		});
 
-		it("should handle empty wiki gracefully", () => {
-			const result = runWikiLint({
+		it("should handle empty wiki gracefully", async () => {
+			const result = await runWikiLint({
 				wikiDir: join(tmpDir, "nonexistent-wiki"),
 				repoRoot,
 			});

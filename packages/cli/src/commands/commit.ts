@@ -20,6 +20,7 @@ import {
 	runHooks,
 	runPipeline,
 	setVerificationResult,
+	systemProcess,
 } from "@mainahq/core";
 import { Command } from "commander";
 import { aiContext, processEnv } from "../env";
@@ -201,7 +202,12 @@ export async function commitAction(
 			timestamp: new Date().toISOString(),
 		};
 
-		const hookResult = await runHooks(mainaDir, "pre-commit", hookContext);
+		const hookResult = await runHooks(
+			mainaDir,
+			"pre-commit",
+			hookContext,
+			systemProcess,
+		);
 
 		if (hookResult.status === "block") {
 			if (!options.json) {
@@ -233,6 +239,7 @@ export async function commitAction(
 			cwd,
 			mainaDir,
 			env: process.env,
+			process: systemProcess,
 		});
 
 		// Syntax failure → abort immediately
@@ -453,7 +460,12 @@ export async function commitAction(
 			timestamp: new Date().toISOString(),
 		};
 
-		const postResult = await runHooks(mainaDir, "post-commit", postHookContext);
+		const postResult = await runHooks(
+			mainaDir,
+			"post-commit",
+			postHookContext,
+			systemProcess,
+		);
 
 		if (postResult.status === "warn" && !options.json) {
 			log.warning(`Post-commit hook warning: ${postResult.message}`);

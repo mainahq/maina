@@ -19,6 +19,7 @@ export function registerVerifyTools(server: McpServer): void {
 					captureResult,
 					getCurrentBranch,
 					getWorkflowId,
+					systemProcess,
 				} = await import("@mainahq/core");
 				const cwd = process.cwd();
 				const mainaDir = join(cwd, ".maina");
@@ -30,6 +31,7 @@ export function registerVerifyTools(server: McpServer): void {
 					cwd,
 					mainaDir,
 					env: process.env,
+					process: systemProcess,
 				});
 				const durationMs = Date.now() - start;
 

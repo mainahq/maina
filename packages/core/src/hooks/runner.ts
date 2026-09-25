@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import type { ProcessPort } from "../ports/process";
+import { systemProcess } from "../process/index";
 
 export type HookEvent =
 	| "pre-commit"
@@ -50,44 +52,41 @@ export async function scanHooks(
 export async function executeHook(
 	hookPath: string,
 	context: HookContext,
+	processPort: ProcessPort = systemProcess,
 ): Promise<HookResult> {
-	try {
-		if (!existsSync(hookPath)) {
-			return {
-				status: "warn",
-				message: `Hook not found: ${hookPath}`,
-			};
-		}
-
-		const jsonInput = JSON.stringify(context);
-
-		const proc = Bun.spawn(["sh", hookPath], {
-			stdin: new Blob([jsonInput]),
-			stdout: "pipe",
-			stderr: "pipe",
-			cwd: context.repoRoot,
-		});
-
-		const stderr = await new Response(proc.stderr).text();
-		const exitCode = await proc.exited;
-
-		if (exitCode === 0) {
-			return { status: "continue" };
-		}
-
-		const message = stderr.trim() || `Hook exited with code ${exitCode}`;
-
-		if (exitCode === 2) {
-			return { status: "block", message };
-		}
-
-		return { status: "warn", message };
-	} catch (e) {
+	if (!existsSync(hookPath)) {
 		return {
 			status: "warn",
-			message: e instanceof Error ? e.message : String(e),
+			message: `Hook not found: ${hookPath}`,
 		};
 	}
+
+	const result = await processPort.spawn(["sh", hookPath], {
+		cwd: context.repoRoot,
+		stdin: JSON.stringify(context),
+	});
+	if (!result.ok) {
+		return {
+			status: "warn",
+			message:
+				result.error.kind === "timeout"
+					? `Hook timed out after ${result.error.timeoutMs}ms: ${hookPath}`
+					: result.error.message,
+		};
+	}
+
+	const { exitCode, stderr } = result.value;
+	if (exitCode === 0) {
+		return { status: "continue" };
+	}
+
+	const message = stderr.trim() || `Hook exited with code ${exitCode}`;
+
+	if (exitCode === 2) {
+		return { status: "block", message };
+	}
+
+	return { status: "warn", message };
 }
 
 /**
@@ -101,6 +100,7 @@ export async function runHooks(
 	mainaDir: string,
 	event: HookEvent,
 	context: HookContext,
+	processPort: ProcessPort = systemProcess,
 ): Promise<HookResult> {
 	const hooks = await scanHooks(mainaDir, event);
 
@@ -111,7 +111,7 @@ export async function runHooks(
 	const warnings: string[] = [];
 
 	for (const hookPath of hooks) {
-		const result = await executeHook(hookPath, context);
+		const result = await executeHook(hookPath, context, processPort);
 
 		if (result.status === "block") {
 			return result;

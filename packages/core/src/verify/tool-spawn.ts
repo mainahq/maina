@@ -20,6 +20,8 @@ interface ToolResolutionOptions {
 	readonly available?: boolean;
 	/** Pre-resolved command path from detection (e.g. root-local node_modules/.bin). */
 	readonly command?: string;
+	/** Runs the detection probe when availability is not pre-resolved. */
+	readonly process?: ProcessPort;
 }
 
 interface ResolvedTool {
@@ -41,7 +43,7 @@ export async function resolveTool(
 			command: options.command ?? TOOL_REGISTRY[name].command,
 		};
 	}
-	const detected = await detectTool(name, options.cwd);
+	const detected = await detectTool(name, options.cwd, options.process);
 	return {
 		available: detected.available,
 		command: options.command ?? detected.command,

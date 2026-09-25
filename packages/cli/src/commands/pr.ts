@@ -13,6 +13,7 @@ import {
 	gatherVerificationProof,
 	getWorkflowId,
 	recordFeedbackAsync,
+	systemProcess,
 } from "@mainahq/core";
 import { Command } from "commander";
 import { aiContext, processEnv } from "../env";
@@ -284,6 +285,7 @@ export async function prAction(
 		const proof = await deps.gatherVerificationProof({
 			cwd,
 			env: process.env,
+			process: systemProcess,
 			mainaDir,
 			baseBranch: base,
 			reviewResult: reviewResult,

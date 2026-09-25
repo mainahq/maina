@@ -20,6 +20,8 @@ import { detectLanguages } from "../language/detect";
 import type { LanguageId } from "../language/profile";
 import { getProfile } from "../language/profile";
 import { envFromRecord } from "../ports/env";
+import type { CorePorts } from "../ports/index";
+import { systemProcess } from "../process/index";
 import { type AIReviewResult, runAIReview } from "./ai-review";
 import { runBuiltinChecks } from "./builtin";
 import { checkConsistency } from "./consistency";
@@ -78,10 +80,17 @@ export interface PipelineOptions {
 	 * Environment for the built-in type checker, injected by the caller (it
 	 * gets `NO_COLOR=1` on top), and for the AI review's key/host detection
 	 * (without one the AI review sees no key and is skipped). Other runners
-	 * still inherit the parent environment until they move onto a process
-	 * port.
+	 * inherit the parent environment through the process port.
 	 */
 	env?: SpawnEnv;
+	/**
+	 * Starts the pipeline's tool processes (syntax guard, tool detection,
+	 * external runners, type checker, wiki lint). Callers pass
+	 * `CorePorts.process`; the system adapter when omitted. Git reads (base
+	 * branch, staged files, the diff filter) go through the git module's
+	 * `GitPort`, not this port.
+	 */
+	process?: CorePorts["process"];
 }
 
 // ─── Tool Runner Helpers ──────────────────────────────────────────────────
@@ -120,6 +129,7 @@ export async function runPipeline(
 	const start = performance.now();
 	const cwd = options.cwd;
 	const diffOnly = options.diffOnly !== false; // default: true
+	const processPort = options.process ?? systemProcess;
 	const baseBranch = await resolveBaseBranch(cwd, options.baseBranch);
 
 	// ── Step 1: Get files to check ────────────────────────────────────────
@@ -152,7 +162,7 @@ export async function runPipeline(
 	const languages = options.languages ?? detectLanguages(cwd);
 	const primaryLang = (languages[0] ?? "typescript") as LanguageId;
 	const profile = getProfile(primaryLang);
-	const syntaxResult = await syntaxGuard(files, cwd, profile);
+	const syntaxResult = await syntaxGuard(files, cwd, profile, processPort);
 
 	if (!syntaxResult.ok) {
 		return {
@@ -170,7 +180,7 @@ export async function runPipeline(
 	}
 
 	// ── Step 3: Auto-detect tools ─────────────────────────────────────────
-	const detectedTools = await detectTools(cwd);
+	const detectedTools = await detectTools(cwd, undefined, processPort);
 
 	// ── Step 4: Run all available tools in PARALLEL ───────────────────────
 	// Build a lookup from detection results to avoid redundant subprocess
@@ -182,11 +192,15 @@ export async function runPipeline(
 	}
 	const resolvedTool = (
 		name: string,
-	): { available: boolean; command?: string } => {
+	): {
+		available: boolean;
+		command?: string;
+		process: CorePorts["process"];
+	} => {
 		const t = detectedByName.get(name);
 		return t
-			? { available: t.available, command: t.command }
-			: { available: false };
+			? { available: t.available, command: t.command, process: processPort }
+			: { available: false, process: processPort };
 	};
 
 	const toolPromises: Promise<ToolReport>[] = [];
@@ -278,6 +292,7 @@ export async function runPipeline(
 			const result = await runTypecheck(files, cwd, {
 				language: primaryLang,
 				env: options.env,
+				process: processPort,
 			});
 			return { findings: result.findings, skipped: result.skipped };
 		}),
@@ -309,7 +324,9 @@ export async function runPipeline(
 
 	// Wiki lint — only runs if .maina/wiki/ exists (auto-skips otherwise)
 	toolPromises.push(
-		runToolWithTiming("wiki-lint", () => runWikiLintTool({ cwd, mainaDir })),
+		runToolWithTiming("wiki-lint", () =>
+			runWikiLintTool({ cwd, mainaDir, process: processPort }),
+		),
 	);
 
 	const toolReports = await Promise.all(toolPromises);

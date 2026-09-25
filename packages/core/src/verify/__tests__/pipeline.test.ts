@@ -10,6 +10,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { createFakeProcess } from "../../ports/testing";
 import type { DetectedTool } from "../detect";
 import type { DiffFilterResult, Finding } from "../diff-filter";
 import type { SecretlintResult } from "../secretlint";
@@ -726,11 +727,18 @@ describe("VerifyPipeline", () => {
 
 	it("passes the injected environment to the type checker (#290)", async () => {
 		const env = { PATH: "/usr/bin", MAINA_MARKER: "1" };
-		await runPipeline({ files: ["src/app.ts"], cwd: "/repo/root", env });
+		const proc = createFakeProcess();
+		await runPipeline({
+			files: ["src/app.ts"],
+			cwd: "/repo/root",
+			env,
+			process: proc,
+		});
 		expect(capturedTypecheckArgs?.[1]).toBe("/repo/root");
 		expect(capturedTypecheckArgs?.[2]).toEqual({
 			language: "typescript",
 			env,
+			process: proc,
 		});
 	});
 });

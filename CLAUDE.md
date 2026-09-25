@@ -68,7 +68,7 @@ packages/
 │       ├── cache/     # 3-layer: LRU memory → SQLite → API
 │       ├── ai/        # Vercel AI SDK wrapper, model tiers
 │       ├── feedback/  # RL feedback collection
-│       ├── git/       # Git operations via Bun.spawn
+│       ├── git/       # Git operations via the ProcessPort
 │       ├── hooks/     # Lifecycle hook executor
 │       └── db/        # Drizzle schemas
 ├── mcp/       # MCP server (delegates to engines)

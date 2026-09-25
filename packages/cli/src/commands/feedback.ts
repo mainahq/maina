@@ -16,6 +16,7 @@ import {
 	queryReceiptFps,
 	type Result,
 	recordReceiptFp,
+	systemProcess,
 } from "@mainahq/core";
 import { Command } from "commander";
 
@@ -112,6 +113,8 @@ export async function feedbackIngestAction(
 		prNumbers: prNumbers.length > 0 ? prNumbers : undefined,
 		sinceDays: Number.isNaN(since) ? 14 : since,
 		allowedReviewers: reviewers,
+		cwd,
+		process: systemProcess,
 	});
 
 	if (!result.ok) {

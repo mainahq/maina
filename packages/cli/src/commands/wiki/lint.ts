@@ -7,7 +7,7 @@
 
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
-import { runWikiLint } from "@mainahq/core";
+import { runWikiLint, systemProcess } from "@mainahq/core";
 import type { Command } from "commander";
 import { EXIT_FINDINGS, EXIT_PASSED, outputJson } from "../../json";
 
@@ -38,7 +38,11 @@ async function wikiLintAction(
 	const cwd = options.cwd ?? process.cwd();
 	const wikiDir = join(cwd, ".maina", "wiki");
 
-	const result = runWikiLint({ wikiDir, repoRoot: cwd });
+	const result = await runWikiLint({
+		wikiDir,
+		repoRoot: cwd,
+		process: systemProcess,
+	});
 
 	// Flatten all findings
 	const allFindings = [

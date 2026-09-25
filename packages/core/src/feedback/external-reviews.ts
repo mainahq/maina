@@ -13,9 +13,12 @@
  * validation, categorisation, and the `gh` subprocess plumbing.
  */
 
+import { dirname } from "node:path";
 import type { Result } from "../db/index";
 import { choiceAnswer, decide, defaultDecidePorts } from "../decide/decide";
 import { FINDING_CATEGORIES, REVIEWER_KINDS } from "../decide/types-catalog";
+import type { ProcessPort } from "../ports/process";
+import { systemProcess } from "../process/index";
 import {
 	insertFindingRow,
 	selectFindings,
@@ -233,25 +236,29 @@ interface GhPullRef {
 	number: number;
 }
 
-async function runGh(args: string[]): Promise<Result<string, string>> {
-	try {
-		const proc = Bun.spawn(["gh", ...args], {
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-		const out = await new Response(proc.stdout).text();
-		const errText = await new Response(proc.stderr).text();
-		const code = await proc.exited;
-		if (code !== 0) {
-			return err(errText.trim() || `gh exited with ${code}`);
+/** Runs `gh <args>` and returns its stdout, or its stderr as the error. */
+type RunGh = (args: readonly string[]) => Promise<Result<string, string>>;
+
+function ghRunner(processPort: ProcessPort, cwd: string): RunGh {
+	return async (args) => {
+		const result = await processPort.spawn(["gh", ...args], { cwd });
+		if (!result.ok) {
+			return err(
+				result.error.kind === "timeout"
+					? `gh timed out after ${result.error.timeoutMs}ms`
+					: result.error.message,
+			);
 		}
-		return ok(out);
-	} catch (e) {
-		return err(e instanceof Error ? e.message : String(e));
-	}
+		const { exitCode, stdout, stderr } = result.value;
+		if (exitCode !== 0) {
+			return err(stderr.trim() || `gh exited with ${exitCode}`);
+		}
+		return ok(stdout);
+	};
 }
 
 async function fetchPrNumbers(
+	runGh: RunGh,
 	repo: string,
 	sinceDays: number,
 ): Promise<Result<number[], string>> {
@@ -306,6 +313,7 @@ export function parsePaginatedJson<T>(raw: string): Result<T[], string> {
 }
 
 async function fetchPrComments(
+	runGh: RunGh,
 	repo: string,
 	prNumber: number,
 ): Promise<Result<ExternalReviewComment[], string>> {
@@ -365,6 +373,10 @@ export interface IngestPrReviewsOptions {
 	prNumbers?: number[];
 	sinceDays?: number;
 	allowedReviewers?: readonly string[];
+	/** Working directory for `gh`; the parent of `mainaDir` by default. */
+	cwd?: string;
+	/** Spawns `gh`; the system adapter by default. */
+	process?: ProcessPort;
 }
 
 /**
@@ -377,18 +389,22 @@ export async function ingestPrReviews(
 ): Promise<Result<IngestStats, string>> {
 	const allowed = opts.allowedReviewers ?? ALLOWED_REVIEWERS;
 	const sinceDays = opts.sinceDays ?? 14;
+	const runGh = ghRunner(
+		opts.process ?? systemProcess,
+		opts.cwd ?? dirname(mainaDir),
+	);
 	let prNumbers: number[];
 	if (opts.prNumbers && opts.prNumbers.length > 0) {
 		prNumbers = opts.prNumbers;
 	} else {
-		const list = await fetchPrNumbers(opts.repo, sinceDays);
+		const list = await fetchPrNumbers(runGh, opts.repo, sinceDays);
 		if (!list.ok) return err(list.error);
 		prNumbers = list.value;
 	}
 
 	const allComments: ExternalReviewComment[] = [];
 	for (const n of prNumbers) {
-		const c = await fetchPrComments(opts.repo, n);
+		const c = await fetchPrComments(runGh, opts.repo, n);
 		if (!c.ok) return err(c.error);
 		allComments.push(...c.value);
 	}

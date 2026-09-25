@@ -8,6 +8,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { Result } from "../db/index";
+import type { ProcessPort } from "../ports/process";
+import { systemProcess } from "../process/index";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +34,8 @@ export interface TraceabilityReport {
 
 export interface TraceDeps {
 	gitLog?: (repoRoot: string) => Promise<string>;
+	/** Runs the default `git log`; the system adapter by default. */
+	process?: ProcessPort;
 }
 
 // ── Task Parsing ─────────────────────────────────────────────────────────────
@@ -174,19 +178,14 @@ function findCommit(taskId: string, gitLogOutput: string): string | null {
 
 // ── Default git log ──────────────────────────────────────────────────────────
 
-async function defaultGitLog(repoRoot: string): Promise<string> {
-	try {
-		const proc = Bun.spawn(["git", "log", "--oneline", "--all"], {
-			cwd: repoRoot,
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-		const stdout = await new Response(proc.stdout).text();
-		await proc.exited;
-		return stdout;
-	} catch {
-		return "";
-	}
+async function defaultGitLog(
+	repoRoot: string,
+	processPort: ProcessPort,
+): Promise<string> {
+	const result = await processPort.spawn(["git", "log", "--oneline", "--all"], {
+		cwd: repoRoot,
+	});
+	return result.ok ? result.value.stdout : "";
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
@@ -225,7 +224,9 @@ export async function traceFeature(
 	const allFiles = collectFiles(repoRoot);
 
 	// Get git log
-	const gitLogFn = deps?.gitLog ?? defaultGitLog;
+	const gitLogFn =
+		deps?.gitLog ??
+		((root: string) => defaultGitLog(root, deps?.process ?? systemProcess));
 	let gitLogOutput = "";
 	try {
 		gitLogOutput = await gitLogFn(repoRoot);
