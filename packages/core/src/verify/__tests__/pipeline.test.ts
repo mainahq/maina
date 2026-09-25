@@ -9,9 +9,10 @@ import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
+import { indexedRepo } from "../../graph/query/__tests__/fixture";
 import { DEFAULT_POLICY } from "../../policy/defaults";
 import { createFakeProcess } from "../../ports/testing";
+import type { BlastRadius } from "../blast-radius";
 import type { DetectedTool } from "../detect";
 import type { DiffFilterResult, Finding } from "../diff-filter";
 import type { SecretlintResult } from "../secretlint";
@@ -47,6 +48,8 @@ let capturedDetectToolsArgs: unknown[] | null = null;
 let capturedTypecheckArgs: unknown[] | null = null;
 // Options each external runner received, keyed by runner name (#389).
 let capturedRunnerOptions: Record<string, Record<string, unknown>> = {};
+// The options the diff filter received: the blast radius rides on them (FR-VER-5).
+let capturedFilterOptions: { blastRadius?: BlastRadius } | undefined;
 
 // Mock the modules
 // NOTE: These mocks are intentionally minimal — they only export what pipeline.ts
@@ -127,8 +130,9 @@ mock.module("../coverage", () => ({
 }));
 
 mock.module("../diff-filter", () => ({
-	filterByDiff: async (findings: Finding[], ..._args: unknown[]) => {
+	filterByDiff: async (findings: Finding[], ...args: unknown[]) => {
 		callOrder.push("filterByDiff");
+		capturedFilterOptions = args[2] as typeof capturedFilterOptions;
 		// If a custom result was set, use it; otherwise pass through all findings
 		if (
 			mockDiffFilterResult.shown.length > 0 ||
@@ -191,6 +195,7 @@ mock.module("../ai-review", () => ({
 }));
 
 mock.module("../typecheck", () => ({
+	TYPECHECK_TOOLS: new Set(["tsc"]),
 	runTypecheck: async (...args: unknown[]) => {
 		callOrder.push("runTypecheck");
 		capturedTypecheckArgs = args;
@@ -266,6 +271,7 @@ describe("VerifyPipeline", () => {
 		capturedDetectToolsArgs = null;
 		capturedTypecheckArgs = null;
 		capturedRunnerOptions = {};
+		capturedFilterOptions = undefined;
 		mockSyntaxGuardResult = { ok: true, value: undefined };
 		mockDetectedTools = [
 			makeDetectedTool("biome", true),
@@ -875,5 +881,116 @@ describe("VerifyPipeline", () => {
 			env,
 			process: proc,
 		});
+	});
+});
+
+// ─── Blast radius (v1 task 6.3, FR-VER-5) ──────────────────────────────────
+
+describe("VerifyPipeline blast radius", () => {
+	const RADIUS_TESTS = [
+		"src/app.test.ts",
+		"src/core.test.ts",
+		"src/mid.test.ts",
+	];
+
+	beforeEach(() => {
+		capturedTypecheckArgs = null;
+		capturedFilterOptions = undefined;
+		mockDiffFilterResult = { shown: [], hidden: 0 };
+		mockSlopResult = { findings: [], cached: false };
+		mockAIReviewResult = {
+			findings: [],
+			skipped: true,
+			tier: "mechanical",
+			duration: 0,
+		};
+	});
+
+	it("type-checks the change's dependents and hands the diff filter its radius", async () => {
+		const repo = await indexedRepo();
+		const result = await runPipeline({
+			cwd: ROOT,
+			files: ["src/core.ts"],
+			graph: repo.ports,
+		});
+
+		expect(capturedTypecheckArgs?.[0]).toEqual([
+			"src/core.ts",
+			"src/app.ts",
+			"src/mid.ts",
+			"src/top.ts",
+		]);
+		expect(capturedFilterOptions?.blastRadius?.dependents).toEqual([
+			"src/app.ts",
+			"src/mid.ts",
+			"src/top.ts",
+		]);
+		expect(result.blastRadius?.tests).toEqual(RADIUS_TESTS);
+	});
+
+	it("without a graph the checks stay on the changed files", async () => {
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
+		expect(capturedTypecheckArgs?.[0]).toEqual(["src/app.ts"]);
+		expect(capturedFilterOptions?.blastRadius).toBeUndefined();
+		expect(result.blastRadius).toBeUndefined();
+	});
+
+	it("runs the graph's affected tests when asked, and a failure fails the run", async () => {
+		const repo = await indexedRepo();
+		writeFileSync(join(ROOT, "bun.lock"), "");
+		const proc = createFakeProcess((argv) =>
+			argv[0] === "bun"
+				? {
+						ok: true,
+						value: {
+							exitCode: 1,
+							stdout: "",
+							stderr: "src/mid.test.ts:\n(fail) mid > doubles [0.2ms]\n",
+						},
+					}
+				: { ok: false, error: { kind: "spawn_failed", message: "n/a" } },
+		);
+		try {
+			const result = await runPipeline({
+				cwd: ROOT,
+				files: ["src/core.ts"],
+				graph: repo.ports,
+				process: proc,
+				tests: true,
+			});
+
+			const bunRuns = proc.calls().filter((c) => c.argv[0] === "bun");
+			expect(bunRuns.map((c) => c.argv)).toEqual([
+				["bun", "test", ...RADIUS_TESTS.map((t) => `./${t}`)],
+			]);
+			const report = result.tools.find((t) => t.tool === "tests");
+			expect(report?.skipped).toBe(false);
+			// Triaged like any finding (it gains a `realProbability`).
+			expect(report?.findings).toMatchObject([
+				{
+					tool: "tests",
+					file: "src/mid.test.ts",
+					line: 1,
+					message: "Affected test failed: mid > doubles",
+					severity: "error",
+				},
+			]);
+			expect(result.status).toBe("failed");
+		} finally {
+			rmSync(join(ROOT, "bun.lock"), { force: true });
+		}
+	});
+
+	it("runs no tests unless asked", async () => {
+		const repo = await indexedRepo();
+		const proc = createFakeProcess();
+		const result = await runPipeline({
+			cwd: ROOT,
+			files: ["src/core.ts"],
+			graph: repo.ports,
+			process: proc,
+		});
+		expect(proc.calls().filter((c) => c.argv[0] === "bun")).toEqual([]);
+		expect(result.tools.find((t) => t.tool === "tests")).toBeUndefined();
 	});
 });

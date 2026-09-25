@@ -6,6 +6,8 @@
  * Types are NOT duplicated — each re-exports from its source module.
  */
 
+// BlastRadius from blast-radius (FR-VER-5, carried on PipelineResult)
+export type { BlastRadius } from "./blast-radius";
 // DetectedTool, ToolName from detect
 export type { DetectedTool, ToolName } from "./detect";
 // Finding + DiffFilterResult from diff-filter

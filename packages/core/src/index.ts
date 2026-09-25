@@ -893,6 +893,7 @@ export { runWikiLint } from "./verify/tools/wiki-lint";
 export { runTypecheck, type TypecheckResult } from "./verify/typecheck";
 // Verify — Public Type Surface (consolidated for external consumers like maina-cloud)
 export type {
+	BlastRadius,
 	DetectedTool,
 	DiffFilterResult,
 	Finding,

@@ -47,6 +47,8 @@ interface VerifyActionOptions {
 	deep?: boolean;
 	visual?: boolean;
 	cloud?: boolean;
+	/** Run the tests the code graph selects for the change (FR-VER-5). */
+	tests?: boolean;
 	cwd?: string;
 }
 
@@ -411,6 +413,7 @@ export async function verifyAction(
 		baseBranch: string;
 		diffOnly: boolean;
 		deep: boolean;
+		tests: boolean;
 		cwd: string;
 		mainaDir: string;
 		env: NodeJS.ProcessEnv;
@@ -419,6 +422,7 @@ export async function verifyAction(
 		baseBranch,
 		diffOnly: !options.all,
 		deep: options.deep ?? false,
+		tests: options.tests === true,
 		cwd,
 		mainaDir,
 		env: process.env,
@@ -626,6 +630,10 @@ export function verifyCommand(): Command {
 			"--deep",
 			"Force the standard-tier AI semantic review (the triage already runs it on large or sensitive diffs)",
 		)
+		.option(
+			"--tests",
+			"Also run the tests the code graph says the change can break (its blast radius)",
+		)
 		.option("--visual", "Run visual regression checks")
 		.option("--cloud", "Run verification on maina cloud")
 		.action(async (options) => {
@@ -667,6 +675,7 @@ export function verifyCommand(): Command {
 				json: options.json,
 				base: options.base,
 				deep: options.deep,
+				tests: options.tests,
 				visual: options.visual,
 			});
 

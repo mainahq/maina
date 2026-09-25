@@ -13,6 +13,7 @@ import {
 	resolveBaseBranch,
 } from "../git/index";
 import { getUntrackedFiles } from "../git/scope";
+import { type BlastRadius, inBlastRadius } from "./blast-radius";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -137,7 +138,8 @@ export function parseChangedLines(diff: string): Map<string, Set<number>> {
  * Filter findings against a pre-computed changed-lines map.
  * Findings on changed lines are shown; all others are hidden. Every line of
  * a file in `newFiles` (untracked, so absent from any diff) counts as
- * changed.
+ * changed. With a `radius`, a type error in a caller of the change and a
+ * failing affected test are shown too, off the changed lines (FR-VER-5).
  *
  * Exported for testing without needing to invoke git.
  */
@@ -145,13 +147,18 @@ export function filterByDiffWithMap(
 	findings: Finding[],
 	changedLines: Map<string, Set<number>>,
 	newFiles: ReadonlySet<string> = new Set(),
+	radius?: BlastRadius,
 ): DiffFilterResult {
 	const shown: Finding[] = [];
 	let hidden = 0;
 
 	for (const finding of findings) {
 		const fileChanges = changedLines.get(finding.file);
-		if (newFiles.has(finding.file) || fileChanges?.has(finding.line)) {
+		if (
+			newFiles.has(finding.file) ||
+			fileChanges?.has(finding.line) ||
+			(radius !== undefined && inBlastRadius(finding, radius))
+		) {
 			shown.push(finding);
 		} else {
 			hidden++;
@@ -173,13 +180,18 @@ export function filterByDiffWithMap(
  * @param cwd - Working directory for git commands
  * @param options.includeUntracked - Treat untracked files as wholly changed
  *   (the working-tree scope, #328); off for the staged scope
+ * @param options.blastRadius - Also show type errors in the change's callers
+ *   and failing affected tests off the changed lines (FR-VER-5)
  * @returns Partitioned findings with hidden count
  */
 export async function filterByDiff(
 	findings: Finding[],
 	baseBranch: string | undefined,
 	cwd: string,
-	options: { readonly includeUntracked?: boolean } = {},
+	options: {
+		readonly includeUntracked?: boolean;
+		readonly blastRadius?: BlastRadius;
+	} = {},
 ): Promise<DiffFilterResult> {
 	// Resolve the base instead of assuming "main"; an unresolvable ref must
 	// never make the filter fall open (#364).
@@ -207,5 +219,10 @@ export async function filterByDiff(
 	}
 
 	const changedLines = parseChangedLines(diff);
-	return filterByDiffWithMap(findings, changedLines, new Set(untracked));
+	return filterByDiffWithMap(
+		findings,
+		changedLines,
+		new Set(untracked),
+		options.blastRadius,
+	);
 }

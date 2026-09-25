@@ -340,6 +340,14 @@ describe("maina verify", () => {
 		expect(pipelineCalledWith?.process).toBe(fakeSystemProcess);
 	});
 
+	test("--tests asks the pipeline to run the affected tests (FR-VER-5)", async () => {
+		await verifyAction({ cwd: tmpDir });
+		expect(pipelineCalledWith?.tests).toBe(false);
+
+		await verifyAction({ tests: true, cwd: tmpDir });
+		expect(pipelineCalledWith?.tests).toBe(true);
+	});
+
 	test("passes --base flag to pipeline", async () => {
 		await verifyAction({ base: "develop", cwd: tmpDir });
 
