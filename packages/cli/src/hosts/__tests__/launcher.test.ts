@@ -20,6 +20,7 @@ import {
 	detectLauncher,
 	isDirectBinary,
 	isMainaLauncher,
+	isPackageRunnerLauncher,
 	resetLauncherCache,
 	runningCli,
 	stableRuntimePath,
@@ -194,6 +195,36 @@ describe("isMainaLauncher — the forms detectLauncher writes, exactly", () => {
 		no(BUN, "./dist/index.js", "--mcp");
 		no(BUN, "/evil/payload.js", "--mcp");
 		no(BUN, "-e", "require('child_process')", "--mcp");
+	});
+});
+
+describe("isPackageRunnerLauncher — the bunx/npx forms only (#418)", () => {
+	const pinned = `@mainahq/cli@${PKG_VERSION}`;
+	test("pinned bunx and npx launchers name a package, not a file", () => {
+		expect(
+			isPackageRunnerLauncher({
+				command: "/usr/local/bin/npx",
+				args: [pinned, "--mcp"],
+			}),
+		).toBe(true);
+		expect(
+			isPackageRunnerLauncher({ command: "bunx", args: [pinned, "--mcp"] }),
+		).toBe(true);
+	});
+
+	test("the binary and runtime forms, and non-launchers, are not", () => {
+		expect(isPackageRunnerLauncher({ command: "maina", args: ["--mcp"] })).toBe(
+			false,
+		);
+		expect(
+			isPackageRunnerLauncher({
+				command: "/u/bin/bun",
+				args: ["/u/cli/dist/index.js", "--mcp"],
+			}),
+		).toBe(false);
+		expect(
+			isPackageRunnerLauncher({ command: "npx", args: ["evil", "--mcp"] }),
+		).toBe(false);
 	});
 });
 

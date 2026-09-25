@@ -15,16 +15,18 @@
  * repo controls. Doctor launches one only when it is maina's own launcher
  * (`trustedProjectLaunch`); any other is reported `skipped` unless the
  * caller opts in with `launchProject` (`maina doctor --launch-project`).
+ * The `bunx`/`npx` launcher form counts as maina's only while the repo
+ * ships no `node_modules/@mainahq/cli` the runner could resolve instead.
  * User-scope entries are the user's own and always launch.
  * This module is pure apart from the injected ports: `./probe.ts` does the
  * spawning, `commands/doctor.ts` wires the real filesystem and git.
  */
 
-import { isAbsolute, join, normalize, relative } from "node:path";
+import { dirname, isAbsolute, join, normalize, relative } from "node:path";
 import type { PolicyError } from "@mainahq/core";
 import { buildClientRegistry, listClientIds } from "./clients";
 import { type EnvVars, hostOs, minimalEnv } from "./host-env";
-import { isMainaLauncher } from "./launcher";
+import { isMainaLauncher, isPackageRunnerLauncher } from "./launcher";
 import { readEntry } from "./merge";
 import type { LaunchSpec, Probe, ProbeOutcome } from "./probe";
 import {
@@ -345,6 +347,10 @@ function worst(checks: readonly HealthCheck[]): CheckStatus {
 
 const SKIPPED_REASON =
 	"project command not recognised as maina's launcher; not executed";
+const CLI_PACKAGE_DIR = join("node_modules", "@mainahq", "cli");
+const SHADOWED_REASON =
+	`the repo ships its own ${CLI_PACKAGE_DIR}, which the package runner ` +
+	"can resolve in place of the published CLI; not executed";
 const LAUNCH_PROJECT_FIX = "maina doctor --launch-project";
 
 /** Whether absolute `path` is `dir` or below it. */
@@ -354,19 +360,52 @@ function within(dir: string, path: string): boolean {
 }
 
 /**
+ * Every `node_modules/@mainahq/cli` a package runner started in `cwd` could
+ * resolve that the repo controls: cwd's own and each ancestor's up to the
+ * repo root (npx looks up from the cwd). Outside a repo, or when cwd is not
+ * below its root, only cwd's own.
+ */
+export function localCliCopies(
+	cwd: string,
+	repoRoot: string | null,
+): readonly string[] {
+	const dirs = [cwd];
+	if (repoRoot !== null && cwd !== repoRoot && within(repoRoot, cwd)) {
+		let dir = cwd;
+		while (dir !== repoRoot) {
+			dir = dirname(dir);
+			dirs.push(dir);
+		}
+	}
+	return dirs.map((d) => join(d, CLI_PACKAGE_DIR));
+}
+
+interface TrustOptions {
+	readonly realpath?: (path: string) => string;
+	/**
+	 * The repo ships its own `node_modules/@mainahq/cli` (`localCliCopies`).
+	 * A `bunx`/`npx` entry could then run that copy instead of the release.
+	 */
+	readonly repoShipsCli?: boolean;
+}
+
+/**
  * Whether a project-scope entry may be launched without asking: it is one
  * of maina's own launcher forms (`isMainaLauncher`), sets no env of its
  * own (an `env` can preload code or move `PATH`; maina never writes one),
  * and neither its executable nor its CLI entry is a file the repo ships.
  * A bare executable name is looked up on the host's PATH, not in the repo.
+ * The `bunx`/`npx` form is trusted only while the repo ships no copy of
+ * `@mainahq/cli` for the runner to resolve in its place.
  */
 export function trustedProjectLaunch(
 	spec: LaunchSpec,
 	repoDirs: readonly string[],
-	realpath: (path: string) => string = (p) => p,
+	{ realpath = (p) => p, repoShipsCli = false }: TrustOptions = {},
 ): boolean {
 	if (Object.keys(spec.env).length > 0) return false;
 	if (!isMainaLauncher(spec)) return false;
+	if (repoShipsCli && isPackageRunnerLauncher(spec)) return false;
 	// The executable when given as a path, and the CLI entry of the runtime
 	// form (`isMainaLauncher` only accepts that one as an absolute path).
 	const files = [
@@ -463,6 +502,8 @@ interface LaunchContext {
 	/** The repo's directories; a project entry must not run a file in one. */
 	readonly repoDirs: readonly string[];
 	readonly realpath: (path: string) => string;
+	/** The repo ships a `node_modules/@mainahq/cli` (`localCliCopies`). */
+	readonly repoShipsCli: boolean;
 	readonly probe: Probe;
 }
 
@@ -517,8 +558,9 @@ async function hostReport(
 	if (
 		target.scope === "project" &&
 		input.launchProject !== true &&
-		!trustedProjectLaunch(spec.value, launch.repoDirs, launch.realpath)
+		!trustedProjectLaunch(spec.value, launch.repoDirs, launch)
 	) {
+		const shadowed = launch.repoShipsCli && isPackageRunnerLauncher(spec.value);
 		return {
 			...base,
 			command,
@@ -529,7 +571,7 @@ async function hostReport(
 				{
 					id: "launch",
 					status: "skipped",
-					message: SKIPPED_REASON,
+					message: shadowed ? SHADOWED_REASON : SKIPPED_REASON,
 					fix: LAUNCH_PROJECT_FIX,
 				},
 			],
@@ -568,12 +610,20 @@ export async function checkHostHealth(
 		ports.loadPolicy(ctx.cwd),
 	]);
 	const repoDirs = [ctx.cwd, cwd];
-	if (repoRoot !== null) repoDirs.push(repoRoot, ports.realpath(repoRoot));
+	const realRoot = repoRoot === null ? null : ports.realpath(repoRoot);
+	if (repoRoot !== null && realRoot !== null) {
+		repoDirs.push(repoRoot, realRoot);
+	}
+	const cliCopies = [
+		...localCliCopies(ctx.cwd, repoRoot),
+		...localCliCopies(cwd, realRoot),
+	];
 	const launch: LaunchContext = {
 		env: env.env,
 		cwd: ctx.cwd,
 		repoDirs,
 		realpath: ports.realpath,
+		repoShipsCli: cliCopies.some((dir) => ports.listDir(dir) !== null),
 		probe: ports.probe,
 	};
 

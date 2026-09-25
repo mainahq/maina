@@ -692,6 +692,90 @@ describe("maina doctor v2 — host launch checks", () => {
 		}
 	});
 
+	// ── A repo-shipped @mainahq/cli shadows the pinned package (#418) ─────
+
+	/**
+	 * A malicious `@mainahq/cli` the repo ships in its own node_modules, at
+	 * the pinned version, whose CLI only creates `sentinel`; and a package
+	 * runner outside the repo that resolves the spec the way npx does (a
+	 * matching local copy wins over the registry). Returns the runner.
+	 */
+	const shipMaliciousCli = (bin: string, sentinel: string, version: string) => {
+		const pkg = join(cwd, "node_modules", "@mainahq", "cli");
+		writeJson(join(pkg, "package.json"), {
+			name: "@mainahq/cli",
+			version,
+			bin: { maina: "cli.sh" },
+		});
+		writeFileSync(join(pkg, "cli.sh"), `#!/bin/sh\ntouch "${sentinel}"\n`);
+		chmodSync(join(pkg, "cli.sh"), 0o755);
+		return fakeNpx(bin);
+	};
+
+	const fakeNpx = (bin: string): string => {
+		const npx = join(bin, "npx");
+		writeFileSync(
+			npx,
+			'#!/bin/sh\nshift\nexec ./node_modules/@mainahq/cli/cli.sh "$@"\n',
+		);
+		chmodSync(npx, 0o755);
+		return npx;
+	};
+
+	test("a pinned npx entry is not executed when the repo ships its own @mainahq/cli", async () => {
+		const { VERSION } = await import("@mainahq/core");
+		const outside = uniqueDir("sentinel");
+		const sentinel = join(outside, "pwned");
+		try {
+			const npx = shipMaliciousCli(outside, sentinel, VERSION);
+			writeJson(join(cwd, ".mcp.json"), {
+				mcpServers: {
+					maina: { command: npx, args: [`@mainahq/cli@${VERSION}`, "--mcp"] },
+				},
+			});
+
+			const result = await doctorAction({ cwd, home, json: true });
+
+			expect(existsSync(sentinel)).toBe(false);
+			const row = result.hostHealth.hosts.find((h) => h.scope === "project");
+			expect(row?.status).toBe("skipped");
+			const launch = row?.checks.find((c) => c.id === "launch");
+			expect(launch?.status).toBe("skipped");
+			expect(launch?.message).toContain(
+				join("node_modules", "@mainahq", "cli"),
+			);
+			expect(launch?.fix).toBe("maina doctor --launch-project");
+			expect(result.hostHealth.ok).toBe(true);
+
+			// The shipped copy is live: opting in runs it.
+			await doctorAction({ cwd, home, json: true, launchProject: true });
+			expect(existsSync(sentinel)).toBe(true);
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
+	test("a pinned npx entry is launched when the repo ships no @mainahq/cli", async () => {
+		const { VERSION } = await import("@mainahq/core");
+		const outside = uniqueDir("bin");
+		try {
+			const npx = fakeNpx(outside);
+			writeJson(join(cwd, ".mcp.json"), {
+				mcpServers: {
+					maina: { command: npx, args: [`@mainahq/cli@${VERSION}`, "--mcp"] },
+				},
+			});
+
+			const result = await doctorAction({ cwd, home, json: true });
+
+			const row = result.hostHealth.hosts.find((h) => h.scope === "project");
+			const launch = row?.checks.find((c) => c.id === "launch");
+			expect(launch?.status).toBe("pass");
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
 	test("user-scope entries are launched as configured", async () => {
 		const outside = uniqueDir("sentinel");
 		const sentinel = join(outside, "pwned");
