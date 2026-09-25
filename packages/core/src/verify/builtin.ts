@@ -26,12 +26,12 @@ function isTestFile(filePath: string): boolean {
 }
 
 /**
- * Dev-only tooling at the repo root (`scripts/`, `ci/`, `bench/`) prints to
- * the terminal by design and is not production code; the project's Biome
- * config turns `noConsole` off there too (#380). Only a root-level directory
+ * Dev-only tooling at the repo root (`scripts/`, `ci/`) prints to the
+ * terminal by design and is not production code; the project's Biome config
+ * turns `noConsole` off there too (#380). Only a root-level directory
  * counts, so `packages/x/src/scripts/` is still package source.
  */
-const DEV_TOOLING_DIR = /^(?:\.\/)?(?:scripts|ci|bench)\//;
+const DEV_TOOLING_DIR = /^(?:\.\/)?(?:scripts|ci)\//;
 
 function isDevToolingFile(filePath: string): boolean {
 	return DEV_TOOLING_DIR.test(filePath.replaceAll("\\", "/"));
@@ -54,8 +54,8 @@ function isTypeScriptFile(filePath: string): boolean {
 
 /**
  * Detect console.log/warn/error/debug/info calls in production code.
- * Test files and dev-only repo tooling (`scripts/`, `ci/`, `bench/`) are
- * excluded since console usage is acceptable there.
+ * Test files and dev-only repo tooling (`scripts/`, `ci/`) are excluded
+ * since console usage is acceptable there.
  */
 export function checkConsoleLogs(filePath: string, content: string): Finding[] {
 	if (isTestFile(filePath) || isDevToolingFile(filePath)) return [];

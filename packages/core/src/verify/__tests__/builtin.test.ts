@@ -63,14 +63,13 @@ describe("checkConsoleLogs", () => {
 		expect(findings).toHaveLength(0);
 	});
 
-	it("skips dev-only repo scripts under scripts/, ci/ and bench/ (#380)", () => {
+	it("skips dev-only repo scripts under scripts/ and ci/ (#380)", () => {
 		const content = `console.log("generated");\nconsole.error("failed");\n`;
 		for (const file of [
 			"scripts/generate-schemas.ts",
 			"scripts/dogfood/receipt.ts",
 			"./scripts/check-paths.ts",
 			"ci/e2e/run.ts",
-			"bench/run.ts",
 			"scripts\\generate-schemas.ts",
 		]) {
 			expect(checkConsoleLogs(file, content)).toEqual([]);
@@ -84,6 +83,8 @@ describe("checkConsoleLogs", () => {
 			"packages/core/src/ci/detect.ts",
 			"src/bench/timer.ts",
 			"myscripts/tool.ts",
+			// Not covered by the Biome noConsole override, so still checked.
+			"bench/run.ts",
 		]) {
 			expect(checkConsoleLogs(file, content)).toHaveLength(1);
 		}
