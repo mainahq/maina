@@ -10,6 +10,8 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createHookClient } from "../client/hook-client";
 import { createRequest, sendRequest } from "../ipc";
 import { daemonSpawner, type SpawnRuntime } from "../lifecycle";
@@ -159,6 +161,26 @@ describe("runtime exclusivity", () => {
 		);
 	});
 
+	test("a runtime displaced from its pid file leaves the successor's socket alone", () => {
+		const t = temp();
+		const started = startRuntime(
+			{ gate: fixedGate("allow") },
+			{ endpoint: t.endpoint, version: "1.0.0", idleTtlMs: 60_000 },
+		);
+		if (!started.ok) throw new Error(JSON.stringify(started.error));
+		// Another live process took the claim over (the stale-claim race in
+		// ADR 0044); the socket path now belongs to it.
+		writeFileSync(
+			t.endpoint.pidFile,
+			JSON.stringify({ pid: process.ppid, at: Date.now() }),
+		);
+		started.value.stop();
+		expect(existsSync(t.endpoint.address)).toBe(true);
+		expect(JSON.parse(readFileSync(t.endpoint.pidFile, "utf8")).pid).toBe(
+			process.ppid,
+		);
+	});
+
 	test("a pid file from before the last boot is stale even if the pid is reused", () => {
 		const t = temp();
 		writeFileSync(
@@ -196,6 +218,29 @@ describe("spawn on demand", () => {
 		expect(spawner.calls()).toBe(1);
 		const status = await statusOf(t.endpoint.address, "1.0.0");
 		expect(status?.pid).toBe(daemons[0]);
+	}, 15_000);
+
+	test("the client spawns the runtime on a fresh machine with no runtime dir yet", async () => {
+		const t = temp();
+		const endpoint = resolveEndpoint({
+			platform: process.platform,
+			dir: join(t.dir, "not", "created", "yet"),
+			user: "test",
+			version: "1.0.0",
+			tmpDir: tmpdir(),
+		});
+		const spawner = tracked(
+			daemonSpawner({ endpoint, version: "1.0.0", idleTtlMs: 10_000 }),
+		);
+		const client = createHookClient({
+			endpoint,
+			version: "1.0.0",
+			spawn: spawner.spawn,
+			fallback: fixedGate("deny"),
+		});
+		const result = await client.evaluate(shellEvent, { timeoutMs: 8000 });
+		expect(result.degraded).toBe(false);
+		expect(spawner.calls()).toBe(1);
 	}, 15_000);
 
 	test("concurrent clients spawn exactly one daemon", async () => {

@@ -8,7 +8,12 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Result } from "@mainahq/core";
 import { createRequest, sendRequest } from "./ipc";
-import { acquireSpawnLock, type Endpoint, releaseSpawnLock } from "./registry";
+import {
+	acquireSpawnLock,
+	type Endpoint,
+	ensureEndpointDirs,
+	releaseSpawnLock,
+} from "./registry";
 
 type IdleTimer = Readonly<{
 	/** A request started: the clock stops while any request is in flight. */
@@ -138,6 +143,15 @@ export async function ensureRuntime(
 ): Promise<Result<null, EnsureError>> {
 	const { endpoint, version, spawn, deadline } = options;
 	const pid = process.pid;
+	// On a fresh machine nothing has created the runtime dir yet, and the
+	// spawn lock (and the daemon's cwd) live in it.
+	const dirs = ensureEndpointDirs(endpoint, process.platform);
+	if (!dirs.ok) {
+		return {
+			ok: false,
+			error: { kind: "spawn_failed", message: dirs.error.message },
+		};
+	}
 	let holdsLock = false;
 	try {
 		for (;;) {

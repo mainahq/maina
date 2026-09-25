@@ -176,9 +176,11 @@ export function createLineSplitter(
 		buffered += decoder.decode(chunk, { stream: true });
 		const parts = buffered.split("\n");
 		buffered = parts.pop() ?? "";
-		if (Buffer.byteLength(buffered) > maxBytes) {
-			return { ok: false, error: "too_long" };
-		}
+		// A line that completes in this chunk can still be over the cap.
+		const tooLong = [buffered, ...parts].some(
+			(part) => Buffer.byteLength(part) > maxBytes,
+		);
+		if (tooLong) return { ok: false, error: "too_long" };
 		return { ok: true, value: parts.filter((p) => p !== "") };
 	};
 }

@@ -86,11 +86,10 @@ export function createHookClient(config: HookClientConfig): HookClient {
 		};
 	};
 
-	const evaluate = async (
+	const evaluateRuntime = async (
 		event: GateEvent,
-		{ timeoutMs }: EvaluateOptions,
+		deadline: number,
 	): Promise<GateResult> => {
-		const deadline = Date.now() + timeoutMs;
 		let recovered = false;
 		for (;;) {
 			const remaining = deadline - Date.now();
@@ -115,6 +114,19 @@ export function createHookClient(config: HookClientConfig): HookClient {
 			const decision = parseGateDecision(response.result);
 			if (decision === null) return degrade(event, "bad_response", deadline);
 			return { ...decision, degraded: false, source: "runtime" };
+		}
+	};
+
+	/** Never rejects: an unexpected throw (a misbehaving port) degrades too. */
+	const evaluate = async (
+		event: GateEvent,
+		{ timeoutMs }: EvaluateOptions,
+	): Promise<GateResult> => {
+		const deadline = Date.now() + timeoutMs;
+		try {
+			return await evaluateRuntime(event, deadline);
+		} catch {
+			return degrade(event, "client_error", deadline);
 		}
 	};
 

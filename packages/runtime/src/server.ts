@@ -34,6 +34,7 @@ import {
 	claimPidFile,
 	type Endpoint,
 	ensureEndpointDirs,
+	holdsPidFile,
 	type RegistryError,
 	releasePidFile,
 } from "./registry";
@@ -153,7 +154,11 @@ export function startRuntime(
 		stopping = reason;
 		idle.cancel();
 		listener?.stop(false);
-		if (!isPipe) rmSync(endpoint.address, { force: true });
+		// A runtime displaced from its claim must not unlink the socket path,
+		// which now belongs to the runtime that holds the pid file.
+		if (!isPipe && holdsPidFile(endpoint, pid)) {
+			rmSync(endpoint.address, { force: true });
+		}
 		releasePidFile(endpoint, pid);
 		if (now || conns.size === 0) finalize();
 		else graceTimer = setTimeout(finalize, STOP_GRACE_MS);

@@ -10,6 +10,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createHookClient } from "../client/hook-client";
 import {
+	createLineSplitter,
 	createRequest,
 	decodeRequest,
 	decodeResponse,
@@ -106,6 +107,21 @@ describe("protocol codec", () => {
 		);
 		expect(decoded.ok).toBe(false);
 		if (!decoded.ok) expect(decoded.error.code).toBe("version_mismatch");
+	});
+
+	test("a line longer than the cap is refused even when it ends in the same chunk", () => {
+		const split = createLineSplitter(1000);
+		const bytes = (text: string) => new TextEncoder().encode(text);
+		expect(split(bytes("a".repeat(900))).ok).toBe(true);
+		const tail = split(bytes(`${"a".repeat(200)}\n`));
+		expect(tail.ok).toBe(false);
+		const fresh = createLineSplitter(1000);
+		expect(fresh(bytes(`${"b".repeat(1500)}\n`)).ok).toBe(false);
+		const fine = createLineSplitter(1000);
+		expect(fine(bytes(`${"c".repeat(1000)}\nd`))).toEqual({
+			ok: true,
+			value: ["c".repeat(1000)],
+		});
 	});
 
 	test("a response without a runtime version is rejected", () => {

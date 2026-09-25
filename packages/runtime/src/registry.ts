@@ -222,6 +222,11 @@ export function claimPidFile(
 		: { ok: false, error };
 }
 
+/** True while `pid` still holds the endpoint's pid file. */
+export function holdsPidFile(endpoint: Endpoint, pid: number): boolean {
+	return readHolder(endpoint.pidFile)?.pid === pid;
+}
+
 export function releasePidFile(endpoint: Endpoint, pid: number): void {
 	releaseExclusive(endpoint.pidFile, pid);
 }

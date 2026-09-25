@@ -123,6 +123,21 @@ describe("no runtime and none can be spawned", () => {
 		expect(result).toMatchObject({ verdict: "ask", degraded: true });
 	});
 
+	test("a spawn port that throws still yields a degraded ask, never a rejection", async () => {
+		const t = temp();
+		const throwing: SpawnRuntime = () => {
+			throw new Error("spawn port blew up");
+		};
+		const result = await client(
+			t.endpoint,
+			fixedGate("allow"),
+			throwing,
+		).evaluate(shellEvent, { timeoutMs: 500 });
+		expect(result.degraded).toBe(true);
+		expect(result.verdict).toBe("ask");
+		if (result.degraded) expect(result.degradedCause).toBe("client_error");
+	});
+
 	test("a spawn that never comes up degrades within the time budget", async () => {
 		const t = temp();
 		const silent: SpawnRuntime = () => ({ ok: true, value: { pid: 0 } });

@@ -39,7 +39,9 @@ export type DegradedCause =
 	| "unknown_method"
 	| "not_implemented"
 	| "handler_failed"
-	| "version_mismatch";
+	| "version_mismatch"
+	/** The client itself failed unexpectedly (a port threw). */
+	| "client_error";
 
 /** What the hook client returns for one event. */
 export type GateResult = GateDecision &
