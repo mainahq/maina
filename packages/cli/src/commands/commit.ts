@@ -427,7 +427,13 @@ export async function commitAction(
 	}
 
 	// ── Step 5b: Append Verified-by trailer when verification ran ─────────
-	if (!options.noTrailer && !options.noVerify && pipelineResult) {
+	// A skipped run checked nothing, so it must not claim "Verified-by" (#328).
+	if (
+		!options.noTrailer &&
+		!options.noVerify &&
+		pipelineResult &&
+		pipelineResult.status !== "skipped"
+	) {
 		const hash = computeProofHash({
 			passed: pipelineResult.passed,
 			toolsRun: pipelineResult.tools.length,
