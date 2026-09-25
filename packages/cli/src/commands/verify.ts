@@ -27,6 +27,7 @@ import {
 	VERSION,
 } from "@mainahq/core";
 import { processEnv } from "../env";
+import { telemetryContext } from "../ports";
 
 const CLI_VERSION = VERSION;
 
@@ -193,7 +194,7 @@ export async function cloudVerifyAction(
 			{ cloud: true, deep: false, visual: false, all: false },
 			CLI_VERSION,
 		),
-		processEnv,
+		telemetryContext(process.cwd()),
 	);
 
 	// ── Step 1: Auth ──────────────────────────────────────────────────────
@@ -334,7 +335,7 @@ export async function cloudVerifyAction(
 			},
 			CLI_VERSION,
 		),
-		processEnv,
+		telemetryContext(process.cwd()),
 	);
 
 	return {
@@ -362,8 +363,8 @@ export async function verifyAction(
 	);
 	const startedAt = Date.now();
 
-	// Consent-gated — `captureUsage` is a no-op unless `telemetry: true` and
-	// the build-time key are both set. Emitting at the action boundary keeps
+	// Consent-gated — `captureUsage` is a no-op unless the user opted in to
+	// `usage` and the build-time key is set. Emitting at the action boundary keeps
 	// cohort metrics honest even if the command bails later on a tool error.
 	captureUsage(
 		buildUsageEvent(
@@ -376,7 +377,7 @@ export async function verifyAction(
 			},
 			CLI_VERSION,
 		),
-		processEnv,
+		telemetryContext(process.cwd()),
 	);
 
 	// ── AI availability check ────────────────────────────────────────────
@@ -561,7 +562,7 @@ export async function verifyAction(
 			},
 			CLI_VERSION,
 		),
-		processEnv,
+		telemetryContext(process.cwd()),
 	);
 
 	return result;

@@ -3,9 +3,10 @@
  * `buildErrorEvent` and PostHog EU.
  *
  * Hard contract:
- * - Consent gate is authoritative. If `telemetry: true` is not set in
- *   `~/.maina/config.yml`, `captureUsage` must be a no-op. Same for
- *   `errors: true` and `captureError`. The two flags are independent.
+ * - Consent gate is authoritative. Unless the effective collection config
+ *   (see `./consent`) opts in to `usage`, `captureUsage` is a no-op; same
+ *   for `crash_reports` and `captureError`. The two channels are
+ *   independent, and a consent read error means "off".
  * - Build-time key gate is also authoritative. If `MAINA_POSTHOG_API_KEY`
  *   is unset (OSS fork, dev build), we never import the SDK and every
  *   capture is a no-op. No warning, no throw.
@@ -17,8 +18,10 @@
  */
 
 import type { EnvPort } from "../ports/env";
-import { type ErrorEvent, isErrorReportingEnabled } from "./reporter";
-import { isTelemetryEnabled, type UsageEvent } from "./usage";
+import type { FsPort } from "../ports/fs";
+import { loadCollectionConfig, type TelemetryContext } from "./consent";
+import type { ErrorEvent } from "./reporter";
+import type { UsageEvent } from "./usage";
 
 /**
  * Minimum surface we use from `posthog-node`. Typed locally so the SDK
@@ -48,11 +51,18 @@ export interface PosthogClientOptions {
 	 * (`MAINA_POSTHOG_HOST`) and device fingerprint (`MAINA_DEVICE_FINGERPRINT`).
 	 */
 	env: EnvPort;
+	/**
+	 * Filesystem the opt-ins are read through. Without it (and without
+	 * `consent`) nothing is ever captured.
+	 */
+	fs?: FsPort;
+	/** Repo root whose policy may opt out. */
+	root?: string;
 	/** DI seam for tests. Production default dynamic-imports `posthog-node`. */
 	createPosthog?: PosthogFactory;
 	/** Override the build-inlined key (tests). Empty string → disabled. */
 	apiKeyOverride?: string;
-	/** Override consent checks (tests). Otherwise read from config. */
+	/** Override consent checks (tests). Otherwise read through `fs`. */
 	consent?: { usage: boolean; errors: boolean };
 }
 
@@ -73,14 +83,21 @@ function readApiKey(env: EnvPort, override?: string): string {
 	return env.get("MAINA_POSTHOG_API_KEY") ?? "";
 }
 
-function readConsent(override?: PosthogClientOptions["consent"]): {
-	usage: boolean;
-	errors: boolean;
-} {
-	if (override) return override;
+type Consent = Readonly<{ usage: boolean; errors: boolean }>;
+
+const NO_CONSENT: Consent = { usage: false, errors: false };
+
+async function readConsent(opts: PosthogClientOptions): Promise<Consent> {
+	if (opts.fs === undefined) return NO_CONSENT;
+	const config = await loadCollectionConfig({
+		fs: opts.fs,
+		env: opts.env,
+		...(opts.root === undefined ? {} : { root: opts.root }),
+	});
+	if (!config.ok) return NO_CONSENT;
 	return {
-		usage: isTelemetryEnabled(),
-		errors: isErrorReportingEnabled(),
+		usage: config.value.channels.usage.enabled,
+		errors: config.value.channels.crash_reports.enabled,
 	};
 }
 
@@ -120,10 +137,42 @@ export function createPosthogClient(opts: PosthogClientOptions): PosthogClient {
 		return sdk;
 	}
 
-	function captureUsage(event: UsageEvent): void {
-		const consent = readConsent(opts.consent);
-		if (!consent.usage) return;
+	// Consent reads still in flight; `flush` waits for them.
+	const pending = new Set<Promise<void>>();
+
+	/**
+	 * Runs `send` once `kind` is known to be opted in: synchronously with a
+	 * `consent` override, otherwise after reading the config through the
+	 * ports. Without a key nothing could be sent, so nothing is read.
+	 */
+	function whenConsented(kind: keyof Consent, send: () => void): void {
 		if (!hasKey) return;
+		if (opts.consent) {
+			if (opts.consent[kind]) send();
+			return;
+		}
+		const read: Promise<void> = readConsent(opts)
+			.then((consent) => {
+				if (consent[kind]) send();
+			})
+			.catch(() => {
+				// A failed consent read means "off".
+			})
+			.finally(() => {
+				pending.delete(read);
+			});
+		pending.add(read);
+	}
+
+	function captureUsage(event: UsageEvent): void {
+		whenConsented("usage", () => sendUsage(event));
+	}
+
+	function captureError(event: ErrorEvent): void {
+		whenConsented("errors", () => sendError(event));
+	}
+
+	function sendUsage(event: UsageEvent): void {
 		const client = getSdk();
 		if (!client) return;
 		try {
@@ -143,10 +192,7 @@ export function createPosthogClient(opts: PosthogClientOptions): PosthogClient {
 		}
 	}
 
-	function captureError(event: ErrorEvent): void {
-		const consent = readConsent(opts.consent);
-		if (!consent.errors) return;
-		if (!hasKey) return;
+	function sendError(event: ErrorEvent): void {
 		const client = getSdk();
 		if (!client) return;
 		try {
@@ -173,18 +219,20 @@ export function createPosthogClient(opts: PosthogClientOptions): PosthogClient {
 	async function flush(
 		budgetMs: number = DEFAULT_FLUSH_BUDGET_MS,
 	): Promise<void> {
-		if (!sdk) return;
+		if (!sdk && pending.size === 0) return;
 		let timer: ReturnType<typeof setTimeout> | null = null;
 		const timeout = new Promise<void>((resolve) => {
 			timer = setTimeout(resolve, budgetMs);
 		});
+		const drain = async (): Promise<void> => {
+			await Promise.allSettled([...pending]);
+			if (!sdk) return;
+			await sdk.shutdown().catch(() => {
+				// shutdown failed; treat as drained
+			});
+		};
 		try {
-			await Promise.race([
-				sdk.shutdown().catch(() => {
-					// shutdown failed; treat as drained
-				}),
-				timeout,
-			]);
+			await Promise.race([drain(), timeout]);
 		} finally {
 			if (timer !== null) clearTimeout(timer);
 		}
@@ -273,21 +321,21 @@ function defaultFactory(apiKey: string, host: string): PosthogLike {
 let singleton: PosthogClient | null = null;
 
 /**
- * Lazy singleton, built from the env of the first capture and cached after
- * that (the edge passes the same process env every time). Tests should call
- * `createPosthogClient` directly.
+ * Lazy singleton, built from the context of the first capture and cached
+ * after that (the edge passes the same context every time). Tests should
+ * call `createPosthogClient` directly.
  */
-function getSingleton(env: EnvPort): PosthogClient {
-	if (singleton === null) singleton = createPosthogClient({ env });
+function getSingleton(ctx: TelemetryContext): PosthogClient {
+	if (singleton === null) singleton = createPosthogClient(ctx);
 	return singleton;
 }
 
-export function captureUsage(event: UsageEvent, env: EnvPort): void {
-	getSingleton(env).captureUsage(event);
+export function captureUsage(event: UsageEvent, ctx: TelemetryContext): void {
+	getSingleton(ctx).captureUsage(event);
 }
 
-export function captureError(event: ErrorEvent, env: EnvPort): void {
-	getSingleton(env).captureError(event);
+export function captureError(event: ErrorEvent, ctx: TelemetryContext): void {
+	getSingleton(ctx).captureError(event);
 }
 
 /** Drain queued captures. A no-op when nothing was ever captured. */

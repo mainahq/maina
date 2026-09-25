@@ -16,6 +16,7 @@ import type { GitPort } from "./git";
 import type { CorePorts } from "./index";
 import type { LogFields, LoggerPort, LogLevel } from "./logger";
 import type { ModelPort, ModelRequest } from "./model";
+import type { NetworkPort, NetworkRequest } from "./network";
 import type {
 	ProcessError,
 	ProcessOutput,
@@ -287,6 +288,28 @@ export function createFakeProcess(
 			return typeof script === "function"
 				? script(argv, options)
 				: fromMap(script, argv);
+		},
+		calls: () => [...calls],
+	};
+}
+
+// ── network ─────────────────────────────────────────────────────────────────
+
+type NetworkSpy = NetworkPort &
+	Readonly<{ calls: () => readonly NetworkRequest[] }>;
+
+/**
+ * Records every POST and answers with `status` (202 by default). Nothing
+ * leaves the process, so a test can assert exactly what would be sent.
+ */
+export function createNetworkSpy(status = 202): NetworkSpy {
+	const calls: NetworkRequest[] = [];
+	return {
+		post: async (request) => {
+			calls.push(request);
+			return status >= 200 && status < 300
+				? ok({ status })
+				: err({ kind: "http", url: request.url, status });
 		},
 		calls: () => [...calls],
 	};

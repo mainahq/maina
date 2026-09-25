@@ -536,6 +536,9 @@ export type {
 	ModelPort,
 	ModelRequest,
 	ModelResponse,
+	NetworkError,
+	NetworkPort,
+	NetworkRequest,
 	ProcessEnv,
 	ProcessError,
 	ProcessOutput,
@@ -651,10 +654,36 @@ export {
 export {
 	buildCliErrorPayload,
 	type CliErrorPayload,
-	isCliTelemetryOptedOut,
+	type PayloadOptions,
 	type SendOptions,
 	sendCliErrorReport,
 } from "./telemetry/cli-error-reporter";
+// Collection consent and the privacy report (FR-PRIV-1..3)
+export {
+	type ChannelConsent,
+	type CollectionConfig,
+	type ConsentError,
+	type ConsentSource,
+	isChannelEnabled,
+	type KillSwitch,
+	loadCollectionConfig,
+	TELEMETRY_CHANNELS,
+	type TelemetryChannel,
+	type TelemetryContext,
+} from "./telemetry/consent";
+// Opt-in outcome sharing (FR-DEC-7)
+export {
+	buildOutcomeSharePayload,
+	OUTCOME_SHARE_VERSION,
+	type OutcomeShareError,
+	type OutcomeSharePayload,
+	type OutcomeSharePorts,
+	type SharedDecision,
+	type ShareOptions,
+	type ShareResult,
+	shareOutcomes,
+	validateOutcomeSharePayload,
+} from "./telemetry/outcome-share";
 // PostHog send path (feat 054)
 export {
 	captureError,

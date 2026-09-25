@@ -808,6 +808,32 @@ describe("setupAction — telemetry", () => {
 		expect(result.telemetrySent).toBe("skipped");
 	});
 
+	test("without a usage opt-in, skips call (telemetry is opt-in)", async () => {
+		delete process.env.MAINA_TELEMETRY;
+		const savedHome = process.env.HOME;
+		process.env.HOME = tmpDir;
+		try {
+			makeGitRepo(tmpDir);
+			let called = false;
+			const result = await setupAction(
+				{
+					cwd: tmpDir,
+					yes: true,
+					sendTelemetry: async () => {
+						called = true;
+						return { sent: true, error: null };
+					},
+				},
+				makeDeps(),
+			);
+			expect(called).toBe(false);
+			expect(result.telemetrySent).toBe("skipped");
+		} finally {
+			if (savedHome === undefined) delete process.env.HOME;
+			else process.env.HOME = savedHome;
+		}
+	});
+
 	test("opted in: POSTs anonymized event; telemetrySent=true on success", async () => {
 		delete process.env.MAINA_TELEMETRY;
 		makeGitRepo(tmpDir);
@@ -817,6 +843,7 @@ describe("setupAction — telemetry", () => {
 			{
 				cwd: tmpDir,
 				yes: true,
+				telemetryConsent: async () => true,
 				sendTelemetry: async (opts) => {
 					capturedEvent = opts.event;
 					return { sent: true, error: null };
@@ -869,6 +896,7 @@ describe("setupAction — telemetry", () => {
 			{
 				cwd: tmpDir,
 				yes: true,
+				telemetryConsent: async () => true,
 				sendTelemetry: async () => {
 					throw new Error("simulated crash inside sender");
 				},
@@ -889,6 +917,7 @@ describe("setupAction — telemetry", () => {
 			{
 				cwd: tmpDir,
 				yes: true,
+				telemetryConsent: async () => true,
 				sendTelemetry: async () => {
 					called = true;
 					return { sent: true, error: null };

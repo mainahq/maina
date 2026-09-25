@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { buildUsageEvent, trackUsageEvent } from "../usage";
+import { envFromRecord } from "../../ports/env";
+import { createMemoryFs } from "../../ports/testing";
+import { buildUsageEvent, isTelemetryEnabled, trackUsageEvent } from "../usage";
 
 describe("buildUsageEvent", () => {
 	test("produces properly structured event", () => {
@@ -57,10 +59,23 @@ describe("buildUsageEvent", () => {
 });
 
 describe("trackUsageEvent", () => {
-	test("returns null or event depending on config", () => {
-		const result = trackUsageEvent("maina.install");
-		// May be null (no config) or event — test it doesn't throw
-		expect(result === null || result.event === "maina.install").toBe(true);
+	const env = envFromRecord({ HOME: "/home/dev" });
+
+	test("returns null without an opt-in", async () => {
+		const ctx = { env, fs: createMemoryFs() };
+		expect(await trackUsageEvent(ctx, "maina.install")).toBeNull();
+	});
+
+	test("reads the legacy telemetry: true opt-in through the fs port", async () => {
+		const ctx = {
+			env,
+			fs: createMemoryFs({
+				"/home/dev/.maina/config.yml": "telemetry: true\n",
+			}),
+		};
+		expect(await isTelemetryEnabled(ctx)).toBe(true);
+		const result = await trackUsageEvent(ctx, "maina.install");
+		expect(result?.event).toBe("maina.install");
 	});
 
 	test("buildUsageEvent always works regardless of consent", () => {

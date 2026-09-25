@@ -30,6 +30,7 @@ import { confirm, intro, isCancel, log, outro, spinner } from "@clack/prompts";
 import {
 	buildUsageEvent,
 	captureUsage,
+	isChannelEnabled,
 	scaffold,
 	VERSION,
 } from "@mainahq/core";
@@ -76,6 +77,7 @@ import {
 	sendSetupTelemetry,
 	summarizeRepo,
 } from "../onboarding/setup/index";
+import { telemetryContext } from "../ports";
 import {
 	jsonEmitter,
 	noopEmitter,
@@ -182,6 +184,11 @@ export interface SetupActionOptions {
 	deps?: SetupActionDeps;
 	/** Optional emitter override (DI for tests). Auto-selected from `ci` otherwise. */
 	emitter?: SetupEmitter;
+	/**
+	 * Whether the user opted in to the `usage` channel (FR-PRIV-1). Default:
+	 * the effective collection config for `cwd`. Tests inject it.
+	 */
+	telemetryConsent?: (cwd: string) => Promise<boolean>;
 	/** Override the cloud POST for tests. Default: real `sendSetupTelemetry`. */
 	sendTelemetry?: typeof sendSetupTelemetry;
 	/** Override the cloud URL (tests / staging). */
@@ -1029,8 +1036,8 @@ export async function setupAction(
 		phases: phaseRecords,
 		options,
 	});
-	// Consent-gated PostHog usage event. `captureUsage` is a no-op when
-	// `telemetry: true` isn't set or the build-time key is absent, so this
+	// Consent-gated PostHog usage event. `captureUsage` is a no-op unless
+	// the user opted in to `usage` and the build-time key is present, so this
 	// is always safe to call — but we also honour the command-level
 	// `--no-telemetry` flag here, because a user who explicitly opted out
 	// of the setup-specific beacon should not silently still feed PostHog.
@@ -1050,10 +1057,15 @@ export async function setupAction(
 				},
 				CLI_VERSION,
 			),
-			processEnv,
+			telemetryContext(cwd),
 		);
 	}
 	return result;
+}
+
+/** The `usage` channel of the effective collection config for `cwd`. */
+function usageConsent(cwd: string): Promise<boolean> {
+	return isChannelEnabled(telemetryContext(cwd), "usage");
 }
 
 /**
@@ -1079,10 +1091,12 @@ async function dispatchTelemetry(
 		options: SetupActionOptions;
 	},
 ): Promise<void> {
+	const consent = ctx.options.telemetryConsent ?? usageConsent;
 	const optOut = isTelemetryOptedOut({
 		env: process.env,
 		configPath: join(ctx.cwd, ".maina", "config.json"),
 		flag: ctx.options.telemetry,
+		optedIn: await consent(ctx.cwd).catch(() => false),
 	});
 	if (optOut.optedOut) {
 		result.telemetrySent = "skipped";
