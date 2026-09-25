@@ -61,7 +61,8 @@ function relativeTo(root: string, path: string): string | null {
 
 /**
  * Indexes every indexable file under `root` (as git lists them, or by walking
- * the tree outside a repository) and drops stored files that are gone.
+ * the tree outside a repository) and drops stored files the listing no
+ * longer covers.
  * Unchanged files are not parsed again.
  */
 export async function indexRepo(
@@ -80,10 +81,17 @@ export async function indexRepo(
 			},
 		};
 	}
+	const listedSet = new Set(listed.value);
+	// A stored path the listing no longer covers (deleted, newly ignored, or
+	// added by `updateFiles` outside the indexed set) is dropped, so the store
+	// matches what a fresh index would build.
 	return sync(
 		ports,
 		root,
-		(stored) => [...new Set([...listed.value, ...stored])].sort(),
+		(stored) => ({
+			examine: listed.value,
+			drop: stored.filter((p) => !listedSet.has(p)).sort(),
+		}),
 		options,
 	);
 }
@@ -104,7 +112,12 @@ export async function updateFiles(
 		const rel = relativeTo(root, p);
 		return rel === null ? [] : [rel];
 	});
-	return sync(ports, root, () => [...new Set(relative)].sort(), options);
+	return sync(
+		ports,
+		root,
+		() => ({ examine: [...new Set(relative)].sort(), drop: [] }),
+		options,
+	);
 }
 
 /** The whole stored graph, each list sorted by its key. */

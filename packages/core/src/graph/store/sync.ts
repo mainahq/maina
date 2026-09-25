@@ -46,7 +46,9 @@ export const dbError = (e: DbError): GraphStoreError => ({
 const hashOf = (content: string): string =>
 	createHash("sha256").update(content).digest("hex");
 
-const lineCount = (content: string): number => content.split("\n").length;
+/** Lines as an editor shows them: a trailing newline does not start a new line. */
+const lineCount = (content: string): number =>
+	Math.max(1, content.split("\n").length - (content.endsWith("\n") ? 1 : 0));
 
 function toFacts(parsed: ParsedFile, content: string): StoredFacts {
 	const { path: _path, lang: _lang, isTestFile: _isTest, ...facts } = parsed;
@@ -166,16 +168,25 @@ async function examine(
 
 const BATCH = 32;
 
+/** Which paths a sync looks at. */
+type Scope = Readonly<{
+	/** Read and hashed: stored if present, removed if gone. */
+	examine: readonly string[];
+	/** Stored paths to remove without reading them (outside a full index). */
+	drop: readonly string[];
+}>;
+
 /** Phase 1: decide what changed. Reads files; writes nothing. */
 async function plan(
 	ports: GraphStorePorts,
 	root: string,
-	candidates: readonly string[],
+	scope: Scope,
 	stored: ReadonlyMap<string, StoredRow>,
 	parse: ParseFn,
 ): Promise<Result<Plan, GraphStoreError>> {
+	const { examine: candidates, drop } = scope;
 	const upserts: FileUpsert[] = [];
-	const removed: string[] = [];
+	const removed: string[] = drop.filter((p) => stored.has(p));
 	const parsed: string[] = [];
 	const reused: string[] = [];
 	const unchanged: string[] = [];
@@ -391,8 +402,8 @@ function inTransaction<T>(
 export async function sync(
 	ports: GraphStorePorts,
 	root: string,
-	/** Given the stored paths, the paths to examine. */
-	candidates: (storedPaths: readonly string[]) => readonly string[],
+	/** Given the stored paths, the paths to examine and to drop. */
+	scopeOf: (storedPaths: readonly string[]) => Scope,
 	options: GraphStoreOptions,
 ): Promise<Result<GraphSyncReport, GraphStoreError>> {
 	const migrated = migrateGraphStore(ports.db);
@@ -403,7 +414,7 @@ export async function sync(
 	const planned = await plan(
 		ports,
 		root,
-		candidates([...stored.value.keys()]),
+		scopeOf([...stored.value.keys()]),
 		stored.value,
 		options.parse ?? parseFile,
 	);

@@ -124,6 +124,54 @@ describe("indexRepo", () => {
 		]);
 	});
 
+	test("drops a stored file the listing no longer covers, matching a fresh index", async () => {
+		const listing: Record<string, string> = {
+			"ls-files -z --cached --others --exclude-standard":
+				"src/math.ts\0src/shapes.ts\0src/index.ts\0",
+		};
+		const repo = createRepo(FILES, listing);
+		unwrap(await indexRepo(repo.ports, ROOT));
+
+		// shapes.ts is now ignored: still on disk, but no longer listed.
+		listing["ls-files -z --cached --others --exclude-standard"] =
+			"src/math.ts\0src/index.ts\0";
+		const report = unwrap(await indexRepo(repo.ports, ROOT));
+		expect(report.removed).toEqual(["src/shapes.ts"]);
+
+		const fresh = createRepo(FILES, listing);
+		unwrap(await indexRepo(fresh.ports, ROOT));
+		expect(dumpTables(repo.db)).toEqual(dumpTables(fresh.db));
+	});
+
+	test("drops a file updateFiles added that a full index would not cover", async () => {
+		const repo = createRepo(FILES);
+		unwrap(await indexRepo(repo.ports, ROOT));
+		await repo.write("node_modules/pkg/index.ts", "export function x() {}\n");
+		unwrap(await updateFiles(repo.ports, ROOT, ["node_modules/pkg/index.ts"]));
+		expect(snapshot(repo.db).files.map((f) => f.path)).toContain(
+			"node_modules/pkg/index.ts",
+		);
+
+		const report = unwrap(await indexRepo(repo.ports, ROOT));
+		expect(report.removed).toEqual(["node_modules/pkg/index.ts"]);
+		expect(snapshot(repo.db).files.map((f) => f.path)).toEqual([
+			"src/index.ts",
+			"src/math.ts",
+			"src/shapes.ts",
+		]);
+	});
+
+	test("a file node spans the file's real line count", async () => {
+		const repo = createRepo({ "a.ts": MATH, "b.ts": "export const b = 1;" });
+		unwrap(await indexRepo(repo.ports, ROOT));
+		const files = snapshot(repo.db).nodes.filter((n) => n.kind === "file");
+		// MATH is 7 lines ending in a newline; b.ts is 1 line without one.
+		expect(files.map((n) => [n.id, n.startLine, n.endLine])).toEqual([
+			["a.ts", 1, 7],
+			["b.ts", 1, 1],
+		]);
+	});
+
 	test("a second run over an unchanged repo parses nothing and changes nothing", async () => {
 		const repo = createRepo(FILES);
 		const spy = parseSpy();

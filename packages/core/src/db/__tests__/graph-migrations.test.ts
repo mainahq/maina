@@ -38,6 +38,28 @@ describe("migrateGraphStore", () => {
 		expect(tables(db)).toHaveLength(6);
 	});
 
+	test("refuses a store written by a newer schema instead of using it", () => {
+		const db = createMemoryDb();
+		expect(migrateGraphStore(db).ok).toBe(true);
+		db.run(
+			`UPDATE graph_meta SET value = '${GRAPH_SCHEMA_VERSION + 1}' WHERE key = 'schema_version'`,
+		);
+		const result = migrateGraphStore(db);
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.message).toContain("newer");
+	});
+
+	test("refuses an unreadable schema version", () => {
+		const db = createMemoryDb();
+		expect(migrateGraphStore(db).ok).toBe(true);
+		db.run(
+			"UPDATE graph_meta SET value = 'garbage' WHERE key = 'schema_version'",
+		);
+		const result = migrateGraphStore(db);
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.message).toContain("schema version");
+	});
+
 	test("rolls a failed step back and reports it", () => {
 		const real = createMemoryDb();
 		const failing: DbPort = {

@@ -84,12 +84,33 @@ function currentVersion(db: DbPort): Result<number, DbError> {
 	);
 	if (!rows.ok) return rows;
 	const value = rows.value[0]?.value;
-	return { ok: true, value: typeof value === "string" ? Number(value) : 0 };
+	if (value === undefined) return { ok: true, value: 0 };
+	const version = Number(value);
+	if (!Number.isInteger(version) || version < 0) {
+		return {
+			ok: false,
+			error: {
+				kind: "query_failed",
+				message: `graph store: unreadable schema version ${JSON.stringify(value)}`,
+			},
+		};
+	}
+	if (version > GRAPH_SCHEMA_VERSION) {
+		return {
+			ok: false,
+			error: {
+				kind: "query_failed",
+				message: `graph store: schema version ${version} is newer than this build supports (${GRAPH_SCHEMA_VERSION}); upgrade maina`,
+			},
+		};
+	}
+	return { ok: true, value: version };
 }
 
 /**
  * Brings the graph tables up to `GRAPH_SCHEMA_VERSION`. Idempotent and cheap
- * when already current (one read). Each step runs in its own transaction, so
+ * when already current (one read). A store written by a newer schema, or
+ * with an unreadable version, is refused rather than written to. Each step runs in its own transaction, so
  * a failure leaves the store at the last complete version.
  */
 export function migrateGraphStore(db: DbPort): Result<void, DbError> {
