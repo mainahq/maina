@@ -7,8 +7,9 @@
  * restarted the same way. Whenever the runtime still cannot answer (spawn
  * failed, timeout, crash, bad response, handler error) the client evaluates
  * the injected rules-only `fallback` in process and returns its decision
- * flagged `degraded`; a fallback result is never `allow`. A runtime answer
- * carries the runtime's own `degraded` flag and decision ids (#454).
+ * flagged `degraded`. A runtime answer carries the runtime's own `degraded`
+ * flag and decision ids (#454). A degraded result, from either source, is
+ * never `allow`.
  */
 
 import {
@@ -126,7 +127,9 @@ export function createHookClient(config: HookClientConfig): HookClient {
 			if (!response.ok) return degrade(event, response.error.code, deadline);
 			const decision = parseGateDecision(response.result);
 			if (decision === null) return degrade(event, "bad_response", deadline);
-			return { ...decision, source: "runtime" };
+			// A degraded gate never allows, even when the runtime says so.
+			const settled = decision.degraded ? failClosed(decision) : decision;
+			return { ...settled, source: "runtime" };
 		}
 	};
 

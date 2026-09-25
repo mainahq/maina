@@ -80,6 +80,7 @@ export type DegradedCause =
 /**
  * What the hook client returns for one event. A runtime answer keeps the
  * runtime's own `degraded` flag; the in-process fallback is always degraded.
+ * A degraded result is never `allow`.
  */
 export type GateResult = GateDecision &
 	(

@@ -329,6 +329,32 @@ describe("runtime requests over the socket", () => {
 		});
 	});
 
+	// Spec §6.1 rule 2: a degraded gate never allows, whoever evaluated it.
+	test("the hook client tightens a degraded runtime allow to ask", async () => {
+		const rt = start({
+			gate: () => ({
+				verdict: "allow",
+				reason: "no model answer",
+				decisionIds: ["d-1"],
+				degraded: true,
+			}),
+		});
+		const client = createHookClient({
+			endpoint: rt.endpoint,
+			version: VERSION,
+			spawn: noSpawn,
+			fallback: fixedGate("deny"),
+		});
+		const result = await client.evaluate(shellEvent, { timeoutMs: 1000 });
+		expect(result).toEqual({
+			verdict: "ask",
+			reason: "no model answer",
+			decisionIds: ["d-1"],
+			degraded: true,
+			source: "runtime",
+		});
+	});
+
 	test("a gate answer without the degraded flag is a handler failure", async () => {
 		const rt = start({
 			gate: (() => ({
