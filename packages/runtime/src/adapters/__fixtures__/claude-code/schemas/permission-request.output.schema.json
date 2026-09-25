@@ -1,0 +1,135 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "claude-code.permission-request.output",
+  "description": "Claude Code PermissionRequest hook stdout JSON. Limited to documented, non-deprecated fields so adapters cannot emit keys the host ignores.",
+  "x-source": {
+    "url": "https://code.claude.com/docs/en/hooks#permissionrequest-decision-control",
+    "retrieved": "2026-09-25"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "continue": {
+      "type": "boolean"
+    },
+    "stopReason": {
+      "type": "string"
+    },
+    "suppressOutput": {
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "type": "string"
+    },
+    "terminalSequence": {
+      "type": "string"
+    },
+    "hookSpecificOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hookEventName"
+      ],
+      "properties": {
+        "hookEventName": {
+          "const": "PermissionRequest"
+        },
+        "decision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "behavior"
+          ],
+          "properties": {
+            "behavior": {
+              "enum": [
+                "allow",
+                "deny"
+              ]
+            },
+            "updatedInput": {
+              "type": "object"
+            },
+            "updatedPermissions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "type",
+                  "destination"
+                ],
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "addRules",
+                      "replaceRules",
+                      "removeRules",
+                      "setMode",
+                      "addDirectories",
+                      "removeDirectories"
+                    ]
+                  },
+                  "destination": {
+                    "enum": [
+                      "session",
+                      "localSettings",
+                      "projectSettings",
+                      "userSettings"
+                    ]
+                  },
+                  "rules": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "toolName"
+                      ],
+                      "properties": {
+                        "toolName": {
+                          "type": "string"
+                        },
+                        "ruleContent": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "behavior": {
+                    "enum": [
+                      "allow",
+                      "deny",
+                      "ask"
+                    ]
+                  },
+                  "mode": {
+                    "enum": [
+                      "default",
+                      "auto",
+                      "acceptEdits",
+                      "dontAsk",
+                      "bypassPermissions",
+                      "plan",
+                      "manual"
+                    ]
+                  },
+                  "directories": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "message": {
+              "type": "string"
+            },
+            "interrupt": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  }
+}

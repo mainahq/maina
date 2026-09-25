@@ -1,0 +1,5 @@
+{
+  "permission": "ask",
+  "user_message": "maina: recursive delete needs confirmation",
+  "agent_message": "maina asked the user to confirm this recursive delete."
+}

@@ -268,6 +268,26 @@ describe("checkUnusedImports", () => {
 		const findings = checkUnusedImports("src/app.ts", content);
 		expect(findings).toHaveLength(0);
 	});
+
+	it("strips inline type modifiers before checking usage (#368)", () => {
+		const content = `import { Database, type Bindings, type Row as R } from "bun:sqlite";\nconst db = new Database();\nconst b: Bindings = [];\nconst r: R = {};\n`;
+		const findings = checkUnusedImports("src/app.ts", content);
+		expect(findings).toHaveLength(0);
+	});
+
+	it("keeps a binding literally named `type` when aliased (`type as Kind`)", () => {
+		const content = `import { type as Kind } from "./mod";\nconst k = Kind;\n`;
+		const findings = checkUnusedImports("src/app.ts", content);
+		expect(findings).toHaveLength(0);
+	});
+
+	it("reports an unused inline type import by its bare name", () => {
+		const content = `import { foo, type Unused } from "./mod";\nfoo();\n`;
+		const findings = checkUnusedImports("src/app.ts", content);
+		expect(findings.map((f) => f.message)).toEqual([
+			"Import 'Unused' appears unused",
+		]);
+	});
 });
 
 // ─── runBuiltinChecks ────────────────────────────────────────────────────

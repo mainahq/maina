@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "cursor.before-mcp-execution.output",
+  "description": "Cursor beforeMCPExecution hook stdout JSON. Limited to documented fields; for permission hooks Cursor blocks the action when the response does not match its schema.",
+  "x-source": {
+    "url": "https://cursor.com/docs/hooks#beforeshellexecution--beforemcpexecution",
+    "retrieved": "2026-09-25"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "permission"
+  ],
+  "properties": {
+    "permission": {
+      "enum": [
+        "allow",
+        "deny",
+        "ask"
+      ]
+    },
+    "user_message": {
+      "type": "string"
+    },
+    "agent_message": {
+      "type": "string"
+    }
+  }
+}

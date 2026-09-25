@@ -86,6 +86,38 @@ test(core): add verify engine edge cases
 5. Fill out the PR template.
 6. Address review feedback.
 
+## Dogfood gate (v1 PRs)
+
+PRs into `v1/*` carry a **maina receipt** for their head commit. After your
+last push, run one command from the PR branch:
+
+```bash
+bun run dogfood:receipt
+```
+
+It refuses a dirty tree, checks HEAD is the pushed PR head, runs the maina 1.x
+verify pipeline over the files the PR changes (versus its merge-base), writes
+`.maina/dogfood/receipts/<sha>.json`, posts the receipt as a PR comment and
+re-runs the **Dogfood** check. Every new push needs a new receipt. The check
+passes only if the receipt's commit equals the PR head and its status is
+`passed`. It is **report-only** until the `DOGFOOD_RECEIPT_REQUIRED`
+repository variable is set to `true` and "Dogfood / receipt" is made a
+required status.
+
+With lefthook installed (`bunx lefthook install`), `pre-push` writes the local
+receipt for you (`--no-publish --no-fail`, never blocks a push); the command
+above then just publishes it.
+
+Claude Code sessions in this repo also load `.claude/settings.json`, which
+runs a small rules-only `PreToolUse` hook (`.maina/dogfood/hook-bootstrap.ts`).
+It denies a fixed list only (destructive shell, writes outside the repo,
+secrets, publishing, pushes to `master`/`main`/`v1/main`), stays silent for
+everything else, and fails closed to `ask` if it crashes. To override a deny,
+start Claude Code with `MAINA_DOGFOOD_OVERRIDE=1` (denies become `ask`).
+Decisions are logged to `.maina/dogfood/log.jsonl`; `bun run dogfood:report`
+writes the weekly summary to `docs/dogfood/<yyyy-ww>.md`. Report friction with
+the **Dogfood friction** issue template.
+
 ## Getting Help
 
 - Open an issue for bugs or feature requests.

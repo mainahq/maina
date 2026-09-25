@@ -16,9 +16,10 @@ Product spec and implementation plan live in the private `mainahq/maina-cloud` r
 - **Dogfood:** use `maina verify`, `maina commit` (never raw `git commit`, never `--skip`) and receipts. Friction → issue labelled `dogfood`; P0 (wrong allow, crash, no override path) blocks the next wave.
 - **Target layering:** `core` = pure functions over explicit inputs + injected ports · `runtime` = process concerns (root, config, IPC, MCP, model) · adapters = host event normalisation, no decisions · surfaces (plugins, docs) = generated packaging only.
 
-## Functional core rules (enforced by `packages/core/src/__tests__/purity.test.ts` ratchet)
+## Functional core rules
 
-- No `process.cwd()`, `process.env`, `console.*`, `process.stdout` or `throw` in `packages/core`. Side effects go through `CorePorts` (`fs, git, db, clock, logger, model, env`); logs go to stderr via the logger port.
+- No `process.cwd()`, `process.env`, `console.*`, `process.stdout` or `throw` in `packages/core`. Side effects go through `CorePorts` (`packages/core/src/ports`: `fs, git, db, clock, logger, model, env`; in-memory fakes in `ports/testing.ts`); logs go to stderr via the logger port.
+- **Purity ratchet:** `packages/core/src/__tests__/purity.test.ts` statically scans non-test `packages/core/src` files for those five constructs. Only this first rule is machine-checked; the rest are enforced in review. Legacy 1.x offenders are grandfathered in `purity-allowlist.ts` with exact per-file, per-rule counts, so the test fails CI when an unlisted file offends, when a listed file's count rises, and when a count falls without the entry being lowered (or removed once clean). The list only shrinks: never add an entry to pass a new violation.
 - Return `Result<T, E>` for anything fallible; errors are typed discriminated unions, not strings, in new code.
 - No classes. Plain functions and data; `readonly` types; discriminated unions for variants; exhaustive `switch` with a `never` check.
 - Small pure functions composed together; I/O at the edges. No new FP framework (no Effect/fp-ts): KISS.

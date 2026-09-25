@@ -1,0 +1,24 @@
+{
+  "session_id": "02124521-44af-4030-bf39-3d7706703f13",
+  "transcript_path": "/home/user/.claude/projects/-home-user-project/02124521-44af-4030-bf39-3d7706703f13.jsonl",
+  "cwd": "/home/user/project",
+  "prompt_id": "0dd6932d-7934-45b2-b78f-74203c6e9a10",
+  "permission_mode": "default",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "mcp__echo__echo",
+  "tool_input": {
+    "text": "ping"
+  },
+  "tool_response": [
+    {
+      "type": "text",
+      "text": "ping"
+    }
+  ],
+  "tool_use_id": "toolu_01JnfhdWU3abFsiUVQ8VbJsU",
+  "duration_ms": 1,
+  "mcp_server": {
+    "name": "echo",
+    "source": "dynamic"
+  }
+}

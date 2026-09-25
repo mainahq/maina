@@ -5,6 +5,7 @@
   "workspaces": [
     "packages/cli",
     "packages/core",
+    "packages/runtime",
     "packages/mcp",
     "packages/skills",
     "packages/docs"
@@ -24,7 +25,9 @@
     "docs:manifest": "bun scripts/docs-manifest.ts",
     "docs:check": "bun scripts/docs-manifest.ts --check",
     "e2e:onboarding": "bun ci/e2e/run-local.ts ts claude-code",
-    "e2e:real-config": "bun test ci/e2e/real-config"
+    "e2e:real-config": "bun test ci/e2e/real-config",
+    "dogfood:receipt": "bun scripts/dogfood/receipt.ts",
+    "dogfood:report": "bun scripts/dogfood/report.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.12",
