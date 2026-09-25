@@ -1,31 +1,29 @@
 /**
- * Environments an agent host spawns the maina MCP server with.
- *
- * A terminal-launched agent inherits the user's shell (full PATH, bun on
- * it). A GUI-launched agent (Claude desktop, Cursor from the Dock, Codex
- * from an IDE) does not: it gets the PATH of the session manager, which
- * never contains `~/.bun/bin`, `/opt/homebrew/bin` or any npm prefix.
- * That gap is what turns `#!/usr/bin/env bun` into exit 127 (P2).
+ * Environments an agent host spawns the maina MCP server with, per launch
+ * mode. The minimal (GUI) PATH itself is defined once, in the CLI's
+ * `hosts/host-env.ts`, which `maina doctor` launches entries under too.
  *
  * Pure functions only; callers pass the shell env and platform in.
  */
 
+import {
+	type EnvVars,
+	hostOs,
+	minimalEnv,
+} from "../../../packages/cli/src/hosts/host-env";
 import type { Result } from "./types";
 
-export type Os = "linux" | "darwin";
+export type { EnvVars };
+export { minimalEnv };
+
+export type Os = NonNullable<ReturnType<typeof hostOs>>;
 
 export type EnvMode = "minimal" | "gui" | "full";
 
-export type EnvVars = Readonly<Record<string, string>>;
-
-/**
- * PATH a GUI-launched process inherits.
- *   - darwin: launchd's default for apps started from Finder/Dock.
- *   - linux: systemd's default user-session PATH (desktop launchers).
- */
+/** PATH a GUI-launched process inherits, per OS. */
 export const GUI_PATH: Readonly<Record<Os, string>> = {
-	darwin: "/usr/bin:/bin:/usr/sbin:/sbin",
-	linux: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+	darwin: minimalEnv("darwin").PATH,
+	linux: minimalEnv("linux").PATH,
 };
 
 /** Session variables a GUI launch carries; everything else is dropped. */
@@ -40,11 +38,6 @@ const GUI_SESSION_KEYS: readonly string[] = [
 	"DISPLAY",
 	"__CF_USER_TEXT_ENCODING",
 ];
-
-/** Reproduces the PATH of a GUI-launched agent on `os`. */
-export function minimalEnv(os: Os): EnvVars {
-	return { PATH: GUI_PATH[os] };
-}
 
 export interface HostEnvInput {
 	readonly os: Os;
@@ -86,8 +79,8 @@ export function userShellPath(os: Os, home: string): string {
 }
 
 export function currentOs(platform: string): Result<Os, string> {
-	if (platform === "darwin" || platform === "linux") {
-		return { ok: true, value: platform };
-	}
-	return { ok: false, error: `unsupported platform: ${platform}` };
+	const os = hostOs(platform);
+	return os === null
+		? { ok: false, error: `unsupported platform: ${platform}` }
+		: { ok: true, value: os };
 }
