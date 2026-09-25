@@ -140,7 +140,9 @@ describe("gatherVerificationProof over a ProcessPort", () => {
 	test("reads the test counts from `bun test` run through the port", async () => {
 		const root = scratch();
 		const pipelineResult: PipelineResult = {
+			status: "passed",
 			passed: true,
+			scope: { kind: "working-tree", files: ["a.ts"] },
 			syntaxPassed: true,
 			tools: [],
 			findings: [],

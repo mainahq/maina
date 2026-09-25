@@ -54,7 +54,9 @@ describe("verify/types re-exports", () => {
 
 	test("PipelineResult type has expected shape", () => {
 		const result: PipelineResult = {
+			status: "passed",
 			passed: true,
+			scope: { kind: "working-tree", files: ["src/a.ts"] },
 			syntaxPassed: true,
 			tools: [],
 			findings: [],

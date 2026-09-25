@@ -70,6 +70,8 @@ let mockFixResult = {
 };
 
 let mockStagedFiles: string[] = ["src/index.ts"];
+let mockStatus: "passed" | "failed" | "skipped" | undefined;
+let mockScopeFiles: string[] = ["src/index.ts"];
 let pipelineCalledWith: Record<string, unknown> | undefined;
 let warningMessages: string[] = [];
 let fixCalledWith: { findings: unknown[]; options: unknown } | undefined;
@@ -99,9 +101,14 @@ const fakeSystemProcess = {
 mock.module("@mainahq/core", () => ({
 	VERSION: "0.0.0-test",
 	systemProcess: fakeSystemProcess,
+	// Core derives `status` and `scope` (#328); most fixtures set `passed`.
 	runPipeline: async (opts?: Record<string, unknown>) => {
 		pipelineCalledWith = opts;
-		return mockPipelineResult;
+		return {
+			status: mockStatus ?? (mockPipelineResult.passed ? "passed" : "failed"),
+			scope: { kind: "working-tree", files: mockScopeFiles },
+			...mockPipelineResult,
+		};
 	},
 	generateFixes: async (findings: unknown[], options: unknown) => {
 		fixCalledWith = { findings, options };
@@ -208,6 +215,8 @@ beforeEach(() => {
 
 	// Reset mock state
 	mockStagedFiles = ["src/index.ts"];
+	mockStatus = undefined;
+	mockScopeFiles = ["src/index.ts"];
 	warningMessages = [];
 	mockPipelineResult = {
 		passed: true,
@@ -469,13 +478,38 @@ describe("maina verify", () => {
 		expect(result.syntaxErrors).toHaveLength(1);
 	});
 
-	test("uses staged files by default (not --all)", async () => {
-		mockStagedFiles = ["src/foo.ts", "src/bar.ts"];
-
+	test("checks the working tree by default, not just staged files (#328)", async () => {
 		await verifyAction({ cwd: tmpDir });
 
-		expect(pipelineCalledWith).toBeDefined();
-		expect(pipelineCalledWith?.files).toEqual(["src/foo.ts", "src/bar.ts"]);
+		expect(pipelineCalledWith?.scope).toBe("working-tree");
+		expect(pipelineCalledWith?.files).toBeUndefined();
+	});
+
+	test("--staged keeps the old staged-only scope (#328)", async () => {
+		await verifyAction({ staged: true, cwd: tmpDir });
+
+		expect(pipelineCalledWith?.scope).toBe("staged");
+		expect(pipelineCalledWith?.files).toBeUndefined();
+	});
+
+	test("a skipped run is reported as skipped, not passed (#328)", async () => {
+		mockPipelineResult = { ...mockPipelineResult, passed: false };
+		mockStatus = "skipped";
+		mockScopeFiles = [];
+
+		const result = await verifyAction({ cwd: tmpDir });
+		expect(result.status).toBe("skipped");
+		expect(result.passed).toBe(false);
+		expect(warningMessages).toContain(
+			"Verification skipped: no changed files in scope.",
+		);
+
+		const json = JSON.parse(
+			(await verifyAction({ json: true, cwd: tmpDir })).json ?? "{}",
+		);
+		expect(json.status).toBe("skipped");
+		expect(json.passed).toBe(false);
+		expect(json.scope).toEqual({ kind: "working-tree", files: [] });
 	});
 
 	test("passes all tracked files when --all is set", async () => {

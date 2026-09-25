@@ -2,23 +2,27 @@
  * Verify Pipeline Orchestrator — ties together all verification tools.
  *
  * Pipeline flow:
- * 1. Get files to check (staged files, or provided list)
+ * 1. Resolve the scope: the provided list, or the changed files in the
+ *    working tree (default) / index (`scope: "staged"`) / branch range
  * 2. Run syntax guard FIRST — abort immediately if it fails
  * 3. Auto-detect available tools
  * 4. Run all available tools in PARALLEL (slop, builtin, semgrep, trivy, secretlint)
  * 5. Collect all findings
  * 6. Apply diff-only filter (unless diffOnly === false)
- * 7. Determine pass/fail: passed = no error-severity findings
+ * 7. Status: failed on any error finding; passed only when a tool actually
+ *    ran on a file in scope; otherwise skipped (#328)
  * 8. Return unified PipelineResult
  */
 
-import { join } from "node:path";
+import { existsSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
 import { createCacheManager } from "../cache/manager";
 import { getNoisyRules } from "../feedback/preferences";
-import { getDiff, getStagedFiles, resolveBaseBranch } from "../git/index";
+import { getDiff, resolveBaseBranch } from "../git/index";
+import { resolveScopeFiles, type ScopeKind } from "../git/scope";
 import { detectLanguages } from "../language/detect";
 import type { LanguageId } from "../language/profile";
-import { getProfile } from "../language/profile";
+import { getProfile, isCodeFile } from "../language/profile";
 import { envFromRecord } from "../ports/env";
 import type { CorePorts } from "../ports/index";
 import { systemProcess } from "../process/index";
@@ -54,8 +58,27 @@ export interface ToolReport {
 	notice?: string;
 }
 
+/**
+ * `passed` needs evidence: no error findings AND at least one tool that ran
+ * on a file in scope. An empty scope, or one no tool could check, is
+ * `skipped`, never `passed` (#328, FR-VER-2).
+ */
+export type VerifyStatus = "passed" | "failed" | "skipped";
+
+/** `files` when the caller pinned the list (e.g. `--all`, MCP, backfill). */
+export type VerifyScopeKind = ScopeKind | "files";
+
+export interface VerifyScope {
+	readonly kind: VerifyScopeKind;
+	/** Files checked, after bundled/minified artifacts are dropped. */
+	readonly files: readonly string[];
+}
+
 export interface PipelineResult {
-	passed: boolean; // true if no errors
+	status: VerifyStatus;
+	/** `status === "passed"`. Kept for existing callers. */
+	passed: boolean;
+	scope: VerifyScope;
 	syntaxPassed: boolean; // syntax guard result
 	syntaxErrors?: SyntaxDiagnostic[];
 	tools: ToolReport[]; // per-tool results
@@ -68,7 +91,13 @@ export interface PipelineResult {
 }
 
 export interface PipelineOptions {
-	files?: string[]; // specific files (default: staged files)
+	files?: string[]; // specific files (default: the `scope`'s changed files)
+	/**
+	 * Which changed files to check when `files` is not given: the working
+	 * tree vs the base, staged + unstaged + untracked (default), the index
+	 * only (`staged`, the pre-#328 behaviour), or `base...HEAD` (`range`).
+	 */
+	scope?: ScopeKind;
 	baseBranch?: string; // for diff filter (default: resolveBaseBranch)
 	diffOnly?: boolean; // default: true
 	deep?: boolean; // NEW — triggers standard-tier AI review
@@ -115,6 +144,35 @@ async function runToolWithTiming(
 	};
 }
 
+const absolute = (cwd: string, file: string): string =>
+	isAbsolute(file) ? file : join(cwd, file);
+
+/**
+ * Tools that check the files in scope themselves. Repo-wide scanners
+ * (trivy, sonarqube, stryker, diff-cover, wiki-lint), the conditional
+ * doc-claims/consistency passes and the AI review are no evidence that a
+ * changed file was checked.
+ */
+const FILE_EVIDENCE_TOOLS: ReadonlySet<string> = new Set([
+	"builtin",
+	"slop",
+	"semgrep",
+	"secretlint",
+	"typecheck",
+]);
+
+/** failed on any error finding; passed only with evidence; else skipped. */
+function deriveStatus(
+	findings: readonly Finding[],
+	reports: readonly ToolReport[],
+): VerifyStatus {
+	if (findings.some((f) => f.severity === "error")) return "failed";
+	const ranOnScope = reports.some(
+		(r) => FILE_EVIDENCE_TOOLS.has(r.tool) && !r.skipped,
+	);
+	return ranOnScope ? "passed" : "skipped";
+}
+
 // ─── Pipeline ─────────────────────────────────────────────────────────────
 
 /**
@@ -132,8 +190,16 @@ export async function runPipeline(
 	const processPort = options.process ?? systemProcess;
 	const baseBranch = await resolveBaseBranch(cwd, options.baseBranch);
 
-	// ── Step 1: Get files to check ────────────────────────────────────────
-	const rawFiles = options.files ?? (await getStagedFiles(cwd));
+	// ── Step 1: Resolve the scope ─────────────────────────────────────────
+	const scopeKind: VerifyScopeKind = options.files
+		? "files"
+		: (options.scope ?? "working-tree");
+	const rawFiles =
+		options.files ??
+		(await resolveScopeFiles(options.scope ?? "working-tree", {
+			cwd,
+			base: baseBranch,
+		}));
 
 	// Filter out bundled/minified artifacts (dist/, build/, *.min.js, etc.)
 	// before any tool sees them. Running pattern-based slop detection on a
@@ -141,11 +207,14 @@ export async function runPipeline(
 	// positives — broke `maina verify` on the GitHub-Action repo shape
 	// (#207).
 	const { kept: files } = filterIgnoredFiles(rawFiles, cwd);
+	const scope: VerifyScope = { kind: scopeKind, files };
 
-	// Empty file list → nothing to verify
+	// Empty scope → nothing was verified, so nothing passed
 	if (files.length === 0) {
 		return {
-			passed: true,
+			status: "skipped",
+			passed: false,
+			scope,
 			syntaxPassed: true,
 			tools: [],
 			findings: [],
@@ -166,7 +235,9 @@ export async function runPipeline(
 
 	if (!syntaxResult.ok) {
 		return {
+			status: "failed",
 			passed: false,
+			scope,
 			syntaxPassed: false,
 			syntaxErrors: syntaxResult.error,
 			tools: [],
@@ -209,10 +280,14 @@ export async function runPipeline(
 	// Resolve against the explicit root, never the process cwd.
 	const mainaDir = options.mainaDir ?? join(cwd, ".maina");
 	const slopCache = createCacheManager(mainaDir);
+	// Slop only reads source files that exist; with none it checked nothing.
+	const slopHasInput = files.some(
+		(file) => isCodeFile(file) && existsSync(absolute(cwd, file)),
+	);
 	toolPromises.push(
 		runToolWithTiming("slop", async () => {
 			const result = await detectSlop(files, { cwd, cache: slopCache });
-			return { findings: result.findings, skipped: false };
+			return { findings: result.findings, skipped: !slopHasInput };
 		}),
 	);
 
@@ -309,16 +384,18 @@ export async function runPipeline(
 	toolPromises.push(
 		runToolWithTiming("builtin", async () => {
 			const findings: Finding[] = [];
+			let checked = 0;
 			for (const file of files) {
 				try {
-					const fullPath = file.startsWith("/") ? file : `${cwd}/${file}`;
-					const text = await Bun.file(fullPath).text();
+					const text = await Bun.file(absolute(cwd, file)).text();
+					checked++;
 					findings.push(...runBuiltinChecks(file, text));
 				} catch {
 					// File read failure should not block pipeline
 				}
 			}
-			return { findings, skipped: false };
+			// Nothing readable (e.g. every file in scope is gone) → it did not run.
+			return { findings, skipped: checked === 0 };
 		}),
 	);
 
@@ -366,7 +443,9 @@ export async function runPipeline(
 	let hiddenCount: number;
 
 	if (diffOnly) {
-		const filtered = await filterByDiff(allFindings, baseBranch, cwd);
+		const filtered = await filterByDiff(allFindings, baseBranch, cwd, {
+			includeUntracked: scopeKind === "working-tree",
+		});
 		shownFindings = filtered.shown;
 		hiddenCount = filtered.hidden;
 	} else {
@@ -425,13 +504,15 @@ export async function runPipeline(
 	// Merge AI findings into shown findings
 	shownFindings.push(...aiReviewResult.findings);
 
-	// ── Step 8: Determine pass/fail ───────────────────────────────────────
-	const passed = !shownFindings.some((f) => f.severity === "error");
+	// ── Step 8: Determine status ──────────────────────────────────────────
+	const status = deriveStatus(shownFindings, toolReports);
 
 	// ── Step 9: Return unified result ─────────────────────────────────────
 	const cacheStats = slopCache.stats();
 	return {
-		passed,
+		status,
+		passed: status === "passed",
+		scope,
 		syntaxPassed: true,
 		tools: toolReports,
 		findings: shownFindings,

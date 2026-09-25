@@ -902,6 +902,9 @@ export type {
 	SyntaxGuardResult,
 	ToolName,
 	ToolReport,
+	VerifyScope,
+	VerifyScopeKind,
+	VerifyStatus,
 } from "./verify/types";
 // Verify — Visual
 export {

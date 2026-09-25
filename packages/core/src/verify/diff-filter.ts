@@ -12,6 +12,7 @@ import {
 	getStagedDiff,
 	resolveBaseBranch,
 } from "../git/index";
+import { getUntrackedFiles } from "../git/scope";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -132,20 +133,23 @@ export function parseChangedLines(diff: string): Map<string, Set<number>> {
 
 /**
  * Filter findings against a pre-computed changed-lines map.
- * Findings on changed lines are shown; all others are hidden.
+ * Findings on changed lines are shown; all others are hidden. Every line of
+ * a file in `newFiles` (untracked, so absent from any diff) counts as
+ * changed.
  *
  * Exported for testing without needing to invoke git.
  */
 export function filterByDiffWithMap(
 	findings: Finding[],
 	changedLines: Map<string, Set<number>>,
+	newFiles: ReadonlySet<string> = new Set(),
 ): DiffFilterResult {
 	const shown: Finding[] = [];
 	let hidden = 0;
 
 	for (const finding of findings) {
 		const fileChanges = changedLines.get(finding.file);
-		if (fileChanges?.has(finding.line)) {
+		if (newFiles.has(finding.file) || fileChanges?.has(finding.line)) {
 			shown.push(finding);
 		} else {
 			hidden++;
@@ -165,12 +169,15 @@ export function filterByDiffWithMap(
  * @param findings - All findings from verification tools
  * @param baseBranch - Preferred base; resolved via resolveBaseBranch (origin/HEAD → master → main)
  * @param cwd - Working directory for git commands
+ * @param options.includeUntracked - Treat untracked files as wholly changed
+ *   (the working-tree scope, #328); off for the staged scope
  * @returns Partitioned findings with hidden count
  */
 export async function filterByDiff(
 	findings: Finding[],
 	baseBranch: string | undefined,
 	cwd: string,
+	options: { readonly includeUntracked?: boolean } = {},
 ): Promise<DiffFilterResult> {
 	// Resolve the base instead of assuming "main"; an unresolvable ref must
 	// never make the filter fall open (#364).
@@ -185,12 +192,18 @@ export async function filterByDiff(
 		(await getDiff("HEAD", undefined, cwd)) ||
 		(await getStagedDiff(cwd));
 
+	// Untracked files never show up in `git diff`; without this their
+	// findings would be hidden as pre-existing.
+	const untracked = options.includeUntracked
+		? await getUntrackedFiles(cwd)
+		: [];
+
 	// Clean tree on the base itself (or not a git repo): nothing is
 	// "changed", keep legacy behaviour of surfacing everything.
-	if (!diff.trim()) {
+	if (!diff.trim() && untracked.length === 0) {
 		return { shown: findings, hidden: 0 };
 	}
 
 	const changedLines = parseChangedLines(diff);
-	return filterByDiffWithMap(findings, changedLines);
+	return filterByDiffWithMap(findings, changedLines, new Set(untracked));
 }

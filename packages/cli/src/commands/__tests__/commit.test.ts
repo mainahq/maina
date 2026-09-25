@@ -15,6 +15,7 @@ import type { CommitDeps } from "../commit";
 
 let mockStagedFiles: string[] = ["src/index.ts"];
 let mockBranch = "main";
+let mockStatus: "passed" | "failed" | "skipped" | undefined;
 let mockPipelineResult = {
 	passed: true,
 	syntaxPassed: true,
@@ -78,7 +79,11 @@ mock.module("@mainahq/core", () => ({
 	getStagedFiles: async () => mockStagedFiles,
 	getCurrentBranch: async () => mockBranch,
 	getDiff: async () => "+ some diff content",
-	runPipeline: async () => mockPipelineResult,
+	// Core derives `status` (#328); most fixtures here only set `passed`.
+	runPipeline: async () => ({
+		status: mockStatus ?? (mockPipelineResult.passed ? "passed" : "failed"),
+		...mockPipelineResult,
+	}),
 	runHooks: async () => mockHookResult,
 	generateCommitMessage: async () => null, // no AI in tests by default
 	checkAIAvailability: () => ({ available: true, method: "host-delegation" }),
@@ -188,6 +193,7 @@ beforeEach(() => {
 	// Reset mock state
 	mockStagedFiles = ["src/index.ts"];
 	mockBranch = "main";
+	mockStatus = undefined;
 	mockPipelineResult = {
 		passed: true,
 		syntaxPassed: true,
@@ -246,6 +252,21 @@ describe("commit message format warning", () => {
 });
 
 describe("CommitGate", () => {
+	test("a skipped pipeline (nothing checkable staged) warns, never blocks (#328)", async () => {
+		mockStatus = "skipped";
+		mockPipelineResult = { ...mockPipelineResult, passed: false };
+
+		const result = await commitAction(
+			{ message: "test", cwd: tmpDir },
+			mockDeps,
+		);
+
+		expect(result.committed).toBe(true);
+		expect(loggedWarnings).toContain(
+			"Verification skipped: no tool could check the staged files.",
+		);
+	});
+
 	test("failure message counts only error-severity findings", async () => {
 		const f = (severity: "error" | "warning" | "info") => ({
 			tool: "tsc",
