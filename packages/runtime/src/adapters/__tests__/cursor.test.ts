@@ -431,7 +431,7 @@ describe("toCursor", () => {
 describe("cursorHooksConfig", () => {
 	const { config, warnings } = cursorHooksConfig("./launch.sh hook");
 
-	test("registers the six hooks maina handles, each on its own event", () => {
+	test("registers the six hooks maina handles, each naming its host and event", () => {
 		expect(config.version).toBe(1);
 		expect(Object.keys(config.hooks).sort()).toEqual(
 			[
@@ -445,7 +445,7 @@ describe("cursorHooksConfig", () => {
 		);
 		for (const [event, entries] of Object.entries(config.hooks)) {
 			expect(entries.map((e) => e.command)).toEqual([
-				`./launch.sh hook ${event}`,
+				`./launch.sh hook --host cursor ${event}`,
 			]);
 		}
 	});

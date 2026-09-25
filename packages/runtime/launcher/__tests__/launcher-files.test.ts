@@ -1,8 +1,9 @@
 /**
- * Launcher files and the fail-closed hook output (v1 task 2.3; ADR 0045):
- * the launchers stay small and dependency-free, the committed manifest is in
- * the generated layout, and the fail-closed output that both launchers print
- * is valid for every host's pinned hook schema.
+ * Launcher files and the fail-closed hook output (v1 task 2.3; ADR 0045;
+ * mainahq/maina#475): the launchers stay small and dependency-free, the
+ * committed manifest is in the generated layout, and the fail-closed output
+ * that both launchers print is valid for every host's pinned hook schema and
+ * never lets an action run unconfirmed on the host it was registered for.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -10,7 +11,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import Ajv from "ajv";
 import { renderManifest } from "../../build/standalone";
-import { failClosedHookOutput } from "../../src/standalone/hook-fallback";
+import { failClosedHook } from "../../src/standalone/hook-fallback";
 import { LAUNCHER_DIR } from "./fixture";
 
 describe("fail-closed hook output", () => {
@@ -28,12 +29,17 @@ describe("fail-closed hook output", () => {
 		"adapters",
 		"__fixtures__",
 	);
+	const HOSTS = [
+		["claude-code", "claude"],
+		["cursor", "cursor"],
+		["codex", "codex"],
+	] as const;
 
 	test("validates against every host's output schema", () => {
 		let checked = 0;
-		for (const host of ["claude-code", "cursor", "codex"]) {
+		for (const [dir, host] of HOSTS) {
 			const manifest = JSON.parse(
-				readFileSync(join(fixtures, host, "manifest.json"), "utf-8"),
+				readFileSync(join(fixtures, dir, "manifest.json"), "utf-8"),
 			) as { fixtures: readonly FixtureEntry[] };
 			const outputs = new Map<string, string>();
 			for (const f of manifest.fixtures) {
@@ -41,9 +47,9 @@ describe("fail-closed hook output", () => {
 			}
 			for (const [event, schema] of outputs) {
 				const validate = ajv.compile(
-					JSON.parse(readFileSync(join(fixtures, host, schema), "utf-8")),
+					JSON.parse(readFileSync(join(fixtures, dir, schema), "utf-8")),
 				);
-				const output = JSON.parse(failClosedHookOutput(event, "timeout"));
+				const output = JSON.parse(failClosedHook(host, event, "timeout").line);
 				expect({
 					host,
 					event,
@@ -61,8 +67,80 @@ describe("fail-closed hook output", () => {
 		expect(checked).toBeGreaterThanOrEqual(15);
 	});
 
+	test("Claude Code asks on PreToolUse", () => {
+		const out = failClosedHook("claude", "PreToolUse", "timeout");
+		expect(out.exitCode).toBe(0);
+		expect(out.stderr).toBe("");
+		expect(JSON.parse(out.line)).toMatchObject({
+			hookSpecificOutput: { permissionDecision: "ask" },
+		});
+	});
+
+	test("Codex denies on PreToolUse, with exit 2 and the reason on stderr", () => {
+		// Codex fails a PreToolUse hook that asks and runs the tool anyway.
+		const out = failClosedHook("codex", "PreToolUse", "timeout");
+		const parsed = JSON.parse(out.line) as {
+			hookSpecificOutput: { permissionDecisionReason: string };
+		};
+		expect(parsed).toMatchObject({
+			hookSpecificOutput: {
+				hookEventName: "PreToolUse",
+				permissionDecision: "deny",
+			},
+		});
+		expect(out.exitCode).toBe(2);
+		expect(out.stderr).toBe(
+			`${parsed.hookSpecificOutput.permissionDecisionReason}\n`,
+		);
+		expect(out.stderr).toContain("timeout");
+	});
+
+	test("no Codex fail-closed output ever carries ask", () => {
+		for (const event of [
+			"PreToolUse",
+			"PermissionRequest",
+			"PostToolUse",
+			"SessionStart",
+			"Stop",
+		]) {
+			expect(failClosedHook("codex", event, "timeout").line).not.toContain(
+				'"ask"',
+			);
+		}
+	});
+
+	test("an ambiguous host gets the answer that fails closed in both", () => {
+		// Claude Code and Codex share PascalCase events: deny is closed in both.
+		expect(failClosedHook(undefined, "PreToolUse", "host_ambiguous")).toEqual(
+			failClosedHook("codex", "PreToolUse", "host_ambiguous"),
+		);
+		expect(failClosedHook(undefined, "SessionStart", "host_ambiguous")).toEqual(
+			failClosedHook("claude", "SessionStart", "host_ambiguous"),
+		);
+	});
+
+	test("Cursor asks where it enforces ask and denies on preToolUse (#469)", () => {
+		for (const event of ["beforeShellExecution", "beforeMCPExecution"]) {
+			const out = failClosedHook("cursor", event, "timeout");
+			expect(out.exitCode).toBe(0);
+			expect(JSON.parse(out.line)).toMatchObject({ permission: "ask" });
+		}
+		const pre = failClosedHook("cursor", "preToolUse", "timeout");
+		expect(pre.exitCode).toBe(2);
+		expect(JSON.parse(pre.line)).toMatchObject({ permission: "deny" });
+		expect(pre.stderr).toContain("timeout");
+		// Cursor's events are Cursor's, whatever host was named.
+		expect(failClosedHook(undefined, "preToolUse", "timeout")).toEqual(pre);
+	});
+
 	test("an unknown event gets an empty object, never a decision", () => {
-		expect(failClosedHookOutput("SomethingNew", "timeout")).toBe("{}");
+		for (const host of ["claude", "codex", "cursor", undefined] as const) {
+			expect(failClosedHook(host, "SomethingNew", "timeout")).toEqual({
+				line: "{}",
+				stderr: "",
+				exitCode: 0,
+			});
+		}
 	});
 });
 

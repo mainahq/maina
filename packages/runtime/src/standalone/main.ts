@@ -5,7 +5,10 @@
  * executable that `launcher/launch.sh` and `launcher/launch.ps1` run:
  *
  *   maina mcp                 the MCP server over stdio
- *   maina hook <event>        one host hook (native event name, JSON on stdin)
+ *   maina hook [--host <claude|codex|cursor>] <event>
+ *                             one host hook (native event name, JSON on
+ *                             stdin), answered by that host's adapter
+ *                             (`hook-route.ts`)
  *   maina cli [args...]       the maina CLI
  *   maina runtime-daemon ...  the resident runtime (spawned by clients)
  *
@@ -14,23 +17,17 @@
  */
 
 import { homedir } from "node:os";
-// Cursor's events (camelCase) come from its adapter, which is pure and cheap.
-import { CURSOR_HOOK_EVENTS } from "../adapters/cursor";
-import { failClosedHookOutput } from "./hook-fallback";
+import { failClosedHook, type HookHost } from "./hook-fallback";
+// The routing reads the adapters' event lists, which are pure and cheap.
+import { routeHook } from "./hook-route";
 
-/**
- * Claude Code's hook events (PascalCase), answered by the Claude Code
- * adapter. Codex uses the same names but not the same answers: it runs a
- * tool whose PreToolUse hook asks. Codex hooks must go through
- * `adapters/codex.ts` instead (mainahq/maina#475).
- */
-const CLAUDE_EVENTS: ReadonlySet<string> = new Set([
-	"PreToolUse",
-	"PermissionRequest",
-	"PostToolUse",
-	"SessionStart",
-	"Stop",
-]);
+/** Prints the fail-closed answer for `event` and sets the exit code. */
+function failClosed(host: HookHost | undefined, event: string, cause: string) {
+	const out = failClosedHook(host, event, cause);
+	process.stdout.write(`${out.line}\n`);
+	if (out.stderr !== "") process.stderr.write(out.stderr);
+	process.exitCode = out.exitCode;
+}
 
 const [mode, ...rest] = process.argv.slice(2);
 
@@ -55,23 +52,22 @@ switch (mode) {
 		break;
 	}
 	case "hook": {
-		const event = rest[0] ?? "";
-		if (!CLAUDE_EVENTS.has(event) && !CURSOR_HOOK_EVENTS.has(event)) {
-			// No adapter answers this event: the fail-closed answer, never an allow.
-			process.stdout.write(
-				`${failClosedHookOutput(event, "gate_not_active")}\n`,
-			);
+		const route = routeHook(rest);
+		if (route.type === "fail-closed") {
+			// No adapter answers this hook: the fail-closed answer, never an allow.
+			failClosed(route.host, route.event, route.cause);
 			break;
 		}
 		try {
-			const { runClaudeHookProcess, runCursorHookProcess } = await import(
-				"../hook-system"
-			);
-			process.exitCode = CLAUDE_EVENTS.has(event)
-				? await runClaudeHookProcess(event)
-				: await runCursorHookProcess(event);
+			const hooks = await import("../hook-system");
+			const run = {
+				claude: hooks.runClaudeHookProcess,
+				codex: hooks.runCodexHookProcess,
+				cursor: hooks.runCursorHookProcess,
+			}[route.host];
+			process.exitCode = await run(route.event);
 		} catch {
-			process.stdout.write(`${failClosedHookOutput(event, "hook_crashed")}\n`);
+			failClosed(route.host, route.event, "hook_crashed");
 		}
 		break;
 	}
@@ -88,7 +84,7 @@ switch (mode) {
 	}
 	default:
 		process.stderr.write(
-			"usage: maina mcp | hook <event> | cli [args...] | runtime-daemon ...\n",
+			"usage: maina mcp | hook [--host <claude|codex|cursor>] <event> | cli [args...] | runtime-daemon ...\n",
 		);
 		process.exit(64);
 }

@@ -425,23 +425,26 @@ export function toCursor(result: CursorResult): CursorOutput {
 
 /**
  * The `hooks.json` that registers maina's hooks, each running
- * `<command> <event>`, and the known issues to show whoever installs it.
- * Permission hooks fail closed; a crash in a session or edit hook does not
- * hold up the session.
+ * `<command> --host cursor <event>`, and the known issues to show whoever
+ * installs it. Permission hooks fail closed; a crash in a session or edit
+ * hook does not hold up the session.
  */
 export function cursorHooksConfig(command: string): Readonly<{
 	config: CursorHooksConfig;
 	warnings: readonly string[];
 }> {
 	const hooks = Object.fromEntries(
-		REGISTERED.map((event): [string, readonly HookEntry[]] => [
-			event,
-			[
-				PERMISSION_HOOKS.has(event)
-					? { command: `${command} ${event}`, failClosed: true }
-					: { command: `${command} ${event}` },
-			],
-		]),
+		REGISTERED.map((event): [string, readonly HookEntry[]] => {
+			const run = `${command} --host ${HOST} ${event}`;
+			return [
+				event,
+				[
+					PERMISSION_HOOKS.has(event)
+						? { command: run, failClosed: true }
+						: { command: run },
+				],
+			];
+		}),
 	);
 	return {
 		config: { version: 1, hooks },

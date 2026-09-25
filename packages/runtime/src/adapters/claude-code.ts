@@ -76,7 +76,8 @@ export type ClaudeOutput = Readonly<{
 
 const HOST = "claude-code";
 
-const KNOWN_EVENTS: ReadonlySet<string> = new Set([
+/** Every Claude Code hook event the adapter answers; the runtime routes on it. */
+export const CLAUDE_HOOK_EVENTS: ReadonlySet<string> = new Set([
 	"PreToolUse",
 	"PermissionRequest",
 	"PostToolUse",
@@ -311,7 +312,7 @@ export function fromClaude(
 			`a ${hookEvent} payload for a ${configured} hook`,
 		);
 	}
-	if (!KNOWN_EVENTS.has(hookEvent)) {
+	if (!CLAUDE_HOOK_EVENTS.has(hookEvent)) {
 		return malformed(hookEvent, `unknown hook event ${hookEvent}`);
 	}
 	const cwd = text(hookInput.cwd);

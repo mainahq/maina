@@ -1,7 +1,7 @@
 #!/bin/sh
 # maina launcher (v1 task 2.3; ADR 0045). POSIX sh, no dependencies.
 #
-#   launch.sh mcp | hook <event> | cli [args...]
+#   launch.sh mcp | hook [--host <claude|codex|cursor>] <event> | cli [args...]
 #
 # Runs the maina runtime pinned by manifest.json, cached at
 # ${PLUGIN_DATA:-${CLAUDE_PLUGIN_DATA:-$HOME/.maina}}/runtime/<version>/maina.
@@ -15,18 +15,27 @@ set -u
 say() { printf 'maina launcher: %s\n' "$*" >&2; }
 
 usage() {
-	say "usage: launch.sh mcp | hook <event> | cli [args...]"
+	say "usage: launch.sh mcp | hook [--host <claude|codex|cursor>] <event> | cli [args...]"
 	exit 64
 }
 
 mode=${1:-}
 [ $# -gt 0 ] && shift
 event=
+host=
+bad_host=
 case $mode in
 mcp | cli) ;;
 hook)
+	if [ "${1:-}" = --host ]; then
+		host=${2:-} bad_host=1
+		shift
+		[ $# -gt 0 ] && shift
+	fi
 	event=${1:-}
 	case $event in '' | *[!A-Za-z]*) usage ;; esac
+	# An unknown host fails closed below, like any hook maina cannot answer.
+	case $host in claude | codex | cursor) bad_host= ;; *) host= ;; esac
 	;;
 *) usage ;;
 esac
@@ -38,23 +47,43 @@ reason=
 version=
 
 # ── Degraded modes ──────────────────────────────────────────────────────────
-# Keep these outputs byte-identical to src/standalone/hook-fallback.ts.
+# Keep these outputs and exit codes byte-identical to
+# src/standalone/hook-fallback.ts. A deny exits 2 with its reason on stderr:
+# Codex runs a tool whose PreToolUse hook asks, Cursor does not enforce ask
+# on preToolUse, and a PascalCase event with no host could be either.
 
 fail_closed() {
 	ask="maina could not check this action ($1); confirm it yourself."
+	deny="maina could not check this action ($1), so it blocked it; ask the user to confirm before trying another way."
 	ctx="maina guardrails are unavailable ($1); risky actions will ask for confirmation."
+	code=0
 	case $event in
 	PreToolUse)
-		printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' "$ask" ;;
+		if [ "$host" = claude ]; then
+			printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' "$ask"
+		else
+			printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$deny"
+			code=2
+		fi ;;
 	SessionStart)
 		printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}\n' "$ctx" ;;
-	beforeShellExecution | beforeMCPExecution | preToolUse)
+	beforeShellExecution | beforeMCPExecution)
 		printf '{"permission":"ask","user_message":"%s","agent_message":"maina could not check this action; the user must confirm it."}\n' "$ask" ;;
+	preToolUse)
+		printf '{"permission":"deny","user_message":"%s","agent_message":"maina could not check this action, so it blocked it; ask the user to confirm it."}\n' "$deny"
+		code=2 ;;
 	sessionStart)
 		printf '{"additional_context":"%s"}\n' "$ctx" ;;
 	*) printf '{}\n' ;;
 	esac
+	[ $code -eq 0 ] || printf '%s\n' "$deny" >&2
+	exit $code
 }
+
+if [ -n "$bad_host" ]; then
+	say "unknown hook host"
+	fail_closed unknown_host
+fi
 
 # The raw token (string or integer) of key $1 in the object at depth $2 of the
 # JSON line $3: depth 1 is the message, depth 2 its params. A nested key of the
@@ -114,7 +143,7 @@ rules_only_mcp() {
 degrade() {
 	say "runtime unavailable ($1)"
 	case $mode in
-	hook) fail_closed "$1"; exit 0 ;;
+	hook) fail_closed "$1" ;;
 	mcp) rules_only_mcp "$1" ;;
 	*) say "maina cannot run until its runtime installs; check network access and retry."; exit 69 ;;
 	esac
@@ -167,7 +196,9 @@ bin=$dir/maina
 run() {
 	case $mode in
 	mcp) exec "$bin" mcp ;;
-	hook) exec "$bin" hook "$event" ;;
+	hook)
+		if [ -n "$host" ]; then exec "$bin" hook --host "$host" "$event"; fi
+		exec "$bin" hook "$event" ;;
 	*) exec "$bin" cli "$@" ;;
 	esac
 }

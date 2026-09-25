@@ -12,12 +12,18 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+	CODEX_APPLY_PATCH_ISSUE,
+	codexApplyPatchCheck,
+} from "@mainahq/cli/src/hosts/codex-rules";
 import Ajv from "ajv";
 import type { GateDecision, GateEvent } from "../../gate";
 import {
+	CODEX_APPLY_PATCH_WARNING,
 	CODEX_HOOK_EVENTS,
 	type CodexEvent,
 	type CodexResult,
+	codexHooksConfig,
 	fromCodex,
 	toCodex,
 } from "../codex";
@@ -478,5 +484,48 @@ describe("toCodex", () => {
 				true,
 			);
 		}
+	});
+});
+
+// ── codexHooksConfig ──────────────────────────────────────────────────────
+
+describe("codexHooksConfig", () => {
+	const { config, warnings } = codexHooksConfig("./launch.sh hook");
+
+	test("registers the four hooks maina answers, each naming its host and event", () => {
+		expect(Object.keys(config.hooks).sort()).toEqual(
+			["PermissionRequest", "PreToolUse", "SessionStart", "Stop"].sort(),
+		);
+		for (const [event, groups] of Object.entries(config.hooks)) {
+			expect(CODEX_HOOK_EVENTS.has(event)).toBe(true);
+			expect(groups.flatMap((g) => g.hooks)).toEqual([
+				{ type: "command", command: `./launch.sh hook --host codex ${event}` },
+			]);
+		}
+	});
+
+	test("the tool hooks' matcher covers every tool maina gates, apply_patch included", () => {
+		for (const event of ["PreToolUse", "PermissionRequest"]) {
+			const matcher = config.hooks[event]?.[0]?.matcher;
+			expect(typeof matcher).toBe("string");
+			const regex = new RegExp(matcher ?? "^$");
+			for (const tool of ["Bash", "apply_patch", "mcp__github__create_pr"]) {
+				expect(regex.test(tool), `${event} ${tool}`).toBe(true);
+			}
+		}
+	});
+
+	test("maina doctor sees apply_patch gated, not missed", () => {
+		const plugin = codexHooksConfig("/h/.codex/plugins/maina/launch.sh hook");
+		const check = codexApplyPatchCheck([
+			{ path: "/h/.codex/hooks.json", text: JSON.stringify(plugin.config) },
+		]);
+		expect(check?.message).toContain("does not enforce its deny");
+		expect(check?.message).not.toContain("does not match apply_patch");
+	});
+
+	test("warns about the known apply_patch enforcement gap", () => {
+		expect(warnings).toEqual([CODEX_APPLY_PATCH_WARNING]);
+		expect(CODEX_APPLY_PATCH_WARNING).toContain(CODEX_APPLY_PATCH_ISSUE);
 	});
 });
