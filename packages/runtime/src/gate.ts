@@ -1,20 +1,41 @@
 /**
- * Gate port (FR-GATE-1).
+ * Gate port (FR-GATE-1, FR-GATE-3).
  *
  * The runtime and the hook client both evaluate a normalised gate event
- * through a `GateEvaluator`. This module only defines that port and the
- * fail-closed helpers around it. The real evaluators (the rules engine and
- * the decision backends) plug in here in later tasks; until then the daemon
- * runs `pendingGate`, which asks.
+ * through a `GateEvaluator`. This module defines that port, the fail-closed
+ * helpers around it and `createGateEvaluator`, which turns a wire event into
+ * a core `GateEvent` and runs core's `evaluateGate` on it: in full in the
+ * daemon, rules-only in the hook client's fallback. `gate-system.ts` builds
+ * the real dependencies.
  */
 
-import { VERDICTS, type Verdict } from "@mainahq/core";
+import {
+	type BackendRegistry,
+	type ClockPort,
+	type GateEvent as CoreGateEvent,
+	DEFAULT_REGISTRY,
+	evaluateGate,
+	type GateContext,
+	type PermissionMode,
+	type Policy,
+	type Result,
+	VERDICTS,
+	type Verdict,
+	withBackend,
+} from "@mainahq/core";
 
 /** A host hook event after adapter normalisation. JSON-serialisable. */
 export type GateEvent = Readonly<{
 	/** Normalised event kind, such as `shell`, `file.write` or `mcp`. */
 	kind: string;
-	/** Tool input as the adapter normalised it. */
+	/**
+	 * Tool input as the adapter normalised it. Per kind: `shell` has
+	 * `command`; `file.write` has `path` (or `file_path`) and optional
+	 * `content`; `file.read.outside` has `path` (or `file_path`); `mcp` has
+	 * `server`, `tool` and optional `arguments`; `network` has `url` and
+	 * optional `method`. Any kind may carry `host`, `sessionId`,
+	 * `permissionMode` and `untrusted` (provenance strings).
+	 */
 	input: Readonly<Record<string, unknown>>;
 	/** Directory the host reported for the event, when it gave one. */
 	cwd?: string;
@@ -89,8 +110,143 @@ export function failClosed(decision: GateDecision): GateDecision {
 		: decision;
 }
 
-/** Placeholder runtime gate until the real evaluator is wired in: always asks. */
-export const pendingGate: GateEvaluator = () => ({
+// ── Evaluator ───────────────────────────────────────────────────────────────
+
+/** What `createGateEvaluator` needs; `gate-system.ts` builds the real ones. */
+export type GateEvaluatorDeps = Readonly<{
+	/** The workspace root for an event's directory, or null outside a repo. */
+	rootOf: (cwd: string) => string | null;
+	/** The effective policy for a root; an error makes the event ask. */
+	policyFor: (root: string) => Promise<Result<Policy, unknown>>;
+	/** Classification context: the shell grammar and the home directory. */
+	context: () => Promise<GateContext>;
+	clock: ClockPort;
+	newId: () => string;
+	/** Defaults to core's `DEFAULT_REGISTRY`. */
+	backends?: BackendRegistry;
+	/** Repo loosenings the user confirmed (see core `GatePorts`). */
+	confirmedLoosenings?: readonly string[];
+}>;
+
+/**
+ * `full` runs `action.risk` on the backend the policy names; `rules_only`
+ * pins it to the rules backend, for the hook client's in-process fallback.
+ */
+type GateMode = "full" | "rules_only";
+
+const asking = (why: string): GateDecision => ({
 	verdict: "ask",
-	reason: "maina gate evaluator is not configured yet",
+	reason: `${why}; asking`,
 });
+
+/** Runs core's `evaluateGate` on wire events. Never rejects; failures ask. */
+export function createGateEvaluator(
+	deps: GateEvaluatorDeps,
+	mode: GateMode = "full",
+): GateEvaluator {
+	return async (event) => {
+		try {
+			if (event.cwd === undefined) {
+				return asking("the event has no working directory");
+			}
+			const root = deps.rootOf(event.cwd);
+			if (root === null) return asking(`${event.cwd} is not in a repository`);
+			const core = toCoreGateEvent(event, root);
+			if (core === null) return asking(`malformed ${event.kind} event`);
+			const policy = await deps.policyFor(root);
+			if (!policy.ok) return asking(`the policy for ${root} is invalid`);
+			const result = evaluateGate(
+				{
+					clock: deps.clock,
+					backends: deps.backends ?? DEFAULT_REGISTRY,
+					ctx: await deps.context(),
+					newId: deps.newId,
+					confirmedLoosenings: deps.confirmedLoosenings,
+				},
+				core,
+				mode === "rules_only"
+					? withBackend(policy.value, "action.risk", "rules")
+					: policy.value,
+			);
+			return { verdict: result.verdict, reason: result.reason };
+		} catch (e) {
+			return asking(
+				`maina gate failed (${e instanceof Error ? e.message : String(e)})`,
+			);
+		}
+	};
+}
+
+// ── Wire event → core event ─────────────────────────────────────────────────
+
+const PERMISSION_MODES: readonly PermissionMode[] = [
+	"default",
+	"plan",
+	"accept_edits",
+	"bypass",
+	"unknown",
+];
+
+const text = (value: unknown): string | undefined =>
+	typeof value === "string" && value !== "" ? value : undefined;
+
+/**
+ * The core event for a wire event under workspace `root`, or null when the
+ * kind is unknown or a required field is missing. Metadata of the wrong
+ * type falls back to neutral values.
+ */
+export function toCoreGateEvent(
+	event: GateEvent,
+	root: string,
+): CoreGateEvent | null {
+	const { input } = event;
+	const meta = {
+		host: text(input.host) ?? "unknown",
+		sessionId: typeof input.sessionId === "string" ? input.sessionId : "",
+		root,
+		permissionMode:
+			PERMISSION_MODES.find((m) => m === input.permissionMode) ?? "unknown",
+		untrusted: Array.isArray(input.untrusted)
+			? input.untrusted.filter((u): u is string => typeof u === "string")
+			: [],
+	} as const;
+	const path = text(input.path) ?? text(input.file_path);
+	switch (event.kind) {
+		case "shell": {
+			const command = text(input.command);
+			if (command === undefined) return null;
+			const action =
+				event.cwd === undefined ? { command } : { command, cwd: event.cwd };
+			return { ...meta, kind: "shell", action };
+		}
+		case "file.write": {
+			if (path === undefined) return null;
+			const content =
+				typeof input.content === "string" ? input.content : undefined;
+			const action = content === undefined ? { path } : { path, content };
+			return { ...meta, kind: "file.write", action };
+		}
+		case "file.read.outside":
+			return path === undefined
+				? null
+				: { ...meta, kind: "file.read.outside", action: { path } };
+		case "mcp": {
+			const server = text(input.server);
+			const tool = text(input.tool);
+			if (server === undefined || tool === undefined) return null;
+			const args = isRecord(input.arguments) ? input.arguments : undefined;
+			const action =
+				args === undefined ? { server, tool } : { server, tool, input: args };
+			return { ...meta, kind: "mcp", action };
+		}
+		case "network": {
+			const url = text(input.url);
+			if (url === undefined) return null;
+			const method = text(input.method);
+			const action = method === undefined ? { url } : { url, method };
+			return { ...meta, kind: "network", action };
+		}
+		default:
+			return null;
+	}
+}

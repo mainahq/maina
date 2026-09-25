@@ -241,6 +241,7 @@ export {
 	type BackendRegistry,
 	createRegistry,
 	DEFAULT_REGISTRY,
+	withBackend,
 } from "./decide/registry";
 export {
 	type Answer,
@@ -399,6 +400,14 @@ export {
 // Gate (normalised events, classification, rules engine — FR-GATE-2/4)
 export type { ActionAnalysis } from "./gate/classify";
 export { analyzeAction, classifyAction } from "./gate/classify";
+// Gate evaluator (rules → decide → thresholds — FR-GATE-3/5/6). `GateResult`
+// is re-exported as `GateEvaluation`: the promotion report owns the name here.
+export {
+	DEFAULT_GATE_BUDGET_MS,
+	evaluateGate,
+	type GatePorts,
+	type GateResult as GateEvaluation,
+} from "./gate/evaluate";
 export type {
 	FileReadAction,
 	FileWriteAction,
