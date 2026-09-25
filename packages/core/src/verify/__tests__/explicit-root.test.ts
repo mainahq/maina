@@ -136,4 +136,23 @@ describe("runTypecheck uses the injected environment", () => {
 		expect(result.skipped).toBe(false);
 		expect(result.findings[0]?.message).toBe("marker=injected color=1");
 	});
+
+	test("per-project tsc (workspace path) also gets the injected env", async () => {
+		// The default TypeScript route runs one `tsc -p` per nearest tsconfig;
+		// it must honour the injected env just like the single-command path.
+		writeFileSync(join(root, "tsconfig.json"), "{}");
+		const bin = join(root, "node_modules", ".bin");
+		mkdirSync(bin, { recursive: true });
+		writeScript(
+			join(bin, "tsc"),
+			'echo "src/a.ts(1,1): error TS9999: marker=$MAINA_ENV_MARKER color=$NO_COLOR"\nexit 2',
+		);
+
+		const result = await runTypecheck(["src/a.ts"], root, {
+			env: { PATH: "/usr/bin:/bin", MAINA_ENV_MARKER: "injected" },
+		});
+
+		expect(result.skipped).toBe(false);
+		expect(result.findings[0]?.message).toContain("marker=injected color=1");
+	});
 });
