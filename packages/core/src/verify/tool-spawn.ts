@@ -8,6 +8,8 @@
  */
 
 import type { Result } from "../db/index";
+import type { ProcessPort } from "../ports/process";
+import { systemProcess } from "../process/index";
 import { detectTool, TOOL_REGISTRY, type ToolName } from "./detect";
 
 /** How a runner is told about its tool: pre-resolved by the pipeline, or not. */
@@ -61,36 +63,31 @@ type ToolSpawnError = {
 };
 
 /**
- * Spawn a tool and collect its output. A failure to start the process
- * (ENOENT, EACCES, …) comes back as a typed error instead of a throw.
+ * Spawn a tool through a `ProcessPort` (the system adapter by default) and
+ * collect its output. A failure to start the process (ENOENT, EACCES, a
+ * timeout) comes back as a typed error instead of a throw.
  */
 export async function spawnTool(
 	argv: readonly [string, ...string[]],
 	cwd: string,
+	processPort: ProcessPort = systemProcess,
 ): Promise<Result<ToolOutput, ToolSpawnError>> {
 	const startedAt = Date.now();
-	try {
-		const proc = Bun.spawn([...argv], {
-			cwd,
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-		const [stdout, stderr] = await Promise.all([
-			new Response(proc.stdout).text(),
-			new Response(proc.stderr).text(),
-		]);
-		const exitCode = await proc.exited;
-		return { ok: true, value: { stdout, stderr, exitCode, startedAt } };
-	} catch (e) {
+	const result = await processPort.spawn(argv, { cwd });
+	if (!result.ok) {
 		return {
 			ok: false,
 			error: {
 				kind: "spawn-failed",
 				command: argv[0],
-				message: e instanceof Error ? e.message : String(e),
+				message:
+					result.error.kind === "timeout"
+						? `timed out after ${result.error.timeoutMs}ms`
+						: result.error.message,
 			},
 		};
 	}
+	return { ok: true, value: { ...result.value, startedAt } };
 }
 
 /** Human-readable notice for a tool that was detected but could not start. */

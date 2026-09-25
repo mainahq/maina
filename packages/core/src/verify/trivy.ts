@@ -6,6 +6,7 @@
  * Gracefully skips if trivy is not installed.
  */
 
+import type { ProcessPort } from "../ports/process";
 import type { Finding } from "./diff-filter";
 import {
 	exitFailureNotice,
@@ -25,6 +26,8 @@ interface TrivyOptions {
 	available?: boolean;
 	/** Pre-resolved command path from detection (may be root-local node_modules/.bin). */
 	command?: string;
+	/** Spawns the tool; the system process adapter by default. */
+	process?: ProcessPort;
 }
 
 export interface TrivyResult {
@@ -154,7 +157,7 @@ export async function runTrivy(options: TrivyOptions): Promise<TrivyResult> {
 		".",
 	];
 
-	const run = await spawnTool(args, cwd);
+	const run = await spawnTool(args, cwd, options.process);
 	if (!run.ok) {
 		return {
 			findings: [],

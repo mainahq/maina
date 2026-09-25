@@ -5,6 +5,7 @@ import {
 	createFakeGit,
 	createFakeModel,
 	createFakePorts,
+	createFakeProcess,
 	createFixedClock,
 	createMemoryDb,
 	createMemoryFs,
@@ -189,6 +190,67 @@ describe("createFakeEnv", () => {
 	});
 });
 
+describe("createFakeProcess", () => {
+	test("returns scripted output and records argv with options", async () => {
+		const proc = createFakeProcess({
+			"tsc -p . --noEmit": { exitCode: 2, stdout: "a.ts(1,1): error" },
+		});
+		expect(
+			await proc.spawn(["tsc", "-p", ".", "--noEmit"], {
+				cwd: "/repo",
+				timeoutMs: 1000,
+			}),
+		).toEqual({
+			ok: true,
+			value: { exitCode: 2, stdout: "a.ts(1,1): error", stderr: "" },
+		});
+		expect(proc.calls()).toEqual([
+			{
+				argv: ["tsc", "-p", ".", "--noEmit"],
+				options: { cwd: "/repo", timeoutMs: 1000 },
+			},
+		]);
+	});
+
+	test("defaults a scripted result to exit 0 with empty streams", async () => {
+		const proc = createFakeProcess({ "git status": {} });
+		expect(await proc.spawn(["git", "status"], { cwd: "/r" })).toEqual({
+			ok: true,
+			value: { exitCode: 0, stdout: "", stderr: "" },
+		});
+	});
+
+	test("an unscripted command fails to spawn, like a missing binary", async () => {
+		const proc = createFakeProcess();
+		expect(await proc.spawn(["semgrep", "--version"], { cwd: "/r" })).toEqual({
+			ok: false,
+			error: {
+				kind: "spawn_failed",
+				message: 'fake process: no response scripted for "semgrep --version"',
+			},
+		});
+	});
+
+	test("a responder function can script dynamic results and errors", async () => {
+		const proc = createFakeProcess((argv) =>
+			argv[0] === "slow"
+				? { ok: false, error: { kind: "timeout", timeoutMs: 5 } }
+				: {
+						ok: true,
+						value: { exitCode: 0, stdout: argv.join(","), stderr: "" },
+					},
+		);
+		expect(await proc.spawn(["echo", "x"], { cwd: "/r" })).toEqual({
+			ok: true,
+			value: { exitCode: 0, stdout: "echo,x", stderr: "" },
+		});
+		expect(await proc.spawn(["slow"], { cwd: "/r" })).toEqual({
+			ok: false,
+			error: { kind: "timeout", timeoutMs: 5 },
+		});
+	});
+});
+
 describe("createFakePorts", () => {
 	test("builds a complete CorePorts bundle with overrides", async () => {
 		const env = createFakeEnv({ A: "1" });
@@ -202,6 +264,7 @@ describe("createFakePorts", () => {
 			"git",
 			"logger",
 			"model",
+			"process",
 		]);
 		expect(await ports.fs.exists("/anything")).toBe(false);
 	});

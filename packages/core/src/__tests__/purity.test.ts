@@ -3,7 +3,8 @@
  *
  * Statically scans every non-test source file under `packages/core/src` for
  * the side effects the functional core forbids (`process.cwd`, `process.env`,
- * `process.stdout`, `console.*`, `throw`). Files that offended when the
+ * `process.stdout`, `console.*`, `throw`, and direct `Bun.spawn` since #420:
+ * spawn through `CorePorts.process` instead). Files that offended when the
  * ratchet was introduced are listed, with per-rule counts, in
  * `purity-allowlist.ts`. The ratchet only turns one way:
  *
@@ -177,6 +178,36 @@ describe("purity scanner", () => {
 		expect(scanSource(source)).toEqual([
 			{ rule: "process.env", line: 1 },
 			{ rule: "process.stdout", line: 2 },
+		]);
+	});
+
+	test("flags Bun.spawn and Bun.spawnSync as a direct process spawn", () => {
+		const source = [
+			'const p = Bun.spawn(["git", "status"]);',
+			"const q = Bun.spawnSync(argv);",
+			"const r = globalThis.Bun?.spawn(argv);",
+			"const s = myBun.spawn(argv);",
+			"const t = ports.process.spawn(argv, { cwd });",
+			"// Bun.spawn in a comment",
+			"const u = 'Bun.spawn';",
+		].join("\n");
+		expect(scanSource(source)).toEqual([
+			{ rule: "Bun.spawn", line: 1 },
+			{ rule: "Bun.spawn", line: 2 },
+			{ rule: "Bun.spawn", line: 3 },
+		]);
+	});
+
+	test("flags spawn bound by destructuring Bun or importing from bun", () => {
+		const source = [
+			"const { spawn, file } = Bun;",
+			'import { spawnSync as run } from "bun";',
+			"import { file, write } from 'bun';",
+			"const { version } = Bun;",
+		].join("\n");
+		expect(scanSource(source)).toEqual([
+			{ rule: "Bun.spawn", line: 1 },
+			{ rule: "Bun.spawn", line: 2 },
 		]);
 	});
 

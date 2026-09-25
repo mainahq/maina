@@ -6,6 +6,7 @@
  * Gracefully skips if semgrep is not installed.
  */
 
+import type { ProcessPort } from "../ports/process";
 import type { Finding } from "./diff-filter";
 import {
 	exitFailureNotice,
@@ -27,6 +28,8 @@ interface SemgrepOptions {
 	available?: boolean;
 	/** Pre-resolved command path from detection (may be root-local node_modules/.bin). */
 	command?: string;
+	/** Spawns the tool; the system process adapter by default. */
+	process?: ProcessPort;
 }
 
 export interface SemgrepResult {
@@ -167,7 +170,7 @@ export async function runSemgrep(
 		args.push(...options.files);
 	}
 
-	const run = await spawnTool(args, cwd);
+	const run = await spawnTool(args, cwd, options.process);
 	if (!run.ok) {
 		return {
 			findings: [],
