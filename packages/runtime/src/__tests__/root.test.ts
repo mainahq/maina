@@ -222,6 +222,84 @@ describe("resolveRoot refusal", () => {
 	});
 });
 
+describe("resolveRoot when $HOME is itself a repository (dotfiles)", () => {
+	const home = "/home/me";
+	const git = fakeProbe([home, "/home/me/projects/app", "/repo/cwd"]);
+
+	test("a cwd inside the home repo refuses instead of resolving to $HOME", () => {
+		expect(resolveRoot({ cwd: "/home/me/scratch", home }, git)).toEqual(
+			refused("cwd", ["/home/me/scratch"]),
+		);
+		expect(resolveRoot({ cwd: home, home }, git)).toEqual(
+			refused("cwd", [home]),
+		);
+	});
+
+	test("a host project dir resolving to $HOME refuses instead of falling back", () => {
+		expect(
+			resolveRoot(
+				{ hostProjectDir: "/home/me/notes", cwd: "/repo/cwd", home },
+				git,
+			),
+		).toEqual(refused("host", ["/home/me/notes"]));
+	});
+
+	test("an MCP root resolving to $HOME is skipped in favour of the next root", () => {
+		expect(
+			resolveRoot(
+				{ mcpRoots: ["/home/me/notes", "/repo/cwd/a"], cwd: "/", home },
+				git,
+			),
+		).toEqual(found("/repo/cwd", "mcp"));
+		expect(
+			resolveRoot({ mcpRoots: ["/home/me/notes", "/b"], cwd: "/", home }, git),
+		).toEqual(refused("mcp", ["/home/me/notes", "/b"]));
+	});
+
+	test("an explicit root may still choose $HOME", () => {
+		expect(
+			resolveRoot(
+				{ explicit: "/home/me/scratch", cwd: "/repo/cwd", home },
+				git,
+			),
+		).toEqual(found(home, "explicit"));
+	});
+
+	test("a repository nested inside $HOME still resolves", () => {
+		expect(
+			resolveRoot({ cwd: "/home/me/projects/app/src", home }, git),
+		).toEqual(found("/home/me/projects/app", "cwd"));
+	});
+
+	test("home is compared after normalisation", () => {
+		expect(
+			resolveRoot({ cwd: "/home/me/scratch", home: "/home/me/" }, git),
+		).toEqual(refused("cwd", ["/home/me/scratch"]));
+		expect(
+			resolveRoot({ cwd: "/home/me/scratch", home: "/home/x/../me" }, git),
+		).toEqual(refused("cwd", ["/home/me/scratch"]));
+	});
+
+	test("a blank home is ignored", () => {
+		expect(resolveRoot({ cwd: "/home/me/scratch", home: " " }, git)).toEqual(
+			found(home, "cwd"),
+		);
+	});
+
+	test("a repository at the filesystem root refuses unless explicit", () => {
+		const rootRepo: GitProbe = { toplevel: () => "/" };
+		expect(resolveRoot({ cwd: "/srv/app", home }, rootRepo)).toEqual(
+			refused("cwd", ["/srv/app"]),
+		);
+		expect(resolveRoot({ cwd: "/srv/app" }, rootRepo)).toEqual(
+			refused("cwd", ["/srv/app"]),
+		);
+		expect(
+			resolveRoot({ explicit: "/srv/app", cwd: "/srv/app", home }, rootRepo),
+		).toEqual(found("/", "explicit"));
+	});
+});
+
 // ── Real git repositories ───────────────────────────────────────────────────
 
 const git = (cwd: string, ...args: string[]): void => {
@@ -379,6 +457,58 @@ describe("resolveRoot with real repositories", () => {
 			if (saved === undefined) delete process.env.GIT_DIR;
 			else process.env.GIT_DIR = saved;
 		}
+	});
+
+	test("a temp $HOME that is a git repo refuses non-explicit roots and writes nothing", () => {
+		const dotHome = join(base, "dothome");
+		initRepo(dotHome);
+		writeFileSync(join(dotHome, ".profile"), "# dotfiles\n");
+		mkdirSync(join(dotHome, "scratch"), { recursive: true });
+		const app = join(dotHome, "projects", "app");
+		initRepo(app);
+		mkdirSync(join(app, "src"), { recursive: true });
+
+		const home = dotHome;
+		const before = snapshot(dotHome);
+		const scratch = join(dotHome, "scratch");
+		expect(resolveRoot({ cwd: scratch, home }, gitProbe)).toEqual(
+			refused("cwd", [scratch]),
+		);
+		expect(
+			resolveRoot({ hostProjectDir: scratch, cwd: outer, home }, gitProbe),
+		).toEqual(refused("host", [scratch]));
+		expect(
+			resolveRoot(
+				{ mcpRoots: [pathToFileURL(scratch).href], cwd: outer, home },
+				gitProbe,
+			),
+		).toEqual(refused("mcp", [scratch]));
+		expect(snapshot(dotHome)).toEqual(before);
+
+		expect(
+			resolveRoot({ explicit: scratch, cwd: outer, home }, gitProbe),
+		).toEqual(found(dotHome, "explicit"));
+		expect(resolveRoot({ cwd: join(app, "src"), home }, gitProbe)).toEqual(
+			found(app, "cwd"),
+		);
+	});
+
+	test("the async resolver refuses a $HOME top level the same way", async () => {
+		const dotHome = join(base, "dothome-async");
+		initRepo(dotHome);
+		const scratch = join(dotHome, "scratch");
+		mkdirSync(scratch, { recursive: true });
+		const home = dotHome;
+
+		expect(
+			await resolveRootAsync({ cwd: scratch, home }, asyncGitProbe),
+		).toEqual(refused("cwd", [scratch]));
+		expect(
+			await resolveRootAsync(
+				{ explicit: scratch, cwd: outer, home },
+				asyncGitProbe,
+			),
+		).toEqual(found(dotHome, "explicit"));
 	});
 
 	test("the probe ignores an inherited GIT_DIR", () => {
