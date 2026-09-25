@@ -110,7 +110,7 @@ describe("config file lookup from an explicit root", () => {
 	});
 
 	test("loadConfig merges the config found from the given root", async () => {
-		const config = await loadConfigModule(join(root, "nested"));
+		const { config } = await loadConfigModule(join(root, "nested"));
 		expect(config.provider).toBe("from-root");
 	});
 });

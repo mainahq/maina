@@ -143,22 +143,23 @@ describe("loadConfigModule", () => {
 		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
-	test("returns defaults when no config file is found", async () => {
-		const config = await loadConfigModule(tmpDir);
-		const defaults = getDefaultConfig();
-		expect(config.provider).toBe(defaults.provider);
-		expect(config.budget.dailyUsd).toBe(defaults.budget.dailyUsd);
-		expect(config.models.standard).toBe(defaults.models.standard);
+	function writeModule(body: string): string {
+		const configPath = join(tmpDir, "maina.config.js");
+		// CJS: module.exports becomes mod.default when dynamically imported
+		writeFileSync(configPath, `module.exports = ${body};`);
+		return configPath;
+	}
+
+	test("returns defaults and no errors when no config file is found", async () => {
+		const { config, errors } = await loadConfigModule(tmpDir);
+		expect(config).toEqual(getDefaultConfig());
+		expect(errors).toEqual([]);
 	});
 
 	test("merges a partial config with defaults", async () => {
-		const configPath = join(tmpDir, "maina.config.js");
-		// CJS: module.exports becomes mod.default when dynamically imported
-		writeFileSync(
-			configPath,
-			`module.exports = { provider: "custom-provider" };`,
-		);
-		const config = await loadConfigModule(tmpDir);
+		writeModule(`{ provider: "custom-provider" }`);
+		const { config, errors } = await loadConfigModule(tmpDir);
+		expect(errors).toEqual([]);
 		expect(config.provider).toBe("custom-provider");
 		// Defaults are preserved for unspecified fields
 		expect(config.budget.dailyUsd).toBe(5.0);
@@ -166,21 +167,18 @@ describe("loadConfigModule", () => {
 	});
 
 	test("merges nested objects instead of replacing them", async () => {
-		writeFileSync(
-			join(tmpDir, "maina.config.js"),
-			`module.exports = { models: { standard: "x/custom" } };`,
-		);
-		const config = await loadConfigModule(tmpDir);
+		writeModule(`{ models: { standard: "x/custom" } }`);
+		const { config } = await loadConfigModule(tmpDir);
 		expect(config.models.standard).toBe("x/custom");
 		expect(config.models.mechanical).toBe("anthropic/claude-haiku-4-5");
 	});
 
 	test("maps the 1.x budget keys onto the enforceable budget", async () => {
-		writeFileSync(
-			join(tmpDir, "maina.config.js"),
-			`module.exports = { apiKey: "sk-x", budget: { daily: 9, perTask: 1, alertAt: 0.5 } };`,
+		writeModule(
+			`{ apiKey: "sk-x", budget: { daily: 9, perTask: 1, alertAt: 0.5 } }`,
 		);
-		const config = await loadConfigModule(tmpDir);
+		const { config, errors } = await loadConfigModule(tmpDir);
+		expect(errors).toEqual([]);
 		expect(config.budget).toEqual({
 			dailyUsd: 9,
 			perTaskUsd: 1,
@@ -189,21 +187,73 @@ describe("loadConfigModule", () => {
 		expect("apiKey" in config).toBe(false);
 	});
 
-	test("falls back to the defaults when the module fails validation", async () => {
-		writeFileSync(
-			join(tmpDir, "maina.config.js"),
-			`module.exports = { provider: 42 };`,
+	// #393: one bad key must never reset the whole user config.
+	test("keeps the custom provider and models when an unknown key is present, and reports it", async () => {
+		const file = writeModule(
+			`{ provider: "custom-provider", models: { standard: "x/custom" }, bogus: true }`,
 		);
-		expect(await loadConfigModule(tmpDir)).toEqual(getDefaultConfig());
+		const { config, errors } = await loadConfigModule(tmpDir);
+		expect(config.provider).toBe("custom-provider");
+		expect(config.models.standard).toBe("x/custom");
+		expect(errors).toHaveLength(1);
+		expect(errors[0]).toMatchObject({ kind: "invalid", file, path: "bogus" });
+		expect(errors[0]?.message).toContain("bogus");
 	});
 
-	test("never throws — returns defaults on any import error", async () => {
-		// Point at an empty temp dir where no config exists
-		const emptyDir = join(tmpDir, "empty");
-		mkdirSync(emptyDir, { recursive: true });
-		const config = await loadConfigModule(emptyDir);
-		expect(config).toBeDefined();
+	test("drops only the invalid nested field and keeps its valid siblings", async () => {
+		writeModule(
+			`{ provider: "custom-provider", models: { standard: 42, mechanical: "x/cheap" }, budget: { dailyUsd: 7, extra: 1 } }`,
+		);
+		const { config, errors } = await loadConfigModule(tmpDir);
+		expect(config.provider).toBe("custom-provider");
+		expect(config.models.mechanical).toBe("x/cheap");
+		expect(config.models.standard).toBe("anthropic/claude-sonnet-4-6");
+		expect(config.budget.dailyUsd).toBe(7);
+		expect(errors.map((e) => e.path).sort()).toEqual([
+			"budget.extra",
+			"models.standard",
+		]);
+	});
+
+	test("reports every invalid field with its path, not just the first", async () => {
+		writeModule(
+			`{ provider: 42, budget: { onBreach: "explode" }, repoAliases: { web: "not a slug", api: "acme/api" }, modles: {} }`,
+		);
+		const { config, errors } = await loadConfigModule(tmpDir);
 		expect(config.provider).toBe("openrouter");
+		expect(config.budget.onBreach).toBe("degrade");
+		expect(config.repoAliases).toEqual({ api: "acme/api" });
+		expect(errors.map((e) => e.path).sort()).toEqual([
+			"budget.onBreach",
+			"modles",
+			"provider",
+			"repoAliases.web",
+		]);
+		for (const error of errors) {
+			expect(error.kind).toBe("invalid");
+			expect(error.message.length).toBeGreaterThan(0);
+		}
+	});
+
+	test("reports a non-object export at the root and falls back to the defaults", async () => {
+		writeModule("42");
+		const { config, errors } = await loadConfigModule(tmpDir);
+		expect(config).toEqual(getDefaultConfig());
+		expect(errors).toHaveLength(1);
+		expect(errors[0]?.path).toBe("");
+	});
+
+	test("reports a module that fails to import instead of swallowing it", async () => {
+		const configPath = join(tmpDir, "maina.config.js");
+		writeFileSync(configPath, "module.exports = { provider: ;");
+		const { config, errors } = await loadConfigModule(tmpDir);
+		expect(config).toEqual(getDefaultConfig());
+		expect(errors).toHaveLength(1);
+		expect(errors[0]).toMatchObject({
+			kind: "parse",
+			file: configPath,
+			path: "",
+		});
 	});
 });
 

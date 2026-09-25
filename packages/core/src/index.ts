@@ -99,9 +99,11 @@ export type {
 // Config
 export {
 	type ConfigError,
+	type ConfigModuleLoad,
 	getApiKey,
 	isHostMode,
 	loadConfig,
+	loadConfigModule,
 	shouldDelegateToHost,
 } from "./config/index";
 export {

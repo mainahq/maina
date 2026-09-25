@@ -3,7 +3,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createMemoryFs } from "../../ports/testing";
 import { getDefaultConfig, loadConfig } from "../index";
-import { configJsonSchema, renderJsonSchema } from "../schema";
+import {
+	configJsonSchema,
+	renderJsonSchema,
+	salvageConfigLayer,
+} from "../schema";
 
 const ROOT = "/repo";
 const CONFIG_PATH = "/repo/.maina/config.json";
@@ -120,6 +124,55 @@ describe("loadConfig(ports, root)", () => {
 		expect(result.value.telemetry).toBe(false);
 		expect(result.value.repoAliases).toEqual({ cloud: "mainahq/maina-cloud" });
 		expect("$schema" in result.value).toBe(false);
+	});
+});
+
+describe("salvageConfigLayer (#393)", () => {
+	const FILE = "/repo/maina.config.ts";
+
+	test("a valid layer comes back whole with no errors", () => {
+		expect(salvageConfigLayer({ provider: "anthropic" }, FILE)).toEqual({
+			layer: { provider: "anthropic" },
+			errors: [],
+		});
+	});
+
+	test("keeps every valid field and reports each invalid one with its path", () => {
+		const { layer, errors } = salvageConfigLayer(
+			{
+				provider: "anthropic",
+				models: { standard: "", local: "ollama/x" },
+				budget: { perTaskUsd: 1, nope: true },
+				extra: 1,
+			},
+			FILE,
+		);
+		expect(layer).toEqual({
+			provider: "anthropic",
+			models: { local: "ollama/x" },
+			budget: { perTaskUsd: 1 },
+		});
+		expect(errors.map((e) => e.path).sort()).toEqual([
+			"budget.nope",
+			"extra",
+			"models.standard",
+		]);
+		for (const error of errors) {
+			expect(error).toMatchObject({ kind: "invalid", file: FILE });
+		}
+	});
+
+	test("does not mutate its input", () => {
+		const raw = { provider: "anthropic", extra: 1 };
+		salvageConfigLayer(raw, FILE);
+		expect(raw).toEqual({ provider: "anthropic", extra: 1 });
+	});
+
+	test("a non-object root yields an empty layer and one root error", () => {
+		const { layer, errors } = salvageConfigLayer("nope", FILE);
+		expect(layer).toEqual({});
+		expect(errors).toHaveLength(1);
+		expect(errors[0]?.path).toBe("");
 	});
 });
 

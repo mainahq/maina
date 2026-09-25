@@ -34,6 +34,7 @@ import { verifyCommand } from "./commands/verify";
 import { verifyReceiptCommand } from "./commands/verify-receipt";
 import { visualCommand } from "./commands/visual";
 import { wikiCommand } from "./commands/wiki/index";
+import { warnOnConfigErrors } from "./config-warnings";
 
 export function createProgram(): Command {
 	const program = new Command();
@@ -79,6 +80,17 @@ Setup & Config:
 			"--debug",
 			"print full stack traces and error codes on failure (also MAINA_DEBUG=1 or DEBUG=1)",
 		);
+
+	// #393: the `maina.config.*` loader drops invalid fields one by one and
+	// keeps the rest; say so before every command so a dropped provider or
+	// model is never lost silently. stderr keeps `--json` stdout clean;
+	// `doctor` renders the same errors in its own Config section.
+	program.hook("preAction", async (_program, actionCommand) => {
+		if (actionCommand.name() === "doctor") return;
+		await warnOnConfigErrors(process.cwd(), (text) => {
+			process.stderr.write(text);
+		});
+	});
 
 	// Drain any pending telemetry events at the end of every command so the
 	// process doesn't exit with in-flight HTTP requests. Budgeted at 2 s —

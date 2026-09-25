@@ -9,6 +9,7 @@ import {
 	mergeConfig,
 	parseConfigLayer,
 	readJsonFile,
+	salvageConfigLayer,
 } from "./schema";
 
 export type { ConfigError } from "./schema";
@@ -133,30 +134,53 @@ function fromLegacyModule(raw: unknown): unknown {
 	};
 }
 
+/** What {@link loadConfigModule} resolved, and every field it had to drop. */
+export type ConfigModuleLoad = Readonly<{
+	config: Config;
+	/** One entry per dropped field (with its path) or per unloadable file. */
+	errors: readonly ConfigError[];
+}>;
+
 /**
  * 1.x loader: finds and dynamically imports `maina.config.{ts,js}`, then
  * validates it and merges it over the defaults with the same defined merge
- * as {@link loadConfig}. Falls back to the defaults on any error.
+ * as {@link loadConfig}. Never throws and never silently resets (#393): an
+ * invalid field is dropped on its own and reported in `errors` while every
+ * valid field is kept; a module that cannot be imported yields the defaults
+ * plus a `parse` error for that file.
  */
-export async function loadConfigModule(startDir: string): Promise<Config> {
+export async function loadConfigModule(
+	startDir: string,
+): Promise<ConfigModuleLoad> {
 	const configPath = findConfigFile(startDir);
 
 	if (configPath === null) {
-		return getDefaultConfig();
+		return { config: getDefaultConfig(), errors: [] };
 	}
 
+	let mod: { default?: unknown };
 	try {
-		const mod = await import(configPath);
-		const layer = parseConfigLayer(
-			fromLegacyModule(mod.default ?? mod),
-			configPath,
-		);
-		return layer.ok
-			? mergeConfig(getDefaultConfig(), layer.value)
-			: getDefaultConfig();
-	} catch {
-		return getDefaultConfig();
+		mod = (await import(configPath)) as { default?: unknown };
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+		return {
+			config: getDefaultConfig(),
+			errors: [
+				{
+					kind: "parse",
+					file: configPath,
+					path: "",
+					message: `Could not load the config module: ${reason}`,
+				},
+			],
+		};
 	}
+
+	const { layer, errors } = salvageConfigLayer(
+		fromLegacyModule(mod.default ?? mod),
+		configPath,
+	);
+	return { config: mergeConfig(getDefaultConfig(), layer), errors };
 }
 
 /**

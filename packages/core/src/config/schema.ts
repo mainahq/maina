@@ -193,6 +193,86 @@ export function parseConfigLayer(
 	};
 }
 
+/** A layer cut down to its valid fields, plus every field that was dropped. */
+type SalvagedConfigLayer = Readonly<{
+	layer: ConfigLayer;
+	errors: readonly ConfigError[];
+}>;
+
+/** Every issue zod reports is removed in one pass; the bound only guards pathological input. */
+const MAX_SALVAGE_PASSES = 4;
+
+/** The document paths an issue condemns: each unknown key, or the offending value. */
+function offendingPaths(
+	issue: z.core.$ZodIssue,
+): readonly (readonly PropertyKey[])[] {
+	return issue.code === "unrecognized_keys"
+		? issue.keys.map((key) => [...issue.path, key])
+		: [issue.path];
+}
+
+function toConfigErrors(
+	issue: z.core.$ZodIssue,
+	file: string,
+): readonly ConfigError[] {
+	if (issue.code === "unrecognized_keys") {
+		return issue.keys.map((key) => ({
+			kind: "invalid",
+			file,
+			path: formatPath([...issue.path, key]),
+			message: `Unrecognized key: "${key}"`,
+		}));
+	}
+	return [
+		{
+			kind: "invalid",
+			file,
+			path: formatPath(issue.path),
+			message: issueMessage(issue),
+		},
+	];
+}
+
+/** A copy of `value` without the entry at `path`; `value` itself is untouched. */
+function withoutPath(value: unknown, path: readonly PropertyKey[]): unknown {
+	const [head, ...rest] = path;
+	if (head === undefined || typeof value !== "object" || value === null) {
+		return value;
+	}
+	const record = value as Readonly<Record<PropertyKey, unknown>>;
+	if (!Object.hasOwn(record, head)) return value;
+	if (rest.length > 0) {
+		return { ...record, [head]: withoutPath(record[head], rest) };
+	}
+	return Object.fromEntries(
+		Object.entries(record).filter(([key]) => key !== String(head)),
+	);
+}
+
+/**
+ * Lenient counterpart of {@link parseConfigLayer} (#393): drops only the
+ * fields that fail validation, keeps every valid one, and reports each
+ * dropped field with its path. One unknown key never discards the rest of
+ * the user's config; a non-object root yields an empty layer.
+ */
+export function salvageConfigLayer(
+	raw: unknown,
+	file: string,
+): SalvagedConfigLayer {
+	const errors: ConfigError[] = [];
+	let candidate = raw;
+	for (let pass = 0; pass < MAX_SALVAGE_PASSES; pass++) {
+		const parsed = ConfigFileSchema.safeParse(candidate);
+		if (parsed.success) return { layer: parsed.data, errors };
+		const { issues } = parsed.error;
+		errors.push(...issues.flatMap((issue) => toConfigErrors(issue, file)));
+		const paths = issues.flatMap(offendingPaths);
+		if (paths.some((path) => path.length === 0)) break;
+		candidate = paths.reduce(withoutPath, candidate);
+	}
+	return { layer: {}, errors };
+}
+
 /**
  * The defined merge: scalars from the layer replace the base, nested objects
  * merge key by key, and keys the layer leaves out keep the base value.
