@@ -51,11 +51,14 @@ interface StoredResult {
 	tokens?: { input: number; output: number };
 }
 
+const ignoreLog = (): undefined => undefined;
+
+/** For callers that pass no logger: routing entries are dropped. */
 const SILENT_LOGGER: LoggerPort = {
-	debug: () => {},
-	info: () => {},
-	warn: () => {},
-	error: () => {},
+	debug: ignoreLog,
+	info: ignoreLog,
+	warn: ignoreLog,
+	error: ignoreLog,
 };
 
 /**
