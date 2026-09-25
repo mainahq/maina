@@ -1,0 +1,8 @@
+import { describe, expect, test } from "bun:test";
+import { mid } from "./mid";
+
+describe("mid", () => {
+	test("doubles", () => {
+		expect(mid(1)).toBe(4);
+	});
+});

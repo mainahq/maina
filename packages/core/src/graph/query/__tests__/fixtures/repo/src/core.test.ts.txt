@@ -1,0 +1,8 @@
+import { describe, expect, test } from "bun:test";
+import { base } from "./core";
+
+describe("base", () => {
+	test("adds one", () => {
+		expect(base(1)).toBe(2);
+	});
+});
