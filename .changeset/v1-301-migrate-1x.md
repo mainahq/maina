@@ -1,0 +1,5 @@
+---
+"@mainahq/cli": minor
+---
+
+Migration from 1.x (FR-INS-8). `maina setup`, including `--plugin` mode, now finds the MCP entries 1.x left behind (`bunx`/`npx @mainahq/cli --mcp`, pinned or not) in every location maina knows about and fixes them. This covers each host's global and project configs, Claude Code's local scope in `~/.claude.json`, the retired `.roo/`, `.amazonq/` and `.continue/mcpServers/` files, and `.claude/settings*.json`. In a file a host reads, the entry is changed to launch the way maina launches today, and the entry's other fields and the rest of the file stay as they were. In a file no host reads, the entry is removed, and the file is deleted if nothing else is left in it. Before its first edit to a file, maina copies the file to `.maina/backups/` (repository files) or `~/.maina/backups/global/` (files in your home directory). The constitution, custom prompts and databases are never touched. Running setup again changes nothing. Each change is logged and listed in `result.migration`.

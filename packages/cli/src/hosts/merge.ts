@@ -21,7 +21,7 @@ import {
 	removeJsonKey,
 	serialiseLike,
 } from "../onboarding/json-key";
-import type { TargetFile } from "./targets";
+import type { EntryShape, TargetFile } from "./targets";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,7 +89,7 @@ function jsonContainer(root: Obj, path: readonly string[]): Read {
 	return { ok: true, value: cursor };
 }
 
-function readJson(t: TargetFile, text: string): Read {
+function readJson(t: EntryShape, text: string): Read {
 	const parsed = parseJsonObject(text);
 	if (!parsed.ok) return parsed;
 	const found = jsonContainer(parsed.value, t.containerPath);
@@ -131,7 +131,7 @@ function withArray(
 }
 
 function editJsonArray(
-	t: TargetFile,
+	t: EntryShape,
 	text: string,
 	next: (current: readonly unknown[]) => readonly unknown[],
 ): Edit {
@@ -143,7 +143,7 @@ function editJsonArray(
 	};
 }
 
-function setJson(t: TargetFile, text: string, entry: unknown): Edit {
+function setJson(t: EntryShape, text: string, entry: unknown): Edit {
 	if (t.container === "array") {
 		const isMaina = named(t.entryKey);
 		return editJsonArray(t, text, (arr) =>
@@ -157,7 +157,7 @@ function setJson(t: TargetFile, text: string, entry: unknown): Edit {
 	return { ok: true, text: merged.kind === "merged" ? merged.text : text };
 }
 
-function deleteJson(t: TargetFile, text: string): Edit {
+function deleteJson(t: EntryShape, text: string): Edit {
 	if (t.container === "array") {
 		const isMaina = named(t.entryKey);
 		return editJsonArray(t, text, (arr) => arr.filter((e) => !isMaina(e)));
@@ -201,7 +201,7 @@ interface Range {
 	readonly end: number;
 }
 
-function ownedRanges(t: TargetFile, lines: readonly string[]): Range[] {
+function ownedRanges(t: EntryShape, lines: readonly string[]): Range[] {
 	const own = [...t.containerPath, t.entryKey];
 	const isOwned = (p: readonly string[]) =>
 		p.length >= own.length && own.every((k, i) => p[i] === k);
@@ -230,7 +230,7 @@ function parseToml(text: string): Read {
 	}
 }
 
-function readToml(t: TargetFile, text: string): Read {
+function readToml(t: EntryShape, text: string): Read {
 	const parsed = parseToml(text);
 	if (!parsed.ok) return parsed;
 	let cursor: unknown = parsed.value;
@@ -277,7 +277,7 @@ function renderTable(path: readonly string[], value: Obj): string | null {
 		.replace(/\n+$/, "\n");
 }
 
-function hasEntry(t: TargetFile, text: string): Read {
+function hasEntry(t: EntryShape, text: string): Read {
 	const current = readToml(t, text);
 	if (!current.ok || current.value === undefined) return current;
 	const lines = text.split("\n");
@@ -322,7 +322,7 @@ function withoutEntry(doc: unknown, path: readonly string[]): unknown {
  * skipped instead of breaking the user's config.
  */
 function verifiedToml(
-	t: TargetFile,
+	t: EntryShape,
 	before: string,
 	after: string,
 	expected: unknown,
@@ -345,7 +345,7 @@ function verifiedToml(
 		: unsafe;
 }
 
-function setToml(t: TargetFile, text: string, entry: unknown): Edit {
+function setToml(t: EntryShape, text: string, entry: unknown): Edit {
 	const current = hasEntry(t, text);
 	if (!current.ok) return current;
 	const block = isObj(entry)
@@ -372,7 +372,7 @@ function setToml(t: TargetFile, text: string, entry: unknown): Edit {
 	return verifiedToml(t, text, out.join("\n"), entry);
 }
 
-function deleteToml(t: TargetFile, text: string): Edit {
+function deleteToml(t: EntryShape, text: string): Edit {
 	const current = hasEntry(t, text);
 	if (!current.ok) return current;
 	const lines = text.split("\n");
@@ -397,24 +397,24 @@ function deleteToml(t: TargetFile, text: string): Edit {
 // ── Format dispatch ─────────────────────────────────────────────────────────
 
 /** The maina entry in `text`, undefined when absent. */
-export function readEntry(t: TargetFile, text: string): Read {
+export function readEntry(t: EntryShape, text: string): Read {
 	return t.format === "toml" ? hasEntry(t, text) : readJson(t, text);
 }
 
 /** `text` with maina's entry set to `entry`. */
-export function setEntry(t: TargetFile, text: string, entry: unknown): Edit {
+export function setEntry(t: EntryShape, text: string, entry: unknown): Edit {
 	return t.format === "toml"
 		? setToml(t, text, entry)
 		: setJson(t, text, entry);
 }
 
 /** `text` without maina's entry. */
-export function deleteEntry(t: TargetFile, text: string): Edit {
+export function deleteEntry(t: EntryShape, text: string): Edit {
 	return t.format === "toml" ? deleteToml(t, text) : deleteJson(t, text);
 }
 
 /** True when `text` holds nothing but what maina put there. */
-export function isEmptyConfig(t: TargetFile, text: string): boolean {
+export function isEmptyConfig(t: EntryShape, text: string): boolean {
 	if (t.format === "toml") return text.trim().length === 0;
 	const parsed = parseJsonObject(text);
 	return parsed.ok && isSkeleton(parsed.value, t.containerPath);
