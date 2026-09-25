@@ -11,12 +11,12 @@
     "directory": "packages/core"
   },
   "engines": {
+    "node": ">=20",
     "bun": ">=1.0.0"
   },
   "files": [
-    "src",
-    "!src/__golden__",
-    "package.json",
+    "dist",
+    "!dist/**/*.map",
     "README.md"
   ],
   "keywords": [
@@ -26,8 +26,17 @@
     "prompt-engine",
     "ai-code-review"
   ],
-  "main": "src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
+    "build": "bunup",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

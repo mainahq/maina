@@ -27,9 +27,13 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { confirm, intro, isCancel, log, outro, spinner } from "@clack/prompts";
-import { buildUsageEvent, captureUsage, scaffold } from "@mainahq/core";
+import {
+	buildUsageEvent,
+	captureUsage,
+	scaffold,
+	VERSION,
+} from "@mainahq/core";
 import { Command } from "commander";
-import packageJson from "../../package.json" with { type: "json" };
 import { processEnv } from "../env";
 import { buildMainaEntry } from "../hosts/entry";
 import { EXIT_CONFIG_ERROR, EXIT_PASSED } from "../json";
@@ -69,7 +73,7 @@ import {
 import { type SeedWikiResult, seedWiki } from "./setup-wiki";
 import { verifyAction } from "./verify";
 
-const CLI_VERSION = (packageJson as { version?: string }).version ?? "0.0.0";
+const CLI_VERSION = VERSION;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

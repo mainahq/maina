@@ -10,7 +10,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
-import { loadWikiState } from "@mainahq/core";
+import { hashContent, loadWikiState } from "@mainahq/core";
 import type { Command } from "commander";
 import { EXIT_PASSED, outputJson } from "../../json";
 
@@ -139,7 +139,6 @@ function countStaleArticles(
 			continue;
 		}
 		try {
-			const { hashContent } = require("@mainahq/core");
 			const content = readFileSync(fullPath, "utf-8");
 			const currentHash = hashContent(content);
 			if (currentHash !== expectedHash) {

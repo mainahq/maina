@@ -87,6 +87,7 @@ let mockDiffOutput =
 	"diff --git a/src/index.ts b/src/index.ts\n--- a/src/index.ts\n+++ b/src/index.ts";
 
 mock.module("@mainahq/core", () => ({
+	VERSION: "0.0.0-test",
 	runPipeline: async (opts?: Record<string, unknown>) => {
 		pipelineCalledWith = opts;
 		return mockPipelineResult;

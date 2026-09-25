@@ -11,16 +11,17 @@
     "directory": "packages/cli"
   },
   "engines": {
+    "node": ">=20",
     "bun": ">=1.0.0"
   },
   "files": [
     "dist",
-    "package.json",
+    "!dist/**/*.map",
     "README.md"
   ],
-  "main": "dist/index.js",
+  "main": "./dist/index.js",
   "bin": {
-    "maina": "dist/index.js"
+    "maina": "./dist/index.js"
   },
   "scripts": {
     "build": "bunup",

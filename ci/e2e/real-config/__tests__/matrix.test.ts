@@ -459,13 +459,25 @@ describe("KNOWN_FAILURES", () => {
 		}
 	});
 
-	test("a case accepting P3 or P4 points each at its own fix", () => {
-		const k = expectedFailure({
-			host: "cursor",
-			installPath: "cli-setup",
-			env: "minimal",
-		});
-		expect(k?.fixes).toEqual({ P3: 294, P4: 298 });
+	test("CLI install paths no longer wait on #294 (compiled packages)", () => {
+		// The CLI writes its own runtime + entry by absolute path, so neither
+		// a GUI PATH without bun (P2) nor an unpublished version pin (P3)
+		// can stop the server from starting on these paths.
+		for (const k of KNOWN_FAILURES) {
+			expect(Object.values(k.fixes)).not.toContain(294);
+		}
+		for (const host of ["cursor", "codex"] as const) {
+			for (const env of ["minimal", "gui", "full"] as const) {
+				expect(
+					expectedFailure({ host, installPath: "cli-mcp-add", env }),
+				).toBeUndefined();
+			}
+		}
+		for (const env of ["minimal", "gui", "full"] as const) {
+			expect(
+				expectedFailure({ host: "cursor", installPath: "cli-setup", env }),
+			).toBeUndefined();
+		}
 	});
 
 	test("only latency-bound (P4-only) entries may pass", () => {
@@ -474,11 +486,15 @@ describe("KNOWN_FAILURES", () => {
 		}
 	});
 
-	test("P1–P4 are each reproduced by at least one case", () => {
+	test("the open problems (P1, P2, P4) are each reproduced by at least one case", () => {
+		// P3 (unresolvable version pin) was fixed by #294: a stable CLI launches
+		// itself, and the registry fallback pins VERSION, which the release
+		// publishes (launcher.test.ts covers the fallback).
 		const covered = new Set(KNOWN_FAILURES.flatMap((k) => problemsOf(k)));
-		for (const p of ["P1", "P2", "P3", "P4"] as const) {
+		for (const p of ["P1", "P2", "P4"] as const) {
 			expect(covered.has(p)).toBe(true);
 		}
+		expect(covered.has("P3")).toBe(false);
 	});
 });
 

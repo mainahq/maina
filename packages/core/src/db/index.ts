@@ -1,7 +1,8 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import { drizzle } from "drizzle-orm/bun-sqlite";
+import type { drizzle } from "drizzle-orm/bun-sqlite";
 import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 import * as schema from "./schema.ts";
 
@@ -43,6 +44,36 @@ export type DbHandle = Readonly<{
 	db: SqliteDatabase;
 	drizzle: BaseSQLiteDatabase<"sync", void, typeof schema>;
 }>;
+
+interface SqliteDriver {
+	readonly Database: typeof Database;
+	readonly drizzle: typeof drizzle;
+}
+
+/**
+ * The SQLite driver is Bun-only (`bun:sqlite`). It is loaded on first use,
+ * not imported at module load, so the compiled package can be imported under
+ * Node (`maina --version`, `--help`) without Bun (#294). Opening a store on
+ * Node returns an Err instead of crashing the whole CLI. `require` caches the
+ * modules, so repeated opens do not reload them.
+ */
+function loadDriver(): Result<SqliteDriver> {
+	try {
+		const load = createRequire(import.meta.url);
+		return ok({
+			Database: (load("bun:sqlite") as typeof import("bun:sqlite")).Database,
+			drizzle: (
+				load(
+					"drizzle-orm/bun-sqlite",
+				) as typeof import("drizzle-orm/bun-sqlite")
+			).drizzle,
+		});
+	} catch (e) {
+		return err(
+			`SQLite storage needs the Bun runtime (${e instanceof Error ? e.message : String(e)})`,
+		);
+	}
+}
 
 export type Result<T, E = string> =
 	| { ok: true; value: T }
@@ -248,14 +279,16 @@ export function initDatabase(
 	dbPath: string,
 	tableCreator?: (db: SqliteDatabase) => void,
 ): Result<DbHandle> {
+	const loaded = loadDriver();
+	if (!loaded.ok) return loaded;
 	try {
 		mkdirSync(dirname(dbPath), { recursive: true });
-		const db = new Database(dbPath, { create: true });
+		const db = new loaded.value.Database(dbPath, { create: true });
 		db.exec("PRAGMA journal_mode=WAL;");
 		if (tableCreator) {
 			tableCreator(db);
 		}
-		const orm = drizzle(db, { schema });
+		const orm = loaded.value.drizzle(db, { schema });
 		return ok({ db, drizzle: orm });
 	} catch (e) {
 		return err(e instanceof Error ? e.message : String(e));

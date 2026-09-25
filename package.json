@@ -18,7 +18,7 @@
     "typecheck": "bun run --filter '*' typecheck",
     "verify": "bun run check && bun run typecheck && bun run test",
     "changeset": "changeset",
-    "version": "changeset version",
+    "version": "changeset version && bun scripts/version-source.ts",
     "release": "bun run build && changeset publish",
     "knip": "knip && knip --production --include files",
     "check:paths": "bun scripts/check-paths.ts",

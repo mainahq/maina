@@ -13,12 +13,12 @@ import {
 	loadAuthConfig,
 	type PromptTask,
 	resolveABTests,
+	VERSION,
 } from "@mainahq/core";
 import { Command } from "commander";
-import packageJson from "../../package.json" with { type: "json" };
 import { processEnv } from "../env";
 
-const CLI_VERSION = (packageJson as { version?: string }).version ?? "0.0.0";
+const CLI_VERSION = VERSION;
 
 const TASKS: PromptTask[] = [
 	"review",

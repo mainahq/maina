@@ -14,6 +14,10 @@
     "noUncheckedIndexedAccess": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
-    "types": ["bun-types"]
+    "types": ["bun-types"],
+    "paths": {
+      "@mainahq/core": ["./packages/core/src/index.ts"],
+      "@mainahq/mcp": ["./packages/mcp/src/index.ts"]
+    }
   }
 }

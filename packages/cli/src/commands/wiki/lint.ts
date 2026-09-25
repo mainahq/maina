@@ -7,6 +7,7 @@
 
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
+import { runWikiLint } from "@mainahq/core";
 import type { Command } from "commander";
 import { EXIT_FINDINGS, EXIT_PASSED, outputJson } from "../../json";
 
@@ -36,11 +37,6 @@ async function wikiLintAction(
 ): Promise<WikiLintCommandResult> {
 	const cwd = options.cwd ?? process.cwd();
 	const wikiDir = join(cwd, ".maina", "wiki");
-
-	// Dynamic import to avoid circular dependency issues at CLI layer
-	const { runWikiLint } = await import(
-		"@mainahq/core/src/verify/tools/wiki-lint"
-	);
 
 	const result = runWikiLint({ wikiDir, repoRoot: cwd });
 
