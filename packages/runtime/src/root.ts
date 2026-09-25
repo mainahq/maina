@@ -15,13 +15,19 @@
  * instead of falling through to a lower source: maina never guesses a root,
  * and callers write nothing when resolution fails.
  *
+ * A top level equal to the user's home directory (a dotfiles repository in
+ * `$HOME`) or to the filesystem root is not a project: unless the source is
+ * `explicit`, such a candidate counts as outside any repository, so
+ * `~/scratch` refuses instead of writing state into `$HOME`. An explicit
+ * `--root` is the override.
+ *
  * `resolveRoot` is pure over the injected `GitProbe`; `gitProbe` is the real
  * probe, backed by `git rev-parse --show-toplevel`. `resolveRootAsync` and
  * `asyncGitProbe` are the same over an async probe, for the daemon, where a
  * blocking spawn would stall every connection.
  */
 
-import { isAbsolute, resolve } from "node:path";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Result, stripRepoLocalGitEnv } from "@mainahq/core";
 
@@ -47,6 +53,12 @@ export type RootInputs = Readonly<{
 	mcpRoots?: readonly string[];
 	/** Absolute working directory; relative inputs resolve against it. */
 	cwd: string;
+	/**
+	 * The user's home directory, spelled as git reports paths (symlinks
+	 * resolved). A non-explicit root equal to it refuses. Omitted, blank or
+	 * relative: no home check.
+	 */
+	home?: string;
 }>;
 
 /** Read-only git lookup: the work-tree top level containing `dir`, or null. */
@@ -100,6 +112,18 @@ const pickCandidates = (inputs: RootInputs): Candidates => {
 	return { source: "cwd", values: [cwd] };
 };
 
+/**
+ * Whether a git top level is one only an explicit root may choose: a
+ * filesystem root (any drive root on Windows, not only the current drive, so
+ * the answer never depends on the process working directory), or the home
+ * directory when an absolute one is given.
+ */
+const isReserved = (path: string, home: string | undefined): boolean => {
+	const top = resolve(path);
+	if (dirname(top) === top) return true;
+	return provided(home) && isAbsolute(home) && top === resolve(home);
+};
+
 export function resolveRoot(
 	inputs: RootInputs,
 	git: GitProbe,
@@ -109,7 +133,12 @@ export function resolveRoot(
 	for (const value of values) {
 		const dir = toDir(value, inputs.cwd);
 		const path = dir === null ? null : git.toplevel(dir);
-		if (path !== null) return { ok: true, value: { path, source } };
+		const allowed =
+			path !== null &&
+			(source === "explicit" || !isReserved(path, inputs.home));
+		if (allowed) {
+			return { ok: true, value: { path, source } };
+		}
 		tried.push(dir ?? value);
 	}
 	return { ok: false, error: { kind: "no_repo", source, tried } };
@@ -130,7 +159,12 @@ export async function resolveRootAsync(
 	for (const value of values) {
 		const dir = toDir(value, inputs.cwd);
 		const path = dir === null ? null : await git.toplevel(dir);
-		if (path !== null) return { ok: true, value: { path, source } };
+		const allowed =
+			path !== null &&
+			(source === "explicit" || !isReserved(path, inputs.home));
+		if (allowed) {
+			return { ok: true, value: { path, source } };
+		}
 		tried.push(dir ?? value);
 	}
 	return { ok: false, error: { kind: "no_repo", source, tried } };
