@@ -129,6 +129,11 @@ export {
 	setVerificationResult,
 	trackFile,
 } from "./context/working";
+// Decision log migration (append-only, FR-DEC-3/5)
+export {
+	DECISION_LOG_MIGRATION,
+	migrateDecisionLog,
+} from "./db/decision-log";
 // DB
 export type {
 	DbHandle,
@@ -146,6 +151,31 @@ export {
 	decide,
 	defaultDecidePorts,
 } from "./decide/decide";
+// Decision log (append-only, FR-DEC-3/5)
+export {
+	appendDecision,
+	buildDecisionRecord,
+	type DecisionLogPorts,
+	type DecisionRecordInput,
+} from "./decide/log/append";
+export {
+	canonicalJson,
+	hashInput,
+	hashModel,
+	hashPolicy,
+	hashSchema,
+	hashValue,
+	isHash,
+} from "./decide/log/hash";
+export { type DecisionFilter, queryDecisions } from "./decide/log/query";
+export {
+	DEFAULT_LOG_PRIVACY,
+	type DecisionLogError,
+	type DecisionLogPrivacy,
+	type DecisionRecord,
+	type DecisionRecordField,
+	validateRecord,
+} from "./decide/log/schema";
 export {
 	type BackendRegistry,
 	createRegistry,
