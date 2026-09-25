@@ -315,7 +315,7 @@ describe("formatSessionSummary", () => {
 		for (const bad of [
 			"javascript:alert(1)",
 			"https://ok.example/r/1 injected",
-			"https://ok.example/‮evil",
+			`https://ok.example/${String.fromCharCode(0x202e)}evil`,
 			"https://ok.example/\nsecond line",
 			"",
 		]) {
