@@ -96,7 +96,7 @@ export async function gatherVerificationProof(
 ): Promise<VerificationProof> {
 	const cwd = options.cwd ?? process.cwd();
 	const mainaDir = options.mainaDir ?? join(cwd, ".maina");
-	const baseBranch = options.baseBranch ?? "main";
+	const baseBranch = options.baseBranch;
 
 	// Pipeline
 	let pipelineResult = options.pipelineResult;

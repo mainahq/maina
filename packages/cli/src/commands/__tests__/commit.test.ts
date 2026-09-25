@@ -122,12 +122,16 @@ mock.module("@mainahq/core", () => ({
 	computeProofHash: () => ({ ok: true, data: "0".repeat(64) }),
 }));
 
+let loggedErrors: string[] = [];
+
 mock.module("@clack/prompts", () => ({
 	intro: () => {},
 	outro: () => {},
 	log: {
 		info: () => {},
-		error: () => {},
+		error: (msg: string) => {
+			loggedErrors.push(msg);
+		},
 		warning: () => {},
 		success: () => {},
 		message: () => {},
@@ -189,6 +193,7 @@ beforeEach(() => {
 	mockGitCommitStdout = "[main abc1234] feat: test commit\n 1 file changed";
 	mockGitCommitStderr = "";
 	recordedOutcomes = [];
+	loggedErrors = [];
 });
 
 afterEach(() => {
@@ -201,6 +206,38 @@ afterEach(() => {
 });
 
 describe("CommitGate", () => {
+	test("failure message counts only error-severity findings", async () => {
+		const f = (severity: "error" | "warning" | "info") => ({
+			tool: "tsc",
+			file: "src/index.ts",
+			line: 1,
+			column: 1,
+			message: severity,
+			severity,
+			rule: "test",
+		});
+		mockPipelineResult = {
+			passed: false,
+			syntaxPassed: true,
+			tools: [],
+			findings: [f("error"), f("warning"), f("warning"), f("info")],
+			hiddenCount: 0,
+			detectedTools: [],
+			duration: 10,
+			syntaxErrors: undefined,
+		};
+
+		const result = await commitAction(
+			{ message: "test", cwd: tmpDir },
+			mockDeps,
+		);
+
+		expect(result.committed).toBe(false);
+		expect(loggedErrors).toContain(
+			"Verification failed: 1 finding(s) with errors.",
+		);
+	});
+
 	test("should run syntax guard FIRST, before parallel gates", async () => {
 		// When syntax fails, pipeline returns syntaxPassed: false and no tool results
 		mockPipelineResult = {

@@ -126,6 +126,8 @@ mock.module("../../git/index", () => ({
 		callOrder.push("getStagedFiles");
 		return mockStagedFiles;
 	},
+	resolveBaseBranch: async (_cwd?: string, preferred?: string) =>
+		preferred ?? "main",
 	getDiff: async (..._args: unknown[]) => {
 		return "+  some changed code";
 	},

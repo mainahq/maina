@@ -262,12 +262,15 @@ export {
 	getCurrentBranch,
 	getDiff,
 	getDiffStats,
+	getMergeBase,
 	getRecentCommits,
 	getRepoRoot,
 	getRepoSlug,
+	getStagedDiff,
 	getStagedFiles,
 	getTrackedFiles,
 	parseShortstat,
+	resolveBaseBranch,
 } from "./git/index";
 export {
 	appendVerifiedByTrailer,

@@ -98,6 +98,56 @@ export async function getDiff(
 	return output;
 }
 
+const refExists = async (ref: string, cwd?: string): Promise<boolean> =>
+	(await exec(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], cwd)) !==
+	"";
+
+/**
+ * Resolve the branch to diff against. Precedence: `preferred` exactly as
+ * given (local first) → origin/HEAD → master → main, where defaults prefer
+ * `origin/<name>` over a possibly stale local branch → "HEAD".
+ * Never assumes "main": master-based repos made `git diff main` fail and the
+ * diff filter fall open (#364).
+ */
+export async function resolveBaseBranch(
+	cwd?: string,
+	preferred?: string,
+): Promise<string> {
+	const withRemote = (name: string, localFirst: boolean): string[] => {
+		if (name.startsWith("origin/")) return [name];
+		return localFirst ? [name, `origin/${name}`] : [`origin/${name}`, name];
+	};
+	const originHead = (
+		await exec(
+			["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
+			cwd,
+		)
+	).replace(/^origin\//, "");
+	const candidates = [
+		...(preferred ? withRemote(preferred, true) : []),
+		...[originHead, "master", "main"]
+			.filter((n) => n.length > 0)
+			.flatMap((n) => withRemote(n, false)),
+	];
+	for (const ref of candidates) {
+		if (await refExists(ref, cwd)) return ref;
+	}
+	return "HEAD";
+}
+
+/** Staged changes vs HEAD (or vs the empty tree before the first commit). */
+export async function getStagedDiff(cwd?: string): Promise<string> {
+	return exec(["diff", "--cached"], cwd);
+}
+
+/** Merge-base of `base` and HEAD, or `base` itself when there is none. */
+export async function getMergeBase(
+	base: string,
+	cwd?: string,
+): Promise<string> {
+	return (await exec(["merge-base", base, "HEAD"], cwd)) || base;
+}
+
 export interface DiffStats {
 	additions: number;
 	deletions: number;

@@ -6,6 +6,7 @@
  * Gracefully skips if diff-cover is not installed.
  */
 
+import { resolveBaseBranch } from "../git/index";
 import { isToolAvailable } from "./detect";
 import type { Finding } from "./diff-filter";
 
@@ -106,7 +107,7 @@ export async function runCoverage(
 
 	const cwd = options?.cwd ?? process.cwd();
 	const coverageXml = options?.coverageXml ?? "coverage/cobertura-coverage.xml";
-	const baseBranch = options?.baseBranch ?? "main";
+	const baseBranch = await resolveBaseBranch(cwd, options?.baseBranch);
 
 	const args = [
 		"diff-cover",
