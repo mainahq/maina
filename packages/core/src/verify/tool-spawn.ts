@@ -50,6 +50,8 @@ interface ToolOutput {
 	readonly stdout: string;
 	readonly stderr: string;
 	readonly exitCode: number;
+	/** Epoch ms just before the process was spawned. */
+	readonly startedAt: number;
 }
 
 type ToolSpawnError = {
@@ -66,6 +68,7 @@ export async function spawnTool(
 	argv: readonly [string, ...string[]],
 	cwd: string,
 ): Promise<Result<ToolOutput, ToolSpawnError>> {
+	const startedAt = Date.now();
 	try {
 		const proc = Bun.spawn([...argv], {
 			cwd,
@@ -77,7 +80,7 @@ export async function spawnTool(
 			new Response(proc.stderr).text(),
 		]);
 		const exitCode = await proc.exited;
-		return { ok: true, value: { stdout, stderr, exitCode } };
+		return { ok: true, value: { stdout, stderr, exitCode, startedAt } };
 	} catch (e) {
 		return {
 			ok: false,
@@ -101,8 +104,8 @@ export function spawnFailureNotice(
 /**
  * Notice for a tool that started but exited non-zero and left no results
  * (e.g. a rules fetch or config error). Such a run is a skip, not a pass
- * with zero findings. Callers decide what "no results" means: empty stdout
- * for stdout-reporting tools, a missing report file for the others. A
+ * with zero findings. Callers decide what "no results" means: no JSON on
+ * stdout for stdout-reporting tools, no fresh report file for the others. A
  * non-zero exit that did produce results is kept: several tools exit
  * non-zero precisely because they found issues.
  */
@@ -111,7 +114,34 @@ export function exitFailureNotice(tool: string, output: ToolOutput): string {
 	return `${tool} exited with code ${output.exitCode} without results${detail ? `: ${detail}` : ""}. Skipped, no results from this tool.`;
 }
 
-/** True when a run exited non-zero and wrote nothing to stdout. */
-export function failedWithoutOutput(output: ToolOutput): boolean {
-	return output.exitCode !== 0 && output.stdout.trim() === "";
+/**
+ * True when a run exited non-zero and its stdout is not a JSON report
+ * (empty, or an error message): there is nothing trustworthy to parse.
+ */
+export function failedWithoutResults(output: ToolOutput): boolean {
+	return output.exitCode !== 0 && !isJson(output.stdout);
+}
+
+function isJson(text: string): boolean {
+	if (text.trim() === "") return false;
+	try {
+		JSON.parse(text);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/** Slack for filesystems that store mtimes at whole-second precision. */
+const MTIME_SLACK_MS = 2000;
+
+/**
+ * True when a report file was written by this run rather than left over
+ * from an earlier one, judged by its mtime against the spawn time.
+ */
+export function isFreshReport(
+	lastModified: number,
+	output: ToolOutput,
+): boolean {
+	return lastModified >= output.startedAt - MTIME_SLACK_MS;
 }

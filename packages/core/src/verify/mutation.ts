@@ -9,6 +9,7 @@
 import type { Finding } from "./diff-filter";
 import {
 	exitFailureNotice,
+	isFreshReport,
 	resolveTool,
 	spawnFailureNotice,
 	spawnTool,
@@ -143,8 +144,11 @@ export async function runMutation(
 		// Read the generated report file
 		const reportPath = `${cwd}/reports/mutation/mutation.json`;
 		const reportFile = Bun.file(reportPath);
-		const exists = await reportFile.exists();
-		if (!exists) {
+		// A report older than this run is a leftover, not this run's result.
+		const fresh =
+			(await reportFile.exists()) &&
+			isFreshReport(reportFile.lastModified, run.value);
+		if (!fresh) {
 			// A failed run that left no report produced nothing to trust.
 			if (run.value.exitCode !== 0) {
 				return {

@@ -19,10 +19,11 @@ import {
 	mkdirSync,
 	mkdtempSync,
 	rmSync,
+	utimesSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 
 const RESTRICTED_PATH = "/usr/bin:/bin";
 
@@ -39,6 +40,8 @@ interface RunnerCase {
 	tool: string;
 	/** Substring of the parsed finding's message. */
 	message: string;
+	/** Report file (relative to root) and its JSON, for report-file tools. */
+	report?: { path: string; json: string };
 }
 
 const SARIF = JSON.stringify({
@@ -165,6 +168,7 @@ const CASES: readonly RunnerCase[] = [
 		body: `mkdir -p .scannerwork\n${heredoc(SONAR, ".scannerwork/sonar-report.json")}`,
 		tool: "sonarqube",
 		message: "fake sonar finding",
+		report: { path: ".scannerwork/sonar-report.json", json: SONAR },
 	},
 	{
 		module: "mutation",
@@ -173,6 +177,7 @@ const CASES: readonly RunnerCase[] = [
 		body: `mkdir -p reports/mutation\n${heredoc(STRYKER, "reports/mutation/mutation.json")}`,
 		tool: "stryker",
 		message: "fake stryker finding",
+		report: { path: "reports/mutation/mutation.json", json: STRYKER },
 	},
 	{
 		module: "coverage",
@@ -312,6 +317,28 @@ describe("runners spawn the tool path resolved by detection (#389)", () => {
 			expect(result.notice).toContain(c.tool);
 			expect(result.notice).toContain("exited with code 2");
 			expect(result.notice).toContain("boom: config unreachable");
+		}, 20_000);
+
+		test(`${c.fn} never reuses a stale report or unparseable output from a failed run`, async () => {
+			writeFakeTool(
+				join(root, "node_modules", ".bin", c.bin),
+				'echo "not json"\necho "boom" >&2\nexit 2',
+			);
+			const report = c.report;
+			if (report) {
+				// A previous run's report, older than this invocation.
+				const reportPath = join(root, report.path);
+				mkdirSync(dirname(reportPath), { recursive: true });
+				writeFileSync(reportPath, report.json);
+				const past = new Date(Date.now() - 60 * 60 * 1000);
+				utimesSync(reportPath, past, past);
+			}
+
+			const result = await runInChild(c, { cwd: root, baseBranch: "HEAD" });
+
+			expect(result.findings).toEqual([]);
+			expect(result.skipped).toBe(true);
+			expect(result.notice).toContain("exited with code 2");
 		}, 20_000);
 
 		test(`${c.fn} keeps findings when the tool exits non-zero because it found issues`, async () => {

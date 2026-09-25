@@ -9,7 +9,7 @@
 import type { Finding } from "./diff-filter";
 import {
 	exitFailureNotice,
-	failedWithoutOutput,
+	failedWithoutResults,
 	resolveTool,
 	spawnFailureNotice,
 	spawnTool,
@@ -162,7 +162,7 @@ export async function runTrivy(options: TrivyOptions): Promise<TrivyResult> {
 			notice: spawnFailureNotice("trivy", run.error),
 		};
 	}
-	if (failedWithoutOutput(run.value)) {
+	if (failedWithoutResults(run.value)) {
 		return {
 			findings: [],
 			skipped: true,

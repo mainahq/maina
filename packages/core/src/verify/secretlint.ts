@@ -9,7 +9,7 @@
 import type { Finding } from "./diff-filter";
 import {
 	exitFailureNotice,
-	failedWithoutOutput,
+	failedWithoutResults,
 	resolveTool,
 	spawnFailureNotice,
 	spawnTool,
@@ -168,7 +168,7 @@ export async function runSecretlint(
 			notice: spawnFailureNotice("secretlint", run.error),
 		};
 	}
-	if (failedWithoutOutput(run.value)) {
+	if (failedWithoutResults(run.value)) {
 		return {
 			findings: [],
 			skipped: true,
