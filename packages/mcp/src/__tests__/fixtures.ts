@@ -4,6 +4,7 @@
  * connected through the SDK's public transport (no private fields).
  */
 
+import { expect } from "bun:test";
 import type { PipelineResult, Receipt } from "@mainahq/core";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -255,7 +256,7 @@ export async function connect(
 	return client;
 }
 
-export type ToolResult = Readonly<{
+type ToolResult = Readonly<{
 	content: ReadonlyArray<{ type: string; text?: string }>;
 	structuredContent?: {
 		data: Record<string, unknown> | null;
@@ -275,4 +276,18 @@ export async function call(
 
 export function text(result: ToolResult): string {
 	return result.content.map((c) => c.text ?? "").join("\n");
+}
+
+/** A successful call: a text summary and a `{ data, error: null, meta }` envelope. */
+export function expectEnvelope(
+	result: ToolResult,
+	tool: string,
+	root: string,
+): void {
+	expect(result.isError).toBeFalsy();
+	expect(text(result).length).toBeGreaterThan(0);
+	expect(result.structuredContent?.error).toBeNull();
+	expect(result.structuredContent?.data).not.toBeNull();
+	expect(result.structuredContent?.meta.tool).toBe(tool);
+	expect(result.structuredContent?.meta.root).toBe(root);
 }
