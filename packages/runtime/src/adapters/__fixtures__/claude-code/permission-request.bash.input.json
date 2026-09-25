@@ -1,0 +1,27 @@
+{
+  "session_id": "142dcab6-6ff4-401d-b492-e9196e8f3c25",
+  "transcript_path": "/home/user/.claude/projects/-home-user-project/142dcab6-6ff4-401d-b492-e9196e8f3c25.jsonl",
+  "cwd": "/home/user/project",
+  "prompt_id": "f78f20f7-7ca2-4d5b-a046-8e19d1f7c7c3",
+  "permission_mode": "default",
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "touch made-by-hook.txt",
+    "description": "Create a file called made-by-hook.txt"
+  },
+  "permission_suggestions": [
+    {
+      "type": "addDirectories",
+      "directories": [
+        "/home/user/project"
+      ],
+      "destination": "session"
+    },
+    {
+      "type": "setMode",
+      "mode": "acceptEdits",
+      "destination": "session"
+    }
+  ]
+}

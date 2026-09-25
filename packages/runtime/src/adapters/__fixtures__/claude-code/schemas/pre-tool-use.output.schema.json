@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "claude-code.pre-tool-use.output",
+  "description": "Claude Code PreToolUse hook stdout JSON. Limited to documented, non-deprecated fields so adapters cannot emit keys the host ignores.",
+  "x-source": {
+    "url": "https://code.claude.com/docs/en/hooks#pretooluse-decision-control",
+    "retrieved": "2026-09-25"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "continue": {
+      "type": "boolean"
+    },
+    "stopReason": {
+      "type": "string"
+    },
+    "suppressOutput": {
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "type": "string"
+    },
+    "terminalSequence": {
+      "type": "string"
+    },
+    "hookSpecificOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hookEventName"
+      ],
+      "properties": {
+        "hookEventName": {
+          "const": "PreToolUse"
+        },
+        "permissionDecision": {
+          "enum": [
+            "allow",
+            "deny",
+            "ask",
+            "defer"
+          ]
+        },
+        "permissionDecisionReason": {
+          "type": "string"
+        },
+        "updatedInput": {
+          "type": "object"
+        },
+        "additionalContext": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@mainahq/runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Maina runtime: process concerns (root, config, IPC, MCP, model) and host adapters",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "ajv": "^8.18.0"
+  }
+}

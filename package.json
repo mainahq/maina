@@ -5,6 +5,7 @@
   "workspaces": [
     "packages/cli",
     "packages/core",
+    "packages/runtime",
     "packages/mcp",
     "packages/skills",
     "packages/docs"
