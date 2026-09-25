@@ -9,13 +9,29 @@
  * characters become spaces.
  */
 
+/** What the lexer is inside of: code, a block comment or template text. */
+type LexMode = "code" | "block" | "template";
+
 /** Lexer state carried from one line to the next. */
-type LexState = "code" | "block" | "template";
+interface LexState {
+	readonly mode: LexMode;
+	/**
+	 * One entry per open `${…}` template interpolation, innermost last: the
+	 * number of `{` opened inside it and not yet closed. The `}` that meets
+	 * a zero count ends the interpolation and returns to the template (#413).
+	 */
+	readonly braces: readonly number[];
+}
+
+const START: LexState = { mode: "code", braces: [] };
 
 export interface LexedLine {
 	/** The line with comments blanked to spaces. */
 	readonly code: string;
-	/** `code` with string, template and regex contents blanked too; delimiters stay. */
+	/**
+	 * `code` with string, template and regex contents blanked too; delimiters
+	 * stay. A template's `${…}` interpolations are code and stay as well.
+	 */
 	readonly masked: string;
 	/** Only the comment text of the line; code and literals blanked. */
 	readonly comments: string;
@@ -60,8 +76,10 @@ function regexLiteralEnd(line: string, start: number): number {
  * Lex one line starting in `start` state. Block comments and template
  * literals carry across lines; `'`/`"` strings and regex literals end at the
  * line break. Regex literals are skipped whole so a quote, backtick or `/*`
- * inside one cannot flip the lexer into another state. Backticks nested in
- * `${…}` are not modelled; they are rare and balance out on a line.
+ * inside one cannot flip the lexer into another state. A template's `${…}`
+ * interpolation is lexed as code, so strings and templates nested in it
+ * (`${"`"}`, `${f(`…`)}`) open and close on their own and the outer
+ * template resumes at the `}` that ends it (#413).
  *
  * A `'`/`"` string cannot span a line break, so a quote left open at the end
  * of the line (JSX text such as `<p>Don't</p>`, or a regex read as a
@@ -76,7 +94,8 @@ function lexLine(
 	let code = "";
 	let masked = "";
 	let comments = "";
-	let state: LexState | "'" | '"' = start;
+	let state: LexMode | "'" | '"' = start.mode;
+	const braces = [...start.braces];
 	let quoteAt = -1;
 	for (let i = 0; i < line.length; i++) {
 		const ch = line[i] ?? "";
@@ -119,7 +138,14 @@ function lexLine(
 					continue;
 				}
 			}
-			if (ch === "`") state = "template";
+			const depth = braces.length - 1;
+			if (ch === "{" && depth >= 0) braces[depth] = (braces[depth] ?? 0) + 1;
+			else if (ch === "}" && depth >= 0) {
+				if (braces[depth] === 0) {
+					braces.pop();
+					state = "template";
+				} else braces[depth] = (braces[depth] ?? 1) - 1;
+			} else if (ch === "`") state = "template";
 			else if ((ch === "'" || ch === '"') && !plainQuotes.has(i)) {
 				state = ch;
 				quoteAt = i;
@@ -131,7 +157,15 @@ function lexLine(
 		}
 		// Inside a string or template literal
 		const close = state === "template" ? "`" : state;
-		if (ch === "\\" && next) {
+		if (state === "template" && ch === "$" && next === "{") {
+			// Interpolation: code until its matching `}`
+			i++;
+			braces.push(0);
+			state = "code";
+			code += "${";
+			masked += "${";
+			comments += "  ";
+		} else if (ch === "\\" && next) {
 			i++;
 			code += ch + next;
 			masked += "  ";
@@ -150,15 +184,15 @@ function lexLine(
 	if ((state === "'" || state === '"') && !line.endsWith("\\")) {
 		return lexLine(line, start, new Set([...plainQuotes, quoteAt]));
 	}
-	const carried: LexState =
+	const mode: LexMode =
 		state === "block" || state === "template" ? state : "code";
-	return { code, masked, comments, state: carried };
+	return { code, masked, comments, state: { mode, braces } };
 }
 
 /** Lex every line of `content`, threading the carried state through. */
 export function lexLines(content: string): readonly LexedLine[] {
 	const lexed: LexedLine[] = [];
-	let state: LexState = "code";
+	let state: LexState = START;
 	for (const line of content.split("\n")) {
 		const result = lexLine(line, state);
 		lexed.push(result);

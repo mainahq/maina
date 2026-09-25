@@ -444,6 +444,19 @@ describe("checkAnyType", () => {
 		expect(checkAnyType("src/slop.ts", content)).toEqual([]);
 	});
 
+	it("reads template interpolations as code, their nested literals as text (#413)", () => {
+		const content = [
+			// biome-ignore lint/suspicious/noTemplateCurlyInString: fixture source text, not a JS template.
+			"const a = `x ${y as any} z`;",
+			// biome-ignore lint/suspicious/noTemplateCurlyInString: fixture source text, not a JS template.
+			'const b = `tick ${"`"}',
+			"  const c: any = 1;",
+			"`;",
+		].join("\n");
+		const findings = checkAnyType("src/app.ts", content);
+		expect(findings.map((f) => f.line)).toEqual([1]);
+	});
+
 	it("does not flag 'any' inside multi-line block comments (#400)", () => {
 		const content = ["/*", "  example: const x: any = 1;", "*/"].join("\n");
 		expect(checkAnyType("src/app.ts", content)).toEqual([]);

@@ -248,6 +248,79 @@ import { z } from "zod";`;
 			expect(findings.map((f) => f.line)).toEqual([1, 2]);
 		});
 
+		// #413 — a test-support module holding fixture sources in template
+		// literals is not importing them
+		it("should not flag fixture sources held in a record of template literals", () => {
+			const content = [
+				"export const FILES: Record<string, string> = {",
+				'\t"src/mid.ts": `import { base } from "./core";',
+				"",
+				"/** Two more than base. */",
+				"export function mid(n: number): number {",
+				"\treturn base(n) + 2;",
+				"}`,",
+				'\t"src/app.test.ts": `import { describe } from "bun:test";',
+				'import { app } from "./app";`,',
+				"};",
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "__tests__", "fixture.ts"),
+				TMP_DIR,
+			);
+			expect(findings).toHaveLength(0);
+		});
+
+		it("should not flag template text after an interpolation holding a backtick", () => {
+			const content = [
+				"export const FILES = {",
+				// biome-ignore lint/suspicious/noTemplateCurlyInString: fixture source text, not a JS template.
+				'\t"src/a.ts": `const tick = ${"`"};',
+				'import { a } from "./missing-a";`,',
+				"};",
+				'const real = require("./missing-b");',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "tick.ts"),
+				TMP_DIR,
+			);
+			expect(findings.map((f) => f.line)).toEqual([5]);
+		});
+
+		it("should not flag imports in a template nested in a multi-line interpolation", () => {
+			const content = [
+				"const doc = `header ${render(`",
+				'import { b } from "./missing-c";',
+				"`)} footer",
+				'import { c } from "./missing-d";',
+				"`;",
+				'const r = require("./missing-e");',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "nested.ts"),
+				TMP_DIR,
+			);
+			expect(findings.map((f) => f.line)).toEqual([6]);
+		});
+
+		it("still flags a require call inside a template interpolation", () => {
+			const content = [
+				// biome-ignore lint/suspicious/noTemplateCurlyInString: fixture source text, not a JS template.
+				'const t = `x ${require("./missing-f")} y`;',
+				// biome-ignore lint/suspicious/noTemplateCurlyInString: fixture source text, not a JS template.
+				"const u = `a ${ { k: `b` }.k } c",
+				'import { d } from "./missing-g";`;',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "interp.ts"),
+				TMP_DIR,
+			);
+			expect(findings.map((f) => f.line)).toEqual([1]);
+		});
+
 		it("flags re-exports from missing modules", () => {
 			const content =
 				'export { a } from "./missing-a";\nexport * from "./missing-b";';

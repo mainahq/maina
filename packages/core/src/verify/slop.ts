@@ -41,7 +41,7 @@ function hashContent(content: string): string {
 }
 
 // Bump this when detection logic changes to invalidate stale cache entries
-const SLOP_CACHE_VERSION = 4; // v4: imports in comments/strings skipped (#399)
+const SLOP_CACHE_VERSION = 5; // v5: template interpolations lexed as code (#413)
 
 function cacheKey(fileHash: string): string {
 	return `slop:v${SLOP_CACHE_VERSION}:${fileHash}`;
