@@ -15,6 +15,7 @@
   },
   "files": [
     "src",
+    "!src/__golden__",
     "package.json",
     "README.md"
   ],

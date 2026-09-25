@@ -1,0 +1,691 @@
+{
+	"site": "features/quality.ts",
+	"cases": [
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: Internal Stats Tracker\n\n## User Stories\n\n- As a maina developer, I want to see how verification time trends across commits so I can catch performance regressions.\n- As a maina developer, I want to track cache hit rates so I can verify the cache is saving tokens and cost.\n- As a maina developer, I want to see findings-per-commit trends so I can measure code quality improvement.\n\n## Acceptance Criteria\n\n- [ ] Record a commit snapshot with timing, token, cache, and quality stats after every successful maina commit via recordSnapshot in commitAction\n- [ ] Implement maina stats command showing last commit stats, rolling averages, and trend arrows\n- [ ] Support maina stats --json to output raw commit snapshots as JSON\n- [ ] Support maina stats --last N to limit displayed commits\n- [ ] Compute trends comparing recent N vs previous N commits with directional indicators via getTrends\n- [ ] Add commit_snapshots Drizzle schema to the database\n- [ ] Stats recording wrapped in try/catch so it never blocks a commit\n- [ ] Implement tracker with recordSnapshot, getStats, getLatest, getTrends functions\n\n## Design Decisions\n\n- Chose SQLite over flat files for queryable aggregation\n- Chose post-commit integration in commitAction over a separate hook for reliability\n- Chose terminal text over charts for internal use\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 48,
+					"measurability": 0,
+					"testability": 50,
+					"ambiguity": 100,
+					"completeness": 40,
+					"details": [
+						"Measurability: 0 — 0/8 criteria use measurable verbs (0 vague)",
+						"Testability: 50 — 4/8 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 40 — 2/5 sections present — missing: Problem Statement, Success Criteria, Scope",
+						"Overall: 48 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: maina pr + maina init + maina status\n\n## Problem Statement\n\nTeams using maina can verify and commit locally, but have no way to create PRs with automated review, bootstrap maina in new repos, or check current branch health. The workflow is incomplete — you can verify code but can't ship it through the standard PR process without leaving the terminal.\n\n## Target User\n\n- Primary: Developer who's been using maina commit and wants to create PRs with two-stage AI review\n- Secondary: Team lead who wants to bootstrap maina in a new repo with one command\n\n## User Stories\n\n- As a developer, I want to create a PR from the terminal with auto-generated description so I don't context-switch to GitHub\n- As a developer, I want my PR reviewed in two stages — spec compliance first, then code quality — so I catch both types of issues\n- As a team lead, I want to run one command to set up maina in any repo with constitution, prompts, and CI\n- As a developer, I want to see my current branch health at a glance\n\n## Success Criteria\n\n- [ ] `maina pr` creates a GitHub PR via gh CLI with auto-generated title and body from commits\n- [ ] PR review runs two stages: spec compliance against PLAN.md, then code quality against conventions\n- [ ] `maina init` bootstraps .maina/ directory with constitution.md, default prompts, hooks, and AGENTS.md\n- [ ] `maina init` generates a CI workflow file for GitHub Actions\n- [ ] `maina status` shows current branch, verification state, and context summary from working.json\n- [ ] All commands work without AI — deterministic parts function with no API key\n- [ ] `maina init` completes in under 5 seconds\n\n## Scope\n\n### In Scope\n\n- PR creation via gh CLI, two-stage review core logic, init bootstrapping, status display\n\n### Out of Scope\n\n- GitLab/Bitbucket support (GitHub only for v1)\n- PR merge automation (review only, human merges)\n- CI workflow for non-GitHub platforms\n\n## Design Decisions\n\n- Use gh CLI for PR creation (consistent with maina ticket approach, avoids OAuth)\n- Two-stage review as separate functions — can run independently or in sequence\n- Init generates files but never overwrites existing ones (safe to re-run)\n- Status reads from working.json — no git calls needed (fast)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 75,
+					"measurability": 29,
+					"testability": 71,
+					"ambiguity": 100,
+					"completeness": 100,
+					"details": [
+						"Measurability: 29 — 2/7 criteria use measurable verbs (0 vague)",
+						"Testability: 71 — 5/7 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 100 — 5/5 sections present",
+						"Overall: 75 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: Karpathy-Principled Spec Quality\n\n## Problem Statement\n\nMaina verifies code but not specs. A spec with vague language, unmeasurable criteria, or missing acceptance tests produces garbage implementation. \"Garbage in, garbage out\" — Karpathy's core insight about training data applies directly to specifications.\n\n## Target User\n\n- Primary: Developer writing specs via `maina plan` who needs measurable quality feedback\n- Secondary: Team lead reviewing specs before implementation begins\n\n## User Stories\n\n- As a developer, I want spec quality scored 0-100 so I know when a spec is ready for implementation\n- As a developer, I want to see when I skip verification so I can track my discipline\n- As a developer, I want `maina spec` to verify test stubs actually fail before I implement\n- As a developer, I want every plan task traced to test + code + commit so nothing falls through cracks\n\n## Success Criteria\n\n- [ ] `scoreSpec(specPath)` returns a quality score 0-100 with measurability, testability, ambiguity, completeness breakdown\n- [ ] Specs scoring below 60 trigger a warning in `maina analyze`\n- [ ] `maina commit --skip` events are tracked as discipline violations in stats.db with skip rate shown in `maina stats`\n- [ ] `maina spec` auto-runs generated stubs and verifies all fail (red phase enforcement)\n- [ ] `traceability(featureDir)` maps each plan task to its test file, implementation file, and commit\n- [ ] `maina stats --specs` shows spec quality evolution over time\n\n## Scope\n\n### In Scope\n\n- Spec quality scoring (deterministic, no AI)\n- Skip event tracking in stats\n- Red-green enforcement in maina spec\n- Plan-to-code traceability checking\n- Spec evolution metrics in maina stats\n\n### Out of Scope\n\n- AI-powered spec improvement suggestions (future — use learn command instead)\n- Blocking commits on low spec scores (warning only)\n- Cross-project spec comparison\n\n## Design Decisions\n\n- All checks are deterministic — no AI needed (Karpathy: \"measure everything, trust nothing\")\n- Skip tracking is informational, not punitive — data helps developers self-improve\n- Quality score uses verb analysis: measurable verbs (validates, returns, creates) score higher than vague verbs (handles, manages, supports)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 79,
+					"measurability": 17,
+					"testability": 100,
+					"ambiguity": 100,
+					"completeness": 100,
+					"details": [
+						"Measurability: 17 — 1/6 criteria use measurable verbs (0 vague)",
+						"Testability: 100 — 6/6 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 100 — 5/5 sections present",
+						"Overall: 79 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: Sprint 1-9 Benchmark — Claude+Superpowers vs Claude+Maina\n\n## Problem Statement\n\nMaina was built over 10 sprints (0-9) to replace ad-hoc AI-assisted development (Claude + Superpowers skills) with a verification-first pipeline. We need hard numbers to prove the value: what did maina actually improve?\n\n## Target User\n\n- Maina team evaluating ROI of the tooling investment\n- Potential adopters who want evidence before committing\n\n## Success Criteria\n\n- [ ] Side-by-side comparison table across all 10 sprints\n- [ ] Quantified improvement in at least 3 categories\n- [ ] Data gaps documented honestly (what we can't measure)\n- [ ] Comparison exportable as markdown for README/docs\n\n## Scope\n\n### In Scope\n\n- Metrics we can derive from git history, stats.db, feedback.db, benchmarks\n- Qualitative observations from the development process\n- Sprint-by-sprint progression showing maina bootstrapping itself\n\n### Out of Scope\n\n- A/B testing with separate teams (single developer project)\n- Cost analysis (API spend tracking not implemented)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 59,
+					"measurability": 0,
+					"testability": 75,
+					"ambiguity": 100,
+					"completeness": 60,
+					"details": [
+						"Measurability: 0 — 0/4 criteria use measurable verbs (0 vague)",
+						"Testability: 75 — 3/4 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 60 — 3/5 sections present — missing: User Stories, Design Decisions",
+						"Overall: 59 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature 011: Self-Improvement — Context Hydration & RL-Driven Prompt Evolution\n\n## Problem\n\nMaina's context engine has 4 layers but 3 are effectively empty:\n- **Semantic:** 0 entities, 0 dependency edges — tree-sitter code exists but never runs at startup\n- **Episodic:** 0 entries — accepted reviews aren't compressed into episodes\n- **Cache:** 283 entries but 0% hit rate — cache keys may not be stable after host delegation fix\n\nThe review prompt has a **44% accept rate** (16/36 samples). Console-log slop detection has **64% false positive rate**.\n\nResult: maina spends time assembling empty context, review output is rejected more than accepted, and verification findings erode user trust.\n\n## Why Now\n\nThe tier 3 benchmark proved both pipelines produce identical quality. Maina's differentiator is verification + context — but context is empty and review is rejected half the time. Fixing these makes the actual tool better, not just the benchmark.\n\n## Success Criteria\n\n- **SC-1:** Semantic index populated on `maina init` and refreshed on `maina context` (entities + edges in DB)\n- **SC-2:** Episodic entries auto-created from accepted `maina commit` reviews (compressed to <500 tokens)\n- **SC-3:** Review prompt A/B candidate created targeting >60% accept rate\n- **SC-4:** Cache hit rate measurable and >0% on repeated queries\n- **SC-5:** Console-log slop rule respects `preferences.json` false positive threshold (skip if >50% FP)\n- **SC-6:** Benchmark command wired into CLI entrypoint\n- **SC-7:** `maina learn` outputs actionable prompt diff, not just stats table\n\n## Out of Scope\n\n- LSP/Zoekt integration (ripgrep is sufficient for now)\n- New CLI commands\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 55,
+					"measurability": 0,
+					"testability": 100,
+					"ambiguity": 100,
+					"completeness": 20,
+					"details": [
+						"Measurability: 0 — 0/7 criteria use measurable verbs (0 vague)",
+						"Testability: 100 — 7/7 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 20 — 1/5 sections present — missing: Problem Statement, User Stories, Scope, Design Decisions",
+						"Overall: 55 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature 013: Fix Host Delegation for CLI AI Tasks\n\n## Problem\n\nWhen running `maina design --hld` inside Claude Code, the CLI subprocess detects `CLAUDECODE=1` and `CLAUDE_CODE_ENTRYPOINT=cli` env vars but has no API keys. `shouldDelegateToHost()` returns true, `generate()` returns `[HOST_DELEGATION]` text, but the subprocess has no way to send this back to the host. Result: `generateHldLld()` treats delegation as \"AI unavailable\" and silently returns null, producing ADRs with all `[NEEDS CLARIFICATION]` placeholders.\n\n## Success Criteria\n\n- **SC-1:** `tryAIGenerate()` in CLI mode (non-MCP) never returns `hostDelegation: true` — instead returns the delegation prompt as actual text for the caller to use\n- **SC-2:** `generateHldLld()` returns an explicit error when AI cannot generate, never silently returns null\n- **SC-3:** CLI `maina design --hld` either generates content or shows a clear error message\n- **SC-4:** MCP mode still delegates correctly (no regression)\n- **SC-5:** When ANTHROPIC_API_KEY is available in host mode, direct API call is used (already works)\n\n## Out of Scope\n\n- Making the CLI subprocess talk back to the host agent (would require IPC)\n- Changing the MCP delegation path\n- Adding new API key configuration flows\n\n## Design\n\nThe fix has two parts:\n\n### Part 1: `tryAIGenerate` returns delegation text as content\n\nIn `packages/core/src/ai/try-generate.ts`, when `hostDelegation: true`, instead of returning `{ hostDelegation: true }`, return the text as `fromAI: true`. The delegation prompt IS the AI's contribution — it's a well-structured prompt that contains the system prompt + user prompt. Callers can use this directly.\n\nThis works because:\n- The delegation prompt contains `[HOST_DELEGATION] Task: design-hld-lld\\n\\nSystem: ...\\n\\nUser: ...`\n- We strip the `[HOST_DELEGATION]` prefix and return the user prompt portion\n- This gives the caller a structured prompt they can display or process\n\n### Part 2: `generateHldLld` returns error instead of null\n\nIn `packages/core/src/design/index.ts`, change `generateHldLld` to return `{ ok: false, error: \"...\" }` when AI text is null, instead of `{ ok: true, value: null }`. The CLI can then show the error.\n\n### Part 3: CLI shows clear error\n\nIn `packages/cli/src/commands/design.ts`, when `hldResult.ok` is false, show the error message with `log.error()` instead of `log.warn(\"AI unavailable\")`.\n\n## Files to Change\n\n| File | Change |\n|------|--------|\n| `packages/core/src/ai/try-generate.ts` | Strip [HOST_DELEGATION] prefix, return as fromAI content |\n| `packages/core/src/design/index.ts` | Return error Result when AI returns null |\n| `packages/cli/src/commands/design.ts` | Show error message, not silent warning |\n| `packages/core/src/ai/__tests__/ai.test.ts` | Test delegation text stripping |\n| `packages/core/src/design/__tests__/generate-hld-lld.test.ts` | Test error return |\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 68,
+					"measurability": 60,
+					"testability": 100,
+					"ambiguity": 100,
+					"completeness": 10,
+					"details": [
+						"Measurability: 60 — 3/5 criteria use measurable verbs (0 vague)",
+						"Testability: 100 — 5/5 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 10 — 1/5 sections present — missing: Problem Statement, User Stories, Scope, Design Decisions — 1 [NEEDS CLARIFICATION] marker(s) (-10)",
+						"Overall: 68 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature 016: Post-Workflow RL Self-Improvement Loop\n\n## Problem\n\n`maina learn` shows per-command metrics (review: 44%, commit: 83%) but has no visibility into per-workflow-step performance. Feature 015 added `workflow_step` and `workflow_id` to feedback records, but nothing reads them yet. There's no way to see which workflow steps consistently underperform or which workflow runs produced the best outcomes.\n\n## Success Criteria\n\n- **SC-1:** `analyseWorkflowFeedback(mainaDir)` returns per-step metrics (samples, accept rate, needs improvement) using the `workflow_step` column\n- **SC-2:** `analyseWorkflowRuns(mainaDir)` returns per-workflow-run metrics grouped by `workflow_id` (how many steps passed, overall success rate)\n- **SC-3:** `maina learn` shows a workflow steps table alongside the existing tasks table\n- **SC-4:** `maina learn` shows workflow run summaries (last 5 runs: X/Y steps passed)\n- **SC-5:** A/B test resolution considers workflow step context — a prompt that performs well in the \"review\" step should be promoted for that step\n\n## Out of Scope\n\n- Correlation analysis (spec quality → implementation findings) — future\n- Auto-generating improved prompts from workflow trace — future\n- Per-file language-specific learning — future\n\n## Design\n\n### New Analysis Functions\n\nIn `packages/core/src/prompts/evolution.ts`, add:\n\n```typescript\ninterface WorkflowStepAnalysis {\n  step: string;\n  totalSamples: number;\n  acceptRate: number;\n  needsImprovement: boolean;\n}\n\ninterface WorkflowRunSummary {\n  workflowId: string;\n  totalSteps: number;\n  passedSteps: number;\n  successRate: number;\n  createdAt: string;\n}\n\nfunction analyseWorkflowFeedback(mainaDir: string): WorkflowStepAnalysis[]\nfunction analyseWorkflowRuns(mainaDir: string, limit?: number): WorkflowRunSummary[]\n```\n\n### SQL Queries\n\nPer-step analysis:\n```sql\nSELECT workflow_step, COUNT(*) as total,\n       SUM(CASE WHEN accepted = 1 THEN 1 ELSE 0 END) as accepted_count\nFROM feedback\nWHERE workflow_step IS NOT NULL\nGROUP BY workflow_step\n```\n\nPer-run summary:\n```sql\nSELECT workflow_id, COUNT(*) as total_steps,\n       SUM(CASE WHEN accepted = 1 THEN 1 ELSE 0 END) as passed_steps,\n       MIN(created_at) as created_at\nFROM feedback\nWHERE workflow_id IS NOT NULL\nGROUP BY workflow_id\nORDER BY created_at DESC\nLIMIT ?\n```\n\n### Learn Command Enhancement\n\n`packages/cli/src/commands/learn.ts` adds two new sections after the existing tasks table:\n\n1. **Workflow Steps table** — same format as tasks table but grouped by `workflow_step`\n2. **Recent Workflow Runs** — last 5 runs with step pass rates\n\n```\nWorkflow Steps:\n  Step              Samples  Accept  Status\n  ──────────────── ──────── ──────── ────────\n  plan                  12     92%  healthy\n  design                 8     75%  needs improvement\n  design-review         10     80%  healthy\n  commit                84     83%  healthy\n  verify                45     95%  healthy\n  pr                     6    100%  healthy\n\nRecent Workflow Runs:\n  Workflow ID   Steps  Passed  Rate\n  ──────────── ────── ─────── ──────\n  a3f8b2c1d4e5   6/6    100%  ✓\n  b7d2e9f0a1c3   5/6     83%  —\n```\n\n## Files to Change\n\n| File | Change |\n|------|--------|\n| `packages/core/src/prompts/evolution.ts` | Add `analyseWorkflowFeedback`, `analyseWorkflowRuns`, new types |\n| `packages/core/src/prompts/__tests__/evolution.test.ts` | Tests for new functions |\n| `packages/cli/src/commands/learn.ts` | Show workflow steps + runs tables |\n| `packages/core/src/index.ts` | Export new functions + types |\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 63,
+					"measurability": 40,
+					"testability": 100,
+					"ambiguity": 90,
+					"completeness": 20,
+					"details": [
+						"Measurability: 40 — 2/5 criteria use measurable verbs (0 vague)",
+						"Testability: 100 — 5/5 criteria contain testable patterns",
+						"Ambiguity: 90 — 1 weasel word(s) found",
+						"Completeness: 20 — 1/5 sections present — missing: Problem Statement, User Stories, Scope, Design Decisions",
+						"Overall: 63 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: [Name]\n\n## Problem Statement\n\nWhat specific problem does this solve? Who experiences it? What happens if we don't solve it?\n\n- [NEEDS CLARIFICATION] Define the problem clearly.\n\n## Target User\n\nWho benefits? What is their current workflow? What frustrates them about it?\n\n- Primary: [NEEDS CLARIFICATION]\n- Secondary: [NEEDS CLARIFICATION]\n\n## User Stories\n\n- As a [role], I want [capability] so that [benefit].\n\n## Success Criteria\n\nHow do we know this works? Every criterion must be testable — if you can't write\nan assertion for it, the requirement isn't clear enough.\n\n- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.\n\n## Scope\n\n### In Scope\n\n- [NEEDS CLARIFICATION] What this feature does.\n\n### Out of Scope\n\n- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).\n\n## Design Decisions\n\nKey choices made and WHY. Record tradeoffs — future you will thank you.\n\n- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?\n\n## Open Questions\n\n- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 30,
+					"measurability": 0,
+					"testability": 0,
+					"ambiguity": 100,
+					"completeness": 20,
+					"details": [
+						"Measurability: 0 — 0/1 criteria use measurable verbs (0 vague)",
+						"Testability: 0 — 0/1 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 20 — 5/5 sections present — 8 [NEEDS CLARIFICATION] marker(s) (-80)",
+						"Overall: 30 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature 021: Structured AI Delegation Protocol\n\n## Problem\n\nWhen maina runs inside Claude Code/Codex/OpenCode, AI-dependent features are non-functional. The subprocess has CLAUDECODE=1 but no API key. `tryAIGenerate` returns a `DelegationPrompt` object but nobody processes it. Result: review at 47% accept rate (on echoed prompts), A/B test collecting no data, commit messages not AI-generated, HLD/LLD empty.\n\n## Success Criteria\n\n- **SC-1:** `tryAIGenerate` in host mode outputs `---MAINA_AI_REQUEST---` block to stdout\n- **SC-2:** Protocol includes: task, context, prompt, expected_format, schema\n- **SC-3:** Each CLI command that uses AI shows \"delegated to host\" status\n- **SC-4:** Protocol is plain text — no IPC, no binary, works with any stdout reader\n- **SC-5:** `formatDelegationRequest(delegation)` and `parseDelegationRequest(text)` are exported for host agents\n- **SC-6:** MCP tools include delegation blocks in their response text\n- **SC-7:** Existing direct API path (with MAINA_API_KEY) is unchanged\n\n## Out of Scope\n\n- Two-pass execution (request → process → feed back)\n- Host agent implementation (each host handles the protocol its own way)\n- Automatic AI result injection back into pipeline\n\n## Design\n\n### Protocol Format\n\n```\n---MAINA_AI_REQUEST---\ntask: ai-review\ncontext: Reviewing diff for cross-function consistency and missing edge cases\nprompt: |\n  Review this diff for semantic issues:\n  +const x = validateInput(data);\nexpected_format: json\nschema: {\"findings\":[{\"file\":\"path\",\"line\":42,\"message\":\"desc\",\"severity\":\"warning\"}]}\n---END_MAINA_AI_REQUEST---\n```\n\n### Module\n\nNew file: `packages/core/src/ai/delegation.ts`\n\n```typescript\ninterface DelegationRequest {\n  task: string;\n  context: string;\n  prompt: string;\n  expectedFormat: \"json\" | \"markdown\" | \"text\";\n  schema?: string;\n}\n\nfunction formatDelegationRequest(req: DelegationRequest): string\nfunction parseDelegationRequest(text: string): DelegationRequest | null\nfunction outputDelegationRequest(req: DelegationRequest): void  // writes to stdout\n```\n\n### Integration\n\n`tryAIGenerate` calls `outputDelegationRequest` when in host mode. Each CLI command's output naturally includes the block. The host agent sees it in stdout/MCP response and acts on it.\n\n## Files to Change\n\n| File | Change |\n|------|--------|\n| `packages/core/src/ai/delegation.ts` | NEW — format, parse, output functions |\n| `packages/core/src/ai/try-generate.ts` | Output delegation block in host mode |\n| `packages/core/src/ai/__tests__/delegation.test.ts` | NEW — tests |\n| `packages/core/src/index.ts` | Export delegation module |\n| `packages/core/src/review/index.ts` | Show delegation status |\n| `packages/core/src/verify/ai-review.ts` | Show delegation status |\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 55,
+					"measurability": 0,
+					"testability": 100,
+					"ambiguity": 100,
+					"completeness": 20,
+					"details": [
+						"Measurability: 0 — 0/7 criteria use measurable verbs (0 vague)",
+						"Testability: 100 — 7/7 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 20 — 1/5 sections present — missing: Problem Statement, User Stories, Scope, Design Decisions",
+						"Overall: 55 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# v0.3.x Design — Hardening: Verify Gaps + RL Loop + HLD/LLD\n\n**Date:** 2026-04-05\n**Version:** v0.3.x (Sprint 11 + HLD/LLD extension)\n**Goal:** Make `maina verify` effective without external tools. Close the gap exposed by the Tier 3 benchmark. Add AI-powered review, HLD/LLD generation, automation flags, and a fully automatic RL improvement loop.\n\n---\n\n## Context\n\nTier 3 benchmark (2026-04-03): SpecKit achieved 100% on 95 hidden validation tests. Maina got 97.9% (2 bugs). SpecKit's 58s self-review caught 4 issues that Maina's verify missed because no external tools were installed. Verify returned \"0 findings, passed\" — false confidence.\n\nAdditionally, `maina design` only produces ADRs with no HLD/LLD output, and `maina spec`/`maina design` lack `--auto` flags, blocking CI and benchmark automation.\n\n## Approach\n\nSequential bottom-up: deterministic checks first (standalone value), then AI-powered features (layers on top), then automation + RL (needs full pipeline).\n\n**Dogfooding throughout:** Every commit goes through `maina commit`. MCP tools (reviewCode, checkSlop, getContext) used for review. `maina verify` runs before PRs.\n\n---\n\n## Phase 0: Fix regressions (prerequisite)\n\nTriage and fix all 43 failing tests. Clusters:\n\n- Language profiles (~28 tests) — likely regressions from feature 023 (enterprise languages)\n- Slop detector + cache (~7 tests)\n- Verify pipeline / detect tools / syntax guard (~5 tests)\n- AI review (~3 tests)\n\nFix root causes, don't paper over. All 1036 tests must pass before Sprint 11 work begins.\n\n---\n\n## Phase 1: Deterministic built-in checks\n\n### T1 — Built-in type checking\n\n**File:** `packages/core/src/verify/typecheck.ts`\n\n- Run `tsc --noEmit` as a verify step, zero external install needed\n- Parse output into `Finding[]` with file, line, message\n- Language-aware: mypy for Python, go vet for Go, dotnet build for C#, javac for Java\n- Uses project's own config (tsconfig.json, pyproject.toml, etc.)\n\n### T2 — Cross-function consistency check\n\n**File:** `packages/core/src/verify/consistency.ts`\n\n- Deterministic AST-based check using tree-sitter\n- Catches the exact bug class that lost 2 points in Tier 3 benchmark\n- Mechanism: reads spec.md for stated constraints (e.g., \"use isIP for IP hosts\"), builds a rule set, then walks AST call sites to verify compliance\n- If no spec.md exists, falls back to heuristic patterns: functions that call a validator on one code path but skip it on another\n- Pattern-matching on call sites, cross-referencing function signatures\n\n### T3 — \"0 tools available\" warning\n\n**File:** `packages/core/src/verify/pipeline.ts`\n\n- When `detectTools()` returns 0 external tools: report WARNING, suggest `maina init --install`\n- Never report \"0 findings, passed\" when no tools ran\n- Built-in checks (typecheck, consistency, slop) still run regardless\n\n### T4 — `maina init` auto-configures Biome\n\n**File:** `packages/core/src/init/biome-setup.ts`\n\n- During `maina init`: detect Biome, offer to install + configure with sensible defaults\n- Every maina-initialized project gets at least one real linter out of the box\n\n---\n\n## Phase 2: AI-powered verification + HLD/LLD\n\n### T5 — AI self-review in verify\n\n**File:** `packages/core/src/verify/ai-review.ts`\n\n**Mechanical tier (always-on):**\n- Runs on every verify\n- Input: git diff + 3 most-referenced functions from context engine\n- Checks: cross-function consistency, edge cases, spec compliance\n- Target: <3s\n- Uses AI delegation protocol (`---MAINA_AI_REQUEST---`) inside Claude Code, falls back to OpenRouter standalone\n- Severity capped at `warning`\n\n**Standard tier (`--deep` flag):**\n- Full semantic review against spec\n- Deeper analysis, higher quality model\n- Target: <15s\n- Severity `error` allowed\n\n**Common:**\n- Findings use existing `Finding` interface with `tool=\"ai-review\"`\n- Never blocks on AI failure — degrades gracefully to deterministic checks only\n\n### T6 — HLD/LLD generation in `maina design`\n\n**File:** `packages/core/src/design/`\n\n- Extend current ADR output with HLD section: system overview, components, data flow, dependencies\n- Add LLD section: interfaces, function signatures, schemas, sequence diagrams, error handling, edge cases\n- AI-generated from spec.md via standard tier model\n- New prompt template `design-hld-lld.md` in `packages/core/src/prompts/defaults/`\n- Output written to feature directory alongside existing ADR\n\n---\n\n## Phase 3: Automation + RL loop\n\n### T7 — `--auto` flags for `maina spec` and `maina design`\n\n- Skip interactive prompts, use sensible defaults from context engine\n- Enables full workflow automation in CI and scripting\n- `maina spec --auto` generates spec from context without prompts\n- `maina design --auto` generates ADR + HLD/LLD without prompts\n\n### T8 — Post-workflow RL trace analysis\n\n**File:** `packages/core/src/feedback/trace-analysis.ts`\n\n- After a full workflow completes (brainstorm -> ... -> pr):\n  1. Collect full trace: every step's context, prompt used, output, feedback\n  2. Analyze: which prompts led to accepted outputs? Which got rejected/modified?\n  3. Propose prompt improvements based on trace patterns\n  4. Automatically feed into `maina learn` — no human review gate\n- Runs as background task after `maina pr` completes\n- Closes the full RL loop: use -> observe -> improve -> repeat\n\n---\n\n## Execution order\n\n```\nPhase 0: Fix 43 failing tests\n  |\nPhase 1: typecheck -> consistency -> 0-tools warning -> Biome init\n  |\nPhase 2: AI self-review (mechanical + deep) -> HLD/LLD in design\n  |\nPhase 3: --auto flags -> post-workflow RL trace analysis\n  |\nTag v0.3.x\n```\n\n## Success criteria\n\n- [ ] All existing tests pass (0 failures)\n- [ ] `maina verify` on a fresh project (no external tools) produces meaningful findings via built-in typecheck + AI self-review\n- [ ] \"0 tools available\" shows a warning, not a false pass\n- [ ] `maina verify --deep` runs standard-tier AI review against spec\n- [ ] `maina init` configures Biome automatically\n- [ ] `maina design` outputs HLD/LLD alongside ADR\n- [ ] `maina spec --auto` and `maina design --auto` work without interaction\n- [ ] Post-workflow RL trace analysis runs automatically and feeds `maina learn`\n- [ ] AI delegation protocol used inside Claude Code (no OpenRouter in that context)\n- [ ] Tier 3 benchmark re-run: Maina matches or beats SpecKit's 100%\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 53,
+					"measurability": 0,
+					"testability": 90,
+					"ambiguity": 100,
+					"completeness": 20,
+					"details": [
+						"Measurability: 0 — 0/10 criteria use measurable verbs (0 vague)",
+						"Testability: 90 — 9/10 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 20 — 1/5 sections present — missing: Problem Statement, User Stories, Scope, Design Decisions",
+						"Overall: 53 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# v0.5.0 — Cloud Client + maina-cloud Private Repo\n\n## Problem Statement\n\nMaina is local-only. Prompts, feedback, and A/B test results live on one machine. Teams can't share learned prompts or coordinate prompt evolution. There's no infrastructure for the hosted verification, autonomous workflow, or self-improvement features planned for v0.6-v0.7.\n\n## Architecture\n\nTwo repos, one API contract:\n\n```\nbeeeku/maina (open source)          mainahq/maina-cloud (private)\n├── packages/core/src/cloud/        ├── src/\n│   ├── client.ts (API client)      │   ├── api/ (Workers routes)\n│   ├── types.ts (shared types)     │   ├── db/ (D1 schemas)\n│   └── auth.ts (OAuth device)      │   ├── auth/ (OAuth server)\n├── packages/cli/src/commands/      │   └── sync/ (prompt sync)\n│   ├── login.ts                    ├── wrangler.toml\n│   ├── sync.ts                     ├── package.json\n│   └── team.ts                     └── CLAUDE.md\n```\n\n## Scope — This Repo (beeeku/maina)\n\n### Cloud API Client (`packages/core/src/cloud/`)\n\n- `client.ts` — HTTP client for Maina Cloud API. Handles auth headers, retries, error envelopes.\n- `types.ts` — Shared request/response types. Used by both CLI and cloud.\n- `auth.ts` — GitHub OAuth device flow (client-side). Stores token in `~/.maina/auth.json`.\n\n### CLI Commands\n\n- `maina login` — GitHub OAuth device flow. Opens browser, polls for token, stores locally.\n- `maina logout` — Removes stored credentials.\n- `maina sync push` — Uploads local prompts + feedback to cloud.\n- `maina sync pull` — Downloads team prompts, merges with local.\n- `maina team` — Shows team members, roles, prompt sync status.\n\n### Config\n\n- `maina configure` gains cloud section: API URL, team ID.\n- Default API URL: `https://api.mainahq.com` (configurable for self-hosted).\n\n## Scope — Private Repo (maina-cloud)\n\n### Scaffold at `mainahq/maina-cloud` (private repo)\n\n- Bun + Workkit + Cloudflare Workers project\n- Health check endpoint (`GET /health`)\n- Auth endpoint (`POST /auth/device`, `POST /auth/token`)\n- Prompt sync endpoints (`GET /prompts`, `PUT /prompts`)\n- Team endpoints (`GET /team`, `POST /team/invite`)\n- D1 schema: teams, members, prompts, feedback\n- CLAUDE.md with project conventions\n\n## Success Criteria\n\n- [ ] maina-cloud repo exists at mainahq/maina-cloud with Workers service\n- [ ] `wrangler dev` starts and `/health` returns 200\n- [ ] Cloud API client in core can make authenticated requests\n- [ ] `maina login` completes device flow and stores token in ~/.maina/auth.json\n- [ ] `maina sync push` sends prompts to cloud API\n- [ ] `maina sync pull` downloads and merges team prompts\n- [ ] `maina team` displays team info from API\n- [ ] All new code has tests\n- [ ] Types are shared — same interfaces used by client and server\n\n## Out of Scope\n\n- Billing / Stripe (v0.7.0)\n- Dashboard UI (v0.7.0)\n- Hosted verification (v0.6.0)\n- Autonomous workflow action (v0.6.0)\n- Self-improvement action (v0.7.0)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 62,
+					"measurability": 22,
+					"testability": 67,
+					"ambiguity": 100,
+					"completeness": 60,
+					"details": [
+						"Measurability: 22 — 2/9 criteria use measurable verbs (0 vague)",
+						"Testability: 67 — 6/9 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 60 — 3/5 sections present — missing: User Stories, Design Decisions",
+						"Overall: 62 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: v1.0.0 — Launch\n\n## Problem Statement\n\nMaina is feature-complete (v0.7.0) but lacks community infrastructure, proper org structure, and a launch story. The repo is still under `beeeku/maina`, there's no CONTRIBUTING.md, and a known bug (#47) ships broken brainstorm output.\n\n## Target User\n\n- Primary: Developers discovering maina via Show HN / dev.to\n- Secondary: Contributors who want to participate in the project\n\n## User Stories\n\n- As a new user, I want clear onboarding from mainahq.com so I can start using maina in 5 minutes.\n- As a contributor, I want CONTRIBUTING.md and issue templates so I know how to participate.\n- As a team lead, I want to find maina under a professional org (mainahq) with proper governance.\n\n## Success Criteria\n\n- [ ] Bug #47 fixed — `brainstorm --no-interactive` generates real content\n- [ ] CONTRIBUTING.md with dev setup, PR guidelines, commit conventions\n- [ ] Issue templates: bug report, feature request, question\n- [ ] CODEOWNERS file mapping packages to maintainers\n- [ ] GitHub Discussions enabled\n- [ ] Repos transferred: beeeku/maina → mainahq/maina, beeeku/maina-cloud → mainahq/maina-cloud\n- [ ] All internal links updated post-transfer\n- [ ] Show HN draft written\n- [ ] v1.0.0 changeset + npm publish\n\n## Scope\n\n### In Scope\n\n- Fix bug #47 (brainstorm --no-interactive stubs)\n- Community files: CONTRIBUTING.md, issue templates, CODEOWNERS, PR template\n- Repo transfers to mainahq org\n- Update all GitHub/npm references post-transfer\n- Enable GitHub Discussions\n- Show HN + dev.to draft\n- Version bump to 1.0.0\n\n### Out of Scope\n\n- CF Workers skill (v1.1.0)\n- Cross-dogfooding report (v1.1.0)\n- New features — this is polish + launch only\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 56,
+					"measurability": 11,
+					"testability": 33,
+					"ambiguity": 100,
+					"completeness": 80,
+					"details": [
+						"Measurability: 11 — 1/9 criteria use measurable verbs (0 vague)",
+						"Testability: 33 — 3/9 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 80 — 4/5 sections present — missing: Design Decisions",
+						"Overall: 56 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature 029: AI-Driven Interactive maina init\n\nGitHub Issue: mainahq/maina#59\n\n## Problem\n\n`maina init` generates a static template constitution, doesn't set up API keys, and doesn't configure IDE integration. Commands like `maina brainstorm` and `maina design` fail silently without API key. No guidance for first-time users.\n\n## Why Now\n\nFirst-time user experience is broken. Users init, try AI commands, get nothing. This is the #1 barrier to adoption.\n\n## Success Criteria\n\n- **SC-1:** `maina init` interactively prompts for API key when none found\n- **SC-2:** Constitution generated using AI (not static template) when AI available\n- **SC-3:** If no API key and inside host (Claude Code/Cursor), use host delegation\n- **SC-4:** If no API key and no host, prompt user to run inside AI agent or enter key\n- **SC-5:** API key saved to `.maina/.env` (gitignored)\n- **SC-6:** Tool recommendations use AI when available, fall back to language-based filtering\n- **SC-7:** Interactive multiselect for tool installation using @clack/prompts\n- **SC-8:** Summary shows what was configured and next steps\n\n## Dependencies\n\n- Feature 028 (project-aware tool detection) must be complete\n\n## Out of Scope\n\n- MCP/agent file generation (that's #60)\n- Cloud onboarding (that's maina-cloud #7/#8)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 55,
+					"measurability": 0,
+					"testability": 100,
+					"ambiguity": 100,
+					"completeness": 20,
+					"details": [
+						"Measurability: 0 — 0/8 criteria use measurable verbs (0 vague)",
+						"Testability: 100 — 8/8 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 20 — 1/5 sections present — missing: Problem Statement, User Stories, Scope, Design Decisions",
+						"Overall: 55 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature 032: Add Mermaid Workflow Diagram to Commands Docs\n\nGitHub Issue: mainahq/maina#62\n\n## Problem\n\nZero Mermaid diagrams across all docs. 34+ commands documented as text-only tables. Users and AI agents confused about which commands to use and in what order.\n\n## Why Now\n\nThe command lifecycle is the core UX of maina. Without a visual diagram, onboarding friction is high.\n\n## Success Criteria\n\n- **SC-1:** Mermaid plugin installed and configured for Starlight\n- **SC-2:** Command lifecycle flowchart renders in `commands.mdx`\n- **SC-3:** Diagram color-coded by phase (Discovery, Planning, Execution, Ship)\n- **SC-4:** Diagram placed at top of page before command tables\n- **SC-5:** Renders correctly in both dark and light modes\n- **SC-6:** Build succeeds with no errors\n\n## Out of Scope\n\n- Diagrams for verify pipeline, context engine, MCP architecture (future)\n- Interactive diagrams\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 55,
+					"measurability": 0,
+					"testability": 100,
+					"ambiguity": 100,
+					"completeness": 20,
+					"details": [
+						"Measurability: 0 — 0/6 criteria use measurable verbs (0 vague)",
+						"Testability: 100 — 6/6 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 20 — 1/5 sections present — missing: Problem Statement, User Stories, Scope, Design Decisions",
+						"Overall: 55 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: ADR — Report Storage Backend (R2)\n\n## Problem Statement\n\nMaina Cloud verification generates proof artifacts (JSON reports, screenshots, HTML views) that need durable storage with public read access. The team chose Cloudflare R2 early on, but the decision isn't documented. Future contributors have no written record of why R2, what the bucket layout is, or what retention/GDPR policies apply.\n\n- Without a written ADR, contributors may duplicate the decision or pick a conflicting backend.\n- Blocks the self-hosted report viewer (#131) and PR comment v2 (#130).\n\n## Target User\n\n- Primary: Maina contributors extending cloud verification infrastructure\n- Secondary: Cloud customers who need to understand data retention and GDPR compliance\n\n## Success Criteria\n\n- [ ] `docs/decisions/0001-report-storage-backend.md` exists and is comprehensive\n- [ ] Covers cost model at 10k runs/month and 100k runs/month\n- [ ] Documents bucket layout: `r/<run-id>/` with sub-paths for JSON, HTML, screenshots\n- [ ] Describes signed upload flow from CI\n- [ ] Retention policy: 90 days default, extensible per plan\n- [ ] GDPR delete path documented\n- [ ] CDN cache strategy documented\n- [ ] Disaster recovery approach documented\n- [ ] Documents why R2 over S3 / Supabase Storage (zero egress, S3-compatible, cheaper at scale)\n\n## Scope\n\n### In Scope\n\n- Writing the ADR document with all acceptance criteria\n- Cost comparison table (R2 vs S3 vs Supabase Storage)\n- Bucket layout specification\n- Retention and GDPR policies\n\n### Out of Scope\n\n- Implementing any infrastructure changes\n- Building the report viewer (that's #131)\n- CI upload pipeline (that's part of PR comment v2)\n\n## Design Decisions\n\n- R2 chosen over S3: zero egress fees, S3-compatible API, cheaper at scale\n- R2 chosen over Supabase Storage: simpler, no extra auth layer, Cloudflare ecosystem alignment\n- Bucket layout uses `r/<run-id>/` prefix for easy per-run cleanup\n\n## Open Questions\n\n- None — this is a documentation-only ADR formalizing existing decisions.\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 56,
+					"measurability": 0,
+					"testability": 44,
+					"ambiguity": 100,
+					"completeness": 80,
+					"details": [
+						"Measurability: 0 — 0/9 criteria use measurable verbs (0 vague)",
+						"Testability: 44 — 4/9 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 80 — 4/5 sections present — missing: User Stories",
+						"Overall: 56 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: Git-log + CI analyzer for constitution rules\n\n## Problem Statement\n\nConstitution rules today are manually authored. Git history and CI config contain implicit conventions (commit format, CI checks, code ownership) that should be auto-detected and proposed as rules.\n\n## Success Criteria\n\n- [x] Detects conventional commit usage rate + common scopes\n- [x] Finds top 20 churn files from recent history\n- [x] Extracts CI workflow names from `.github/workflows/*.yml`\n- [x] Detects CODEOWNERS rules\n- [x] Runs in under 5 seconds on repos up to 10k commits\n- [x] Graceful degradation on non-git directories and shallow clones\n\n## Scope\n\n### In Scope\n- `analyzeCommitConventions()`, `analyzeHotPaths()`, `analyzeCiWorkflows()`, `analyzeCodeowners()`\n- Combined `analyzeGitAndCi()` running all in parallel\n- Each rule has `{ text, confidence, source }`\n\n### Out of Scope\n- Interactive propose/accept flow (separate issue #117)\n- Writing rules to constitution.md (consumer responsibility)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 50,
+					"measurability": 0,
+					"testability": 50,
+					"ambiguity": 90,
+					"completeness": 60,
+					"details": [
+						"Measurability: 0 — 0/6 criteria use measurable verbs (0 vague)",
+						"Testability: 50 — 3/6 criteria contain testable patterns",
+						"Ambiguity: 90 — 1 weasel word(s) found",
+						"Completeness: 60 — 3/5 sections present — missing: User Stories, Design Decisions",
+						"Overall: 50 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: Split /getting-started into /quickstart + /full-setup\n\n## Problem Statement\n\nThe /getting-started page has 9 sections on one scroll. First-time users bounce before running their first `maina commit`. Time to first successful commit should be under 60 seconds.\n\n## Success Criteria\n\n- [x] `/quickstart` page exists, ≤200 words, 3 commands max\n- [x] `/getting-started` renamed to `/full-setup` as reference\n- [x] Hero CTA points to `/quickstart`\n- [x] All internal links updated\n- [x] Sidebar: Quickstart > Commands > Full Setup\n\n## Scope\n\n### In Scope\n- New /quickstart page with 3 commands\n- Rename /getting-started to /full-setup\n- Update all nav/sidebar/internal links\n\n### Out of Scope\n- MCP badges on hero (separate issue #98)\n- Docs number consistency (separate issue #99)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 53,
+					"measurability": 0,
+					"testability": 60,
+					"ambiguity": 90,
+					"completeness": 60,
+					"details": [
+						"Measurability: 0 — 0/5 criteria use measurable verbs (0 vague)",
+						"Testability: 60 — 3/5 criteria contain testable patterns",
+						"Ambiguity: 90 — 1 weasel word(s) found",
+						"Completeness: 60 — 3/5 sections present — missing: User Stories, Design Decisions",
+						"Overall: 53 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: Cookbook pages\n\n## Problem Statement\n\nUsers need practical how-to guides showing Maina in real workflows. Currently docs explain features but don't show end-to-end recipes.\n\n## Success Criteria\n\n- [ ] 4 cookbook pages: CI verification, Claude Code self-check, CodeRabbit integration, constitution as required check\n- [ ] Each has runnable example commands\n- [ ] Navigable via docs sidebar \"Cookbooks\"\n\n## Scope\n\n### In Scope\n- 4 cookbook MDX pages in docs\n- Sidebar section\n\n### Out of Scope\n- Example repos (future)\n- Video tutorials\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 48,
+					"measurability": 0,
+					"testability": 33,
+					"ambiguity": 100,
+					"completeness": 60,
+					"details": [
+						"Measurability: 0 — 0/3 criteria use measurable verbs (0 vague)",
+						"Testability: 33 — 1/3 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 60 — 3/5 sections present — missing: User Stories, Design Decisions",
+						"Overall: 48 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: Reposition wiki as \"a view of the Context engine\"\n\n## Problem Statement\n\nCurrent messaging treats the wiki as a separate product surface. But the wiki is a *view*, the Context engine is the product. Fix across README, docs IA, and internal vocabulary.\n\n## Success Criteria\n\n- [x] Wiki docs page updated with Context engine framing\n- [x] `adr/0022-wiki-is-a-view.md` ADR written\n- [x] Glossary: Context engine (core, 4 layers) → wiki (view of knowledge graph)\n\n## Scope\n\n### In Scope\n- README architecture section update\n- ADR documenting the positioning decision\n- Consistent vocabulary in docs\n\n### Out of Scope\n- Website nav restructure (separate issue)\n- Code changes (none needed — it's already structured correctly)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 57,
+					"measurability": 0,
+					"testability": 67,
+					"ambiguity": 100,
+					"completeness": 60,
+					"details": [
+						"Measurability: 0 — 0/3 criteria use measurable verbs (0 vague)",
+						"Testability: 67 — 2/3 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 60 — 3/5 sections present — missing: User Stories, Design Decisions",
+						"Overall: 57 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: PII and code-content scrubbing library\n\n## Problem Statement\n\nError reporting (PostHog) must never leak PII or code content. Both OSS and Cloud paths depend on a client-side scrubber that runs before any network send.\n\n## Success Criteria\n\n- [x] Redacts: absolute file paths, code snippets in stack frames, env variable values, usernames/emails/IPs, API keys/tokens, repo names, commit messages, branch names\n- [x] Keeps: error class, scrubbed message, stack trace structure/line numbers/function names, OS/Maina version\n- [x] 20+ adversarial unit tests (leaked keys, user paths, code snippets)\n- [x] Runs on client, pure function, no side effects\n\n## Scope\n\n### In Scope\n- `scrubPii(text)` — general text scrubber\n- `scrubStackTrace(stack)` — stack-trace-specific scrubber\n- `scrubErrorEvent(event)` — full event scrubber for PostHog/Sentry payloads\n\n### Out of Scope\n- Server-side scrubbing (client-only by design)\n- Fuzz testing (future enhancement)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 59,
+					"measurability": 0,
+					"testability": 75,
+					"ambiguity": 100,
+					"completeness": 60,
+					"details": [
+						"Measurability: 0 — 0/4 criteria use measurable verbs (0 vague)",
+						"Testability: 75 — 3/4 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 60 — 3/5 sections present — missing: User Stories, Design Decisions",
+						"Overall: 59 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: OSS error reporting — opt-in, aggressive scrubbing\n\n## Problem Statement\n\nWithout error reporting, bugs ship blind. Users hit crashes, file vague issues, maintainers can't reproduce. The PII scrubber (#120) and PostHog ADR (#89) are done — now wire them together.\n\n## Success Criteria\n\n- [x] `reportError(error, context)` function that scrubs + sends to PostHog\n- [x] Consent check: zero events sent until explicit opt-in\n- [x] `isErrorReportingEnabled()` reads from config\n- [x] Error events include: error class, scrubbed message, Maina version, OS, command\n- [x] Unit tests for consent gating, event formatting, scrubbing integration\n\n## Scope\n\n### In Scope\n- `packages/core/src/telemetry/reporter.ts` — error reporting with PostHog\n- Consent check from `~/.maina/config.yml`\n- Integration with PII scrubber\n\n### Out of Scope\n- Consent prompt UI (CLI command, separate issue)\n- `maina errors status/off` commands (separate issue)\n- Cloud error reporting (separate issue #122)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 60,
+					"measurability": 40,
+					"testability": 40,
+					"ambiguity": 100,
+					"completeness": 60,
+					"details": [
+						"Measurability: 40 — 2/5 criteria use measurable verbs (0 vague)",
+						"Testability: 40 — 2/5 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 60 — 3/5 sections present — missing: User Stories, Design Decisions",
+						"Overall: 60 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: Pattern sampler (TS — regex-based V1)\n\n## Problem Statement\n\nConstitution rules about coding style (async/await vs .then, arrow vs declaration, named vs default imports) can't be detected from config files. They need code analysis. V1 uses regex-based detection on sampled files (<=100 per language) — sufficient for the target patterns. Tree-sitter AST can be added in V2 for complex patterns.\n\n## Target User\n\n- Primary: Teams running `maina learn` to auto-detect coding conventions\n- Secondary: Constitution builders wanting evidence-based rules\n\n## User Stories\n\n- As a developer, I want `maina learn` to detect that my team uses async/await (not .then) so the constitution reflects actual practice.\n- As a team lead, I want auto-detected patterns with confidence scores so I can accept/reject them.\n\n## Success Criteria\n\n- [ ] Detects async style (async/await vs .then) in TypeScript files\n- [ ] Detects function style (arrow vs declaration) in TypeScript files\n- [ ] Detects import style (named vs default) in TypeScript files\n- [ ] Detects error handling pattern (try/catch vs .catch) in TypeScript files\n- [ ] Samples <=100 files per language\n- [ ] Emits rules with confidence 0.4–0.7 based on pattern prevalence\n- [ ] Runs in under 10 seconds on a 1000-file repo\n- [ ] Output deterministic across runs\n\n## Scope\n\n### In Scope\n\n- TypeScript pattern detection via tree-sitter queries\n- Sampling logic (<=100 files, deterministic selection)\n- Constitution rule emission with confidence scores\n\n### Out of Scope\n\n- Python patterns (stubbed but gated behind flag)\n- Go, Rust, Java, C#, PHP (future)\n- Interactive propose/accept (separate issue #117)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 61,
+					"measurability": 0,
+					"testability": 63,
+					"ambiguity": 100,
+					"completeness": 80,
+					"details": [
+						"Measurability: 0 — 0/8 criteria use measurable verbs (0 vague)",
+						"Testability: 63 — 5/8 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 80 — 4/5 sections present — missing: Design Decisions",
+						"Overall: 61 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: Interview gap-filler + interactive confirm\n\n## Problem Statement\n\nAfter scanning configs, git history, and code patterns, some conventions can't be auto-detected — they need human input. Questions like \"Files AI should never touch?\", \"Deploy-time gotchas?\", \"What does every new contributor get wrong?\" fill gaps that scanners miss. Rejected rules should persist so subsequent scans don't re-propose them.\n\n## Target User\n\n- Primary: Developers running `maina learn` to build their constitution\n- Secondary: Teams onboarding new repos\n\n## User Stories\n\n- As a developer, I want `maina learn` to ask me about things it couldn't detect so the constitution is complete.\n- As a team lead, I want rejected rules remembered so I'm not asked the same question twice.\n\n## Success Criteria\n\n- [ ] `interviewGapFiller()` returns 3 fixed questions with structured answers\n- [ ] `loadRejectedRules()` reads from `.maina/rejected.yml`\n- [ ] `saveRejectedRules()` persists rejected rules\n- [ ] `filterProposals()` removes previously rejected rules from new proposals\n- [ ] Non-TTY mode writes draft without interaction (returns questions + defaults)\n- [ ] Unit tests for all functions\n\n## Scope\n\n### In Scope\n- 3 fixed interview questions\n- Rejected rules persistence in `.maina/rejected.yml`\n- Filtering logic for `maina learn --update`\n- Non-TTY mode support\n\n### Out of Scope\n- Interactive UI (clack prompts) — that's in the CLI command layer\n- AI-generated follow-up questions\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 67,
+					"measurability": 50,
+					"testability": 67,
+					"ambiguity": 70,
+					"completeness": 80,
+					"details": [
+						"Measurability: 50 — 3/6 criteria use measurable verbs (0 vague)",
+						"Testability: 67 — 4/6 criteria contain testable patterns",
+						"Ambiguity: 70 — 3 weasel word(s) found",
+						"Completeness: 80 — 4/5 sections present — missing: Design Decisions",
+						"Overall: 67 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: Ship Maina as a Playwright MCP interop partner\n\n## Problem Statement\n\nPlaywright MCP (`@playwright/mcp`, Microsoft, Apache-2.0) is gaining traction. Maina's verify engine can consume Playwright results. Publishing \"Maina works with Playwright MCP\" gives free distribution via Microsoft's MCP directory.\n\n## Success Criteria\n\n- [ ] Docs page: \"Using Maina with Playwright MCP\" in cookbooks\n- [ ] Example flow: Claude Code agent → Playwright MCP → Maina verify → report\n\n## Scope\n\n### In Scope\n- Cookbook docs page showing the interop flow\n- Example MCP config combining both servers\n\n### Out of Scope\n- Direct Playwright MCP SDK dependency (they're independent MCP servers)\n- MCP registry submission (future marketing task)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 40,
+					"measurability": 0,
+					"testability": 0,
+					"ambiguity": 100,
+					"completeness": 60,
+					"details": [
+						"Measurability: 0 — 0/2 criteria use measurable verbs (0 vague)",
+						"Testability: 0 — 0/2 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 60 — 3/5 sections present — missing: User Stories, Design Decisions",
+						"Overall: 40 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: Run scip-typescript in ingest\n\n## Problem Statement\n\nCustom parsers (regex-based entity extraction) don't scale and miss complex relationships. SCIP (Sourcegraph, Apache-2.0) gives precise code intelligence: every symbol with file, kind, refs, and cross-file relationships. Running `scip-typescript` in the wiki ingest path enables accurate symbol pages.\n\n## Success Criteria\n\n- [ ] `runScipTypescript(repoRoot)` spawns scip-typescript and parses output\n- [ ] Handles monorepos with multiple tsconfig.json\n- [ ] Returns structured symbol data (name, kind, file, line, refs)\n- [ ] Graceful fallback when scip-typescript is not installed\n- [ ] Unit tests with mock subprocess output\n\n## Scope\n\n### In Scope\n- Subprocess invocation of scip-typescript\n- Output parsing (SCIP protobuf → internal types)\n- Monorepo support (find all tsconfig.json)\n- Availability check + graceful fallback\n\n### Out of Scope\n- Wiki article generation from SCIP data (uses existing symbol-page.ts)\n- Installing scip-typescript (user responsibility or maina doctor recommendation)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 55,
+					"measurability": 40,
+					"testability": 20,
+					"ambiguity": 100,
+					"completeness": 60,
+					"details": [
+						"Measurability: 40 — 2/5 criteria use measurable verbs (1 vague)",
+						"Testability: 20 — 1/5 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 60 — 3/5 sections present — missing: User Stories, Design Decisions",
+						"Overall: 55 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature: Emit wiki/GRAPH_REPORT.md audit on every compile\n\n> Tracking issue: [#201](https://github.com/mainahq/maina/issues/201)\n\n## Problem\n\nAfter a compile we produce dozens of markdown articles and a state file but no human-readable health summary. Issues like stale articles (Ebbinghaus decay past threshold), dangling `[[wikilinks]]`, orphan entities (zero in-degree and out-degree), and duplicate-named entities are detectable but invisible until a user stumbles on them.\n\n## Why it matters\n\n- A one-page audit is the doc a PR reviewer opens first.\n- Makes wiki drift legible. Drift is the #1 reason repo wikis die.\n- Feeds directly into the verification-first thesis: we prove the wiki is healthy, we don't just hope.\n\n## Success criteria\n\n- [ ] `packages/core/src/wiki/report.ts` exports `generateGraphReport(articles, graph, state): string`.\n- [ ] `compile()` writes `wiki/GRAPH_REPORT.md` alongside articles unless `dryRun`.\n- [ ] Report sections (in order): Summary counts (articles by type, nodes, edges, communities); Top 20 entities by PageRank; Top 10 stalest articles by Ebbinghaus score; Orphan entities (nodes with no incident edges); Dangling wikilinks ([[x]] with no target article); Duplicate entity-name disambiguations applied; Time + compile duration.\n- [ ] Each row links back to the source article where applicable.\n- [ ] Report length < 400 lines for a 500-node graph (truncate lists with 'and N more').\n- [ ] Deterministic output for a fixed input (snapshot test).\n- [ ] `maina verify` passes.\n\n## Scope\n\n### In Scope\n- `report.ts` + tests.\n- Integration into `compiler.ts` (after linker, before state save).\n\n### Out of Scope\n- HTML version (lives in graph.html, issue 047).\n- Any changes to Ebbinghaus scoring or link generation.\n\n## Notes\n\n- Consider emitting a machine-readable companion at `wiki/.graph-report.json` for CI consumption — default on, behind `--no-report-json`.\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 56,
+					"measurability": 14,
+					"testability": 71,
+					"ambiguity": 100,
+					"completeness": 40,
+					"details": [
+						"Measurability: 14 — 1/7 criteria use measurable verbs (0 vague)",
+						"Testability: 71 — 5/7 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 40 — 2/5 sections present — missing: Problem Statement, User Stories, Design Decisions",
+						"Overall: 56 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature 050: Onboarding-60s — Wave 1\n\n**Issue:** https://github.com/mainahq/maina/issues/213\n**Parent spec:** `MAINA-ONBOARDING-SPEC.md` (draft, session 2026-04-21)\n**Wave scope:** install path + doctor global MCP + degraded honesty. Waves 2–4 are follow-ups.\n\n## Problem Statement\n\nThe onboarding promise — \"one command, <60s, AI assistant wired with maina on PATH\" — does not hold on 2026-04-20 dogfooding. Wave 1 closes the four gaps that make a first run feel broken even before any constitution work lands:\n\n- **G1.** `bunx @mainahq/cli@latest setup` succeeds but `maina` is not on PATH in the shell Claude Code spawns. `install.sh` does not fail loudly when the global install step is skipped.\n- **G4.** Setup declares \"AI degraded\" on a plain TypeScript repo that Claude Code could host. `resolveSetupAI` stores `reason` internally but never shows it, so the banner looks arbitrary.\n- **G5.** `maina doctor` reports `missing (Claude Code)` without a single command the user can copy to fix it.\n- **G10.** `maina doctor` ignores global MCP registrations in `~/.claude/settings.json`, `~/.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`, `~/.config/zed/settings.json` — so users who registered maina at user scope see false-negative \"missing\" reports.\n\nIf we ship further waves on top of this, every downstream fix will be diagnosed by users as \"still broken\" because the install/doctor/degraded surfaces will continue to lie.\n\n## Target User\n\n- **Primary:** A developer opening Claude Code on an existing TypeScript repo who runs the install one-liner. They have no OpenRouter key, no Maina account. They expect the AI agent in their IDE to find `maina` and give them one honest status screen.\n- **Secondary:** A developer who previously ran `claude mcp add maina` at user scope (`~/.claude/settings.json`) and now wonders why `maina doctor` in a new repo claims the MCP is missing.\n\n## User Stories\n\n- As a first-run user, I want the install one-liner to exit non-zero with a copy-pasteable fix if `maina` is not on PATH after it finishes, so I am never lied to about success.\n- As a user running `maina setup` inside Claude Code, I want the host model used for constitution generation automatically — not a silent fall-through to a degraded offline template — and if I *am* degraded, I want the reason and the single command that recovers me.\n- As a user running `maina doctor`, I want every `missing` row paired with the exact command to fix it, and I want `--fix` to run those commands with my confirmation.\n- As a user with a user-scope MCP registration, I want doctor to recognise it rather than telling me to re-register.\n\n## Success Criteria\n\nBinary and test-enforced. Each maps to a test ID in `plan.md` §3.\n\n- [ ] **6.1 Install & PATH** — `install.sh` exits non-zero with remediation if `command -v maina` fails after global install. No silent bunx fallback. Post-install, a freshly-spawned shell resolves `which maina` in <50 ms. `README.md` hero shows `curl … | bash` first; `bunx` demoted to an Alternates disclosure. `bunx @mainahq/cli setup` self-upgrades to global or errors loudly with one-command remediation.\n- [ ] **6.3 Degraded honesty** — `resolveSetupAI` reason (`host_unavailable` / `rate_limited` / `byok_failed` / `no_key`) is surfaced in the terminal AND written to `.maina/setup.log`. When `process.env.CLAUDE_CODE` is set or `~/.claude/` exists, setup prefers host delegation and does not degrade for host availability alone. The degraded banner always prints a one-command recovery line matching the reason; it never appears without a printed reason.\n- [ ] **6.4 Doctor** — `checkMcpHealth` reads `~/.claude/settings.json`, `~/.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`, `~/.config/zed/settings.json` in addition to project-local files. Every `missing` row prints a copy-pasteable fix command. `maina doctor --fix` executes the printed commands in sequence with user confirmation. `maina doctor --json` returns `{tools,mcp,errors}` for CI consumption.\n\n## Scope\n\n### In Scope (Wave 1)\n\n- `install.sh` — exit-code-shaped hardening, PATH verification, shell-profile hint, bunx self-upgrade branch.\n- `README.md` — hero block swap (curl primary, alternates disclosure). Command-count claim left untouched in this wave (Wave 4 W8 owns SSOT regen).\n- `packages/core/src/mcp/clients.ts` — new global-readers for Claude Code, Cursor, Windsurf, Zed MCP configs.\n- `packages/cli/src/commands/doctor.ts` — scope labelling (`project`/`global`/`both`/`missing`), per-row `fix` string, `--fix` interactive executor, `--json` output.\n- `packages/core/src/setup/resolve-ai.ts` — surface `reason` to the setup emitter; prefer host when `CLAUDE_CODE` env or `~/.claude/` present; generic template unchanged by this wave (Wave 2 W4 owns constitution content).\n- `packages/cli/src/commands/setup.ts` — write `.maina/setup.log` on degraded fall; print reason + `recoveryCommand(reason)` line.\n- New tests (TDD): see `plan.md` §3.\n\n### Out of Scope (explicitly defer)\n\n- **W4** constitution derivation — adopt/scan/confirm/tailor pipeline, Maina Workflow / File Layout sections, `buildGenericConstitution` content. **Wave 2.**\n- **W5** bootstrap merge of `init` and `setup` scaffolding code paths. **Wave 3.**\n- **W6** IDE wiring — `.claude/settings.json` keyed merge, managed regions in JSON, progressive MCP handshake. **Wave 3.**\n- **W7** path hygiene — `maina context` default under `.maina/`, `wiki init --background` seed, `createFeatureDir` double-`.maina` regression check. **Wave 4.**\n- **W8** command surface cleanup + SSOT doc-count regen. **Wave 4.**\n- **W9** E2E onboarding matrix in CI. **Wave 4.**\n- Cloud account / billing flows, `maina learn` evolve loop, skills deployment model decision.\n- Rewriting Context / Prompt / Verify engines, Drizzle schemas, public MCP tool surface.\n\n## Design Decisions\n\nKey choices. Tradeoffs captured so the reviewer can challenge them.\n\n- **Worktree off master, not on top of `feature/052-wiki-lint-fixes`.** Chosen because 052 owns PR #212 with an unrelated title (\"wiki-lint accuracy\") and 438 dirty files. Alternative — commit onboarding work on top — was rejected because it would pollute #212 and make review unreadable.\n- **Wave 1 scope stops before the constitution work.** Chosen because honest degraded reporting and a working doctor are prerequisites to validating Wave 2's golden-master tests — without them, \"constitution didn't adopt my AGENTS.md\" is indistinguishable from \"setup silently degraded.\" Alternative — bundle W3 with W4 — was rejected on test-legibility grounds.\n- **Install script keeps `curl … | bash` as primary, demotes `bunx`.** Chosen per PDF Package Reference + spec Principle 1. Alternative — keep bunx-first because bunx avoids a global write — was rejected because the failure mode (PATH miss) is invisible to the AI that spawns a subshell.\n- **Doctor `--fix` is interactive-only by default.** Chosen because `--fix` writes to user-global config files; running unattended would violate the \"non-destructive everywhere\" principle. `--yes` flag reserved for future CI use.\n- **`recoveryCommand(reason)` is a table, not an LLM call.** Chosen because the recovery set is small and finite (4 reasons) and user-visible text must be deterministic. Alternative — ask the AI to write a recovery line — was rejected as unnecessary model dependency.\n- **Tests use stubbed `$HOME` via `HOME=…` env, not mocked fs.** Chosen because the production code reads via `os.homedir()`; env override is the smallest-surface fake. Alternative — inject a `fs` interface — was rejected as over-engineering for Wave 1.\n\n## Open Questions\n\nNone blocking. Tracked for waves 2+:\n\n- Skills-on-disk vs MCP-served (spec §9 Q1) — Wave 3 decision.\n- Claude Code host-tier delegation API surface (spec §9 Q4) — parallel investigation, affects Wave 2 tailor call.\n- Wiki seed depth and progress surface (spec §9 Q5) — Wave 4.\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 81,
+					"measurability": 33,
+					"testability": 100,
+					"ambiguity": 90,
+					"completeness": 100,
+					"details": [
+						"Measurability: 33 — 1/3 criteria use measurable verbs (0 vague)",
+						"Testability: 100 — 3/3 criteria contain testable patterns",
+						"Ambiguity: 90 — 1 weasel word(s) found",
+						"Completeness: 100 — 5/5 sections present",
+						"Overall: 81 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# Feature 053 — Onboarding-60s Wave 3: Bootstrap Merge + IDE Wiring\n\n## Problem Statement\n\nToday `maina init` and `maina setup` scaffold `.maina/` via two drifted code paths. The result is that the two commands write subtly different trees — users who re-run the other command get surprising diffs, and maintenance requires touching two places for every change.\n\nIn parallel, `.claude/settings.json` and `.cursor/mcp.json` are written with a full overwrite + `.bak` fallback. Users who already have MCP servers configured for other tools lose their entries on every run.\n\nAnd the MCP server registers 13 tools at handshake — forcing host agents to scan a long tool list and burning context before the user has even asked for anything.\n\n## Target User\n\n- Primary: a developer running `maina setup` for the first time in a repo that already has Claude Code configured with their own MCP servers, editor tweaks, or Cursor rules. The user expects `maina setup` to be additive, not destructive.\n- Secondary: a maintainer fixing a bug in the init/setup scaffolding who currently has to chase two files.\n- Tertiary: a Claude Code session that burns 1–3k tokens at handshake on tools it will likely never use.\n\n## User Stories\n\n- As a Claude Code user with an existing `~/.claude/settings.json`, I want `maina setup` to merge Maina's MCP entry into my settings without touching my other MCP servers.\n- As a Cursor user with existing `.cursor/mcp.json` entries, I want the Maina entry added without losing my existing entries.\n- As a maintainer, I want a single `bootstrap/scaffold.ts` module that both `init` and `setup` call, so I edit one place.\n- As a Claude Code session, I want to see only 3 tools by default (`verify`, `getContext`, `reviewCode`); I'll call `list_tools` if I need more.\n- As a power user, I want `--all-tools` to register all 10 at handshake when I know I'll use them.\n- As a setup user, I want `.maina/skills/<name>/SKILL.md` materialised from `@mainahq/skills` after setup completes, so my agent can discover them.\n\n## Success Criteria\n\nEvery criterion must be testable.\n\n- [ ] `packages/core/src/bootstrap/scaffold.ts` exists, is exported via `packages/core/src/bootstrap/index.ts`, and both `init` and `setup` route scaffolding through it.\n- [ ] Calling `scaffold({ cwd, withPrompts: true })` twice on the same tree yields byte-identical results (idempotent).\n- [ ] `.claude/settings.json` keyed merge: given a pre-existing file with `mcpServers: { existing: { command: \"x\" } }`, after setup the file has BOTH `existing` and `maina` entries, and `existing` is preserved byte-for-byte (modulo JSON formatter).\n- [ ] Property test with 50+ random pre-existing configs confirms user MCPs are preserved.\n- [ ] `.cursor/mcp.json` same merge behaviour.\n- [ ] Default MCP server (`createMcpServer()`) registers exactly 3 tools plus the `list_tools` meta-tool (4 total).\n- [ ] `list_tools` returns exactly 10 tool descriptions.\n- [ ] `createMcpServer({ allTools: true })` registers all 10 tools and no `list_tools`.\n- [ ] After `maina setup`, `.maina/skills/<name>/SKILL.md` exists for every skill published in `@mainahq/skills` (currently 8).\n- [ ] Running setup twice re-materialises identical skill files (idempotent, no duplicates).\n- [ ] `.maina/prompts/review.md` and `.maina/prompts/commit.md` exist with identical content whether they were written by `init` or `setup`.\n\n## Scope\n\n### In Scope\n\n- Extract shared scaffolding into `packages/core/src/bootstrap/scaffold.ts`.\n- Rewrite `ensureClaudeSettings` / Claude `settings.json` / Cursor `mcp.json` writers to use keyed JSON merge.\n- Create `packages/core/src/setup/agent-files/claude.ts` as the new home for `writeClaudeSettings` + `writeClaudeMd` wrappers (keyed merge).\n- Create `packages/core/src/setup/agent-files/cursor.ts` for `.cursor/mcp.json` keyed merge.\n- Extend `region.ts` with JSON-aware managed regions (keyed merge helpers) for future callers — markdown helpers stay unchanged.\n- Skills deploy: `packages/core/src/setup/skills-deploy.ts` copies each `packages/skills/*/SKILL.md` → `<cwd>/.maina/skills/<name>/SKILL.md`.\n- MCP progressive disclosure: default 3 tools, `list_tools` meta returns 10, `--all-tools` opts out.\n- Update `packages/core/src/index.ts` and `packages/core/src/setup/index.ts` to export new surfaces.\n\n### Out of Scope\n\n- Constitution derivation (Wave 2).\n- `adopt.ts`, `scan/*`, `confirm.ts`, `tailor.ts`, `prompts/universal.md` (Wave 2 owns these).\n- `doctor.ts` (Wave 1), `program.ts`, `commands/context.ts` (Wave 4).\n- README.md, install.sh, Wave 1 features 050/*.\n- TOML-based configs (Codex etc.) — they have their own merger in `core/src/mcp/` already.\n- Global (`~/.claude/settings.json`) writes — this wave only handles project-scope `.claude/settings.json`.\n\n## Design Decisions\n\n1. **Keyed JSON merge over raw overwrite.** Parse the existing JSON, mutate `mcpServers.maina`, write back with 2-space indent. When the file is unreadable/invalid JSON we rename to `.bak.<ts>` and write fresh — that's a real recovery path, not a routine case.\n2. **No external dependency for JSON formatting preservation.** `jsonc-parser` would keep comments, but `.claude/settings.json` is plain JSON in practice. Keeping the surface small outweighs comment preservation.\n3. **Progressive disclosure registers ALL 10 handlers but only exposes 3 at list time** — the MCP SDK doesn't expose tool-list filtering per-request, so we need two `createMcpServer` modes. Mode A (default) registers only `verify/getContext/reviewCode` + `list_tools`. Mode B (`allTools`) registers all 10.\n4. **Single `bootstrap/scaffold.ts` that writes minimal shared files.** Agent files and IDE MCP settings stay in `setup/` because they depend on stack detection and AI output; only the truly static `.maina/` skeleton moves to `bootstrap/`.\n5. **Skills materialisation reads from `@mainahq/skills` package resolution** — works in both monorepo and installed-from-npm scenarios. Falls back to a warning (not an error) when the skills package isn't resolvable.\n\n## Open Questions\n\nNone that block implementation. Parent spec §6.5 + §6.7 cover acceptance.\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 75,
+					"measurability": 9,
+					"testability": 91,
+					"ambiguity": 100,
+					"completeness": 100,
+					"details": [
+						"Measurability: 9 — 1/11 criteria use measurable verbs (0 vague)",
+						"Testability: 91 — 10/11 criteria contain testable patterns",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 100 — 5/5 sections present",
+						"Overall: 75 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": "# todo-api\n\nTo install dependencies:\n\n```bash\nbun install\n```\n\nTo run:\n\n```bash\nbun run index.ts\n```\n\nThis project was created using `bun init` in bun v1.3.8. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 25,
+					"measurability": 0,
+					"testability": 0,
+					"ambiguity": 100,
+					"completeness": 0,
+					"details": [
+						"Measurability: 0 — no acceptance criteria",
+						"Testability: 0 — no acceptance criteria",
+						"Ambiguity: 100 — 0 weasel word(s) found",
+						"Completeness: 0 — 0/5 sections present — missing: Problem Statement, User Stories, Success Criteria, Scope, Design Decisions",
+						"Overall: 25 (weighted average)"
+					]
+				}
+			}
+		},
+		{
+			"site": "features/quality.ts",
+			"input": {
+				"spec": ""
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"overall": 0,
+					"measurability": 0,
+					"testability": 0,
+					"ambiguity": 0,
+					"completeness": 0,
+					"details": [
+						"Empty spec file — all dimensions score 0"
+					]
+				}
+			}
+		}
+	]
+}

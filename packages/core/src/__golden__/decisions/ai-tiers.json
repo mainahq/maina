@@ -1,0 +1,905 @@
+{
+	"site": "ai/tiers.ts",
+	"cases": [
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "COMMIT",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "README",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "ai-review",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "architecture",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "architectural",
+				"modelId": "model-architectural",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "bogus-task",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "brainstorm",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "code-review",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "mechanical",
+				"modelId": "m1",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "commit",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "mechanical",
+				"modelId": "model-mechanical",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "commit-msg",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "compress",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "mechanical",
+				"modelId": "model-mechanical",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "context",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "debug",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "deep-code-review",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "design",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "design review",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "design-approaches",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "design-hld-lld",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "design-review",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "architectural",
+				"modelId": "model-architectural",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "explain",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "fix",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "init-constitution",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "learn",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "architectural",
+				"modelId": "model-architectural",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "local",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "plan",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "plan-template",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "pr",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "review",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "review-design",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "review-v3",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "router",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "setup",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "slop",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "mechanical",
+				"modelId": "model-mechanical",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "spec-questions",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "spec-template",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "symbol-page",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "tasks-template",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "test",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "tests",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "mechanical",
+				"modelId": "model-mechanical",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "unknown",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "unknown-task",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "verify",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "walkthrough",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "mechanical",
+				"modelId": "model-mechanical",
+				"provider": "provider-a"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "wiki-compile",
+				"config": {
+					"provider": "provider-b",
+					"models": {
+						"mechanical": "m1",
+						"standard": "m2",
+						"architectural": "m3",
+						"local": "m4"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "m2",
+				"provider": "provider-b"
+			}
+		},
+		{
+			"site": "ai/tiers.ts",
+			"input": {
+				"task": "wiki-query",
+				"config": {
+					"provider": "provider-a",
+					"models": {
+						"mechanical": "model-mechanical",
+						"standard": "model-standard",
+						"architectural": "model-architectural",
+						"local": "model-local"
+					}
+				}
+			},
+			"output": {
+				"tier": "standard",
+				"modelId": "model-standard",
+				"provider": "provider-a"
+			}
+		}
+	]
+}

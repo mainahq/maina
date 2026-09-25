@@ -1,0 +1,236 @@
+{
+	"site": "feedback/external-reviews.ts#reviewer-kind",
+	"cases": [
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "Copilot"
+			},
+			"output": "human"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "copilot-pull-request-reviewer"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "copilot-pull-request-reviewer[bot]"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "coderabbitai"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "coderabbitai[bot]"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "CodeRabbitAI[Bot]"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "github-actions"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "github-actions[bot]"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "renovate"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "renovate[bot]"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "dependabot"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "dependabot[bot]"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "Dependabot[bot]"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "changeset-bot[bot]"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "vercel[bot]"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "sonarcloud[bot]"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "codecov-commenter"
+			},
+			"output": "human"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "mergify[bot]"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "release-bot"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "my-review-bot"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "ci-Bot"
+			},
+			"output": "bot"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "robot"
+			},
+			"output": "human"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "bot"
+			},
+			"output": "human"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "botanist"
+			},
+			"output": "human"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "beeeku"
+			},
+			"output": "human"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "Bikash Dash"
+			},
+			"output": "human"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "octocat"
+			},
+			"output": "human"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "a-human-reviewer"
+			},
+			"output": "human"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "bot-reviewer"
+			},
+			"output": "human"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "reviewer[bot]x"
+			},
+			"output": "human"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": ""
+			},
+			"output": "human"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "  coderabbitai[bot]  "
+			},
+			"output": "human"
+		},
+		{
+			"site": "feedback/external-reviews.ts#reviewer-kind",
+			"input": {
+				"reviewer": "GitHub"
+			},
+			"output": "human"
+		}
+	]
+}

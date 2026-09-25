@@ -1,0 +1,2572 @@
+{
+	"site": "context/relevance.ts",
+	"cases": [
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/ai/availability.ts": "import { getApiKey, isHostMode } from \"../config/index\";\n",
+					"packages/core/src/ai/commit-msg.ts": "import { tryAIGenerate } from \"./try-generate\";\n",
+					"packages/core/src/ai/delegation.ts": "",
+					"packages/core/src/ai/design-approaches.ts": "import type { Result } from \"../db/index\";\nimport { tryAIGenerate } from \"./try-generate\";\n",
+					"packages/core/src/ai/index.ts": "import { buildCacheKey, hashContent } from \"../cache/keys\";\nimport { createCacheManager } from \"../cache/manager\";\nimport { getTtl } from \"../cache/ttl\";\nimport {\n\tgetApiKey,\n\tloadConfig,\n\tresolveProvider,\n\tshouldDelegateToHost,\n} from \"../config/index\";\nimport { resolveModel } from \"./tiers\";\nimport { validateAIOutput } from \"./validate\";\n",
+					"packages/core/src/ai/pr-summary.ts": "import { tryAIGenerate } from \"./try-generate\";\n",
+					"packages/core/src/ai/spec-questions.ts": "import type { Result } from \"../db/index\";\nimport { tryAIGenerate } from \"./try-generate\";\n",
+					"packages/core/src/ai/tiers.ts": "import type { MainaConfig } from \"../config/index\";\n",
+					"packages/core/src/ai/try-generate.ts": "import { getApiKey, isHostMode } from \"../config/index\";\nimport { outputDelegationRequest } from \"./delegation\";\n",
+					"packages/core/src/ai/validate.ts": "",
+					"packages/core/src/cache/keys.ts": "",
+					"packages/core/src/cache/manager.ts": "import { getCacheDb } from \"../db/index\";\n",
+					"packages/core/src/cache/ttl.ts": "",
+					"packages/core/src/config/index.ts": "import { existsSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\n",
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/ai/availability.ts"
+				],
+				"mentionedFiles": [
+					"packages/core/src/ai/commit-msg.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/ai/availability.ts",
+						"packages/core/src/config/index.ts",
+						1
+					],
+					[
+						"packages/core/src/ai/commit-msg.ts",
+						"packages/core/src/ai/try-generate.ts",
+						1
+					],
+					[
+						"packages/core/src/ai/design-approaches.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/ai/design-approaches.ts",
+						"packages/core/src/ai/try-generate.ts",
+						1
+					],
+					[
+						"packages/core/src/ai/index.ts",
+						"packages/core/src/cache/keys.ts",
+						1
+					],
+					[
+						"packages/core/src/ai/index.ts",
+						"packages/core/src/cache/manager.ts",
+						1
+					],
+					[
+						"packages/core/src/ai/index.ts",
+						"packages/core/src/cache/ttl.ts",
+						1
+					],
+					[
+						"packages/core/src/ai/index.ts",
+						"packages/core/src/config/index.ts",
+						1
+					],
+					[
+						"packages/core/src/ai/index.ts",
+						"packages/core/src/ai/tiers.ts",
+						1
+					],
+					[
+						"packages/core/src/ai/index.ts",
+						"packages/core/src/ai/validate.ts",
+						1
+					],
+					[
+						"packages/core/src/ai/pr-summary.ts",
+						"packages/core/src/ai/try-generate.ts",
+						1
+					],
+					[
+						"packages/core/src/ai/spec-questions.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/ai/spec-questions.ts",
+						"packages/core/src/ai/try-generate.ts",
+						1
+					],
+					[
+						"packages/core/src/ai/tiers.ts",
+						"packages/core/src/config/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/ai/try-generate.ts",
+						"packages/core/src/config/index.ts",
+						1
+					],
+					[
+						"packages/core/src/ai/try-generate.ts",
+						"packages/core/src/ai/delegation.ts",
+						1
+					],
+					[
+						"packages/core/src/cache/manager.ts",
+						"packages/core/src/db/index.ts",
+						1
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/ai/availability.ts",
+						0.4228340804580405
+					],
+					[
+						"packages/core/src/ai/commit-msg.ts",
+						0.08456681609160809
+					],
+					[
+						"packages/core/src/ai/delegation.ts",
+						0.03054194486410224
+					],
+					[
+						"packages/core/src/ai/design-approaches.ts",
+						0
+					],
+					[
+						"packages/core/src/ai/index.ts",
+						0
+					],
+					[
+						"packages/core/src/ai/pr-summary.ts",
+						0
+					],
+					[
+						"packages/core/src/ai/spec-questions.ts",
+						0
+					],
+					[
+						"packages/core/src/ai/tiers.ts",
+						0
+					],
+					[
+						"packages/core/src/ai/try-generate.ts",
+						0.07191920228702449
+					],
+					[
+						"packages/core/src/ai/validate.ts",
+						0
+					],
+					[
+						"packages/core/src/cache/keys.ts",
+						0
+					],
+					[
+						"packages/core/src/cache/manager.ts",
+						0
+					],
+					[
+						"packages/core/src/cache/ttl.ts",
+						0
+					],
+					[
+						"packages/core/src/config/index.ts",
+						0.3901379562992247
+					],
+					[
+						"packages/core/src/db/index.ts",
+						0
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/benchmark/reporter.ts": "import type {\n\tBenchmarkMetrics,\n\tBenchmarkReport,\n\tStepMetrics,\n\tStoryConfig,\n\tTier3Results,\n\tTier3Totals,\n} from \"./types\";\n",
+					"packages/core/src/benchmark/runner.ts": "import type { Result } from \"../db/index\";\nimport type { BenchmarkMetrics } from \"./types\";\n",
+					"packages/core/src/benchmark/story-loader.ts": "import { existsSync, readdirSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport type { Result } from \"../db/index\";\nimport type { LoadedStory, StoryConfig } from \"./types\";\n",
+					"packages/core/src/benchmark/types.ts": "",
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/benchmark/runner.ts"
+				],
+				"mentionedFiles": [
+					"packages/core/src/benchmark/story-loader.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/benchmark/reporter.ts",
+						"packages/core/src/benchmark/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/benchmark/runner.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/benchmark/runner.ts",
+						"packages/core/src/benchmark/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/benchmark/story-loader.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/benchmark/story-loader.ts",
+						"packages/core/src/benchmark/types.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/benchmark/reporter.ts",
+						0
+					],
+					[
+						"packages/core/src/benchmark/runner.ts",
+						0.4523709677564399
+					],
+					[
+						"packages/core/src/benchmark/story-loader.ts",
+						0.09047419355128798
+					],
+					[
+						"packages/core/src/benchmark/types.ts",
+						0.22857741934613607
+					],
+					[
+						"packages/core/src/db/index.ts",
+						0.22857741934613607
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/bootstrap/index.ts": "/**\n * Bootstrap — shared scaffolding path used by `init` and `setup`.\n *\n * Exposes a single `scaffold()` function that writes the static `.maina/`\n * skeleton. Tailored files (constitution bodies, agent files, IDE MCP\n * configs) are layered on top by higher-level modules.\n */\n\nexport {\n\tCOMMIT_PROMPT_TEMPLATE,\n\tCONFIG_YML_STUB,\n\tCONSTITUTION_STUB,\n\tREVIEW_PROMPT_TEMPLATE,\n\ttype ScaffoldOptions,\n\ttype ScaffoldReport,\n\tscaffold,\n} from \"./scaffold\";\n",
+					"packages/core/src/bootstrap/scaffold.ts": "/**\n * Shared scaffolding used by `maina init` and `maina setup`.\n *\n * Writes the minimal `.maina/` skeleton both commands need. This is the\n * single source of truth for the static portion of the tree — tailored\n * files (constitution, agent files, IDE MCP configs) live in higher-level\n * modules and are layered on top.\n *\n * Idempotent: running twice produces a byte-identical tree. Never\n * overwrites user-customised files — if the path already exists, it is\n * skipped (not force-written).\n */\n\nimport { existsSync, mkdirSync, writeFileSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport type { Result } from \"../db/index\";\n",
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/db/index.ts"
+				],
+				"mentionedFiles": []
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/bootstrap/scaffold.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/bootstrap/index.ts",
+						0
+					],
+					[
+						"packages/core/src/bootstrap/scaffold.ts",
+						0
+					],
+					[
+						"packages/core/src/db/index.ts",
+						1
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/cache/keys.ts": "",
+					"packages/core/src/cache/manager.ts": "import { getCacheDb } from \"../db/index\";\n",
+					"packages/core/src/cache/ttl.ts": "",
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n"
+				},
+				"touchedFiles": [],
+				"mentionedFiles": [
+					"packages/core/src/cache/keys.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/cache/manager.ts",
+						"packages/core/src/db/index.ts",
+						1
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/cache/keys.ts",
+						1
+					],
+					[
+						"packages/core/src/cache/manager.ts",
+						0
+					],
+					[
+						"packages/core/src/cache/ttl.ts",
+						0
+					],
+					[
+						"packages/core/src/db/index.ts",
+						0
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/cloud/auth.ts": "/**\n * OAuth device-flow authentication.\n *\n * Implements the device authorization grant (RFC 8628) for CLI login.\n * Tokens are stored at ~/.maina/auth.json.\n */\n\nimport {\n\texistsSync,\n\tmkdirSync,\n\treadFileSync,\n\tunlinkSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { homedir } from \"node:os\";\nimport { dirname, join } from \"node:path\";\nimport type { Result } from \"../db/index\";\nimport type {\n\tDeviceCodeResponse,\n\tGitHubDeviceCodeResponse,\n\tGitHubExchangeResponse,\n\tGitHubTokenResponse,\n\tTokenResponse,\n} from \"./types\";\n",
+					"packages/core/src/cloud/client.ts": "/**\n * Cloud HTTP client.\n *\n * Provides authenticated access to the maina cloud API for prompt sync,\n * team management, and feedback reporting. All methods return Result<T, string>.\n */\n\nimport type { Result } from \"../db/index\";\nimport type {\n\tApiResponse,\n\tCloudConfig,\n\tCloudEpisodicEntry,\n\tCloudFeedbackPayload,\n\tCloudPromptImprovement,\n\tEpisodicCloudEntry,\n\tFeedbackEvent,\n\tFeedbackImprovementsResponse,\n\tProfileUpdatePayload,\n\tProfileUpdateResponse,\n\tPromptRecord,\n\tSubmitVerifyPayload,\n\tTeamInfo,\n\tTeamMember,\n\tVerifyResultResponse,\n\tVerifyStatusResponse,\n} from \"./types\";\n",
+					"packages/core/src/cloud/types.ts": "",
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/cloud/auth.ts"
+				],
+				"mentionedFiles": [
+					"packages/core/src/cloud/client.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/cloud/auth.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/cloud/auth.ts",
+						"packages/core/src/cloud/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/cloud/client.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/cloud/client.ts",
+						"packages/core/src/cloud/types.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/cloud/auth.ts",
+						0.4491410068327303
+					],
+					[
+						"packages/core/src/cloud/client.ts",
+						0.08982820136654605
+					],
+					[
+						"packages/core/src/cloud/types.ts",
+						0.23051539590036174
+					],
+					[
+						"packages/core/src/db/index.ts",
+						0.23051539590036174
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/constitution/config-parsers.ts": "/**\n * Config Parsers — extract constitution rules from lint configs and manifests.\n *\n * Each parser reads a config file and emits ConstitutionRule[] with confidence scores.\n * Confidence 1.0 = explicitly configured, 0.6 = inferred from defaults.\n */\n\nimport { existsSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport type { ConstitutionRule } from \"./git-analyzer\";\n",
+					"packages/core/src/constitution/git-analyzer.ts": "/**\n * Git-log + CI Analyzer — extract conventions from git history and CI config.\n *\n * Detects:\n * - Conventional Commits usage rate\n * - Hot paths (top 20 churn files)\n * - Required CI checks from .github/workflows/*.yml\n * - Branch protection hints from CODEOWNERS\n *\n * Emits constitution rules with confidence scores.\n */\n\nimport { existsSync, readdirSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\n",
+					"packages/core/src/constitution/interview.ts": "/**\n * Interview Gap-Filler — asks fixed questions to fill convention gaps\n * that automated scanners can't detect.\n *\n * Rejected rules persist in `.maina/rejected.yml` so subsequent\n * scans don't re-propose them.\n *\n * Uses Result<T, E> pattern for all fallible operations.\n */\n\nimport { existsSync, readFileSync, writeFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport type { Result } from \"../db/index\";\nimport type { ConstitutionRule } from \"./git-analyzer\";\n",
+					"packages/core/src/constitution/pattern-sampler.ts": "/**\n * Pattern Sampler — detect coding style patterns from code samples.\n *\n * Samples <=100 files per language, detects patterns via regex,\n * emits medium-confidence constitution rules.\n */\n\nimport {\n\texistsSync,\n\treaddirSync,\n\treadFileSync,\n\trealpathSync,\n\tstatSync,\n} from \"node:fs\";\nimport { join } from \"node:path\";\nimport type { ConstitutionRule } from \"./git-analyzer\";\n",
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/constitution/config-parsers.ts"
+				],
+				"mentionedFiles": []
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/constitution/config-parsers.ts",
+						"packages/core/src/constitution/git-analyzer.ts",
+						0.5
+					],
+					[
+						"packages/core/src/constitution/interview.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/constitution/interview.ts",
+						"packages/core/src/constitution/git-analyzer.ts",
+						0.5
+					],
+					[
+						"packages/core/src/constitution/pattern-sampler.ts",
+						"packages/core/src/constitution/git-analyzer.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/constitution/config-parsers.ts",
+						0.5428451613077279
+					],
+					[
+						"packages/core/src/constitution/git-analyzer.ts",
+						0.45715483869227214
+					],
+					[
+						"packages/core/src/constitution/interview.ts",
+						0
+					],
+					[
+						"packages/core/src/constitution/pattern-sampler.ts",
+						0
+					],
+					[
+						"packages/core/src/db/index.ts",
+						0
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/cloud/auth.ts": "/**\n * OAuth device-flow authentication.\n *\n * Implements the device authorization grant (RFC 8628) for CLI login.\n * Tokens are stored at ~/.maina/auth.json.\n */\n\nimport {\n\texistsSync,\n\tmkdirSync,\n\treadFileSync,\n\tunlinkSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { homedir } from \"node:os\";\nimport { dirname, join } from \"node:path\";\nimport type { Result } from \"../db/index\";\nimport type {\n\tDeviceCodeResponse,\n\tGitHubDeviceCodeResponse,\n\tGitHubExchangeResponse,\n\tGitHubTokenResponse,\n\tTokenResponse,\n} from \"./types\";\n",
+					"packages/core/src/cloud/client.ts": "/**\n * Cloud HTTP client.\n *\n * Provides authenticated access to the maina cloud API for prompt sync,\n * team management, and feedback reporting. All methods return Result<T, string>.\n */\n\nimport type { Result } from \"../db/index\";\nimport type {\n\tApiResponse,\n\tCloudConfig,\n\tCloudEpisodicEntry,\n\tCloudFeedbackPayload,\n\tCloudPromptImprovement,\n\tEpisodicCloudEntry,\n\tFeedbackEvent,\n\tFeedbackImprovementsResponse,\n\tProfileUpdatePayload,\n\tProfileUpdateResponse,\n\tPromptRecord,\n\tSubmitVerifyPayload,\n\tTeamInfo,\n\tTeamMember,\n\tVerifyResultResponse,\n\tVerifyStatusResponse,\n} from \"./types\";\n",
+					"packages/core/src/cloud/types.ts": "",
+					"packages/core/src/context/budget.ts": "",
+					"packages/core/src/context/engine.ts": "import { createHash } from \"node:crypto\";\nimport { existsSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport { loadAuthConfig } from \"../cloud/auth\";\nimport { createCloudClient } from \"../cloud/client\";\nimport type { CloudEpisodicEntry } from \"../cloud/types\";\nimport { getChangedFiles, getRepoSlug, getStagedFiles } from \"../git/index\";\nimport {\n\tassembleBudget,\n\ttype BudgetAllocation,\n\ttype BudgetMode,\n\tcalculateTokens,\n\ttype LayerContent,\n\ttruncateToFit,\n} from \"./budget\";\nimport { assembleEpisodicText, decayAllEntries, getEntries } from \"./episodic\";\nimport {\n\tassembleRetrievalText,\n\ttype RetrievalOptions,\n\tsearch,\n} from \"./retrieval\";\nimport type { MainaCommand } from \"./selector\";\nimport { getBudgetMode, getContextNeeds, needsLayer } from \"./selector\";\nimport { loadWikiContext } from \"./wiki\";\nimport { assembleWorkingText, loadWorkingContext } from \"./working\";\n",
+					"packages/core/src/context/episodic.ts": "import { getContextDb } from \"../db/index.ts\";\n",
+					"packages/core/src/context/relevance.ts": "import { dirname, extname, resolve } from \"node:path\";\nimport { parseFile } from \"./treesitter\";\n",
+					"packages/core/src/context/retrieval.ts": "",
+					"packages/core/src/context/selector.ts": "import type { BudgetMode } from \"./budget.ts\";\n",
+					"packages/core/src/context/semantic.ts": "import { readdirSync, statSync } from \"node:fs\";\nimport { join, relative } from \"node:path\";\nimport { getContextDb } from \"../db/index\";\nimport {\n\tbuildGraph,\n\ttype DependencyGraph,\n\tscoreRelevance,\n\ttype TaskContext,\n} from \"./relevance\";\nimport { parseFile } from \"./treesitter\";\n",
+					"packages/core/src/context/treesitter.ts": "",
+					"packages/core/src/context/wiki.ts": "import { existsSync, readdirSync, readFileSync, statSync } from \"node:fs\";\nimport { basename, join, relative } from \"node:path\";\nimport { recordArticlesLoaded } from \"../wiki/signals\";\nimport { calculateTokens, type LayerContent } from \"./budget\";\n",
+					"packages/core/src/context/working.ts": "import { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { getCurrentBranch } from \"../git/index\";\nimport { loadWorkflowContext } from \"../workflow/context\";\n",
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n",
+					"packages/core/src/git/index.ts": "",
+					"packages/core/src/wiki/signals.ts": "/**\n * Wiki RL Signals — feedback signals for wiki-as-context effectiveness.\n *\n * Three signals:\n * 1. Wiki usage effectiveness — tracks whether wiki context led to accepted outputs\n * 2. Compilation prompt effectiveness — tracks accept rate per prompt hash\n * 3. Ebbinghaus decay scoring — calculates memory retention score per article type\n *\n * Uses simple JSON file storage in .maina/wiki/.signals.json.\n */\n\nimport { existsSync, mkdirSync, readFileSync, writeFileSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport type { ArticleType } from \"./types\";\nimport { DECAY_HALF_LIVES } from \"./types\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/context/relevance.ts"
+				],
+				"mentionedFiles": [
+					"packages/core/src/context/retrieval.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/cloud/auth.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/cloud/auth.ts",
+						"packages/core/src/cloud/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/cloud/client.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/cloud/client.ts",
+						"packages/core/src/cloud/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/context/engine.ts",
+						"packages/core/src/cloud/auth.ts",
+						1
+					],
+					[
+						"packages/core/src/context/engine.ts",
+						"packages/core/src/cloud/client.ts",
+						1
+					],
+					[
+						"packages/core/src/context/engine.ts",
+						"packages/core/src/cloud/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/context/engine.ts",
+						"packages/core/src/git/index.ts",
+						1
+					],
+					[
+						"packages/core/src/context/engine.ts",
+						"packages/core/src/context/budget.ts",
+						1
+					],
+					[
+						"packages/core/src/context/engine.ts",
+						"packages/core/src/context/episodic.ts",
+						1
+					],
+					[
+						"packages/core/src/context/engine.ts",
+						"packages/core/src/context/retrieval.ts",
+						1
+					],
+					[
+						"packages/core/src/context/engine.ts",
+						"packages/core/src/context/selector.ts",
+						0.5
+					],
+					[
+						"packages/core/src/context/engine.ts",
+						"packages/core/src/context/wiki.ts",
+						1
+					],
+					[
+						"packages/core/src/context/engine.ts",
+						"packages/core/src/context/working.ts",
+						1
+					],
+					[
+						"packages/core/src/context/episodic.ts",
+						"packages/core/src/db/index.ts",
+						1
+					],
+					[
+						"packages/core/src/context/relevance.ts",
+						"packages/core/src/context/treesitter.ts",
+						1
+					],
+					[
+						"packages/core/src/context/selector.ts",
+						"packages/core/src/context/budget.ts",
+						0.5
+					],
+					[
+						"packages/core/src/context/semantic.ts",
+						"packages/core/src/db/index.ts",
+						1
+					],
+					[
+						"packages/core/src/context/semantic.ts",
+						"packages/core/src/context/relevance.ts",
+						1
+					],
+					[
+						"packages/core/src/context/semantic.ts",
+						"packages/core/src/context/treesitter.ts",
+						1
+					],
+					[
+						"packages/core/src/context/wiki.ts",
+						"packages/core/src/wiki/signals.ts",
+						1
+					],
+					[
+						"packages/core/src/context/wiki.ts",
+						"packages/core/src/context/budget.ts",
+						1
+					],
+					[
+						"packages/core/src/context/working.ts",
+						"packages/core/src/git/index.ts",
+						1
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/cloud/auth.ts",
+						0
+					],
+					[
+						"packages/core/src/cloud/client.ts",
+						0
+					],
+					[
+						"packages/core/src/cloud/types.ts",
+						0
+					],
+					[
+						"packages/core/src/context/budget.ts",
+						0
+					],
+					[
+						"packages/core/src/context/engine.ts",
+						0
+					],
+					[
+						"packages/core/src/context/episodic.ts",
+						0
+					],
+					[
+						"packages/core/src/context/relevance.ts",
+						0.4878087823389883
+					],
+					[
+						"packages/core/src/context/retrieval.ts",
+						0.09756175646779765
+					],
+					[
+						"packages/core/src/context/selector.ts",
+						0
+					],
+					[
+						"packages/core/src/context/semantic.ts",
+						0
+					],
+					[
+						"packages/core/src/context/treesitter.ts",
+						0.41462946119321403
+					],
+					[
+						"packages/core/src/context/wiki.ts",
+						0
+					],
+					[
+						"packages/core/src/context/working.ts",
+						0
+					],
+					[
+						"packages/core/src/db/index.ts",
+						0
+					],
+					[
+						"packages/core/src/git/index.ts",
+						0
+					],
+					[
+						"packages/core/src/wiki/signals.ts",
+						0
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n",
+					"packages/core/src/db/schema.ts": "import { integer, real, sqliteTable, text } from \"drizzle-orm/sqlite-core\";\n"
+				},
+				"touchedFiles": [],
+				"mentionedFiles": [
+					"packages/core/src/db/index.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/db/index.ts",
+						"packages/core/src/db/schema.ts",
+						1
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/db/index.ts",
+						0.5389692081992765
+					],
+					[
+						"packages/core/src/db/schema.ts",
+						0.46103079180072354
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/ai/try-generate.ts": "import { getApiKey, isHostMode } from \"../config/index\";\nimport { outputDelegationRequest } from \"./delegation\";\n",
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n",
+					"packages/core/src/design/index.ts": "/**\n * Architecture Decision Record (ADR) management.\n *\n * Handles auto-numbering, scaffolding MADR templates, and listing ADRs.\n * ADRs capture WHAT and WHY — no implementation details.\n */\n\nimport { existsSync, mkdirSync, readdirSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport { tryAIGenerate } from \"../ai/try-generate\";\nimport type { Result } from \"../db/index\";\nimport { toKebabCase } from \"../utils\";\n",
+					"packages/core/src/design/review.ts": "/**\n * ADR Design Review.\n *\n * Reviews an Architecture Decision Record against existing ADRs and\n * the project constitution. Performs deterministic checks for MADR\n * section completeness and [NEEDS CLARIFICATION] markers.\n *\n * Single LLM call per command — deterministic checks run without AI.\n */\n\nimport { existsSync, readdirSync, readFileSync } from \"node:fs\";\nimport { basename, join } from \"node:path\";\nimport type { Result } from \"../db/index\";\nimport { loadConstitution } from \"../prompts/loader\";\n",
+					"packages/core/src/prompts/loader.ts": "import { existsSync, readdirSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\n",
+					"packages/core/src/utils.ts": ""
+				},
+				"touchedFiles": [
+					"packages/core/src/design/index.ts"
+				],
+				"mentionedFiles": []
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/design/index.ts",
+						"packages/core/src/ai/try-generate.ts",
+						1
+					],
+					[
+						"packages/core/src/design/index.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/design/index.ts",
+						"packages/core/src/utils.ts",
+						1
+					],
+					[
+						"packages/core/src/design/review.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/design/review.ts",
+						"packages/core/src/prompts/loader.ts",
+						1
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/ai/try-generate.ts",
+						0.18699628545925706
+					],
+					[
+						"packages/core/src/db/index.ts",
+						0.09349814272962853
+					],
+					[
+						"packages/core/src/design/index.ts",
+						0.5325092863518573
+					],
+					[
+						"packages/core/src/design/review.ts",
+						0
+					],
+					[
+						"packages/core/src/prompts/loader.ts",
+						0
+					],
+					[
+						"packages/core/src/utils.ts",
+						0.18699628545925706
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n",
+					"packages/core/src/features/analyzer.ts": "/**\n * Cross-artifact consistency analyzer.\n *\n * Checks consistency across the three files in a feature directory:\n * - spec.md  — WHAT and WHY (user stories, acceptance criteria)\n * - plan.md  — HOW (architecture, tasks)\n * - tasks.md — Task breakdown (task list with status)\n *\n * Checks performed:\n * 1. Missing files\n * 2. Spec coverage — acceptance criteria addressed by tasks\n * 3. Orphaned tasks — tasks not mapping to any spec requirement\n * 4. WHAT/WHY vs HOW separation — implementation details in spec, user stories in plan\n * 5. Task status consistency — task counts match between plan.md and tasks.md\n * 6. Contradictions — conflicting information between plan.md and tasks.md\n */\n\nimport { existsSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport type { Result } from \"../db/index\";\nimport { extractAcceptanceCriteria, STOP_WORDS } from \"../utils\";\n",
+					"packages/core/src/features/checklist.ts": "/**\n * Deterministic plan verification checklist.\n *\n * Verifies a plan.md against its spec.md without any AI involvement:\n * 1. Spec criterion coverage — every acceptance criterion has a matching task\n * 2. No TODO/TBD/PLACEHOLDER/FIXME markers — [NEEDS CLARIFICATION] is allowed\n * 3. Function/type name consistency — backtick-quoted identifiers are consistent\n * 4. Test-first ordering — test tasks appear before implementation tasks\n */\n\nimport { existsSync, readFileSync } from \"node:fs\";\nimport type { Result } from \"../db/index\";\nimport { extractAcceptanceCriteria } from \"../utils\";\n",
+					"packages/core/src/features/index.ts": "",
+					"packages/core/src/features/numbering.ts": "/**\n * Feature numbering and directory management.\n *\n * Handles auto-numbering of features, creating feature directories,\n * and scaffolding template files (spec.md, plan.md, tasks.md).\n */\n\nimport { existsSync, mkdirSync, readdirSync, statSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport type { Result } from \"../db/index\";\nimport { toKebabCase } from \"../utils\";\n",
+					"packages/core/src/features/quality.ts": "/**\n * Spec quality scorer.\n *\n * Scores a spec.md file 0-100 based on four dimensions:\n * - Measurability: do criteria use measurable verbs?\n * - Testability: can each criterion be expressed as a test?\n * - Ambiguity: inverse of weasel word count (100 = no ambiguity)\n * - Completeness: are all required sections filled in?\n */\n\nimport { existsSync, readFileSync } from \"node:fs\";\nimport type { Result } from \"../db/index\";\n",
+					"packages/core/src/features/test-stubs.ts": "",
+					"packages/core/src/features/traceability.ts": "/**\n * Plan-to-code traceability.\n *\n * Reads plan.md from a feature directory, extracts tasks (T001, T002, etc.),\n * and traces each task to matching test files, implementation files, and commits.\n */\n\nimport { existsSync, readdirSync, readFileSync, statSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport type { Result } from \"../db/index\";\n",
+					"packages/core/src/utils.ts": ""
+				},
+				"touchedFiles": [
+					"packages/core/src/db/index.ts"
+				],
+				"mentionedFiles": [
+					"packages/core/src/features/analyzer.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/features/analyzer.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/features/analyzer.ts",
+						"packages/core/src/utils.ts",
+						1
+					],
+					[
+						"packages/core/src/features/checklist.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/features/checklist.ts",
+						"packages/core/src/utils.ts",
+						1
+					],
+					[
+						"packages/core/src/features/numbering.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/features/numbering.ts",
+						"packages/core/src/utils.ts",
+						1
+					],
+					[
+						"packages/core/src/features/quality.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/features/traceability.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/db/index.ts",
+						0.7712895377128955
+					],
+					[
+						"packages/core/src/features/analyzer.ts",
+						0.14598540145985403
+					],
+					[
+						"packages/core/src/features/checklist.ts",
+						0
+					],
+					[
+						"packages/core/src/features/index.ts",
+						0
+					],
+					[
+						"packages/core/src/features/numbering.ts",
+						0
+					],
+					[
+						"packages/core/src/features/quality.ts",
+						0
+					],
+					[
+						"packages/core/src/features/test-stubs.ts",
+						0
+					],
+					[
+						"packages/core/src/features/traceability.ts",
+						0
+					],
+					[
+						"packages/core/src/utils.ts",
+						0.08272506082725058
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/cache/keys.ts": "",
+					"packages/core/src/cache/manager.ts": "import { getCacheDb } from \"../db/index\";\n",
+					"packages/core/src/cloud/auth.ts": "/**\n * OAuth device-flow authentication.\n *\n * Implements the device authorization grant (RFC 8628) for CLI login.\n * Tokens are stored at ~/.maina/auth.json.\n */\n\nimport {\n\texistsSync,\n\tmkdirSync,\n\treadFileSync,\n\tunlinkSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { homedir } from \"node:os\";\nimport { dirname, join } from \"node:path\";\nimport type { Result } from \"../db/index\";\nimport type {\n\tDeviceCodeResponse,\n\tGitHubDeviceCodeResponse,\n\tGitHubExchangeResponse,\n\tGitHubTokenResponse,\n\tTokenResponse,\n} from \"./types\";\n",
+					"packages/core/src/cloud/client.ts": "/**\n * Cloud HTTP client.\n *\n * Provides authenticated access to the maina cloud API for prompt sync,\n * team management, and feedback reporting. All methods return Result<T, string>.\n */\n\nimport type { Result } from \"../db/index\";\nimport type {\n\tApiResponse,\n\tCloudConfig,\n\tCloudEpisodicEntry,\n\tCloudFeedbackPayload,\n\tCloudPromptImprovement,\n\tEpisodicCloudEntry,\n\tFeedbackEvent,\n\tFeedbackImprovementsResponse,\n\tProfileUpdatePayload,\n\tProfileUpdateResponse,\n\tPromptRecord,\n\tSubmitVerifyPayload,\n\tTeamInfo,\n\tTeamMember,\n\tVerifyResultResponse,\n\tVerifyStatusResponse,\n} from \"./types\";\n",
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n",
+					"packages/core/src/feedback/capture.ts": "/**\n * MCP result capture — connects tool outputs to cache, feedback, and stats.\n * This is the core of the round-trip flywheel.\n */\n\nimport { hashContent } from \"../cache/keys\";\nimport { createCacheManager } from \"../cache/manager\";\nimport { trackToolUsage } from \"../stats/tracker\";\nimport { recordFeedback } from \"./collector\";\nimport { emitRejectSignal } from \"./signals\";\n",
+					"packages/core/src/feedback/collector.ts": "import { hashContent } from \"../cache/keys\";\nimport { loadAuthConfig } from \"../cloud/auth\";\nimport { createCloudClient } from \"../cloud/client\";\nimport { getFeedbackDb } from \"../db/index\";\nimport { getRepoSlug } from \"../git/index\";\nimport { recordOutcome } from \"../prompts/engine\";\nimport { compressReview, storeCompressedReview } from \"./compress\";\n",
+					"packages/core/src/feedback/compress.ts": "import { addEntry } from \"../context/episodic\";\n",
+					"packages/core/src/feedback/external-reviews-repo.ts": "/**\n * Repository layer for external_review_findings.\n *\n * Per CLAUDE.md \"All DB access through repository layer\" — this module owns\n * every raw SQL statement against the `external_review_findings` table. The\n * feature module (`external-reviews.ts`) validates and translates inputs,\n * then forwards to these functions.\n */\n\nimport { randomUUID } from \"node:crypto\";\nimport { getFeedbackDb, type Result } from \"../db/index\";\nimport type {\n\tCategoryByFile,\n\tExternalReviewFinding,\n\tFindingCategory,\n\tFindingState,\n\tInsertFindingInput,\n\tQueryFindingsOptions,\n\tReviewerKind,\n} from \"./external-reviews-types\";\n",
+					"packages/core/src/feedback/external-reviews-types.ts": "",
+					"packages/core/src/feedback/external-reviews.ts": "/**\n * External code-review findings ingestion.\n *\n * Pulls review comments from configured reviewers (Copilot, CodeRabbit, named\n * humans) on open + recently merged PRs and stores them as labeled training\n * signal in `.maina/feedback.db`.\n *\n * v1 thin slice: ingest + categorise + query. The RL closure (verify\n * consulting findings, slop ruleset evolution, cloud sync) is v2 — see\n * issue #185.\n *\n * DB access goes through `external-reviews-repo.ts` — this module handles\n * validation, categorisation, and the `gh` subprocess plumbing.\n */\n\nimport type { Result } from \"../db/index\";\nimport {\n\tinsertFindingRow,\n\tselectFindings,\n\tselectTopCategoriesByFile,\n} from \"./external-reviews-repo\";\nimport type {\n\tCategoryByFile,\n\tExternalReviewComment,\n\tExternalReviewFinding,\n\tFindingCategory,\n\tIngestOptions,\n\tIngestStats,\n\tInsertFindingInput,\n\tQueryFindingsOptions,\n\tReviewerKind,\n} from \"./external-reviews-types\";\n",
+					"packages/core/src/feedback/preferences.ts": "import { existsSync, readFileSync, writeFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\n",
+					"packages/core/src/feedback/receipt-fp.ts": "/**\n * Receipt false-positive feedback — record + query.\n *\n * Q7 (locked 2026-04-25): feedback is keyed by `constitutionHash`, not by\n * repo or by receipt hash. Two repos sharing the same constitution share\n * their FP knowledge; a constitution edit resets the FP set (because the\n * rules changed). The optional `receipt_hash` column lets us trace a FP\n * back to the receipt it was filed against without making it the key.\n *\n * Pure storage — Result-typed, no throws. Persists to `.maina/feedback.db`.\n */\n\nimport { randomUUID } from \"node:crypto\";\nimport { getFeedbackDb } from \"../db/index\";\n",
+					"packages/core/src/feedback/signals.ts": "/**\n * Implicit accept/reject signals for the RL flywheel.\n * Infers outcomes from downstream user behavior instead of requiring explicit action.\n */\n\nimport { join } from \"node:path\";\nimport { getFeedbackDb } from \"../db/index\";\nimport { recordWikiUsage } from \"../wiki/signals\";\n",
+					"packages/core/src/feedback/sync.ts": "/**\n * Feedback sync — exports local feedback records and workflow stats for cloud upload.\n *\n * Reads from the local SQLite feedback.db and maps records to the\n * cloud-compatible FeedbackEvent format for batch upload.\n * Also exports workflow step counts for analytics.\n */\n\nimport type { EpisodicCloudEntry, FeedbackEvent } from \"../cloud/types\";\nimport { getEntries } from \"../context/episodic\";\nimport { getFeedbackDb, getStatsDb } from \"../db/index\";\n",
+					"packages/core/src/stats/tracker.ts": "import type { Result } from \"../db/index.ts\";\nimport { getContextDb, getStatsDb } from \"../db/index.ts\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/feedback/external-reviews.ts"
+				],
+				"mentionedFiles": [
+					"packages/core/src/feedback/preferences.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/cache/manager.ts",
+						"packages/core/src/db/index.ts",
+						1
+					],
+					[
+						"packages/core/src/cloud/auth.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/cloud/client.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/feedback/capture.ts",
+						"packages/core/src/cache/keys.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/capture.ts",
+						"packages/core/src/cache/manager.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/capture.ts",
+						"packages/core/src/stats/tracker.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/capture.ts",
+						"packages/core/src/feedback/collector.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/capture.ts",
+						"packages/core/src/feedback/signals.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/collector.ts",
+						"packages/core/src/cache/keys.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/collector.ts",
+						"packages/core/src/cloud/auth.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/collector.ts",
+						"packages/core/src/cloud/client.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/collector.ts",
+						"packages/core/src/db/index.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/collector.ts",
+						"packages/core/src/feedback/compress.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/external-reviews-repo.ts",
+						"packages/core/src/db/index.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/external-reviews-repo.ts",
+						"packages/core/src/feedback/external-reviews-types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/feedback/external-reviews.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/feedback/external-reviews.ts",
+						"packages/core/src/feedback/external-reviews-repo.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/external-reviews.ts",
+						"packages/core/src/feedback/external-reviews-types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/feedback/receipt-fp.ts",
+						"packages/core/src/db/index.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/signals.ts",
+						"packages/core/src/db/index.ts",
+						1
+					],
+					[
+						"packages/core/src/feedback/sync.ts",
+						"packages/core/src/db/index.ts",
+						1
+					],
+					[
+						"packages/core/src/stats/tracker.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/cache/keys.ts",
+						0
+					],
+					[
+						"packages/core/src/cache/manager.ts",
+						0
+					],
+					[
+						"packages/core/src/cloud/auth.ts",
+						0
+					],
+					[
+						"packages/core/src/cloud/client.ts",
+						0
+					],
+					[
+						"packages/core/src/db/index.ts",
+						0.1880089908848011
+					],
+					[
+						"packages/core/src/feedback/capture.ts",
+						0
+					],
+					[
+						"packages/core/src/feedback/collector.ts",
+						0
+					],
+					[
+						"packages/core/src/feedback/compress.ts",
+						0
+					],
+					[
+						"packages/core/src/feedback/external-reviews-repo.ts",
+						0.17625752806517508
+					],
+					[
+						"packages/core/src/feedback/external-reviews-types.ts",
+						0.1380688774586943
+					],
+					[
+						"packages/core/src/feedback/external-reviews.ts",
+						0.4147205029927745
+					],
+					[
+						"packages/core/src/feedback/preferences.ts",
+						0.08294410059855489
+					],
+					[
+						"packages/core/src/feedback/receipt-fp.ts",
+						0
+					],
+					[
+						"packages/core/src/feedback/signals.ts",
+						0
+					],
+					[
+						"packages/core/src/feedback/sync.ts",
+						0
+					],
+					[
+						"packages/core/src/stats/tracker.ts",
+						0
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/git/index.ts": "",
+					"packages/core/src/git/trailer.ts": "/**\n * Git trailer helpers — `Verified-by: Maina@sha256:<hash>` and friends.\n *\n * Trailers per https://git-scm.com/docs/git-interpret-trailers — `Key: value`\n * lines in the *last paragraph* of the commit message, separated from the\n * subject + body by a blank line.\n *\n * All helpers are pure + idempotent.\n */\n\nimport { createHash } from \"node:crypto\";\nimport { canonicalize } from \"../receipt/canonical\";\n",
+					"packages/core/src/receipt/canonical.ts": ""
+				},
+				"touchedFiles": [],
+				"mentionedFiles": []
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/git/trailer.ts",
+						"packages/core/src/receipt/canonical.ts",
+						1
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/git/index.ts",
+						0.25974025974107784
+					],
+					[
+						"packages/core/src/git/trailer.ts",
+						0.25974025974107784
+					],
+					[
+						"packages/core/src/receipt/canonical.ts",
+						0.4805194805178444
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n",
+					"packages/core/src/github/checks.ts": "/**\n * GitHub Checks API — create Check Runs for Maina verification results.\n *\n * Creates a Check Run with conclusion (success/failure/neutral),\n * summary, and up to 50 line annotations from verify findings.\n * Uses fetch directly — no Octokit dependency.\n */\n\nimport type { Result } from \"../db/index\";\nimport type { Finding } from \"../verify/diff-filter\";\n",
+					"packages/core/src/github/slash-commands.ts": "",
+					"packages/core/src/github/sticky-comment.ts": "/**\n * Sticky PR Comment — find-or-create a single root Maina comment per PR.\n *\n * Searches for `<!-- maina:run -->` marker in existing comments.\n * If found: updates the existing comment (preserves reactions).\n * If not found: creates a new comment.\n *\n * Race mitigation: create-then-deduplicate. After creating, re-list to check\n * for duplicates and delete ours if another run created one first.\n */\n\nimport type { Result } from \"../db/index\";\n",
+					"packages/core/src/verify/diff-filter.ts": "/**\n * Diff-Only Filter — Reviewdog pattern for the Verify Engine.\n *\n * Filters findings to only changed lines via git diff. Pre-existing issues\n * on unchanged lines are counted but hidden, so developers only see problems\n * they introduced. This eliminates noise from legacy code.\n */\n\nimport { getDiff } from \"../git/index\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/github/slash-commands.ts"
+				],
+				"mentionedFiles": [
+					"packages/core/src/github/sticky-comment.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/github/checks.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/github/checks.ts",
+						"packages/core/src/verify/diff-filter.ts",
+						0.5
+					],
+					[
+						"packages/core/src/github/sticky-comment.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/db/index.ts",
+						0.12408759124087587
+					],
+					[
+						"packages/core/src/github/checks.ts",
+						0
+					],
+					[
+						"packages/core/src/github/slash-commands.ts",
+						0.7299270072992701
+					],
+					[
+						"packages/core/src/github/sticky-comment.ts",
+						0.145985401459854
+					],
+					[
+						"packages/core/src/verify/diff-filter.ts",
+						0
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/hooks/index.ts": "export {\n\texecuteHook,\n\ttype HookContext,\n\ttype HookEvent,\n\ttype HookResult,\n\trunHooks,\n\tscanHooks,\n} from \"./runner\";\n",
+					"packages/core/src/hooks/runner.ts": "import { existsSync } from \"node:fs\";\nimport { join } from \"node:path\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/hooks/runner.ts"
+				],
+				"mentionedFiles": [
+					"packages/core/src/hooks/index.ts"
+				]
+			},
+			"output": {
+				"edges": [],
+				"scores": [
+					[
+						"packages/core/src/hooks/index.ts",
+						0.16666666666666666
+					],
+					[
+						"packages/core/src/hooks/runner.ts",
+						0.8333333333333334
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/language/detect.ts": "/**\n * Language Detection — detects project languages from marker files.\n */\n\nimport { existsSync, readdirSync, readFileSync } from \"node:fs\";\nimport { extname, join } from \"node:path\";\nimport { type LanguageId, PROFILES } from \"./profile\";\n",
+					"packages/core/src/language/profile.ts": ""
+				},
+				"touchedFiles": [
+					"packages/core/src/language/detect.ts"
+				],
+				"mentionedFiles": []
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/language/detect.ts",
+						"packages/core/src/language/profile.ts",
+						1
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/language/detect.ts",
+						0.5389692081992765
+					],
+					[
+						"packages/core/src/language/profile.ts",
+						0.46103079180072354
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n",
+					"packages/core/src/mcp/apply.ts": "/**\n * Apply add/remove operations against a single client's config file.\n *\n * Atomic write semantics: parse the existing file (or start fresh if it\n * doesn't exist), mutate ONLY the maina entry, then write to a temp path\n * + rename. Other entries — both other MCP servers and unrelated config\n * keys — are preserved verbatim by the JSON / TOML round-trip.\n */\n\nimport {\n\texistsSync,\n\tmkdirSync,\n\treadFileSync,\n\trenameSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { dirname } from \"node:path\";\nimport * as toml from \"@iarna/toml\";\nimport type { ApplyResult, McpClientInfo } from \"./types\";\n",
+					"packages/core/src/mcp/clients.ts": "/**\n * Registry of MCP clients we know how to install the maina server into.\n *\n * Each client describes:\n *   - where its global config lives (per-platform)\n *   - what serialisation format it uses (JSON vs TOML)\n *   - where in the parsed object the MCP server map lives\n *   - how to detect whether the user has the client installed\n *\n * We intentionally support only \"global\" install scope here — the per-\n * project shape is already handled by the setup wizard via `.mcp.json`\n * and `.claude/settings.json`. `maina mcp add` is the cross-project\n * counterpart so a single install reaches every repo.\n *\n * Inspired by PostHog's wizard MCPClient pattern, simplified for our\n * narrower use case (we always register the same maina entry).\n */\n\nimport { existsSync, readdirSync } from \"node:fs\";\nimport { homedir, platform } from \"node:os\";\nimport { join } from \"node:path\";\nimport { detectLauncher } from \"./launcher\";\nimport type { McpClientId, McpClientInfo } from \"./types\";\n",
+					"packages/core/src/mcp/entry.ts": "/**\n * The maina MCP server entry. Single source of truth so every client\n * registers the same `command` / `args` shape — and so a future change\n * is one edit.\n *\n * The launcher (`bunx` vs `npx`) is auto-detected per machine: prefer\n * `bunx` when Bun is installed (5-10× faster startup), fall back to\n * `npx` (universally available via npm). See `./launcher.ts` for the\n * detection logic and the dogfood incident that motivated this.\n *\n * Tests can pin the launcher via `buildMainaEntry({ launcher })` to keep\n * snapshots stable across machines.\n */\n\nimport { detectLauncher, type Launcher } from \"./launcher\";\n",
+					"packages/core/src/mcp/index.ts": "/**\n * `maina mcp` — install, remove, and list the maina MCP server across\n * supported AI clients.\n *\n * Public entry points: `runAdd`, `runRemove`, `runList`. Each takes a\n * RunOptions describing the requested clients, scope, dry-run mode, and\n * cwd. Each returns a per-client list of ApplyResult / status records.\n */\n\nimport { addOnClient, inspectClient, removeFromClient } from \"./apply\";\nimport { buildClientRegistry, listClientIds } from \"./clients\";\nimport type { ApplyResult, McpClientId, RunOptions } from \"./types\";\n\nexport { buildClientRegistry, listClientIds } from \"./clients\";\n",
+					"packages/core/src/mcp/launcher.ts": "/**\n * Pick the launcher used in MCP client configs.\n *\n * Priority order, each preferring the most-reliable option:\n *\n *   1. **Installed `maina` binary** (e.g. `/Users/x/.bun/bin/maina`) —\n *      best by far. No package-manager spawn on every MCP request, no\n *      cold-start download, no Bun cache race when multiple MCP clients\n *      spawn the server concurrently. Requires the user to have run\n *      `bun install -g @mainahq/cli` (or `npm i -g`).\n *\n *   2. **`bunx` with a pinned version** (e.g. `bunx @mainahq/cli@1.4.3\n *      --mcp`). 5-10× faster than `npx`, and the version pin lets `bunx`\n *      hit its cache more reliably on subsequent spawns.\n *\n *   3. **`npx` with a pinned version** — universally available.\n *\n *   4. Bare `npx` last-resort fallback so the entry stays syntactically\n *      valid even on a machine with neither bun nor node.\n *\n * Two real bugs this module dodges:\n *\n *   - **Stripped GUI PATH on macOS.** Cursor / Zed / Claude Code desktop\n *     spawn subprocesses with a PATH that does NOT include\n *     `/opt/homebrew/bin` or `~/.bun/bin`. We resolve to the absolute\n *     path via `Bun.which` so spawning never ENOENTs.\n *\n *   - **bunx cache races on cold start.** Concurrent MCP-server spawns\n *     from a single editor restart hit the same `~/.bun/install/cache`\n *     and one of them errors with \"failed copying files from cache to\n *     destination for package X\". Direct-binary launches dodge this\n *     entirely; pinned-version `bunx` reduces the window.\n */\n\nimport pkg from \"../../package.json\";\n",
+					"packages/core/src/mcp/types.ts": "/**\n * Types shared across the `maina mcp add/remove/list` machinery.\n *\n * The goal of this module: write the maina MCP server entry into the\n * GLOBAL config of any AI client the user has installed, so that\n * `maina --mcp` is reachable from every project without per-repo setup.\n * The setup wizard already writes per-project configs (`.mcp.json`,\n * `.claude/settings.json`); this is the cross-project counterpart.\n */\n\nimport type { Result } from \"../db/index\";\n"
+				},
+				"touchedFiles": [],
+				"mentionedFiles": [
+					"packages/core/src/mcp/clients.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/mcp/apply.ts",
+						"packages/core/src/mcp/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/mcp/clients.ts",
+						"packages/core/src/mcp/launcher.ts",
+						1
+					],
+					[
+						"packages/core/src/mcp/clients.ts",
+						"packages/core/src/mcp/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/mcp/entry.ts",
+						"packages/core/src/mcp/launcher.ts",
+						1
+					],
+					[
+						"packages/core/src/mcp/index.ts",
+						"packages/core/src/mcp/apply.ts",
+						1
+					],
+					[
+						"packages/core/src/mcp/index.ts",
+						"packages/core/src/mcp/clients.ts",
+						1
+					],
+					[
+						"packages/core/src/mcp/index.ts",
+						"packages/core/src/mcp/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/mcp/types.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/db/index.ts",
+						0.11518544044593401
+					],
+					[
+						"packages/core/src/mcp/apply.ts",
+						0
+					],
+					[
+						"packages/core/src/mcp/clients.ts",
+						0.4782783430473137
+					],
+					[
+						"packages/core/src/mcp/entry.ts",
+						0
+					],
+					[
+						"packages/core/src/mcp/index.ts",
+						0
+					],
+					[
+						"packages/core/src/mcp/launcher.ts",
+						0.2710241443378349
+					],
+					[
+						"packages/core/src/mcp/types.ts",
+						0.13551207216891745
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/cache/keys.ts": "",
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n",
+					"packages/core/src/prompts/defaults/index.ts": "import { join } from \"node:path\";\n",
+					"packages/core/src/prompts/engine.ts": "import { hashContent } from \"../cache/keys\";\nimport { getFeedbackDb } from \"../db/index\";\nimport { loadDefault, type PromptTask } from \"./defaults/index\";\nimport { abTest } from \"./evolution\";\nimport {\n\tloadConstitution,\n\tloadUserOverride,\n\tmergePrompts,\n\trenderTemplate,\n} from \"./loader\";\n",
+					"packages/core/src/prompts/evolution.ts": "import { hashContent } from \"../cache/keys\";\nimport { getFeedbackDb } from \"../db/index\";\n",
+					"packages/core/src/prompts/loader.ts": "import { existsSync, readdirSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/prompts/evolution.ts"
+				],
+				"mentionedFiles": [
+					"packages/core/src/prompts/loader.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/prompts/engine.ts",
+						"packages/core/src/cache/keys.ts",
+						1
+					],
+					[
+						"packages/core/src/prompts/engine.ts",
+						"packages/core/src/db/index.ts",
+						1
+					],
+					[
+						"packages/core/src/prompts/engine.ts",
+						"packages/core/src/prompts/defaults/index.ts",
+						1
+					],
+					[
+						"packages/core/src/prompts/engine.ts",
+						"packages/core/src/prompts/evolution.ts",
+						1
+					],
+					[
+						"packages/core/src/prompts/engine.ts",
+						"packages/core/src/prompts/loader.ts",
+						1
+					],
+					[
+						"packages/core/src/prompts/evolution.ts",
+						"packages/core/src/cache/keys.ts",
+						1
+					],
+					[
+						"packages/core/src/prompts/evolution.ts",
+						"packages/core/src/db/index.ts",
+						1
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/cache/keys.ts",
+						0.20743504027191645
+					],
+					[
+						"packages/core/src/db/index.ts",
+						0.20743504027191645
+					],
+					[
+						"packages/core/src/prompts/defaults/index.ts",
+						0
+					],
+					[
+						"packages/core/src/prompts/engine.ts",
+						0
+					],
+					[
+						"packages/core/src/prompts/evolution.ts",
+						0.48760826621347253
+					],
+					[
+						"packages/core/src/prompts/loader.ts",
+						0.0975216532426945
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/ai/try-generate.ts": "import { getApiKey, isHostMode } from \"../config/index\";\nimport { outputDelegationRequest } from \"./delegation\";\n",
+					"packages/core/src/git/index.ts": "",
+					"packages/core/src/receipt/agent-id.ts": "/**\n * Agent identity detection per adr/0032-agent-id-format.md.\n *\n * Format: <host>:<agent> — both parts match /^[a-z0-9][a-z0-9-]*$/.\n *\n * Precedence (first match wins):\n *   1. MAINA_AGENT_ID env var (escape hatch for CI + scripts)\n *   2. MCP context (deferred to Wave 4 — needs host handshake plumbing alongside the GitHub App)\n *   3. Git trailer `Agent: <host>:<agent>` on the current HEAD commit\n *   4. Fallback `ci:unknown`\n *\n * Model version is separate from the slug — it carries the exact upstream\n * identifier (e.g. `claude-opus-4-7`). The slug (`claude-code:opus`) is\n * stable across minor model upgrades; the precise string goes into\n * `modelVersion` for audit.\n */\n\nimport { spawn } from \"node:child_process\";\n",
+					"packages/core/src/receipt/autofix.ts": "/**\n * Autofix patch validation + application.\n *\n * Each receipt check can carry a `patch: { diff, rationale }` — a unified diff\n * the AI proposed to fix the finding. `maina apply-fix <hash> <check-id>`\n * loads the receipt, locates the check, and (after safety checks) lands the\n * patch as a follow-up commit.\n *\n * Safety rails:\n *  1. The diff must be valid + apply-able (git apply --check).\n *  2. Every file the patch touches must be within the PR's diff scope —\n *     i.e., files the receipt's underlying change already modified. Patches\n *     that try to edit out-of-scope files are rejected; this stops a stale\n *     or adversarial patch from sneaking in unrelated changes.\n *  3. Working tree must be clean (no unstaged changes) — the user's WIP\n *     should not be silently merged with the autofix.\n */\n\nimport type { Patch } from \"./types\";\n",
+					"packages/core/src/receipt/build.ts": "/**\n * Receipt builder — turns a pipeline result into a v1 receipt object.\n *\n * Pure function. No I/O beyond agent detection + repo slug lookup.\n * Canonicalizes + hashes the resulting receipt per adr/0030.\n */\n\nimport { getRepoSlug } from \"../git/index\";\nimport type { Finding as PipelineFinding } from \"../verify/diff-filter\";\nimport type { PipelineResult } from \"../verify/pipeline\";\nimport { detectAgent } from \"./agent-id\";\nimport type {\n\tCheck,\n\tCheckStatus,\n\tCheckTool,\n\tReceipt,\n\tFinding as ReceiptFinding,\n} from \"./types\";\nimport { computeHash } from \"./verify\";\nimport { baselineWalkthrough } from \"./walkthrough\";\n",
+					"packages/core/src/receipt/canonical.ts": "",
+					"packages/core/src/receipt/index-page.ts": "/**\n * Index page generator for `.maina/receipts/index.html`.\n *\n * Walks the receipts directory, reads each `<hash>/receipt.json`, and renders\n * a static HTML index listing the most-recent receipts. Designed for\n * GitHub Pages: zero runtime JS, links resolve as relative paths.\n *\n * The directory layout this consumes:\n *\n *   .maina/receipts/\n *     index.html           <- generated by this module\n *     <hash>/\n *       receipt.json\n *       index.html         <- per-receipt page (rendered by ./render)\n */\n\nimport { existsSync, readdirSync, readFileSync, writeFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport type { Receipt } from \"./types\";\n",
+					"packages/core/src/receipt/index.ts": "export {\n\tAGENT_ID_PATTERN,\n\ttype AgentIdentity,\n\ttype DetectAgentOptions,\n\tdetectAgent,\n} from \"./agent-id\";\nexport {\n\textractPatchDestinations,\n\textractPatchFiles,\n\ttype ValidatePatchResult,\n\tvalidatePatchScope,\n} from \"./autofix\";\nexport {\n\ttype BuildReceiptInput,\n\ttype BuildReceiptResult,\n\tbuildReceipt,\n\tderiveChecksAndStatus,\n} from \"./build\";\nexport { canonicalize } from \"./canonical\";\nexport {\n\ttype IndexEntry,\n\ttype IndexPageOptions,\n\ttype IndexPageResult,\n\trenderIndexHtml,\n\twriteIndexPage,\n} from \"./index-page\";\nexport { renderReceiptHtml } from \"./render\";\n",
+					"packages/core/src/receipt/render.ts": "/**\n * Static HTML renderer for receipts. Zero runtime JS by design — suitable\n * for GitHub Pages hosting from `.maina/receipts/{hash}/index.html`.\n *\n * Copy discipline (C2): \"passed N of M checks\", never \"0 findings\".\n */\n\nimport type { Check, Receipt } from \"./types\";\n",
+					"packages/core/src/receipt/types.ts": "/**\n * Maina Receipt — v1 TypeScript types.\n *\n * Mirrors the canonical v1 JSON Schema published at\n * `https://schemas.mainahq.com/v1.json` and tracked in `mainahq/receipt-schema`.\n *\n * TODO(mainahq/maina#229): once @mainahq/receipt-schema v1.0.0 publishes to npm, replace this file with `export * from \"@mainahq/receipt-schema\"`.\n",
+					"packages/core/src/receipt/verify.ts": "/**\n * Receipt verification — structural validation + hash re-computation.\n *\n * Offline-only: no hosted schema fetch. Pinned to the types in ./types.ts.\n */\n\nimport { createHash } from \"node:crypto\";\nimport { canonicalize } from \"./canonical\";\nimport type { Receipt } from \"./types\";\n",
+					"packages/core/src/receipt/walkthrough.ts": "/**\n * Receipt walkthrough — the 3-sentence header that makes every receipt\n * scannable in 3 seconds.\n *\n * Strategy:\n *  - Build a deterministic baseline summary (always C2-compliant + always 3\n *    sentences). This is the floor.\n *  - Try the mechanical-tier AI for a richer prose version.\n *  - Validate AI output: 3 sentences, no banned C2 phrases, no `[NEEDS\n *    CLARIFICATION]` markers leaked. If any check fails, fall back to baseline.\n *\n * Caching: keyed by the structural inputs (no PII, no diff content) via the\n * existing CacheManager so re-running maina receipt on the same pipeline is a\n * no-op.\n */\n\nimport { tryAIGenerate } from \"../ai/try-generate\";\nimport type { Diff } from \"./types\";\n",
+					"packages/core/src/verify/diff-filter.ts": "/**\n * Diff-Only Filter — Reviewdog pattern for the Verify Engine.\n *\n * Filters findings to only changed lines via git diff. Pre-existing issues\n * on unchanged lines are counted but hidden, so developers only see problems\n * they introduced. This eliminates noise from legacy code.\n */\n\nimport { getDiff } from \"../git/index\";\n",
+					"packages/core/src/verify/pipeline.ts": "/**\n * Verify Pipeline Orchestrator — ties together all verification tools.\n *\n * Pipeline flow:\n * 1. Get files to check (staged files, or provided list)\n * 2. Run syntax guard FIRST — abort immediately if it fails\n * 3. Auto-detect available tools\n * 4. Run all available tools in PARALLEL (slop, builtin, semgrep, trivy, secretlint)\n * 5. Collect all findings\n * 6. Apply diff-only filter (unless diffOnly === false)\n * 7. Determine pass/fail: passed = no error-severity findings\n * 8. Return unified PipelineResult\n */\n\nimport { createCacheManager } from \"../cache/manager\";\nimport { getNoisyRules } from \"../feedback/preferences\";\nimport { getDiff, getStagedFiles } from \"../git/index\";\nimport { detectLanguages } from \"../language/detect\";\nimport type { LanguageId } from \"../language/profile\";\nimport { getProfile } from \"../language/profile\";\nimport { type AIReviewResult, runAIReview } from \"./ai-review\";\nimport { runBuiltinChecks } from \"./builtin\";\nimport { checkConsistency } from \"./consistency\";\nimport { runCoverage } from \"./coverage\";\nimport type { DetectedTool } from \"./detect\";\nimport { detectTools } from \"./detect\";\nimport type { Finding } from \"./diff-filter\";\nimport { filterByDiff } from \"./diff-filter\";\nimport { filterIgnoredFiles } from \"./ignore\";\nimport { runMutation } from \"./mutation\";\nimport { runSecretlint } from \"./secretlint\";\nimport { runSemgrep } from \"./semgrep\";\nimport { detectSlop } from \"./slop\";\nimport { runSonar } from \"./sonar\";\nimport type { SyntaxDiagnostic } from \"./syntax-guard\";\nimport { syntaxGuard } from \"./syntax-guard\";\nimport { detectDocClaims } from \"./tools/doc-claims\";\nimport { runWikiLintTool } from \"./tools/wiki-lint-runner\";\nimport { runTrivy } from \"./trivy\";\nimport { runTypecheck } from \"./typecheck\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/receipt/autofix.ts"
+				],
+				"mentionedFiles": []
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/receipt/autofix.ts",
+						"packages/core/src/receipt/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/receipt/build.ts",
+						"packages/core/src/git/index.ts",
+						1
+					],
+					[
+						"packages/core/src/receipt/build.ts",
+						"packages/core/src/verify/diff-filter.ts",
+						0.5
+					],
+					[
+						"packages/core/src/receipt/build.ts",
+						"packages/core/src/verify/pipeline.ts",
+						0.5
+					],
+					[
+						"packages/core/src/receipt/build.ts",
+						"packages/core/src/receipt/agent-id.ts",
+						1
+					],
+					[
+						"packages/core/src/receipt/build.ts",
+						"packages/core/src/receipt/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/receipt/build.ts",
+						"packages/core/src/receipt/verify.ts",
+						1
+					],
+					[
+						"packages/core/src/receipt/build.ts",
+						"packages/core/src/receipt/walkthrough.ts",
+						1
+					],
+					[
+						"packages/core/src/receipt/index-page.ts",
+						"packages/core/src/receipt/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/receipt/render.ts",
+						"packages/core/src/receipt/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/receipt/verify.ts",
+						"packages/core/src/receipt/canonical.ts",
+						1
+					],
+					[
+						"packages/core/src/receipt/verify.ts",
+						"packages/core/src/receipt/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/receipt/walkthrough.ts",
+						"packages/core/src/ai/try-generate.ts",
+						1
+					],
+					[
+						"packages/core/src/receipt/walkthrough.ts",
+						"packages/core/src/receipt/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/verify/diff-filter.ts",
+						"packages/core/src/git/index.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/pipeline.ts",
+						"packages/core/src/git/index.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/pipeline.ts",
+						"packages/core/src/verify/diff-filter.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/ai/try-generate.ts",
+						0
+					],
+					[
+						"packages/core/src/git/index.ts",
+						0
+					],
+					[
+						"packages/core/src/receipt/agent-id.ts",
+						0
+					],
+					[
+						"packages/core/src/receipt/autofix.ts",
+						0.5393886836439141
+					],
+					[
+						"packages/core/src/receipt/build.ts",
+						0
+					],
+					[
+						"packages/core/src/receipt/canonical.ts",
+						0
+					],
+					[
+						"packages/core/src/receipt/index-page.ts",
+						0
+					],
+					[
+						"packages/core/src/receipt/index.ts",
+						0
+					],
+					[
+						"packages/core/src/receipt/render.ts",
+						0
+					],
+					[
+						"packages/core/src/receipt/types.ts",
+						0.4606113163560859
+					],
+					[
+						"packages/core/src/receipt/verify.ts",
+						0
+					],
+					[
+						"packages/core/src/receipt/walkthrough.ts",
+						0
+					],
+					[
+						"packages/core/src/verify/diff-filter.ts",
+						0
+					],
+					[
+						"packages/core/src/verify/pipeline.ts",
+						0
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/review/comprehensive.ts": "import { relative } from \"node:path\";\nimport type { Finding } from \"../verify/diff-filter\";\n",
+					"packages/core/src/review/index.ts": "/**\n * Two-stage PR Review.\n *\n * Stage 1 — Spec Compliance: checks diff against implementation plan tasks.\n * Stage 2 — Code Quality: checks added lines for common issues.\n *\n * Deterministic checks only — no AI calls.\n */\n\nimport { existsSync, readdirSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\n",
+					"packages/core/src/verify/diff-filter.ts": "/**\n * Diff-Only Filter — Reviewdog pattern for the Verify Engine.\n *\n * Filters findings to only changed lines via git diff. Pre-existing issues\n * on unchanged lines are counted but hidden, so developers only see problems\n * they introduced. This eliminates noise from legacy code.\n */\n\nimport { getDiff } from \"../git/index\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/review/comprehensive.ts"
+				],
+				"mentionedFiles": [
+					"packages/core/src/review/index.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/review/comprehensive.ts",
+						"packages/core/src/verify/diff-filter.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/review/comprehensive.ts",
+						0.4876487064404674
+					],
+					[
+						"packages/core/src/review/index.ts",
+						0.09752974128809348
+					],
+					[
+						"packages/core/src/verify/diff-filter.ts",
+						0.41482155227143924
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/config/index.ts": "import { existsSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\n",
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n",
+					"packages/core/src/language/detect.ts": "/**\n * Language Detection — detects project languages from marker files.\n */\n\nimport { existsSync, readdirSync, readFileSync } from \"node:fs\";\nimport { extname, join } from \"node:path\";\nimport { type LanguageId, PROFILES } from \"./profile\";\n",
+					"packages/core/src/setup/adopt.ts": "/**\n * Setup — Adopt existing rule files.\n *\n * Deterministic, read-only. Walks a repo looking for every agent-instruction\n * / house-rules file the user has already authored (AGENTS.md, CLAUDE.md,\n * .cursorrules, .cursor/rules/*.mdc, .windsurfrules, .windsurf/rules/*,\n * .github/copilot-instructions.md, CONTRIBUTING.md, CONTEXT.md) and extracts\n * them as `Rule[]` with confidence 1.0 (explicit user intent).\n *\n * Never calls an LLM. Never calls the network. Safe to run on untrusted\n * repos — no file path is resolved outside `cwd`.\n */\n\nimport { existsSync, lstatSync, readdirSync, readFileSync } from \"node:fs\";\nimport { join, relative, sep } from \"node:path\";\nimport type { Result } from \"../db/index\";\n",
+					"packages/core/src/setup/confirm.ts": "/**\n * Rule confirmation — TTY y/n/e UI + non-TTY auto-accept.\n *\n * TTY path: lazily imports `@clack/prompts` (a CLI-layer dep, not a core\n * dep) and asks y/n/e per rule. The `e` branch opens `$EDITOR` to let the\n * user rewrite the rule before accepting.\n *\n * Non-TTY path: auto-accepts rules at or above `autoAcceptThreshold`\n * (default 0.6) and rejects the rest. No stdin reads, safe for CI.\n *\n * Rejected rules are appended (de-duplicated) to `.maina/rejected.yml` so\n * future setup re-runs can re-surface them if their confidence rises.\n */\n\nimport {\n\texistsSync,\n\tmkdirSync,\n\treadFileSync,\n\tunlinkSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { tmpdir } from \"node:os\";\nimport { join } from \"node:path\";\nimport type { Rule } from \"./adopt\";\n",
+					"packages/core/src/setup/context.ts": "/**\n * Setup — Stack-Context Assembler\n *\n * Builds a `StackContext` describing a repository's languages, frameworks,\n * tooling, CI, and size. Used by the universal setup wizard to produce a\n * tailored constitution and verify plan with a single LLM call.\n *\n * Pure detection — no AI or network calls.\n */\n\nimport { createHash } from \"node:crypto\";\nimport { existsSync, readdirSync, readFileSync, statSync } from \"node:fs\";\nimport { extname, join, relative } from \"node:path\";\nimport type { Result } from \"../db/index\";\nimport { detectFileLanguage, detectLanguages } from \"../language/detect\";\nimport { detectExistingRuleFiles as _detectExistingRuleFiles } from \"./adopt\";\n",
+					"packages/core/src/setup/fingerprint.ts": "/**\n * Setup — Anonymous Device Fingerprint\n *\n * Deterministic, non-PII identifier used by the cloud `/v1/setup` proxy to\n * rate-limit anonymous traffic per device. Does NOT include the user name,\n * working directory, or anything personally identifying.\n *\n * SHA-256 of `${hostname}|${platform}|${arch}` truncated to the first 16\n * hex characters. Same machine → same fingerprint across runs.\n */\n\nimport { createHash } from \"node:crypto\";\nimport { arch, hostname, platform } from \"node:os\";\n",
+					"packages/core/src/setup/index.ts": "/**\n * Setup module — primitives used by the `maina setup` wizard.\n *\n * Sub-modules:\n * - `agent-files/` — tailored agent instruction files with managed-region\n *   merges (AGENTS.md, CLAUDE.md, .cursor/rules/maina.mdc, etc.).\n * - `context.ts` — `StackContext` assembler: languages, frameworks, tooling,\n *   CI, and repo size detected from the working tree.\n * - `prompts.ts` — loader for the universal setup prompt template.\n */\n\nexport {\n\tadoptRules,\n\tdetectExistingRuleFiles,\n\tformatProvenanceComment,\n\ttype Rule,\n\ttype RuleCategory,\n\ttype RuleSourceKind,\n} from \"./adopt\";\n// Keyed-JSON-merge writers for IDE MCP configs (Wave 3, G6/G12).\nexport {\n\ttype MainaMcpEntry,\n\ttype WriteClaudeSettingsAction,\n\ttype WriteClaudeSettingsOptions,\n\ttype WriteClaudeSettingsReport,\n\twriteClaudeMd,\n\twriteClaudeSettings,\n} from \"./agent-files/claude\";\nexport {\n\ttype CursorMcpEntry,\n\ttype WriteCursorMcpAction,\n\ttype WriteCursorMcpOptions,\n\ttype WriteCursorMcpReport,\n\twriteCursorMcp,\n} from \"./agent-files/cursor\";\n// Agent-files exports its own `StackContext` stub; we re-export everything\n// from it and then expose the canonical `StackContext` from `./context` below,\n// shadowing the stub. The stub is structurally compatible.\nexport * from \"./agent-files/index\";\nexport {\n\ttype MergeJsonKeyedOptions,\n\ttype MergeJsonKeyedResult,\n\tmergeJsonKeyed,\n} from \"./agent-files/region\";\nexport {\n\ttype ConfirmOptions,\n\ttype ConfirmResult,\n\tconfirmRules,\n} from \"./confirm\";\nexport {\n\tassembleStackContext,\n\tcontextHash,\n\ttype PackageManager,\n\ttype RepoSize,\n\ttype StackContext,\n\tsummarizeRepo,\n} from \"./context\";\nexport { deviceFingerprint } from \"./fingerprint\";\nexport {\n\tgetUniversalPromptPath,\n\tloadUniversalPrompt,\n\ttype UniversalPromptInputs,\n} from \"./prompts\";\nexport {\n\tdegradedBanner,\n\trecoveryCommand,\n\ttype SetupDegradedReason,\n} from \"./recovery\";\nexport {\n\tbuildGenericConstitution,\n\ttype ResolveAIOptions,\n\tresolveSetupAI,\n\ttype SetupAIMetadata,\n\ttype SetupAIResult,\n\ttype SetupAISource,\n} from \"./resolve-ai\";\nexport {\n\ttype ScanReport,\n\tscanGitLog,\n\tscanLintConfig,\n\tscanRepo,\n\tscanTreeSitter,\n} from \"./scan/index\";\n// Skills deployment (Wave 3, G7 materialisation).\nexport {\n\ttype DeploySkillsOptions,\n\ttype DeploySkillsReport,\n\tdeploySkills,\n} from \"./skills-deploy\";\nexport {\n\tbuildGenericConstitutionFromInput,\n\trenderFileLayoutSection,\n\trenderWorkflowSection,\n\ttype TailorInput,\n\ttype TailorOutput,\n\ttailorConstitution,\n\ttype ValidateResult,\n\tvalidateConstitution,\n} from \"./tailor\";\nexport {\n\tanonymizeStack,\n\tisTelemetryOptedOut,\n\tnewSetupId,\n\ttype OptOutResult,\n\ttype SendTelemetryOptions,\n\ttype SetupTelemetryEvent,\n\ttype SetupTelemetryPhase,\n\ttype SetupTelemetryStack,\n\tsendSetupTelemetry,\n\ttype TelemetryOptOutSources,\n} from \"./telemetry\";\n",
+					"packages/core/src/setup/prompts.ts": "/**\n * Setup — Prompt Loader\n *\n * Loads the universal setup prompt template from disk and substitutes\n * the `{stack}` and `{repoSummary}` placeholders. Pure function — no AI\n * calls here; callers feed the rendered string to the AI layer.\n */\n\nimport { readFileSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { fileURLToPath } from \"node:url\";\n",
+					"packages/core/src/setup/recovery.ts": "",
+					"packages/core/src/setup/resolve-ai.ts": "/**\n * Setup — AI Resolution Chain\n *\n * Single entry point for the `maina setup` wizard's AI call. Tries tiers in\n * order — host → cloud → byok → degraded — and always returns a usable\n * result. Degraded mode produces a generic-but-tailored starter constitution\n * so the wizard can finish offline.\n *\n * Tier rationale:\n * - **host**: zero cost, zero network, host already authenticated (Claude\n *   Code, Cursor). Preferred even when a BYO key is present.\n * - **cloud**: anonymous proxy at `/v1/setup`. Lets first-time users get\n *   real AI without configuring a key. Hard 2s timeout so an outage never\n *   blocks the wizard.\n * - **byok**: user-supplied OpenRouter / Anthropic key.\n * - **degraded**: deterministic fallback. Never errors.\n */\n\nimport { existsSync, readdirSync, statSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport {\n\ttype DelegationPrompt,\n\ttype TryAIResult,\n\ttryAIGenerate,\n} from \"../ai/try-generate\";\nimport { getApiKey, isHostMode } from \"../config/index\";\nimport type { Rule } from \"./adopt\";\nimport { formatProvenanceComment } from \"./adopt\";\nimport type { StackContext } from \"./context\";\nimport { loadUniversalPrompt } from \"./prompts\";\nimport type { SetupDegradedReason } from \"./recovery\";\nimport { renderFileLayoutSection, renderWorkflowSection } from \"./tailor\";\n",
+					"packages/core/src/setup/skills-deploy.ts": "/**\n * Skills deployment — copies `@mainahq/skills/<name>/SKILL.md` trees into\n * `<cwd>/.maina/skills/<name>/SKILL.md` so the user's agent can discover\n * them.\n *\n * Idempotent: running twice produces byte-identical output. The copy is a\n * best-effort operation — if the skills source root isn't resolvable,\n * setup continues with a warning instead of failing.\n */\n\nimport {\n\texistsSync,\n\tmkdirSync,\n\treaddirSync,\n\treadFileSync,\n\tstatSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { fileURLToPath } from \"node:url\";\nimport type { Result } from \"../db/index\";\n",
+					"packages/core/src/setup/tailor.ts": "/**\n * Tailor — compose accepted rules + stack + templates into a final\n * `constitution.md` string via a single LLM call. Validates the LLM output\n * against a strict schema (must include `## Maina Workflow` and `## File\n * Layout` sections verbatim). Retries once on violation, then falls through\n * to a deterministic generic builder.\n */\n\nimport { readFileSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { fileURLToPath } from \"node:url\";\nimport type { Rule } from \"./adopt\";\nimport { formatProvenanceComment } from \"./adopt\";\nimport type { StackContext } from \"./context\";\n"
+				},
+				"touchedFiles": [],
+				"mentionedFiles": [
+					"packages/core/src/setup/index.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/setup/adopt.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/confirm.ts",
+						"packages/core/src/setup/adopt.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/context.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/context.ts",
+						"packages/core/src/language/detect.ts",
+						1
+					],
+					[
+						"packages/core/src/setup/context.ts",
+						"packages/core/src/setup/adopt.ts",
+						1
+					],
+					[
+						"packages/core/src/setup/resolve-ai.ts",
+						"packages/core/src/config/index.ts",
+						1
+					],
+					[
+						"packages/core/src/setup/resolve-ai.ts",
+						"packages/core/src/setup/adopt.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/resolve-ai.ts",
+						"packages/core/src/setup/context.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/resolve-ai.ts",
+						"packages/core/src/setup/prompts.ts",
+						1
+					],
+					[
+						"packages/core/src/setup/resolve-ai.ts",
+						"packages/core/src/setup/recovery.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/resolve-ai.ts",
+						"packages/core/src/setup/tailor.ts",
+						1
+					],
+					[
+						"packages/core/src/setup/skills-deploy.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/tailor.ts",
+						"packages/core/src/setup/adopt.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/tailor.ts",
+						"packages/core/src/setup/context.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/config/index.ts",
+						0
+					],
+					[
+						"packages/core/src/db/index.ts",
+						0
+					],
+					[
+						"packages/core/src/language/detect.ts",
+						0
+					],
+					[
+						"packages/core/src/setup/adopt.ts",
+						0
+					],
+					[
+						"packages/core/src/setup/confirm.ts",
+						0
+					],
+					[
+						"packages/core/src/setup/context.ts",
+						0
+					],
+					[
+						"packages/core/src/setup/fingerprint.ts",
+						0
+					],
+					[
+						"packages/core/src/setup/index.ts",
+						1
+					],
+					[
+						"packages/core/src/setup/prompts.ts",
+						0
+					],
+					[
+						"packages/core/src/setup/recovery.ts",
+						0
+					],
+					[
+						"packages/core/src/setup/resolve-ai.ts",
+						0
+					],
+					[
+						"packages/core/src/setup/skills-deploy.ts",
+						0
+					],
+					[
+						"packages/core/src/setup/tailor.ts",
+						0
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n",
+					"packages/core/src/stats/index.ts": "export {\n\ttype CommitSnapshot,\n\tgetLatest,\n\tgetStats,\n\tgetTrends,\n\trecordSnapshot,\n\ttype SnapshotInput,\n\ttype StatsReport,\n\ttype TrendDirection,\n\ttype TrendsReport,\n} from \"./tracker.ts\";\n",
+					"packages/core/src/stats/tracker.ts": "import type { Result } from \"../db/index.ts\";\nimport { getContextDb, getStatsDb } from \"../db/index.ts\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/stats/tracker.ts"
+				],
+				"mentionedFiles": []
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/stats/tracker.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/db/index.ts",
+						0.4674907136481426
+					],
+					[
+						"packages/core/src/stats/index.ts",
+						0
+					],
+					[
+						"packages/core/src/stats/tracker.ts",
+						0.5325092863518573
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n",
+					"packages/core/src/errors/error-id.ts": "",
+					"packages/core/src/telemetry/cli-error-reporter.ts": "/**\n * CLI crash reporter — fire-and-forget anonymous telemetry for CLI errors.\n *\n * Consent model is opt-OUT, mirroring the `cloud-reporter` posture.\n * User can opt out in three ways (any one suffices):\n *   - `~/.maina/telemetry.json` with `{ \"optOut\": true }`\n *   - `MAINA_TELEMETRY=0`\n *   - `DO_NOT_TRACK=1`\n *\n * Payload matches the server validator at maina-cloud `POST /v1/cli/errors`.\n * All string fields are scrubbed (paths → basenames, secrets → [REDACTED], etc.)\n * defensively; the server scrubs again.\n *\n * The send is fire-and-forget: 1s timeout, all errors swallowed, never blocks\n * the crash path. Callers print the original error to the user BEFORE calling\n * this.\n */\n\nimport { createHash, randomUUID } from \"node:crypto\";\nimport { existsSync, readFileSync } from \"node:fs\";\nimport { homedir } from \"node:os\";\nimport { basename, join, win32 as winPath } from \"node:path\";\nimport { scrubPii, scrubStackTrace } from \"./scrubber\";\n",
+					"packages/core/src/telemetry/cloud-reporter.ts": "/**\n * Cloud Error Reporter — extends OSS reporter with account-linked metadata.\n *\n * Default-on for Cloud users. Opt-out via user settings.\n * Events tagged with user_id, org_id, plan_tier — never email or name.\n * Uses Result<T, E> pattern.\n */\n\nimport type { Result } from \"../db/index\";\nimport type { ErrorEvent, ErrorEventContext } from \"./reporter\";\nimport { buildErrorEvent } from \"./reporter\";\n",
+					"packages/core/src/telemetry/posthog-client.ts": "/**\n * PostHog send path — the missing link between `buildUsageEvent` /\n * `buildErrorEvent` and PostHog EU.\n *\n * Hard contract:\n * - Consent gate is authoritative. If `telemetry: true` is not set in\n *   `~/.maina/config.yml`, `captureUsage` must be a no-op. Same for\n *   `errors: true` and `captureError`. The two flags are independent.\n * - Build-time key gate is also authoritative. If `MAINA_POSTHOG_API_KEY`\n *   is unset (OSS fork, dev build), we never import the SDK and every\n *   capture is a no-op. No warning, no throw.\n * - SDK import is lazy — `import(\"posthog-node\")` fires on the first\n *   green-lit capture only. Zero startup cost when telemetry is off.\n * - Capture is fire-and-forget. Commands never await a capture call.\n * - Flush has a bounded budget. A dead PostHog endpoint cannot hang\n *   `maina commit` beyond the budget.\n */\n\nimport { type ErrorEvent, isErrorReportingEnabled } from \"./reporter\";\nimport { isTelemetryEnabled, type UsageEvent } from \"./usage\";\n",
+					"packages/core/src/telemetry/reporter.ts": "/**\n * Error Reporter — scrubs and formats error events for telemetry.\n *\n * Consent-gated: zero events produced until user opts in.\n * Uses the PII scrubber for all string fields before formatting.\n * Events are plain objects — the actual send is handled by the caller\n * (PostHog client or HTTP POST).\n */\n\nimport { existsSync, readFileSync } from \"node:fs\";\nimport { homedir } from \"node:os\";\nimport { join } from \"node:path\";\nimport { generateErrorId } from \"../errors/error-id\";\nimport { scrubErrorEvent, scrubPii } from \"./scrubber\";\n",
+					"packages/core/src/telemetry/scrubber.ts": "",
+					"packages/core/src/telemetry/usage.ts": "/**\n * Usage Telemetry — opt-in anonymous usage tracking.\n *\n * Separate from error reporting (#121). Reads `telemetry: true` from\n * `~/.maina/config.yml`. Events are plain objects — no PostHog SDK dependency.\n * Zero PII in any event.\n */\n\nimport { existsSync, readFileSync } from \"node:fs\";\nimport { homedir } from \"node:os\";\nimport { join } from \"node:path\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/telemetry/reporter.ts"
+				],
+				"mentionedFiles": [
+					"packages/core/src/telemetry/scrubber.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/telemetry/cli-error-reporter.ts",
+						"packages/core/src/telemetry/scrubber.ts",
+						1
+					],
+					[
+						"packages/core/src/telemetry/cloud-reporter.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/telemetry/cloud-reporter.ts",
+						"packages/core/src/telemetry/reporter.ts",
+						0.5
+					],
+					[
+						"packages/core/src/telemetry/posthog-client.ts",
+						"packages/core/src/telemetry/reporter.ts",
+						1
+					],
+					[
+						"packages/core/src/telemetry/posthog-client.ts",
+						"packages/core/src/telemetry/usage.ts",
+						1
+					],
+					[
+						"packages/core/src/telemetry/reporter.ts",
+						"packages/core/src/errors/error-id.ts",
+						1
+					],
+					[
+						"packages/core/src/telemetry/reporter.ts",
+						"packages/core/src/telemetry/scrubber.ts",
+						1
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/db/index.ts",
+						0
+					],
+					[
+						"packages/core/src/errors/error-id.ts",
+						0.20740066607897092
+					],
+					[
+						"packages/core/src/telemetry/cli-error-reporter.ts",
+						0
+					],
+					[
+						"packages/core/src/telemetry/cloud-reporter.ts",
+						0
+					],
+					[
+						"packages/core/src/telemetry/posthog-client.ts",
+						0
+					],
+					[
+						"packages/core/src/telemetry/reporter.ts",
+						0.4876655565350485
+					],
+					[
+						"packages/core/src/telemetry/scrubber.ts",
+						0.3049337773859806
+					],
+					[
+						"packages/core/src/telemetry/usage.ts",
+						0
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/ai/index.ts": "import { buildCacheKey, hashContent } from \"../cache/keys\";\nimport { createCacheManager } from \"../cache/manager\";\nimport { getTtl } from \"../cache/ttl\";\nimport {\n\tgetApiKey,\n\tloadConfig,\n\tresolveProvider,\n\tshouldDelegateToHost,\n} from \"../config/index\";\nimport { resolveModel } from \"./tiers\";\nimport { validateAIOutput } from \"./validate\";\n",
+					"packages/core/src/ai/try-generate.ts": "import { getApiKey, isHostMode } from \"../config/index\";\nimport { outputDelegationRequest } from \"./delegation\";\n",
+					"packages/core/src/cache/keys.ts": "",
+					"packages/core/src/cache/manager.ts": "import { getCacheDb } from \"../db/index\";\n",
+					"packages/core/src/git/index.ts": "",
+					"packages/core/src/prompts/engine.ts": "import { hashContent } from \"../cache/keys\";\nimport { getFeedbackDb } from \"../db/index\";\nimport { loadDefault, type PromptTask } from \"./defaults/index\";\nimport { abTest } from \"./evolution\";\nimport {\n\tloadConstitution,\n\tloadUserOverride,\n\tmergePrompts,\n\trenderTemplate,\n} from \"./loader\";\n",
+					"packages/core/src/verify/ai-review.ts": "/**\n * AI Review — semantic code review using LLM.\n *\n * Two tiers:\n * - mechanical (always-on): diff + referenced functions, <3s, warnings only\n * - standard (--deep): adds spec/plan context, can emit errors\n */\n\nimport { tryAIGenerate } from \"../ai/try-generate\";\nimport { buildCacheKey, hashContent } from \"../cache/keys\";\nimport { createCacheManager } from \"../cache/manager\";\nimport type { Finding } from \"./diff-filter\";\n",
+					"packages/core/src/verify/builtin.ts": "/**\n * Built-in Verify Checks — pure-function checks that always run.\n *\n * These provide baseline verification without requiring external linters.\n * Each check is a pure function: (filePath, content) => Finding[].\n * No I/O, no side effects, no subprocess spawns.\n */\n\nimport type { Finding } from \"./diff-filter\";\n",
+					"packages/core/src/verify/consistency.ts": "/**\n * Cross-function Consistency Check — deterministic AST-based analysis.\n *\n * Catches the class of bug that lost Maina 2 points in the Tier 3 benchmark:\n * functions that call a validator on one code path but skip it on another.\n *\n * Two modes:\n * 1. Spec-based: reads spec.md / constitution.md for stated constraints,\n *    builds a rule set, checks compliance\n * 2. Heuristic: if no spec exists, looks for inconsistent validator usage\n *    patterns across related functions\n */\n\nimport { existsSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\n\nimport type { Finding } from \"./diff-filter\";\n",
+					"packages/core/src/verify/coverage.ts": "/**\n * diff-cover Integration for the Verify Engine.\n *\n * Runs diff-cover to find changed lines that lack test coverage.\n * Parses JSON output into the unified Finding type.\n * Gracefully skips if diff-cover is not installed.\n */\n\nimport { isToolAvailable } from \"./detect\";\nimport type { Finding } from \"./diff-filter\";\n",
+					"packages/core/src/verify/detect.ts": "/**\n * Tool Auto-Detection for the Verify Engine.\n *\n * Detects which verification tools (biome, semgrep, trivy, etc.) are\n * available on the system by attempting to run their version commands.\n * Checks both global PATH and local node_modules/.bin/ for each tool.\n * Missing tools are gracefully skipped.\n */\n\nimport { existsSync } from \"node:fs\";\nimport { join } from \"node:path\";\n",
+					"packages/core/src/verify/diff-filter.ts": "/**\n * Diff-Only Filter — Reviewdog pattern for the Verify Engine.\n *\n * Filters findings to only changed lines via git diff. Pre-existing issues\n * on unchanged lines are counted but hidden, so developers only see problems\n * they introduced. This eliminates noise from legacy code.\n */\n\nimport { getDiff } from \"../git/index\";\n",
+					"packages/core/src/verify/fix.ts": "/**\n * AI Fix Generation — generates minimal code fixes for verification findings.\n *\n * Takes findings from the Verify Engine, checks cache first, then uses the\n * Prompt Engine + AI to generate unified-diff fixes. Results are cached so\n * identical findings never hit the AI twice.\n *\n * Response format expected from AI:\n *   ### Fix for finding: <tool>/<ruleId> at <file>:<line>\n *   **Explanation:** <why this fix works>\n *   **Confidence:** high|medium|low\n *   ```diff\n *   --- a/<file>\n *   +++ b/<file>\n *   @@ ... @@\n *    context\n *   -old line\n *   +new line\n *   ```\n */\n\nimport { generate } from \"../ai/index\";\nimport { hashContent } from \"../cache/keys\";\nimport { createCacheManager } from \"../cache/manager\";\nimport { buildSystemPrompt } from \"../prompts/engine\";\nimport type { Finding } from \"./diff-filter\";\n",
+					"packages/core/src/verify/ignore.ts": "/**\n * Verify Ignore — default file/directory exclusions for the verify pipeline.\n *\n * Bundled artifacts (dist/, build/, *.min.js, ncc/esbuild/rollup output)\n * are not source code; running pattern-based slop detection on a minified\n * bundle produces tens of thousands of false positives (#207). These are\n * filtered out before any verify tool sees the file list.\n *\n * Project-local extras live in `.maina/ignore`, one pattern per line, `#` for\n * comments. The matcher is a deliberately small subset of `.gitignore` — see\n * the comment on `matchesPattern` for the exact supported syntax and the\n * features that are NOT implemented (negation, `**`, character classes).\n */\n\nimport { existsSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\n",
+					"packages/core/src/verify/lighthouse.ts": "/**\n * Lighthouse Integration for the Verify Engine.\n *\n * Runs Google Lighthouse against a URL and checks category scores\n * against configurable thresholds.\n * Generates findings when scores fall below thresholds.\n * Gracefully skips if lighthouse is not installed.\n */\n\nimport { isToolAvailable } from \"./detect\";\nimport type { Finding } from \"./diff-filter\";\n",
+					"packages/core/src/verify/mutation.ts": "/**\n * Stryker Mutation Testing Integration for the Verify Engine.\n *\n * Runs Stryker and parses the JSON report for survived mutants.\n * Survived mutants indicate untested code paths.\n * Gracefully skips if stryker is not installed.\n */\n\nimport { isToolAvailable } from \"./detect\";\nimport type { Finding } from \"./diff-filter\";\n"
+				},
+				"touchedFiles": [
+					"packages/core/src/verify/ai-review.ts"
+				],
+				"mentionedFiles": [
+					"packages/core/src/verify/builtin.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/ai/index.ts",
+						"packages/core/src/cache/keys.ts",
+						1
+					],
+					[
+						"packages/core/src/ai/index.ts",
+						"packages/core/src/cache/manager.ts",
+						1
+					],
+					[
+						"packages/core/src/prompts/engine.ts",
+						"packages/core/src/cache/keys.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/ai-review.ts",
+						"packages/core/src/ai/try-generate.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/ai-review.ts",
+						"packages/core/src/cache/keys.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/ai-review.ts",
+						"packages/core/src/cache/manager.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/ai-review.ts",
+						"packages/core/src/verify/diff-filter.ts",
+						0.5
+					],
+					[
+						"packages/core/src/verify/builtin.ts",
+						"packages/core/src/verify/diff-filter.ts",
+						0.5
+					],
+					[
+						"packages/core/src/verify/consistency.ts",
+						"packages/core/src/verify/diff-filter.ts",
+						0.5
+					],
+					[
+						"packages/core/src/verify/coverage.ts",
+						"packages/core/src/verify/detect.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/coverage.ts",
+						"packages/core/src/verify/diff-filter.ts",
+						0.5
+					],
+					[
+						"packages/core/src/verify/diff-filter.ts",
+						"packages/core/src/git/index.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/fix.ts",
+						"packages/core/src/ai/index.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/fix.ts",
+						"packages/core/src/cache/keys.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/fix.ts",
+						"packages/core/src/cache/manager.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/fix.ts",
+						"packages/core/src/prompts/engine.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/fix.ts",
+						"packages/core/src/verify/diff-filter.ts",
+						0.5
+					],
+					[
+						"packages/core/src/verify/lighthouse.ts",
+						"packages/core/src/verify/detect.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/lighthouse.ts",
+						"packages/core/src/verify/diff-filter.ts",
+						0.5
+					],
+					[
+						"packages/core/src/verify/mutation.ts",
+						"packages/core/src/verify/detect.ts",
+						1
+					],
+					[
+						"packages/core/src/verify/mutation.ts",
+						"packages/core/src/verify/diff-filter.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/ai/index.ts",
+						0
+					],
+					[
+						"packages/core/src/ai/try-generate.ts",
+						0.09841380987694053
+					],
+					[
+						"packages/core/src/cache/keys.ts",
+						0.09841380987694053
+					],
+					[
+						"packages/core/src/cache/manager.ts",
+						0.09841380987694053
+					],
+					[
+						"packages/core/src/git/index.ts",
+						0.10038209836894026
+					],
+					[
+						"packages/core/src/prompts/engine.ts",
+						0
+					],
+					[
+						"packages/core/src/verify/ai-review.ts",
+						0.40523325012325795
+					],
+					[
+						"packages/core/src/verify/builtin.ts",
+						0.0810466500246516
+					],
+					[
+						"packages/core/src/verify/consistency.ts",
+						0
+					],
+					[
+						"packages/core/src/verify/coverage.ts",
+						0
+					],
+					[
+						"packages/core/src/verify/detect.ts",
+						0
+					],
+					[
+						"packages/core/src/verify/diff-filter.ts",
+						0.11809657185232864
+					],
+					[
+						"packages/core/src/verify/fix.ts",
+						0
+					],
+					[
+						"packages/core/src/verify/ignore.ts",
+						0
+					],
+					[
+						"packages/core/src/verify/lighthouse.ts",
+						0
+					],
+					[
+						"packages/core/src/verify/mutation.ts",
+						0
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/core/src/ai/try-generate.ts": "import { getApiKey, isHostMode } from \"../config/index\";\nimport { outputDelegationRequest } from \"./delegation\";\n",
+					"packages/core/src/db/index.ts": "import { Database } from \"bun:sqlite\";\nimport { mkdirSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\nimport { drizzle } from \"drizzle-orm/bun-sqlite\";\nimport * as schema from \"./schema.ts\";\n",
+					"packages/core/src/wiki/communities.ts": "/**\n * Community detection for the knowledge graph — #199.\n *\n * Two algorithms, one public entry point:\n *\n *   - **louvain** — the classic algorithm implemented in `./louvain.ts`.\n *     Fast, usually high modularity, but can produce disconnected communities\n *     (Traag et al. 2019 showed Louvain sometimes splits a cluster across\n *     two communities connected only through the graph's body).\n *\n *   - **leiden-connected** — starts from Louvain's partition and applies a\n *     refinement pass that guarantees every returned community is\n *     **internally connected**. Disconnected pieces within a Louvain\n *     community are split into their own communities. This always produces\n *     modularity ≥ Louvain because the cross-piece pairs that used to\n *     contribute negatively (A_ij = 0 but k_i·k_j/2m > 0) are removed from\n *     the same-community sum.\n *\n * The label is `\"leiden-connected\"` rather than `\"leiden\"` on purpose — the\n * full Traag/Waltman/van Eck algorithm also does a per-community random-order\n * move pass and multi-level aggregation. We only do the connectedness-only\n * refinement, which is enough for the two invariants the wiki use-case cares\n * about:\n *   1. No disconnected communities.\n *   2. Modularity ≥ Louvain on the same graph.\n *\n * Upgrade to the full algorithm in a follow-up if module articles still look\n * weird after real-repo measurements.\n */\n\nimport { detectCommunities as detectLouvain } from \"./louvain\";\n",
+					"packages/core/src/wiki/compiler.ts": "/**\n * Wiki Compiler — full compilation orchestrator.\n *\n * Pipeline:\n * 1. Run all extractors (code entities, features, decisions, workflow traces)\n * 2. Build the unified knowledge graph\n * 3. Run community detection (leiden-connected by default) for module boundaries\n * 4. Compute PageRank\n * 5. Generate articles using template-based compilation (no AI)\n * 6. Generate wikilinks via linker\n * 7. Generate index.md via indexer\n * 8. Save state\n * 9. Write all articles to disk\n */\n\nimport {\n\texistsSync,\n\tmkdirSync,\n\treaddirSync,\n\treadFileSync,\n\tstatSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { dirname, join, relative } from \"node:path\";\nimport type { TryAIResult } from \"../ai/try-generate\";\nimport type { Result } from \"../db/index\";\nimport { type CommunityAlgorithm, detectCommunities } from \"./communities\";\nimport type { CodeEntity } from \"./extractors/code\";\nimport { extractCodeEntities } from \"./extractors/code\";\nimport { extractDecisions } from \"./extractors/decision\";\nimport { extractFeatures } from \"./extractors/feature\";\nimport { extractWorkflowTrace } from \"./extractors/workflow\";\nimport type { KnowledgeGraph } from \"./graph\";\nimport { buildKnowledgeGraph, computePageRank, mapToArticles } from \"./graph\";\nimport { generateIndex } from \"./indexer\";\nimport { generateLinks } from \"./linker\";\nimport { generateGraphReport, generateGraphReportJson } from \"./report\";\nimport {\n\tcreateEmptyState,\n\thashContent,\n\thashFile,\n\tloadState,\n\tsaveState,\n} from \"./state\";\nimport type {\n\tArticleType,\n\tExtractedDecision,\n\tExtractedFeature,\n\tExtractedWorkflowTrace,\n\tWikiArticle,\n\tWikiLink,\n} from \"./types\";\nimport { renderGraphHtml } from \"./visualize\";\n",
+					"packages/core/src/wiki/consult.ts": "/**\n * Wiki Consult — pre-command wiki consultation for plan, design, and brainstorm.\n *\n * Searches wiki articles by keyword overlap to surface existing modules,\n * decisions, and features relevant to a proposed change. All operations\n * are synchronous file reads + keyword matching — no AI calls.\n */\n\nimport { existsSync, readdirSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\n",
+					"packages/core/src/wiki/export.ts": "/**\n * Knowledge-graph exporters — #202.\n *\n * Pure function over `KnowledgeGraph` + `WikiArticle[]`. No filesystem access;\n * the CLI subcommand writes bytes. Cloud reuses the same serializer via HTTP.\n *\n * Supported formats:\n *   - `cypher`   — Neo4j 5.x-compatible `CREATE` statements wrapped in a\n *                   single transaction.\n *   - `graphml`  — W3C GraphML XML; opens in Gephi and yEd.\n *   - `obsidian` — directory of markdown + `.obsidian/workspace.json`;\n *                   drag-into-Obsidian compatible.\n */\n\nimport type { GraphEdge, GraphNode, KnowledgeGraph } from \"./graph\";\nimport type { WikiArticle } from \"./types\";\n",
+					"packages/core/src/wiki/extractors/code.ts": "/**\n * Code Entity Extractor — thin adapter for wiki compilation.\n *\n * Uses regex-based extraction of exported entities from TypeScript files.\n * This is a lightweight approach for the wiki foundation — the full\n * tree-sitter + PageRank analysis lives in the Semantic layer and will\n * be integrated in Sprint 1 (Knowledge Graph).\n */\n\nimport { existsSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport type { Result } from \"../../db/index\";\n",
+					"packages/core/src/wiki/extractors/decision.ts": "/**\n * Decision Extractor — parses adr/*.md into structured ExtractedDecision records.\n *\n * ADRs follow the structured format from `maina design`:\n *   # ADR-NNNN: Title (or # NNNN. Title)\n *   ## Status\n *   ## Context\n *   ## Decision\n *   ## Rationale / Consequences\n *   ## Alternatives Considered\n */\n\nimport { existsSync, readdirSync, readFileSync } from \"node:fs\";\nimport { basename, join } from \"node:path\";\nimport type { Result } from \"../../db/index\";\nimport type { DecisionStatus, ExtractedDecision } from \"../types\";\n",
+					"packages/core/src/wiki/extractors/feature.ts": "/**\n * Feature Extractor — parses plan.md, spec.md, tasks.md from feature directories\n * into structured ExtractedFeature records.\n *\n * These are already structured markdown generated by maina, so parsing\n * is deterministic (not LLM-dependent).\n */\n\nimport { existsSync, readdirSync, readFileSync, statSync } from \"node:fs\";\nimport { basename, join } from \"node:path\";\nimport type { Result } from \"../../db/index\";\nimport type { ExtractedFeature, TaskItem } from \"../types\";\n",
+					"packages/core/src/wiki/extractors/workflow.ts": "/**\n * Workflow Trace Extractor — parses .maina/workflow/current.md into\n * structured ExtractedWorkflowTrace records.\n *\n * Workflow traces follow the rolling markdown format:\n *   # Workflow: feature-name\n *   ## step-name (ISO-timestamp)\n *   Summary text.\n */\n\nimport { existsSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport type { Result } from \"../../db/index\";\nimport type { ExtractedWorkflowTrace, WorkflowStep } from \"../types\";\n\n// ─── Parsing ─────────────────────────────────────────────────────────────\n\n/**\n * Extract feature name from \"# Workflow: feature-name\" header.\n",
+					"packages/core/src/wiki/graph.ts": "/**\n * Knowledge Graph — unified graph with 11 edge types for wiki compilation.\n *\n * Builds a graph from code entities, features, decisions, and workflow traces.\n * Supports PageRank computation and mapping graph nodes to wiki article paths.\n */\n\nimport type { CodeEntity } from \"./extractors/code\";\nimport type {\n\tEdgeType,\n\tExtractedDecision,\n\tExtractedFeature,\n\tExtractedWorkflowTrace,\n} from \"./types\";\n",
+					"packages/core/src/wiki/hooks.ts": "/**\n * Wiki Post-Commit Hook — triggers incremental compilation after commits.\n *\n * Runs silently in the background. Never breaks the commit flow —\n * all errors are caught and swallowed.\n */\n\nimport { existsSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport { compile } from \"./compiler\";\nimport { loadState } from \"./state\";\n",
+					"packages/core/src/wiki/indexer.ts": "/**\n * Wiki Indexer — generates the index.md table of contents for the wiki.\n *\n * Groups articles by type, sorts by PageRank within each group,\n * and includes freshness indicators based on last compilation time.\n */\n\nimport type { ArticleType, WikiArticle } from \"./types\";\n",
+					"packages/core/src/wiki/linker.ts": "/**\n * Wiki Linker — generates forward links and backlinks between wiki articles.\n *\n * Traverses the knowledge graph edges and maps them to wiki article paths\n * to produce bidirectional link maps used for wikilink injection.\n */\n\nimport type { KnowledgeGraph } from \"./graph\";\nimport type { WikiLink } from \"./types\";\n",
+					"packages/core/src/wiki/louvain.ts": "",
+					"packages/core/src/wiki/query.ts": "/**\n * Wiki Query — AI-powered question answering over wiki articles.\n *\n * Loads relevant wiki articles, scores them by keyword relevance,\n * then uses AI to synthesize a coherent answer citing sources.\n * Falls back to keyword excerpts when AI is unavailable.\n */\n\nimport { existsSync, readdirSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport type { Result } from \"../db/index\";\n"
+				},
+				"touchedFiles": [],
+				"mentionedFiles": []
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/core/src/wiki/communities.ts",
+						"packages/core/src/wiki/louvain.ts",
+						1
+					],
+					[
+						"packages/core/src/wiki/compiler.ts",
+						"packages/core/src/ai/try-generate.ts",
+						0.5
+					],
+					[
+						"packages/core/src/wiki/compiler.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/wiki/compiler.ts",
+						"packages/core/src/wiki/communities.ts",
+						1
+					],
+					[
+						"packages/core/src/wiki/compiler.ts",
+						"packages/core/src/wiki/extractors/code.ts",
+						0.5
+					],
+					[
+						"packages/core/src/wiki/compiler.ts",
+						"packages/core/src/wiki/extractors/decision.ts",
+						1
+					],
+					[
+						"packages/core/src/wiki/compiler.ts",
+						"packages/core/src/wiki/extractors/feature.ts",
+						1
+					],
+					[
+						"packages/core/src/wiki/compiler.ts",
+						"packages/core/src/wiki/extractors/workflow.ts",
+						1
+					],
+					[
+						"packages/core/src/wiki/compiler.ts",
+						"packages/core/src/wiki/graph.ts",
+						0.5
+					],
+					[
+						"packages/core/src/wiki/compiler.ts",
+						"packages/core/src/wiki/indexer.ts",
+						1
+					],
+					[
+						"packages/core/src/wiki/compiler.ts",
+						"packages/core/src/wiki/linker.ts",
+						1
+					],
+					[
+						"packages/core/src/wiki/export.ts",
+						"packages/core/src/wiki/graph.ts",
+						0.5
+					],
+					[
+						"packages/core/src/wiki/extractors/code.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/wiki/extractors/decision.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/wiki/extractors/feature.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/wiki/extractors/workflow.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
+						"packages/core/src/wiki/graph.ts",
+						"packages/core/src/wiki/extractors/code.ts",
+						0.5
+					],
+					[
+						"packages/core/src/wiki/hooks.ts",
+						"packages/core/src/wiki/compiler.ts",
+						1
+					],
+					[
+						"packages/core/src/wiki/linker.ts",
+						"packages/core/src/wiki/graph.ts",
+						0.5
+					],
+					[
+						"packages/core/src/wiki/query.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					]
+				],
+				"scores": [
+					[
+						"packages/core/src/ai/try-generate.ts",
+						0.03565340302384839
+					],
+					[
+						"packages/core/src/db/index.ts",
+						0.2621535207055289
+					],
+					[
+						"packages/core/src/wiki/communities.ts",
+						0.03884389507334929
+					],
+					[
+						"packages/core/src/wiki/compiler.ts",
+						0.06005620139195551
+					],
+					[
+						"packages/core/src/wiki/consult.ts",
+						0.03246291097434749
+					],
+					[
+						"packages/core/src/wiki/export.ts",
+						0.03246291097434749
+					],
+					[
+						"packages/core/src/wiki/extractors/code.ts",
+						0.11747804201094939
+					],
+					[
+						"packages/core/src/wiki/extractors/decision.ts",
+						0.03884389507334929
+					],
+					[
+						"packages/core/src/wiki/extractors/feature.ts",
+						0.03884389507334929
+					],
+					[
+						"packages/core/src/wiki/extractors/workflow.ts",
+						0.03884389507334929
+					],
+					[
+						"packages/core/src/wiki/graph.ts",
+						0.09626380049867056
+					],
+					[
+						"packages/core/src/wiki/hooks.ts",
+						0.03246291097434749
+					],
+					[
+						"packages/core/src/wiki/indexer.ts",
+						0.03884389507334929
+					],
+					[
+						"packages/core/src/wiki/linker.ts",
+						0.03884389507334929
+					],
+					[
+						"packages/core/src/wiki/louvain.ts",
+						0.06548001803156164
+					],
+					[
+						"packages/core/src/wiki/query.ts",
+						0.03246291097434749
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/cli/src/commands/analyze.ts": "import { existsSync, readdirSync, statSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport { intro, log, outro } from \"@clack/prompts\";\nimport { analyze, getCurrentBranch } from \"@mainahq/core\";\nimport { Command } from \"commander\";\nimport { EXIT_FINDINGS, EXIT_PASSED, outputJson } from \"../json\";\n",
+					"packages/cli/src/commands/apply-fix.ts": "import { existsSync, readFileSync, writeFileSync } from \"node:fs\";\nimport { tmpdir } from \"node:os\";\nimport { join } from \"node:path\";\nimport {\n\tgetChangedFiles,\n\ttype Receipt,\n\tvalidatePatchScope,\n\tverifyReceipt,\n} from \"@mainahq/core\";\nimport { Command } from \"commander\";\nimport {\n\tEXIT_CONFIG_ERROR,\n\tEXIT_FINDINGS,\n\tEXIT_PASSED,\n\toutputJson,\n} from \"../json\";\n",
+					"packages/cli/src/commands/benchmark.ts": "import { join } from \"node:path\";\nimport { intro, log, outro } from \"@clack/prompts\";\nimport { Command } from \"commander\";\n",
+					"packages/cli/src/commands/brainstorm.ts": "import { join } from \"node:path\";\nimport { intro, isCancel, log, outro, select, text } from \"@clack/prompts\";\nimport {\n\tappendWorkflowStep,\n\tcheckAIAvailability,\n\tconsultWikiForBrainstorm,\n\tgetCurrentBranch,\n\tgetWorkflowId,\n\trecordFeedbackAsync,\n} from \"@mainahq/core\";\nimport { Command } from \"commander\";\n",
+					"packages/cli/src/commands/cache.ts": "import { join } from \"node:path\";\nimport { intro, log, outro } from \"@clack/prompts\";\nimport { createCacheManager } from \"@mainahq/core\";\nimport { Command } from \"commander\";\n",
+					"packages/cli/src/commands/commit.ts": "import { existsSync, readdirSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport { confirm, intro, isCancel, log, outro, text } from \"@clack/prompts\";\nimport {\n\taddEpisodicEntry,\n\tappendVerifiedByTrailer,\n\tappendWorkflowStep,\n\tassembleContext,\n\tcheckAIAvailability,\n\tcomputeProofHash,\n\temitAcceptSignal,\n\tgetCurrentBranch,\n\tgetDiff,\n\tgetStagedFiles,\n\tgetWorkflowId,\n\ttype PipelineResult,\n\trecordFeedbackAsync,\n\trecordOutcome,\n\trecordSnapshot,\n\trunHooks,\n\trunPipeline,\n\tsetVerificationResult,\n} from \"@mainahq/core\";\nimport { Command } from \"commander\";\nimport { exitCodeFromResult, outputJson } from \"../json.ts\";\n",
+					"packages/cli/src/commands/configure.ts": "/**\n * `maina configure` — DEPRECATED alias for `maina setup --update`.\n *\n * The interactive constitution editor moved into the unified setup wizard\n * (issue #174). This command stays as a thin shim so existing scripts and\n * muscle memory keep working while users migrate.\n *\n * @since v1.3\n * @removed v1.5\n */\n\nimport { Command } from \"commander\";\nimport { type SetupActionOptions, setupAction } from \"./setup\";\n",
+					"packages/cli/src/commands/context.ts": "import { existsSync, mkdirSync } from \"node:fs\";\nimport { basename, dirname, isAbsolute, join, resolve } from \"node:path\";\nimport { intro, log, outro, spinner } from \"@clack/prompts\";\nimport { assembleContext } from \"@mainahq/core\";\nimport { Command } from \"commander\";\nimport { outputJson } from \"../json\";\n",
+					"packages/cli/src/commands/design.ts": "import {\n\tappendFileSync,\n\texistsSync,\n\treaddirSync,\n\treadFileSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { join } from \"node:path\";\nimport { intro, isCancel, log, outro, select, text } from \"@clack/prompts\";\nimport {\n\tappendWorkflowStep,\n\tcheckAIAvailability,\n\tconsultWikiForDesign,\n\tgetNextAdrNumber as coreGetNextAdrNumber,\n\tlistAdrs as coreListAdrs,\n\tscaffoldAdr as coreScaffoldAdr,\n\ttype DesignApproach,\n\tgenerateDesignApproaches,\n\tgetCurrentBranch,\n\tgetWorkflowId,\n\trecordFeedbackAsync,\n} from \"@mainahq/core\";\nimport { Command } from \"commander\";\n",
+					"packages/cli/src/commands/doctor.ts": "import { existsSync, readdirSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport { confirm, intro, log, outro, spinner } from \"@clack/prompts\";\nimport type {\n\tCacheStats,\n\tDetectedTool,\n\tMcpClientId,\n\tMcpClientInfo,\n} from \"@mainahq/core\";\nimport {\n\tbuildClientRegistry,\n\tcreateCacheManager,\n\tdetectTools,\n\tgetApiKey,\n\tgetFeedbackDb,\n\tisHostMode,\n} from \"@mainahq/core\";\nimport { Command } from \"commander\";\nimport pkg from \"../../package.json\";\nimport { EXIT_PASSED, outputJson } from \"../json\";\n",
+					"packages/cli/src/commands/setup.ts": "/**\n * `maina setup` — Magic UX wizard for first-time + reconfiguration setup.\n *\n * Replaces the old `init`-orchestrator setup. This command consolidates\n * detection, AI tailoring, scaffolding, and a verify dry-run into a single\n * sub-60s flow. `init` remains the CI primitive for raw bootstrap; `setup`\n * is the developer-facing front door.\n *\n * Pipeline: preflight → detect → infer (AI) → scaffold → verify.\n *\n * Modes:\n * - **fresh**: no `.maina/constitution.md`. Generates everything.\n * - **update**: existing constitution; re-tailor + merge into managed regions.\n * - **reset**: explicit `--reset`; backs up `.maina/` then runs fresh.\n */\n\nimport {\n\texistsSync,\n\tmkdirSync,\n\treaddirSync,\n\treadFileSync,\n\trenameSync,\n\trmSync,\n\tstatSync,\n\tunlinkSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { join } from \"node:path\";\nimport { confirm, intro, isCancel, log, outro, spinner } from \"@clack/prompts\";\nimport {\n\ttype AgentKind,\n\tALL_AGENTS,\n\tanonymizeStack,\n\tassembleStackContext,\n\tbuildMainaEntry,\n\tbuildUsageEvent,\n\tcaptureUsage,\n\tdegradedBanner,\n\tdeploySkills,\n\tdeviceFingerprint,\n\tisTelemetryOptedOut,\n\tnewSetupId,\n\trecoveryCommand,\n\trenderFileLayoutSection,\n\trenderWorkflowSection,\n\tresolveSetupAI,\n\ttype SetupAIMetadata,\n\ttype SetupAIResult,\n\ttype SetupAISource,\n\ttype SetupDegradedReason,\n\ttype SetupTelemetryEvent,\n\ttype SetupTelemetryPhase,\n\ttype StackContext,\n\tscaffold,\n\tsendSetupTelemetry,\n\tsummarizeRepo,\n\twriteAllAgentFiles,\n\twriteClaudeSettings,\n\twriteCursorMcp,\n} from \"@mainahq/core\";\nimport { Command } from \"commander\";\nimport packageJson from \"../../package.json\" with { type: \"json\" };\nimport { EXIT_CONFIG_ERROR, EXIT_PASSED } from \"../json\";\nimport {\n\tjsonEmitter,\n\tnoopEmitter,\n\ttype PhaseStatus,\n\ttype SetupEmitter,\n} from \"./setup-emitter\";\nimport { type SeedWikiResult, seedWiki } from \"./setup-wiki\";\nimport { verifyAction } from \"./verify\";\n",
+					"packages/cli/src/json.ts": ""
+				},
+				"touchedFiles": [
+					"packages/cli/src/commands/analyze.ts"
+				],
+				"mentionedFiles": [
+					"packages/cli/src/commands/apply-fix.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/cli/src/commands/analyze.ts",
+						"packages/cli/src/json.ts",
+						1
+					],
+					[
+						"packages/cli/src/commands/apply-fix.ts",
+						"packages/cli/src/json.ts",
+						1
+					],
+					[
+						"packages/cli/src/commands/commit.ts",
+						"packages/cli/src/json.ts",
+						1
+					],
+					[
+						"packages/cli/src/commands/configure.ts",
+						"packages/cli/src/commands/setup.ts",
+						1
+					],
+					[
+						"packages/cli/src/commands/context.ts",
+						"packages/cli/src/json.ts",
+						1
+					],
+					[
+						"packages/cli/src/commands/doctor.ts",
+						"packages/cli/src/json.ts",
+						1
+					],
+					[
+						"packages/cli/src/commands/setup.ts",
+						"packages/cli/src/json.ts",
+						1
+					]
+				],
+				"scores": [
+					[
+						"packages/cli/src/commands/analyze.ts",
+						0.4491410068327303
+					],
+					[
+						"packages/cli/src/commands/apply-fix.ts",
+						0.08982820136654605
+					],
+					[
+						"packages/cli/src/commands/benchmark.ts",
+						0
+					],
+					[
+						"packages/cli/src/commands/brainstorm.ts",
+						0
+					],
+					[
+						"packages/cli/src/commands/cache.ts",
+						0
+					],
+					[
+						"packages/cli/src/commands/commit.ts",
+						0
+					],
+					[
+						"packages/cli/src/commands/configure.ts",
+						0
+					],
+					[
+						"packages/cli/src/commands/context.ts",
+						0
+					],
+					[
+						"packages/cli/src/commands/design.ts",
+						0
+					],
+					[
+						"packages/cli/src/commands/doctor.ts",
+						0
+					],
+					[
+						"packages/cli/src/commands/setup.ts",
+						0
+					],
+					[
+						"packages/cli/src/json.ts",
+						0.4610307918007235
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"packages/mcp/src/index.ts": "export { createMcpServer, startServer } from \"./server\";\n",
+					"packages/mcp/src/server.ts": "/**\n * MCP Server — exposes Maina engines as tools for Claude Code, Cursor, and other IDE agents.\n *\n * Progressive disclosure (default): only the 3 highest-value tools\n * (`verify`, `getContext`, `reviewCode`) are registered at handshake. A\n * `list_tools` meta-tool advertises the full 10-tool surface; the 7\n * extended tools are NOT registered in progressive mode, so agents must\n * opt in by restarting the server with `--all-tools`.\n *\n * This keeps the handshake payload small — important because every tool\n * description is streamed to the host on every session start, burning\n * conversation context.\n *\n * `allTools: true` opts out — all 10 tools are registered at handshake\n * and `list_tools` is not exposed.\n *\n * DeepWiki-compat tools (`ask_question`, `read_wiki_structure`,\n * `read_wiki_contents`) are shipped in `registerDeepWikiTools` and are NOT\n * part of the 10-tool MCP surface; they are a separate wire compatibility\n * layer and are only registered in `allTools` mode today.\n */\n\nimport { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\nimport { StdioServerTransport } from \"@modelcontextprotocol/sdk/server/stdio.js\";\nimport { registerContextTools } from \"./tools/context\";\nimport { registerDeepWikiTools } from \"./tools/deepwiki\";\nimport { registerExplainTools } from \"./tools/explain\";\nimport { registerFeatureTools } from \"./tools/features\";\nimport { registerReviewTools } from \"./tools/review\";\nimport { registerVerifyTools } from \"./tools/verify\";\nimport { registerWikiTools } from \"./tools/wiki\";\n",
+					"packages/mcp/src/tools/context.ts": "/**\n * Context tools — assembles codebase context and conventions for MCP clients.\n *\n * MCP tool results must fit within the host's context window alongside the\n * conversation. We use a smaller budget (30K tokens) and hard-cap output\n * at MAX_MCP_OUTPUT_CHARS to prevent token limit errors.\n */\n\nimport { join } from \"node:path\";\nimport type { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\nimport { z } from \"zod\";\n",
+					"packages/mcp/src/tools/deepwiki.ts": "/**\n * DeepWiki-compatible MCP tools.\n *\n * Exposes 3 tools matching DeepWiki's surface for instant interop\n * with any client that already speaks DeepWiki:\n * - ask_question(repo, question)\n * - read_wiki_structure(repo)\n * - read_wiki_contents(repo, page)\n */\n\nimport { existsSync, readdirSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport type { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\nimport { z } from \"zod\";\n",
+					"packages/mcp/src/tools/explain.ts": "/**\n * Explain tools — dependency diagrams and module summaries for MCP clients.\n */\n\nimport { join } from \"node:path\";\nimport type { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\nimport { z } from \"zod\";\n",
+					"packages/mcp/src/tools/features.ts": "/**\n * Feature tools — test stub generation and cross-artifact analysis for MCP clients.\n */\n\nimport { join } from \"node:path\";\nimport type { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\nimport { z } from \"zod\";\n",
+					"packages/mcp/src/tools/review.ts": "/**\n * Review tools — two-stage PR review for MCP clients.\n */\n\nimport { join } from \"node:path\";\nimport type { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\nimport { z } from \"zod\";\n",
+					"packages/mcp/src/tools/verify.ts": "/**\n * Verify tools — runs verification pipeline and slop detection for MCP clients.\n */\n\nimport { join } from \"node:path\";\nimport type { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\nimport { z } from \"zod\";\n",
+					"packages/mcp/src/tools/wiki.ts": "/**\n * Wiki tools — search wiki articles and check wiki health for MCP clients.\n *\n * Provides two tools:\n * - wikiQuery: Search and synthesize from wiki articles\n * - wikiStatus: Wiki health dashboard\n */\n\nimport {\n\texistsSync,\n\tmkdirSync,\n\treaddirSync,\n\treadFileSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { join, relative } from \"node:path\";\nimport type { McpServer } from \"@modelcontextprotocol/sdk/server/mcp.js\";\nimport { z } from \"zod\";\n"
+				},
+				"touchedFiles": [
+					"packages/mcp/src/tools/verify.ts"
+				],
+				"mentionedFiles": [
+					"packages/mcp/src/tools/wiki.ts"
+				]
+			},
+			"output": {
+				"edges": [
+					[
+						"packages/mcp/src/server.ts",
+						"packages/mcp/src/tools/context.ts",
+						1
+					],
+					[
+						"packages/mcp/src/server.ts",
+						"packages/mcp/src/tools/deepwiki.ts",
+						1
+					],
+					[
+						"packages/mcp/src/server.ts",
+						"packages/mcp/src/tools/explain.ts",
+						1
+					],
+					[
+						"packages/mcp/src/server.ts",
+						"packages/mcp/src/tools/features.ts",
+						1
+					],
+					[
+						"packages/mcp/src/server.ts",
+						"packages/mcp/src/tools/review.ts",
+						1
+					],
+					[
+						"packages/mcp/src/server.ts",
+						"packages/mcp/src/tools/verify.ts",
+						1
+					],
+					[
+						"packages/mcp/src/server.ts",
+						"packages/mcp/src/tools/wiki.ts",
+						1
+					]
+				],
+				"scores": [
+					[
+						"packages/mcp/src/index.ts",
+						0
+					],
+					[
+						"packages/mcp/src/server.ts",
+						0
+					],
+					[
+						"packages/mcp/src/tools/context.ts",
+						0
+					],
+					[
+						"packages/mcp/src/tools/deepwiki.ts",
+						0
+					],
+					[
+						"packages/mcp/src/tools/explain.ts",
+						0
+					],
+					[
+						"packages/mcp/src/tools/features.ts",
+						0
+					],
+					[
+						"packages/mcp/src/tools/review.ts",
+						0
+					],
+					[
+						"packages/mcp/src/tools/verify.ts",
+						0.8333333333333334
+					],
+					[
+						"packages/mcp/src/tools/wiki.ts",
+						0.16666666666666666
+					]
+				]
+			}
+		},
+		{
+			"site": "context/relevance.ts",
+			"input": {
+				"files": {
+					"examples/todo-api/src/db.ts": "import { Database } from \"bun:sqlite\";\n",
+					"examples/todo-api/src/repo.ts": "import { getDb } from \"./db\";\n",
+					"examples/todo-api/src/response.ts": "",
+					"examples/todo-api/src/routes.ts": "import { createTodo, deleteTodo, getTodo, listTodos, updateTodo } from \"./repo\";\nimport { err, noContent, ok } from \"./response\";\n"
+				},
+				"touchedFiles": [
+					"examples/todo-api/src/response.ts"
+				],
+				"mentionedFiles": []
+			},
+			"output": {
+				"edges": [
+					[
+						"examples/todo-api/src/repo.ts",
+						"examples/todo-api/src/db.ts",
+						1
+					],
+					[
+						"examples/todo-api/src/routes.ts",
+						"examples/todo-api/src/repo.ts",
+						1
+					],
+					[
+						"examples/todo-api/src/routes.ts",
+						"examples/todo-api/src/response.ts",
+						1
+					]
+				],
+				"scores": [
+					[
+						"examples/todo-api/src/db.ts",
+						0
+					],
+					[
+						"examples/todo-api/src/repo.ts",
+						0
+					],
+					[
+						"examples/todo-api/src/response.ts",
+						1
+					],
+					[
+						"examples/todo-api/src/routes.ts",
+						0
+					]
+				]
+			}
+		}
+	]
+}

@@ -1,0 +1,1207 @@
+{
+	"site": "features/analyzer.ts",
+	"cases": [
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: Internal Stats Tracker\n\n## User Stories\n\n- As a maina developer, I want to see how verification time trends across commits so I can catch performance regressions.\n- As a maina developer, I want to track cache hit rates so I can verify the cache is saving tokens and cost.\n- As a maina developer, I want to see findings-per-commit trends so I can measure code quality improvement.\n\n## Acceptance Criteria\n\n- [ ] Record a commit snapshot with timing, token, cache, and quality stats after every successful maina commit via recordSnapshot in commitAction\n- [ ] Implement maina stats command showing last commit stats, rolling averages, and trend arrows\n- [ ] Support maina stats --json to output raw commit snapshots as JSON\n- [ ] Support maina stats --last N to limit displayed commits\n- [ ] Compute trends comparing recent N vs previous N commits with directional indicators via getTrends\n- [ ] Add commit_snapshots Drizzle schema to the database\n- [ ] Stats recording wrapped in try/catch so it never blocks a commit\n- [ ] Implement tracker with recordSnapshot, getStats, getLatest, getTrends functions\n\n## Design Decisions\n\n- Chose SQLite over flat files for queryable aggregation\n- Chose post-commit integration in commitAction over a separate hook for reliability\n- Chose terminal text over charts for internal use\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\n- New module `packages/core/src/stats/tracker.ts` — data layer with `recordSnapshot()`, `getStats()`, `getLatest()`, `getTrends()`\n- New Drizzle table `commit_snapshots` in `packages/core/src/db/schema.ts`\n- New CLI command `packages/cli/src/commands/stats.ts` — `maina stats` with `--json` and `--last N`\n- Integration point: `packages/cli/src/commands/commit.ts` — call `recordSnapshot()` after successful commit\n\n## Tasks\n\n- [ ] T001: Add `commit_snapshots` Drizzle schema to `packages/core/src/db/schema.ts`\n- [ ] T002: Write tests for `tracker.ts` — `recordSnapshot`, `getStats`, `getLatest`, `getTrends`\n- [ ] T003: Implement `packages/core/src/stats/tracker.ts` with all four functions\n- [ ] T004: Write tests for `maina stats` CLI command — default output, `--json`, `--last N`\n- [ ] T005: Implement `packages/cli/src/commands/stats.ts` and register in `program.ts`\n- [ ] T006: Integrate `recordSnapshot()` into `commitAction()` in commit.ts — capture timing, pipeline result, cache stats\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\n- [ ] T001: Add `commit_snapshots` Drizzle schema to `packages/core/src/db/schema.ts`\n- [ ] T002: Write tests for `tracker.ts` — `recordSnapshot`, `getStats`, `getLatest`, `getTrends`\n- [ ] T003: Implement `packages/core/src/stats/tracker.ts` with all four functions\n- [ ] T004: Write tests for `maina stats` CLI command — default output, `--json`, `--last N`\n- [ ] T005: Implement `packages/cli/src/commands/stats.ts` and register in `program.ts`\n- [ ] T006: Integrate `recordSnapshot()` into `commitAction()` in commit.ts — capture timing, pipeline result, cache stats\n\n## Dependencies\n\n- T002 depends on T001 (schema must exist for test fixtures)\n- T003 depends on T002 (TDD: tests first)\n- T004 depends on T003 (CLI tests mock the tracker)\n- T005 depends on T004 (TDD: tests first)\n- T006 depends on T003 + T005 (both must exist)\n\n## Notes\n\n- All commits dogfooded through `maina commit`\n- Stats recording must be wrapped in try/catch — never block a commit\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "error",
+							"category": "spec-coverage",
+							"message": "Acceptance criterion not covered by any task: \"Support maina stats --last N to limit displayed commits\"",
+							"file": "spec.md"
+						},
+						{
+							"severity": "error",
+							"category": "spec-coverage",
+							"message": "Acceptance criterion not covered by any task: \"Compute trends comparing recent N vs previous N commits with directional indicators via getTrends\"",
+							"file": "spec.md"
+						},
+						{
+							"severity": "error",
+							"category": "spec-coverage",
+							"message": "Acceptance criterion not covered by any task: \"Stats recording wrapped in try/catch so it never blocks a commit\"",
+							"file": "spec.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T002: Write tests for `tracker.ts` — `recordSnapshot`, `getStats`, `getLatest`, `getTrends`\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T004: Write tests for `maina stats` CLI command — default output, `--json`, `--last N`\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "separation-violation",
+							"message": "spec.md contains implementation detail: \"- [ ] Add commit_snapshots Drizzle schema to the database\"",
+							"file": "spec.md",
+							"line": 16
+						}
+					],
+					"summary": {
+						"errors": 3,
+						"warnings": 3,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: MCP Server\n\n## Problem Statement\n\nDevelopers using Claude Code, Cursor, or Continue.dev don't get maina's context, verification, or memory when working in their IDE. The CLI works but requires terminal context-switching. MCP (Model Context Protocol) lets IDEs call maina's engines directly — the host agent gets enriched context, the AI output is better, and maina tracks everything.\n\n## Target User\n\n- Primary: Developer using Claude Code who wants maina's context engine feeding their AI assistant\n- Secondary: Cursor/Continue.dev users who want verification-aware code suggestions\n\n## User Stories\n\n- As a Claude Code user, I want maina's context engine to provide focused codebase context to my AI assistant\n- As an IDE user, I want to run maina verify from my editor without switching to terminal\n- As a developer, I want maina's semantic index and episodic memory to improve AI suggestions\n\n## Success Criteria\n\n- [ ] MCP server starts via `maina --mcp` using stdio transport\n- [ ] `getContext` tool returns assembled context for a given command\n- [ ] `verify` tool runs the verification pipeline and returns findings\n- [ ] `getConventions` tool returns constitution + team conventions\n- [ ] `suggestTests` tool generates test stubs from a plan\n- [ ] `checkSlop` tool runs slop detection on provided code\n- [ ] `explainModule` tool returns dependency diagram for a scope\n- [ ] `analyzeFeature` tool runs cross-artifact consistency check\n- [ ] All tools use the cache — repeated calls are instant\n- [ ] Claude Code config: `{ \"mcpServers\": { \"maina\": { \"command\": \"maina\", \"args\": [\"--mcp\"] } } }`\n- [ ] Host delegation works: when AI is needed, returns structured prompt for the host to process\n\n## Scope\n\n### In Scope\n\n- stdio MCP server with @modelcontextprotocol/sdk\n- 8 tools delegating to existing engines\n- Cache-aware responses\n- `maina --mcp` flag on CLI entrypoint\n\n### Out of Scope\n\n- HTTP/SSE transport (stdio only for v1)\n- MCP resources/prompts (tools only for v1)\n- Auto-installation into IDE configs\n\n## Design Decisions\n\n- stdio transport (simplest, works everywhere, no port conflicts)\n- Each MCP tool maps 1:1 to an existing engine function — no new logic needed\n- Tools return structured JSON so the host agent can parse results\n- Host delegation: when tool needs AI, it returns the prompt + context for the host to process\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\n- Pattern: MCP server with stdio transport, tools delegate to existing engines\n- Integration points: Context Engine (assembleContext), Verify Engine (runPipeline, detectSlop), Prompt Engine (buildSystemPrompt), Features (analyze, verifyPlan), Explain (generateDependencyDiagram)\n- Entry: `maina --mcp` flag adds MCP mode to existing CLI entrypoint\n\n## Key Technical Decisions\n\n- @modelcontextprotocol/sdk for MCP protocol handling\n- Each tool is a thin wrapper — calls existing core function, formats response as JSON\n- Cache-aware: tools that call assembleContext or generate() benefit from existing 3-layer cache\n- Host delegation: tools that need AI return { delegation: true, systemPrompt, userPrompt } so the host IDE processes it\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| packages/mcp/src/server.ts | MCP server setup with stdio transport | New |\n| packages/mcp/src/tools/context.ts | getContext + getConventions tools | New |\n| packages/mcp/src/tools/verify.ts | verify + checkSlop tools | New |\n| packages/mcp/src/tools/features.ts | suggestTests + analyzeFeature tools | New |\n| packages/mcp/src/tools/explain.ts | explainModule tool | New |\n| packages/mcp/src/index.ts | Server entrypoint | Modified |\n| packages/cli/src/index.ts | Add --mcp flag | Modified |\n\n## Tasks\n\n- [ ] T001: Install @modelcontextprotocol/sdk, write tests and implement MCP server scaffold with stdio transport\n- [ ] T002: Write tests and implement context tools (getContext, getConventions) delegating to Context Engine + Prompt Engine\n- [ ] T003: Write tests and implement verify tools (verify, checkSlop) delegating to Verify Engine\n- [ ] T004: Write tests and implement feature tools (suggestTests, analyzeFeature) delegating to Features module\n- [ ] T005: Write tests and implement explain tool (explainModule) delegating to Explain module\n- [ ] T006: Wire --mcp flag into CLI entrypoint and test end-to-end\n\n## Failure Modes\n\n- MCP SDK not installed → helpful error on `maina --mcp`\n- Tool throws → MCP server returns error response, doesn't crash\n- No .maina/ directory → tools return empty/default responses\n- Host agent sends malformed input → validate with zod schemas\n\n## Testing Strategy\n\n- Unit tests per tool: mock core functions, verify JSON output shape\n- Server test: verify tool registration and listing\n- Integration: test actual MCP message flow with stdin/stdout mocking\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\n- [ ] T001: Install @modelcontextprotocol/sdk, write tests and implement MCP server scaffold with stdio transport\n- [ ] T002: Write tests and implement context tools (getContext, getConventions) delegating to Context Engine + Prompt Engine\n- [ ] T003: Write tests and implement verify tools (verify, checkSlop) delegating to Verify Engine\n- [ ] T004: Write tests and implement feature tools (suggestTests, analyzeFeature) delegating to Features module\n- [ ] T005: Write tests and implement explain tool (explainModule) delegating to Explain module\n- [ ] T006: Wire --mcp flag into CLI entrypoint and test end-to-end\n\n## Dependencies\n\n- T002-T005 depend on T001 (server scaffold must exist)\n- T006 depends on T001-T005 (all tools must be registered)\n\n## Definition of Done\n\n- [ ] All tests pass\n- [ ] Biome lint clean\n- [ ] TypeScript compiles\n- [ ] `maina --mcp` starts server without error\n- [ ] Claude Code config works: `{ \"mcpServers\": { \"maina\": { \"command\": \"bun\", \"args\": [\"run\", \"--bun\", \"packages/cli/src/index.ts\", \"--mcp\"] } } }`\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [],
+					"summary": {
+						"errors": 0,
+						"warnings": 0,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: Todo API CRUD\n\n## Problem Statement\n\nThe maina example project at `examples/todo-api/` is an empty scaffold (`console.log(\"Hello via Bun!\")`). A working API example is needed to showcase maina's end-to-end workflow: spec → plan → TDD → verify → review → commit → learn → prompt evolution.\n\n## Target User\n\n- Developer evaluating maina who wants to see the full workflow in action\n- Contributor who needs a reference for how maina dogfoods on real code\n\n## User Stories\n\n- As a developer, I want a working todo API example so I can run maina's full pipeline against real code\n- As an evaluator, I want to see maina catch real issues (slop, validation gaps, spec violations) on a concrete project\n\n## Success Criteria\n\n- [ ] Server starts and responds to GET /todos with empty array\n- [ ] Full CRUD lifecycle works: create → read → update → delete\n- [ ] Invalid input returns 400 with descriptive error message\n- [ ] Missing resource returns 404 with error in response envelope\n- [ ] Response envelope matches `{ data, error, meta }` pattern\n- [ ] All tests pass with bun:test\n- [ ] No console.log in production code\n\n## Scope\n\n### In Scope\n\n- HTTP server with JSON CRUD endpoints for todos\n- Persistent storage across server restarts\n- Input validation and error handling\n- Integration tests covering all endpoints\n\n### Out of Scope\n\n- Authentication or authorization\n- Pagination or filtering\n- Frontend UI\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\n- Pattern: Bun.serve() HTTP server with bun:sqlite storage\n- Response envelope: `{ data, error, meta }` per maina conventions\n- All DB access through repository layer, no thrown exceptions\n\n## Key Technical Decisions\n\n- bun:sqlite for persistence (zero dependencies, fast)\n- Bun.serve() routes for HTTP handling (no framework)\n- Lazy DB initialization (create table on first access)\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| examples/todo-api/src/db.ts | SQLite database setup | New |\n| examples/todo-api/src/response.ts | Response envelope helpers | New |\n| examples/todo-api/src/repo.ts | Todo repository (CRUD operations) | New |\n| examples/todo-api/src/routes.ts | Route handlers with validation | New |\n| examples/todo-api/index.ts | Bun.serve() entrypoint | Modified |\n| examples/todo-api/src/index.test.ts | Integration tests | New |\n\n## Tasks\n\n- [ ] T001: Set up SQLite database module with lazy-init and todos table\n- [ ] T002: Create response envelope helpers (ok, err) matching { data, error, meta }\n- [ ] T003: Implement todo repository with list, get, create, update, delete\n- [ ] T004: Implement route handlers with input validation\n- [ ] T005: Wire up Bun.serve() entrypoint with routes and configurable port\n- [ ] T006: Write integration tests covering CRUD lifecycle, validation, and 404s\n\n## Failure Modes\n\n- Invalid JSON body → 400 with parse error message\n- Missing title → 400 with \"title is required\"\n- Non-integer ID → 400 with \"invalid id\"\n- Todo not found → 404 with \"todo not found\"\n- DB error → 500 with generic error (no internals leaked)\n\n## Testing Strategy\n\n- Integration tests via fetch against running server\n- Happy path: full CRUD lifecycle\n- Validation: empty title, missing body, invalid ID\n- Not found: GET/PATCH/DELETE on non-existent ID\n- Response shape: all responses match envelope pattern\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\n- [ ] T001: Set up SQLite database module with lazy-init and todos table\n- [ ] T002: Create response envelope helpers (ok, err) matching { data, error, meta }\n- [ ] T003: Implement todo repository with list, get, create, update, delete\n- [ ] T004: Implement route handlers with input validation\n- [ ] T005: Wire up Bun.serve() entrypoint with routes and configurable port\n- [ ] T006: Write integration tests covering CRUD lifecycle, validation, and 404s\n\n## Dependencies\n\n- T003 depends on T001 (needs DB)\n- T004 depends on T002, T003 (needs response helpers + repo)\n- T005 depends on T004 (needs routes)\n- T006 depends on T005 (needs running server)\n\n## Definition of Done\n\n- [ ] All tests pass\n- [ ] maina verify passes\n- [ ] maina checkSlop clean\n- [ ] No console.log in production code\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T001: Set up SQLite database module with lazy-init and todos table\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T005: Wire up Bun.serve() entrypoint with routes and configurable port\"",
+							"file": "plan.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 2,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: Sprint 1-9 Benchmark — Claude+Superpowers vs Claude+Maina\n\n## Problem Statement\n\nMaina was built over 10 sprints (0-9) to replace ad-hoc AI-assisted development (Claude + Superpowers skills) with a verification-first pipeline. We need hard numbers to prove the value: what did maina actually improve?\n\n## Target User\n\n- Maina team evaluating ROI of the tooling investment\n- Potential adopters who want evidence before committing\n\n## Success Criteria\n\n- [ ] Side-by-side comparison table across all 10 sprints\n- [ ] Quantified improvement in at least 3 categories\n- [ ] Data gaps documented honestly (what we can't measure)\n- [ ] Comparison exportable as markdown for README/docs\n\n## Scope\n\n### In Scope\n\n- Metrics we can derive from git history, stats.db, feedback.db, benchmarks\n- Qualitative observations from the development process\n- Sprint-by-sprint progression showing maina bootstrapping itself\n\n### Out of Scope\n\n- A/B testing with separate teams (single developer project)\n- Cost analysis (API spend tracking not implemented)\n",
+				"plan": "# Benchmark: Claude + Superpowers vs Claude + Maina\n\n> Data collected from git history (77 commits), stats.db (28 snapshots), feedback.db (93 samples),\n> 3 benchmark files, and spec quality scores across 10 sprints of building maina itself.\n\n## Project Scale\n\n| Metric | Value |\n|--------|-------|\n| Sprints | 10 (0-9) |\n| Commits | 77 |\n| Tests | 820 (802 pass, 18 fail) |\n| Lines of code | ~31,000 |\n| Packages | 4 (core, cli, mcp, skills) |\n| Features specced | 7 (with spec/plan/tasks artifacts) |\n| CLI commands | 20 |\n| MCP tools | 8 |\n\n---\n\n## Sprint-by-Sprint Progression\n\n### Phase 1: No Maina (Sprints 0-2) — Claude + Superpowers Only\n\n| Sprint | Focus | Commits | What Superpowers Provided |\n|--------|-------|---------|---------------------------|\n| 0 | Monorepo scaffold | 7 | brainstorming, writing-plans skills |\n| 1 | Context Engine | 1 | TDD skill, manual verification |\n| 2 | Cache + Prompt Engine | 3 | Plan execution skill, manual code review |\n\n**What worked:** Superpowers skills gave structured process (brainstorm → plan → execute).\n**What was missing:** No persistent context across sessions. No automated verification. No spec/plan artifacts on disk. Every session started cold.\n\n### Phase 2: Maina Bootstrapping (Sprints 3-5) — Building Verification + Dogfooding\n\n| Sprint | Focus | Commits | First Maina Capabilities |\n|--------|-------|---------|--------------------------|\n| 3 | Verify Engine | 10 | `maina verify` — first automated gate |\n| 4 | Features/Plans/Specs | 14 | `maina plan`, `maina spec`, `maina analyze` — artifact-driven development |\n| 5 | Stats Tracker | 11 | `maina stats`, `maina commit` — first metrics, first dogfooding |\n\n**Crossover point:** Sprint 5 — maina started verifying its own commits.\n**First benchmark:** Sprint 5 — 9 tracked commits, avg verify 8.5s, 0 findings/commit.\n\n### Phase 3: Full Pipeline (Sprints 6-9) — Claude + Maina\n\n| Sprint | Focus | Commits | Maina Additions |\n|--------|-------|---------|-----------------|\n| 6 | PR + Init | 6 | `maina pr`, `maina init`, two-stage review |\n| 7 | MCP Server | 6 | 8 MCP tools — IDE integration |\n| 8 | RL Feedback | 11 | Feedback loop, A/B testing, prompt evolution |\n| 9 | Spec Quality | 9 | Karpathy-principled spec scoring, preferences |\n\n---\n\n## Comparison: Before Maina vs After Maina\n\n### 1. Verification Coverage\n\n| Metric | Superpowers (Sprints 0-2) | Maina (Sprints 5-9) |\n|--------|---------------------------|---------------------|\n| Automated verification | None | 4 tools (biome, semgrep, trivy, secretlint) |\n| Avg verify time | N/A (manual) | 8.8s per commit |\n| Findings per commit | Unknown | 2.2 (rolling avg) |\n| Syntax guard | None | Every commit, <500ms |\n| Slop detection | None | AI output validated before user sees it |\n| Secret scanning | None | Automated via secretlint |\n| Vulnerability scanning | None | Automated via trivy |\n\n**Result:** Every commit now passes through 4 security/quality tools. Zero manual effort.\n\n### 2. Context Quality\n\n| Metric | Superpowers | Maina |\n|--------|-------------|-------|\n| Context persistence | None (dies with session) | 4 layers, persisted to DB |\n| Semantic awareness | None | tree-sitter AST, PageRank dependency graph |\n| Episodic memory | None | 60 entries with Ebbinghaus decay |\n| Token utilization | Unknown | 5,727 tokens / 200k budget (2.9%) |\n| Context assembly | Manual CLAUDE.md reading | Automatic per-command assembly |\n\n**Result:** Maina assembles focused context automatically. Sessions don't start cold.\n\n### 3. Plan Quality\n\n| Metric | Superpowers | Maina |\n|--------|-------------|-------|\n| Artifact persistence | In-conversation only | spec.md + plan.md + tasks.md on disk |\n| Spec/plan separation | Not enforced | Analyzer catches violations |\n| Acceptance criteria tracking | Manual | Automated coverage checking |\n| Spec quality scoring | None | 0-100 score (measurability, testability, ambiguity, completeness) |\n| Average spec quality | N/A | 67/100 across 7 features |\n| Spec evolution | Not tracked | Scored per feature, trending visible |\n\n**Result:** Specs improved from 48/100 (feature 001) to 84/100 (feature 004) as the analyzer enforced discipline.\n\n### 4. Feedback Loop\n\n| Metric | Superpowers | Maina |\n|--------|-------------|-------|\n| Prompt improvement | Manual | A/B tested, auto-promoted at >5% improvement |\n| Feedback tracking | None | 93 samples across 2 tasks |\n| Commit prompt health | N/A | 93% accept rate (57 samples) — healthy |\n| Review prompt health | N/A | 44% accept rate (36 samples) — flagged for improvement |\n| Rule learning | None | Noisy rules auto-downgraded via preferences.json |\n\n**Result:** The system identifies which prompts need work and proposes improvements.\n\n### 5. Development Speed\n\n| Metric | Superpowers | Maina |\n|--------|-------------|-------|\n| Avg total commit time | Unknown | 14.6s (verify + hooks + context + stats) |\n| Pre-commit checks | lefthook only (biome + tsc) | lefthook + maina verify (4 tools + slop + diff filter) |\n| Cache hits | N/A | 0% (needs usage — identified gap) |\n\n**Note:** Speed comparison is incomplete because we don't have Superpowers timing data. The 14.6s includes verification that Superpowers didn't do at all.\n\n---\n\n## Data Gaps (Honest Assessment)\n\n| Gap | Why | Impact |\n|-----|-----|--------|\n| No Superpowers baseline timing | Superpowers doesn't track metrics | Can't compare speed |\n| Cache hit rate is 0% | Cache keys not yet exercised in repeated workflows | No cache benefit measurable yet |\n| Token utilization is <3% | Context budget is 200k but context is small | Budget system oversized |\n| No cost tracking | API spend not instrumented | Can't measure $/commit |\n| Sprint 1-4 have no benchmarks | Stats tracker built in Sprint 5 | Early data reconstructed from git log only |\n| Single developer | No A/B team comparison | Results are anecdotal, not statistical |\n\n---\n\n## Key Takeaways\n\n1. **Verification went from 0 to 4-tool automated pipeline.** Every commit now scanned for security vulnerabilities, secrets, linting issues, and AI slop. This is the clearest win.\n\n2. **Spec quality improved 75% (48→84) as the analyzer enforced WHAT/WHY vs HOW separation.** The analyzer's spec-coverage and separation-violation checks drove measurable improvement.\n\n3. **Prompt evolution identifies what's working and what isn't.** The commit prompt (93% accept) vs review prompt (44% accept) gives actionable signal for improvement.\n\n4. **Context persistence eliminates cold starts.** Working context, semantic index, and episodic memory carry forward across sessions — something Superpowers fundamentally cannot do.\n\n5. **The biggest gap is cache utilization.** The 3-layer cache exists but hit rate is 0%. This is the highest-ROI improvement to make next.\n",
+				"tasks": null
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "info",
+							"category": "missing-file",
+							"message": "tasks.md is missing — task tracking not available",
+							"file": "tasks.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 0,
+						"info": 1
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature 011: Self-Improvement — Context Hydration & RL-Driven Prompt Evolution\n\n## Problem\n\nMaina's context engine has 4 layers but 3 are effectively empty:\n- **Semantic:** 0 entities, 0 dependency edges — tree-sitter code exists but never runs at startup\n- **Episodic:** 0 entries — accepted reviews aren't compressed into episodes\n- **Cache:** 283 entries but 0% hit rate — cache keys may not be stable after host delegation fix\n\nThe review prompt has a **44% accept rate** (16/36 samples). Console-log slop detection has **64% false positive rate**.\n\nResult: maina spends time assembling empty context, review output is rejected more than accepted, and verification findings erode user trust.\n\n## Why Now\n\nThe tier 3 benchmark proved both pipelines produce identical quality. Maina's differentiator is verification + context — but context is empty and review is rejected half the time. Fixing these makes the actual tool better, not just the benchmark.\n\n## Success Criteria\n\n- **SC-1:** Semantic index populated on `maina init` and refreshed on `maina context` (entities + edges in DB)\n- **SC-2:** Episodic entries auto-created from accepted `maina commit` reviews (compressed to <500 tokens)\n- **SC-3:** Review prompt A/B candidate created targeting >60% accept rate\n- **SC-4:** Cache hit rate measurable and >0% on repeated queries\n- **SC-5:** Console-log slop rule respects `preferences.json` false positive threshold (skip if >50% FP)\n- **SC-6:** Benchmark command wired into CLI entrypoint\n- **SC-7:** `maina learn` outputs actionable prompt diff, not just stats table\n\n## Out of Scope\n\n- LSP/Zoekt integration (ripgrep is sufficient for now)\n- New CLI commands\n",
+				"plan": "# Implementation Plan — Feature 011: Self-Improvement\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nNo new modules. All changes are wiring existing code that's already written but not connected.\n\n## Files\n\n| File | Purpose | Change |\n|------|---------|--------|\n| `packages/core/src/context/semantic.ts` | Semantic index population | Wire `indexProject()` into context assembly |\n| `packages/core/src/context/engine.ts` | Context assembly | Call semantic indexing on first assembly per session |\n| `packages/core/src/feedback/compress.ts` | Episodic compression | Fix trigger — compress accepted reviews into episodic entries |\n| `packages/core/src/feedback/collector.ts` | Feedback collection | Trigger compression after accepted commit review |\n| `packages/core/src/verify/pipeline.ts` | Slop filtering | Respect preferences.json FP threshold |\n| `packages/core/src/prompts/defaults/review.md` | Review prompt | Create A/B candidate with clearer instructions |\n| `packages/core/src/cache/manager.ts` | Cache keys | Verify key stability after host delegation fix |\n| `packages/cli/src/program.ts` | CLI entrypoint | Wire benchmark command |\n| `packages/core/src/feedback/learn.ts` | Learn command | Output prompt diff, not just stats |\n\n## Tasks\n\nTDD: every implementation task must have a preceding test task.\n\n### Part A: Semantic Index Hydration (SC-1)\n\n- [ ] Task 1: Write failing test — `assembleContext()` populates semantic entities on first call (SC-1)\n- [ ] Task 2: Wire `indexProject()` call in `engine.ts` when semantic entities are empty (SC-1)\n- [ ] Task 3: Verify entities + edges populated after context assembly (SC-1)\n\n### Part B: Episodic Hydration (SC-2)\n\n- [ ] Task 4: Write failing test — accepted commit feedback triggers episodic compression\n- [ ] Task 5: Wire compression trigger in `collector.ts` after accepted commit review\n- [ ] Task 6: Verify episodic entries created with <500 token compression\n\n### Part C: Review Prompt Evolution (SC-3)\n\n- [ ] Task 7: Analyze 36 review samples — extract rejection patterns (SC-3)\n- [ ] Task 8: Create A/B candidate review prompt addressing top 3 rejection reasons (SC-3)\n- [ ] Task 9: Register candidate in prompt versioning system (SC-3)\n\n### Part D: Cache & Slop Fixes (SC-4, SC-5)\n\n- [ ] Task 10: Write test — verify cache key stability across sessions (SC-4)\n- [ ] Task 11: Fix cache key generation if unstable, verify hit rate >0% (SC-4)\n- [ ] Task 12: Write test — slop pipeline skips rules where FP rate >50% in preferences.json (SC-5)\n- [ ] Task 13: Wire preferences check into slop detection pipeline (SC-5)\n\n### Part E: Wiring & Polish (SC-6, SC-7)\n\n- [ ] Task 14: Register benchmark command in `program.ts`\n- [ ] Task 15: Enhance `maina learn` to output prompt diff suggestion\n- [ ] Task 16: Run maina verify + review on all changes\n\n## Testing Strategy\n\n- Unit tests for semantic index population (mock tree-sitter, verify DB writes)\n- Unit tests for episodic compression trigger (mock feedback, verify entry created)\n- Unit tests for slop FP threshold (mock preferences, verify rule skipped)\n- Integration test for cache hit rate (same query twice → hit)\n- Manual test for review prompt A/B (run maina review, compare old vs new)\n",
+				"tasks": null
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "info",
+							"category": "missing-file",
+							"message": "tasks.md is missing — task tracking not available",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"Task 1: Write failing test — `assembleContext()` populates semantic entities on first call (SC-1)\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"Task 7: Analyze 36 review samples — extract rejection patterns (SC-3)\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"Task 10: Write test — verify cache key stability across sessions (SC-4)\"",
+							"file": "plan.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 3,
+						"info": 1
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature 012: Multi-Language Verify Support (Python, Go, Rust)\n\n## Problem\n\nMaina's verify pipeline is hardcoded for TypeScript/JavaScript. Nine components have language-specific patterns (syntax-guard→Biome only, slop→JS regex, treesitter→TS imports, semantic→.ts/.js files, retrieval→TS globs). This blocks adoption for any non-TypeScript project.\n\n## Why Now\n\nProduct spec says \"any repo.\" Verify pipeline just shipped 9 tools + AI review. Now it needs to work beyond TypeScript.\n\n## Success Criteria\n\n- **SC-1:** `detectLanguages(cwd)` returns detected languages from project files (pyproject.toml → Python, go.mod → Go, Cargo.toml → Rust, tsconfig.json → TypeScript)\n- **SC-2:** Syntax guard routes to correct linter per language (Biome for TS, ruff for Python, go vet for Go, clippy for Rust)\n- **SC-3:** Slop detection uses language-specific patterns (print() for Python, fmt.Println for Go, println! for Rust)\n- **SC-4:** Tree-sitter parses entities for Python (def, class, import), Go (func, type, import), Rust (fn, struct, use)\n- **SC-5:** Semantic context collects files by detected language (.py, .go, .rs)\n- **SC-6:** Retrieval search uses language-appropriate file globs\n- **SC-7:** Tool registry includes ruff, golangci-lint, clippy, cargo-audit\n- **SC-8:** Pipeline filters tools by language compatibility\n- **SC-9:** Existing TypeScript behavior unchanged (backward compatible)\n\n## Out of Scope\n\n- Java, C#, Ruby (future)\n- Language-specific test runners (pytest, go test, cargo test)\n- LSP integration\n- Per-file language detection within polyglot repos (use dominant language)\n\n---\n\n## Design\n\n### Core Abstraction: Language Profile\n\nNew module: `packages/core/src/language/profile.ts`\n\n```typescript\ninterface LanguageProfile {\n  id: \"typescript\" | \"python\" | \"go\" | \"rust\";\n  extensions: string[];           // [\".ts\", \".tsx\", \".js\", \".jsx\"]\n  syntaxTool: string;             // \"biome\" | \"ruff\" | \"go-vet\" | \"clippy\"\n  syntaxArgs: (files: string[]) => string[];  // build CLI args\n  parseSyntaxOutput: (output: string) => SyntaxDiagnostic[];\n  slopPatterns: SlopRule[];       // language-specific slop patterns\n  commentStyles: string[];        // [\"//\", \"/*\"] or [\"#\"]\n  importPattern: RegExp;          // language-specific import regex\n  testFilePattern: RegExp;        // test file detection\n  fileGlobs: string[];            // for retrieval search\n  treeSitterLang: string;         // grammar name\n}\n```\n\n### Language Detection\n\nNew module: `packages/core/src/language/detect.ts`\n\n| Marker | Language |\n|--------|----------|\n| `tsconfig.json`, `package.json` | TypeScript |\n| `pyproject.toml`, `setup.py`, `requirements.txt` | Python |\n| `go.mod`, `go.sum` | Go |\n| `Cargo.toml`, `Cargo.lock` | Rust |\n\nReturns array of detected languages. Primary = first detected.\n\n### Syntax Guard Refactor\n\n`syntax-guard.ts` becomes a dispatcher — receives language profile, builds command, parses output per-tool. New parsers: `linters/ruff.ts`, `linters/go-vet.ts`, `linters/clippy.ts`.\n\n### Slop Detection Refactor\n\nEach LanguageProfile provides `slopPatterns`:\n- **Python:** `print()`, bare `except:`, `# type: ignore`, `pass` in non-abstract\n- **Go:** `fmt.Println`, `panic()`, empty `if err != nil {}`, `// nolint`\n- **Rust:** `println!`, `unwrap()`, `todo!()`, `#[allow(dead_code)]`\n- **TypeScript:** existing patterns unchanged\n\n### Tree-Sitter Extension\n\nAdd grammars + entity extractors for Python/Go/Rust. If WASM grammar unavailable, fall back to regex-based extraction.\n\n### Tool Registry Extension\n\nAdd to `detect.ts`: ruff, golangci-lint, clippy, cargo-audit\n\n### Pipeline Changes\n\n`PipelineOptions` gains `languages?: string[]`. Pipeline auto-detects languages, filters tools by compatibility, routes syntax guard per language.\n\n## Files to Change\n\n| File | Change |\n|------|--------|\n| `packages/core/src/language/profile.ts` | NEW — LanguageProfile interface + 4 profiles |\n| `packages/core/src/language/detect.ts` | NEW — detectLanguages from project markers |\n| `packages/core/src/verify/syntax-guard.ts` | Refactor to dispatch per language |\n| `packages/core/src/verify/linters/ruff.ts` | NEW — ruff JSON parser |\n| `packages/core/src/verify/linters/go-vet.ts` | NEW — go vet text parser |\n| `packages/core/src/verify/linters/clippy.ts` | NEW — clippy JSON parser |\n| `packages/core/src/verify/slop.ts` | Load patterns from LanguageProfile |\n| `packages/core/src/verify/pipeline.ts` | Language detection + tool filtering |\n| `packages/core/src/verify/detect.ts` | Add ruff, golangci-lint, clippy, cargo-audit |\n| `packages/core/src/context/treesitter.ts` | Python/Go/Rust entity extraction |\n| `packages/core/src/context/semantic.ts` | Dynamic file extension collection |\n| `packages/core/src/context/relevance.ts` | Language-aware import resolution |\n| `packages/core/src/context/retrieval.ts` | Dynamic file globs |\n| `packages/core/src/init/index.ts` | Extend language detection + templates |\n",
+				"plan": "# Multi-Language Verify Support Implementation Plan\n\n> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.\n\n**Goal:** Make maina's verify pipeline, slop detector, and context engine work with Python, Go, and Rust projects — not just TypeScript.\n\n**Architecture:** A `LanguageProfile` abstraction maps each language to its tools, file patterns, and slop rules. Language detection reads project marker files (go.mod, pyproject.toml, Cargo.toml). The syntax guard, slop detector, semantic collector, and retrieval search all consume the profile instead of hardcoded TS/JS patterns. Existing TypeScript behavior is preserved as the default profile.\n\n**Tech Stack:** Bun, TypeScript, bun:test, existing `Finding` interface, existing `Result<T>` pattern.\n\n---\n\n## File Structure\n\n| File | Responsibility |\n|------|----------------|\n| `packages/core/src/language/profile.ts` | **NEW** — LanguageProfile interface + 4 built-in profiles (TS, Python, Go, Rust) |\n| `packages/core/src/language/detect.ts` | **NEW** — detectLanguages() from project marker files |\n| `packages/core/src/language/__tests__/profile.test.ts` | **NEW** — profile tests |\n| `packages/core/src/language/__tests__/detect.test.ts` | **NEW** — detection tests |\n| `packages/core/src/verify/syntax-guard.ts` | Refactor to dispatch per LanguageProfile |\n| `packages/core/src/verify/linters/ruff.ts` | **NEW** — ruff JSON output parser |\n| `packages/core/src/verify/linters/go-vet.ts` | **NEW** — go vet text output parser |\n| `packages/core/src/verify/linters/clippy.ts` | **NEW** — clippy JSON output parser |\n| `packages/core/src/verify/__tests__/linters/` | **NEW** — linter parser tests |\n| `packages/core/src/verify/slop.ts` | Accept language profile for patterns |\n| `packages/core/src/verify/detect.ts` | Add ruff, golangci-lint, clippy, cargo-audit |\n| `packages/core/src/verify/pipeline.ts` | Auto-detect language, pass to syntax guard + slop |\n| `packages/core/src/context/semantic.ts` | Dynamic file extensions from profile |\n| `packages/core/src/context/retrieval.ts` | Dynamic file globs from profile |\n| `packages/core/src/index.ts` | Export new public API |\n\n---\n\n## Part 1: Foundation — Language Profiles + Detection\n\n### Task 1: Create LanguageProfile interface and TypeScript profile\n\n**Files:**\n- Create: `packages/core/src/language/profile.ts`\n- Create: `packages/core/src/language/__tests__/profile.test.ts`\n\n- [ ] **Step 1: Write failing test**\n\nCreate `packages/core/src/language/__tests__/profile.test.ts`:\n\n```typescript\nimport { describe, expect, it } from \"bun:test\";\nimport {\n  getProfile,\n  TYPESCRIPT_PROFILE,\n  type LanguageId,\n} from \"../profile\";\n\ndescribe(\"LanguageProfile\", () => {\n  it(\"should return TypeScript profile by default\", () => {\n    const profile = getProfile(\"typescript\");\n    expect(profile.id).toBe(\"typescript\");\n    expect(profile.extensions).toContain(\".ts\");\n    expect(profile.extensions).toContain(\".tsx\");\n    expect(profile.syntaxTool).toBe(\"biome\");\n    expect(profile.commentPrefixes).toContain(\"//\");\n  });\n\n  it(\"should return Python profile\", () => {\n    const profile = getProfile(\"python\");\n    expect(profile.id).toBe(\"python\");\n    expect(profile.extensions).toContain(\".py\");\n    expect(profile.syntaxTool).toBe(\"ruff\");\n    expect(profile.commentPrefixes).toContain(\"#\");\n  });\n\n  it(\"should return Go profile\", () => {\n    const profile = getProfile(\"go\");\n    expect(profile.id).toBe(\"go\");\n    expect(profile.extensions).toContain(\".go\");\n    expect(profile.syntaxTool).toBe(\"go-vet\");\n    expect(profile.commentPrefixes).toContain(\"//\");\n  });\n\n  it(\"should return Rust profile\", () => {\n    const profile = getProfile(\"rust\");\n    expect(profile.id).toBe(\"rust\");\n    expect(profile.extensions).toContain(\".rs\");\n    expect(profile.syntaxTool).toBe(\"clippy\");\n    expect(profile.commentPrefixes).toContain(\"//\");\n  });\n\n  it(\"should have test file pattern for each language\", () => {\n    expect(TYPESCRIPT_PROFILE.testFilePattern.test(\"app.test.ts\")).toBe(true);\n    expect(getProfile(\"python\").testFilePattern.test(\"test_app.py\")).toBe(true);\n    expect(getProfile(\"go\").testFilePattern.test(\"app_test.go\")).toBe(true);\n    expect(getProfile(\"rust\").testFilePattern.test(\"tests/mod.rs\")).toBe(true);\n  });\n\n  it(\"should have console/print patterns for slop detection\", () => {\n    expect(TYPESCRIPT_PROFILE.printPattern.test(\"console.log('x')\")).toBe(true);\n    expect(getProfile(\"python\").printPattern.test(\"print('x')\")).toBe(true);\n    expect(getProfile(\"go\").printPattern.test(\"fmt.Println(x)\")).toBe(true);\n    expect(getProfile(\"rust\").printPattern.test(\"println!(x)\")).toBe(true);\n  });\n});\n```\n\n- [ ] **Step 2: Run test to verify it fails**\n\nRun: `bun test --filter \"LanguageProfile\"`\nExpected: FAIL — module does not exist\n\n- [ ] **Step 3: Implement LanguageProfile**\n\nCreate `packages/core/src/language/profile.ts`:\n\n```typescript\n/**\n * Language Profiles — maps each supported language to its tools,\n * file patterns, and slop detection rules.\n */\n\n// ─── Types ────────────────────────────────────────────────────────────────\n\nexport type LanguageId = \"typescript\" | \"python\" | \"go\" | \"rust\";\n\nexport interface LanguageProfile {\n  id: LanguageId;\n  displayName: string;\n  extensions: string[];\n  syntaxTool: string;\n  syntaxArgs: (files: string[], cwd: string) => string[];\n  commentPrefixes: string[];\n  testFilePattern: RegExp;\n  printPattern: RegExp;\n  lintIgnorePattern: RegExp;\n  importPattern: RegExp;\n  fileGlobs: string[];\n}\n\n// ─── Profiles ─────────────────────────────────────────────────────────────\n\nexport const TYPESCRIPT_PROFILE: LanguageProfile = {\n  id: \"typescript\",\n  displayName: \"TypeScript\",\n  extensions: [\".ts\", \".tsx\", \".js\", \".jsx\"],\n  syntaxTool: \"biome\",\n  syntaxArgs: (files, _cwd) => [\n    \"biome\", \"check\", \"--reporter=json\", \"--no-errors-on-unmatched\", \"--colors=off\", ...files,\n  ],\n  commentPrefixes: [\"//\", \"/*\"],\n  testFilePattern: /\\.(test|spec)\\.[jt]sx?$/,\n  printPattern: /console\\.(log|warn|error|debug|info)\\s*\\(/,\n  lintIgnorePattern: /@ts-ignore|@ts-expect-error|noinspection/,\n  importPattern: /^import\\s+(?:type\\s+)?(?:\\{[^}]+\\}|\\*\\s+as\\s+\\w+|\\w+)\\s+from\\s+[\"']([^\"']+)[\"']/,\n  fileGlobs: [\"*.ts\", \"*.tsx\", \"*.js\", \"*.jsx\"],\n};\n\nexport const PYTHON_PROFILE: LanguageProfile = {\n  id: \"python\",\n  displayName: \"Python\",\n  extensions: [\".py\", \".pyi\"],\n  syntaxTool: \"ruff\",\n  syntaxArgs: (files, _cwd) => [\n    \"ruff\", \"check\", \"--output-format=json\", ...files,\n  ],\n  commentPrefixes: [\"#\"],\n  testFilePattern: /(?:^test_|_test\\.py$|tests\\/)/,\n  printPattern: /\\bprint\\s*\\(/,\n  lintIgnorePattern: /# type:\\s*ignore|# noqa|# pragma:\\s*no cover/,\n  importPattern: /^(?:from\\s+(\\S+)\\s+import|import\\s+(\\S+))/,\n  fileGlobs: [\"*.py\", \"*.pyi\"],\n};\n\nexport const GO_PROFILE: LanguageProfile = {\n  id: \"go\",\n  displayName: \"Go\",\n  extensions: [\".go\"],\n  syntaxTool: \"go-vet\",\n  syntaxArgs: (files, _cwd) => [\"go\", \"vet\", ...files],\n  commentPrefixes: [\"//\"],\n  testFilePattern: /_test\\.go$/,\n  printPattern: /fmt\\.Print(?:ln|f)?\\s*\\(/,\n  lintIgnorePattern: /\\/\\/\\s*nolint/,\n  importPattern: /^\\s*\"([^\"]+)\"/,\n  fileGlobs: [\"*.go\"],\n};\n\nexport const RUST_PROFILE: LanguageProfile = {\n  id: \"rust\",\n  displayName: \"Rust\",\n  extensions: [\".rs\"],\n  syntaxTool: \"clippy\",\n  syntaxArgs: (files, _cwd) => [\n    \"cargo\", \"clippy\", \"--message-format=json\", \"--\", ...files,\n  ],\n  commentPrefixes: [\"//\"],\n  testFilePattern: /(?:tests\\/|_test\\.rs$|#\\[cfg\\(test\\)\\])/,\n  printPattern: /(?:println!|print!|eprintln!|eprint!)\\s*\\(/,\n  lintIgnorePattern: /#\\[allow\\(|#!\\[allow\\(/,\n  importPattern: /^use\\s+(\\S+)/,\n  fileGlobs: [\"*.rs\"],\n};\n\n// ─── Registry ─────────────────────────────────────────────────────────────\n\nconst PROFILES: Record<LanguageId, LanguageProfile> = {\n  typescript: TYPESCRIPT_PROFILE,\n  python: PYTHON_PROFILE,\n  go: GO_PROFILE,\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\nEach task should be completable in one commit. Test tasks precede implementation tasks.\n\n- [ ] [NEEDS CLARIFICATION] Define tasks.\n\n## Dependencies\n\nWhich tasks block which? Draw the critical path.\n\n- [NEEDS CLARIFICATION]\n\n## Definition of Done\n\nHow do we know this feature is complete?\n\n- [ ] All tests pass\n- [ ] Biome lint clean\n- [ ] TypeScript compiles\n- [ ] maina analyze shows no errors\n- [ ] [NEEDS CLARIFICATION] Feature-specific criteria\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"[NEEDS CLARIFICATION] Define tasks.\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "task-consistency",
+							"message": "Task count mismatch: plan.md has 0 tasks, tasks.md has 1 tasks"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 2,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature 016: Post-Workflow RL Self-Improvement Loop\n\n## Problem\n\n`maina learn` shows per-command metrics (review: 44%, commit: 83%) but has no visibility into per-workflow-step performance. Feature 015 added `workflow_step` and `workflow_id` to feedback records, but nothing reads them yet. There's no way to see which workflow steps consistently underperform or which workflow runs produced the best outcomes.\n\n## Success Criteria\n\n- **SC-1:** `analyseWorkflowFeedback(mainaDir)` returns per-step metrics (samples, accept rate, needs improvement) using the `workflow_step` column\n- **SC-2:** `analyseWorkflowRuns(mainaDir)` returns per-workflow-run metrics grouped by `workflow_id` (how many steps passed, overall success rate)\n- **SC-3:** `maina learn` shows a workflow steps table alongside the existing tasks table\n- **SC-4:** `maina learn` shows workflow run summaries (last 5 runs: X/Y steps passed)\n- **SC-5:** A/B test resolution considers workflow step context — a prompt that performs well in the \"review\" step should be promoted for that step\n\n## Out of Scope\n\n- Correlation analysis (spec quality → implementation findings) — future\n- Auto-generating improved prompts from workflow trace — future\n- Per-file language-specific learning — future\n\n## Design\n\n### New Analysis Functions\n\nIn `packages/core/src/prompts/evolution.ts`, add:\n\n```typescript\ninterface WorkflowStepAnalysis {\n  step: string;\n  totalSamples: number;\n  acceptRate: number;\n  needsImprovement: boolean;\n}\n\ninterface WorkflowRunSummary {\n  workflowId: string;\n  totalSteps: number;\n  passedSteps: number;\n  successRate: number;\n  createdAt: string;\n}\n\nfunction analyseWorkflowFeedback(mainaDir: string): WorkflowStepAnalysis[]\nfunction analyseWorkflowRuns(mainaDir: string, limit?: number): WorkflowRunSummary[]\n```\n\n### SQL Queries\n\nPer-step analysis:\n```sql\nSELECT workflow_step, COUNT(*) as total,\n       SUM(CASE WHEN accepted = 1 THEN 1 ELSE 0 END) as accepted_count\nFROM feedback\nWHERE workflow_step IS NOT NULL\nGROUP BY workflow_step\n```\n\nPer-run summary:\n```sql\nSELECT workflow_id, COUNT(*) as total_steps,\n       SUM(CASE WHEN accepted = 1 THEN 1 ELSE 0 END) as passed_steps,\n       MIN(created_at) as created_at\nFROM feedback\nWHERE workflow_id IS NOT NULL\nGROUP BY workflow_id\nORDER BY created_at DESC\nLIMIT ?\n```\n\n### Learn Command Enhancement\n\n`packages/cli/src/commands/learn.ts` adds two new sections after the existing tasks table:\n\n1. **Workflow Steps table** — same format as tasks table but grouped by `workflow_step`\n2. **Recent Workflow Runs** — last 5 runs with step pass rates\n\n```\nWorkflow Steps:\n  Step              Samples  Accept  Status\n  ──────────────── ──────── ──────── ────────\n  plan                  12     92%  healthy\n  design                 8     75%  needs improvement\n  design-review         10     80%  healthy\n  commit                84     83%  healthy\n  verify                45     95%  healthy\n  pr                     6    100%  healthy\n\nRecent Workflow Runs:\n  Workflow ID   Steps  Passed  Rate\n  ──────────── ────── ─────── ──────\n  a3f8b2c1d4e5   6/6    100%  ✓\n  b7d2e9f0a1c3   5/6     83%  —\n```\n\n## Files to Change\n\n| File | Change |\n|------|--------|\n| `packages/core/src/prompts/evolution.ts` | Add `analyseWorkflowFeedback`, `analyseWorkflowRuns`, new types |\n| `packages/core/src/prompts/__tests__/evolution.test.ts` | Tests for new functions |\n| `packages/cli/src/commands/learn.ts` | Show workflow steps + runs tables |\n| `packages/core/src/index.ts` | Export new functions + types |\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nWhat is the technical approach? How does it fit into existing architecture?\nWhere are the integration points with existing code?\n\n- Pattern: [NEEDS CLARIFICATION]\n- Integration points: [NEEDS CLARIFICATION]\n\n## Key Technical Decisions\n\nWhat libraries, patterns, or approaches? WHY these and not alternatives?\n\n- [NEEDS CLARIFICATION]\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| [NEEDS CLARIFICATION] | | |\n\n## Tasks\n\nTDD: every implementation task must have a preceding test task.\n\n- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.\n\n## Failure Modes\n\nWhat can go wrong? How do we handle it gracefully?\n\n- [NEEDS CLARIFICATION]\n\n## Testing Strategy\n\nUnit tests, integration tests, or both? What mocks are needed?\n\n- [NEEDS CLARIFICATION]\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\nEach task should be completable in one commit. Test tasks precede implementation tasks.\n\n- [ ] [NEEDS CLARIFICATION] Define tasks.\n\n## Dependencies\n\nWhich tasks block which? Draw the critical path.\n\n- [NEEDS CLARIFICATION]\n\n## Definition of Done\n\nHow do we know this feature is complete?\n\n- [ ] All tests pass\n- [ ] Biome lint clean\n- [ ] TypeScript compiles\n- [ ] maina analyze shows no errors\n- [ ] [NEEDS CLARIFICATION] Feature-specific criteria\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"[NEEDS CLARIFICATION] Break down into small, testable tasks.\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"[NEEDS CLARIFICATION] Define tasks.\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "separation-violation",
+							"message": "spec.md contains implementation detail: \"- Correlation analysis (spec quality → implementation findings) — future\"",
+							"file": "spec.md",
+							"line": 17
+						},
+						{
+							"severity": "warning",
+							"category": "separation-violation",
+							"message": "spec.md contains implementation detail: \"### SQL Queries\"",
+							"file": "spec.md",
+							"line": 47
+						},
+						{
+							"severity": "warning",
+							"category": "separation-violation",
+							"message": "spec.md contains implementation detail: \"```sql\"",
+							"file": "spec.md",
+							"line": 50
+						},
+						{
+							"severity": "warning",
+							"category": "separation-violation",
+							"message": "spec.md contains implementation detail: \"```sql\"",
+							"file": "spec.md",
+							"line": 59
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 6,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: [Name]\n\n## Problem Statement\n\nWhat specific problem does this solve? Who experiences it? What happens if we don't solve it?\n\n- [NEEDS CLARIFICATION] Define the problem clearly.\n\n## Target User\n\nWho benefits? What is their current workflow? What frustrates them about it?\n\n- Primary: [NEEDS CLARIFICATION]\n- Secondary: [NEEDS CLARIFICATION]\n\n## User Stories\n\n- As a [role], I want [capability] so that [benefit].\n\n## Success Criteria\n\nHow do we know this works? Every criterion must be testable — if you can't write\nan assertion for it, the requirement isn't clear enough.\n\n- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.\n\n## Scope\n\n### In Scope\n\n- [NEEDS CLARIFICATION] What this feature does.\n\n### Out of Scope\n\n- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).\n\n## Design Decisions\n\nKey choices made and WHY. Record tradeoffs — future you will thank you.\n\n- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?\n\n## Open Questions\n\n- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nWhat is the technical approach? How does it fit into existing architecture?\nWhere are the integration points with existing code?\n\n- Pattern: [NEEDS CLARIFICATION]\n- Integration points: [NEEDS CLARIFICATION]\n\n## Key Technical Decisions\n\nWhat libraries, patterns, or approaches? WHY these and not alternatives?\n\n- [NEEDS CLARIFICATION]\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| [NEEDS CLARIFICATION] | | |\n\n## Tasks\n\nTDD: every implementation task must have a preceding test task.\n\n- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.\n\n## Failure Modes\n\nWhat can go wrong? How do we handle it gracefully?\n\n- [NEEDS CLARIFICATION]\n\n## Testing Strategy\n\nUnit tests, integration tests, or both? What mocks are needed?\n\n- [NEEDS CLARIFICATION]\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\nEach task should be completable in one commit. Test tasks precede implementation tasks.\n\n- [ ] [NEEDS CLARIFICATION] Define tasks.\n\n## Dependencies\n\nWhich tasks block which? Draw the critical path.\n\n- [NEEDS CLARIFICATION]\n\n## Definition of Done\n\nHow do we know this feature is complete?\n\n- [ ] All tests pass\n- [ ] Biome lint clean\n- [ ] TypeScript compiles\n- [ ] maina analyze shows no errors\n- [ ] [NEEDS CLARIFICATION] Feature-specific criteria\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "separation-violation",
+							"message": "spec.md contains implementation detail: \"- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.\"",
+							"file": "spec.md",
+							"line": 45
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 1,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: [Name]\n\n## Problem Statement\n\nWhat specific problem does this solve? Who experiences it? What happens if we don't solve it?\n\n- [NEEDS CLARIFICATION] Define the problem clearly.\n\n## Target User\n\nWho benefits? What is their current workflow? What frustrates them about it?\n\n- Primary: [NEEDS CLARIFICATION]\n- Secondary: [NEEDS CLARIFICATION]\n\n## User Stories\n\n- As a [role], I want [capability] so that [benefit].\n\n## Success Criteria\n\nHow do we know this works? Every criterion must be testable — if you can't write\nan assertion for it, the requirement isn't clear enough.\n\n- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.\n\n## Scope\n\n### In Scope\n\n- [NEEDS CLARIFICATION] What this feature does.\n\n### Out of Scope\n\n- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).\n\n## Design Decisions\n\nKey choices made and WHY. Record tradeoffs — future you will thank you.\n\n- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?\n\n## Open Questions\n\n- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nWhat is the technical approach? How does it fit into existing architecture?\nWhere are the integration points with existing code?\n\n- Pattern: [NEEDS CLARIFICATION]\n- Integration points: [NEEDS CLARIFICATION]\n\n## Key Technical Decisions\n\nWhat libraries, patterns, or approaches? WHY these and not alternatives?\n\n- [NEEDS CLARIFICATION]\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| [NEEDS CLARIFICATION] | | |\n\n## Tasks\n\nTDD: every implementation task must have a preceding test task.\n\n- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.\n\n## Failure Modes\n\nWhat can go wrong? How do we handle it gracefully?\n\n- [NEEDS CLARIFICATION]\n\n## Testing Strategy\n\nUnit tests, integration tests, or both? What mocks are needed?\n\n- [NEEDS CLARIFICATION]\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\nEach task should be completable in one commit. Test tasks precede implementation tasks.\n\n- [ ] [NEEDS CLARIFICATION] Define tasks.\n\n## Dependencies\n\nWhich tasks block which? Draw the critical path.\n\n- [NEEDS CLARIFICATION]\n\n## Definition of Done\n\nHow do we know this feature is complete?\n\n- [ ] All tests pass\n- [ ] Biome lint clean\n- [ ] TypeScript compiles\n- [ ] maina analyze shows no errors\n- [ ] [NEEDS CLARIFICATION] Feature-specific criteria\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "separation-violation",
+							"message": "spec.md contains implementation detail: \"- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.\"",
+							"file": "spec.md",
+							"line": 45
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 1,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# v0.4.0 — Polish + CI\n\n## Problem Statement\n\nMaina CLI is not CI-ready. Commands output human-readable text only — no `--json` for machine parsing. Exit codes are inconsistent (always 0 or 1). No GitHub Action for easy CI integration. Polyglot repos only detect the primary language, missing per-file analysis. PHP is the 4th most popular backend language and has no support. DAST and performance auditing are missing from the verification pipeline.\n\n## Target User\n\n- Primary: Teams adopting maina in CI pipelines (GitHub Actions, GitLab CI)\n- Secondary: PHP developers, polyglot repo maintainers, security-conscious teams\n\n## User Stories\n\n- As a CI engineer, I want `maina verify --json` so I can parse results programmatically and fail builds on errors.\n- As a CI engineer, I want meaningful exit codes so my pipeline can distinguish \"passed\", \"warnings only\", and \"failed\".\n- As a CI engineer, I want `mainahq/verify-action` GitHub Action so I can add maina to any repo in 3 lines of YAML.\n- As a PHP developer, I want maina to run PHPStan and Psalm on my code.\n- As a polyglot developer, I want maina to detect the language of each file, not just the project's primary language.\n- As a security engineer, I want DAST (ZAP) to scan my web app for runtime vulnerabilities.\n- As a frontend developer, I want Lighthouse auditing for performance, accessibility, and SEO.\n\n## Success Criteria\n\n- [ ] `maina verify --json` outputs valid JSON with findings, tools, duration\n- [ ] `maina commit --json`, `maina review --json`, `maina stats --json` all work\n- [ ] Exit code 0 = passed, 1 = findings with errors, 2 = tool failure, 3 = configuration error\n- [ ] `mainahq/verify-action` GitHub Action works in a sample repo\n- [ ] PHP language profile detects PHPStan/Psalm, runs them, parses output to Finding[]\n- [ ] Polyglot repo with .ts + .py files runs both biome and ruff\n- [ ] ZAP integration runs DAST against a configured target URL\n- [ ] Lighthouse integration runs perf/a11y/SEO audit and produces findings\n\n## Scope\n\n### In Scope\n\n- `--json` flag on all commands\n- Exit codes (0/1/2/3)\n- GitHub Action (`mainahq/verify-action`)\n- PHP language profile (PHPStan, Psalm)\n- Per-file language detection\n- ZAP DAST integration\n- Lighthouse integration\n\n### Out of Scope\n\n- GitLab CI / Buildkite integrations (deferred to v0.6.0 hosted verify)\n- PHP framework-specific rules (Laravel, Symfony)\n- Lighthouse CI (scheduled runs) — just single-run auditing for now\n\n## Design Decisions\n\n- **--json uses same internal types** — PipelineResult, ReviewResult, etc. are already structured. --json just serializes them instead of formatting for terminal.\n- **Exit codes follow UNIX conventions** — 0 success, non-zero failure. We add 2 (tool failure) and 3 (config error) beyond the standard 0/1.\n- **Per-file detection extends existing LanguageProfile system** — Each file gets its own profile lookup based on extension, used for syntax guard and slop detection.\n- **ZAP runs as a Docker container** — Most teams already have Docker. ZAP outputs SARIF which we already parse (same as Semgrep).\n- **Lighthouse uses the npm package** — `lighthouse` CLI outputs JSON, parsed into Finding[].\n",
+				"plan": "# Implementation Plan — v0.4.0 Polish + CI\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\n4 phases, each independently shippable. All commands gain `--json` first (foundation), then CI integration, then language expansion, then new tools.\n\n- Pattern: `--json` adds a serialization layer on top of existing Result types. No new data structures needed.\n- Integration points: `cli/src/commands/*.ts` (flag), `core/src/language/profile.ts` (PHP), `core/src/verify/pipeline.ts` (per-file routing, new tools)\n\n## Key Technical Decisions\n\n- **--json serializes existing types** — PipelineResult, ReviewResult, etc. already structured. No adapter needed.\n- **Exit codes via process.exitCode** — Not process.exit(), allows cleanup handlers to run.\n- **ZAP via Docker** — `docker run zaproxy/zap-stable` outputs SARIF. Reuse existing `parseSarif()`.\n- **Lighthouse via npm** — `lighthouse` CLI outputs JSON. Parse scores + diagnostics into Finding[].\n- **Per-file detection by extension** — Simple, fast, deterministic. Uses existing LanguageProfile.extensions.\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| `packages/cli/src/json.ts` | Shared JSON output helper | New |\n| `packages/cli/src/commands/verify.ts` | --json flag | Modified |\n| `packages/cli/src/commands/commit.ts` | --json flag | Modified |\n| `packages/cli/src/commands/review.ts` | --json flag | Modified |\n| `packages/cli/src/commands/stats.ts` | --json flag | Modified |\n| `packages/cli/src/commands/context.ts` | --json flag | Modified |\n| `packages/cli/src/commands/doctor.ts` | --json flag | Modified |\n| `packages/cli/src/commands/slop.ts` | --json flag | Modified |\n| `packages/cli/src/commands/analyze.ts` | --json flag | Modified |\n| `packages/cli/src/index.ts` | Exit code mapping | Modified |\n| `packages/core/src/language/profile.ts` | PHP profile | Modified |\n| `packages/core/src/language/detect.ts` | Per-file detection, PHP markers | Modified |\n| `packages/core/src/verify/pipeline.ts` | Per-file language routing | Modified |\n| `packages/core/src/verify/zap.ts` | ZAP DAST runner | New |\n| `packages/core/src/verify/lighthouse.ts` | Lighthouse runner | New |\n| `.github/actions/verify/action.yml` | GitHub Action | New |\n| `packages/core/src/index.ts` | Export new modules | Modified |\n\n## Tasks\n\nTDD: every implementation task must have a preceding test task.\n\n### Phase 1: Structured output\n\n- [ ] T1.1: Create `cli/src/json.ts` — `formatJson()` helper + exit code mapping\n- [ ] T1.2: Add `--json` flag to `maina verify` — serialize PipelineResult\n- [ ] T1.3: Add `--json` flag to `maina commit` — serialize commit result\n- [ ] T1.4: Add `--json` flag to `maina review`, `stats`, `context`, `doctor`, `slop`, `analyze`\n- [ ] T1.5: Implement exit codes in `cli/src/index.ts` — 0/1/2/3 mapping\n- [ ] T1.6: Write tests for --json output and exit codes\n- [ ] T1.7: `maina verify` + `maina commit`\n\n### Phase 2: CI integration\n\n- [ ] T2.1: Create `.github/actions/verify/action.yml` — composite action\n- [ ] T2.2: Action runs `maina verify --json`, posts results as PR comment\n- [ ] T2.3: Test action in a sample workflow\n- [ ] T2.4: `maina verify` + `maina commit`\n\n### Phase 3: Language expansion\n\n- [ ] T3.1: Write failing tests for PHP language profile\n- [ ] T3.2: Add PHP profile to `language/profile.ts` — PHPStan, Psalm\n- [ ] T3.3: Add PHP detection to `language/detect.ts` — composer.json, .php files\n- [ ] T3.4: Write failing tests for per-file language detection\n- [ ] T3.5: Implement `detectFileLanguage(filePath)` in `language/detect.ts`\n- [ ] T3.6: Update `verify/pipeline.ts` — route per-file to correct profile\n- [ ] T3.7: Run tests — confirm green\n- [ ] T3.8: `maina verify` + `maina commit`\n\n### Phase 4: New tools\n\n- [ ] T4.1: Write failing tests for ZAP integration\n- [ ] T4.2: Implement `verify/zap.ts` — Docker runner + SARIF parser\n- [ ] T4.3: Write failing tests for Lighthouse integration\n- [ ] T4.4: Implement `verify/lighthouse.ts` — CLI runner + JSON parser\n- [ ] T4.5: Register ZAP + Lighthouse in pipeline and detect.ts\n- [ ] T4.6: Run tests — confirm green\n- [ ] T4.7: Export new modules from `core/src/index.ts`\n- [ ] T4.8: `maina verify` + `maina commit`\n\n### Finalize\n\n- [ ] T5.1: Run full test suite — confirm 0 failures\n- [ ] T5.2: `maina review` — comprehensive review\n- [ ] T5.3: Fix review findings\n- [ ] T5.4: Update roadmap + IMPLEMENTATION_PLAN.md\n- [ ] T5.5: `maina commit` — final commit\n- [ ] T5.6: `maina pr` — create PR with verification proof\n\n## Failure Modes\n\n- `--json` on interactive commands (brainstorm, configure) → error: \"--json not supported for interactive commands\"\n- ZAP Docker not available → skip with info note\n- Lighthouse not installed → skip with info note\n- PHP tools not installed → skip with info note (same as all other language tools)\n- Exit code 2 (tool failure) → logged, doesn't mask findings from other tools\n\n## Testing Strategy\n\n- **Unit tests**: JSON formatter, exit code mapping, PHP profile, per-file detection, ZAP/Lighthouse parsers\n- **Integration**: `maina verify --json | jq .passed` returns true/false\n- **Mocks**: Docker (ZAP), lighthouse CLI, phpstan, psalm\n- **Patterns**: Follow existing `describe/it` + `mock.module()` patterns\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\nEach task should be completable in one commit. Test tasks precede implementation tasks.\n\n### Phase 1: Structured output\n- [ ] T1.1: Create cli/src/json.ts — formatJson() + exit code mapping\n- [ ] T1.2: Add --json to maina verify\n- [ ] T1.3: Add --json to maina commit\n- [ ] T1.4: Add --json to review, stats, context, doctor, slop, analyze\n- [ ] T1.5: Implement exit codes in cli/src/index.ts\n- [ ] T1.6: Write tests for --json and exit codes\n- [ ] T1.7: maina verify + maina commit\n\n### Phase 2: CI integration\n- [ ] T2.1: Create .github/actions/verify/action.yml\n- [ ] T2.2: Action runs maina verify --json, posts PR comment\n- [ ] T2.3: Test action in sample workflow\n- [ ] T2.4: maina verify + maina commit\n\n### Phase 3: Language expansion\n- [ ] T3.1: Write failing tests for PHP profile\n- [ ] T3.2: Add PHP profile + detection\n- [ ] T3.3: Write failing tests for per-file detection\n- [ ] T3.4: Implement detectFileLanguage()\n- [ ] T3.5: Update pipeline for per-file routing\n- [ ] T3.6: Run tests\n- [ ] T3.7: maina verify + maina commit\n\n### Phase 4: New tools\n- [ ] T4.1: Write failing tests for ZAP\n- [ ] T4.2: Implement verify/zap.ts\n- [ ] T4.3: Write failing tests for Lighthouse\n- [ ] T4.4: Implement verify/lighthouse.ts\n- [ ] T4.5: Register in pipeline + detect.ts\n- [ ] T4.6: Run tests\n- [ ] T4.7: Export new modules\n- [ ] T4.8: maina verify + maina commit\n\n### Finalize\n- [ ] T5.1: Full test suite — 0 failures\n- [ ] T5.2: maina review\n- [ ] T5.3: Fix findings\n- [ ] T5.4: Update docs\n- [ ] T5.5: maina commit\n- [ ] T5.6: maina pr\n\n## Dependencies\n\n```\nPhase 1 (--json, exit codes) → Phase 2 (CI Action needs --json)\nPhase 1 → Phase 3 (per-file detection independent, but builds on Phase 1 commit)\nPhase 3 → Phase 4 (new tools follow same patterns)\nFinalize after all phases\n```\n\n## Definition of Done\n\n- [ ] All tests pass (0 failures)\n- [ ] Biome lint clean\n- [ ] TypeScript compiles\n- [ ] maina analyze shows no errors\n- [ ] maina verify --json outputs valid JSON\n- [ ] Exit codes 0/1/2/3 work correctly\n- [ ] GitHub Action works in sample repo\n- [ ] PHP profile detects and runs PHPStan\n- [ ] Per-file detection works in polyglot repos\n- [ ] ZAP and Lighthouse skip gracefully when not installed\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T3.5: Implement `detectFileLanguage(filePath)` in `language/detect.ts`\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T4.7: Export new modules from `core/src/index.ts`\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T5.1: Run full test suite — confirm 0 failures\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T5.4: Update roadmap + IMPLEMENTATION_PLAN.md\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T2.1: Create .github/actions/verify/action.yml\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T3.4: Implement detectFileLanguage()\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T4.2: Implement verify/zap.ts\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T4.4: Implement verify/lighthouse.ts\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T4.7: Export new modules\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T5.1: Full test suite — 0 failures\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T5.4: Update docs\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "task-consistency",
+							"message": "Task count mismatch: plan.md has 33 tasks, tasks.md has 32 tasks"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 12,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: v1.0.0 — Launch\n\n## Problem Statement\n\nMaina is feature-complete (v0.7.0) but lacks community infrastructure, proper org structure, and a launch story. The repo is still under `beeeku/maina`, there's no CONTRIBUTING.md, and a known bug (#47) ships broken brainstorm output.\n\n## Target User\n\n- Primary: Developers discovering maina via Show HN / dev.to\n- Secondary: Contributors who want to participate in the project\n\n## User Stories\n\n- As a new user, I want clear onboarding from mainahq.com so I can start using maina in 5 minutes.\n- As a contributor, I want CONTRIBUTING.md and issue templates so I know how to participate.\n- As a team lead, I want to find maina under a professional org (mainahq) with proper governance.\n\n## Success Criteria\n\n- [ ] Bug #47 fixed — `brainstorm --no-interactive` generates real content\n- [ ] CONTRIBUTING.md with dev setup, PR guidelines, commit conventions\n- [ ] Issue templates: bug report, feature request, question\n- [ ] CODEOWNERS file mapping packages to maintainers\n- [ ] GitHub Discussions enabled\n- [ ] Repos transferred: beeeku/maina → mainahq/maina, beeeku/maina-cloud → mainahq/maina-cloud\n- [ ] All internal links updated post-transfer\n- [ ] Show HN draft written\n- [ ] v1.0.0 changeset + npm publish\n\n## Scope\n\n### In Scope\n\n- Fix bug #47 (brainstorm --no-interactive stubs)\n- Community files: CONTRIBUTING.md, issue templates, CODEOWNERS, PR template\n- Repo transfers to mainahq org\n- Update all GitHub/npm references post-transfer\n- Enable GitHub Discussions\n- Show HN + dev.to draft\n- Version bump to 1.0.0\n\n### Out of Scope\n\n- CF Workers skill (v1.1.0)\n- Cross-dogfooding report (v1.1.0)\n- New features — this is polish + launch only\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nNo architecture changes. This is community infrastructure + bug fix + repo migration.\n\n## Tasks\n\n### Phase 1: Bug fix\n- [ ] T001: Fix brainstorm --no-interactive to generate real content instead of placeholders (#47)\n- [ ] T002: Write test for brainstorm --no-interactive output\n\n### Phase 2: Community files (maina repo)\n- [ ] T003: Create CONTRIBUTING.md (dev setup, PR guidelines, commit conventions, testing)\n- [ ] T004: Create .github/ISSUE_TEMPLATE/bug_report.yml\n- [ ] T005: Create .github/ISSUE_TEMPLATE/feature_request.yml\n- [ ] T006: Create .github/PULL_REQUEST_TEMPLATE.md\n- [ ] T007: Create CODEOWNERS (map packages to maintainers)\n\n### Phase 3: Repo transfers\n- [ ] T008: Transfer beeeku/maina → mainahq/maina\n- [ ] T009: Transfer beeeku/maina-cloud → mainahq/maina-cloud\n- [ ] T010: Update all internal references (package.json homepage, README, docs, CLAUDE.md)\n- [ ] T011: Enable GitHub Discussions on mainahq/maina\n- [ ] T012: Set up branch protection on mainahq repos\n\n### Phase 4: Launch content\n- [ ] T013: Write Show HN post draft\n- [ ] T014: Write dev.to article draft\n- [ ] T015: Update docs landing page with v1.0 messaging\n\n### Phase 5: Release\n- [ ] T016: Create changeset for v1.0.0 (major bump)\n- [ ] T017: Version bump + npm publish\n- [ ] T018: Close issue #46\n\n## Dependencies\n\n```\nT001-T002 (bug fix) — independent\nT003-T007 (community files) — independent\nT001-T007 → T008-T012 (transfers after code changes)\nT008-T012 → T013-T015 (launch content needs final URLs)\nT015 → T016-T018 (release after everything)\n```\n\nParallelizable: Phase 1 || Phase 2\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| packages/cli/src/commands/brainstorm.ts | Fix --no-interactive stub output | Modified |\n| CONTRIBUTING.md | Contributor guide | New |\n| .github/ISSUE_TEMPLATE/bug_report.yml | Bug report template | New |\n| .github/ISSUE_TEMPLATE/feature_request.yml | Feature request template | New |\n| .github/PULL_REQUEST_TEMPLATE.md | PR template | New |\n| CODEOWNERS | Package maintainer mapping | New |\n| package.json | Update homepage URL | Modified |\n| README.md | Update repo URLs | Modified |\n| CLAUDE.md | Update repo URLs | Modified |\n\n## Definition of Done\n\n- [ ] All tests pass\n- [ ] Bug #47 fixed and tested\n- [ ] Community files in place\n- [ ] Repos at mainahq org\n- [ ] GitHub Discussions enabled\n- [ ] Show HN draft ready\n- [ ] v1.0.0 published to npm\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\n### Phase 1: Bug fix\n- [ ] T001: Fix brainstorm --no-interactive to generate real content (#47)\n- [ ] T002: Write test for brainstorm --no-interactive output\n\n### Phase 2: Community files\n- [ ] T003: Create CONTRIBUTING.md\n- [ ] T004: Create .github/ISSUE_TEMPLATE/bug_report.yml\n- [ ] T005: Create .github/ISSUE_TEMPLATE/feature_request.yml\n- [ ] T006: Create .github/PULL_REQUEST_TEMPLATE.md\n- [ ] T007: Create CODEOWNERS\n\n### Phase 3: Repo transfers\n- [ ] T008: Transfer beeeku/maina → mainahq/maina\n- [ ] T009: Transfer beeeku/maina-cloud → mainahq/maina-cloud\n- [ ] T010: Update all internal references post-transfer\n- [ ] T011: Enable GitHub Discussions\n- [ ] T012: Set up branch protection\n\n### Phase 4: Launch content\n- [ ] T013: Write Show HN post draft\n- [ ] T014: Write dev.to article draft\n- [ ] T015: Update docs landing page for v1.0\n\n### Phase 5: Release\n- [ ] T016: Create changeset for v1.0.0\n- [ ] T017: Version bump + npm publish\n- [ ] T018: Close issue #46\n\n## Dependencies\n\nT001-T007 → T008-T012 → T013-T015 → T016-T018\n\n## Definition of Done\n\n- [ ] All tests pass\n- [ ] Bug #47 fixed\n- [ ] Community files in place\n- [ ] Repos at mainahq org\n- [ ] v1.0.0 published to npm\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T004: Create .github/ISSUE_TEMPLATE/bug_report.yml\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T005: Create .github/ISSUE_TEMPLATE/feature_request.yml\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T006: Create .github/PULL_REQUEST_TEMPLATE.md\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T015: Update docs landing page with v1.0 messaging\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "contradiction",
+							"message": "T003 has conflicting descriptions — plan.md: \"Create CONTRIBUTING.md (dev setup, PR guidelines, commit conventions, testing)\" vs tasks.md: \"Create CONTRIBUTING.md\""
+						},
+						{
+							"severity": "warning",
+							"category": "contradiction",
+							"message": "T010 has conflicting descriptions — plan.md: \"Update all internal references (package.json homepage, README, docs, CLAUDE.md)\" vs tasks.md: \"Update all internal references post-transfer\""
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 6,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature 028: Project-Aware Tool Detection and Installation\n\nGitHub Issue: mainahq/maina#63\n\n## Problem\n\n`maina init --install` tries to install all 18 tools in TOOL_REGISTRY regardless of project language. A JavaScript project gets prompted to install golangci-lint, cargo-clippy, ruff, etc. `detectStack()` only recognizes Node.js projects (checks package.json only).\n\n## Why Now\n\nFoundational for the AI-driven init (#59). Tool recommendations need to be project-aware before AI can make intelligent suggestions.\n\n## Success Criteria\n\n- **SC-1:** `detectStack()` recognizes Go (go.mod), Rust (Cargo.toml), Python (pyproject.toml/requirements.txt), Java (pom.xml/build.gradle), .NET (*.csproj/*.sln), and multi-language projects\n- **SC-2:** TOOL_REGISTRY includes `languages` and `tier` metadata for each tool\n- **SC-3:** `detectTools()` accepts optional `languages` filter and only checks relevant tools\n- **SC-4:** `maina init --install` uses project-aware filtering — only installs tools for detected languages\n- **SC-5:** Universal tools (semgrep, trivy, secretlint) are always recommended regardless of language\n- **SC-6:** Existing TypeScript/JavaScript detection unchanged (backward compatible)\n\n## Out of Scope\n\n- AI-driven recommendations (that's #59)\n- Interactive multiselect UI (that's #59)\n- New linter parsers (already done in feature 012)\n",
+				"plan": "# Project-Aware Tool Detection Implementation Plan\n\n> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.\n\n**Goal:** Make `maina init --install` project-aware by detecting project language(s) and only recommending/installing relevant tools.\n\n**Architecture:** Expand `detectStack()` to recognize multiple languages via marker files. Add `languages` and `tier` metadata to `TOOL_REGISTRY`. Filter `detectTools()` by detected languages. Update init CLI to use filtered results.\n\n**Tech Stack:** Bun, TypeScript, bun:test, @clack/prompts\n\n---\n\n## File Structure\n\n| File | Responsibility |\n|------|----------------|\n| `packages/core/src/init/index.ts` | Modify `detectStack()` — add multi-language detection |\n| `packages/core/src/verify/detect.ts` | Modify `TOOL_REGISTRY` — add language/tier metadata, filter `detectTools()` |\n| `packages/cli/src/commands/init.ts` | Modify init action — use filtered tools |\n| `packages/core/src/init/__tests__/detect-stack.test.ts` | **NEW** — tests for expanded stack detection |\n| `packages/core/src/verify/__tests__/detect-filter.test.ts` | **NEW** — tests for language-filtered tool detection |\n\n---\n\n### Task 1: Expand detectStack() for Multi-Language Detection\n\n**Files:**\n- Modify: `packages/core/src/init/index.ts:39-124`\n- Create: `packages/core/src/init/__tests__/detect-stack.test.ts`\n\n- [ ] **Step 1: Write failing tests for new language detection**\n\n```typescript\n// packages/core/src/init/__tests__/detect-stack.test.ts\nimport { describe, test, expect } from \"bun:test\";\nimport { detectStack } from \"../index\";\nimport { mkdtemp, writeFile, rm } from \"node:fs/promises\";\nimport { join } from \"node:path\";\nimport { tmpdir } from \"node:os\";\n\ndescribe(\"detectStack multi-language\", () => {\n  let dir: string;\n\n  test(\"detects Go project from go.mod\", async () => {\n    dir = await mkdtemp(join(tmpdir(), \"maina-test-\"));\n    await writeFile(join(dir, \"go.mod\"), \"module example.com/app\\ngo 1.22\\n\");\n    const stack = detectStack(dir);\n    expect(stack.languages).toContain(\"go\");\n  });\n\n  test(\"detects Rust project from Cargo.toml\", async () => {\n    dir = await mkdtemp(join(tmpdir(), \"maina-test-\"));\n    await writeFile(join(dir, \"Cargo.toml\"), '[package]\\nname = \"app\"\\n');\n    const stack = detectStack(dir);\n    expect(stack.languages).toContain(\"rust\");\n  });\n\n  test(\"detects Python project from pyproject.toml\", async () => {\n    dir = await mkdtemp(join(tmpdir(), \"maina-test-\"));\n    await writeFile(join(dir, \"pyproject.toml\"), \"[project]\\nname = 'app'\\n\");\n    const stack = detectStack(dir);\n    expect(stack.languages).toContain(\"python\");\n  });\n\n  test(\"detects Python project from requirements.txt\", async () => {\n    dir = await mkdtemp(join(tmpdir(), \"maina-test-\"));\n    await writeFile(join(dir, \"requirements.txt\"), \"flask==3.0\\n\");\n    const stack = detectStack(dir);\n    expect(stack.languages).toContain(\"python\");\n  });\n\n  test(\"detects Java project from pom.xml\", async () => {\n    dir = await mkdtemp(join(tmpdir(), \"maina-test-\"));\n    await writeFile(join(dir, \"pom.xml\"), \"<project></project>\");\n    const stack = detectStack(dir);\n    expect(stack.languages).toContain(\"java\");\n  });\n\n  test(\"detects Java project from build.gradle\", async () => {\n    dir = await mkdtemp(join(tmpdir(), \"maina-test-\"));\n    await writeFile(join(dir, \"build.gradle\"), \"plugins { id 'java' }\");\n    const stack = detectStack(dir);\n    expect(stack.languages).toContain(\"java\");\n  });\n\n  test(\"detects .NET project from .csproj\", async () => {\n    dir = await mkdtemp(join(tmpdir(), \"maina-test-\"));\n    await writeFile(join(dir, \"App.csproj\"), \"<Project></Project>\");\n    const stack = detectStack(dir);\n    expect(stack.languages).toContain(\"dotnet\");\n  });\n\n  test(\"detects multi-language project\", async () => {\n    dir = await mkdtemp(join(tmpdir(), \"maina-test-\"));\n    await writeFile(join(dir, \"package.json\"), '{\"name\":\"app\"}');\n    await writeFile(join(dir, \"go.mod\"), \"module app\\ngo 1.22\\n\");\n    const stack = detectStack(dir);\n    expect(stack.languages).toContain(\"typescript\");\n    expect(stack.languages).toContain(\"go\");\n  });\n\n  test(\"existing TS detection still works\", async () => {\n    dir = await mkdtemp(join(tmpdir(), \"maina-test-\"));\n    await writeFile(join(dir, \"package.json\"), JSON.stringify({\n      name: \"app\",\n      devDependencies: { typescript: \"^5.0\" },\n    }));\n    const stack = detectStack(dir);\n    expect(stack.language).toBe(\"typescript\");\n    expect(stack.languages).toContain(\"typescript\");\n  });\n});\n```\n\n- [ ] **Step 2: Run tests to verify they fail**\n\nRun: `bun test packages/core/src/init/__tests__/detect-stack.test.ts`\nExpected: FAIL — `languages` property doesn't exist on DetectedStack\n\n- [ ] **Step 3: Add `languages` field to DetectedStack and expand detection**\n\nIn `packages/core/src/init/index.ts`, add `languages: string[]` to the `DetectedStack` interface and expand `detectStack()`:\n\n```typescript\n// Add to DetectedStack interface\nexport interface DetectedStack {\n  runtime: string;\n  language: string;\n  testRunner: string;\n  linter: string;\n  framework: string;\n  languages: string[]; // NEW: all detected languages\n}\n\n// Add language marker detection after existing package.json logic\nconst LANGUAGE_MARKERS: Record<string, string[]> = {\n  go: [\"go.mod\"],\n  rust: [\"Cargo.toml\"],\n  python: [\"pyproject.toml\", \"requirements.txt\", \"setup.py\"],\n  java: [\"pom.xml\", \"build.gradle\", \"build.gradle.kts\"],\n  dotnet: [\"*.csproj\", \"*.sln\", \"*.fsproj\"],\n};\n\n// In detectStack(), after existing detection:\nconst languages: string[] = [];\nif (stack.language !== \"unknown\") {\n  languages.push(stack.language);\n}\nfor (const [lang, markers] of Object.entries(LANGUAGE_MARKERS)) {\n  for (const marker of markers) {\n    if (marker.includes(\"*\")) {\n      // Glob pattern — use readdirSync\n      const files = readdirSync(repoRoot);\n      if (files.some(f => f.endsWith(marker.replace(\"*\", \"\")))) {\n        languages.push(lang);\n        break;\n      }\n    } else if (existsSync(join(repoRoot, marker))) {\n      languages.push(lang);\n      break;\n    }\n  }\n}\nstack.languages = languages.length > 0 ? languages : [\"unknown\"];\n```\n\n- [ ] **Step 4: Run tests to verify they pass**\n\nRun: `bun test packages/core/src/init/__tests__/detect-stack.test.ts`\nExpected: All PASS\n\n- [ ] **Step 5: Commit**\n\n```bash\nmaina commit -m \"feat(core): expand detectStack for multi-language detection\"\n```\n\n---\n\n### Task 2: Add Language and Tier Metadata to TOOL_REGISTRY\n\n**Files:**\n- Modify: `packages/core/src/verify/detect.ts:40-62`\n- Create: `packages/core/src/verify/__tests__/detect-filter.test.ts`\n\n- [ ] **Step 1: Write failing tests for filtered tool detection**\n\n```typescript\n// packages/core/src/verify/__tests__/detect-filter.test.ts\nimport { describe, test, expect } from \"bun:test\";\nimport { getToolsForLanguages, TOOL_REGISTRY } from \"../detect\";\n\ndescribe(\"getToolsForLanguages\", () => {\n  test(\"returns only JS/TS tools for typescript project\", () => {\n    const tools = getToolsForLanguages([\"typescript\"]);\n    const names = tools.map(t => t.name);\n    expect(names).toContain(\"biome\");\n    expect(names).toContain(\"secretlint\");\n    expect(names).not.toContain(\"ruff\");\n    expect(names).not.toContain(\"golangci-lint\");\n    expect(names).not.toContain(\"cargo-clippy\");\n  });\n\n  test(\"returns Go tools for go project\", () => {\n    const tools = getToolsForLanguages([\"go\"]);\n    const names = tools.map(t => t.name);\n    expect(names).toContain(\"golangci-lint\");\n    expect(names).not.toContain(\"biome\");\n    expect(names).not.toContain(\"ruff\");\n  });\n\n  test(\"returns universal tools for any language\", () => {\n    const tools = getToolsForLanguages([\"typescript\"]);\n    const names = tools.map(t => t.name);\n    expect(names).toContain(\"semgrep\");\n    expect(names).toContain(\"trivy\");\n  });\n\n",
+				"tasks": null
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "info",
+							"category": "missing-file",
+							"message": "tasks.md is missing — task tracking not available",
+							"file": "tasks.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 0,
+						"info": 1
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature 029: AI-Driven Interactive maina init\n\nGitHub Issue: mainahq/maina#59\n\n## Problem\n\n`maina init` generates a static template constitution, doesn't set up API keys, and doesn't configure IDE integration. Commands like `maina brainstorm` and `maina design` fail silently without API key. No guidance for first-time users.\n\n## Why Now\n\nFirst-time user experience is broken. Users init, try AI commands, get nothing. This is the #1 barrier to adoption.\n\n## Success Criteria\n\n- **SC-1:** `maina init` interactively prompts for API key when none found\n- **SC-2:** Constitution generated using AI (not static template) when AI available\n- **SC-3:** If no API key and inside host (Claude Code/Cursor), use host delegation\n- **SC-4:** If no API key and no host, prompt user to run inside AI agent or enter key\n- **SC-5:** API key saved to `.maina/.env` (gitignored)\n- **SC-6:** Tool recommendations use AI when available, fall back to language-based filtering\n- **SC-7:** Interactive multiselect for tool installation using @clack/prompts\n- **SC-8:** Summary shows what was configured and next steps\n\n## Dependencies\n\n- Feature 028 (project-aware tool detection) must be complete\n\n## Out of Scope\n\n- MCP/agent file generation (that's #60)\n- Cloud onboarding (that's maina-cloud #7/#8)\n",
+				"plan": null,
+				"tasks": null
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "missing-file",
+							"message": "plan.md is missing — cannot verify HOW implementation plan",
+							"file": "plan.md"
+						},
+						{
+							"severity": "info",
+							"category": "missing-file",
+							"message": "tasks.md is missing — task tracking not available",
+							"file": "tasks.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 1,
+						"info": 1
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature 030: Auto-Configure MCP + Agent Instruction Files During Init\n\nGitHub Issue: mainahq/maina#60\n\n## Problem\n\nClaude Code (and other AI agents) don't remember the maina workflow between sessions. CLAUDE.md references constitution but has no MCP setup. No `.mcp.json` exists. Skills README claims auto-detection but no mechanism exists.\n\n## Why Now\n\nUsers must manually configure MCP every time. Agent instruction files are missing or generic. This breaks the dogfooding loop.\n\n## Success Criteria\n\n- **SC-1:** `maina init` writes `.mcp.json` with maina server config to project root\n- **SC-2:** IDE detected via env vars (CLAUDECODE, CURSOR_SESSION, TERM_PROGRAM)\n- **SC-3:** Agent instruction files generated: CLAUDE.md, GEMINI.md, AGENTS.md, .cursorrules, COPILOT.md\n- **SC-4:** Each file tailored to that agent's format with workflow order + constitution ref + MCP tools\n- **SC-5:** AI-generated content when AI available, enhanced templates when not\n- **SC-6:** If file already exists, merge maina section rather than overwrite\n- **SC-7:** All generated files reference `.maina/constitution.md` and MCP tools\n\n## Dependencies\n\n- Feature 029 (AI-driven init) must be complete\n\n## Out of Scope\n\n- Hooks configuration for Claude Code\n- Skills auto-installation\n",
+				"plan": null,
+				"tasks": null
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "missing-file",
+							"message": "plan.md is missing — cannot verify HOW implementation plan",
+							"file": "plan.md"
+						},
+						{
+							"severity": "info",
+							"category": "missing-file",
+							"message": "tasks.md is missing — task tracking not available",
+							"file": "tasks.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 1,
+						"info": 1
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature 031: Landing Page Full Light Mode\n\nGitHub Issue: mainahq/maina#61\n\n## Problem\n\nLanding page CSS hardcodes dark colors (`--bg: #0a0a0a`). Starlight docs pages have dark/light toggle but landing page is dark-only. Inconsistent UX.\n\n## Why Now\n\nUsers who prefer light mode see a jarring switch between landing page and docs.\n\n## Success Criteria\n\n- **SC-1:** Landing page has full light theme with all custom properties overridden\n- **SC-2:** Theme toggle visible on landing page, synced with Starlight's toggle\n- **SC-3:** Terminal demo component stays dark in light mode (authentic terminal look)\n- **SC-4:** All landing components render correctly in both modes\n- **SC-5:** `prefers-color-scheme: light` respected on first visit\n- **SC-6:** No FOUC (flash of unstyled content) on theme switch\n\n## Out of Scope\n\n- Redesigning landing page layout\n- Adding new components\n",
+				"plan": null,
+				"tasks": null
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "missing-file",
+							"message": "plan.md is missing — cannot verify HOW implementation plan",
+							"file": "plan.md"
+						},
+						{
+							"severity": "info",
+							"category": "missing-file",
+							"message": "tasks.md is missing — task tracking not available",
+							"file": "tasks.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 1,
+						"info": 1
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature 032: Add Mermaid Workflow Diagram to Commands Docs\n\nGitHub Issue: mainahq/maina#62\n\n## Problem\n\nZero Mermaid diagrams across all docs. 34+ commands documented as text-only tables. Users and AI agents confused about which commands to use and in what order.\n\n## Why Now\n\nThe command lifecycle is the core UX of maina. Without a visual diagram, onboarding friction is high.\n\n## Success Criteria\n\n- **SC-1:** Mermaid plugin installed and configured for Starlight\n- **SC-2:** Command lifecycle flowchart renders in `commands.mdx`\n- **SC-3:** Diagram color-coded by phase (Discovery, Planning, Execution, Ship)\n- **SC-4:** Diagram placed at top of page before command tables\n- **SC-5:** Renders correctly in both dark and light modes\n- **SC-6:** Build succeeds with no errors\n\n## Out of Scope\n\n- Diagrams for verify pipeline, context engine, MCP architecture (future)\n- Interactive diagrams\n",
+				"plan": null,
+				"tasks": null
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "missing-file",
+							"message": "plan.md is missing — cannot verify HOW implementation plan",
+							"file": "plan.md"
+						},
+						{
+							"severity": "info",
+							"category": "missing-file",
+							"message": "tasks.md is missing — task tracking not available",
+							"file": "tasks.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 1,
+						"info": 1
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature 033: v1.0.3 Quick Wins\n\n## Problem\n\nFour gaps degrade the user experience before enterprise readiness:\n1. Commands fail silently without AI — empty output, no explanation\n2. `maina verify` without external linters passes everything — false confidence\n3. `maina init` skips existing agent files instead of merging — existing projects get no maina integration\n4. `maina doctor` doesn't check AI readiness — no diagnostic path when things don't work\n\n## Success Criteria\n\n### SC-1: Graceful AI Failures\n- Commands requiring AI (`brainstorm`, `design`, `commit` AI message) detect AI availability at start\n- When unavailable: print clear message with setup instructions, exit with code 3 (config error)\n- Commands with deterministic fallbacks (`verify`, `review`) log \"Running without AI — deterministic checks only\"\n- `requiresAI()` check function returns `{ available, method: \"api-key\" | \"host-delegation\" | \"none\", reason? }`\n\n### SC-2: Verify Built-in Checks\n- 7 built-in checks run always, even without external linters:\n  - `console.log` in non-test files (warning)\n  - Unused imports via regex (warning)\n  - TODO/FIXME/HACK count (info)\n  - Files > 500 lines (info)\n  - `.env` / secrets in staged files (error)\n  - Empty catch blocks (warning)\n  - `any` type usage in TS files (warning)\n- Checks run on diff-only files, return standard `Finding` interface\n- When external tools ARE installed, built-in checks still run but don't duplicate findings\n- Each check is a pure function `(filePath, content) => Finding[]`\n\n### SC-3: Merge Agent Files\n- When CLAUDE.md, AGENTS.md, GEMINI.md, .cursorrules, or copilot-instructions.md already exists during `maina init`:\n  - Check if `## Maina` section already present (idempotent)\n  - If not, append format-appropriate maina block with workflow + MCP tools\n  - Report as \"updated\" in init output (not \"created\" or \"skipped\")\n- Existing user content preserved — append only, never overwrite\n\n### SC-4: Doctor Checks API\n- New \"AI Status\" section in `maina doctor` output showing:\n  - API key status (which key found, or none)\n  - Host mode detection (Claude Code, Cursor, or none)\n  - Feedback stats (total outcomes, accept rate)\n  - Cache stats (entries, hit rate)\n  - Prompt stats (tasks with feedback data)\n- When broken, show actionable fix: \"Run `maina init` to set up AI features\"\n\n## Files\n\n| Change | File |\n|--------|------|\n| New | `packages/core/src/ai/availability.ts` — `requiresAI()` check |\n| New | `packages/core/src/verify/builtin.ts` — 7 built-in checks |\n| Modify | `packages/core/src/verify/pipeline.ts` — include built-in checks |\n| Modify | `packages/core/src/init/index.ts` — merge logic for existing files |\n| Modify | `packages/cli/src/commands/doctor.ts` — AI status section |\n| Modify | `packages/cli/src/commands/brainstorm.ts` — AI availability check |\n| Modify | `packages/cli/src/commands/design.ts` — AI availability check |\n| Modify | `packages/cli/src/commands/commit.ts` — AI availability check |\n\n## Out of Scope\n- Interactive multiselect for tool installation (cosmetic)\n- Pin Mermaid CDN version (cosmetic)\n- Round-trip flywheel (that's v1.1.0)\n",
+				"plan": null,
+				"tasks": null
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "missing-file",
+							"message": "plan.md is missing — cannot verify HOW implementation plan",
+							"file": "plan.md"
+						},
+						{
+							"severity": "info",
+							"category": "missing-file",
+							"message": "tasks.md is missing — task tracking not available",
+							"file": "tasks.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 1,
+						"info": 1
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature 034: v1.1.0 Round-Trip Flywheel\n\n## Problem\n\nIn host mode (Claude Code/Cursor), AI calls are delegated to the host. Maina never sees the response, so cache and feedback are empty. After 83 commits: 0% cache hit rate, 0 prompt feedback entries, quality trending down. The RL loop — maina's core differentiator — has zero data.\n\n## Root Cause\n\nMCP tools return structured results to the host, but those results aren't fed back into maina's cache or feedback system. The flywheel is built but not connected.\n\n## Design\n\n### Flow Change\n\n```\nBefore:\n  MCP tool called → engine runs → result returned to host → gone\n\nAfter:\n  MCP tool called → engine runs → result returned to host\n                                → captureResult(toolName, input, output)\n                                    ├→ cache.set(key, output)\n                                    ├→ feedback.record(promptHash, outcome)\n                                    └→ stats.track(toolName, tokens, duration)\n```\n\n### Implicit Accept/Reject Signals\n\nInfer outcomes from behavior instead of requiring explicit user action:\n- `maina commit` succeeds after `reviewCode` → review accepted\n- `maina verify` passes → verification accepted\n- User re-runs same command after changes → previous result rejected\n- `checkSlop` finds 0 issues → code was clean (accepted)\n\n## Success Criteria\n\n### SC-1: Result Capture\n- New `captureResult()` function in `packages/core/src/feedback/capture.ts`\n- Called by every MCP tool handler after returning results\n- Captures: tool name, input hash, output, prompt hash (if AI involved), duration\n\n### SC-2: Cache Population from MCP\n- MCP results stored in cache with standard key: `hash(tool + inputHash + context)`\n- Same file reviewed twice with no changes → cache returns instantly\n- Cache hit rate should be > 0% after normal usage\n\n### SC-3: Feedback from Implicit Signals\n- `maina commit` success → records accept for prior review/verify results\n- Re-run after changes → records reject for previous result\n- Signals stored in feedback.db with prompt hash linkage\n\n### SC-4: Stats Pipeline\n- `maina stats` shows real data: accept rate, cache hits, quality trends\n- `maina doctor` AI Status section shows feedback flowing\n- Trends should show quality ↑ once flywheel is connected\n\n### SC-5: Prompt Evolution Gets Data\n- `maina learn` can analyze accept/reject patterns\n- A/B testing has real traffic to measure\n- Prompt versions track which version produced which outcomes\n\n## Files\n\n| Change | File |\n|--------|------|\n| New | `packages/core/src/feedback/capture.ts` — captureResult() function |\n| New | `packages/core/src/feedback/signals.ts` — implicit accept/reject logic |\n| Modify | `packages/mcp/src/server.ts` — wrap tool handlers with capture |\n| Modify | `packages/cli/src/commands/commit.ts` — emit accept signal on success |\n| Modify | `packages/core/src/cache/manager.ts` — support MCP result caching |\n| Modify | `packages/core/src/stats/tracker.ts` — track MCP tool usage |\n\n## Out of Scope\n- Explicit accept/reject UI (implicit signals are sufficient for now)\n- Cloud sync of feedback (that's v2)\n- Custom model fine-tuning from feedback (that's v3)\n\n## Dependencies\n- v1.0.3 must ship first (doctor AI status, verify built-ins provide baseline)\n",
+				"plan": "# Feature 034: v1.1.0 Round-Trip Flywheel — Implementation Plan\n\n> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.\n\n**Goal:** Connect MCP tool results to cache and feedback systems so the RL flywheel has real data after every tool call.\n\n**Architecture:** Add `captureResult()` to wrap every MCP tool handler — caching outputs for instant replay (reviewCode only, since its input contains actual diff content), recording feedback for prompt evolution, and tracking tool usage stats. Add implicit accept/reject signals from downstream actions (commit success → accept prior review/verify, re-run → reject previous result).\n\n**Tech Stack:** Bun, TypeScript, bun:sqlite, bun:test\n\n---\n\n## File Map\n\n| Action | File | Responsibility |\n|--------|------|---------------|\n| Modify | `packages/core/src/db/index.ts` | Add `tool_usage` table to stats DB |\n| Create | `packages/core/src/feedback/capture.ts` | `captureResult()`, `getCachedResult()`, `buildToolCacheKey()` |\n| Create | `packages/core/src/feedback/__tests__/capture.test.ts` | Tests for capture module |\n| Modify | `packages/core/src/stats/tracker.ts` | Add `trackToolUsage()`, `getToolUsageStats()` |\n| Create | `packages/core/src/stats/__tests__/tool-usage.test.ts` | Tests for tool usage tracking |\n| Create | `packages/core/src/feedback/signals.ts` | `emitAcceptSignal()`, `emitRejectSignal()` |\n| Create | `packages/core/src/feedback/__tests__/signals.test.ts` | Tests for signals module |\n| Modify | `packages/mcp/src/tools/review.ts` | Add cache check + captureResult, remove old recordFeedbackAsync |\n| Modify | `packages/mcp/src/tools/verify.ts` | Add captureResult to both handlers |\n| Modify | `packages/mcp/src/tools/context.ts` | Add captureResult to both handlers |\n| Modify | `packages/mcp/src/tools/features.ts` | Add captureResult to both handlers |\n| Modify | `packages/mcp/src/tools/explain.ts` | Add captureResult |\n| Modify | `packages/cli/src/commands/commit.ts` | Add `emitAcceptSignal` on success |\n| Modify | `packages/core/src/index.ts` | Export new functions and types |\n\n---\n\n### Task 1: Add tool_usage Table + Tracking Functions\n\n**Files:**\n- Modify: `packages/core/src/db/index.ts:120-152`\n- Modify: `packages/core/src/stats/tracker.ts`\n- Create: `packages/core/src/stats/__tests__/tool-usage.test.ts`\n\n- [ ] **Step 1: Write failing test for tool_usage table creation**\n\n```typescript\n// packages/core/src/stats/__tests__/tool-usage.test.ts\nimport { afterEach, beforeEach, describe, expect, test } from \"bun:test\";\nimport { mkdirSync, rmSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport { getStatsDb } from \"../../db/index\";\nimport { getToolUsageStats, trackToolUsage } from \"../tracker\";\n\nlet tmpDir: string;\n\nbeforeEach(() => {\n\ttmpDir = join(\n\t\timport.meta.dir,\n\t\t`tmp-tool-usage-${Date.now()}-${Math.random().toString(36).slice(2)}`,\n\t);\n\tmkdirSync(tmpDir, { recursive: true });\n});\n\nafterEach(() => {\n\ttry {\n\t\trmSync(tmpDir, { recursive: true, force: true });\n\t} catch {\n\t\t/* ignore */\n\t}\n});\n\ndescribe(\"tool_usage table\", () => {\n\ttest(\"getStatsDb creates tool_usage table\", () => {\n\t\tconst result = getStatsDb(tmpDir);\n\t\texpect(result.ok).toBe(true);\n\t\tif (!result.ok) return;\n\n\t\tconst { db } = result.value;\n\t\tconst tables = db\n\t\t\t.query(\n\t\t\t\t\"SELECT name FROM sqlite_master WHERE type='table' AND name='tool_usage'\",\n\t\t\t)\n\t\t\t.all();\n\t\texpect(tables).toHaveLength(1);\n\t});\n});\n\ndescribe(\"trackToolUsage\", () => {\n\ttest(\"inserts a tool usage row\", () => {\n\t\ttrackToolUsage(tmpDir, {\n\t\t\ttool: \"reviewCode\",\n\t\t\tinputHash: \"abc123\",\n\t\t\tdurationMs: 150,\n\t\t\tcacheHit: false,\n\t\t});\n\n\t\tconst result = getStatsDb(tmpDir);\n\t\texpect(result.ok).toBe(true);\n\t\tif (!result.ok) return;\n\n\t\tconst { db } = result.value;\n\t\tconst rows = db.query(\"SELECT * FROM tool_usage\").all() as Array<{\n\t\t\ttool: string;\n\t\t\tduration_ms: number;\n\t\t\tcache_hit: number;\n\t\t}>;\n\t\texpect(rows).toHaveLength(1);\n\t\texpect(rows[0].tool).toBe(\"reviewCode\");\n\t\texpect(rows[0].duration_ms).toBe(150);\n\t\texpect(rows[0].cache_hit).toBe(0);\n\t});\n\n\ttest(\"tracks cache hit\", () => {\n\t\ttrackToolUsage(tmpDir, {\n\t\t\ttool: \"reviewCode\",\n\t\t\tinputHash: \"abc123\",\n\t\t\tdurationMs: 0,\n\t\t\tcacheHit: true,\n\t\t});\n\n\t\tconst result = getStatsDb(tmpDir);\n\t\tif (!result.ok) return;\n\n\t\tconst { db } = result.value;\n\t\tconst rows = db\n\t\t\t.query(\"SELECT * FROM tool_usage WHERE cache_hit = 1\")\n\t\t\t.all();\n\t\texpect(rows).toHaveLength(1);\n\t});\n\n\ttest(\"stores workflow_id when provided\", () => {\n\t\ttrackToolUsage(tmpDir, {\n\t\t\ttool: \"verify\",\n\t\t\tinputHash: \"def456\",\n\t\t\tdurationMs: 200,\n\t\t\tcacheHit: false,\n\t\t\tworkflowId: \"wf-123\",\n\t\t});\n\n\t\tconst result = getStatsDb(tmpDir);\n\t\tif (!result.ok) return;\n\n\t\tconst { db } = result.value;\n\t\tconst row = db.query(\"SELECT workflow_id FROM tool_usage\").get() as {\n\t\t\tworkflow_id: string;\n\t\t} | null;\n\t\texpect(row?.workflow_id).toBe(\"wf-123\");\n\t});\n});\n\ndescribe(\"getToolUsageStats\", () => {\n\ttest(\"returns stats across multiple tool calls\", () => {\n\t\ttrackToolUsage(tmpDir, {\n\t\t\ttool: \"reviewCode\",\n\t\t\tinputHash: \"a\",\n\t\t\tdurationMs: 100,\n\t\t\tcacheHit: false,\n\t\t});\n\t\ttrackToolUsage(tmpDir, {\n\t\t\ttool: \"reviewCode\",\n\t\t\tinputHash: \"b\",\n\t\t\tdurationMs: 200,\n\t\t\tcacheHit: true,\n\t\t});\n\t\ttrackToolUsage(tmpDir, {\n\t\t\ttool: \"verify\",\n\t\t\tinputHash: \"c\",\n\t\t\tdurationMs: 50,\n\t\t\tcacheHit: false,\n\t\t});\n\n\t\tconst stats = getToolUsageStats(tmpDir);\n\t\texpect(stats.totalCalls).toBe(3);\n\t\texpect(stats.cacheHits).toBe(1);\n\t\texpect(stats.cacheHitRate).toBeCloseTo(1 / 3, 2);\n\t\texpect(stats.byTool.reviewCode.calls).toBe(2);\n\t\texpect(stats.byTool.reviewCode.cacheHits).toBe(1);\n\t\texpect(stats.byTool.verify.calls).toBe(1);\n\t});\n\n\ttest(\"returns empty stats when no data\", () => {\n\t\tconst stats = getToolUsageStats(tmpDir);\n\t\texpect(stats.totalCalls).toBe(0);\n\t\texpect(stats.cacheHitRate).toBe(0);\n\t});\n});\n```\n\n- [ ] **Step 2: Run test to verify it fails**\n\nRun: `bun test packages/core/src/stats/__tests__/tool-usage.test.ts`\nExpected: FAIL — `tool_usage` table does not exist, `trackToolUsage` not found\n\n- [ ] **Step 3: Add tool_usage table to createStatsTables in db/index.ts**\n\nIn `packages/core/src/db/index.ts`, inside `createStatsTables` after the `commit_snapshots` table creation and migration (line 151), add:\n\n```typescript\n\tdb.exec(`\n\t\tCREATE TABLE IF NOT EXISTS tool_usage (\n\t\t\tid TEXT PRIMARY KEY,\n\t\t\ttool TEXT NOT NULL,\n\t\t\tinput_hash TEXT NOT NULL,\n\t\t\tduration_ms INTEGER NOT NULL,\n\t\t\tcache_hit INTEGER NOT NULL DEFAULT 0,\n\t\t\ttimestamp TEXT NOT NULL,\n\t\t\tworkflow_id TEXT\n\t\t);\n\t`);\n```\n\n- [ ] **Step 4: Add trackToolUsage and getToolUsageStats to stats/tracker.ts**\n\nAt the end of `packages/core/src/stats/tracker.ts`, add:\n\n```typescript\n// ── Tool Usage Tracking ─────────────────────────────────────────────────────\n\nexport interface ToolUsageInput {\n\ttool: string;\n\tinputHash: string;\n\tdurationMs: number;\n\tcacheHit: boolean;\n\tworkflowId?: string;\n}\n\nexport interface ToolUsageStats {\n\ttotalCalls: number;\n\tcacheHits: number;\n\tcacheHitRate: number;\n\tbyTool: Record<\n\t\tstring,\n\t\t{ calls: number; cacheHits: number; avgDurationMs: number }\n\t>;\n}\n\n/**\n * Track an MCP tool invocation in the stats database.\n * Fire-and-forget — never throws.\n */\nexport function trackToolUsage(\n\tmainaDir: string,\n\tinput: ToolUsageInput,\n): void {\n\ttry {\n\t\tconst dbResult = getStatsDb(mainaDir);\n\t\tif (!dbResult.ok) return;\n\n\t\tconst { db } = dbResult.value;\n\t\tconst id = crypto.randomUUID();\n\t\tconst timestamp = new Date().toISOString();\n\n\t\tdb.prepare(\n\t\t\t`INSERT INTO tool_usage (id, tool, input_hash, duration_ms, cache_hit, timestamp, workflow_id)\n\t\t\t VALUES (?, ?, ?, ?, ?, ?, ?)`,\n\t\t).run(\n\t\t\tid,\n\t\t\tinput.tool,\n\t\t\tinput.inputHash,\n\t\t\tinput.durationMs,\n\t\t\tinput.cacheHit ? 1 : 0,\n\t\t\ttimestamp,\n\t\t\tinput.workflowId ?? null,\n\t\t);\n\t} catch {\n\t\t// Never throw from stats tracking\n\t}\n}\n\n/**\n * Get aggregated tool usage statistics.\n */\n",
+				"tasks": null
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "info",
+							"category": "missing-file",
+							"message": "tasks.md is missing — task tracking not available",
+							"file": "tasks.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 0,
+						"info": 1
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": null,
+				"plan": "# Implementation Plan: Wiki Foundation (Sprint 0)\n> HOW only — see MAINA_WIKI_PRODUCT_SPEC_FINAL.md for WHAT and WHY.\n\n## Architecture\n- Pattern: Extractors + Types + State (foundation layer for wiki compiler)\n- Integration: Adapts existing Semantic layer (tree-sitter, PageRank), Feature analyzer, ADR parser, Workflow context\n- Location: `packages/core/src/wiki/`\n\n## Key Technical Decisions\n- All types follow existing `Result<T, E>` error handling pattern\n- State persisted to `.maina/wiki/.state.json` (gitignored)\n- Code extractor is thin adapter over existing Semantic layer — no re-implementation\n- Feature/Decision/Workflow extractors parse structured markdown deterministically\n- Schema.md co-evolves with compilation prompts\n\n## Files\n| File | Purpose | Status |\n|------|---------|--------|\n| `packages/core/src/wiki/types.ts` | WikiArticle, WikiLink, WikiState, ExtractedFeature, ExtractedDecision, ExtractedWorkflowTrace, WikiLintResult | new |\n| `packages/core/src/wiki/state.ts` | .state.json management — SHA-256 hashing, change detection, round-trip | new |\n| `packages/core/src/wiki/schema.ts` | Default schema.md, article structure rules, linking conventions | new |\n| `packages/core/src/wiki/extractors/code.ts` | Thin adapter over Semantic layer for entities + PageRank + deps | new |\n| `packages/core/src/wiki/extractors/feature.ts` | Parse .maina/features/*/plan.md, spec.md, tasks.md | new |\n| `packages/core/src/wiki/extractors/decision.ts` | Parse adr/*.md into ExtractedDecision | new |\n| `packages/core/src/wiki/extractors/workflow.ts` | Parse .maina/workflow/ into ExtractedWorkflowTrace | new |\n| `packages/core/src/wiki/__tests__/types.test.ts` | Type serialization/deserialization tests | new |\n| `packages/core/src/wiki/__tests__/state.test.ts` | State round-trip, SHA-256, change detection tests | new |\n| `packages/core/src/wiki/__tests__/schema.test.ts` | Schema validation tests | new |\n| `packages/core/src/wiki/__tests__/extractors/code.test.ts` | Code extractor tests (dogfood on maina's own repo) | new |\n| `packages/core/src/wiki/__tests__/extractors/feature.test.ts` | Feature extractor tests | new |\n| `packages/core/src/wiki/__tests__/extractors/decision.test.ts` | Decision extractor tests | new |\n| `packages/core/src/wiki/__tests__/extractors/workflow.test.ts` | Workflow extractor tests | new |\n\n## Tasks\n- [ ] T001: Define all wiki types in types.ts\n- [ ] T002: Implement state management with SHA-256 hashing (depends on T001)\n- [ ] T003: Implement schema management (depends on T001)\n- [ ] T004: Implement code entity extractor (depends on T001)\n- [ ] T005: Implement feature extractor (depends on T001)\n- [ ] T006: Implement decision extractor (depends on T001)\n- [ ] T007: Implement workflow trace extractor (depends on T001)\n\n## Testing Strategy\n- TDD: Write tests first for each ticket\n- All extractors tested against maina's own repo (dogfood)\n- Edge cases: missing files, empty dirs, malformed markdown\n- State management: 100% test coverage on round-trip serialization\n\n## Definition of Done\n- All 6 extractors produce structured data from maina's own repo\n- State management with full round-trip coverage\n- `maina verify` passes\n- All types properly exported from packages/core/src/index.ts\n",
+				"tasks": null
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "missing-file",
+							"message": "spec.md is missing — cannot verify WHAT/WHY requirements",
+							"file": "spec.md"
+						},
+						{
+							"severity": "info",
+							"category": "missing-file",
+							"message": "tasks.md is missing — task tracking not available",
+							"file": "tasks.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 1,
+						"info": 1
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: Git-log + CI analyzer for constitution rules\n\n## Problem Statement\n\nConstitution rules today are manually authored. Git history and CI config contain implicit conventions (commit format, CI checks, code ownership) that should be auto-detected and proposed as rules.\n\n## Success Criteria\n\n- [x] Detects conventional commit usage rate + common scopes\n- [x] Finds top 20 churn files from recent history\n- [x] Extracts CI workflow names from `.github/workflows/*.yml`\n- [x] Detects CODEOWNERS rules\n- [x] Runs in under 5 seconds on repos up to 10k commits\n- [x] Graceful degradation on non-git directories and shallow clones\n\n## Scope\n\n### In Scope\n- `analyzeCommitConventions()`, `analyzeHotPaths()`, `analyzeCiWorkflows()`, `analyzeCodeowners()`\n- Combined `analyzeGitAndCi()` running all in parallel\n- Each rule has `{ text, confidence, source }`\n\n### Out of Scope\n- Interactive propose/accept flow (separate issue #117)\n- Writing rules to constitution.md (consumer responsibility)\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nNew module `packages/core/src/constitution/git-analyzer.ts`. Uses `Bun.spawn` for git commands, `fs` for CI/CODEOWNERS. All analyzers run in parallel via `Promise.all`.\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| `packages/core/src/constitution/git-analyzer.ts` | All 4 analyzers + combined runner | New |\n| `packages/core/src/constitution/__tests__/git-analyzer.test.ts` | 9 tests | New |\n\n## Tasks\n\n- [x] T1: Implement `analyzeCommitConventions()` with conventional commit regex\n- [x] T2: Implement `analyzeHotPaths()` with git log --name-only\n- [x] T3: Implement `analyzeCiWorkflows()` reading .github/workflows/*.yml\n- [x] T4: Implement `analyzeCodeowners()` checking 3 possible paths\n- [x] T5: Implement `analyzeGitAndCi()` combining all in parallel\n- [x] T6: Write 9 tests covering real repo + temp dir scenarios\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\n- [x] T1: Implement analyzeCommitConventions (conventional commit regex, scope extraction)\n- [x] T2: Implement analyzeHotPaths (git log --name-only, top N churn)\n- [x] T3: Implement analyzeCiWorkflows (read .github/workflows/*.yml)\n- [x] T4: Implement analyzeCodeowners (check 3 paths: root, .github/, docs/)\n- [x] T5: Implement analyzeGitAndCi (parallel combination)\n- [x] T6: Write tests (9 tests: CI workflows, CODEOWNERS, commit conventions, hot paths, combined)\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T3: Implement `analyzeCiWorkflows()` reading .github/workflows/*.yml\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T6: Write 9 tests covering real repo + temp dir scenarios\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "contradiction",
+							"message": "T1 has conflicting descriptions — plan.md: \"Implement `analyzeCommitConventions()` with conventional commit regex\" vs tasks.md: \"Implement analyzeCommitConventions (conventional commit regex, scope extraction)\""
+						},
+						{
+							"severity": "warning",
+							"category": "contradiction",
+							"message": "T2 has conflicting descriptions — plan.md: \"Implement `analyzeHotPaths()` with git log --name-only\" vs tasks.md: \"Implement analyzeHotPaths (git log --name-only, top N churn)\""
+						},
+						{
+							"severity": "warning",
+							"category": "contradiction",
+							"message": "T3 has conflicting descriptions — plan.md: \"Implement `analyzeCiWorkflows()` reading .github/workflows/*.yml\" vs tasks.md: \"Implement analyzeCiWorkflows (read .github/workflows/*.yml)\""
+						},
+						{
+							"severity": "warning",
+							"category": "contradiction",
+							"message": "T4 has conflicting descriptions — plan.md: \"Implement `analyzeCodeowners()` checking 3 possible paths\" vs tasks.md: \"Implement analyzeCodeowners (check 3 paths: root, .github/, docs/)\""
+						},
+						{
+							"severity": "warning",
+							"category": "contradiction",
+							"message": "T5 has conflicting descriptions — plan.md: \"Implement `analyzeGitAndCi()` combining all in parallel\" vs tasks.md: \"Implement analyzeGitAndCi (parallel combination)\""
+						},
+						{
+							"severity": "warning",
+							"category": "contradiction",
+							"message": "T6 has conflicting descriptions — plan.md: \"Write 9 tests covering real repo + temp dir scenarios\" vs tasks.md: \"Write tests (9 tests: CI workflows, CODEOWNERS, commit conventions, hot paths, combined)\""
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 8,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: Split /getting-started into /quickstart + /full-setup\n\n## Problem Statement\n\nThe /getting-started page has 9 sections on one scroll. First-time users bounce before running their first `maina commit`. Time to first successful commit should be under 60 seconds.\n\n## Success Criteria\n\n- [x] `/quickstart` page exists, ≤200 words, 3 commands max\n- [x] `/getting-started` renamed to `/full-setup` as reference\n- [x] Hero CTA points to `/quickstart`\n- [x] All internal links updated\n- [x] Sidebar: Quickstart > Commands > Full Setup\n\n## Scope\n\n### In Scope\n- New /quickstart page with 3 commands\n- Rename /getting-started to /full-setup\n- Update all nav/sidebar/internal links\n\n### Out of Scope\n- MCP badges on hero (separate issue #98)\n- Docs number consistency (separate issue #99)\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nDocs-only change. Create a new quickstart.mdx, rename getting-started.mdx to full-setup.mdx, update astro.config.mjs sidebar, update all internal links in Hero, Features, nav, and cloud pages.\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| `packages/docs/src/content/docs/quickstart.mdx` | New quickstart page | New |\n| `packages/docs/src/content/docs/full-setup.mdx` | Renamed from getting-started.mdx | Modified |\n| `packages/docs/astro.config.mjs` | Updated sidebar | Modified |\n| `packages/docs/src/pages/index.astro` | Nav links → /quickstart | Modified |\n| `packages/docs/src/components/Hero.astro` | CTA → /quickstart | Modified |\n| `packages/docs/src/components/Features.astro` | Link → /quickstart | Modified |\n| `packages/docs/src/content/docs/cloud.mdx` | Link → /quickstart | Modified |\n\n## Tasks\n\n- [x] Create /quickstart with 3 commands\n- [x] Rename /getting-started to /full-setup\n- [x] Update sidebar order\n- [x] Update all internal links\n- [x] Build passes with no broken links\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\n- [x] T1: Create quickstart.mdx with 3 commands (curl, init, commit)\n- [x] T2: Rename getting-started.mdx to full-setup.mdx, update frontmatter\n- [x] T3: Update astro.config.mjs sidebar (Quickstart > Commands > Full Setup)\n- [x] T4: Update all internal links (Hero, nav, Features, cloud)\n- [x] T5: Verify build passes\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T1: Create quickstart.mdx with 3 commands (curl, init, commit)\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T5: Verify build passes\"",
+							"file": "tasks.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 2,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: Lock docs numbers to a single source of truth\n\n## Problem Statement\n\nThe site and docs disagree: 19+ vs 18+ tools, 38+ vs 28+ commands, 10 vs 8 MCP tools. For a verification tool, inconsistent numbers are a credibility problem.\n\n## Success Criteria\n\n- [ ] Numbers generated from code at build time\n- [ ] Single `packages/docs/src/data/stats.json` read by docs pages and landing site\n- [ ] Build script counts verify tools, CLI commands, MCP tools, and supported languages\n\n## Scope\n\n### In Scope\n- Build script that counts from source\n- stats.json output\n- Landing page reads from stats.json\n\n### Out of Scope\n- CI check for hand-typed counts (future)\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nWhat is the technical approach? How does it fit into existing architecture?\nWhere are the integration points with existing code?\n\n- Pattern: [NEEDS CLARIFICATION]\n- Integration points: [NEEDS CLARIFICATION]\n\n## Key Technical Decisions\n\nWhat libraries, patterns, or approaches? WHY these and not alternatives?\n\n- [NEEDS CLARIFICATION]\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| [NEEDS CLARIFICATION] | | |\n\n## Tasks\n\nTDD: every implementation task must have a preceding test task.\n\n- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.\n\n## Failure Modes\n\nWhat can go wrong? How do we handle it gracefully?\n\n- [NEEDS CLARIFICATION]\n\n## Testing Strategy\n\nUnit tests, integration tests, or both? What mocks are needed?\n\n- [NEEDS CLARIFICATION]\n\n\n## Wiki Context\n\n### Related Modules\n\n- **src** (9 entities) — `modules/src.md`\n\n### Related Decisions\n\n- 0001-karpathy-principled-spec-quality-system: Karpathy-Principled Spec Quality System [proposed]\n\n### Similar Features\n\n- 027-v10-launch: Implementation Plan\n- 032-mermaid-workflow-diagram: Feature 032: Add Mermaid Workflow Diagram to Commands Docs\n\n### Suggestions\n\n- Module 'src' already has 9 entities — consider extending it\n- Feature 027-v10-launch did something similar — check wiki/features/027-v10-launch.md\n- Feature 032-mermaid-workflow-diagram did something similar — check wiki/features/032-mermaid-workflow-diagram.md\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\nEach task should be completable in one commit. Test tasks precede implementation tasks.\n\n- [ ] [NEEDS CLARIFICATION] Define tasks.\n\n## Dependencies\n\nWhich tasks block which? Draw the critical path.\n\n- [NEEDS CLARIFICATION]\n\n## Definition of Done\n\nHow do we know this feature is complete?\n\n- [ ] All tests pass\n- [ ] Biome lint clean\n- [ ] TypeScript compiles\n- [ ] maina analyze shows no errors\n- [ ] [NEEDS CLARIFICATION] Feature-specific criteria\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"[NEEDS CLARIFICATION] Break down into small, testable tasks.\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"[NEEDS CLARIFICATION] Define tasks.\"",
+							"file": "tasks.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 2,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: PII and code-content scrubbing library\n\n## Problem Statement\n\nError reporting (PostHog) must never leak PII or code content. Both OSS and Cloud paths depend on a client-side scrubber that runs before any network send.\n\n## Success Criteria\n\n- [x] Redacts: absolute file paths, code snippets in stack frames, env variable values, usernames/emails/IPs, API keys/tokens, repo names, commit messages, branch names\n- [x] Keeps: error class, scrubbed message, stack trace structure/line numbers/function names, OS/Maina version\n- [x] 20+ adversarial unit tests (leaked keys, user paths, code snippets)\n- [x] Runs on client, pure function, no side effects\n\n## Scope\n\n### In Scope\n- `scrubPii(text)` — general text scrubber\n- `scrubStackTrace(stack)` — stack-trace-specific scrubber\n- `scrubErrorEvent(event)` — full event scrubber for PostHog/Sentry payloads\n\n### Out of Scope\n- Server-side scrubbing (client-only by design)\n- Fuzz testing (future enhancement)\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nNew module `packages/core/src/telemetry/scrubber.ts`. Pure functions with regex-based pattern matching. No external dependencies.\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| `packages/core/src/telemetry/scrubber.ts` | PII scrubbing functions | New |\n| `packages/core/src/telemetry/__tests__/scrubber.test.ts` | Adversarial tests | New |\n\n## Tasks\n\n- [x] T1: Implement `scrubFilePaths()` — absolute paths → repo-relative\n- [x] T2: Implement `scrubSecrets()` — API keys, tokens, passwords\n- [x] T3: Implement `scrubPersonalInfo()` — emails, IPs, usernames\n- [x] T4: Implement `scrubCodeContent()` — code snippets in stack frames\n- [x] T5: Implement `scrubPii()` — combined scrubber\n- [x] T6: Write 20+ adversarial tests\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\nEach task should be completable in one commit. Test tasks precede implementation tasks.\n\n- [ ] [NEEDS CLARIFICATION] Define tasks.\n\n## Dependencies\n\nWhich tasks block which? Draw the critical path.\n\n- [NEEDS CLARIFICATION]\n\n## Definition of Done\n\nHow do we know this feature is complete?\n\n- [ ] All tests pass\n- [ ] Biome lint clean\n- [ ] TypeScript compiles\n- [ ] maina analyze shows no errors\n- [ ] [NEEDS CLARIFICATION] Feature-specific criteria\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T3: Implement `scrubPersonalInfo()` — emails, IPs, usernames\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"[NEEDS CLARIFICATION] Define tasks.\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "task-consistency",
+							"message": "Task count mismatch: plan.md has 6 tasks, tasks.md has 1 tasks"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 3,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: OSS error reporting — opt-in, aggressive scrubbing\n\n## Problem Statement\n\nWithout error reporting, bugs ship blind. Users hit crashes, file vague issues, maintainers can't reproduce. The PII scrubber (#120) and PostHog ADR (#89) are done — now wire them together.\n\n## Success Criteria\n\n- [x] `reportError(error, context)` function that scrubs + sends to PostHog\n- [x] Consent check: zero events sent until explicit opt-in\n- [x] `isErrorReportingEnabled()` reads from config\n- [x] Error events include: error class, scrubbed message, Maina version, OS, command\n- [x] Unit tests for consent gating, event formatting, scrubbing integration\n\n## Scope\n\n### In Scope\n- `packages/core/src/telemetry/reporter.ts` — error reporting with PostHog\n- Consent check from `~/.maina/config.yml`\n- Integration with PII scrubber\n\n### Out of Scope\n- Consent prompt UI (CLI command, separate issue)\n- `maina errors status/off` commands (separate issue)\n- Cloud error reporting (separate issue #122)\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nNew module `packages/core/src/telemetry/reporter.ts`. Uses the PII scrubber from `scrubber.ts` and formats events for PostHog. No actual PostHog SDK dependency yet — events are formatted as plain objects that a future PostHog client will send.\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| `packages/core/src/telemetry/reporter.ts` | Error reporting with consent gating | New |\n| `packages/core/src/telemetry/__tests__/reporter.test.ts` | Tests | New |\n\n## Tasks\n\n- [x] T1: Implement `isErrorReportingEnabled()` — reads config\n- [x] T2: Implement `buildErrorEvent()` — formats error with context + scrubbing\n- [x] T3: Implement `reportError()` — consent check + scrub + format\n- [x] T4: Write tests for consent gating, event building, scrubbing\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\nEach task should be completable in one commit. Test tasks precede implementation tasks.\n\n- [ ] [NEEDS CLARIFICATION] Define tasks.\n\n## Dependencies\n\nWhich tasks block which? Draw the critical path.\n\n- [NEEDS CLARIFICATION]\n\n## Definition of Done\n\nHow do we know this feature is complete?\n\n- [ ] All tests pass\n- [ ] Biome lint clean\n- [ ] TypeScript compiles\n- [ ] maina analyze shows no errors\n- [ ] [NEEDS CLARIFICATION] Feature-specific criteria\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"[NEEDS CLARIFICATION] Define tasks.\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "task-consistency",
+							"message": "Task count mismatch: plan.md has 4 tasks, tasks.md has 1 tasks"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 2,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: Pattern sampler (TS — regex-based V1)\n\n## Problem Statement\n\nConstitution rules about coding style (async/await vs .then, arrow vs declaration, named vs default imports) can't be detected from config files. They need code analysis. V1 uses regex-based detection on sampled files (<=100 per language) — sufficient for the target patterns. Tree-sitter AST can be added in V2 for complex patterns.\n\n## Target User\n\n- Primary: Teams running `maina learn` to auto-detect coding conventions\n- Secondary: Constitution builders wanting evidence-based rules\n\n## User Stories\n\n- As a developer, I want `maina learn` to detect that my team uses async/await (not .then) so the constitution reflects actual practice.\n- As a team lead, I want auto-detected patterns with confidence scores so I can accept/reject them.\n\n## Success Criteria\n\n- [ ] Detects async style (async/await vs .then) in TypeScript files\n- [ ] Detects function style (arrow vs declaration) in TypeScript files\n- [ ] Detects import style (named vs default) in TypeScript files\n- [ ] Detects error handling pattern (try/catch vs .catch) in TypeScript files\n- [ ] Samples <=100 files per language\n- [ ] Emits rules with confidence 0.4–0.7 based on pattern prevalence\n- [ ] Runs in under 10 seconds on a 1000-file repo\n- [ ] Output deterministic across runs\n\n## Scope\n\n### In Scope\n\n- TypeScript pattern detection via tree-sitter queries\n- Sampling logic (<=100 files, deterministic selection)\n- Constitution rule emission with confidence scores\n\n### Out of Scope\n\n- Python patterns (stubbed but gated behind flag)\n- Go, Rust, Java, C#, PHP (future)\n- Interactive propose/accept (separate issue #117)\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nNew module `packages/core/src/constitution/pattern-sampler.ts`. Uses regex-based pattern detection on file content (not tree-sitter AST — simpler and sufficient for these patterns). Samples files deterministically using sorted directory listing. Reuses `ConstitutionRule` type from `git-analyzer.ts`.\n\n## Key Technical Decisions\n\n- Regex over tree-sitter for V1: async/await, arrow functions, import style are reliably detectable with regex. Tree-sitter adds complexity for marginal accuracy gain at this stage.\n- Deterministic sampling: sort files alphabetically, take first 100. Same repo → same sample → same output.\n- Confidence = prevalence ratio × 0.7 (capped). 90% async/await → confidence 0.63.\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| `packages/core/src/constitution/pattern-sampler.ts` | Pattern detection + sampling | New |\n| `packages/core/src/constitution/__tests__/pattern-sampler.test.ts` | TDD tests | New |\n\n## Tasks\n\n- [ ] T1: Write TDD test stubs from spec (red phase)\n- [ ] T2: Implement `sampleFiles()` — deterministic file sampling\n- [ ] T3: Implement `detectAsyncStyle()` — async/await vs .then\n- [ ] T4: Implement `detectFunctionStyle()` — arrow vs declaration\n- [ ] T5: Implement `detectImportStyle()` — named vs default\n- [ ] T6: Implement `detectErrorHandling()` — try/catch vs .catch\n- [ ] T7: Implement `samplePatterns()` — combined runner\n- [ ] T8: `maina verify` + `maina review` + `maina analyze`\n\n## Testing Strategy\n\n- Use the maina repo itself as a real-world test fixture\n- Create temp dirs with known patterns for deterministic tests\n- Verify confidence scores match expected prevalence\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\n- [x] T1: Write TDD test stubs from spec (25 red, confirmed failing)\n- [x] T2: Implement `sampleFiles()` — deterministic file sampling\n- [x] T3: Implement `detectAsyncStyle()` — async/await vs .then\n- [x] T4: Implement `detectFunctionStyle()` — arrow vs declaration\n- [x] T5: Implement `detectImportStyle()` — named vs default\n- [x] T6: Implement `detectErrorHandling()` — try/catch vs .catch\n- [x] T7: Implement `samplePatterns()` — combined runner (17 tests green)\n- [x] T8: `maina verify` + `maina review` (READY) + `maina analyze` — all pass\n\n## Dependencies\n\n- Reuses `ConstitutionRule` type from `packages/core/src/constitution/git-analyzer.ts`\n\n## Definition of Done\n\n- [ ] All tests pass (red → green confirmed)\n- [ ] Biome lint clean + TypeScript compiles\n- [ ] maina verify + slop + review + analyze pass\n- [ ] Runs in <10s on maina repo\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T1: Write TDD test stubs from spec (red phase)\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T6: Implement `detectErrorHandling()` — try/catch vs .catch\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T7: Implement `samplePatterns()` — combined runner\"",
+							"file": "plan.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 3,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: Slash commands parser for PR comments\n\n## Problem Statement\n\nUsers want to interact with Maina from PR comments: retry verification, get explanations for specific findings, or approve warnings. A slash command parser extracts `/maina <cmd>` from comment text and returns structured command data.\n\n## Target User\n\n- Primary: Developers reviewing PRs who want to interact with Maina inline\n- Secondary: CI automation triggering actions from PR comments\n\n## Success Criteria\n\n- [ ] `parseSlashCommand(text)` extracts command from comment text\n- [ ] Supports: `retry`, `explain`, `approve`\n- [ ] Returns null for non-matching comments\n- [ ] Handles `/maina` with no subcommand gracefully\n- [ ] Handles extra whitespace and case variations\n- [ ] Unit tests for all commands and edge cases\n\n## Scope\n\n### In Scope\n- Command parser (pure function: text → parsed command or null)\n- Command types and validation\n- ACL check helper (PR author + write permission)\n\n### Out of Scope\n- Webhook handler (maina-cloud repo)\n- GitHub API calls (separate module)\n- Bot emoji reactions (maina-cloud repo)\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nNew module `packages/core/src/github/slash-commands.ts`. Pure parser function — no GitHub API calls, no side effects. The actual webhook handler lives in maina-cloud.\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| `packages/core/src/github/slash-commands.ts` | Command parser + types | New |\n| `packages/core/src/github/__tests__/slash-commands.test.ts` | TDD tests | New |\n\n## Tasks\n\n- [ ] T1: Write TDD test stubs (red phase)\n- [ ] T2: Define `SlashCommand` type with command variants\n- [ ] T3: Implement `parseSlashCommand(text)` — regex parser\n- [ ] T4: Implement `isAuthorized(author, permissions)` — ACL helper\n- [ ] T5: `maina verify` + `maina review` + `maina analyze`\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\n- [x] T1: Write TDD test stubs (15 red confirmed)\n- [x] T2: Define `SlashCommand` type with retry/explain/approve variants\n- [x] T3: Implement `parseSlashCommand(text)` — regex parser (13 tests green)\n- [x] T4: Implement `isAuthorized()` — PR author + write perm ACL\n- [x] T5: `maina verify` + `maina review` + `maina analyze`\n\n## Dependencies\n\nNone — standalone pure functions.\n\n## Definition of Done\n\n- [ ] All tests pass (red → green)\n- [ ] Biome lint + TypeScript clean\n- [ ] maina verify + slop + review pass\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T1: Write TDD test stubs (red phase)\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T5: `maina verify` + `maina review` + `maina analyze`\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "contradiction",
+							"message": "T4 has conflicting descriptions — plan.md: \"Implement `isAuthorized(author, permissions)` — ACL helper\" vs tasks.md: \"Implement `isAuthorized()` — PR author + write perm ACL\""
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 3,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: Run scip-typescript in ingest\n\n## Problem Statement\n\nCustom parsers (regex-based entity extraction) don't scale and miss complex relationships. SCIP (Sourcegraph, Apache-2.0) gives precise code intelligence: every symbol with file, kind, refs, and cross-file relationships. Running `scip-typescript` in the wiki ingest path enables accurate symbol pages.\n\n## Success Criteria\n\n- [ ] `runScipTypescript(repoRoot)` spawns scip-typescript and parses output\n- [ ] Handles monorepos with multiple tsconfig.json\n- [ ] Returns structured symbol data (name, kind, file, line, refs)\n- [ ] Graceful fallback when scip-typescript is not installed\n- [ ] Unit tests with mock subprocess output\n\n## Scope\n\n### In Scope\n- Subprocess invocation of scip-typescript\n- Output parsing (SCIP protobuf → internal types)\n- Monorepo support (find all tsconfig.json)\n- Availability check + graceful fallback\n\n### Out of Scope\n- Wiki article generation from SCIP data (uses existing symbol-page.ts)\n- Installing scip-typescript (user responsibility or maina doctor recommendation)\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nNew module `packages/core/src/wiki/scip-ingest.ts`. Spawns `scip-typescript` via `Bun.spawn`, parses the JSON index output, normalizes into internal `ScipSymbol` type compatible with `CodeEntity`.\n\n## Key Technical Decisions\n\n- Use `scip-typescript --output json` for parseable output (avoid protobuf dependency)\n- Find tsconfig.json files via glob for monorepo support\n- Graceful fallback: check `which scip-typescript` before spawning\n- Result<T, E> pattern for all operations\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| `packages/core/src/wiki/scip-ingest.ts` | SCIP runner + parser | New |\n| `packages/core/src/wiki/__tests__/scip-ingest.test.ts` | TDD tests | New |\n\n## Tasks\n\n- [ ] T1: Write TDD test stubs (red phase)\n- [ ] T2: Implement `isScipAvailable()` — check PATH\n- [ ] T3: Implement `findTsConfigs()` — glob for tsconfig.json in monorepo\n- [ ] T4: Implement `runScipTypescript()` — spawn + parse output\n- [ ] T5: Implement `parseScipOutput()` — JSON → ScipSymbol[]\n- [ ] T6: maina verify + review + analyze\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\n- [x] T1: Write TDD test stubs (19 red confirmed)\n- [x] T2: Implement `isScipAvailable()` — PATH check\n- [x] T3: Implement `findTsConfigs()` — monorepo glob with depth limit\n- [x] T4: Implement `runScipTypescript()` — spawn + parse\n- [x] T5: Implement `parseScipOutput()` — JSON → ScipSymbol[] (11 tests green)\n- [x] T6: maina verify + review\n\n## Dependencies\n\n- scip-typescript must be installed for integration tests (unit tests use mocks)\n\n## Definition of Done\n\n- [ ] All tests pass (red → green)\n- [ ] Graceful fallback when scip-typescript not installed\n- [ ] maina verify + slop + review pass\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T1: Write TDD test stubs (red phase)\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"T5: Implement `parseScipOutput()` — JSON → ScipSymbol[]\"",
+							"file": "plan.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 2,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: Emit wiki/GRAPH_REPORT.md audit on every compile\n\n> Tracking issue: [#201](https://github.com/mainahq/maina/issues/201)\n\n## Problem\n\nAfter a compile we produce dozens of markdown articles and a state file but no human-readable health summary. Issues like stale articles (Ebbinghaus decay past threshold), dangling `[[wikilinks]]`, orphan entities (zero in-degree and out-degree), and duplicate-named entities are detectable but invisible until a user stumbles on them.\n\n## Why it matters\n\n- A one-page audit is the doc a PR reviewer opens first.\n- Makes wiki drift legible. Drift is the #1 reason repo wikis die.\n- Feeds directly into the verification-first thesis: we prove the wiki is healthy, we don't just hope.\n\n## Success criteria\n\n- [ ] `packages/core/src/wiki/report.ts` exports `generateGraphReport(articles, graph, state): string`.\n- [ ] `compile()` writes `wiki/GRAPH_REPORT.md` alongside articles unless `dryRun`.\n- [ ] Report sections (in order): Summary counts (articles by type, nodes, edges, communities); Top 20 entities by PageRank; Top 10 stalest articles by Ebbinghaus score; Orphan entities (nodes with no incident edges); Dangling wikilinks ([[x]] with no target article); Duplicate entity-name disambiguations applied; Time + compile duration.\n- [ ] Each row links back to the source article where applicable.\n- [ ] Report length < 400 lines for a 500-node graph (truncate lists with 'and N more').\n- [ ] Deterministic output for a fixed input (snapshot test).\n- [ ] `maina verify` passes.\n\n## Scope\n\n### In Scope\n- `report.ts` + tests.\n- Integration into `compiler.ts` (after linker, before state save).\n\n### Out of Scope\n- HTML version (lives in graph.html, issue 047).\n- Any changes to Ebbinghaus scoring or link generation.\n\n## Notes\n\n- Consider emitting a machine-readable companion at `wiki/.graph-report.json` for CI consumption — default on, behind `--no-report-json`.\n",
+				"plan": "# Implementation Plan\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\n- Pure function `generateGraphReport(articles, graph, state): string`, invoked in `compiler.ts` after linking and before state save.\n- [NEEDS CLARIFICATION] JSON companion (`wiki/.graph-report.json`) shape — flat arrays per section or a single object keyed by section.\n- [NEEDS CLARIFICATION] Truncation thresholds for the 'and N more' tails per section.\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|--------------|\n| `packages/core/src/wiki/report.ts` | `generateGraphReport()` | New |\n| `packages/core/src/wiki/__tests__/report.test.ts` | Snapshot + size bound + determinism | New |\n| `packages/core/src/wiki/compiler.ts` | Emit report after linker, before state save | Modified |\n\n## Tasks\n\nSee `tasks.md`.\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\n- [ ] [NEEDS CLARIFICATION] Define tasks.\n\n## Dependencies\n\n- [NEEDS CLARIFICATION]\n\n## Definition of Done\n\n- [ ] All tests pass\n- [ ] Biome lint clean\n- [ ] `maina verify` passes\n- [ ] Issue #201 closed\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"[NEEDS CLARIFICATION] Define tasks.\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "task-consistency",
+							"message": "Task count mismatch: plan.md has 0 tasks, tasks.md has 1 tasks"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 2,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: Wiki lint accuracy & status freshness fixes\n\nCloses #208, #209, #210, #211.\n\n## Problem Statement\n\n`maina wiki lint` reports 77 decision-violation errors on our own repo — roughly 65 of them are false positives. `maina wiki status` reports 100% stale articles and 0% coverage immediately after a successful compile. Users cannot trust either signal, and CI/pre-push gates built on them would block on noise. This is a credibility bug: the wiki tooling actively fails on its own codebase.\n\n## Target User\n\n- Primary: any maina user running `wiki lint` or `wiki status` in a repo that has agent worktrees, test files that `throw`, or code that parses ESLint configs (i.e. most repos using maina).\n- Secondary: CI/pre-push automation that gates merges on lint severity and coverage.\n\n## User Stories\n\n- As a developer, I want `wiki lint` to report only real decision violations, so the output is trustworthy.\n- As a developer, I want `wiki status` to reflect reality right after I compile, so I can tell when the wiki is actually stale.\n- As a CI author, I want lint counts to be stable and meaningful, so I can gate on them without flakes.\n\n## Success Criteria\n\n- [ ] Running `wiki lint` on this repo produces ≤ 25 findings (vs. 77 today), and **zero** findings come from paths under `.claude/worktrees/` or `.maina/`.\n- [ ] No `*.test.ts` / `*.spec.ts` / `__tests__/` file is flagged by the `result<` (throw-based) constraint.\n- [ ] `packages/core/src/constitution/config-parsers.ts` and `packages/core/src/verify/tools/wiki-lint.ts` are **not** flagged as \"uses ESLint configuration\".\n- [ ] After `wiki compile`, `wiki status` reports `Coverage > 0%`, `Stale == 0`, and a `Last compile` timestamp from the run. Staleness is computed by hashing each on-disk article and comparing against the hash recorded in `state.articleHashes` at compile time (mismatches / missing files count as stale); coverage is `articleCount / fileHashCount`, where `fileHashCount` is populated by the compile run. `Last compile` is the last successful compile's ISO timestamp from `state.lastFullCompile` / `state.lastIncrementalCompile`.\n- [ ] Unit tests cover: worktree/`.claude`/`.maina` exclusion, test-file exclusion for production-code constraints, ESLint detection requires import-form or real config filename, status reports non-zero coverage and zero stale immediately after compile.\n\n## Scope\n\n### In Scope\n\n- `packages/core/src/verify/tools/wiki-lint.ts`:\n  - Extend `collectSourceFiles` skip list to cover `.claude`, `.maina`, `coverage`, `build`, `out`, `.next`, `.turbo`, `.cache`.\n  - Skip test files (`*.test.*`, `*.spec.*`, `__tests__/`, `__mocks__/`) for constraints whose `keyword` implies production-code semantics (`result<`, `never throw`).\n  - Rewrite the `biome`-vs-ESLint content regex to match only real usage signals (import/require of `eslint*` packages), not any occurrence of the string.\n  - Keep the root-config filename check (already correct at ~L508-523).\n- Wiki compile/status freshness:\n  - Populate `state.fileHashes` on a full compile — the field exists in the schema but was never written, so coverage was stuck at 0%. Skip on sample compiles so a truncated file set doesn't overwrite a prior full compile's canonical state.\n  - Fix `countStaleArticles`'s path join: article keys in state are `wiki/modules/foo.md` but `wikiDir` is `.maina/wiki`, so `join(wikiDir, key)` produced `.maina/wiki/wiki/modules/foo.md` — a path that never exists. Strip the leading `wiki/` before joining.\n  - `wiki status` reads the last compile timestamp from `state.lastFullCompile` / `state.lastIncrementalCompile`, which compile already writes.\n- Tests for each fix (TDD).\n\n### Out of Scope\n\n- Redesigning the `TechConstraint` schema beyond adding a `skipTests` flag.\n- Fixing unrelated checks (spec_drift, orphan_entity, etc.) — only the four reported bugs.\n- The count-mismatch between compile (287 modules) and status (441 modules) beyond what fixing worktree-scan fixes automatically. If the discrepancy persists after the fix, leave a follow-up note in #211 rather than widening scope here.\n\n## Design Decisions\n\n- **Skip list over `.gitignore` parsing.** Hardcoded skip list is boring and correct; honoring `.gitignore` is better long-term but out of scope — single-PR constraint.\n- **Per-constraint `skipTests` flag** (default `true` for `result<` / `never throw`, `false` for import-form checks like `bun:test`). This preserves existing catches where tests *should* be scanned (e.g. a test importing jest is still a violation).\n- **ESLint detection: require import-form.** Switch `/\\.eslintrc|eslint\\.config/` content regex to `/from\\s+[\"']eslint([\"']|\\/)/` + `/require\\s*\\(\\s*[\"']eslint([\"']|\\/)\\s*\\)/`. Filename-level check at root already catches real eslint config files — no regression.\n- **Compile populates `state.fileHashes` + status reads existing `state.lastFullCompile`/`state.lastIncrementalCompile`.** The last-compile timestamp fields already exist and are written by compile; status just had the wrong path join and the coverage denominator (`fileHashCount`) was always 0 because compile never wrote `fileHashes`. Populate the field on full compile and fix the path join — no new state fields needed.\n\n## Open Questions\n\nNone — all four issues are well-characterized and the root causes are in code I've already read.\n",
+				"plan": "# Implementation Plan — Wiki lint accuracy & status freshness fixes\n\n> HOW only — see spec.md for WHAT and WHY.\n\n## Architecture\n\nAll fixes are localized. Three files, one new helper, per-constraint flag, and a compile-time hash-population pass.\n\n- Pattern: **targeted bugfix** — no new abstractions, extend existing skip-list and constraint shape.\n- Integration points:\n  - `packages/core/src/verify/tools/wiki-lint.ts` — the lint engine.\n  - `packages/core/src/wiki/compiler.ts` — populate `state.fileHashes`.\n  - `packages/cli/src/commands/wiki/status.ts` — fix path join.\n\n## Key Technical Decisions\n\n- **Hardcoded skip list, not `.gitignore`.** `.gitignore` parsing is a future refactor; for this PR we just add `.claude`, `.maina`, `coverage`, `build`, `out`, `.next`, `.turbo`, `.cache` next to the existing `node_modules`/`dist`/`.git`. Rationale: 4 lines vs. pulling in a gitignore parser; behavior matches 99% of repos.\n- **Per-constraint `skipTests` flag.** Tests should still be scanned for `bun:test` (catches a jest import in a test) but not for `result<` (tests legitimately throw). A flag on `TechConstraint` lets each rule declare its policy.\n- **Import-form ESLint detection.** Replace the content regex `/\\.eslintrc|eslint\\.config/` — which matches any string occurrence — with `/from\\s+[\"']eslint[\\w\\-\\/\"']/` + `/require\\s*\\(\\s*[\"']eslint[\\w\\-\\/\"']\\s*\\)/`. The existing filename-level check at repo root (wiki-lint.ts:508-523) already catches real `.eslintrc` / `eslint.config.*` files, so this tightens without regression.\n- **Populate `fileHashes` during compile.** `WikiState.fileHashes` is declared but never written. Iterate over the source files already enumerated during compile and write `hashFile(path)` into state. That makes coverage = `articleHashCount / fileHashCount` meaningful.\n- **Fix path join in `countStaleArticles`.** Article keys are stored as `wiki/modules/foo.md`; `wikiDir` is `.maina/wiki`. `join(wikiDir, key)` produces `.maina/wiki/wiki/modules/foo.md` which never exists, so every article lands in the `existsSync === false` branch. Strip the leading `wiki/` before joining.\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| `packages/core/src/verify/tools/wiki-lint.ts` | Skip-list expansion, `skipTests` flag, ESLint regex | Modified |\n| `packages/core/src/verify/tools/__tests__/wiki-lint.test.ts` | Tests for all three lint fixes | Modified |\n| `packages/core/src/wiki/compiler.ts` | Write `state.fileHashes` on compile | Modified |\n| `packages/core/src/wiki/__tests__/compiler.test.ts` | Test `fileHashes` populated after compile | Modified |\n| `packages/cli/src/commands/wiki/status.ts` | Fix path join, coverage calc | Modified |\n| `packages/cli/src/commands/__tests__/wiki.test.ts` | Test stale count + coverage with realistic state | Modified |\n\n## Tasks\n\nTDD: tests before impl.\n\n- [ ] Add failing test: `collectSourceFiles` skips `.claude/worktrees/agent-*` and `.maina/features/*`.\n- [ ] Impl: extend skip list in `collectSourceFiles`.\n- [ ] Add failing test: `checkDecisionViolations` does NOT flag `*.test.ts` files against `result<` constraint.\n- [ ] Impl: add `skipTests?: boolean` to `TechConstraint`, default true for `result<` / `never throw`, apply filter at scan site.\n- [ ] Add failing test: `constitution/config-parsers.ts`-style content (string mention of `eslint.config`) is NOT flagged; content with `from \"eslint\"` IS flagged.\n- [ ] Impl: replace `/\\.eslintrc|eslint\\.config/` with import/require-form regexes.\n- [ ] Add failing test: after a compile, `state.fileHashes` has at least one entry; `wiki status` reports coverage > 0 and stale < total.\n- [ ] Impl (compiler): populate `state.fileHashes` from the file list already traversed during extraction.\n- [ ] Impl (status): fix `countStaleArticles` path join (strip leading `wiki/` or join against `cwd` instead of `wikiDir`).\n\n## Failure Modes\n\n- **Skip list too aggressive** — if a user has legitimate source under `.maina/` or `coverage/`, it's silently skipped. Mitigation: skip list only covers well-known tool-output dirs; document in changelog.\n- **`skipTests` regex false positives/negatives** — pattern `/\\.(test|spec)\\.[jt]sx?$|\\/__tests__\\/|\\/__mocks__\\//` should be tight. Add tests for edge cases (`something.test.utils.ts` shouldn't be skipped).\n- **ESLint regex misses real violations** — the new pattern requires import-form, so a project using eslint via `package.json` scripts with no JS import won't be caught. Acceptable: the repo-root filename check still catches `.eslintrc*` / `eslint.config.*`, which is the real config surface.\n- **`fileHashes` perf regression** — hashing all source files adds IO. Already done in some form for change detection; we're just persisting it. Measure in test.\n- **Path-prefix fix breaks other code** — grep for other consumers of `state.articleHashes` keys before changing key format; safer to strip at read-time (in `countStaleArticles`) than to rewrite state format.\n\n## Testing Strategy\n\n- **Unit** tests in the same `__tests__` dirs as the files changed. bun:test.\n- **Regression** check: run `bun packages/cli/dist/index.js wiki lint` on this repo after build. Expect ≤ 25 findings, zero under `.claude/worktrees/` or `.maina/`.\n- **Regression** check: run `wiki compile` then `wiki status`; expect `Coverage: > 0%`, `Stale: < total`, `Last compile: <today>`.\n- No mocks for the lint code — it reads real files. Use `tmpdir` fixtures.\n\n## Wiki Context\n\n(Context block from `maina plan` preserved below for reference.)\n\n### Related Decisions\n\n- 0019-no-fern-no-sdk — \"requires biome\" keyword — the rule this PR makes more accurate.\n- 0012-v050-cloud-client-maina-cloud — \"requires result<\" keyword — the rule this PR restricts to non-test files.\n- 0022-wiki-is-a-view — wiki is a view of the Context engine; coverage/staleness signals feed it.\n",
+				"tasks": "# Task Breakdown\n\n## Tasks\n\nAll tests precede implementation — each `T*` below was a failing test before the corresponding `I*`.\n\n- [x] **T1** — Tests for `.claude/worktrees/` and `.maina/` exclusion in `collectSourceFiles`.\n- [x] **I1** — Extend `SKIP_DIRS` set in `packages/core/src/verify/tools/wiki-lint.ts` to cover `.claude`, `.maina`, `coverage`, `build`, `out`, `.next`, `.turbo`, `.cache`.\n- [x] **T2** — Test that `*.test.ts` / `__tests__/` / `tests/` files are NOT flagged by the `result<` constraint, plus a regression guard that a test file importing `jest` IS still flagged.\n- [x] **I2** — Add `skipTests?: boolean` on `TechConstraint`; set true for `result<` and `never throw`. Add `isTestFile()` helper matching `*.test.*`, `*.spec.*`, `__tests__/`, `__mocks__/`, `test/`, `tests/`.\n- [x] **T3** — Test that files mentioning `eslint.config` in a string literal are NOT flagged; static import, side-effect import, top-level `await import(...)`, and bare `require(\"eslint\")` ARE flagged.\n- [x] **I3** — Replace `biome` constraint's content regex with line-anchored import/require-form patterns. Move repo-root config-file detection to `configFilenameRules` keyed by constraint keyword.\n- [x] **T4** — Test that `wiki status` after compile reports `coverage > 0` and `staleCount == 0`.\n- [x] **I4** — Populate `state.fileHashes` on a full compile (skip on sample compiles). Strip leading `wiki/` prefix from article keys in `countStaleArticles` before joining against `wikiDir`.\n\n## Dependencies\n\n- Independent tasks: `T1/I1`, `T2/I2`, `T3/I3`, `T4/I4` don't block each other.\n- Within each pair: `T*` must fail before `I*` lands.\n- Smoke: after all `I*` merged, run `maina wiki compile` + `wiki status` + `wiki lint` on this repo to confirm the success criteria in `spec.md`.\n\n## Definition of Done\n\n- [x] All tests pass (`bun test packages/core/src/verify/tools/__tests__/wiki-lint.test.ts`, `bun test packages/cli/src/commands/__tests__/wiki.test.ts`).\n- [x] `bun run check` (Biome) clean on touched files.\n- [x] `bun run typecheck` clean.\n- [x] `maina wiki lint` on this repo drops from 77 → ≤ 5 decision-violation findings, with zero under `.claude/worktrees/` or `.maina/`.\n- [x] `maina wiki status` on this repo reports `Coverage > 0%`, `Stale == 0`, `Last compile` populated from the most recent compile run.\n- [x] `packages/core/src/verify/tools/wiki-lint.ts` no longer self-flags against ADR 0002/0019.\n"
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"Add failing test: `collectSourceFiles` skips `.claude/worktrees/agent-*` and `.maina/features/*`.\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"Add failing test: `constitution/config-parsers.ts`-style content (string mention of `eslint.config`) is NOT flagged; content with `from \"eslint\"` IS flagged.\"",
+							"file": "plan.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"**T3** — Test that files mentioning `eslint.config` in a string literal are NOT flagged; static import, side-effect import, top-level `await import(...)`, and bare `require(\"eslint\")` ARE flagged.\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "orphaned-task",
+							"message": "Task does not map to any spec requirement: \"**I3** — Replace `biome` constraint's content regex with line-anchored import/require-form patterns. Move repo-root config-file detection to `configFilenameRules` keyed by constraint keyword.\"",
+							"file": "tasks.md"
+						},
+						{
+							"severity": "warning",
+							"category": "separation-violation",
+							"message": "spec.md contains implementation detail: \"- Populate `state.fileHashes` on a full compile — the field exists in the schema but was never written, so coverage was stuck at 0%. Skip on sample compiles so a truncated file set doesn't overwrite a prior full compile's canonical state.\"",
+							"file": "spec.md",
+							"line": 38
+						},
+						{
+							"severity": "warning",
+							"category": "separation-violation",
+							"message": "spec.md contains implementation detail: \"- Redesigning the `TechConstraint` schema beyond adding a `skipTests` flag.\"",
+							"file": "spec.md",
+							"line": 45
+						},
+						{
+							"severity": "warning",
+							"category": "task-consistency",
+							"message": "Task count mismatch: plan.md has 9 tasks, tasks.md has 8 tasks"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 7,
+						"info": 0
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": "# Feature: Onboarding-60s Wave 4 — path hygiene + help polish + E2E matrix\n\n> WHAT and WHY only. HOW lives in `plan.md`.\n\n## Problem Statement\n\nThe 2026-04-20 dogfood surfaced 13 onboarding gaps. Waves 1–3 closed\neight of them. Wave 4 closes the remaining path-and-surface complaints\nbefore the `bunx @mainahq/cli setup` hero command goes into the landing\npage:\n\n- **G8 — `maina context` dumps `CONTEXT.md` at the repo root** and\n  every user had to `.gitignore` it. Agents look for it in `.maina/`\n  anyway.\n- **G9 — `wiki init` blocks the terminal for 20–90s.** New users\n  assume the wizard is hung and Ctrl-C half way through.\n- **G11 — `maina --help` shows 25 commands** including internal\n  plumbing (`analyze`, `benchmark`, `cache`, `explain`, `stats`,\n  `sync`, `team`, `visual`, …). First-time users cannot find the\n  workflow commands in the wall of text.\n- **Latent — `createFeatureDir(mainaDir, …)`** builds\n  `<mainaDir>/.maina/features/…`. The parameter name suggests\n  `mainaDir` is `<repo>/.maina/`; if any future caller passes\n  that literal, the path collapses to `<repo>/.maina/.maina/features/`.\n  No caller is broken today but the foot-gun is there.\n- **Missing — no E2E onboarding coverage in CI.** Waves 1–3 shipped\n  with unit tests only; a regression that breaks `bunx setup`\n  end-to-end on a real Docker image would not be caught until a user\n  reports it.\n- **Missing — hand-typed command counts.** README advertises\n  \"10 MCP tools\", \"8 skills\", \".mdx files say 24 commands\"; every\n  release the counts drift. No build-time check enforces truth.\n\n## Target User\n\n- Primary: **Developer running `bunx @mainahq/cli@latest setup` for\n  the first time.** They expect `.maina/` to contain maina's state\n  and help output to show only commands they might type.\n- Secondary: **CI engineer owning the release pipeline.** Needs a\n  regression guard that fails the build when onboarding drifts or\n  docs lie about counts.\n\n## User Stories\n\n- As a new user, I run `maina context` and the file appears in\n  `.maina/CONTEXT.md` so my repo root stays clean.\n- As a new user, I run `maina wiki init --background` and the\n  terminal returns in under a second. `maina wiki status` tells me\n  the wiki is 42% compiled with ETA 18s.\n- As a new user, I type `maina --help` and see 13 user-facing\n  commands grouped by Workflow / Build & Verify / Wiki / Setup —\n  not 25 including `sync`, `team`, `visual`.\n- As a release engineer, I push a PR that bumps the MCP tool count.\n  CI fails because README.md still says \"10 MCP tools\". I update the\n  badge and the PR passes.\n- As a maintainer, I merge a Wave-5 PR that adds a new language.\n  `.github/workflows/onboarding-e2e.yml` runs the full 4×2 matrix\n  and proves `install.sh` + `maina setup --yes` + an MCP call still\n  lands in <60s on a fresh Docker image.\n\n## Success Criteria\n\n- [ ] `maina context` writes `.maina/CONTEXT.md` by default; `--output\n      path/to/file.md` overrides; existing `<repo>/CONTEXT.md` is\n      preserved unless `--force` is passed.\n- [ ] `maina wiki init --background` returns the terminal in <1s;\n      progress is written to `.maina/wiki/.progress.json`.\n- [ ] `maina wiki status` shows percent-complete and ETA when a\n      compile is in flight; falls back to the existing dashboard\n      when the wiki is idle.\n- [ ] `maina --help` hides `analyze`, `benchmark`, `cache`, `context`,\n      `explain`, `feedback`, `learn`, `prompt`, `stats`, `status`,\n      `sync`, `team`, `visual`. The `configure` deprecation banner is\n      preserved.\n- [ ] `scripts/check-paths.ts` fails the build if any source file\n      contains `join(.*\\.maina.*\\.maina.*)` (regression guard for\n      G13's double-`.maina` foot-gun).\n- [ ] `scripts/docs-manifest.ts` emits a JSON manifest of commands\n      + MCP tools + skills. CI greps README.md (and `docs/*.md`) for\n      hand-typed `\"24 commands\"`, `\"10 MCP tools\"`, `\"8 skills\"` and\n      fails the build if any are present.\n- [ ] `.github/workflows/onboarding-e2e.yml` runs a\n      `{ide:[claude-code,cursor], lang:[ts,py,go,rust]}` matrix.\n      Claude Code + TypeScript is marked `must-pass`; remaining\n      cells are `continue-on-error`. Each cell asserts file\n      placement + constitution sections + wall time <60s and emits\n      its time-to-first-green to `docs/e2e-latency.json`.\n- [ ] `bun run e2e:onboarding` runs one cell locally\n      (Claude Code + TypeScript) for dev ergonomics.\n\n## Scope\n\n### In Scope\n\n- Default path change for `maina context`.\n- `--background` flag on `maina wiki init` + progress file.\n- `maina wiki status` progress rendering.\n- `maina setup` post-scaffold wiki kick-off (MINIMAL — one line).\n- Internal-command hiding via `.hidden()`.\n- `scripts/check-paths.ts` regression guard.\n- `scripts/docs-manifest.ts` SSOT + CI count check.\n- `.github/workflows/onboarding-e2e.yml` 4×2 matrix + fixtures +\n  agent simulator.\n- `README.md` — replace hand-typed counts with a pointer to\n  `bun run docs:manifest`.\n- New tests in `packages/cli/src/__tests__/` and\n  `packages/cli/src/commands/__tests__/`.\n\n### Out of Scope\n\n- Any edit to `resolve-ai.ts`, `adopt.ts`, `scan/*`, `confirm.ts`,\n  `tailor.ts`, `packages/core/src/bootstrap/`,\n  `packages/core/src/setup/agent-files/` or the templates — Waves\n  2 & 3 own those files; we coordinate via merge, not by editing.\n- `install.sh` — Wave 1.\n- `packages/cli/src/commands/doctor.ts` — Wave 1.\n- `packages/mcp/src/` — Wave 3 owns progressive handshake polish.\n- Replacing `CONTEXT.md` with a rich UI or rewriting context\n  assembly. Pure path hygiene.\n- New MCP tools or skills. The manifest *counts* what exists; it\n  does not add anything.\n\n## Design Decisions\n\n- **Default path `.maina/CONTEXT.md`, not repo root.** Matches where\n  every other maina artefact lives. Existing root `CONTEXT.md` is\n  left alone unless `--force` is passed — we do not yank a file\n  users may have cached in their editor.\n- **Backgrounded wiki init via fork, not worker thread.** The\n  compile already runs in a single-shot Bun process; `Bun.spawn`\n  + detach is enough and keeps the parent exit clean. A progress\n  file at `.maina/wiki/.progress.json` lets `wiki status` poll\n  without an IPC channel.\n- **`.hidden()` not `--help`-customisation.** Commander's\n  `.hidden()` removes commands from `--help` but keeps them\n  callable. That means existing scripts that invoke `maina sync`\n  or `maina stats` do not break — they just stop advertising.\n- **Counts SSOT via build-time script, not runtime introspection.**\n  `scripts/docs-manifest.ts` greps program.ts / server.ts / the\n  `packages/skills/*/SKILL.md` filesystem and emits JSON. CI check\n  is a regex grep on README.md + docs/. Runtime introspection would\n  require loading the CLI at docs-build time and breaks SSR.\n- **E2E matrix has one MUST-PASS cell.** Claude Code + TypeScript\n  is our golden path; the other 7 cells are informational\n  (`continue-on-error: true`) so flakes in rust-on-alpine do not\n  block releases. Time-to-first-green is emitted to\n  `docs/e2e-latency.json` so the landing page can render a live\n  budget chart later.\n\n## Open Questions\n\n- None. Scope is tightly constrained to the 3 gaps + the doc-count\n  SSOT + the E2E matrix. Setup.ts is touched MINIMALLY; conflicts\n  with Waves 2 & 3 are expected and will be resolved at merge time,\n  not pre-emptively.\n",
+				"plan": "# Implementation Plan — Wave 4 path hygiene + help polish + E2E matrix\n\n> HOW only. WHAT and WHY live in `spec.md`.\n\n## Architecture\n\nThree orthogonal slices, no shared state.\n\n### Slice W7 — path hygiene (G8, G9, double-`.maina` guard)\n\n1. `packages/cli/src/commands/context.ts`\n   - Add `--output <path>` option (string, optional).\n   - Add `--force` option (boolean).\n   - Default output = `join(mainaDir, \"CONTEXT.md\")` where\n     `mainaDir = join(repoRoot, \".maina\")`. `.maina/` is created\n     if missing (via `mkdirSync(..., { recursive: true })`).\n   - If the legacy `<repoRoot>/CONTEXT.md` exists and\n     `options.force !== true`, leave it alone (do not delete) and\n     log a one-line hint telling the user it is now obsolete.\n   - `--output <path>` overrides the default verbatim (absolute or\n     repo-root-relative; we `path.resolve` against cwd).\n2. `packages/cli/src/commands/wiki/init.ts`\n   - Add `--background` flag + `--depth <quick|full>` flag\n     (`quick` maps to existing `sample: true` on `wikiCompileAction`;\n     default `full`).\n   - When `--background`: spawn the current process with\n     `Bun.spawn([\"bun\", __filename, \"wiki\", \"init\", …], { stdio: ... })`\n     detached; write an initial `.maina/wiki/.progress.json`\n     stub; return immediately.\n   - When the background child runs, it inherits the current\n     compile path; `compileWiki` already writes to `.state.json`.\n     We additionally write `.progress.json` with `{startedAt,\n     percent, etaSeconds, stage}` after each major step.\n   - Because we do not own the core compile, we wrap it with a\n     progress emitter: `onProgress` callback updating the JSON\n     file. If the core does not yet support `onProgress`, we fall\n     back to a 2-step emitter (`compiling → done`) driven from\n     the CLI.\n3. `packages/cli/src/commands/wiki/status.ts`\n   - On top of existing dashboard, read `.progress.json` if\n     present. If `startedAt` is within the last hour and\n     `percent < 100`, render a compact progress line\n     `Compiling… 42% (ETA 18s)`. Otherwise fall through to the\n     existing output.\n4. `packages/cli/src/commands/setup.ts`\n   - MINIMAL change: after the existing `seedWiki` phase, if the\n     wiki was *not* already present and the foreground compile\n     was abandoned (`wikiBackgrounded === true`), flip the\n     detached flag so the compile continues after setup exits\n     rather than being killed with the CLI. This is a 5-line\n     edit; no restructuring.\n5. `scripts/check-paths.ts`\n   - Bun script. Walks `packages/**/src/**/*.ts` (not tests, not\n     build output). For each file, runs regex\n     `join\\([^)]*[\"']\\.maina[\"'][^)]*[\"']\\.maina[\"']/` — matches\n     any two literal `.maina` arguments in a single `join(…)`\n     call. Exits 1 with the file+line if any match. Empty match\n     = exit 0.\n\n### Slice W8 — command surface cleanup (G11)\n\n1. `packages/cli/src/program.ts`\n   - Call `.hidden()` on the Commander instances returned by\n     `analyzeCommand`, `benchmarkCommand`, `cacheCommand`,\n     `contextCommand`, `explainCommand`, `feedbackCommand`,\n     `learnCommand`, `promptCommand`, `statsCommand`,\n     `statusCommand`, `syncCommand`, `teamCommand`, `visualCommand`.\n   - The `configure` deprecation banner is preserved (we do NOT\n     hide `configure`).\n2. `scripts/docs-manifest.ts`\n   - Bun script. Outputs JSON `{commands: number, mcpTools: number,\n     skills: number, generatedAt: iso}` plus per-entity lists.\n   - Commands: parse `program.ts` — count `program.addCommand(`\n     lines under \"Workflow\", \"Build & Verify\", \"Wiki\",\n     \"Setup & Config\". We do NOT count the hidden \"Internals\"\n     section.\n   - MCP tools: parse `packages/mcp/src/server.ts` —\n     `ALL_TOOL_DESCRIPTIONS` array length.\n   - Skills: list directories under `packages/skills/` that\n     contain a `SKILL.md`.\n3. CI check — hand-typed counts\n   - In `scripts/docs-manifest.ts` (second mode: `--check`):\n     grep `README.md`, `packages/docs/src/content/docs/*.md{,x}`\n     for `/\\b\\d+ (commands|MCP tools|skills)\\b/i`. If matches\n     found, exit 1 with a pointer to `bun run docs:manifest`.\n4. `README.md`\n   - Replace the two lines that hand-type \"10 MCP tools\" /\n     \"8 cross-platform skills\" with a soft-link pointer:\n     \"Run `bun run docs:manifest` for the live tool + skill\n     inventory.\"\n5. `package.json`\n   - Add `\"docs:manifest\": \"bun scripts/docs-manifest.ts\"`.\n   - Add `\"docs:check\": \"bun scripts/docs-manifest.ts --check\"`.\n   - Add `\"check:paths\": \"bun scripts/check-paths.ts\"`.\n\n### Slice W9 — E2E onboarding matrix (§6.11)\n\n1. `ci/e2e/fixtures/`\n   - Four tiny fixture repos: `ts/`, `py/`, `go/`, `rust/`.\n     Each contains a single source file + package manifest\n     (package.json / pyproject.toml / go.mod / Cargo.toml) so\n     stack detection fires on a plausibly-realistic repo.\n2. `ci/e2e/simulate-agent.ts`\n   - Bun script that stands in for Claude Code / Cursor. Spawns\n     `maina --mcp`, issues a handshake + `list_tools` + one\n     `getContext` call, asserts the envelope shape, exits 0/1.\n   - Accepts `--ide <claude-code|cursor>` flag — purely\n     declarative for now; both IDEs use the same MCP stdio\n     transport so there is no real fork.\n3. `.github/workflows/onboarding-e2e.yml`\n   - Trigger: `workflow_dispatch`, `schedule: cron: \"0 9 * * *\"`\n     (daily 09:00 UTC), and `pull_request` paths-filter on\n     `install.sh`, `packages/cli/src/commands/setup.ts`,\n     `packages/cli/src/commands/doctor.ts`, `ci/e2e/**`.\n   - Matrix: `ide: [claude-code, cursor]`, `lang: [ts, py, go,\n     rust]`, `os: [ubuntu-latest]`.\n   - Claude Code + TypeScript cell is `must-pass`: no\n     `continue-on-error`. Other cells `continue-on-error: true`\n     so flakes do not block merges.\n   - Per-cell steps: checkout → install Bun → copy\n     `ci/e2e/fixtures/${{matrix.lang}}/` into a scratch dir →\n     run `install.sh` → run `maina setup --yes --ci` → run\n     `bun ci/e2e/simulate-agent.ts --ide ${{matrix.ide}}` →\n     assert `.maina/constitution.md` contains \"Maina Workflow\"\n     + \"File Layout\" → assert wall time < 60s → emit duration\n     to a JSON step-output.\n   - Final aggregate step collects all cells' durations and\n     writes `docs/e2e-latency.json`.\n4. `package.json`\n   - Add `\"e2e:onboarding\": \"bun ci/e2e/run-local.ts ts\n     claude-code\"` (new thin driver that calls the same\n     fixture-copy + simulate-agent steps locally).\n\n## Key Technical Decisions\n\n- **`.hidden()` over deletion.** Internal commands stay callable\n  so any CI or script that still references them does not break;\n  they simply vanish from `--help`. This is non-breaking.\n- **Progress file over IPC.** `.maina/wiki/.progress.json` is\n  crash-safe, can be read by other tools, and survives a CLI\n  restart. An IPC channel would be cleaner but ties the status\n  command to a still-running background process.\n- **Regex guard, not AST.** `scripts/check-paths.ts` uses a flat\n  regex because the foot-gun is a simple literal pattern. An\n  AST walker would take 100x longer to build for zero additional\n  coverage.\n- **E2E matrix as a separate workflow.** Keeps the main CI (lint\n  + test) fast. The E2E runs nightly + on setup-scope PRs, not\n  on every commit.\n- **One must-pass cell.** Matrix flakes (especially Rust + alpine)\n  would block releases otherwise. Claude Code + TypeScript is the\n  golden path we promise works.\n\n## Files\n\n| File | Purpose | New/Modified |\n|------|---------|-------------|\n| `packages/cli/src/commands/context.ts` | Default to `.maina/CONTEXT.md`, add `--output`/`--force` | Modified |\n| `packages/cli/src/commands/wiki/init.ts` | Add `--background` + `--depth` | Modified |\n| `packages/cli/src/commands/wiki/status.ts` | Show progress/ETA | Modified |\n| `packages/cli/src/commands/setup.ts` | 1-line wiki kickoff tweak | Modified |\n| `packages/cli/src/program.ts` | `.hidden()` internal commands | Modified |\n| `README.md` | Remove hand-typed counts | Modified |\n| `package.json` | 3 new scripts | Modified |\n",
+				"tasks": null
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "info",
+							"category": "missing-file",
+							"message": "tasks.md is missing — task tracking not available",
+							"file": "tasks.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 0,
+						"info": 1
+					}
+				}
+			}
+		},
+		{
+			"site": "features/analyzer.ts",
+			"input": {
+				"spec": null,
+				"plan": null,
+				"tasks": null
+			},
+			"output": {
+				"ok": true,
+				"value": {
+					"featureDir": "<featureDir>",
+					"findings": [
+						{
+							"severity": "warning",
+							"category": "missing-file",
+							"message": "spec.md is missing — cannot verify WHAT/WHY requirements",
+							"file": "spec.md"
+						},
+						{
+							"severity": "warning",
+							"category": "missing-file",
+							"message": "plan.md is missing — cannot verify HOW implementation plan",
+							"file": "plan.md"
+						},
+						{
+							"severity": "info",
+							"category": "missing-file",
+							"message": "tasks.md is missing — task tracking not available",
+							"file": "tasks.md"
+						}
+					],
+					"summary": {
+						"errors": 0,
+						"warnings": 2,
+						"info": 1
+					}
+				}
+			}
+		}
+	]
+}

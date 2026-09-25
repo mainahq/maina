@@ -1,0 +1,1054 @@
+{
+	"site": "review/index.ts#code-quality",
+	"cases": [
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/.changeset/fix-207-wiki-empty-and-verify-ignore-dist.md b/.changeset/fix-207-wiki-empty-and-verify-ignore-dist.md\ndeleted file mode 100644\nindex 496db93..0000000\n--- a/.changeset/fix-207-wiki-empty-and-verify-ignore-dist.md\n+++ /dev/null\n@@ -1,22 +0,0 @@\n----\n-\"@mainahq/cli\": patch\n-\"@mainahq/core\": patch\n-\"@mainahq/mcp\": patch\n-\"@mainahq/skills\": patch\n----\n-\n-fix(core,verify,wiki): exclude bundled artifacts from verify and index tiny repos in wiki init (#207)\n-\n-- **verify**: `maina verify` now skips files inside `dist/`, `build/`, `out/`,\n-  `node_modules/`, `coverage/`, `target/`, `vendor/` and friends, plus files\n-  matching common bundler suffixes (`*.min.js`, `*.bundle.js`, `*-bundle.js`,\n-  `*.chunk.js`, `*.d.ts`, `*.map`). Previously, on a GitHub-Action repo whose\n-  ncc-bundled `dist/index.js` was committed, the first `maina verify` produced\n-  ~10k slop findings. Honors a `.maina/ignore` file (gitignore-style) for\n-  project-local extras.\n-- **wiki**: `maina wiki init` on a single-file repo no longer reports `0\n-  articles`. When no entity/architecture article matched, the compiler now\n-  emits a `wiki/architecture/source-tree.md` fallback that at least lists\n-  every source file. `state.fileHashes` is also written on small sample-mode\n-  compiles (no truncation) so `wiki status` shows an honest coverage number\n-  instead of 0%.\ndiff --git a/packages/cli/CHANGELOG.md b/packages/cli/CHANGELOG.md\nindex 00efb94..ba9456e 100644\n--- a/packages/cli/CHANGELOG.md\n+++ b/packages/cli/CHANGELOG.md\n@@ -1,4 +1,28 @@\n # @mainahq/cli\n \n+## 1.8.1\n+\n+### Patch Changes\n+\n+- [#280](https://github.com/mainahq/maina/pull/280) [`ee29a32`](https://github.com/mainahq/maina/commit/ee29a325c78c9719766c9056ccab26759a062aa5) Thanks [@beeeku](https://github.com/beeeku)! - fix(core,verify,wiki): exclude bundled artifacts from verify and index tiny repos in wiki init ([#207](https://github.com/mainahq/maina/issues/207))\n+\n+  - **verify**: `maina verify` now skips files inside `dist/`, `build/`, `out/`,\n+    `node_modules/`, `coverage/`, `target/`, `vendor/` and friends, plus files\n+    matching common bundler suffixes (`*.min.js`, `*.bundle.js`, `*-bundle.js`,\n+    `*.chunk.js`, `*.d.ts`, `*.map`). Previously, on a GitHub-Action repo whose\n+    ncc-bundled `dist/index.js` was committed, the first `maina verify` produced\n+    ~10k slop findings. Honors a `.maina/ignore` file (gitignore-style) for\n+    project-local extras.\n+  - **wiki**: `maina wiki init` on a single-file repo no longer reports `0\n+articles`. When no entity/architecture article matched, the compiler now\n+    emits a `wiki/architecture/source-tree.md` fallback that at least lists\n+    every source file. `state.fileHashes` is also written on small sample-mode\n+    compiles (no truncation) so `wiki status` shows an honest coverage number\n+    instead of 0%.\n+\n+- Updated dependencies [[`ee29a32`](https://github.com/mainahq/maina/commit/ee29a325c78c9719766c9056ccab26759a062aa5)]:\n+  - @mainahq/core@1.8.1\n+  - @mainahq/mcp@1.8.1\n+\n ## 1.8.0\n \ndiff --git a/packages/cli/package.json b/packages/cli/package.json\nindex 0331499..70df216 100644\n--- a/packages/cli/package.json\n+++ b/packages/cli/package.json\n@@ -1,5 +1,5 @@\n {\n   \"name\": \"@mainahq/cli\",\n-  \"version\": \"1.8.0\",\n+  \"version\": \"1.8.1\",\n   \"type\": \"module\",\n   \"license\": \"Apache-2.0\",\n@@ -29,6 +29,6 @@\n   \"dependencies\": {\n     \"@clack/prompts\": \"^1.2.0\",\n-    \"@mainahq/core\": \"^1.8.0\",\n-    \"@mainahq/mcp\": \"^1.7.0\",\n+    \"@mainahq/core\": \"^1.8.1\",\n+    \"@mainahq/mcp\": \"^1.8.1\",\n     \"commander\": \"^14.0.3\"\n   },\ndiff --git a/packages/core/CHANGELOG.md b/packages/core/CHANGELOG.md\nindex 2935fd5..4cfbd96 100644\n--- a/packages/core/CHANGELOG.md\n+++ b/packages/core/CHANGELOG.md\n@@ -1,4 +1,24 @@\n # @mainahq/core\n \n+## 1.8.1\n+\n+### Patch Changes\n+\n+- [#280](https://github.com/mainahq/maina/pull/280) [`ee29a32`](https://github.com/mainahq/maina/commit/ee29a325c78c9719766c9056ccab26759a062aa5) Thanks [@beeeku](https://github.com/beeeku)! - fix(core,verify,wiki): exclude bundled artifacts from verify and index tiny repos in wiki init ([#207](https://github.com/mainahq/maina/issues/207))\n+\n+  - **verify**: `maina verify` now skips files inside `dist/`, `build/`, `out/`,\n+    `node_modules/`, `coverage/`, `target/`, `vendor/` and friends, plus files\n+    matching common bundler suffixes (`*.min.js`, `*.bundle.js`, `*-bundle.js`,\n+    `*.chunk.js`, `*.d.ts`, `*.map`). Previously, on a GitHub-Action repo whose\n+    ncc-bundled `dist/index.js` was committed, the first `maina verify` produced\n+    ~10k slop findings. Honors a `.maina/ignore` file (gitignore-style) for\n+    project-local extras.\n+  - **wiki**: `maina wiki init` on a single-file repo no longer reports `0\n+articles`. When no entity/architecture article matched, the compiler now\n+    emits a `wiki/architecture/source-tree.md` fallback that at least lists\n+    every source file. `state.fileHashes` is also written on small sample-mode\n+    compiles (no truncation) so `wiki status` shows an honest coverage number\n+    instead of 0%.\n+\n ## 1.8.0\n \ndiff --git a/packages/core/package.json b/packages/core/package.json\nindex 627ecb7..3a43581 100644\n--- a/packages/core/package.json\n+++ b/packages/core/package.json\n@@ -1,5 +1,5 @@\n {\n   \"name\": \"@mainahq/core\",\n-  \"version\": \"1.8.0\",\n+  \"version\": \"1.8.1\",\n   \"type\": \"module\",\n   \"license\": \"Apache-2.0\",\ndiff --git a/packages/mcp/CHANGELOG.md b/packages/mcp/CHANGELOG.md\nindex 186a091..3ebda04 100644\n--- a/packages/mcp/CHANGELOG.md\n+++ b/packages/mcp/CHANGELOG.md\n@@ -1,4 +1,27 @@\n # @mainahq/mcp\n \n+## 1.8.1\n+\n+### Patch Changes\n+\n+- [#280](https://github.com/mainahq/maina/pull/280) [`ee29a32`](https://github.com/mainahq/maina/commit/ee29a325c78c9719766c9056ccab26759a062aa5) Thanks [@beeeku](https://github.com/beeeku)! - fix(core,verify,wiki): exclude bundled artifacts from verify and index tiny repos in wiki init ([#207](https://github.com/mainahq/maina/issues/207))\n+\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (341 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 7
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (341 chars) in added code",
+						"file": "packages/core/CHANGELOG.md",
+						"line": 7
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (341 chars) in added code",
+						"file": "packages/mcp/CHANGELOG.md",
+						"line": 7
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/packages/docs/src/components/WaitlistForm.astro b/packages/docs/src/components/WaitlistForm.astro\nindex c2dd6bb..f3c817a 100644\n--- a/packages/docs/src/components/WaitlistForm.astro\n+++ b/packages/docs/src/components/WaitlistForm.astro\n@@ -9,9 +9,10 @@\n  * form shows a fallback `mailto:` link.\n  *\n- * Backend decision (2026-04-21): a `@workkit`-built Cloudflare Worker\n- * landing in the private `mainahq/maina-cloud` repo owns POST\n- * `/api/waitlist`. Until the Worker ships, POSTs 404 and the mailto\n- * fallback covers submission end-to-end. No frontend change is\n- * needed when the Worker goes live.\n+ * Backend: the `@workkit`-built Cloudflare Worker in the private\n+ * `mainahq/maina-cloud` repo owns POST `/api/waitlist`. Apex\n+ * `mainahq.com` is served by GitHub Pages / Fastly (no PUT/POST\n+ * support), so the form posts cross-origin to the Worker's custom\n+ * domain `api.mainahq.com`. CORS on the Worker pins\n+ * `Access-Control-Allow-Origin: https://mainahq.com` (MAI-12).\n  */\n import { WAITLIST } from '../data/cloud-landing';\n@@ -42,5 +43,5 @@ const mailtoHref = `mailto:${WAITLIST.mailto}?subject=${mailtoSubject}&body=${ma\n     method=\"post\"\n     enctype=\"text/plain\"\n-    data-waitlist-endpoint=\"/api/waitlist\"\n+    data-waitlist-endpoint=\"https://api.mainahq.com/api/waitlist\"\n     novalidate\n   >\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": []
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/packages/docs/src/components/ReceiptGallery.astro b/packages/docs/src/components/ReceiptGallery.astro\nnew file mode 100644\nindex 0000000..d87b66b\n--- /dev/null\n+++ b/packages/docs/src/components/ReceiptGallery.astro\n@@ -0,0 +1,236 @@\n+---\n+/**\n+ * ReceiptGallery — Wave 3.2 #257.\n+ *\n+ * Reads every `.maina/receipts/<hash>/receipt.json` at build time via\n+ * Vite's `import.meta.glob`, hands the raw shapes to `buildGallery`, and\n+ * renders cards. Pure SSG — zero client JS. Empty state covers fresh\n+ * checkouts where no receipts have been produced yet (so the homepage\n+ * doesn't visibly break).\n+ */\n+import { RECEIPTS_GALLERY } from '../data/landing';\n+import {\n+  buildGallery,\n+  type RawReceipt,\n+  type GalleryCard,\n+} from '../data/receipts-gallery';\n+\n+const rawBase = import.meta.env.BASE_URL;\n+const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;\n+\n+const receiptModules = import.meta.glob<RawReceipt>(\n+  '../../../../.maina/receipts/*/receipt.json',\n+  { eager: true, import: 'default' },\n+);\n+\n+const cards: GalleryCard[] = buildGallery(Object.values(receiptModules));\n+\n+// Resolve hrefs against the site base so this works under a non-root\n+// `BASE_URL` (e.g. preview deploys).\n+const resolvedCards = cards.map((c) => ({\n+  ...c,\n+  href: c.href.startsWith('/') ? `${base}${c.href}` : c.href,\n+}));\n+\n+const allReceiptsHref = `${base}${RECEIPTS_GALLERY.allReceiptsHref}`;\n+---\n+\n+<section class=\"receipts-gallery\">\n+  <div class=\"receipts-gallery__head\">\n+    <h2 class=\"receipts-gallery__title\">{RECEIPTS_GALLERY.heading}</h2>\n+    <p class=\"receipts-gallery__sub\">{RECEIPTS_GALLERY.subheading}</p>\n+  </div>\n+\n+  {resolvedCards.length === 0 ? (\n+    <p class=\"receipts-gallery__empty\">{RECEIPTS_GALLERY.emptyState}</p>\n+  ) : (\n+    <ul class=\"receipts-gallery__list\">\n+      {resolvedCards.map((c) => (\n+        <li class=\"receipts-gallery__item\">\n+          <a class=\"receipts-gallery__card\" href={c.href}>\n+            <div class=\"receipts-gallery__card-head\">\n+              <span class={`receipts-gallery__status receipts-gallery__status--${c.status}`}>\n+                {c.statusLabel}\n+              </span>\n+              <span class=\"receipts-gallery__hash\">{c.hashShort}…</span>\n+            </div>\n+            <h3 class=\"receipts-gallery__pr\">{c.prTitle}</h3>\n+            <p class=\"receipts-gallery__walkthrough\">{c.walkthrough}</p>\n+            <div class=\"receipts-gallery__foot\">\n+              <span class=\"receipts-gallery__diff\">{c.diffSummary}</span>\n+              <span class=\"receipts-gallery__repo\">{c.repo}</span>\n+            </div>\n+          </a>\n+        </li>\n+      ))}\n+    </ul>\n+  )}\n+\n+  {resolvedCards.length > 0 && (\n+    <p class=\"receipts-gallery__cta\">\n+      <a href={allReceiptsHref}>{RECEIPTS_GALLERY.allReceiptsLabel} →</a>\n+    </p>\n+  )}\n+</section>\n+\n+<style is:global>\n+  .receipts-gallery {\n+    max-width: 1100px;\n+    margin: 96px auto;\n+    padding: 0 24px;\n+  }\n+\n+  .receipts-gallery__head {\n+    text-align: center;\n+    margin-bottom: 36px;\n+  }\n+\n+  .receipts-gallery__title {\n+    font-family: var(--font-display);\n+    font-size: 32px;\n+    font-weight: 600;\n+    margin: 0 0 12px 0;\n+    color: var(--color-ink);\n+  }\n+\n+  .receipts-gallery__sub {\n+    font-size: 15px;\n+    color: var(--color-ink-muted);\n+    max-width: 640px;\n+    margin: 0 auto;\n+    line-height: 1.55;\n+  }\n+\n+  .receipts-gallery__list {\n+    list-style: none;\n+    padding: 0;\n+    margin: 0;\n+    display: grid;\n+    gap: 16px;\n+    grid-template-columns: 1fr;\n+  }\n+\n+  @media (min-width: 720px) {\n+    .receipts-gallery__list {\n+      grid-template-columns: 1fr 1fr;\n+    }\n+  }\n+\n+  @media (min-width: 1000px) {\n+    .receipts-gallery__list {\n+      grid-template-columns: repeat(3, 1fr);\n+    }\n+  }\n+\n+  .receipts-gallery__item { margin: 0; }\n+\n+  .receipts-gallery__card {\n+    display: flex;\n+    flex-direction: column;\n+    gap: 10px;\n+    padding: 18px 18px 16px;\n+    background: var(--color-bg-elev);\n+    border: 1px solid rgba(255, 255, 255, 0.06);\n+    border-radius: var(--radius);\n+    text-decoration: none;\n+    color: var(--color-ink);\n+    transition: border-color 140ms ease, transform 140ms ease;\n+    height: 100%;\n+  }\n+\n+  .receipts-gallery__card:hover,\n+  .receipts-gallery__card:focus-visible {\n+    border-color: var(--color-accent);\n+    transform: translateY(-1px);\n+  }\n+\n+  .receipts-gallery__card-head {\n+    display: flex;\n+    justify-content: space-between;\n+    align-items: center;\n+    gap: 8px;\n+  }\n+\n+  .receipts-gallery__status {\n+    display: inline-block;\n+    padding: 3px 9px;\n+    border-radius: 999px;\n+    font-family: var(--font-mono);\n+    font-size: 11px;\n+    font-weight: 600;\n+    letter-spacing: 0.02em;\n+  }\n+\n+  .receipts-gallery__status--passed {\n+    background: oklch(0.92 0.1 145);\n+    color: oklch(0.25 0.15 145);\n+  }\n+\n+  .receipts-gallery__status--partial {\n+    background: oklch(0.92 0.08 90);\n+    color: oklch(0.3 0.15 90);\n+  }\n+\n+  .receipts-gallery__status--failed {\n+    background: oklch(0.92 0.1 25);\n+    color: oklch(0.3 0.15 25);\n+  }\n+\n+  .receipts-gallery__hash {\n+    font-family: var(--font-mono);\n+    font-size: 11px;\n+    color: var(--color-ink-muted);\n+    word-break: break-all;\n+  }\n+\n+  .receipts-gallery__pr {\n+    font-family: var(--font-display);\n+    font-size: 16px;\n+    font-weight: 600;\n+    margin: 0;\n+    line-height: 1.35;\n+  }\n+\n+  .receipts-gallery__walkthrough {\n+    font-size: 13px;\n+    color: var(--color-ink-muted);\n+    line-height: 1.5;\n+    margin: 0;\n+    flex-grow: 1;\n+  }\n+\n+  .receipts-gallery__foot {\n+    display: flex;\n+    justify-content: space-between;\n+    gap: 8px;\n+    font-family: var(--font-mono);\n+    font-size: 11px;\n+    color: var(--color-ink-muted);\n+    border-top: 1px solid rgba(255, 255, 255, 0.05);\n+    padding-top: 10px;\n+  }\n+\n+  .receipts-gallery__empty {\n+    text-align: center;\n+    font-family: var(--font-mono);\n+    font-size: 13px;\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": []
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/packages/cli/src/commands/receipt.ts b/packages/cli/src/commands/receipt.ts\nindex d591d56..b77d7a0 100644\n--- a/packages/cli/src/commands/receipt.ts\n+++ b/packages/cli/src/commands/receipt.ts\n@@ -33,4 +33,8 @@ export interface ReceiptActionOptions {\n \tcwd?: string;\n \tnoIndex?: boolean;\n+\t/** Explicit file list to verify. When set, overrides --all/staged\n+\t * detection — useful for backfill scripts that compute a PR's\n+\t * diff scope directly. */\n+\tfiles?: string[];\n }\n \n@@ -131,11 +135,20 @@ async function runVerifyPipeline(\n \toptions: ReceiptActionOptions,\n ): Promise<PipelineResult> {\n-\tconst files = options.all\n-\t\t? await getTrackedFiles(cwd)\n-\t\t: await getStagedFiles(cwd);\n+\tlet files: string[];\n+\tif (options.files && options.files.length > 0) {\n+\t\tfiles = options.files;\n+\t} else if (options.all) {\n+\t\tfiles = await getTrackedFiles(cwd);\n+\t} else {\n+\t\tfiles = await getStagedFiles(cwd);\n+\t}\n \treturn runPipeline({\n \t\tcwd,\n \t\tbaseBranch: options.base ?? DEFAULT_BASE_BRANCH,\n-\t\tdiffOnly: !options.all,\n+\t\t// When the caller pinned a file list (e.g. backfill computing a\n+\t\t// PR's diff scope), keep the diff filter on so findings still\n+\t\t// scope to changed lines. Otherwise default to the legacy --all\n+\t\t// switch behaviour.\n+\t\tdiffOnly: options.files && options.files.length > 0 ? true : !options.all,\n \t\t...(files && files.length > 0 ? { files } : {}),\n \t});\ndiff --git a/scripts/__tests__/backfill-receipts.test.ts b/scripts/__tests__/backfill-receipts.test.ts\nnew file mode 100644\nindex 0000000..e65bb06\n--- /dev/null\n+++ b/scripts/__tests__/backfill-receipts.test.ts\n@@ -0,0 +1,88 @@\n+/**\n+ * Backfill script — subprocess-based CLI tests.\n+ *\n+ * Each test spawns the script as a child process and asserts on stdout,\n+ * stderr, and exit code. The main flow is tightly coupled to git + the gh\n+ * CLI + the receipt action, so we exercise the parser + arg-validation\n+ * paths here and leave the end-to-end smoke for a future integration\n+ * harness.\n+ */\n+\n+import { describe, expect, test } from \"bun:test\";\n+import { spawnSync } from \"node:child_process\";\n+import { join } from \"node:path\";\n+\n+const SCRIPT = join(import.meta.dir, \"..\", \"backfill-receipts.ts\");\n+\n+// The script imports `@mainahq/core` (a workspace package) at module load,\n+// so the test must run from the workspace root for Bun's resolver to find\n+// it. Args still parse before any of the heavy deps run.\n+const REPO_ROOT = join(import.meta.dir, \"..\", \"..\");\n+\n+function runScript(args: string[]): {\n+\texitCode: number | null;\n+\tstdout: string;\n+\tstderr: string;\n+} {\n+\tconst result = spawnSync(\"bun\", [\"run\", SCRIPT, ...args], {\n+\t\tencoding: \"utf-8\",\n+\t\tcwd: REPO_ROOT,\n+\t});\n+\treturn {\n+\t\texitCode: result.status,\n+\t\tstdout: result.stdout ?? \"\",\n+\t\tstderr: result.stderr ?? \"\",\n+\t};\n+}\n+\n+describe(\"backfill-receipts CLI\", () => {\n+\ttest(\"--help prints usage and exits 0\", () => {\n+\t\tconst result = runScript([\"--help\"]);\n+\t\texpect(result.exitCode).toBe(0);\n+\t\texpect(result.stdout).toContain(\"backfill-receipts\");\n+\t\texpect(result.stdout).toContain(\"--limit\");\n+\t\texpect(result.stdout).toContain(\"--dry-run\");\n+\t});\n+\n+\ttest(\"rejects --limit with non-integer value\", () => {\n+\t\tconst result = runScript([\"--limit\", \"abc\"]);\n+\t\texpect(result.exitCode).not.toBe(0);\n+\t\texpect(result.stderr.toLowerCase()).toContain(\"limit\");\n+\t});\n+\n+\ttest(\"rejects --limit out of range (zero)\", () => {\n+\t\tconst result = runScript([\"--limit\", \"0\"]);\n+\t\texpect(result.exitCode).not.toBe(0);\n+\t\texpect(result.stderr.toLowerCase()).toContain(\"limit\");\n+\t});\n+\n+\ttest(\"rejects --limit out of range (too large)\", () => {\n+\t\tconst result = runScript([\"--limit\", \"201\"]);\n+\t\texpect(result.exitCode).not.toBe(0);\n+\t\texpect(result.stderr.toLowerCase()).toContain(\"limit\");\n+\t});\n+\n+\ttest(\"rejects unknown arg\", () => {\n+\t\tconst result = runScript([\"--bogus\"]);\n+\t\texpect(result.exitCode).not.toBe(0);\n+\t\texpect(result.stderr.toLowerCase()).toContain(\"unknown arg\");\n+\t});\n+\n+\ttest(\"rejects --repo with no value\", () => {\n+\t\tconst result = runScript([\"--repo\"]);\n+\t\texpect(result.exitCode).not.toBe(0);\n+\t\texpect(result.stderr.toLowerCase()).toMatch(/--repo/);\n+\t});\n+\n+\ttest(\"rejects --repo followed by a flag\", () => {\n+\t\tconst result = runScript([\"--repo\", \"--dry-run\"]);\n+\t\texpect(result.exitCode).not.toBe(0);\n+\t\texpect(result.stderr.toLowerCase()).toMatch(/--repo/);\n+\t});\n+\n+\ttest(\"rejects --repo with malformed slug\", () => {\n+\t\tconst result = runScript([\"--repo\", \"no-slash\"]);\n+\t\texpect(result.exitCode).not.toBe(0);\n+\t\texpect(result.stderr.toLowerCase()).toMatch(/owner\\/repo/);\n+\t});\n+});\ndiff --git a/scripts/backfill-receipts.ts b/scripts/backfill-receipts.ts\nnew file mode 100644\nindex 0000000..305b721\n--- /dev/null\n+++ b/scripts/backfill-receipts.ts\n@@ -0,0 +1,384 @@\n+#!/usr/bin/env bun\n+/**\n+ * Wave 3.1 backfill — produce a v1 receipt for each of the last N merged\n+ * PRs and write each one to `.maina/receipts/<hash>/`.\n+ *\n+ * Usage:\n+ *   bun run scripts/backfill-receipts.ts                  # last 10 merged PRs\n+ *   bun run scripts/backfill-receipts.ts --limit 25       # last 25\n+ *   bun run scripts/backfill-receipts.ts --dry-run        # don't check anything out\n+ *   bun run scripts/backfill-receipts.ts --repo own/repo  # explicit repo slug\n+ *\n+ * Safety rails (matches `maina apply-fix`):\n+ *   - aborts if the working tree is dirty\n+ *   - records the original branch and restores it on exit, even on error\n+ *   - skips a PR if `maina receipt` fails for it; doesn't abort the whole batch\n+ *\n+ * Output:\n+ *   - `.maina/receipts/<hash>/{receipt.json, index.html}` per PR\n+ *   - `.maina/receipts/index.html` listing all receipts (newest first)\n+ *   - Summary printed at the end with success/skip counts\n+ */\n+\n+import { existsSync, mkdirSync } from \"node:fs\";\n+import { join } from \"node:path\";\n+import {\n+\ttype ReceiptActionResult,\n+\treceiptAction,\n+} from \"../packages/cli/src/commands/receipt\";\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": []
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/packages/cli/src/commands/apply-fix.ts b/packages/cli/src/commands/apply-fix.ts\nnew file mode 100644\nindex 0000000..b8ac528\n--- /dev/null\n+++ b/packages/cli/src/commands/apply-fix.ts\n@@ -0,0 +1,401 @@\n+import { existsSync, readFileSync, writeFileSync } from \"node:fs\";\n+import { tmpdir } from \"node:os\";\n+import { join } from \"node:path\";\n+import {\n+\tgetChangedFiles,\n+\ttype Receipt,\n+\tvalidatePatchScope,\n+\tverifyReceipt,\n+} from \"@mainahq/core\";\n+import { Command } from \"commander\";\n+import {\n+\tEXIT_CONFIG_ERROR,\n+\tEXIT_FINDINGS,\n+\tEXIT_PASSED,\n+\toutputJson,\n+} from \"../json\";\n+\n+export interface ApplyFixActionOptions {\n+\tdryRun?: boolean;\n+\tcwd?: string;\n+\tjson?: boolean;\n+\tbase?: string;\n+\treceiptDir?: string;\n+}\n+\n+export interface ApplyFixActionResult {\n+\tok: boolean;\n+\tcommitMessage?: string;\n+\ttouchedFiles?: string[];\n+\terror?: { code: string; message: string };\n+}\n+\n+const MAINA_DIR = \".maina\";\n+const RECEIPTS_SUBDIR = \"receipts\";\n+const DEFAULT_BASE_BRANCH = \"master\";\n+\n+export async function applyFixAction(\n+\thash: string,\n+\tcheckId: string,\n+\toptions: ApplyFixActionOptions = {},\n+): Promise<ApplyFixActionResult> {\n+\tconst cwd = options.cwd ?? process.cwd();\n+\n+\tif (!/^[0-9a-f]{64}$/.test(hash)) {\n+\t\treturn {\n+\t\t\tok: false,\n+\t\t\terror: {\n+\t\t\t\tcode: \"invalid-hash\",\n+\t\t\t\tmessage: `Receipt hash must be 64 lowercase hex chars, got: ${hash}`,\n+\t\t\t},\n+\t\t};\n+\t}\n+\n+\t// 1. Locate + load receipt\n+\tconst receiptDir =\n+\t\toptions.receiptDir ?? join(cwd, MAINA_DIR, RECEIPTS_SUBDIR);\n+\tconst receiptPath = join(receiptDir, hash, \"receipt.json\");\n+\tif (!existsSync(receiptPath)) {\n+\t\treturn {\n+\t\t\tok: false,\n+\t\t\terror: {\n+\t\t\t\tcode: \"receipt-not-found\",\n+\t\t\t\tmessage: `No receipt at ${receiptPath}`,\n+\t\t\t},\n+\t\t};\n+\t}\n+\n+\tlet receipt: Receipt;\n+\ttry {\n+\t\tconst raw = JSON.parse(readFileSync(receiptPath, \"utf-8\"));\n+\t\tconst verified = verifyReceipt(raw);\n+\t\tif (!verified.ok) {\n+\t\t\treturn {\n+\t\t\t\tok: false,\n+\t\t\t\terror: {\n+\t\t\t\t\tcode: \"invalid-receipt\",\n+\t\t\t\t\tmessage: `Receipt failed verification (${verified.code}): ${verified.message}`,\n+\t\t\t\t},\n+\t\t\t};\n+\t\t}\n+\t\t// Don't trust the on-disk path keyed by user-supplied hash — make sure\n+\t\t// the verified receipt's own hash matches the argument. Catches stale\n+\t\t// or misplaced files in `.maina/receipts/<wrong>/receipt.json`.\n+\t\tif (verified.data.hash !== hash) {\n+\t\t\treturn {\n+\t\t\t\tok: false,\n+\t\t\t\terror: {\n+\t\t\t\t\tcode: \"hash-mismatch\",\n+\t\t\t\t\tmessage: `Receipt at ${receiptPath} reports hash ${verified.data.hash}, but command was invoked with ${hash}.`,\n+\t\t\t\t},\n+\t\t\t};\n+\t\t}\n+\t\treceipt = verified.data;\n+\t} catch (e) {\n+\t\treturn {\n+\t\t\tok: false,\n+\t\t\terror: {\n+\t\t\t\tcode: \"io\",\n+\t\t\t\tmessage: `Failed to read or parse receipt: ${(e as Error).message}`,\n+\t\t\t},\n+\t\t};\n+\t}\n+\n+\t// 2. Locate the check + its patch\n+\tconst check = receipt.checks.find((c) => c.id === checkId);\n+\tif (!check) {\n+\t\treturn {\n+\t\t\tok: false,\n+\t\t\terror: {\n+\t\t\t\tcode: \"check-not-found\",\n+\t\t\t\tmessage: `Receipt has no check with id ${checkId}. Available: ${receipt.checks.map((c) => c.id).join(\", \")}`,\n+\t\t\t},\n+\t\t};\n+\t}\n+\tif (!check.patch) {\n+\t\treturn {\n+\t\t\tok: false,\n+\t\t\terror: {\n+\t\t\t\tcode: \"no-patch\",\n+\t\t\t\tmessage: `Check ${checkId} has no autofix patch.`,\n+\t\t\t},\n+\t\t};\n+\t}\n+\n+\t// 3. Working tree must be clean — staged + unstaged + untracked. A staged\n+\t// check alone would let `git add -- <file>` after the apply sweep up\n+\t// pre-existing unstaged WIP into the autofix commit.\n+\tconst portionPorcelain = await runGit([\"status\", \"--porcelain\"], cwd);\n+\tif (portionPorcelain.exitCode !== 0) {\n+\t\treturn {\n+\t\t\tok: false,\n+\t\t\terror: {\n+\t\t\t\tcode: \"git-status-failed\",\n+\t\t\t\tmessage: `git status failed: ${portionPorcelain.stderr.trim() || portionPorcelain.stdout.trim()}`,\n+\t\t\t},\n+\t\t};\n+\t}\n+\tif (portionPorcelain.stdout.trim().length > 0) {\n+\t\treturn {\n+\t\t\tok: false,\n+\t\t\terror: {\n+\t\t\t\tcode: \"working-tree-dirty\",\n+\t\t\t\tmessage:\n+\t\t\t\t\t\"Working tree has uncommitted changes — commit or stash before applying autofix.\",\n+\t\t\t},\n+\t\t};\n+\t}\n+\n+\t// 4. Validate scope — patch must only touch files in the receipt's diff scope\n+\tconst baseBranch = options.base ?? DEFAULT_BASE_BRANCH;\n+\t// Verify base ref exists before relying on getChangedFiles — otherwise an\n+\t// unknown base produces an empty allowlist that surfaces every patch as\n+\t// \"out-of-scope\", which is misleading.\n+\tconst baseCheck = await runGit(\n+\t\t[\"rev-parse\", \"--verify\", \"--quiet\", baseBranch],\n+\t\tcwd,\n+\t);\n+\tif (baseCheck.exitCode !== 0) {\n+\t\treturn {\n+\t\t\tok: false,\n+\t\t\terror: {\n+\t\t\t\tcode: \"unknown-base-branch\",\n+\t\t\t\tmessage: `Base branch ${baseBranch} not found. Pass --base <branch> with an existing ref.`,\n+\t\t\t},\n+\t\t};\n+\t}\n+\tconst allowedFiles = await getChangedFiles(baseBranch, cwd);\n+\tconst validation = validatePatchScope(check.patch, allowedFiles);\n+\tif (!validation.ok) {\n+\t\treturn {\n+\t\t\tok: false,\n+\t\t\terror: {\n+\t\t\t\tcode: validation.code,\n+\t\t\t\tmessage: validation.message,\n+\t\t\t},\n+\t\t};\n+\t}\n+\n+\t// 5. Write patch to tmp, then git apply --check + apply (skip on dry-run)\n+\tconst tmpPatch = join(\n+\t\ttmpdir(),\n+\t\t`maina-autofix-${hash.slice(0, 12)}-${Date.now()}.patch`,\n+\t);\n+\ttry {\n+\t\twriteFileSync(tmpPatch, check.patch.diff, \"utf-8\");\n+\t} catch (e) {\n+\t\treturn {\n+\t\t\tok: false,\n+\t\t\terror: {\n+\t\t\t\tcode: \"io\",\n+\t\t\t\tmessage: `Failed to write tmp patch ${tmpPatch}: ${(e as Error).message}`,\n+\t\t\t},\n+\t\t};\n+\t}\n+\n+\tconst checkResult = await runGit([\"apply\", \"--check\", tmpPatch], cwd);\n+\tif (checkResult.exitCode !== 0) {\n+\t\treturn {\n+\t\t\tok: false,\n+\t\t\terror: {\n+\t\t\t\tcode: \"apply-conflict\",\n+\t\t\t\tmessage: `Patch does not apply cleanly: ${checkResult.stderr.trim() || checkResult.stdout.trim()}`,\n+\t\t\t},\n+\t\t};\n+\t}\n+\n+\tif (options.dryRun) {\n+\t\treturn {\n+\t\t\tok: true,\n+\t\t\tcommitMessage: buildCommitMessage(checkId, hash, check.patch.rationale),\n+\t\t\ttouchedFiles: validation.touchedFiles,\n+\t\t};\n+\t}\n+\n+\tconst applyResult = await runGit([\"apply\", tmpPatch], cwd);\n+\tif (applyResult.exitCode !== 0) {\n+\t\treturn {\n+\t\t\tok: false,\n+\t\t\terror: {\n+\t\t\t\tcode: \"apply-failed\",\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": []
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/packages/cli/src/commands/__tests__/commit.test.ts b/packages/cli/src/commands/__tests__/commit.test.ts\nindex cd6dfa5..14c6878 100644\n--- a/packages/cli/src/commands/__tests__/commit.test.ts\n+++ b/packages/cli/src/commands/__tests__/commit.test.ts\n@@ -116,4 +116,9 @@ mock.module(\"@mainahq/core\", () => ({\n \temitRejectSignal: () => {},\n \ttrackToolUsage: () => ({ ok: true, value: undefined }),\n+\tappendVerifiedByTrailer: (message: string, _hash: string) => ({\n+\t\tok: true,\n+\t\tdata: message,\n+\t}),\n+\tcomputeProofHash: () => ({ ok: true, data: \"0\".repeat(64) }),\n }));\n \ndiff --git a/packages/cli/src/commands/commit.ts b/packages/cli/src/commands/commit.ts\nindex 8b995c3..f70f949 100644\n--- a/packages/cli/src/commands/commit.ts\n+++ b/packages/cli/src/commands/commit.ts\n@@ -4,7 +4,9 @@ import { confirm, intro, isCancel, log, outro, text } from \"@clack/prompts\";\n import {\n \taddEpisodicEntry,\n+\tappendVerifiedByTrailer,\n \tappendWorkflowStep,\n \tassembleContext,\n \tcheckAIAvailability,\n+\tcomputeProofHash,\n \temitAcceptSignal,\n \tgetCurrentBranch,\n@@ -29,4 +31,5 @@ export interface CommitActionOptions {\n \tskip?: boolean;\n \tnoVerify?: boolean;\n+\tnoTrailer?: boolean;\n \tjson?: boolean;\n \tcwd?: string;\n@@ -398,4 +401,19 @@ export async function commitAction(\n \t}\n \n+\t// ── Step 5b: Append Verified-by trailer when verification ran ─────────\n+\tif (!options.noTrailer && !options.noVerify && pipelineResult) {\n+\t\tconst hash = computeProofHash({\n+\t\t\tpassed: pipelineResult.passed,\n+\t\t\ttoolsRun: pipelineResult.tools.length,\n+\t\t\tfindingsShown: pipelineResult.findings.length,\n+\t\t\tfindingsHidden: pipelineResult.hiddenCount,\n+\t\t});\n+\t\tif (hash.ok) {\n+\t\t\tconst trailer = appendVerifiedByTrailer(message, hash.data);\n+\t\t\tif (trailer.ok) message = trailer.data;\n+\t\t\t// Trailer is best-effort — failures are silent so they never block commit.\n+\t\t}\n+\t}\n+\n \t// ── Step 6: Git commit ────────────────────────────────────────────────\n \tconst { exitCode, stdout, stderr } = await deps.gitCommit(message, cwd);\n@@ -554,4 +572,5 @@ export function commitCommand(): Command {\n \t\t.option(\"--skip\", \"Skip verification (not recommended)\")\n \t\t.option(\"--no-verify\", \"Skip all verification and hooks\")\n+\t\t.option(\"--no-trailer\", \"Skip the Verified-by: Maina@sha256 commit trailer\")\n \t\t.option(\"--json\", \"Output JSON for CI\")\n \t\t.action(async (options) => {\ndiff --git a/packages/core/src/git/__tests__/trailer.test.ts b/packages/core/src/git/__tests__/trailer.test.ts\nnew file mode 100644\nindex 0000000..fb18256\n--- /dev/null\n+++ b/packages/core/src/git/__tests__/trailer.test.ts\n@@ -0,0 +1,115 @@\n+import { describe, expect, test } from \"bun:test\";\n+import {\n+\tappendVerifiedByTrailer,\n+\tcomputeProofHash,\n+\thasVerifiedByTrailer,\n+} from \"../trailer\";\n+\n+const HASH = \"a\".repeat(64);\n+const HASH2 = \"b\".repeat(64);\n+\n+function unwrapAppend(message: string, hash: string): string {\n+\tconst result = appendVerifiedByTrailer(message, hash);\n+\tif (!result.ok)\n+\t\tthrow new Error(`unexpected append failure: ${result.message}`);\n+\treturn result.data;\n+}\n+\n+function unwrapHash(value: unknown): string {\n+\tconst result = computeProofHash(value);\n+\tif (!result.ok) throw new Error(`unexpected hash failure: ${result.message}`);\n+\treturn result.data;\n+}\n+\n+describe(\"hasVerifiedByTrailer\", () => {\n+\ttest(\"detects a present trailer\", () => {\n+\t\texpect(\n+\t\t\thasVerifiedByTrailer(`feat: x\\n\\nVerified-by: Maina@sha256:${HASH}\\n`),\n+\t\t).toBe(true);\n+\t});\n+\n+\ttest(\"returns false when absent\", () => {\n+\t\texpect(hasVerifiedByTrailer(\"feat: x\\n\")).toBe(false);\n+\t});\n+\n+\ttest(\"rejects malformed trailer\", () => {\n+\t\texpect(hasVerifiedByTrailer(\"feat: x\\n\\nVerified-by: maina@xxxx\")).toBe(\n+\t\t\tfalse,\n+\t\t);\n+\t});\n+});\n+\n+describe(\"appendVerifiedByTrailer\", () => {\n+\ttest(\"appends with blank-line separator on a subject-only message\", () => {\n+\t\texpect(unwrapAppend(\"feat: add thing\", HASH)).toBe(\n+\t\t\t`feat: add thing\\n\\nVerified-by: Maina@sha256:${HASH}\\n`,\n+\t\t);\n+\t});\n+\n+\ttest(\"appends to existing trailer block without extra blank line\", () => {\n+\t\tconst msg = \"feat: add thing\\n\\nCo-Authored-By: foo <foo@example.com>\";\n+\t\texpect(unwrapAppend(msg, HASH)).toBe(\n+\t\t\t`feat: add thing\\n\\nCo-Authored-By: foo <foo@example.com>\\nVerified-by: Maina@sha256:${HASH}\\n`,\n+\t\t);\n+\t});\n+\n+\ttest(\"is idempotent — re-running with the same hash leaves one trailer\", () => {\n+\t\tconst once = unwrapAppend(\"feat: x\", HASH);\n+\t\tconst twice = unwrapAppend(once, HASH);\n+\t\texpect(twice).toBe(once);\n+\t\texpect(twice.match(/Verified-by:/g)?.length).toBe(1);\n+\t});\n+\n+\ttest(\"replaces an existing trailer with a different hash\", () => {\n+\t\tconst original = unwrapAppend(\"feat: x\", HASH);\n+\t\tconst updated = unwrapAppend(original, HASH2);\n+\t\texpect(updated).toContain(`Verified-by: Maina@sha256:${HASH2}`);\n+\t\texpect(updated).not.toContain(`Verified-by: Maina@sha256:${HASH}`);\n+\t\texpect(updated.match(/Verified-by:/g)?.length).toBe(1);\n+\t});\n+\n+\ttest(\"collapses multiple existing Verified-by trailers into one\", () => {\n+\t\tconst messy = `feat: x\\n\\nVerified-by: Maina@sha256:${HASH}\\nCo-Authored-By: foo\\nVerified-by: Maina@sha256:${\"c\".repeat(64)}\\n`;\n+\t\tconst cleaned = unwrapAppend(messy, HASH2);\n+\t\texpect(cleaned.match(/Verified-by:/g)?.length).toBe(1);\n+\t\texpect(cleaned).toContain(`Verified-by: Maina@sha256:${HASH2}`);\n+\t\texpect(cleaned).toContain(\"Co-Authored-By: foo\");\n+\t});\n+\n+\ttest(\"returns Result error for an invalid hash\", () => {\n+\t\tconst result = appendVerifiedByTrailer(\"feat: x\", \"not-a-hash\");\n+\t\texpect(result.ok).toBe(false);\n+\t\tif (!result.ok) expect(result.code).toBe(\"invalid-hash\");\n+\t});\n+\n+\ttest(\"handles a body paragraph between subject and trailers\", () => {\n+\t\tconst msg = \"feat: x\\n\\nThis is a body paragraph with details.\";\n+\t\texpect(unwrapAppend(msg, HASH)).toBe(\n+\t\t\t`feat: x\\n\\nThis is a body paragraph with details.\\n\\nVerified-by: Maina@sha256:${HASH}\\n`,\n+\t\t);\n+\t});\n+\n+\ttest(\"handles empty input\", () => {\n+\t\texpect(unwrapAppend(\"\", HASH)).toBe(`Verified-by: Maina@sha256:${HASH}\\n`);\n+\t});\n+});\n+\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (131 chars) in added code",
+						"file": "packages/core/src/git/__tests__/trailer.test.ts",
+						"line": 72
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/packages/cli/src/commands/__tests__/verify-receipt.test.ts b/packages/cli/src/commands/__tests__/verify-receipt.test.ts\nnew file mode 100644\nindex 0000000..51b4d51\n--- /dev/null\n+++ b/packages/cli/src/commands/__tests__/verify-receipt.test.ts\n@@ -0,0 +1,104 @@\n+import { afterAll, beforeAll, describe, expect, test } from \"bun:test\";\n+import { mkdtempSync, rmSync, writeFileSync } from \"node:fs\";\n+import { tmpdir } from \"node:os\";\n+import { join } from \"node:path\";\n+import { computeReceiptHash, type Receipt } from \"@mainahq/core\";\n+import { verifyReceiptAction } from \"../verify-receipt\";\n+\n+function baseReceipt(): Omit<Receipt, \"hash\"> {\n+\treturn {\n+\t\tprTitle: \"example PR\",\n+\t\trepo: \"mainahq/maina\",\n+\t\ttimestamp: \"2026-04-25T12:00:00Z\",\n+\t\tstatus: \"passed\",\n+\t\tdiff: { additions: 10, deletions: 2, files: 1 },\n+\t\tagent: { id: \"claude-code:opus\", modelVersion: \"claude-opus-4-7\" },\n+\t\tpromptVersion: {\n+\t\t\tconstitutionHash: \"a\".repeat(64),\n+\t\t\tpromptsHash: \"b\".repeat(64),\n+\t\t},\n+\t\tchecks: [\n+\t\t\t{\n+\t\t\t\tid: \"biome-check\",\n+\t\t\t\tname: \"Biome lint + format\",\n+\t\t\t\tstatus: \"passed\",\n+\t\t\t\ttool: \"biome\",\n+\t\t\t\tfindings: [],\n+\t\t\t},\n+\t\t],\n+\t\twalkthrough: \"Added one field. Tests green. No policy drift.\",\n+\t\tfeedback: [],\n+\t\tretries: 0,\n+\t};\n+}\n+\n+function signed(receipt: Omit<Receipt, \"hash\">): Receipt {\n+\tconst hash = computeReceiptHash(receipt);\n+\tif (!hash.ok) throw new Error(`computeReceiptHash failed: ${hash.message}`);\n+\treturn { ...receipt, hash: hash.data };\n+}\n+\n+describe(\"verifyReceiptAction\", () => {\n+\tlet dir: string;\n+\n+\tbeforeAll(() => {\n+\t\tdir = mkdtempSync(join(tmpdir(), \"maina-verify-receipt-\"));\n+\t});\n+\n+\tafterAll(() => {\n+\t\trmSync(dir, { recursive: true, force: true });\n+\t});\n+\n+\ttest(\"happy path — signed receipt verifies\", () => {\n+\t\tconst path = join(dir, \"ok.json\");\n+\t\twriteFileSync(path, JSON.stringify(signed(baseReceipt())));\n+\t\tconst result = verifyReceiptAction(path);\n+\t\texpect(result.ok).toBe(true);\n+\t\texpect(result.passedCount).toBe(1);\n+\t\texpect(result.totalCount).toBe(1);\n+\t\texpect(result.status).toBe(\"passed\");\n+\t});\n+\n+\ttest(\"reports io error on missing file\", () => {\n+\t\tconst result = verifyReceiptAction(join(dir, \"nope.json\"));\n+\t\texpect(result.ok).toBe(false);\n+\t\texpect(result.code).toBe(\"io\");\n+\t});\n+\n+\ttest(\"reports io error on malformed JSON\", () => {\n+\t\tconst path = join(dir, \"bad.json\");\n+\t\twriteFileSync(path, \"{not-json\");\n+\t\tconst result = verifyReceiptAction(path);\n+\t\texpect(result.ok).toBe(false);\n+\t\texpect(result.code).toBe(\"io\");\n+\t});\n+\n+\ttest(\"reports hash mismatch\", () => {\n+\t\tconst path = join(dir, \"tampered.json\");\n+\t\tconst r = signed(baseReceipt());\n+\t\twriteFileSync(\n+\t\t\tpath,\n+\t\t\tJSON.stringify({ ...r, prTitle: \"changed after sign\" }),\n+\t\t);\n+\t\tconst result = verifyReceiptAction(path);\n+\t\texpect(result.ok).toBe(false);\n+\t\texpect(result.code).toBe(\"hash-mismatch\");\n+\t});\n+\n+\ttest(\"reports shape error on missing field\", () => {\n+\t\tconst path = join(dir, \"incomplete.json\");\n+\t\tconst r = signed(baseReceipt()) as Partial<Receipt>;\n+\t\tdelete r.retries;\n+\t\twriteFileSync(path, JSON.stringify(r));\n+\t\tconst result = verifyReceiptAction(path);\n+\t\texpect(result.ok).toBe(false);\n+\t\texpect(result.code).toBe(\"missing-field\");\n+\t});\n+\n+\ttest(\"resolves relative paths against cwd option\", () => {\n+\t\tconst path = join(dir, \"cwd.json\");\n+\t\twriteFileSync(path, JSON.stringify(signed(baseReceipt())));\n+\t\tconst result = verifyReceiptAction(\"cwd.json\", { cwd: dir });\n+\t\texpect(result.ok).toBe(true);\n+\t});\n+});\ndiff --git a/packages/cli/src/commands/verify-receipt.ts b/packages/cli/src/commands/verify-receipt.ts\nnew file mode 100644\nindex 0000000..4bcab85\n--- /dev/null\n+++ b/packages/cli/src/commands/verify-receipt.ts\n@@ -0,0 +1,109 @@\n+import { readFileSync } from \"node:fs\";\n+import { isAbsolute, resolve } from \"node:path\";\n+import { verifyReceipt } from \"@mainahq/core\";\n+import { Command } from \"commander\";\n+import {\n+\tEXIT_CONFIG_ERROR,\n+\tEXIT_FINDINGS,\n+\tEXIT_PASSED,\n+\toutputJson,\n+} from \"../json\";\n+\n+export interface VerifyReceiptOptions {\n+\tjson?: boolean;\n+\tcwd?: string;\n+}\n+\n+export interface VerifyReceiptResult {\n+\tok: boolean;\n+\tcode?: string;\n+\tmessage?: string;\n+\tpassedCount?: number;\n+\ttotalCount?: number;\n+\tstatus?: string;\n+}\n+\n+export function verifyReceiptAction(\n+\tpath: string,\n+\toptions: VerifyReceiptOptions = {},\n+): VerifyReceiptResult {\n+\tconst cwd = options.cwd ?? process.cwd();\n+\tconst absolute = isAbsolute(path) ? path : resolve(cwd, path);\n+\n+\tlet raw: unknown;\n+\ttry {\n+\t\tconst text = readFileSync(absolute, \"utf-8\");\n+\t\traw = JSON.parse(text);\n+\t} catch (e) {\n+\t\tconst message = e instanceof Error ? e.message : String(e);\n+\t\treturn {\n+\t\t\tok: false,\n+\t\t\tcode: \"io\",\n+\t\t\tmessage: `Failed to read or parse ${absolute}: ${message}`,\n+\t\t};\n+\t}\n+\n+\tconst result = verifyReceipt(raw);\n+\tif (!result.ok) {\n+\t\treturn { ok: false, code: result.code, message: result.message };\n+\t}\n+\tconst passed = result.data.checks.filter((c) => c.status === \"passed\").length;\n+\treturn {\n+\t\tok: true,\n+\t\tpassedCount: passed,\n+\t\ttotalCount: result.data.checks.length,\n+\t\tstatus: result.data.status,\n+\t};\n+}\n+\n+export function verifyReceiptCommand(): Command {\n+\treturn new Command(\"verify-receipt\")\n+\t\t.description(\n+\t\t\t\"Verify a Maina receipt JSON file against the v1 schema + canonical hash\",\n+\t\t)\n+\t\t.argument(\"<path>\", \"path to a receipt JSON file\")\n+\t\t.option(\"--json\", \"emit structured JSON envelope instead of human output\")\n+\t\t.action((path: string, opts: VerifyReceiptOptions) => {\n+\t\t\tconst result = verifyReceiptAction(path, opts);\n+\t\t\tconst exitCode = result.ok\n+\t\t\t\t? EXIT_PASSED\n+\t\t\t\t: result.code === \"io\"\n+\t\t\t\t\t? EXIT_CONFIG_ERROR\n+\t\t\t\t\t: EXIT_FINDINGS;\n+\n+\t\t\tif (opts.json) {\n+\t\t\t\toutputJson(formatJsonEnvelope(result), exitCode);\n+\t\t\t\treturn;\n+\t\t\t}\n+\t\t\tif (result.ok) {\n+\t\t\t\tprocess.stdout.write(\n+\t\t\t\t\t`Receipt verified — passed ${result.passedCount} of ${result.totalCount} checks (${result.status}).\\n`,\n+\t\t\t\t);\n+\t\t\t} else {\n+\t\t\t\tprocess.stderr.write(\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": []
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/.changeset/posthog-send-wiring.md b/.changeset/posthog-send-wiring.md\nnew file mode 100644\nindex 0000000..ab8cdd3\n--- /dev/null\n+++ b/.changeset/posthog-send-wiring.md\n@@ -0,0 +1,12 @@\n+---\n+\"@mainahq/core\": minor\n+\"@mainahq/cli\": minor\n+---\n+\n+**PostHog send path wired end-to-end (feat 054).** Event builders (`buildUsageEvent`, `buildErrorEvent`) and PII scrubbing have existed for months without a caller — users who opted in to `telemetry: true` still sent zero events.\n+\n+This PR adds `packages/core/src/telemetry/posthog-client.ts` with `captureUsage`, `captureError`, and `flushTelemetry`. All three are no-ops unless (a) the consent flag in `~/.maina/config.yml` is set AND (b) `MAINA_POSTHOG_API_KEY` is present at build time. OSS forks built without the key get a silent no-op binary — no leaked events to maina's PostHog project.\n+\n+Wired three high-value call sites: `maina setup` emits `maina.install`, `maina verify` emits `maina.verify.started` + `maina.verify.completed`, `maina learn` emits `maina.learn.ran`. The remaining five events enumerated in `UsageEventName` (`maina.commit`, `maina.plan`, `maina.wiki.init`, `maina.wiki.query`) land in a follow-up so this PR stays reviewable.\n+\n+Commander `postAction` hook awaits `flushTelemetry(2000)` at every command exit so an unreachable PostHog endpoint cannot hang `maina commit` beyond the budget. The SDK is dynamic-imported on the first green-lit capture — startup cost is zero when telemetry is off.\ndiff --git a/context7.json b/context7.json\nnew file mode 100644\nindex 0000000..4cd4788\n--- /dev/null\n+++ b/context7.json\n@@ -0,0 +1,4 @@\n+{\n+  \"url\": \"https://context7.com/mainahq/maina\",\n+  \"public_key\": \"pk_7io1S3BJ34G7mGa8zrRsF\"\n+}\ndiff --git a/packages/cli/src/commands/__tests__/verify.test.ts b/packages/cli/src/commands/__tests__/verify.test.ts\nindex 7d4a274..06945d4 100644\n--- a/packages/cli/src/commands/__tests__/verify.test.ts\n+++ b/packages/cli/src/commands/__tests__/verify.test.ts\n@@ -136,4 +136,20 @@ mock.module(\"@mainahq/core\", () => ({\n \tcreateCloudClient: () => ({}),\n \tgetDiff: async () => mockDiffOutput,\n+\t// Telemetry (feat 054) — verify.ts now emits maina.verify.{started,\n+\t// completed}. Both functions are safe no-ops here since the mock\n+\t// factory is what the consent-gated client ultimately reaches.\n+\tbuildUsageEvent: (\n+\t\tevent: string,\n+\t\tproperties: Record<string, unknown>,\n+\t\tversion: string,\n+\t) => ({\n+\t\tevent,\n+\t\tproperties,\n+\t\ttimestamp: new Date().toISOString(),\n+\t\tos: process.platform,\n+\t\truntime: \"bun\",\n+\t\tversion,\n+\t}),\n+\tcaptureUsage: () => {},\n }));\n \ndiff --git a/packages/cli/src/commands/learn.ts b/packages/cli/src/commands/learn.ts\nindex e9e0a92..2bf7cb7 100644\n--- a/packages/cli/src/commands/learn.ts\n+++ b/packages/cli/src/commands/learn.ts\n@@ -5,4 +5,6 @@ import {\n \tanalyseWorkflowFeedback,\n \tanalyseWorkflowRuns,\n+\tbuildUsageEvent,\n+\tcaptureUsage,\n \tcreateCandidate,\n \tcreateCloudClient,\n@@ -14,4 +16,7 @@ import {\n } from \"@mainahq/core\";\n import { Command } from \"commander\";\n+import packageJson from \"../../package.json\" with { type: \"json\" };\n+\n+const CLI_VERSION = (packageJson as { version?: string }).version ?? \"0.0.0\";\n \n const TASKS: PromptTask[] = [\n@@ -44,4 +49,11 @@ export function learnCommand(): Command {\n \t\t\tconst mainaDir = join(repoRoot, \".maina\");\n \n+\t\t\t// Emit early so the cohort event fires even on cloud-mode runs\n+\t\t\t// (which exit via `runCloudLearn` below). `captureUsage` no-ops\n+\t\t\t// when telemetry is off or the build-time key is absent.\n+\t\t\tcaptureUsage(\n+\t\t\t\tbuildUsageEvent(\"maina.learn.ran\", { cloud, interactive }, CLI_VERSION),\n+\t\t\t);\n+\n \t\t\t// ── Cloud mode ──────────────────────────────────────────────────\n \t\t\tif (cloud) {\ndiff --git a/packages/cli/src/commands/setup.ts b/packages/cli/src/commands/setup.ts\nindex 4db6c8c..bcd5b36 100644\n--- a/packages/cli/src/commands/setup.ts\n+++ b/packages/cli/src/commands/setup.ts\n@@ -34,4 +34,6 @@ import {\n \tassembleStackContext,\n \tbuildMainaEntry,\n+\tbuildUsageEvent,\n+\tcaptureUsage,\n \tdegradedBanner,\n \tdeploySkills,\n@@ -1067,4 +1069,28 @@ export async function setupAction(\n \t\toptions,\n \t});\n+\t// Consent-gated PostHog usage event. `captureUsage` is a no-op when\n+\t// `telemetry: true` isn't set or the build-time key is absent, so this\n+\t// is always safe to call — but we also honour the command-level\n+\t// `--no-telemetry` flag here, because a user who explicitly opted out\n+\t// of the setup-specific beacon should not silently still feed PostHog.\n+\tif (options.telemetry !== false) {\n+\t\tcaptureUsage(\n+\t\t\tbuildUsageEvent(\n+\t\t\t\t\"maina.install\",\n+\t\t\t\t{\n+\t\t\t\t\tmode: result.mode,\n+\t\t\t\t\taiSource: result.aiSource,\n+\t\t\t\t\tdegraded: result.degraded,\n+\t\t\t\t\ttailored:\n+\t\t\t\t\t\tresult.aiSource !== \"degraded\" && result.aiSource !== \"host\",\n+\t\t\t\t\tdurationMs: result.durationMs,\n+\t\t\t\t\tbailed: result.bailed,\n+\t\t\t\t\tbailReason: result.bailReason ?? \"\",\n+\t\t\t\t\tagentFiles: result.agentFilesWritten.length,\n+\t\t\t\t},\n+\t\t\t\tCLI_VERSION,\n+\t\t\t),\n+\t\t);\n+\t}\n \treturn result;\n }\ndiff --git a/packages/cli/src/commands/verify.ts b/packages/cli/src/commands/verify.ts\nindex 2e267ff..7f1b255 100644\n--- a/packages/cli/src/commands/verify.ts\n+++ b/packages/cli/src/commands/verify.ts\n@@ -10,4 +10,6 @@ import type {\n import {\n \tappendWorkflowStep,\n+\tbuildUsageEvent,\n+\tcaptureUsage,\n \tcheckAIAvailability,\n \tcreateCloudClient,\n@@ -23,4 +25,8 @@ import {\n \trunVisualVerification,\n } from \"@mainahq/core\";\n+import packageJson from \"../../package.json\" with { type: \"json\" };\n+\n+const CLI_VERSION = (packageJson as { version?: string }).version ?? \"0.0.0\";\n+\n import { Command } from \"commander\";\n \n@@ -171,4 +177,17 @@ export async function cloudVerifyAction(\n \tconst baseBranch = options.base ?? \"main\";\n \tconst sleepFn = deps?.sleepFn ?? ((ms: number) => Bun.sleep(ms));\n+\tconst startedAt = Date.now();\n+\n+\t// Cloud-path telemetry — `verifyAction` has its own started/completed\n+\t// captures but the Commander action dispatches cloud runs to this\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": false,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (229 chars) in added code",
+						"file": ".changeset/posthog-send-wiring.md",
+						"line": 6
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (363 chars) in added code",
+						"file": ".changeset/posthog-send-wiring.md",
+						"line": 8
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (358 chars) in added code",
+						"file": ".changeset/posthog-send-wiring.md",
+						"line": 10
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (265 chars) in added code",
+						"file": ".changeset/posthog-send-wiring.md",
+						"line": 12
+					},
+					{
+						"stage": "code-quality",
+						"severity": "warning",
+						"message": "Empty function body in added code",
+						"file": "packages/cli/src/commands/__tests__/verify.test.ts",
+						"line": 153
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts b/packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts\nnew file mode 100644\nindex 0000000..ad70573\n--- /dev/null\n+++ b/packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts\n@@ -0,0 +1,402 @@\n+/**\n+ * End-to-end fixture for Wave 3 acceptance:\n+ *\n+ * - Throwaway repo with a pre-existing `.claude/settings.json` that has an\n+ *   unrelated MCP entry.\n+ * - After `setupAction` runs, the file must contain BOTH the user's entry\n+ *   and the maina entry — byte-for-byte preservation (modulo formatter).\n+ *\n+ * The wizard has many moving parts (AI resolution, verify, wiki). We stub\n+ * every heavy dependency so the test is fast and deterministic, exercising\n+ * only the IDE-wiring path.\n+ */\n+\n+import { describe, expect, test } from \"bun:test\";\n+import {\n+\texistsSync,\n+\tmkdirSync,\n+\tmkdtempSync,\n+\treadFileSync,\n+\trmSync,\n+\twriteFileSync,\n+} from \"node:fs\";\n+import { tmpdir } from \"node:os\";\n+import { join } from \"node:path\";\n+import type {\n+\tSetupActionDeps,\n+\tSetupActionOptions,\n+\tSpinnerLike,\n+} from \"../setup\";\n+import { setupAction } from \"../setup\";\n+\n+const NOOP_LOG: SetupActionDeps[\"log\"] = {\n+\tinfo: () => {},\n+\terror: () => {},\n+\twarning: () => {},\n+\tsuccess: () => {},\n+\tmessage: () => {},\n+\tstep: () => {},\n+};\n+\n+const NOOP_SPINNER = (): SpinnerLike => ({ start: () => {}, stop: () => {} });\n+\n+function initGitRepo(cwd: string): void {\n+\t// Pretend this is a git repo by just creating .git/. setupAction's\n+\t// default `isGitRepo` walks the filesystem, but we override it anyway.\n+\tmkdirSync(join(cwd, \".git\"), { recursive: true });\n+}\n+\n+describe(\"setupAction IDE-wiring e2e fixture\", () => {\n+\ttest(\"preserves existing .claude/settings.json MCP entries while adding maina\", async () => {\n+\t\tconst cwd = mkdtempSync(join(tmpdir(), \"maina-setup-e2e-\"));\n+\t\ttry {\n+\t\t\tinitGitRepo(cwd);\n+\n+\t\t\t// Seed a `.claude/settings.json` with an unrelated MCP entry. We\n+\t\t\t// also stash an unrelated top-level key to confirm it's preserved.\n+\t\t\tconst settingsPath = join(cwd, \".claude\", \"settings.json\");\n+\t\t\tmkdirSync(join(cwd, \".claude\"), { recursive: true });\n+\t\t\tconst userEntry = {\n+\t\t\t\tcommand: \"bunx\",\n+\t\t\t\targs: [\"@modelcontextprotocol/server-memory\"],\n+\t\t\t};\n+\t\t\twriteFileSync(\n+\t\t\t\tsettingsPath,\n+\t\t\t\tJSON.stringify(\n+\t\t\t\t\t{\n+\t\t\t\t\t\ttheme: \"dark\",\n+\t\t\t\t\t\tmcpServers: {\n+\t\t\t\t\t\t\tmemory: userEntry,\n+\t\t\t\t\t\t},\n+\t\t\t\t\t},\n+\t\t\t\t\tnull,\n+\t\t\t\t\t2,\n+\t\t\t\t),\n+\t\t\t\t\"utf-8\",\n+\t\t\t);\n+\n+\t\t\t// Stub deps: every expensive thing is replaced with a minimal fake.\n+\t\t\tconst deps: SetupActionDeps = {\n+\t\t\t\tintro: () => {},\n+\t\t\t\toutro: () => {},\n+\t\t\t\tlog: NOOP_LOG,\n+\t\t\t\tspinner: NOOP_SPINNER,\n+\t\t\t\tisGitRepo: () => true,\n+\t\t\t\tisDirty: async () => false,\n+\t\t\t\tresolveAI: async () =>\n+\t\t\t\t\t({\n+\t\t\t\t\t\tsource: \"degraded\",\n+\t\t\t\t\t\ttext: \"# Project Constitution\\n\\nStub.\\n\",\n+\t\t\t\t\t\tmetadata: {\n+\t\t\t\t\t\t\tsource: \"degraded\",\n+\t\t\t\t\t\t\tattemptedSources: [\"degraded\"],\n+\t\t\t\t\t\t\tdurationMs: 0,\n+\t\t\t\t\t\t},\n+\t\t\t\t\t\t// biome-ignore lint/suspicious/noExplicitAny: minimal stub\n+\t\t\t\t\t}) as any,\n+\t\t\t\tassembleStack: async () =>\n+\t\t\t\t\t({\n+\t\t\t\t\t\tok: true,\n+\t\t\t\t\t\tvalue: {\n+\t\t\t\t\t\t\tlanguages: [\"typescript\"],\n+\t\t\t\t\t\t\tframeworks: [],\n+\t\t\t\t\t\t\tpackageManager: \"bun\",\n+\t\t\t\t\t\t\tbuildTool: null,\n+\t\t\t\t\t\t\tlinters: [\"biome\"],\n+\t\t\t\t\t\t\ttestRunners: [\"bun:test\"],\n+\t\t\t\t\t\t\tcicd: [],\n+\t\t\t\t\t\t\trepoSize: { files: 5, bytes: 10 },\n+\t\t\t\t\t\t\tisEmpty: false,\n+\t\t\t\t\t\t\tisLarge: false,\n+\t\t\t\t\t\t},\n+\t\t\t\t\t\t// biome-ignore lint/suspicious/noExplicitAny: minimal stub\n+\t\t\t\t\t}) as any,\n+\t\t\t\twriteAgentFiles: async () => ({\n+\t\t\t\t\tok: true,\n+\t\t\t\t\tvalue: { written: [], warnings: [] },\n+\t\t\t\t}),\n+\t\t\t\trunVerify: async () => ({ findings: [], clean: true }),\n+\t\t\t\tconfirm: async () => true,\n+\t\t\t\tseedWiki: async () => ({\n+\t\t\t\t\tran: false,\n+\t\t\t\t\tpages: null,\n+\t\t\t\t\tbackgrounded: false,\n+\t\t\t\t\tskipped: \"empty-repo\" as const,\n+\t\t\t\t\terror: null,\n+\t\t\t\t}),\n+\t\t\t};\n+\n+\t\t\tconst options: SetupActionOptions = {\n+\t\t\t\tcwd,\n+\t\t\t\tyes: true,\n+\t\t\t\tci: true,\n+\t\t\t\tjson: true,\n+\t\t\t\ttelemetry: false,\n+\t\t\t\tdeps,\n+\t\t\t\tsendTelemetry: async () => ({ sent: false, error: null }),\n+\t\t\t};\n+\n+\t\t\tconst result = await setupAction(options);\n+\t\t\texpect(result.bailed).toBe(false);\n+\t\t\texpect(result.constitutionWritten).toBe(true);\n+\n+\t\t\t// Verify merge outcome.\n+\t\t\tconst parsed = JSON.parse(readFileSync(settingsPath, \"utf-8\")) as {\n+\t\t\t\ttheme?: string;\n+\t\t\t\tmcpServers: Record<string, { command: string; args: string[] }>;\n+\t\t\t};\n+\t\t\texpect(parsed.theme).toBe(\"dark\");\n+\t\t\texpect(parsed.mcpServers.memory).toEqual(userEntry);\n+\t\t\tconst mainaEntry = parsed.mcpServers.maina;\n+\t\t\texpect(mainaEntry).toBeDefined();\n+\t\t\tif (!mainaEntry) return;\n+\t\t\t// The resolved command depends on machine state — could be bunx,\n+\t\t\t// npx, or a direct maina binary path. All that matters here is\n+\t\t\t// that an entry exists with a non-empty command.\n+\t\t\texpect(typeof mainaEntry.command).toBe(\"string\");\n+\t\t\texpect(mainaEntry.command.length).toBeGreaterThan(0);\n+\t\t} finally {\n+\t\t\trmSync(cwd, { recursive: true, force: true });\n+\t\t}\n+\t});\n+\n+\ttest(\"preserves existing .cursor/mcp.json entries\", async () => {\n+\t\tconst cwd = mkdtempSync(join(tmpdir(), \"maina-setup-cursor-e2e-\"));\n+\t\ttry {\n+\t\t\tinitGitRepo(cwd);\n+\t\t\tconst cursorPath = join(cwd, \".cursor\", \"mcp.json\");\n+\t\t\tmkdirSync(join(cwd, \".cursor\"), { recursive: true });\n+\t\t\tconst userEntry = { command: \"node\", args: [\"/tmp/custom.js\"] };\n+\t\t\twriteFileSync(\n+\t\t\t\tcursorPath,\n+\t\t\t\tJSON.stringify({ mcpServers: { custom: userEntry } }, null, 2),\n+\t\t\t\t\"utf-8\",\n+\t\t\t);\n+\n+\t\t\tconst deps: SetupActionDeps = {\n+\t\t\t\tintro: () => {},\n+\t\t\t\toutro: () => {},\n+\t\t\t\tlog: NOOP_LOG,\n+\t\t\t\tspinner: NOOP_SPINNER,\n+\t\t\t\tisGitRepo: () => true,\n+\t\t\t\tisDirty: async () => false,\n+\t\t\t\tresolveAI: async () =>\n+\t\t\t\t\t({\n+\t\t\t\t\t\tsource: \"degraded\",\n+\t\t\t\t\t\ttext: \"# Stub\\n\",\n+\t\t\t\t\t\tmetadata: {\n+\t\t\t\t\t\t\tsource: \"degraded\",\n+\t\t\t\t\t\t\tattemptedSources: [\"degraded\"],\n+\t\t\t\t\t\t\tdurationMs: 0,\n+\t\t\t\t\t\t},\n+\t\t\t\t\t\t// biome-ignore lint/suspicious/noExplicitAny: minimal stub\n+\t\t\t\t\t}) as any,\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": false,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "warning",
+						"message": "Empty function body in added code",
+						"file": "packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts",
+						"line": 33
+					},
+					{
+						"stage": "code-quality",
+						"severity": "warning",
+						"message": "Empty function body in added code",
+						"file": "packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts",
+						"line": 34
+					},
+					{
+						"stage": "code-quality",
+						"severity": "warning",
+						"message": "Empty function body in added code",
+						"file": "packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts",
+						"line": 35
+					},
+					{
+						"stage": "code-quality",
+						"severity": "warning",
+						"message": "Empty function body in added code",
+						"file": "packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts",
+						"line": 36
+					},
+					{
+						"stage": "code-quality",
+						"severity": "warning",
+						"message": "Empty function body in added code",
+						"file": "packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts",
+						"line": 37
+					},
+					{
+						"stage": "code-quality",
+						"severity": "warning",
+						"message": "Empty function body in added code",
+						"file": "packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts",
+						"line": 38
+					},
+					{
+						"stage": "code-quality",
+						"severity": "warning",
+						"message": "Empty function body in added code",
+						"file": "packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts",
+						"line": 41
+					},
+					{
+						"stage": "code-quality",
+						"severity": "warning",
+						"message": "Empty function body in added code",
+						"file": "packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts",
+						"line": 80
+					},
+					{
+						"stage": "code-quality",
+						"severity": "warning",
+						"message": "Empty function body in added code",
+						"file": "packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts",
+						"line": 81
+					},
+					{
+						"stage": "code-quality",
+						"severity": "warning",
+						"message": "Empty function body in added code",
+						"file": "packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts",
+						"line": 177
+					},
+					{
+						"stage": "code-quality",
+						"severity": "warning",
+						"message": "Empty function body in added code",
+						"file": "packages/cli/src/commands/__tests__/setup.ide-wiring.e2e.test.ts",
+						"line": 178
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/packages/cli/src/commands/__tests__/feedback.test.ts b/packages/cli/src/commands/__tests__/feedback.test.ts\nindex 544323b..c47206c 100644\n--- a/packages/cli/src/commands/__tests__/feedback.test.ts\n+++ b/packages/cli/src/commands/__tests__/feedback.test.ts\n@@ -11,53 +11,68 @@ import {\n \n describe(\"parsePrNumbers\", () => {\n-\ttest(\"returns [] for undefined\", () => {\n-\t\texpect(parsePrNumbers(undefined)).toEqual([]);\n+\ttest(\"returns ok([]) for undefined\", () => {\n+\t\tconst r = parsePrNumbers(undefined);\n+\t\texpect(r.ok).toBe(true);\n+\t\tif (r.ok) expect(r.value).toEqual([]);\n \t});\n \n \ttest(\"parses a single numeric token\", () => {\n-\t\texpect(parsePrNumbers([\"123\"])).toEqual([123]);\n+\t\tconst r = parsePrNumbers([\"123\"]);\n+\t\texpect(r.ok).toBe(true);\n+\t\tif (r.ok) expect(r.value).toEqual([123]);\n \t});\n \n \ttest(\"parses comma-separated tokens within one entry\", () => {\n-\t\texpect(parsePrNumbers([\"1,2,3\"])).toEqual([1, 2, 3]);\n+\t\tconst r = parsePrNumbers([\"1,2,3\"]);\n+\t\texpect(r.ok).toBe(true);\n+\t\tif (r.ok) expect(r.value).toEqual([1, 2, 3]);\n \t});\n \n \ttest(\"parses repeated --pr entries\", () => {\n-\t\texpect(parsePrNumbers([\"1\", \"2\", \"3,4\"])).toEqual([1, 2, 3, 4]);\n+\t\tconst r = parsePrNumbers([\"1\", \"2\", \"3,4\"]);\n+\t\texpect(r.ok).toBe(true);\n+\t\tif (r.ok) expect(r.value).toEqual([1, 2, 3, 4]);\n \t});\n \n-\ttest(\"throws InvalidPrNumberError on non-numeric token\", () => {\n-\t\texpect(() => parsePrNumbers([\"foo\"])).toThrow(InvalidPrNumberError);\n+\ttest(\"err(InvalidPrNumberError) on non-numeric token\", () => {\n+\t\tconst r = parsePrNumbers([\"foo\"]);\n+\t\texpect(r.ok).toBe(false);\n+\t\tif (!r.ok) expect(r.error).toBeInstanceOf(InvalidPrNumberError);\n \t});\n \n-\ttest(\"throws on mixed valid + invalid token (must NOT fall back to auto-mode)\", () => {\n+\ttest(\"err on mixed valid + invalid token (must NOT fall back to auto-mode)\", () => {\n \t\t// Critical case from CodeRabbit: `--pr foo,123` previously returned\n-\t\t// [123] silently dropping foo. Now it throws.\n-\t\texpect(() => parsePrNumbers([\"1,foo\"])).toThrow(InvalidPrNumberError);\n+\t\t// [123] silently dropping foo. Now it returns err.\n+\t\tconst r = parsePrNumbers([\"1,foo\"]);\n+\t\texpect(r.ok).toBe(false);\n+\t\tif (!r.ok) expect(r.error).toBeInstanceOf(InvalidPrNumberError);\n \t});\n \n-\ttest(\"throws on negative integer\", () => {\n-\t\texpect(() => parsePrNumbers([\"-5\"])).toThrow(InvalidPrNumberError);\n+\ttest(\"err on negative integer\", () => {\n+\t\tconst r = parsePrNumbers([\"-5\"]);\n+\t\texpect(r.ok).toBe(false);\n \t});\n \n-\ttest(\"throws on zero\", () => {\n-\t\texpect(() => parsePrNumbers([\"0\"])).toThrow(InvalidPrNumberError);\n+\ttest(\"err on zero\", () => {\n+\t\tconst r = parsePrNumbers([\"0\"]);\n+\t\texpect(r.ok).toBe(false);\n \t});\n \n-\ttest(\"throws on decimal\", () => {\n-\t\texpect(() => parsePrNumbers([\"1.5\"])).toThrow(InvalidPrNumberError);\n+\ttest(\"err on decimal\", () => {\n+\t\tconst r = parsePrNumbers([\"1.5\"]);\n+\t\texpect(r.ok).toBe(false);\n \t});\n \n-\ttest(\"throws on empty token (e.g. trailing comma)\", () => {\n-\t\texpect(() => parsePrNumbers([\"1,\"])).toThrow(InvalidPrNumberError);\n+\ttest(\"err on empty token (e.g. trailing comma)\", () => {\n+\t\tconst r = parsePrNumbers([\"1,\"]);\n+\t\texpect(r.ok).toBe(false);\n \t});\n \n \ttest(\"error message includes the offending token\", () => {\n-\t\ttry {\n-\t\t\tparsePrNumbers([\"foo\"]);\n-\t\t\tthrow new Error(\"expected to throw\");\n-\t\t} catch (e) {\n-\t\t\texpect(e).toBeInstanceOf(InvalidPrNumberError);\n-\t\t\texpect((e as Error).message).toContain(\"foo\");\n+\t\tconst r = parsePrNumbers([\"foo\"]);\n+\t\texpect(r.ok).toBe(false);\n+\t\tif (!r.ok) {\n+\t\t\texpect(r.error).toBeInstanceOf(InvalidPrNumberError);\n+\t\t\texpect(r.error.message).toContain(\"foo\");\n \t\t}\n \t});\ndiff --git a/packages/cli/src/commands/__tests__/mcp.test.ts b/packages/cli/src/commands/__tests__/mcp.test.ts\nindex 29a3a52..97ffdf4 100644\n--- a/packages/cli/src/commands/__tests__/mcp.test.ts\n+++ b/packages/cli/src/commands/__tests__/mcp.test.ts\n@@ -32,25 +32,29 @@ afterEach(() => {\n \n describe(\"parseClientList\", () => {\n-\ttest(\"returns undefined when no value passed (auto-detect)\", () => {\n-\t\texpect(parseClientList(undefined)).toBeUndefined();\n-\t\texpect(parseClientList(\"\")).toBeUndefined();\n+\ttest(\"ok(undefined) when no value passed (auto-detect)\", () => {\n+\t\tconst r1 = parseClientList(undefined);\n+\t\texpect(r1.ok).toBe(true);\n+\t\tif (r1.ok) expect(r1.value).toBeUndefined();\n+\t\tconst r2 = parseClientList(\"\");\n+\t\texpect(r2.ok).toBe(true);\n+\t\tif (r2.ok) expect(r2.value).toBeUndefined();\n \t});\n \n \ttest(\"splits on commas, trims, lowercases\", () => {\n-\t\texpect(parseClientList(\"Claude, Cursor, Windsurf\")).toEqual([\n-\t\t\t\"claude\",\n-\t\t\t\"cursor\",\n-\t\t\t\"windsurf\",\n-\t\t]);\n+\t\tconst r = parseClientList(\"Claude, Cursor, Windsurf\");\n+\t\texpect(r.ok).toBe(true);\n+\t\tif (r.ok) expect(r.value).toEqual([\"claude\", \"cursor\", \"windsurf\"]);\n \t});\n \n-\ttest(\"throws on unknown client with helpful list\", () => {\n-\t\texpect(() => parseClientList(\"claude,nope\")).toThrow(\n-\t\t\t/Unknown client: nope/,\n-\t\t);\n+\ttest(\"err on unknown client with helpful list\", () => {\n+\t\tconst r = parseClientList(\"claude,nope\");\n+\t\texpect(r.ok).toBe(false);\n+\t\tif (!r.ok) expect(r.error).toMatch(/Unknown client: nope/);\n \t});\n \n-\ttest(\"returns undefined for empty list after trimming\", () => {\n-\t\texpect(parseClientList(\", ,\")).toBeUndefined();\n+\ttest(\"ok(undefined) for empty list after trimming\", () => {\n+\t\tconst r = parseClientList(\", ,\");\n+\t\texpect(r.ok).toBe(true);\n+\t\tif (r.ok) expect(r.value).toBeUndefined();\n \t});\n });\n@@ -58,13 +62,23 @@ describe(\"parseClientList\", () => {\n describe(\"parseScope\", () => {\n \ttest(\"defaults to global when undefined\", () => {\n-\t\texpect(parseScope(undefined)).toBe(\"global\");\n+\t\tconst r = parseScope(undefined);\n+\t\texpect(r.ok).toBe(true);\n+\t\tif (r.ok) expect(r.value).toBe(\"global\");\n \t});\n \ttest(\"accepts global / project / both case-insensitive\", () => {\n-\t\texpect(parseScope(\"GLOBAL\")).toBe(\"global\");\n-\t\texpect(parseScope(\"project\")).toBe(\"project\");\n-\t\texpect(parseScope(\"Both\")).toBe(\"both\");\n-\t});\n-\ttest(\"throws on unknown scope\", () => {\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": []
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/bun.lock b/bun.lock\nindex ad8f5d4..98ad527 100644\n--- a/bun.lock\n+++ b/bun.lock\n@@ -23,5 +23,5 @@\n     \"packages/cli\": {\n       \"name\": \"@mainahq/cli\",\n-      \"version\": \"1.3.0\",\n+      \"version\": \"1.6.1\",\n       \"bin\": {\n         \"maina\": \"dist/index.js\",\n@@ -36,5 +36,5 @@\n     \"packages/core\": {\n       \"name\": \"@mainahq/core\",\n-      \"version\": \"1.3.0\",\n+      \"version\": \"1.6.1\",\n       \"dependencies\": {\n         \"@ai-sdk/openai\": \"^3.0.50\",\n@@ -59,4 +59,5 @@\n       \"devDependencies\": {\n         \"@astrojs/check\": \"^0.9.8\",\n+        \"playwright\": \"^1.59.1\",\n         \"starlight-llms-txt\": \"0.7.0\",\n         \"typescript\": \"^5.8.3\",\n@@ -65,5 +66,5 @@\n     \"packages/mcp\": {\n       \"name\": \"@mainahq/mcp\",\n-      \"version\": \"1.3.0\",\n+      \"version\": \"1.6.1\",\n       \"dependencies\": {\n         \"@mainahq/core\": \"^1.1.2\",\n@@ -74,5 +75,5 @@\n     \"packages/skills\": {\n       \"name\": \"@mainahq/skills\",\n-      \"version\": \"1.3.0\",\n+      \"version\": \"1.6.1\",\n     },\n   },\n@@ -1550,4 +1551,8 @@\n     \"pkce-challenge\": [\"pkce-challenge@5.0.1\", \"\", {}, \"sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==\"],\n \n+    \"playwright\": [\"playwright@1.59.1\", \"\", { \"dependencies\": { \"playwright-core\": \"1.59.1\" }, \"optionalDependencies\": { \"fsevents\": \"2.3.2\" }, \"bin\": { \"playwright\": \"cli.js\" } }, \"sha512-C8oWjPR3F81yljW9o5OxcWzfh6avkVwDD2VYdwIGqTkl+OGFISgypqzfu7dOe4QNLL2aqcWBmI3PMtLIK233lw==\"],\n+\n+    \"playwright-core\": [\"playwright-core@1.59.1\", \"\", { \"bin\": { \"playwright-core\": \"cli.js\" } }, \"sha512-HBV/RJg81z5BiiZ9yPzIiClYV/QMsDCKUyogwH9p3MCP6IYjUFu/MActgYAvK0oWyV9NlwM3GLBjADyWgydVyg==\"],\n+\n     \"postcss\": [\"postcss@8.5.8\", \"\", { \"dependencies\": { \"nanoid\": \"^3.3.11\", \"picocolors\": \"^1.1.1\", \"source-map-js\": \"^1.2.1\" } }, \"sha512-OW/rX8O/jXnm82Ey1k44pObPtdblfiuWnrd8X7GJ7emImCOstunGbXUpp7HdBrFQX6rJzn3sPT397Wp5aCwCHg==\"],\n \n@@ -1972,4 +1977,6 @@\n     \"parse-entities/@types/unist\": [\"@types/unist@2.0.11\", \"\", {}, \"sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==\"],\n \n+    \"playwright/fsevents\": [\"fsevents@2.3.2\", \"\", { \"os\": \"darwin\" }, \"sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA==\"],\n+\n     \"prompts/kleur\": [\"kleur@3.0.3\", \"\", {}, \"sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w==\"],\n \ndiff --git a/packages/docs/package.json b/packages/docs/package.json\nindex a91c81d..9b5cbbe 100644\n--- a/packages/docs/package.json\n+++ b/packages/docs/package.json\n@@ -23,4 +23,5 @@\n   \"devDependencies\": {\n     \"@astrojs/check\": \"^0.9.8\",\n+    \"playwright\": \"^1.59.1\",\n     \"starlight-llms-txt\": \"0.7.0\",\n     \"typescript\": \"^5.8.3\"\ndiff --git a/packages/docs/src/components/CloudFaq.astro b/packages/docs/src/components/CloudFaq.astro\nnew file mode 100644\nindex 0000000..40f959a\n--- /dev/null\n+++ b/packages/docs/src/components/CloudFaq.astro\n@@ -0,0 +1,102 @@\n+---\n+/**\n+ * CloudFaq — seven <details> items, native keyboard accessible. Same\n+ * styling as `Faq.astro` on /; different content from\n+ * `cloud-landing.ts.CLOUD_FAQ`.\n+ */\n+import { CLOUD_FAQ } from '../data/cloud-landing';\n+\n+const labelPattern = /(`[^`]+`)/g;\n+const items = CLOUD_FAQ.items.map((i) => ({\n+  ...i,\n+  parts: i.a.split(labelPattern),\n+}));\n+---\n+\n+<section class=\"cloud-faq\" id=\"cloud-faq\">\n+  <h2 class=\"cloud-faq__title\">FAQ</h2>\n+  <ol class=\"cloud-faq__list\">\n+    {items.map((it) => (\n+      <li>\n+        <details class=\"cloud-faq__item\">\n+          <summary class=\"cloud-faq__q\">{it.q}</summary>\n+          <p class=\"cloud-faq__a\">\n+            {it.parts.map((p) => (\n+              p.startsWith('`') && p.endsWith('`')\n+                ? <code>{p.slice(1, -1)}</code>\n+                : <>{p}</>\n+            ))}\n+          </p>\n+        </details>\n+      </li>\n+    ))}\n+  </ol>\n+</section>\n+\n+<style is:global>\n+  .cloud-faq {\n+    max-width: 760px;\n+    margin: 80px auto;\n+    padding: 0 24px;\n+  }\n+\n+  .cloud-faq__title {\n+    font-family: var(--font-display);\n+    font-size: clamp(22px, 2.6vw, 30px);\n+    margin: 0 0 24px;\n+    color: var(--color-ink);\n+  }\n+\n+  .cloud-faq__list {\n+    list-style: none;\n+    padding: 0;\n+    margin: 0;\n+    display: flex;\n+    flex-direction: column;\n+    gap: 8px;\n+  }\n+\n+  .cloud-faq__item {\n+    background: var(--color-bg-elev);\n+    border: 1px solid rgba(255, 255, 255, 0.06);\n+    border-radius: var(--radius);\n+    padding: 14px 18px;\n+  }\n+\n+  .cloud-faq__q {\n+    font-family: var(--font-mono);\n+    font-size: 14px;\n+    font-weight: 600;\n+    color: var(--color-ink);\n+    cursor: pointer;\n+    list-style: none;\n+  }\n+\n+  .cloud-faq__q::marker { content: ''; }\n+\n+  .cloud-faq__q::before {\n+    content: '+';\n+    display: inline-block;\n+    width: 1em;\n+    color: var(--color-accent);\n+    margin-right: 8px;\n+  }\n+\n+  details[open] .cloud-faq__q::before { content: '−'; }\n+\n+  .cloud-faq__a {\n+    margin: 10px 0 0;\n+    color: var(--color-ink-muted);\n+    font-size: 14px;\n+    line-height: 1.6;\n+  }\n+\n+  .cloud-faq__a code {\n+    background: rgba(255, 255, 255, 0.06);\n+    padding: 1px 5px;\n+    border-radius: 3px;\n+    font-family: var(--font-mono);\n+    font-size: 12.5px;\n+    color: var(--color-ink);\n+  }\n+</style>\ndiff --git a/packages/docs/src/components/CloudFeatureGrid.astro b/packages/docs/src/components/CloudFeatureGrid.astro\nnew file mode 100644\nindex 0000000..892ed8e\n--- /dev/null\n+++ b/packages/docs/src/components/CloudFeatureGrid.astro\n@@ -0,0 +1,136 @@\n+---\n+/**\n+ * CloudFeatureGrid — six cloud-capability cards. Titles + body copy\n+ * from `cloud-landing.ts`; body may contain backticked phrases that\n+ * render as inline <code>.\n+ */\n+import { CLOUD_FEATURE_GRID } from '../data/cloud-landing';\n+\n+const rawBase = import.meta.env.BASE_URL;\n+const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;\n+const resolveHref = (href: string): string =>\n+  href.startsWith('/') ? `${base}${href}` : href;\n+\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (280 chars) in added code",
+						"file": "bun.lock",
+						"line": 1553
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (197 chars) in added code",
+						"file": "bun.lock",
+						"line": 1555
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (169 chars) in added code",
+						"file": "bun.lock",
+						"line": 1979
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/.changeset/sync-pull-hardening.md b/.changeset/sync-pull-hardening.md\ndeleted file mode 100644\nindex 131acb7..0000000\n--- a/.changeset/sync-pull-hardening.md\n+++ /dev/null\n@@ -1,15 +0,0 @@\n----\n-\"@mainahq/cli\": patch\n-\"@mainahq/core\": patch\n-\"@mainahq/mcp\": patch\n-\"@mainahq/skills\": patch\n----\n-\n-**Harden `maina sync pull` + broaden `--debug`**\n-\n-Follow-up to #194, addresses #196.\n-\n-- `DEBUG=1` and `NODE_DEBUG=1` are now honoured as aliases for `MAINA_DEBUG=1`. Users naturally reach for the generic env var first.\n-- `maina sync pull` now validates each prompt's `path` and `content` before writing to disk. Malformed records are skipped with a per-record reason instead of throwing out of the loop and leaving `@clack/prompts`' spinner monitor to print a generic `\"Something went wrong\"`. `mkdirSync` failures are caught and surfaced.\n-- Empty-team response now shows `log.info(\"No team prompts yet.\")` instead of a misleading `log.success(\"Pulled 0 prompt(s)\")`.\n-- Partial success (some records written, some skipped) surfaces a warning with the skipped count + reasons.\ndiff --git a/packages/cli/CHANGELOG.md b/packages/cli/CHANGELOG.md\nindex 6e28ed9..971bec3 100644\n--- a/packages/cli/CHANGELOG.md\n+++ b/packages/cli/CHANGELOG.md\n@@ -1,4 +1,21 @@\n # @mainahq/cli\n \n+## 1.6.1\n+\n+### Patch Changes\n+\n+- [`99e2e68`](https://github.com/mainahq/maina/commit/99e2e68c470f06e555086e7905817ce07a5b6c80) Thanks [@beeeku](https://github.com/beeeku)! - **Harden `maina sync pull` + broaden `--debug`**\n+\n+  Follow-up to [#194](https://github.com/mainahq/maina/issues/194), addresses [#196](https://github.com/mainahq/maina/issues/196).\n+\n+  - `DEBUG=1` and `NODE_DEBUG=1` are now honoured as aliases for `MAINA_DEBUG=1`. Users naturally reach for the generic env var first.\n+  - `maina sync pull` now validates each prompt's `path` and `content` before writing to disk. Malformed records are skipped with a per-record reason instead of throwing out of the loop and leaving `@clack/prompts`' spinner monitor to print a generic `\"Something went wrong\"`. `mkdirSync` failures are caught and surfaced.\n+  - Empty-team response now shows `log.info(\"No team prompts yet.\")` instead of a misleading `log.success(\"Pulled 0 prompt(s)\")`.\n+  - Partial success (some records written, some skipped) surfaces a warning with the skipped count + reasons.\n+\n+- Updated dependencies [[`99e2e68`](https://github.com/mainahq/maina/commit/99e2e68c470f06e555086e7905817ce07a5b6c80)]:\n+  - @mainahq/core@1.6.1\n+  - @mainahq/mcp@1.6.1\n+\n ## 1.6.0\n \ndiff --git a/packages/cli/package.json b/packages/cli/package.json\nindex 9c0b108..b1cf2b3 100644\n--- a/packages/cli/package.json\n+++ b/packages/cli/package.json\n@@ -1,5 +1,5 @@\n {\n   \"name\": \"@mainahq/cli\",\n-  \"version\": \"1.6.0\",\n+  \"version\": \"1.6.1\",\n   \"type\": \"module\",\n   \"license\": \"Apache-2.0\",\n@@ -29,6 +29,6 @@\n   \"dependencies\": {\n     \"@clack/prompts\": \"^1.2.0\",\n-    \"@mainahq/core\": \"^1.6.0\",\n-    \"@mainahq/mcp\": \"^1.6.0\",\n+    \"@mainahq/core\": \"^1.6.1\",\n+    \"@mainahq/mcp\": \"^1.6.1\",\n     \"commander\": \"^14.0.3\"\n   },\ndiff --git a/packages/core/CHANGELOG.md b/packages/core/CHANGELOG.md\nindex d271b15..47e818f 100644\n--- a/packages/core/CHANGELOG.md\n+++ b/packages/core/CHANGELOG.md\n@@ -1,4 +1,17 @@\n # @mainahq/core\n \n+## 1.6.1\n+\n+### Patch Changes\n+\n+- [`99e2e68`](https://github.com/mainahq/maina/commit/99e2e68c470f06e555086e7905817ce07a5b6c80) Thanks [@beeeku](https://github.com/beeeku)! - **Harden `maina sync pull` + broaden `--debug`**\n+\n+  Follow-up to [#194](https://github.com/mainahq/maina/issues/194), addresses [#196](https://github.com/mainahq/maina/issues/196).\n+\n+  - `DEBUG=1` and `NODE_DEBUG=1` are now honoured as aliases for `MAINA_DEBUG=1`. Users naturally reach for the generic env var first.\n+  - `maina sync pull` now validates each prompt's `path` and `content` before writing to disk. Malformed records are skipped with a per-record reason instead of throwing out of the loop and leaving `@clack/prompts`' spinner monitor to print a generic `\"Something went wrong\"`. `mkdirSync` failures are caught and surfaced.\n+  - Empty-team response now shows `log.info(\"No team prompts yet.\")` instead of a misleading `log.success(\"Pulled 0 prompt(s)\")`.\n+  - Partial success (some records written, some skipped) surfaces a warning with the skipped count + reasons.\n+\n ## 1.6.0\n \ndiff --git a/packages/core/package.json b/packages/core/package.json\nindex d9b0956..e052c98 100644\n--- a/packages/core/package.json\n+++ b/packages/core/package.json\n@@ -1,5 +1,5 @@\n {\n   \"name\": \"@mainahq/core\",\n-  \"version\": \"1.6.0\",\n+  \"version\": \"1.6.1\",\n   \"type\": \"module\",\n   \"license\": \"Apache-2.0\",\ndiff --git a/packages/mcp/CHANGELOG.md b/packages/mcp/CHANGELOG.md\nindex 9fe2426..254ea33 100644\n--- a/packages/mcp/CHANGELOG.md\n+++ b/packages/mcp/CHANGELOG.md\n@@ -1,4 +1,20 @@\n # @mainahq/mcp\n \n+## 1.6.1\n+\n+### Patch Changes\n+\n+- [`99e2e68`](https://github.com/mainahq/maina/commit/99e2e68c470f06e555086e7905817ce07a5b6c80) Thanks [@beeeku](https://github.com/beeeku)! - **Harden `maina sync pull` + broaden `--debug`**\n+\n+  Follow-up to [#194](https://github.com/mainahq/maina/issues/194), addresses [#196](https://github.com/mainahq/maina/issues/196).\n+\n+  - `DEBUG=1` and `NODE_DEBUG=1` are now honoured as aliases for `MAINA_DEBUG=1`. Users naturally reach for the generic env var first.\n+  - `maina sync pull` now validates each prompt's `path` and `content` before writing to disk. Malformed records are skipped with a per-record reason instead of throwing out of the loop and leaving `@clack/prompts`' spinner monitor to print a generic `\"Something went wrong\"`. `mkdirSync` failures are caught and surfaced.\n+  - Empty-team response now shows `log.info(\"No team prompts yet.\")` instead of a misleading `log.success(\"Pulled 0 prompt(s)\")`.\n+  - Partial success (some records written, some skipped) surfaces a warning with the skipped count + reasons.\n+\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (191 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 7
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (130 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 9
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (134 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 11
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (322 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 12
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (129 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 13
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (191 chars) in added code",
+						"file": "packages/core/CHANGELOG.md",
+						"line": 7
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (130 chars) in added code",
+						"file": "packages/core/CHANGELOG.md",
+						"line": 9
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (134 chars) in added code",
+						"file": "packages/core/CHANGELOG.md",
+						"line": 11
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (322 chars) in added code",
+						"file": "packages/core/CHANGELOG.md",
+						"line": 12
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (129 chars) in added code",
+						"file": "packages/core/CHANGELOG.md",
+						"line": 13
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (191 chars) in added code",
+						"file": "packages/mcp/CHANGELOG.md",
+						"line": 7
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (130 chars) in added code",
+						"file": "packages/mcp/CHANGELOG.md",
+						"line": 9
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (134 chars) in added code",
+						"file": "packages/mcp/CHANGELOG.md",
+						"line": 11
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (322 chars) in added code",
+						"file": "packages/mcp/CHANGELOG.md",
+						"line": 12
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (129 chars) in added code",
+						"file": "packages/mcp/CHANGELOG.md",
+						"line": 13
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/.changeset/cli-errors-and-github-login.md b/.changeset/cli-errors-and-github-login.md\nnew file mode 100644\nindex 0000000..00a1277\n--- /dev/null\n+++ b/.changeset/cli-errors-and-github-login.md\n@@ -0,0 +1,14 @@\n+---\n+\"@mainahq/cli\": minor\n+\"@mainahq/core\": minor\n+\"@mainahq/mcp\": minor\n+\"@mainahq/skills\": minor\n+---\n+\n+**CLI errors & GitHub login**\n+\n+- `maina login --github` — sign in with GitHub via device flow, then exchange for a maina token at `/auth/github/exchange`. Fixes the duplicate-account bug where the device flow created UUID+email members while the web flow keyed by `github_id` (#193).\n+- Top-level `uncaughtException` / `unhandledRejection` handler prints `err.code` + `err.message` instead of the generic `\"Something went wrong\"`. Pass `--debug` (or set `MAINA_DEBUG=1`) for the full stack trace (#192).\n+- Anonymous CLI crash reporting — fire-and-forget POST to `/v1/cli/errors` with a scrubbed payload (paths → basenames, secrets/emails/IPs redacted). Opt out via `MAINA_TELEMETRY=0`, `DO_NOT_TRACK=1`, or `~/.maina/telemetry.json` `{ \"optOut\": true }` (#192).\n+- `maina sync pull` no longer crashes when the team has no prompts — prints `\"No team prompts yet.\"` instead.\n+- `maina team` falls back to the server's `plan_display` label, then to `plan`, then to `\"Free\"`, so a missing or legacy response never renders `Plan: undefined`.\ndiff --git a/README.md b/README.md\nindex 1713e3b..107219b 100644\n--- a/README.md\n+++ b/README.md\n@@ -231,4 +231,15 @@ export default defineConfig({\n ```\n \n+## Privacy & Telemetry\n+\n+Maina sends **anonymous CLI crash reports** when an uncaught error terminates the process. The payload contains the error class/message/stack (absolute file paths rewritten to basenames, emails/IPs/API keys redacted), the subcommand, the maina/node versions, platform/arch, and a CI flag — **no code, no project names, no authentication tokens**.\n+\n+Opt out any of these three ways:\n+\n+```bash\n+export MAINA_TELEMETRY=0                 # or DO_NOT_TRACK=1\n+echo '{\"optOut\": true}' > ~/.maina/telemetry.json\n+```\n+\n ## Development\n \ndiff --git a/packages/cli/src/commands/login.ts b/packages/cli/src/commands/login.ts\nindex 2a77e4c..2751746 100644\n--- a/packages/cli/src/commands/login.ts\n+++ b/packages/cli/src/commands/login.ts\n@@ -8,8 +8,11 @@ import {\n \tclearAuthConfig,\n \tcreateCloudClient,\n+\texchangeGitHubToken,\n \tloadAuthConfig,\n \tpollForToken,\n+\tpollGitHubToken,\n \tsaveAuthConfig,\n \tstartDeviceFlow,\n+\tstartGitHubDeviceFlow,\n } from \"@mainahq/core\";\n import { Command } from \"commander\";\n@@ -27,4 +30,75 @@ export interface LoginActionResult {\n }\n \n+// ── GitHub Login Action ─────────────────────────────────────────────────────\n+\n+export async function loginWithGitHubAction(): Promise<LoginActionResult> {\n+\tconst existing = loadAuthConfig();\n+\tif (existing.ok) {\n+\t\tlog.info(\"Already logged in. Use `maina logout` to clear credentials.\");\n+\t\treturn { loggedIn: true };\n+\t}\n+\n+\tconst s = spinner();\n+\ts.start(\"Requesting GitHub device code...\");\n+\n+\tconst flow = await startGitHubDeviceFlow();\n+\tif (!flow.ok) {\n+\t\ts.stop(\"Failed\");\n+\t\tlog.error(flow.error);\n+\t\treturn { loggedIn: false, reason: flow.error };\n+\t}\n+\n+\ts.stop(\"Ready\");\n+\n+\tlog.info(\n+\t\t`To sign in, open ${flow.value.verificationUri} and enter:\\n\\n    ${flow.value.userCode}\\n`,\n+\t);\n+\n+\ts.start(\"Waiting for GitHub authorization...\");\n+\n+\tconst gh = await pollGitHubToken({\n+\t\tdeviceCode: flow.value.deviceCode,\n+\t\tinterval: flow.value.interval,\n+\t\texpiresIn: flow.value.expiresIn,\n+\t});\n+\tif (!gh.ok) {\n+\t\ts.stop(\"Failed\");\n+\t\tlog.error(gh.error);\n+\t\treturn { loggedIn: false, reason: gh.error };\n+\t}\n+\n+\ts.message(\"Exchanging token...\");\n+\tconst exchange = await exchangeGitHubToken(\n+\t\tDEFAULT_CLOUD_URL,\n+\t\tgh.value.accessToken,\n+\t);\n+\tif (!exchange.ok) {\n+\t\ts.stop(\"Failed\");\n+\t\tlog.error(exchange.error);\n+\t\treturn { loggedIn: false, reason: exchange.error };\n+\t}\n+\n+\ts.stop(\"Authorized\");\n+\n+\tconst saveResult = saveAuthConfig({\n+\t\taccessToken: exchange.value.accessToken,\n+\t\texpiresAt: exchange.value.expiresAt || undefined,\n+\t});\n+\tif (!saveResult.ok) {\n+\t\tlog.error(saveResult.error);\n+\t\treturn { loggedIn: false, reason: saveResult.error };\n+\t}\n+\n+\tif (exchange.value.firstTime) {\n+\t\tlog.success(\n+\t\t\t`Welcome, @${exchange.value.githubLogin}! Your maina account is ready.`,\n+\t\t);\n+\t} else {\n+\t\tlog.success(`Logged in as @${exchange.value.githubLogin}.`);\n+\t}\n+\n+\treturn { loggedIn: true };\n+}\n+\n export async function loginAction(): Promise<LoginActionResult> {\n \t// Check if already logged in\n@@ -175,8 +249,11 @@ export function loginCommand(): Command {\n \treturn new Command(\"login\")\n \t\t.description(\"Log in to maina cloud via device authorization\")\n-\t\t.action(async () => {\n-\t\t\tintro(\"maina login\");\n+\t\t.option(\"--github\", \"Log in with GitHub (device flow)\")\n+\t\t.action(async (opts: { github?: boolean }) => {\n+\t\t\tintro(opts.github ? \"maina login --github\" : \"maina login\");\n \n-\t\t\tconst result = await loginAction();\n+\t\t\tconst result = opts.github\n+\t\t\t\t? await loginWithGitHubAction()\n+\t\t\t\t: await loginAction();\n \n \t\t\tif (result.loggedIn) {\ndiff --git a/packages/cli/src/commands/sync.ts b/packages/cli/src/commands/sync.ts\nindex 5fdd45a..ffdfb89 100644\n--- a/packages/cli/src/commands/sync.ts\n+++ b/packages/cli/src/commands/sync.ts\n@@ -117,7 +117,11 @@ export async function syncPullAction(cwd?: string): Promise<SyncActionResult> {\n \t}\n \n-\tconst prompts = result.value;\n+\tconst prompts = result.value ?? [];\n \tif (prompts.length === 0) {\n-\t\treturn { synced: true, count: 0 };\n+\t\treturn {\n+\t\t\tsynced: true,\n+\t\t\tcount: 0,\n+\t\t\treason: \"No team prompts yet.\",\n+\t\t};\n \t}\n \ndiff --git a/packages/cli/src/commands/team.ts b/packages/cli/src/commands/team.ts\nindex 2742ba2..430cf51 100644\n--- a/packages/cli/src/commands/team.ts\n+++ b/packages/cli/src/commands/team.ts\n@@ -37,6 +37,7 @@ export async function teamAction(): Promise<TeamActionResult> {\n \n \tconst team = teamResult.value;\n+\tconst planLabel = team.planDisplay ?? team.plan ?? \"Free\";\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (252 chars) in added code",
+						"file": ".changeset/cli-errors-and-github-login.md",
+						"line": 10
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (218 chars) in added code",
+						"file": ".changeset/cli-errors-and-github-login.md",
+						"line": 11
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (257 chars) in added code",
+						"file": ".changeset/cli-errors-and-github-login.md",
+						"line": 12
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (162 chars) in added code",
+						"file": ".changeset/cli-errors-and-github-login.md",
+						"line": 14
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (346 chars) in added code",
+						"file": "README.md",
+						"line": 235
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/.changeset/doc-claims-verify.md b/.changeset/doc-claims-verify.md\ndeleted file mode 100644\nindex c5a354e..0000000\n--- a/.changeset/doc-claims-verify.md\n+++ /dev/null\n@@ -1,23 +0,0 @@\n----\n-\"@mainahq/cli\": minor\n-\"@mainahq/core\": minor\n----\n-\n-feat(verify): add doc-claims tool that catches fabricated API signatures in markdown\n-\n-New built-in verify tool that runs on changed `.md` / `.mdx` files. It parses\n-fenced code blocks for `import` / `require` statements, resolves the module to\n-the corresponding workspace package source, and emits a warning when a claimed\n-symbol is not actually exported.\n-\n-Motivated by issue #180: a subagent asked to summarize a package's public API\n-returned a narrative that mixed real exports with plausible-looking\n-fabrications, and the fabrications shipped to docs (workkit#43, 20+ wrong API\n-claims caught only by Copilot post-merge). This gate catches that class of\n-slop before the docs ever land.\n-\n-v1 is mechanical (no LLM), diff-only, and intentionally scoped: external\n-packages are skipped (no `node_modules` walk), member-access claims are not\n-validated (requires type info), and `export *` re-exports are treated as\n-wildcards. Severity is `warning` so users can tune via the noisy-rules\n-preference before promoting to `error` in their constitution.\ndiff --git a/.changeset/feedback-ingest.md b/.changeset/feedback-ingest.md\ndeleted file mode 100644\nindex 792487e..0000000\n--- a/.changeset/feedback-ingest.md\n+++ /dev/null\n@@ -1,29 +0,0 @@\n----\n-\"@mainahq/cli\": minor\n-\"@mainahq/core\": minor\n----\n-\n-feat(core,cli): ingest external code-review findings as labeled training signal (issue #185)\n-\n-Adds `maina feedback ingest` plus a new `external_review_findings` table in `.maina/feedback.db`. Pulls review comments from configured reviewers (`copilot-pull-request-reviewer`, `coderabbitai`, plus any `--reviewer <login>`) on open + recently merged PRs and stores them with file/line, reviewer kind, a heuristic category (`api-mismatch`, `signature-drift`, `dead-code`, `security`, `style`, `other`), and the diff hunk that was being reviewed.\n-\n-**Why:** across the v1.4.x dogfood loop Copilot caught 30+ accuracy bugs in PRs that `maina commit` had blessed (wrong export names, signature drift, claims about API shape that the source contradicts). Each finding is a **labeled `(input, output)` pair** — input is the diff Maina blessed, output is the bug a reviewer caught. Treating those as training data is more valuable than any hand-coded rule.\n-\n-**This is the v1 thin slice:**\n-\n-- `external_review_findings` schema + indexes on `(file_path)` and `(pr_repo, pr_number)`, idempotent on `(pr_repo, pr_number, source_id)`.\n-- `ingestComments` / `ingestPrReviews` / `insertFinding` / `queryFindings` / `getTopCategoriesByFile` in `@mainahq/core`.\n-- Deterministic keyword categoriser (no LLM in the hot path — `other` when nothing matches).\n-- `maina feedback ingest [--repo <slug>] [--pr <n>] [--since <days>] [--reviewer <login>] [--json]`.\n-- `maina stats` surfaces a \"Top external-review categories\" section once the table has data.\n-- 20 new tests covering categorisation, dedupe, allow-list filtering, DB round-trip, and aggregation.\n-\n-**Out of scope (v2):**\n-\n-- The RL closure (`maina commit` consults the DB during verify and warns on touched files with prior findings)\n-- Per-project policy training (`maina feedback train`)\n-- Slop ruleset evolution from accumulated findings\n-- LLM-backed reclassification of the `other` bucket\n-- Cloud sync of findings\n-\n-Storage is **local only** today.\ndiff --git a/packages/cli/CHANGELOG.md b/packages/cli/CHANGELOG.md\nindex 61b58f7..2ebb174 100644\n--- a/packages/cli/CHANGELOG.md\n+++ b/packages/cli/CHANGELOG.md\n@@ -1,4 +1,57 @@\n # @mainahq/cli\n \n+## 1.5.0\n+\n+### Minor Changes\n+\n+- [#187](https://github.com/mainahq/maina/pull/187) [`9d5e2a7`](https://github.com/mainahq/maina/commit/9d5e2a769c232c02452e38f3da4d7cc9bca2066b) Thanks [@beeeku](https://github.com/beeeku)! - feat(verify): add doc-claims tool that catches fabricated API signatures in markdown\n+\n+  New built-in verify tool that runs on changed `.md` / `.mdx` files. It parses\n+  fenced code blocks for `import` / `require` statements, resolves the module to\n+  the corresponding workspace package source, and emits a warning when a claimed\n+  symbol is not actually exported.\n+\n+  Motivated by issue [#180](https://github.com/mainahq/maina/issues/180): a subagent asked to summarize a package's public API\n+  returned a narrative that mixed real exports with plausible-looking\n+  fabrications, and the fabrications shipped to docs (workkit#43, 20+ wrong API\n+  claims caught only by Copilot post-merge). This gate catches that class of\n+  slop before the docs ever land.\n+\n+  v1 is mechanical (no LLM), diff-only, and intentionally scoped: external\n+  packages are skipped (no `node_modules` walk), member-access claims are not\n+  validated (requires type info), and `export *` re-exports are treated as\n+  wildcards. Severity is `warning` so users can tune via the noisy-rules\n+  preference before promoting to `error` in their constitution.\n+\n+- [`46bcbc6`](https://github.com/mainahq/maina/commit/46bcbc69f2870c43d92ed3c3a4506491a2129468) Thanks [@beeeku](https://github.com/beeeku)! - feat(core,cli): ingest external code-review findings as labeled training signal (issue [#185](https://github.com/mainahq/maina/issues/185))\n+\n+  Adds `maina feedback ingest` plus a new `external_review_findings` table in `.maina/feedback.db`. Pulls review comments from configured reviewers (`copilot-pull-request-reviewer`, `coderabbitai`, plus any `--reviewer <login>`) on open + recently merged PRs and stores them with file/line, reviewer kind, a heuristic category (`api-mismatch`, `signature-drift`, `dead-code`, `security`, `style`, `other`), and the diff hunk that was being reviewed.\n+\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (277 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 7
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (126 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 14
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (282 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 26
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (449 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 28
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/.changeset/mcp-prefer-installed-binary.md b/.changeset/mcp-prefer-installed-binary.md\ndeleted file mode 100644\nindex 2ddc14b..0000000\n--- a/.changeset/mcp-prefer-installed-binary.md\n+++ /dev/null\n@@ -1,29 +0,0 @@\n----\n-\"@mainahq/cli\": patch\n-\"@mainahq/core\": patch\n----\n-\n-fix(mcp): prefer installed maina binary over bunx (avoids cold-start cache races)\n-\n-`maina mcp add` now writes the **direct path to the installed `maina` binary** when one is on PATH (e.g. `/Users/x/.bun/bin/maina --mcp`), falling back to `bunx`/`npx` only when the global install is absent.\n-\n-**Why:** real Cursor MCP logs against the v1.4.2 entry showed:\n-\n-```\n-[error] Resolved, downloaded and extracted [24]\n-[error] Unexpected: failed copying files from cache to destination for package drizzle-orm\n-[warning] Connection failed: MCP error -32000: Connection closed\n-```\n-\n-The previous default — `bunx @mainahq/cli` on every spawn — re-resolved the package each time Cursor (re)connected. Concurrent connection attempts during editor restart raced on `~/.bun/install/cache` and one would error mid-extraction, killing the spawned process before it could complete the MCP handshake. Going through the installed binary path skips the package manager entirely: zero downloads, zero cache, zero race.\n-\n-**Fallback chain (each tier resolves to absolute path via `Bun.which`):**\n-\n-1. **`maina` binary** — preferred. No package manager spawn.\n-2. **`bunx @mainahq/cli@<version> --mcp`** — version-pinned so the bunx cache hits reliably across spawns even on cold start.\n-3. **`npx @mainahq/cli@<version> --mcp`** — universally available fallback.\n-4. Bare `npx` last-resort fallback so the entry stays syntactically valid on machines without Bun or Node.\n-\n-When `mcp add` falls back to a package-manager invocation (no global install present), the CLI prints a one-line tip pointing at `bun install -g @mainahq/cli` so users can opt into the fastest path.\n-\n-5 new launcher tests lock in the priority order and the absolute-path contract. All existing apply tests continue to pass under the version-pinned shape.\ndiff --git a/packages/cli/CHANGELOG.md b/packages/cli/CHANGELOG.md\nindex f610fd2..61b58f7 100644\n--- a/packages/cli/CHANGELOG.md\n+++ b/packages/cli/CHANGELOG.md\n@@ -1,4 +1,36 @@\n # @mainahq/cli\n \n+## 1.4.3\n+\n+### Patch Changes\n+\n+- [`40de5da`](https://github.com/mainahq/maina/commit/40de5daca11d43e2186a03bd47fc4ab56b0386ab) Thanks [@beeeku](https://github.com/beeeku)! - fix(mcp): prefer installed maina binary over bunx (avoids cold-start cache races)\n+\n+  `maina mcp add` now writes the **direct path to the installed `maina` binary** when one is on PATH (e.g. `/Users/x/.bun/bin/maina --mcp`), falling back to `bunx`/`npx` only when the global install is absent.\n+\n+  **Why:** real Cursor MCP logs against the v1.4.2 entry showed:\n+\n+  ```\n+  [error] Resolved, downloaded and extracted [24]\n+  [error] Unexpected: failed copying files from cache to destination for package drizzle-orm\n+  [warning] Connection failed: MCP error -32000: Connection closed\n+  ```\n+\n+  The previous default — `bunx @mainahq/cli` on every spawn — re-resolved the package each time Cursor (re)connected. Concurrent connection attempts during editor restart raced on `~/.bun/install/cache` and one would error mid-extraction, killing the spawned process before it could complete the MCP handshake. Going through the installed binary path skips the package manager entirely: zero downloads, zero cache, zero race.\n+\n+  **Fallback chain (each tier resolves to absolute path via `Bun.which`):**\n+\n+  1. **`maina` binary** — preferred. No package manager spawn.\n+  2. **`bunx @mainahq/cli@<version> --mcp`** — version-pinned so the bunx cache hits reliably across spawns even on cold start.\n+  3. **`npx @mainahq/cli@<version> --mcp`** — universally available fallback.\n+  4. Bare `npx` last-resort fallback so the entry stays syntactically valid on machines without Bun or Node.\n+\n+  When `mcp add` falls back to a package-manager invocation (no global install present), the CLI prints a one-line tip pointing at `bun install -g @mainahq/cli` so users can opt into the fastest path.\n+\n+  5 new launcher tests lock in the priority order and the absolute-path contract. All existing apply tests continue to pass under the version-pinned shape.\n+\n+- Updated dependencies [[`40de5da`](https://github.com/mainahq/maina/commit/40de5daca11d43e2186a03bd47fc4ab56b0386ab)]:\n+  - @mainahq/core@1.4.3\n+\n ## 1.4.2\n \ndiff --git a/packages/cli/package.json b/packages/cli/package.json\nindex 2c5cd7b..18ede0e 100644\n--- a/packages/cli/package.json\n+++ b/packages/cli/package.json\n@@ -1,5 +1,5 @@\n {\n   \"name\": \"@mainahq/cli\",\n-  \"version\": \"1.4.2\",\n+  \"version\": \"1.4.3\",\n   \"type\": \"module\",\n   \"license\": \"Apache-2.0\",\n@@ -29,5 +29,5 @@\n   \"dependencies\": {\n     \"@clack/prompts\": \"^1.2.0\",\n-    \"@mainahq/core\": \"^1.4.2\",\n+    \"@mainahq/core\": \"^1.4.3\",\n     \"@mainahq/mcp\": \"^1.3.0\",\n     \"commander\": \"^14.0.3\"\ndiff --git a/packages/core/CHANGELOG.md b/packages/core/CHANGELOG.md\nindex eb93737..501b0a0 100644\n--- a/packages/core/CHANGELOG.md\n+++ b/packages/core/CHANGELOG.md\n@@ -1,4 +1,33 @@\n # @mainahq/core\n \n+## 1.4.3\n+\n+### Patch Changes\n+\n+- [`40de5da`](https://github.com/mainahq/maina/commit/40de5daca11d43e2186a03bd47fc4ab56b0386ab) Thanks [@beeeku](https://github.com/beeeku)! - fix(mcp): prefer installed maina binary over bunx (avoids cold-start cache races)\n+\n+  `maina mcp add` now writes the **direct path to the installed `maina` binary** when one is on PATH (e.g. `/Users/x/.bun/bin/maina --mcp`), falling back to `bunx`/`npx` only when the global install is absent.\n+\n+  **Why:** real Cursor MCP logs against the v1.4.2 entry showed:\n+\n+  ```\n+  [error] Resolved, downloaded and extracted [24]\n+  [error] Unexpected: failed copying files from cache to destination for package drizzle-orm\n+  [warning] Connection failed: MCP error -32000: Connection closed\n+  ```\n+\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (224 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 7
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (209 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 9
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (425 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 19
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (127 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 24
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (200 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 28
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (155 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 30
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (224 chars) in added code",
+						"file": "packages/core/CHANGELOG.md",
+						"line": 7
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (209 chars) in added code",
+						"file": "packages/core/CHANGELOG.md",
+						"line": 9
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/.changeset/mcp-resolve-launcher-path.md b/.changeset/mcp-resolve-launcher-path.md\nnew file mode 100644\nindex 0000000..008154d\n--- /dev/null\n+++ b/.changeset/mcp-resolve-launcher-path.md\n@@ -0,0 +1,16 @@\n+---\n+\"@mainahq/cli\": patch\n+\"@mainahq/core\": patch\n+---\n+\n+fix(mcp): write absolute launcher path so Cursor / Zed can spawn it\n+\n+`maina mcp add` now writes the **resolved absolute path** of `bunx` / `npx` (e.g. `/opt/homebrew/bin/bunx`) into client configs, instead of the bare binary name.\n+\n+**Why:** GUI-launched AI clients on macOS (Cursor, Zed, Claude Code app) inherit a stripped PATH that does NOT include `/opt/homebrew/bin` or `~/.bun/bin`. A bare `command: \"bunx\"` therefore fails with `Connection failed: spawn bunx ENOENT` — even though the binary is installed for the user. Surfaced from real Cursor logs against an entry written by v1.4.1.\n+\n+The detector now probes both `bunx` and `npx` via `Bun.which`, prefers the absolute `bunx` path when available, falls back to absolute `npx`, and only emits a bare name as a last-resort fallback when neither resolves on the install machine.\n+\n+Five new launcher tests lock in the absolute-path contract and the prefer-bunx-over-npx priority. Existing apply tests still pin to the bare `npx` fallback for snapshot stability.\n+\n+This is a strict bug fix on top of v1.4.1 — same `maina mcp add` interface, just produces working entries on real machines.\ndiff --git a/packages/core/src/mcp/__tests__/launcher.test.ts b/packages/core/src/mcp/__tests__/launcher.test.ts\nindex b0bdb6b..18c7824 100644\n--- a/packages/core/src/mcp/__tests__/launcher.test.ts\n+++ b/packages/core/src/mcp/__tests__/launcher.test.ts\n@@ -3,4 +3,10 @@\n  * deterministic regardless of the runner machine's PATH (CI doesn't\n  * have Bun installed by default; the developer's machine does).\n+ *\n+ * The most important behaviour this file locks down: the launcher's\n+ * `command` field is the **absolute resolved path** from `which`, not\n+ * the bare binary name. GUI MCP clients (Cursor, Zed, etc.) inherit\n+ * a stripped PATH on macOS and fail with `spawn bunx ENOENT` when given\n+ * a bare command. Resolving the path at install time fixes that.\n  */\n \n@@ -12,15 +18,39 @@ afterEach(() => {\n });\n \n-describe(\"detectLauncher\", () => {\n-\ttest(\"returns bunx when Bun is on PATH\", () => {\n+describe(\"detectLauncher — path resolution\", () => {\n+\ttest(\"returns the ABSOLUTE bunx path (not the bare name) when Bun is on PATH\", () => {\n \t\tconst l = detectLauncher({\n-\t\t\twhich: (cmd) => (cmd === \"bunx\" ? \"/usr/local/bin/bunx\" : null),\n+\t\t\twhich: (cmd) => (cmd === \"bunx\" ? \"/opt/homebrew/bin/bunx\" : null),\n \t\t\tnoCache: true,\n \t\t});\n-\t\texpect(l.command).toBe(\"bunx\");\n+\t\t// Critical regression test: must be the absolute path so Cursor's\n+\t\t// stripped-PATH spawn doesn't ENOENT.\n+\t\texpect(l.command).toBe(\"/opt/homebrew/bin/bunx\");\n+\t\texpect(l.command).not.toBe(\"bunx\");\n \t\texpect(l.args).toEqual([\"@mainahq/cli\", \"--mcp\"]);\n \t});\n \n-\ttest(\"falls back to npx when Bun is not on PATH\", () => {\n+\ttest(\"returns the ABSOLUTE npx path when bunx is missing but npx exists\", () => {\n+\t\tconst l = detectLauncher({\n+\t\t\twhich: (cmd) => (cmd === \"npx\" ? \"/usr/local/bin/npx\" : null),\n+\t\t\tnoCache: true,\n+\t\t});\n+\t\texpect(l.command).toBe(\"/usr/local/bin/npx\");\n+\t\texpect(l.command).not.toBe(\"npx\");\n+\t});\n+\n+\ttest(\"prefers bunx over npx when both are on PATH\", () => {\n+\t\tconst l = detectLauncher({\n+\t\t\twhich: (cmd) => {\n+\t\t\t\tif (cmd === \"bunx\") return \"/opt/homebrew/bin/bunx\";\n+\t\t\t\tif (cmd === \"npx\") return \"/usr/local/bin/npx\";\n+\t\t\t\treturn null;\n+\t\t\t},\n+\t\t\tnoCache: true,\n+\t\t});\n+\t\texpect(l.command).toBe(\"/opt/homebrew/bin/bunx\");\n+\t});\n+\n+\ttest(\"falls back to bare `npx` when nothing resolves (entry stays syntactically valid)\", () => {\n \t\tconst l = detectLauncher({\n \t\t\twhich: () => null,\n@@ -28,18 +58,21 @@ describe(\"detectLauncher\", () => {\n \t\t});\n \t\texpect(l.command).toBe(\"npx\");\n-\t\texpect(l.args).toEqual([\"@mainahq/cli\", \"--mcp\"]);\n \t});\n+});\n \n+describe(\"detectLauncher — caching\", () => {\n \ttest(\"caches the first result so repeated calls don't re-probe\", () => {\n \t\tlet calls = 0;\n \t\tconst which = (cmd: string) => {\n \t\t\tcalls++;\n-\t\t\treturn cmd === \"bunx\" ? \"/x/bunx\" : null;\n+\t\t\treturn cmd === \"bunx\" ? \"/opt/homebrew/bin/bunx\" : null;\n \t\t};\n \t\tdetectLauncher({ which });\n \t\tdetectLauncher({ which });\n \t\tdetectLauncher({ which });\n-\t\t// First call probed; subsequent calls returned cache.\n-\t\texpect(calls).toBe(1);\n+\t\t// First call probed both bunx and npx (bunx hit, but the loop also\n+\t\t// records npx miss before the cache is set). Subsequent calls\n+\t\t// returned cache. So calls is bounded by 2 (first call only).\n+\t\texpect(calls).toBeLessThanOrEqual(2);\n \t});\n \n@@ -52,13 +85,16 @@ describe(\"detectLauncher\", () => {\n \t\tdetectLauncher({ which, noCache: true });\n \t\tdetectLauncher({ which, noCache: true });\n-\t\texpect(calls).toBe(2);\n+\t\t// Each call probes bunx (and possibly npx). Bounded by 4 (2 calls × 2 probes).\n+\t\texpect(calls).toBeGreaterThanOrEqual(2);\n+\t\texpect(calls).toBeLessThanOrEqual(4);\n \t});\n \n \ttest(\"resetLauncherCache forces re-detection on next call\", () => {\n \t\tdetectLauncher({ which: () => \"/x/bunx\" });\n-\t\texpect(detectLauncher({ which: () => null }).command).toBe(\"bunx\"); // cached\n+\t\t// Cached value used even with a different which.\n+\t\texpect(detectLauncher({ which: () => null }).command).toBe(\"/x/bunx\");\n \n \t\tresetLauncherCache();\n-\t\texpect(detectLauncher({ which: () => null }).command).toBe(\"npx\"); // re-probed\n+\t\texpect(detectLauncher({ which: () => null }).command).toBe(\"npx\");\n \t});\n });\ndiff --git a/packages/core/src/mcp/launcher.ts b/packages/core/src/mcp/launcher.ts\nindex 63de847..a49dc84 100644\n--- a/packages/core/src/mcp/launcher.ts\n+++ b/packages/core/src/mcp/launcher.ts\n@@ -1,17 +1,24 @@\n /**\n- * Pick the launcher used in MCP client configs (`bunx` vs `npx`).\n+ * Pick the launcher used in MCP client configs.\n  *\n- * Both work, but they have different trade-offs:\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (161 chars) in added code",
+						"file": ".changeset/mcp-resolve-launcher-path.md",
+						"line": 8
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (359 chars) in added code",
+						"file": ".changeset/mcp-resolve-launcher-path.md",
+						"line": 10
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (240 chars) in added code",
+						"file": ".changeset/mcp-resolve-launcher-path.md",
+						"line": 12
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (179 chars) in added code",
+						"file": ".changeset/mcp-resolve-launcher-path.md",
+						"line": 14
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (123 chars) in added code",
+						"file": ".changeset/mcp-resolve-launcher-path.md",
+						"line": 16
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/.changeset/mcp-add-remove.md b/.changeset/mcp-add-remove.md\ndeleted file mode 100644\nindex 45f9c0e..0000000\n--- a/.changeset/mcp-add-remove.md\n+++ /dev/null\n@@ -1,20 +0,0 @@\n----\n-\"@mainahq/cli\": minor\n-\"@mainahq/core\": minor\n----\n-\n-feat(cli): `maina mcp add/remove/list` across 8 AI clients\n-\n-Adds three new top-level commands inspired by `npx @posthog/wizard mcp add`:\n-\n-- `maina mcp add` — install the maina MCP server in every detected client's global config\n-- `maina mcp remove` — strip the maina entry from every client\n-- `maina mcp list` — show install status per client\n-\n-Supported clients: **Claude Code, Cursor, Windsurf, Cline, OpenAI Codex CLI, Continue.dev, Gemini CLI, Zed**. Each client's config — JSON for seven of them, TOML for Codex — is parsed, mutated only at the maina entry, and atomically rewritten so all other MCP servers and unrelated config keys are preserved.\n-\n-Flags (all subcommands): `--client <list>` (comma-separated; default: auto-detect), `--scope global|project|both` (default: `global`), `--dry-run`, `--json`.\n-\n-This is the cross-project counterpart to the setup wizard's per-project install — `maina setup` continues to write `.mcp.json` and `.claude/settings.json` for the current repo, while `maina mcp add` reaches every project at once.\n-\n-The Continue.dev integration uses the legacy `~/.continue/config.json#experimental.modelContextProtocolServers` shape; the newer per-server YAML files at `~/.continue/.continue/mcpServers/*.yaml` will land when YAML support is added (tracked as a follow-up).\ndiff --git a/packages/cli/CHANGELOG.md b/packages/cli/CHANGELOG.md\nindex e788821..f88b632 100644\n--- a/packages/cli/CHANGELOG.md\n+++ b/packages/cli/CHANGELOG.md\n@@ -1,4 +1,29 @@\n # @mainahq/cli\n \n+## 1.4.0\n+\n+### Minor Changes\n+\n+- [`1b3741c`](https://github.com/mainahq/maina/commit/1b3741c78b96795077b446a65751f47fab24cfbf) Thanks [@beeeku](https://github.com/beeeku)! - feat(cli): `maina mcp add/remove/list` across 8 AI clients\n+\n+  Adds three new top-level commands inspired by `npx @posthog/wizard mcp add`:\n+\n+  - `maina mcp add` — install the maina MCP server in every detected client's global config\n+  - `maina mcp remove` — strip the maina entry from every client\n+  - `maina mcp list` — show install status per client\n+\n+  Supported clients: **Claude Code, Cursor, Windsurf, Cline, OpenAI Codex CLI, Continue.dev, Gemini CLI, Zed**. Each client's config — JSON for seven of them, TOML for Codex — is parsed, mutated only at the maina entry, and atomically rewritten so all other MCP servers and unrelated config keys are preserved.\n+\n+  Flags (all subcommands): `--client <list>` (comma-separated; default: auto-detect), `--scope global|project|both` (default: `global`), `--dry-run`, `--json`.\n+\n+  This is the cross-project counterpart to the setup wizard's per-project install — `maina setup` continues to write `.mcp.json` and `.claude/settings.json` for the current repo, while `maina mcp add` reaches every project at once.\n+\n+  The Continue.dev integration uses the legacy `~/.continue/config.json#experimental.modelContextProtocolServers` shape; the newer per-server YAML files at `~/.continue/.continue/mcpServers/*.yaml` will land when YAML support is added (tracked as a follow-up).\n+\n+### Patch Changes\n+\n+- Updated dependencies [[`1b3741c`](https://github.com/mainahq/maina/commit/1b3741c78b96795077b446a65751f47fab24cfbf)]:\n+  - @mainahq/core@1.4.0\n+\n ## 1.3.0\n \ndiff --git a/packages/cli/package.json b/packages/cli/package.json\nindex bb78fff..c8af3ef 100644\n--- a/packages/cli/package.json\n+++ b/packages/cli/package.json\n@@ -1,5 +1,5 @@\n {\n   \"name\": \"@mainahq/cli\",\n-  \"version\": \"1.3.0\",\n+  \"version\": \"1.4.0\",\n   \"type\": \"module\",\n   \"license\": \"Apache-2.0\",\n@@ -29,5 +29,5 @@\n   \"dependencies\": {\n     \"@clack/prompts\": \"^1.2.0\",\n-    \"@mainahq/core\": \"^1.3.0\",\n+    \"@mainahq/core\": \"^1.4.0\",\n     \"@mainahq/mcp\": \"^1.3.0\",\n     \"commander\": \"^14.0.3\"\ndiff --git a/packages/core/CHANGELOG.md b/packages/core/CHANGELOG.md\nindex 41377cb..a13b3a0 100644\n--- a/packages/core/CHANGELOG.md\n+++ b/packages/core/CHANGELOG.md\n@@ -1,4 +1,24 @@\n # @mainahq/core\n \n+## 1.4.0\n+\n+### Minor Changes\n+\n+- [`1b3741c`](https://github.com/mainahq/maina/commit/1b3741c78b96795077b446a65751f47fab24cfbf) Thanks [@beeeku](https://github.com/beeeku)! - feat(cli): `maina mcp add/remove/list` across 8 AI clients\n+\n+  Adds three new top-level commands inspired by `npx @posthog/wizard mcp add`:\n+\n+  - `maina mcp add` — install the maina MCP server in every detected client's global config\n+  - `maina mcp remove` — strip the maina entry from every client\n+  - `maina mcp list` — show install status per client\n+\n+  Supported clients: **Claude Code, Cursor, Windsurf, Cline, OpenAI Codex CLI, Continue.dev, Gemini CLI, Zed**. Each client's config — JSON for seven of them, TOML for Codex — is parsed, mutated only at the maina entry, and atomically rewritten so all other MCP servers and unrelated config keys are preserved.\n+\n+  Flags (all subcommands): `--client <list>` (comma-separated; default: auto-detect), `--scope global|project|both` (default: `global`), `--dry-run`, `--json`.\n+\n+  This is the cross-project counterpart to the setup wizard's per-project install — `maina setup` continues to write `.mcp.json` and `.claude/settings.json` for the current repo, while `maina mcp add` reaches every project at once.\n+\n+  The Continue.dev integration uses the legacy `~/.continue/config.json#experimental.modelContextProtocolServers` shape; the newer per-server YAML files at `~/.continue/.continue/mcpServers/*.yaml` will land when YAML support is added (tracked as a follow-up).\n+\n ## 1.3.0\n \ndiff --git a/packages/core/package.json b/packages/core/package.json\nindex 45cad61..4218f14 100644\n--- a/packages/core/package.json\n+++ b/packages/core/package.json\n@@ -1,5 +1,5 @@\n {\n   \"name\": \"@mainahq/core\",\n-  \"version\": \"1.3.0\",\n+  \"version\": \"1.4.0\",\n   \"type\": \"module\",\n   \"license\": \"Apache-2.0\",\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (201 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 7
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (310 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 15
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (159 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 17
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (231 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 19
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (260 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 21
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (201 chars) in added code",
+						"file": "packages/core/CHANGELOG.md",
+						"line": 7
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (310 chars) in added code",
+						"file": "packages/core/CHANGELOG.md",
+						"line": 15
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (159 chars) in added code",
+						"file": "packages/core/CHANGELOG.md",
+						"line": 17
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (231 chars) in added code",
+						"file": "packages/core/CHANGELOG.md",
+						"line": 19
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (260 chars) in added code",
+						"file": "packages/core/CHANGELOG.md",
+						"line": 21
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/.changeset/setup-wizard.md b/.changeset/setup-wizard.md\nnew file mode 100644\nindex 0000000..71b5630\n--- /dev/null\n+++ b/.changeset/setup-wizard.md\n@@ -0,0 +1,25 @@\n+---\n+\"@mainahq/cli\": minor\n+\"@mainahq/core\": minor\n+\"@mainahq/mcp\": patch\n+\"@mainahq/skills\": patch\n+---\n+\n+feat(cli): zero-friction setup wizard\n+\n+Adds `maina setup`, a one-command onboarding wizard that detects your stack,\n+tailors a constitution via host-delegated or cloud AI (anonymous, no API key),\n+scaffolds 5 agent instruction files with non-destructive managed regions,\n+seeds the codebase wiki, and runs verify to surface a real finding inline —\n+all in under 60 seconds.\n+\n+- `--ci` mode emits per-phase JSON for automation\n+- `--update` re-tailors constitution + agent files for the current stack\n+- `--reset` backs up `.maina/` and starts fresh\n+- `--agents <list>` scopes which agent files are written\n+- `maina configure` is now a deprecated alias for `setup --update` (removed in v1.5)\n+\n+Docs: new `getting-started.mdx` features the wizard as the primary CTA. The\n+previous `quickstart` page redirects to `/getting-started`. `full-setup` is\n+demoted under \"Advanced\" as the long-form reference. Landing-page hero and\n+root `README.md` now lead with `bunx @mainahq/cli@latest setup`.\ndiff --git a/README.md b/README.md\nindex c4b6a64..1713e3b 100644\n--- a/README.md\n+++ b/README.md\n@@ -9,4 +9,10 @@\n ---\n \n+```bash\n+bunx @mainahq/cli@latest setup\n+```\n+\n+One command. Zero config. No API key, no login. In under 60 seconds: tailored `.maina/constitution.md`, five agent instruction files (`AGENTS.md`, Cursor, Claude, Copilot, Windsurf) with non-destructive managed regions, a seeded codebase wiki, and a real `maina verify` finding surfaced inline.\n+\n ## The Problem\n \n@@ -24,8 +30,8 @@ Maina is a CLI + MCP server + skills package. One tool that:\n \n ```bash\n-bunx @mainahq/cli init      # Zero config. Works immediately.\n-maina commit                # Verify with 12 tools + commit.\n-maina verify --visual       # Add screenshot regression.\n-maina pr                    # PR with verification proof attached.\n+bunx @mainahq/cli@latest setup   # Wizard: constitution + agents + wiki + verify (<60s)\n+maina commit                     # Verify with 12 tools + commit.\n+maina verify --visual            # Add screenshot regression.\n+maina pr                         # PR with verification proof attached.\n ```\n \n@@ -115,18 +121,18 @@ Maina runs inside any AI coding tool via MCP and cross-platform skills:\n | Tool | MCP | Instructions | Setup |\n |------|-----|-------------|-------|\n-| Claude Code | Yes | CLAUDE.md | `maina init` |\n-| Cursor | Yes | .cursorrules | `maina init` |\n+| Claude Code | Yes | CLAUDE.md | `maina setup` |\n+| Cursor | Yes | .cursorrules | `maina setup` |\n | Windsurf | Yes | .windsurfrules | `maina setup` |\n-| GitHub Copilot | Yes | copilot-instructions.md | `maina init` |\n-| Continue.dev | Yes | config.yaml | `maina init` |\n+| GitHub Copilot | Yes | copilot-instructions.md | `maina setup` |\n+| Continue.dev | Yes | config.yaml | `maina setup` |\n | Cline | Yes | .clinerules | `maina setup` |\n-| Roo Code | Yes | .roo/rules/ | `maina init` |\n-| Amazon Q | Yes | .amazonq/ | `maina init` |\n-| Gemini CLI | Yes | GEMINI.md | `maina init` |\n+| Roo Code | Yes | .roo/rules/ | `maina setup` |\n+| Amazon Q | Yes | .amazonq/ | `maina setup` |\n+| Gemini CLI | Yes | GEMINI.md | `maina setup` |\n | Zed | Yes | -- | `maina setup` |\n-| Codex CLI | -- | AGENTS.md | `maina init` |\n-| Aider | -- | CONVENTIONS.md | `maina init` |\n+| Codex CLI | -- | AGENTS.md | `maina setup` |\n+| Aider | -- | CONVENTIONS.md | `maina setup` |\n \n-Run `maina init` to auto-configure MCP for detected tools, or `maina setup` for guided configuration. See the [onboarding skill](packages/skills/onboarding/SKILL.md) for per-tool details.\n+Run `maina setup` to auto-configure MCP and write instruction files for every detected tool. See the [onboarding skill](packages/skills/onboarding/SKILL.md) for per-tool details.\n \n ## The Workflow\n@@ -158,5 +164,5 @@ Maina's 16-tool pipeline caught issues that ad-hoc implementation missed.\n \n ### Define\n-`init`, `init --install`, `configure`, `ticket`, `context`, `explain`, `design`, `review-design`\n+`setup`, `setup --update`, `setup --reset`, `init`, `ticket`, `context`, `explain`, `design`, `review-design`\n \n ### Build\n@@ -174,11 +180,8 @@ Maina's 16-tool pipeline caught issues that ad-hoc implementation missed.\n \n ```bash\n-bun add -g @mainahq/cli    # Install\n-maina init --install         # Bootstrap + install verification tools\n-maina configure              # Set conventions interactively\n-maina doctor                 # Check what's available\n+bunx @mainahq/cli@latest setup\n ```\n \n-Then develop:\n+That's it. In under 60 seconds you have a tailored constitution, wired agents, a seeded wiki, and a real verify finding. Then develop:\n \n ```bash\n@@ -190,4 +193,16 @@ maina learn                  # Evolve prompts from feedback\n ```\n \n+### Advanced\n+\n+Lower-level primitives for scripting and power users — see the [Full Setup docs](https://mainahq.com/full-setup/).\n+\n+```bash\n+maina setup --update         # Re-tailor after major stack changes\n+maina setup --reset          # Back up .maina/ and start fresh\n+maina setup --ci             # Non-interactive; per-phase JSON output\n+maina init --install         # Lower-level bootstrap (called by the wizard)\n+maina doctor                 # Check which tools are installed\n+```\n+\n ## Zero-Friction Layers\n \ndiff --git a/packages/cli/src/commands/__tests__/configure.test.ts b/packages/cli/src/commands/__tests__/configure.test.ts\nnew file mode 100644\nindex 0000000..097a2c6\n--- /dev/null\n+++ b/packages/cli/src/commands/__tests__/configure.test.ts\n@@ -0,0 +1,95 @@\n+import { describe, expect, it } from \"bun:test\";\n+import { type ConfigureActionOptions, configureAction } from \"../configure\";\n+import type { SetupActionOptions } from \"../setup\";\n+\n+/**\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (294 chars) in added code",
+						"file": "README.md",
+						"line": 15
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (178 chars) in added code",
+						"file": "README.md",
+						"line": 136
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (134 chars) in added code",
+						"file": "README.md",
+						"line": 185
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/packages/docs/src/components/Hero.astro b/packages/docs/src/components/Hero.astro\nindex 5e15a6a..e3039c5 100644\n--- a/packages/docs/src/components/Hero.astro\n+++ b/packages/docs/src/components/Hero.astro\n@@ -33,8 +33,10 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;\n <script is:inline>\n (function() {\n-  var mcpConfig = JSON.stringify({\"command\":\"maina\",\"args\":[\"--mcp\"]});\n+  var serverConfig = {command:\"bunx\",args:[\"@mainahq/cli\",\"--mcp\"]};\n+  var mcpConfig = JSON.stringify(serverConfig);\n \n-  // Cursor deeplink: base64-encode the MCP config\n-  var cursorConfig = btoa(JSON.stringify({mcpServers:{maina:{command:\"maina\",args:[\"--mcp\"]}}}));\n+  // Cursor deeplink: base64-encode just the server config (name param identifies the server).\n+  // Percent-encode the base64 because +, /, = are reserved in query strings.\n+  var cursorConfig = encodeURIComponent(btoa(mcpConfig));\n   var cursorBadge = document.getElementById('cursor-badge');\n   if (cursorBadge) {\n@@ -53,5 +55,5 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;\n         msg = 'Claude Code command copied!';\n       } else if (action === 'windsurf') {\n-        text = JSON.stringify({mcpServers:{maina:{command:\"maina\",args:[\"--mcp\"]}}}, null, 2);\n+        text = JSON.stringify({mcpServers:{maina:serverConfig}}, null, 2);\n         msg = 'Windsurf MCP config copied! Paste into ~/.codeium/windsurf/mcp_config.json';\n       }\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": []
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/adr/0029-scip-type-script-ingest-for-wiki.md b/adr/0029-scip-type-script-ingest-for-wiki.md\nnew file mode 100644\nindex 0000000..ae17692\n--- /dev/null\n+++ b/adr/0029-scip-type-script-ingest-for-wiki.md\n@@ -0,0 +1,26 @@\n+# 0029. SCIP TypeScript ingest for wiki\n+\n+Date: 2026-04-17\n+\n+## Status\n+\n+Accepted\n+\n+## Context\n+\n+Custom regex parsers miss complex cross-file relationships. SCIP (Sourcegraph, Apache-2.0) is the successor to LSIF — 5-10x smaller, 3x faster. Running `scip-typescript` gives precise symbol data for free.\n+\n+## Decision\n+\n+Spawn `scip-typescript` as a subprocess, parse JSON output, normalize into internal types. Graceful fallback when not installed — wiki continues to work with regex-based extraction.\n+\n+## Consequences\n+\n+### Positive\n+- Precise symbol refs (callers/callees) across files\n+- Monorepo support via multiple tsconfig.json discovery\n+- No protobuf dependency — use JSON output mode\n+\n+### Negative\n+- External tool dependency (mitigated: graceful fallback + maina doctor recommendation)\n+- Subprocess spawning adds latency (mitigated: only runs during wiki compile, not on every command)\ndiff --git a/packages/core/src/wiki/__tests__/scip-ingest.test.ts b/packages/core/src/wiki/__tests__/scip-ingest.test.ts\nnew file mode 100644\nindex 0000000..6b2aade\n--- /dev/null\n+++ b/packages/core/src/wiki/__tests__/scip-ingest.test.ts\n@@ -0,0 +1,142 @@\n+import { afterEach, beforeEach, describe, expect, test } from \"bun:test\";\n+import { mkdirSync, rmSync, writeFileSync } from \"node:fs\";\n+import { tmpdir } from \"node:os\";\n+import { join } from \"node:path\";\n+import {\n+\tfindTsConfigs,\n+\tisScipAvailable,\n+\tparseScipOutput,\n+\trunScipTypescript,\n+} from \"../scip-ingest\";\n+\n+let tmpDir: string;\n+\n+beforeEach(() => {\n+\ttmpDir = join(\n+\t\ttmpdir(),\n+\t\t`scip-${Date.now()}-${Math.random().toString(36).slice(2)}`,\n+\t);\n+\tmkdirSync(tmpDir, { recursive: true });\n+});\n+\n+afterEach(() => {\n+\trmSync(tmpDir, { recursive: true, force: true });\n+});\n+\n+// ── isScipAvailable ─────────────────────────────────────────────────────\n+\n+describe(\"isScipAvailable\", () => {\n+\ttest(\"returns boolean without throwing\", async () => {\n+\t\tconst result = await isScipAvailable();\n+\t\texpect(typeof result).toBe(\"boolean\");\n+\t});\n+});\n+\n+// ── findTsConfigs ───────────────────────────────────────────────────────\n+\n+describe(\"findTsConfigs\", () => {\n+\ttest(\"finds tsconfig.json at root\", () => {\n+\t\twriteFileSync(join(tmpDir, \"tsconfig.json\"), \"{}\");\n+\t\tconst configs = findTsConfigs(tmpDir);\n+\t\texpect(configs).toHaveLength(1);\n+\t\texpect(configs[0]).toContain(\"tsconfig.json\");\n+\t});\n+\n+\ttest(\"finds nested tsconfig.json in monorepo\", () => {\n+\t\tmkdirSync(join(tmpDir, \"packages\", \"core\"), { recursive: true });\n+\t\tmkdirSync(join(tmpDir, \"packages\", \"cli\"), { recursive: true });\n+\t\twriteFileSync(join(tmpDir, \"tsconfig.json\"), \"{}\");\n+\t\twriteFileSync(join(tmpDir, \"packages\", \"core\", \"tsconfig.json\"), \"{}\");\n+\t\twriteFileSync(join(tmpDir, \"packages\", \"cli\", \"tsconfig.json\"), \"{}\");\n+\n+\t\tconst configs = findTsConfigs(tmpDir);\n+\t\texpect(configs).toHaveLength(3);\n+\t});\n+\n+\ttest(\"skips node_modules\", () => {\n+\t\tmkdirSync(join(tmpDir, \"node_modules\", \"pkg\"), { recursive: true });\n+\t\twriteFileSync(join(tmpDir, \"node_modules\", \"pkg\", \"tsconfig.json\"), \"{}\");\n+\t\twriteFileSync(join(tmpDir, \"tsconfig.json\"), \"{}\");\n+\n+\t\tconst configs = findTsConfigs(tmpDir);\n+\t\texpect(configs).toHaveLength(1);\n+\t});\n+\n+\ttest(\"returns empty for no tsconfigs\", () => {\n+\t\texpect(findTsConfigs(tmpDir)).toEqual([]);\n+\t});\n+\n+\ttest(\"respects maxDepth\", () => {\n+\t\tmkdirSync(join(tmpDir, \"a\", \"b\", \"c\", \"d\"), { recursive: true });\n+\t\twriteFileSync(join(tmpDir, \"a\", \"b\", \"c\", \"d\", \"tsconfig.json\"), \"{}\");\n+\n+\t\t// maxDepth 2 should not find depth-4 tsconfig\n+\t\tconst configs = findTsConfigs(tmpDir, 2);\n+\t\texpect(configs).toHaveLength(0);\n+\t});\n+});\n+\n+// ── parseScipOutput ─────────────────────────────────────────────────────\n+\n+describe(\"parseScipOutput\", () => {\n+\ttest(\"parses valid SCIP JSON output\", () => {\n+\t\tconst json = JSON.stringify({\n+\t\t\tdocuments: [\n+\t\t\t\t{\n+\t\t\t\t\trelativePath: \"src/index.ts\",\n+\t\t\t\t\toccurrences: [\n+\t\t\t\t\t\t{\n+\t\t\t\t\t\t\tsymbol: \"npm pkg 1.0.0 src/index.ts/hello().\",\n+\t\t\t\t\t\t\trange: [10, 0, 10, 5],\n+\t\t\t\t\t\t\tsymbolRoles: 1,\n+\t\t\t\t\t\t},\n+\t\t\t\t\t],\n+\t\t\t\t},\n+\t\t\t],\n+\t\t});\n+\n+\t\tconst result = parseScipOutput(json);\n+\t\texpect(result.ok).toBe(true);\n+\t\tif (result.ok) {\n+\t\t\texpect(result.value.length).toBeGreaterThanOrEqual(1);\n+\t\t\texpect(result.value[0]?.name).toBe(\"hello\");\n+\t\t\texpect(result.value[0]?.file).toBe(\"src/index.ts\");\n+\t\t\texpect(result.value[0]?.line).toBe(11); // 0-indexed → 1-indexed\n+\t\t}\n+\t});\n+\n+\ttest(\"returns empty for no documents\", () => {\n+\t\tconst result = parseScipOutput(JSON.stringify({ documents: [] }));\n+\t\texpect(result.ok).toBe(true);\n+\t\tif (result.ok) expect(result.value).toEqual([]);\n+\t});\n+\n+\ttest(\"returns error for invalid JSON\", () => {\n+\t\tconst result = parseScipOutput(\"not json\");\n+\t\texpect(result.ok).toBe(false);\n+\t});\n+\n+\ttest(\"handles missing fields gracefully\", () => {\n+\t\tconst json = JSON.stringify({\n+\t\t\tdocuments: [{ relativePath: \"a.ts\", occurrences: [{}] }],\n+\t\t});\n+\t\tconst result = parseScipOutput(json);\n+\t\texpect(result.ok).toBe(true);\n+\t\tif (result.ok) expect(result.value).toEqual([]);\n+\t});\n+});\n+\n+// ── runScipTypescript ───────────────────────────────────────────────────\n+\n+describe(\"runScipTypescript\", () => {\n+\ttest(\"returns error for repo with no tsconfig\", async () => {\n+\t\tconst result = await runScipTypescript(tmpDir);\n+\t\texpect(result.ok).toBe(false);\n+\t\tif (!result.ok) {\n+\t\t\texpect(\n+\t\t\t\tresult.error.includes(\"not installed\") ||\n+\t\t\t\t\tresult.error.includes(\"No tsconfig\"),\n+\t\t\t).toBe(true);\n+\t\t}\n+\t});\n+});\ndiff --git a/packages/core/src/wiki/scip-ingest.ts b/packages/core/src/wiki/scip-ingest.ts\nnew file mode 100644\nindex 0000000..86f077e\n--- /dev/null\n+++ b/packages/core/src/wiki/scip-ingest.ts\n@@ -0,0 +1,211 @@\n+/**\n+ * SCIP TypeScript Ingest — run scip-typescript and parse output.\n+ *\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (205 chars) in added code",
+						"file": "adr/0029-scip-type-script-ingest-for-wiki.md",
+						"line": 11
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (181 chars) in added code",
+						"file": "adr/0029-scip-type-script-ingest-for-wiki.md",
+						"line": 15
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/packages/docs/astro.config.mjs b/packages/docs/astro.config.mjs\nindex d8881de..1674d65 100644\n--- a/packages/docs/astro.config.mjs\n+++ b/packages/docs/astro.config.mjs\n@@ -61,4 +61,13 @@ export default defineConfig({\n           ],\n         },\n+        {\n+          label: 'Blog',\n+          items: [\n+            { slug: 'blog/why-no-sdk' },\n+            { slug: 'blog/why-not-passmark' },\n+            { slug: 'blog/why-not-custom-search' },\n+            { slug: 'blog/wiki-is-a-view' },\n+          ],\n+        },\n         {\n           label: 'Roadmap',\ndiff --git a/packages/docs/src/content/docs/blog/why-no-sdk.mdx b/packages/docs/src/content/docs/blog/why-no-sdk.mdx\nnew file mode 100644\nindex 0000000..4fb526c\n--- /dev/null\n+++ b/packages/docs/src/content/docs/blog/why-no-sdk.mdx\n@@ -0,0 +1,30 @@\n+---\n+title: Why Maina has no SDK\n+description: MCP is our polyglot surface. Here's why we chose not to build multi-language SDKs.\n+---\n+\n+**tl;dr** — Maina has no REST API to wrap. MCP is the polyglot interface. Our peers ship zero SDKs. We're not special enough to need one.\n+\n+## The temptation\n+\n+Every developer tool eventually faces the SDK question: \"Should we auto-generate client libraries in Python, Go, Ruby, Java...?\" Tools like Fern make this easy — point at an API spec, get SDKs in 10 languages.\n+\n+We evaluated Fern. Here's why we passed.\n+\n+## No REST API to wrap\n+\n+Maina's integration surface is MCP (Model Context Protocol). Claude Code, Cursor, Windsurf, Copilot — they all speak MCP natively. There's no REST API for an SDK to wrap.\n+\n+## Our peers don't do it\n+\n+Ruff, uv, Biome, Bun, Vitest, Astro — none of them ship SDKs. They ship CLIs and let users call them. Maina works the same way: `maina verify` or the MCP `verify` tool. Done.\n+\n+## The math doesn't work\n+\n+Fern costs ~$600/month per language. For N languages with no REST API, that's $600N/month for wrapping... nothing. The ROI is negative.\n+\n+## When we'd reconsider\n+\n+If Maina ever ships a hosted REST API (2027 Q2 earliest), we'd evaluate Speakeasy (not Fern) for SDK generation. But not before there's an API to wrap.\n+\n+**Decision record:** [ADR 0019 — No Fern, no SDKs](/adr/0019-no-fern-no-sdk)\ndiff --git a/packages/docs/src/content/docs/blog/why-not-custom-search.mdx b/packages/docs/src/content/docs/blog/why-not-custom-search.mdx\nnew file mode 100644\nindex 0000000..f829cfd\n--- /dev/null\n+++ b/packages/docs/src/content/docs/blog/why-not-custom-search.mdx\n@@ -0,0 +1,24 @@\n+---\n+title: Why we're not building our own search\n+description: Pagefind for docs, Orama for in-app. No custom search engine.\n+---\n+\n+**tl;dr** — Pagefind handles docs search. Orama (under evaluation) handles in-app wiki search. Building a custom search engine is the wrong use of our time.\n+\n+## The temptation\n+\n+Every tool with a knowledge base eventually thinks \"we should build search.\" We have a wiki with 375+ articles. Surely custom search would be better?\n+\n+No.\n+\n+## What we use instead\n+\n+**Docs site search:** [Pagefind](https://pagefind.app/) — runs at build time, generates a static index, ships a default UI behind Cmd+K. Zero runtime cost, typo tolerance, under 400KB. Already working.\n+\n+**In-app wiki search:** [Orama](https://orama.com/) — under evaluation with hard gates (must beat lexical by 15% NDCG@10, index size under 2x, p95 latency under 50ms). If it passes, we ship it. If not, ripgrep remains the answer.\n+\n+## Why not @workkit?\n+\n+We briefly considered @workkit as a search solution. @workkit is a Cloudflare Workers toolkit — it has no search capabilities. Using it for search would be inventing a library that doesn't exist.\n+\n+**Decision records:** [ADR 0017 — No @workkit search](/adr/0017-no-workkit-search), [ADR 0014 — Orama experiment gates](/adr/0014-experiment-gate-stagehand-orama)\ndiff --git a/packages/docs/src/content/docs/blog/why-not-passmark.mdx b/packages/docs/src/content/docs/blog/why-not-passmark.mdx\nnew file mode 100644\nindex 0000000..d959e7c\n--- /dev/null\n+++ b/packages/docs/src/content/docs/blog/why-not-passmark.mdx\n@@ -0,0 +1,24 @@\n+---\n+title: Why we're not adopting Passmark\n+description: Passmark wraps Playwright. Stagehand does the same under MIT. Here's our evaluation.\n+---\n+\n+**tl;dr** — Passmark is a Playwright wrapper with an FSL license and 185 stars. Stagehand does the same thing under MIT with a larger community. We're evaluating Stagehand instead.\n+\n+## What Passmark offers\n+\n+Passmark promises AI-driven browser testing by wrapping Playwright with natural language selectors. Sounds great for verification — let AI describe what to check instead of writing CSS selectors.\n+\n+## Why we passed\n+\n+**It wraps Playwright.** Passmark isn't a Playwright replacement — it's a layer on top. If we're already going to depend on Playwright, the wrapper needs to justify its existence.\n+\n+**FSL license.** The \"Competing Use\" clause is a non-starter for a verification tool. If someone uses Maina to verify Passmark's competitors, we'd be in legal gray area.\n+\n+**185 stars.** Not battle-tested. For a tool that gates whether code merges, we need reliability data.\n+\n+## What we're doing instead\n+\n+Stagehand (MIT, larger community) does the same thing — AI-driven browser automation on top of Playwright. We're running a feature-flagged evaluation with hard go/no-go criteria: pass rate, token cost, cache hit rate.\n+\n+**Decision record:** [ADR 0018 — No Passmark](/adr/0018-no-passmark)\ndiff --git a/packages/docs/src/content/docs/blog/wiki-is-a-view.mdx b/packages/docs/src/content/docs/blog/wiki-is-a-view.mdx\nnew file mode 100644\nindex 0000000..0c15a23\n--- /dev/null\n+++ b/packages/docs/src/content/docs/blog/wiki-is-a-view.mdx\n@@ -0,0 +1,34 @@\n+---\n+title: Why the wiki is a view, not a product\n+description: The Context engine is the product. The wiki renders what it knows.\n+---\n+\n+**tl;dr** — The wiki isn't a separate product. It's a view of the Context engine — one of several ways to see what Maina knows about your codebase.\n+\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (137 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-no-sdk.mdx",
+						"line": 6
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (209 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-no-sdk.mdx",
+						"line": 10
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (170 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-no-sdk.mdx",
+						"line": 16
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (174 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-no-sdk.mdx",
+						"line": 20
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (135 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-no-sdk.mdx",
+						"line": 24
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (151 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-no-sdk.mdx",
+						"line": 28
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (156 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-not-custom-search.mdx",
+						"line": 6
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (149 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-not-custom-search.mdx",
+						"line": 10
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (201 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-not-custom-search.mdx",
+						"line": 16
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (229 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-not-custom-search.mdx",
+						"line": 18
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (195 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-not-custom-search.mdx",
+						"line": 22
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (162 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-not-custom-search.mdx",
+						"line": 24
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (180 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-not-passmark.mdx",
+						"line": 6
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (195 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-not-passmark.mdx",
+						"line": 10
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (179 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-not-passmark.mdx",
+						"line": 14
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (169 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-not-passmark.mdx",
+						"line": 16
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (217 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/why-not-passmark.mdx",
+						"line": 22
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (147 chars) in added code",
+						"file": "packages/docs/src/content/docs/blog/wiki-is-a-view.mdx",
+						"line": 6
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/adr/0026-cloud-error-reporting-with-account-linking.md b/adr/0026-cloud-error-reporting-with-account-linking.md\nnew file mode 100644\nindex 0000000..e414b25\n--- /dev/null\n+++ b/adr/0026-cloud-error-reporting-with-account-linking.md\n@@ -0,0 +1,24 @@\n+# 0026. Cloud error reporting with account linking\n+\n+Date: 2026-04-17\n+\n+## Status\n+\n+Accepted\n+\n+## Context\n+\n+Cloud users need error reporting linked to their account for support triage. OSS reporter (#121) provides scrubbed error events. Cloud extends this with user_id, org_id, plan_tier — never email or name.\n+\n+## Decision\n+\n+Extend the OSS `buildErrorEvent()` with cloud-specific metadata. Default-on for Cloud users, opt-out via user settings. Events tagged with IDs only, never PII.\n+\n+## Consequences\n+\n+### Positive\n+- Support can find errors by user/org in PostHog within 30s\n+- Plan-tier tagging enables prioritized triage for paid customers\n+\n+### Negative\n+- Default-on may concern privacy-conscious users (mitigated: opt-out is immediate, only IDs sent)\ndiff --git a/packages/core/src/telemetry/__tests__/cloud-reporter.test.ts b/packages/core/src/telemetry/__tests__/cloud-reporter.test.ts\nnew file mode 100644\nindex 0000000..1e3953f\n--- /dev/null\n+++ b/packages/core/src/telemetry/__tests__/cloud-reporter.test.ts\n@@ -0,0 +1,135 @@\n+import { describe, expect, test } from \"bun:test\";\n+import {\n+\tbuildCloudErrorEvent,\n+\tisCloudReportingEnabled,\n+\treportCloudError,\n+} from \"../cloud-reporter\";\n+\n+const baseContext = { command: \"verify\", version: \"1.1.5\" };\n+const cloudContext = {\n+\tuserId: \"user_abc123\",\n+\torgId: \"org_xyz789\",\n+\tplanTier: \"team\" as const,\n+};\n+\n+// ── isCloudReportingEnabled ─────────────────────────────────────────────\n+\n+describe(\"isCloudReportingEnabled\", () => {\n+\ttest(\"returns true by default (opt-out model)\", () => {\n+\t\texpect(isCloudReportingEnabled(cloudContext)).toBe(true);\n+\t});\n+\n+\ttest(\"returns false when user opted out\", () => {\n+\t\texpect(isCloudReportingEnabled({ ...cloudContext, optedOut: true })).toBe(\n+\t\t\tfalse,\n+\t\t);\n+\t});\n+\n+\ttest(\"returns true when optedOut is explicitly false\", () => {\n+\t\texpect(isCloudReportingEnabled({ ...cloudContext, optedOut: false })).toBe(\n+\t\t\ttrue,\n+\t\t);\n+\t});\n+});\n+\n+// ── buildCloudErrorEvent ────────────────────────────────────────────────\n+\n+describe(\"buildCloudErrorEvent\", () => {\n+\ttest(\"extends base event with cloud metadata\", () => {\n+\t\tconst event = buildCloudErrorEvent(\n+\t\t\tnew Error(\"timeout\"),\n+\t\t\tbaseContext,\n+\t\t\tcloudContext,\n+\t\t);\n+\n+\t\t// Base fields\n+\t\texpect(event.event).toBe(\"maina.error\");\n+\t\texpect(event.errorClass).toBe(\"Error\");\n+\t\texpect(event.message).toContain(\"timeout\");\n+\t\texpect(event.command).toBe(\"verify\");\n+\t\texpect(event.version).toBe(\"1.1.5\");\n+\n+\t\t// Cloud fields\n+\t\texpect(event.userId).toBe(\"user_abc123\");\n+\t\texpect(event.orgId).toBe(\"org_xyz789\");\n+\t\texpect(event.planTier).toBe(\"team\");\n+\t});\n+\n+\ttest(\"never includes email or name in serialized output\", () => {\n+\t\tconst event = buildCloudErrorEvent(\n+\t\t\tnew Error(\"fail for admin@company.com\"),\n+\t\t\tbaseContext,\n+\t\t\tcloudContext,\n+\t\t);\n+\n+\t\tconst json = JSON.stringify(event);\n+\t\t// Email should be scrubbed by the base reporter's PII scrubber\n+\t\texpect(json).not.toContain(\"admin@company.com\");\n+\t\t// Ensure no name/email fields exist\n+\t\texpect(event).not.toHaveProperty(\"email\");\n+\t\texpect(event).not.toHaveProperty(\"name\");\n+\t\texpect(event).not.toHaveProperty(\"username\");\n+\t});\n+\n+\ttest(\"scrubs PII from error message\", () => {\n+\t\tconst event = buildCloudErrorEvent(\n+\t\t\tnew Error(\"Error at /Users/bikash/code/src/db.ts\"),\n+\t\t\tbaseContext,\n+\t\t\tcloudContext,\n+\t\t);\n+\t\texpect(event.message).not.toContain(\"/Users/bikash\");\n+\t});\n+\n+\ttest(\"includes all plan tiers\", () => {\n+\t\tfor (const tier of [\"free\", \"team\", \"enterprise\"] as const) {\n+\t\t\tconst event = buildCloudErrorEvent(new Error(\"test\"), baseContext, {\n+\t\t\t\t...cloudContext,\n+\t\t\t\tplanTier: tier,\n+\t\t\t});\n+\t\t\texpect(event.planTier).toBe(tier);\n+\t\t}\n+\t});\n+});\n+\n+// ── reportCloudError ────────────────────────────────────────────────────\n+\n+describe(\"reportCloudError\", () => {\n+\ttest(\"returns event when reporting is enabled\", () => {\n+\t\tconst result = reportCloudError(\n+\t\t\tnew Error(\"test\"),\n+\t\t\tbaseContext,\n+\t\t\tcloudContext,\n+\t\t);\n+\n+\t\texpect(result.ok).toBe(true);\n+\t\tif (result.ok) {\n+\t\t\texpect(result.value).not.toBeNull();\n+\t\t\texpect(result.value?.userId).toBe(\"user_abc123\");\n+\t\t}\n+\t});\n+\n+\ttest(\"returns null when user opted out\", () => {\n+\t\tconst result = reportCloudError(new Error(\"test\"), baseContext, {\n+\t\t\t...cloudContext,\n+\t\t\toptedOut: true,\n+\t\t});\n+\n+\t\texpect(result.ok).toBe(true);\n+\t\tif (result.ok) {\n+\t\t\texpect(result.value).toBeNull();\n+\t\t}\n+\t});\n+\n+\ttest(\"returns Result with error ID\", () => {\n+\t\tconst result = reportCloudError(\n+\t\t\tnew Error(\"test\"),\n+\t\t\tbaseContext,\n+\t\t\tcloudContext,\n+\t\t);\n+\n+\t\texpect(result.ok).toBe(true);\n+\t\tif (result.ok && result.value) {\n+\t\t\texpect(result.value.errorId).toMatch(/^ERR-[a-z0-9]{6}$/);\n+\t\t}\n+\t});\n+});\ndiff --git a/packages/core/src/telemetry/cloud-reporter.ts b/packages/core/src/telemetry/cloud-reporter.ts\nnew file mode 100644\nindex 0000000..2627da3\n--- /dev/null\n+++ b/packages/core/src/telemetry/cloud-reporter.ts\n@@ -0,0 +1,85 @@\n+/**\n+ * Cloud Error Reporter — extends OSS reporter with account-linked metadata.\n+ *\n+ * Default-on for Cloud users. Opt-out via user settings.\n+ * Events tagged with user_id, org_id, plan_tier — never email or name.\n+ * Uses Result<T, E> pattern.\n+ */\n+\n+import type { Result } from \"../db/index\";\n+import type { ErrorEvent, ErrorEventContext } from \"./reporter\";\n+import { buildErrorEvent } from \"./reporter\";\n+\n+// ── Types ──────────────────────────────────────────────────────────────\n+\n+export interface CloudErrorContext {\n+\tuserId: string;\n+\torgId: string;\n+\tplanTier: \"free\" | \"team\" | \"enterprise\";\n+\t/** User has opted out of error reporting */\n+\toptedOut?: boolean;\n+}\n+\n+export interface CloudErrorEvent extends ErrorEvent {\n+\tuserId: string;\n+\torgId: string;\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (202 chars) in added code",
+						"file": "adr/0026-cloud-error-reporting-with-account-linking.md",
+						"line": 11
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (159 chars) in added code",
+						"file": "adr/0026-cloud-error-reporting-with-account-linking.md",
+						"line": 15
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/adr/0025-git-hub-checks-api-integration.md b/adr/0025-git-hub-checks-api-integration.md\nnew file mode 100644\nindex 0000000..31d42d0\n--- /dev/null\n+++ b/adr/0025-git-hub-checks-api-integration.md\n@@ -0,0 +1,32 @@\n+# 0025. GitHub Checks API integration\n+\n+Date: 2026-04-17\n+\n+## Status\n+\n+Accepted\n+\n+## Context\n+\n+Maina's verify-action posts inline review comments on findings. But there's no GitHub Check Run — teams can't use \"required status checks\" to gate merges, and there's no pass/fail summary in the PR status box.\n+\n+## Decision\n+\n+Create a GitHub Check Run via `POST /repos/{owner}/{repo}/check-runs` with:\n+- **Conclusion**: `success` (no errors), `failure` (errors found), `neutral` (warnings only)\n+- **Summary**: \"18/20 passed · 2 warnings\"\n+- **Annotations**: up to 50 line-level annotations from verify findings\n+- **Details URL**: `mainahq.com/r/<run-id>` when available\n+\n+Use `fetch` directly — no Octokit dependency. Same pattern as `sticky-comment.ts`.\n+\n+## Consequences\n+\n+### Positive\n+- Teams can gate merges on Maina verification\n+- Quick pass/fail visible in PR status box\n+- Annotations link to exact file:line in the diff\n+\n+### Negative\n+- Requires `checks:write` permission (GitHub App or PAT)\n+- 50-annotation limit may truncate large finding sets\ndiff --git a/packages/core/src/github/__tests__/checks.test.ts b/packages/core/src/github/__tests__/checks.test.ts\nnew file mode 100644\nindex 0000000..cb5b17a\n--- /dev/null\n+++ b/packages/core/src/github/__tests__/checks.test.ts\n@@ -0,0 +1,267 @@\n+import { afterEach, beforeEach, describe, expect, mock, test } from \"bun:test\";\n+import type { Finding } from \"../../verify/diff-filter\";\n+import {\n+\tcreateCheckRun,\n+\tdetermineConclusion,\n+\tformatAnnotations,\n+\tformatSummary,\n+} from \"../checks\";\n+\n+const originalFetch = globalThis.fetch;\n+let mockFetch: ReturnType<typeof mock>;\n+\n+beforeEach(() => {\n+\tmockFetch = mock(() => Promise.resolve(new Response(\"\", { status: 200 })));\n+\tglobalThis.fetch = mockFetch as unknown as typeof fetch;\n+});\n+\n+afterEach(() => {\n+\tglobalThis.fetch = originalFetch;\n+});\n+\n+function jsonResponse(data: unknown, status = 200) {\n+\treturn new Response(JSON.stringify(data), {\n+\t\tstatus,\n+\t\theaders: { \"Content-Type\": \"application/json\" },\n+\t});\n+}\n+\n+// ── formatAnnotations ───────────────────────────────────────────────────\n+\n+describe(\"formatAnnotations\", () => {\n+\ttest(\"converts findings to GitHub annotation format\", () => {\n+\t\tconst findings: Finding[] = [\n+\t\t\t{\n+\t\t\t\ttool: \"biome\",\n+\t\t\t\tfile: \"src/index.ts\",\n+\t\t\t\tline: 42,\n+\t\t\t\tmessage: \"Unused variable\",\n+\t\t\t\tseverity: \"warning\",\n+\t\t\t\truleId: \"no-unused-vars\",\n+\t\t\t},\n+\t\t];\n+\n+\t\tconst annotations = formatAnnotations(findings);\n+\t\texpect(annotations).toHaveLength(1);\n+\t\texpect(annotations[0]).toEqual({\n+\t\t\tpath: \"src/index.ts\",\n+\t\t\tstart_line: 42,\n+\t\t\tend_line: 42,\n+\t\t\tannotation_level: \"warning\",\n+\t\t\tmessage: \"[biome] Unused variable\",\n+\t\t\ttitle: \"no-unused-vars\",\n+\t\t});\n+\t});\n+\n+\ttest(\"maps severity to annotation_level correctly\", () => {\n+\t\tconst findings: Finding[] = [\n+\t\t\t{ tool: \"t\", file: \"a.ts\", line: 1, message: \"err\", severity: \"error\" },\n+\t\t\t{\n+\t\t\t\ttool: \"t\",\n+\t\t\t\tfile: \"b.ts\",\n+\t\t\t\tline: 2,\n+\t\t\t\tmessage: \"warn\",\n+\t\t\t\tseverity: \"warning\",\n+\t\t\t},\n+\t\t\t{ tool: \"t\", file: \"c.ts\", line: 3, message: \"info\", severity: \"info\" },\n+\t\t];\n+\n+\t\tconst annotations = formatAnnotations(findings);\n+\t\texpect(annotations[0]?.annotation_level).toBe(\"failure\");\n+\t\texpect(annotations[1]?.annotation_level).toBe(\"warning\");\n+\t\texpect(annotations[2]?.annotation_level).toBe(\"notice\");\n+\t});\n+\n+\ttest(\"caps at 50 annotations\", () => {\n+\t\tconst findings: Finding[] = Array.from({ length: 60 }, (_, i) => ({\n+\t\t\ttool: \"t\",\n+\t\t\tfile: `f${i}.ts`,\n+\t\t\tline: i,\n+\t\t\tmessage: `finding ${i}`,\n+\t\t\tseverity: \"warning\" as const,\n+\t\t}));\n+\n+\t\tconst annotations = formatAnnotations(findings);\n+\t\texpect(annotations).toHaveLength(50);\n+\t});\n+\n+\ttest(\"handles empty findings\", () => {\n+\t\texpect(formatAnnotations([])).toEqual([]);\n+\t});\n+});\n+\n+// ── determineConclusion ─────────────────────────────────────────────────\n+\n+describe(\"determineConclusion\", () => {\n+\ttest(\"returns success when no findings\", () => {\n+\t\texpect(determineConclusion([])).toBe(\"success\");\n+\t});\n+\n+\ttest(\"returns failure when errors exist\", () => {\n+\t\tconst findings: Finding[] = [\n+\t\t\t{\n+\t\t\t\ttool: \"t\",\n+\t\t\t\tfile: \"a.ts\",\n+\t\t\t\tline: 1,\n+\t\t\t\tmessage: \"error\",\n+\t\t\t\tseverity: \"error\",\n+\t\t\t},\n+\t\t];\n+\t\texpect(determineConclusion(findings)).toBe(\"failure\");\n+\t});\n+\n+\ttest(\"returns neutral for warnings only\", () => {\n+\t\tconst findings: Finding[] = [\n+\t\t\t{\n+\t\t\t\ttool: \"t\",\n+\t\t\t\tfile: \"a.ts\",\n+\t\t\t\tline: 1,\n+\t\t\t\tmessage: \"warn\",\n+\t\t\t\tseverity: \"warning\",\n+\t\t\t},\n+\t\t];\n+\t\texpect(determineConclusion(findings)).toBe(\"neutral\");\n+\t});\n+\n+\ttest(\"returns neutral for info only\", () => {\n+\t\tconst findings: Finding[] = [\n+\t\t\t{ tool: \"t\", file: \"a.ts\", line: 1, message: \"info\", severity: \"info\" },\n+\t\t];\n+\t\texpect(determineConclusion(findings)).toBe(\"neutral\");\n+\t});\n+});\n+\n+// ── formatSummary ───────────────────────────────────────────────────────\n+\n+describe(\"formatSummary\", () => {\n+\ttest(\"formats passed/findings summary\", () => {\n+\t\texpect(formatSummary(18, 2, 0)).toBe(\"18/20 passed · 2 warnings\");\n+\t});\n+\n+\ttest(\"formats with errors\", () => {\n+\t\texpect(formatSummary(15, 3, 2)).toBe(\n+\t\t\t\"15/20 passed · 2 errors · 3 warnings\",\n+\t\t);\n+\t});\n+\n+\ttest(\"formats clean run\", () => {\n+\t\texpect(formatSummary(20, 0, 0)).toBe(\"20/20 passed\");\n+\t});\n+});\n+\n+// ── createCheckRun ──────────────────────────────────────────────────────\n+\n+describe(\"createCheckRun\", () => {\n+\ttest(\"creates a check run with success conclusion\", async () => {\n+\t\tmockFetch.mockImplementationOnce(() =>\n+\t\t\tjsonResponse({ id: 123, html_url: \"https://github.com/...\" }, 201),\n+\t\t);\n+\n+\t\tconst result = await createCheckRun({\n+\t\t\ttoken: \"test-tok\",\n+\t\t\towner: \"mainahq\",\n+\t\t\trepo: \"maina\",\n+\t\t\theadSha: \"abc123\",\n+\t\t\tfindings: [],\n+\t\t\ttotalChecks: 20,\n+\t\t});\n+\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (209 chars) in added code",
+						"file": "adr/0025-git-hub-checks-api-integration.md",
+						"line": 11
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/adr/0024-oss-error-reporting-with-post-hog.md b/adr/0024-oss-error-reporting-with-post-hog.md\nnew file mode 100644\nindex 0000000..415ac55\n--- /dev/null\n+++ b/adr/0024-oss-error-reporting-with-post-hog.md\n@@ -0,0 +1,79 @@\n+# 0024. OSS error reporting with PostHog\n+\n+Date: 2026-04-17\n+\n+## Status\n+\n+Proposed\n+\n+## Context\n+\n+What is the issue that we're seeing that is motivating this decision or change?\n+\n+[NEEDS CLARIFICATION] Describe the context.\n+\n+## Decision\n+\n+What is the change that we're proposing and/or doing?\n+\n+[NEEDS CLARIFICATION] Describe the decision.\n+\n+## Consequences\n+\n+What becomes easier or more difficult to do because of this change?\n+\n+### Positive\n+\n+- [NEEDS CLARIFICATION]\n+\n+### Negative\n+\n+- [NEEDS CLARIFICATION]\n+\n+### Neutral\n+\n+- [NEEDS CLARIFICATION]\n+\n+## High-Level Design\n+\n+### System Overview\n+\n+[NEEDS CLARIFICATION]\n+\n+### Component Boundaries\n+\n+[NEEDS CLARIFICATION]\n+\n+### Data Flow\n+\n+[NEEDS CLARIFICATION]\n+\n+### External Dependencies\n+\n+[NEEDS CLARIFICATION]\n+\n+## Low-Level Design\n+\n+### Interfaces & Types\n+\n+[NEEDS CLARIFICATION]\n+\n+### Function Signatures\n+\n+[NEEDS CLARIFICATION]\n+\n+### DB Schema Changes\n+\n+[NEEDS CLARIFICATION]\n+\n+### Sequence of Operations\n+\n+[NEEDS CLARIFICATION]\n+\n+### Error Handling\n+\n+[NEEDS CLARIFICATION]\n+\n+### Edge Cases\n+\n+[NEEDS CLARIFICATION]\ndiff --git a/packages/core/src/telemetry/__tests__/reporter.test.ts b/packages/core/src/telemetry/__tests__/reporter.test.ts\nnew file mode 100644\nindex 0000000..09355fc\n--- /dev/null\n+++ b/packages/core/src/telemetry/__tests__/reporter.test.ts\n@@ -0,0 +1,77 @@\n+import { afterEach, beforeEach, describe, expect, test } from \"bun:test\";\n+import { mkdirSync, rmSync, writeFileSync } from \"node:fs\";\n+import { tmpdir } from \"node:os\";\n+import { join } from \"node:path\";\n+import { buildErrorEvent, reportError } from \"../reporter\";\n+\n+describe(\"buildErrorEvent\", () => {\n+\ttest(\"produces a properly structured event\", () => {\n+\t\tconst error = new Error(\"connection timeout\");\n+\t\tconst event = buildErrorEvent(error, {\n+\t\t\tcommand: \"verify\",\n+\t\t\tversion: \"1.1.5\",\n+\t\t});\n+\n+\t\texpect(event.event).toBe(\"maina.error\");\n+\t\texpect(event.errorClass).toBe(\"Error\");\n+\t\texpect(event.message).toContain(\"connection timeout\");\n+\t\texpect(event.errorId).toMatch(/^ERR-[a-z0-9]{6}$/);\n+\t\texpect(event.command).toBe(\"verify\");\n+\t\texpect(event.version).toBe(\"1.1.5\");\n+\t\texpect(event.os).toBe(process.platform);\n+\t\texpect(event.timestamp).toBeTruthy();\n+\t});\n+\n+\ttest(\"scrubs PII from error message\", () => {\n+\t\tconst error = new Error(\n+\t\t\t\"Failed for user@example.com at /Users/bikash/code/src/auth.ts\",\n+\t\t);\n+\t\tconst event = buildErrorEvent(error);\n+\n+\t\texpect(event.message).not.toContain(\"user@example.com\");\n+\t\texpect(event.message).not.toContain(\"/Users/bikash\");\n+\t});\n+\n+\ttest(\"scrubs PII from stack trace\", () => {\n+\t\tconst error = new Error(\"fail\");\n+\t\terror.stack =\n+\t\t\t\"Error: fail\\n    at fn (/Users/bikash/code/maina/src/index.ts:10:5)\";\n+\t\tconst event = buildErrorEvent(error);\n+\n+\t\texpect(event.stack).not.toContain(\"/Users/bikash\");\n+\t});\n+\n+\ttest(\"defaults to unknown for missing context\", () => {\n+\t\tconst event = buildErrorEvent(new Error(\"test\"));\n+\t\texpect(event.command).toBe(\"unknown\");\n+\t\texpect(event.version).toBe(\"unknown\");\n+\t});\n+\n+\ttest(\"detects agent from env\", () => {\n+\t\tconst original = process.env.CLAUDECODE;\n+\t\tprocess.env.CLAUDECODE = \"1\";\n+\t\tconst event = buildErrorEvent(new Error(\"test\"));\n+\t\texpect(event.agent).toBe(\"claude-code\");\n+\t\tif (original === undefined) {\n+\t\t\tdelete process.env.CLAUDECODE;\n+\t\t} else {\n+\t\t\tprocess.env.CLAUDECODE = original;\n+\t\t}\n+\t});\n+});\n+\n+describe(\"reportError\", () => {\n+\ttest(\"returns null when reporting is disabled (no config)\", () => {\n+\t\t// Default: no ~/.maina/config.yml with errors: true\n+\t\tconst result = reportError(new Error(\"test\"));\n+\t\t// May or may not be null depending on local config — test the function doesn't throw\n+\t\texpect(result === null || result.event === \"maina.error\").toBe(true);\n+\t});\n+\n+\ttest(\"produces event when called with buildErrorEvent directly\", () => {\n+\t\t// buildErrorEvent always works regardless of consent\n+\t\tconst event = buildErrorEvent(new Error(\"test\"), { command: \"commit\" });\n+\t\texpect(event.event).toBe(\"maina.error\");\n+\t\texpect(event.command).toBe(\"commit\");\n+\t});\n+});\ndiff --git a/packages/core/src/telemetry/reporter.ts b/packages/core/src/telemetry/reporter.ts\nnew file mode 100644\nindex 0000000..e0297b2\n--- /dev/null\n+++ b/packages/core/src/telemetry/reporter.ts\n@@ -0,0 +1,124 @@\n+/**\n+ * Error Reporter — scrubs and formats error events for telemetry.\n+ *\n+ * Consent-gated: zero events produced until user opts in.\n+ * Uses the PII scrubber for all string fields before formatting.\n+ * Events are plain objects — the actual send is handled by the caller\n+ * (PostHog client or HTTP POST).\n+ */\n+\n+import { existsSync, readFileSync } from \"node:fs\";\n+import { homedir } from \"node:os\";\n+import { join } from \"node:path\";\n+import { generateErrorId } from \"../errors/error-id\";\n+import { scrubErrorEvent, scrubPii } from \"./scrubber\";\n+\n+// ── Types ──────────────────────────────────────────────────────────────\n+\n+export interface ErrorEventContext {\n+\t/** CLI command that was running (e.g. \"verify\", \"commit\") */\n+\tcommand?: string;\n+\t/** Maina version */\n+\tversion?: string;\n+\t/** Host agent (claude-code, cursor, copilot, windsurf, none) */\n+\tagent?: string;\n+}\n+\n+export interface ErrorEvent {\n+\t/** Event name for PostHog */\n+\tevent: \"maina.error\";\n+\t/** Error class name */\n+\terrorClass: string;\n+\t/** Scrubbed error message */\n+\tmessage: string;\n+\t/** Scrubbed stack trace */\n+\tstack: string;\n+\t/** Short error ID for user reference */\n+\terrorId: string;\n+\t/** OS platform */\n+\tos: string;\n+\t/** Runtime (bun/node) */\n+\truntime: string;\n+\t/** Maina version */\n+\tversion: string;\n+\t/** Command that was running */\n+\tcommand: string;\n+\t/** Agent identifier */\n+\tagent: string;\n+\t/** Timestamp */\n+\ttimestamp: string;\n+}\n+\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": []
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/adr/0023-progressive-mcp-tool-disclosure.md b/adr/0023-progressive-mcp-tool-disclosure.md\nnew file mode 100644\nindex 0000000..44cbc0e\n--- /dev/null\n+++ b/adr/0023-progressive-mcp-tool-disclosure.md\n@@ -0,0 +1,79 @@\n+# 0023. Progressive MCP tool disclosure\n+\n+Date: 2026-04-17\n+\n+## Status\n+\n+Proposed\n+\n+## Context\n+\n+What is the issue that we're seeing that is motivating this decision or change?\n+\n+[NEEDS CLARIFICATION] Describe the context.\n+\n+## Decision\n+\n+What is the change that we're proposing and/or doing?\n+\n+[NEEDS CLARIFICATION] Describe the decision.\n+\n+## Consequences\n+\n+What becomes easier or more difficult to do because of this change?\n+\n+### Positive\n+\n+- [NEEDS CLARIFICATION]\n+\n+### Negative\n+\n+- [NEEDS CLARIFICATION]\n+\n+### Neutral\n+\n+- [NEEDS CLARIFICATION]\n+\n+## High-Level Design\n+\n+### System Overview\n+\n+[NEEDS CLARIFICATION]\n+\n+### Component Boundaries\n+\n+[NEEDS CLARIFICATION]\n+\n+### Data Flow\n+\n+[NEEDS CLARIFICATION]\n+\n+### External Dependencies\n+\n+[NEEDS CLARIFICATION]\n+\n+## Low-Level Design\n+\n+### Interfaces & Types\n+\n+[NEEDS CLARIFICATION]\n+\n+### Function Signatures\n+\n+[NEEDS CLARIFICATION]\n+\n+### DB Schema Changes\n+\n+[NEEDS CLARIFICATION]\n+\n+### Sequence of Operations\n+\n+[NEEDS CLARIFICATION]\n+\n+### Error Handling\n+\n+[NEEDS CLARIFICATION]\n+\n+### Edge Cases\n+\n+[NEEDS CLARIFICATION]\ndiff --git a/packages/mcp/src/__tests__/server.test.ts b/packages/mcp/src/__tests__/server.test.ts\nindex 053d810..97d6358 100644\n--- a/packages/mcp/src/__tests__/server.test.ts\n+++ b/packages/mcp/src/__tests__/server.test.ts\n@@ -21,8 +21,17 @@ describe(\"createMcpServer\", () => {\n \t});\n \n-\ttest(\"registers all 10 tools\", () => {\n+\ttest(\"default mode registers all tools plus list_tools meta-tool\", () => {\n \t\tconst server = createMcpServer();\n \t\tconst names = getRegisteredToolNames(server);\n+\t\t// 10 tools + list_tools = 11\n+\t\texpect(names).toHaveLength(11);\n+\t\texpect(names).toContain(\"list_tools\");\n+\t});\n+\n+\ttest(\"allTools mode registers 10 tools without list_tools\", () => {\n+\t\tconst server = createMcpServer({ allTools: true });\n+\t\tconst names = getRegisteredToolNames(server);\n \t\texpect(names).toHaveLength(10);\n+\t\texpect(names).not.toContain(\"list_tools\");\n \t});\n \n@@ -75,4 +84,23 @@ function getToolCallback(\n }\n \n+describe(\"list_tools meta-tool\", () => {\n+\ttest(\"returns all tool descriptions\", async () => {\n+\t\tconst server = createMcpServer();\n+\t\tconst cb = getToolCallback(server, \"list_tools\");\n+\t\texpect(cb).toBeDefined();\n+\t\tif (!cb) return;\n+\n+\t\tconst result = await cb({}, {});\n+\t\tconst parsed = JSON.parse(result.content[0].text);\n+\t\texpect(parsed.data.tools.length).toBe(10);\n+\t\texpect(parsed.data.total).toBe(10);\n+\n+\t\tconst toolNames = parsed.data.tools.map((t: { name: string }) => t.name);\n+\t\texpect(toolNames).toContain(\"verify\");\n+\t\texpect(toolNames).toContain(\"reviewCode\");\n+\t\texpect(toolNames).toContain(\"wikiQuery\");\n+\t});\n+});\n+\n describe(\"tool handlers return error on missing dependencies\", () => {\n \t// These tests verify that each tool handler catches errors gracefully\ndiff --git a/packages/mcp/src/server.ts b/packages/mcp/src/server.ts\nindex ad76fb2..58d9566 100644\n--- a/packages/mcp/src/server.ts\n+++ b/packages/mcp/src/server.ts\n@@ -1,4 +1,8 @@\n /**\n  * MCP Server — exposes Maina engines as tools for Claude Code, Cursor, and other IDE agents.\n+ *\n+ * Progressive disclosure: by default only 3 core tools are registered at handshake.\n+ * A `list_tools` meta-tool lets the agent discover and request the remaining tools.\n+ * Use `allTools: true` to register all tools immediately.\n  */\n \n@@ -12,5 +16,100 @@ import { registerVerifyTools } from \"./tools/verify\";\n import { registerWikiTools } from \"./tools/wiki\";\n \n-export function createMcpServer(): McpServer {\n+export interface McpServerOptions {\n+\t/** Register all tools at handshake instead of progressive disclosure */\n+\tallTools?: boolean;\n+}\n+\n+/** Tool descriptions for the list_tools meta-tool */\n+const ALL_TOOL_DESCRIPTIONS = [\n+\t{\n+\t\tname: \"verify\",\n+\t\tdescription: \"Run the full verification pipeline on staged/changed files\",\n+\t},\n+\t{\n+\t\tname: \"getContext\",\n+\t\tdescription: \"Get focused codebase context for a command\",\n+\t},\n+\t{\n+\t\tname: \"reviewCode\",\n+\t\tdescription:\n+\t\t\t\"Run two-stage review (spec compliance + code quality) on a diff\",\n+\t},\n+\t{\n+\t\tname: \"checkSlop\",\n+\t\tdescription: \"Detect AI-generated slop patterns in changed files\",\n+\t},\n+\t{\n+\t\tname: \"getConventions\",\n+\t\tdescription: \"Get project constitution and conventions\",\n+\t},\n+\t{\n+\t\tname: \"explainModule\",\n+\t\tdescription: \"Explain a module with dependency diagram\",\n+\t},\n+\t{\n+\t\tname: \"suggestTests\",\n+\t\tdescription: \"Generate TDD test stubs from a plan or spec\",\n+\t},\n+\t{\n+\t\tname: \"analyzeFeature\",\n+\t\tdescription: \"Analyze a feature directory for spec/plan consistency\",\n+\t},\n+\t{\n+\t\tname: \"wikiQuery\",\n+\t\tdescription: \"Search and synthesize answers from codebase wiki knowledge\",\n+\t},\n+\t{\n+\t\tname: \"wikiStatus\",\n+\t\tdescription: \"Wiki health check — article counts, staleness, coverage\",\n+\t},\n+];\n+\n+function registerListToolsMeta(server: McpServer): void {\n+\tserver.tool(\n+\t\t\"list_tools\",\n+\t\t\"List all available Maina MCP tools with descriptions. Call this to discover tools beyond the 3 registered at startup.\",\n+\t\t{},\n+\t\tasync () => {\n+\t\t\treturn {\n+\t\t\t\tcontent: [\n+\t\t\t\t\t{\n+\t\t\t\t\t\ttype: \"text\" as const,\n+\t\t\t\t\t\ttext: JSON.stringify(\n+\t\t\t\t\t\t\t{\n+\t\t\t\t\t\t\t\tdata: {\n+\t\t\t\t\t\t\t\t\ttools: ALL_TOOL_DESCRIPTIONS,\n+\t\t\t\t\t\t\t\t\ttotal: ALL_TOOL_DESCRIPTIONS.length,\n+\t\t\t\t\t\t\t\t},\n+\t\t\t\t\t\t\t\terror: null,\n+\t\t\t\t\t\t\t\tmeta: {\n+\t\t\t\t\t\t\t\t\thint: \"To use any tool, call it by name. All tools are available regardless of whether they were registered at handshake.\",\n+\t\t\t\t\t\t\t\t},\n+\t\t\t\t\t\t\t},\n+\t\t\t\t\t\t\tnull,\n+\t\t\t\t\t\t\t2,\n+\t\t\t\t\t\t),\n+\t\t\t\t\t},\n+\t\t\t\t],\n+\t\t\t};\n+\t\t},\n+\t);\n+}\n+\n+/** Register only the 3 highest-value tools for progressive disclosure */\n+function registerCoreTools(server: McpServer): void {\n+\tregisterVerifyTools(server); // verify, checkSlop\n+\tregisterContextTools(server); // getContext, getConventions\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (122 chars) in added code",
+						"file": "packages/mcp/src/server.ts",
+						"line": 71
+					},
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (132 chars) in added code",
+						"file": "packages/mcp/src/server.ts",
+						"line": 86
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/packages/docs/scripts/generate-stats.ts b/packages/docs/scripts/generate-stats.ts\nnew file mode 100644\nindex 0000000..8576bbf\n--- /dev/null\n+++ b/packages/docs/scripts/generate-stats.ts\n@@ -0,0 +1,86 @@\n+/**\n+ * Generate stats.json from source code.\n+ * Run at build time: `bun packages/docs/scripts/generate-stats.ts`\n+ *\n+ * Counts verify tools, CLI commands, MCP tools, and supported languages\n+ * from the actual source rather than hand-typing numbers.\n+ */\n+\n+import { readdirSync, readFileSync, writeFileSync } from \"node:fs\";\n+import { dirname, join } from \"node:path\";\n+import { fileURLToPath } from \"node:url\";\n+\n+const __dirname = dirname(fileURLToPath(import.meta.url));\n+const ROOT = join(__dirname, \"..\", \"..\", \"..\");\n+\n+// Count external verify tools from ToolName union type\n+function countVerifyTools(): number {\n+\tconst detect = readFileSync(\n+\t\tjoin(ROOT, \"packages/core/src/verify/detect.ts\"),\n+\t\t\"utf-8\",\n+\t);\n+\tconst toolNameMatch = detect.match(/export type ToolName\\s*=\\s*([\\s\\S]*?);/);\n+\tif (!toolNameMatch) return 0;\n+\treturn (toolNameMatch[1].match(/\\| \"/g) || []).length;\n+}\n+\n+// Count built-in checks from runBuiltinChecks aggregator\n+function countBuiltinChecks(): number {\n+\tconst builtin = readFileSync(\n+\t\tjoin(ROOT, \"packages/core/src/verify/builtin.ts\"),\n+\t\t\"utf-8\",\n+\t);\n+\treturn (builtin.match(/\\.\\.\\.check\\w+\\(/g) || []).length;\n+}\n+\n+// Count CLI commands from commander registrations\n+function countCliCommands(): number {\n+\tconst commandsDir = join(ROOT, \"packages/cli/src/commands\");\n+\tconst files = readdirSync(commandsDir).filter(\n+\t\t(f) => f.endsWith(\".ts\") && !f.includes(\"test\"),\n+\t);\n+\tlet count = 0;\n+\tfor (const file of files) {\n+\t\tconst content = readFileSync(join(commandsDir, file), \"utf-8\");\n+\t\tcount += (content.match(/\\.command\\(/g) || []).length;\n+\t}\n+\treturn count;\n+}\n+\n+// Count MCP tools from server.tool() registrations\n+function countMcpTools(): number {\n+\tconst toolsDir = join(ROOT, \"packages/mcp/src/tools\");\n+\tconst files = readdirSync(toolsDir).filter(\n+\t\t(f) => f.endsWith(\".ts\") && !f.includes(\"test\"),\n+\t);\n+\tlet count = 0;\n+\tfor (const file of files) {\n+\t\tconst content = readFileSync(join(toolsDir, file), \"utf-8\");\n+\t\tcount += (content.match(/server\\.tool\\(/g) || []).length;\n+\t}\n+\treturn count;\n+}\n+\n+// Count supported languages from init detection\n+function countLanguages(): number {\n+\tconst init = readFileSync(\n+\t\tjoin(ROOT, \"packages/core/src/init/index.ts\"),\n+\t\t\"utf-8\",\n+\t);\n+\treturn (init.match(/languages\\.push\\(/g) || []).length;\n+}\n+\n+const stats = {\n+\tverifyTools: countVerifyTools(),\n+\tbuiltinChecks: countBuiltinChecks(),\n+\ttotalTools: countVerifyTools() + countBuiltinChecks(),\n+\tcliCommands: countCliCommands(),\n+\tmcpTools: countMcpTools(),\n+\tlanguages: countLanguages(),\n+\tgeneratedAt: new Date().toISOString(),\n+};\n+\n+const outPath = join(ROOT, \"packages/docs/src/data/stats.json\");\n+writeFileSync(outPath, JSON.stringify(stats, null, 2));\n+\n+console.log(\"Generated stats.json:\", stats);\ndiff --git a/packages/docs/src/data/stats.json b/packages/docs/src/data/stats.json\nnew file mode 100644\nindex 0000000..a5144d7\n--- /dev/null\n+++ b/packages/docs/src/data/stats.json\n@@ -0,0 +1,9 @@\n+{\n+  \"verifyTools\": 18,\n+  \"builtinChecks\": 7,\n+  \"totalTools\": 25,\n+  \"cliCommands\": 10,\n+  \"mcpTools\": 10,\n+  \"languages\": 7,\n+  \"generatedAt\": \"2026-04-17T11:07:22.919Z\"\n+}\n\\ No newline at end of file\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": false,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "warning",
+						"message": "console.log found in added code",
+						"file": "packages/docs/scripts/generate-stats.ts",
+						"line": 86
+					}
+				]
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/adr/0021-glob-scoped-constitution-rules.md b/adr/0021-glob-scoped-constitution-rules.md\nnew file mode 100644\nindex 0000000..19a8fd8\n--- /dev/null\n+++ b/adr/0021-glob-scoped-constitution-rules.md\n@@ -0,0 +1,79 @@\n+# 0021. Glob-scoped constitution rules\n+\n+Date: 2026-04-17\n+\n+## Status\n+\n+Proposed\n+\n+## Context\n+\n+What is the issue that we're seeing that is motivating this decision or change?\n+\n+[NEEDS CLARIFICATION] Describe the context.\n+\n+## Decision\n+\n+What is the change that we're proposing and/or doing?\n+\n+[NEEDS CLARIFICATION] Describe the decision.\n+\n+## Consequences\n+\n+What becomes easier or more difficult to do because of this change?\n+\n+### Positive\n+\n+- [NEEDS CLARIFICATION]\n+\n+### Negative\n+\n+- [NEEDS CLARIFICATION]\n+\n+### Neutral\n+\n+- [NEEDS CLARIFICATION]\n+\n+## High-Level Design\n+\n+### System Overview\n+\n+[NEEDS CLARIFICATION]\n+\n+### Component Boundaries\n+\n+[NEEDS CLARIFICATION]\n+\n+### Data Flow\n+\n+[NEEDS CLARIFICATION]\n+\n+### External Dependencies\n+\n+[NEEDS CLARIFICATION]\n+\n+## Low-Level Design\n+\n+### Interfaces & Types\n+\n+[NEEDS CLARIFICATION]\n+\n+### Function Signatures\n+\n+[NEEDS CLARIFICATION]\n+\n+### DB Schema Changes\n+\n+[NEEDS CLARIFICATION]\n+\n+### Sequence of Operations\n+\n+[NEEDS CLARIFICATION]\n+\n+### Error Handling\n+\n+[NEEDS CLARIFICATION]\n+\n+### Edge Cases\n+\n+[NEEDS CLARIFICATION]\ndiff --git a/packages/core/src/prompts/__tests__/loader.test.ts b/packages/core/src/prompts/__tests__/loader.test.ts\nindex 05319ab..e6c89a3 100644\n--- a/packages/core/src/prompts/__tests__/loader.test.ts\n+++ b/packages/core/src/prompts/__tests__/loader.test.ts\n@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from \"node:fs\";\n import { join } from \"node:path\";\n import {\n-\tformatImportedRules,\n-\timportExistingRules,\n \tloadConstitution,\n+\tloadConstitutionShards,\n+\tloadScopedConstitution,\n \tloadUserOverride,\n \tmergePrompts,\n@@ -107,82 +107,115 @@ describe(\"renderTemplate\", () => {\n });\n \n-// ── importExistingRules ─────────────────────────────────────────────\n+// ── loadConstitutionShards ──────────────────────────────────────────────\n \n-describe(\"importExistingRules\", () => {\n-\ttest(\"reads CLAUDE.md and AGENTS.md from repo root\", async () => {\n-\t\twriteFileSync(join(tmpDir, \"CLAUDE.md\"), \"# Claude Rules\\nUse TypeScript.\");\n-\t\twriteFileSync(join(tmpDir, \"AGENTS.md\"), \"# Agent Rules\\nRun tests.\");\n+describe(\"loadConstitutionShards\", () => {\n+\ttest(\"reads shards from constitution.d/ sorted alphabetically\", async () => {\n+\t\tconst shardsDir = join(tmpDir, \"constitution.d\");\n+\t\tmkdirSync(shardsDir, { recursive: true });\n+\t\twriteFileSync(\n+\t\t\tjoin(shardsDir, \"frontend.md\"),\n+\t\t\t'---\\napplies_to: [\"apps/web/**\"]\\n---\\nUse React.',\n+\t\t);\n+\t\twriteFileSync(\n+\t\t\tjoin(shardsDir, \"api.md\"),\n+\t\t\t'---\\napplies_to: [\"apps/api/**\"]\\n---\\nUse Hono.',\n+\t\t);\n \n-\t\tconst rules = await importExistingRules(tmpDir, \"\");\n-\t\texpect(rules.length).toBe(2);\n-\t\texpect(rules.some((r) => r.source === \"CLAUDE.md\")).toBe(true);\n-\t\texpect(rules.some((r) => r.source === \"AGENTS.md\")).toBe(true);\n+\t\tconst shards = await loadConstitutionShards(tmpDir);\n+\t\texpect(shards.length).toBe(2);\n+\t\t// Sorted: api.md before frontend.md\n+\t\texpect(shards[0]?.filename).toBe(\"api.md\");\n+\t\texpect(shards[0]?.content).toBe(\"Use Hono.\");\n+\t\texpect(shards[0]?.appliesTo).toEqual([\"apps/api/**\"]);\n+\t\texpect(shards[1]?.filename).toBe(\"frontend.md\");\n+\t\texpect(shards[1]?.content).toBe(\"Use React.\");\n \t});\n \n-\ttest(\"reads .cursorrules\", async () => {\n-\t\twriteFileSync(join(tmpDir, \".cursorrules\"), \"Use arrow functions.\");\n-\n-\t\tconst rules = await importExistingRules(tmpDir, \"\");\n-\t\texpect(rules.length).toBe(1);\n-\t\texpect(rules[0]?.source).toBe(\".cursorrules\");\n-\t\texpect(rules[0]?.content).toContain(\"arrow functions\");\n+\ttest(\"returns empty when constitution.d/ does not exist\", async () => {\n+\t\tconst shards = await loadConstitutionShards(tmpDir);\n+\t\texpect(shards).toEqual([]);\n \t});\n \n-\ttest(\"skips files already imported (provenance marker in constitution)\", async () => {\n-\t\twriteFileSync(join(tmpDir, \"CLAUDE.md\"), \"# Claude Rules\");\n-\t\tconst constitution = \"## Imported Rules\\n<!-- imported_from: CLAUDE.md -->\";\n+\ttest(\"handles shards without applies_to (global shards)\", async () => {\n+\t\tconst shardsDir = join(tmpDir, \"constitution.d\");\n+\t\tmkdirSync(shardsDir, { recursive: true });\n+\t\twriteFileSync(join(shardsDir, \"global.md\"), \"No frontmatter here.\");\n \n-\t\tconst rules = await importExistingRules(tmpDir, constitution);\n-\t\texpect(rules.length).toBe(0);\n+\t\tconst shards = await loadConstitutionShards(tmpDir);\n+\t\texpect(shards.length).toBe(1);\n+\t\texpect(shards[0]?.appliesTo).toEqual([]);\n+\t\texpect(shards[0]?.content).toBe(\"No frontmatter here.\");\n \t});\n+});\n \n-\ttest(\"skips empty files\", async () => {\n-\t\twriteFileSync(join(tmpDir, \"CLAUDE.md\"), \"\");\n-\t\twriteFileSync(join(tmpDir, \".cursorrules\"), \"   \\n  \");\n+// ── loadScopedConstitution ──────────────────────────────────────────────\n \n-\t\tconst rules = await importExistingRules(tmpDir, \"\");\n-\t\texpect(rules.length).toBe(0);\n-\t});\n+describe(\"loadScopedConstitution\", () => {\n+\ttest(\"returns only root when no constitution.d/ exists (backward compat)\", async () => {\n+\t\twriteFileSync(join(tmpDir, \"constitution.md\"), \"# Root rules\");\n \n-\ttest(\"skips missing files without error\", async () => {\n-\t\tconst rules = await importExistingRules(tmpDir, \"\");\n-\t\texpect(rules.length).toBe(0);\n+\t\tconst result = await loadScopedConstitution(tmpDir);\n+\t\texpect(result).toBe(\"# Root rules\");\n \t});\n \n-\ttest(\"extracts only relevant sections from CONTRIBUTING.md\", async () => {\n+\ttest(\"merges root + all shards when no filePath given\", async () => {\n+\t\twriteFileSync(join(tmpDir, \"constitution.md\"), \"# Root\");\n+\t\tconst shardsDir = join(tmpDir, \"constitution.d\");\n+\t\tmkdirSync(shardsDir, { recursive: true });\n \t\twriteFileSync(\n-\t\t\tjoin(tmpDir, \"CONTRIBUTING.md\"),\n-\t\t\t[\n-\t\t\t\t\"# Contributing\",\n-\t\t\t\t\"Thanks for contributing!\",\n-\t\t\t\t\"## Code Style\",\n-\t\t\t\t\"Use tabs, not spaces.\",\n-\t\t\t\t\"## How to Submit\",\n-\t\t\t\t\"Open a PR on GitHub.\",\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": []
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/packages/core/src/prompts/__tests__/loader.test.ts b/packages/core/src/prompts/__tests__/loader.test.ts\nindex ce5b0e7..05319ab 100644\n--- a/packages/core/src/prompts/__tests__/loader.test.ts\n+++ b/packages/core/src/prompts/__tests__/loader.test.ts\n@@ -3,4 +3,6 @@ import { mkdirSync, writeFileSync } from \"node:fs\";\n import { join } from \"node:path\";\n import {\n+\tformatImportedRules,\n+\timportExistingRules,\n \tloadConstitution,\n \tloadUserOverride,\n@@ -104,2 +106,83 @@ describe(\"renderTemplate\", () => {\n \t});\n });\n+\n+// ── importExistingRules ─────────────────────────────────────────────\n+\n+describe(\"importExistingRules\", () => {\n+\ttest(\"reads CLAUDE.md and AGENTS.md from repo root\", async () => {\n+\t\twriteFileSync(join(tmpDir, \"CLAUDE.md\"), \"# Claude Rules\\nUse TypeScript.\");\n+\t\twriteFileSync(join(tmpDir, \"AGENTS.md\"), \"# Agent Rules\\nRun tests.\");\n+\n+\t\tconst rules = await importExistingRules(tmpDir, \"\");\n+\t\texpect(rules.length).toBe(2);\n+\t\texpect(rules.some((r) => r.source === \"CLAUDE.md\")).toBe(true);\n+\t\texpect(rules.some((r) => r.source === \"AGENTS.md\")).toBe(true);\n+\t});\n+\n+\ttest(\"reads .cursorrules\", async () => {\n+\t\twriteFileSync(join(tmpDir, \".cursorrules\"), \"Use arrow functions.\");\n+\n+\t\tconst rules = await importExistingRules(tmpDir, \"\");\n+\t\texpect(rules.length).toBe(1);\n+\t\texpect(rules[0]?.source).toBe(\".cursorrules\");\n+\t\texpect(rules[0]?.content).toContain(\"arrow functions\");\n+\t});\n+\n+\ttest(\"skips files already imported (provenance marker in constitution)\", async () => {\n+\t\twriteFileSync(join(tmpDir, \"CLAUDE.md\"), \"# Claude Rules\");\n+\t\tconst constitution = \"## Imported Rules\\n<!-- imported_from: CLAUDE.md -->\";\n+\n+\t\tconst rules = await importExistingRules(tmpDir, constitution);\n+\t\texpect(rules.length).toBe(0);\n+\t});\n+\n+\ttest(\"skips empty files\", async () => {\n+\t\twriteFileSync(join(tmpDir, \"CLAUDE.md\"), \"\");\n+\t\twriteFileSync(join(tmpDir, \".cursorrules\"), \"   \\n  \");\n+\n+\t\tconst rules = await importExistingRules(tmpDir, \"\");\n+\t\texpect(rules.length).toBe(0);\n+\t});\n+\n+\ttest(\"skips missing files without error\", async () => {\n+\t\tconst rules = await importExistingRules(tmpDir, \"\");\n+\t\texpect(rules.length).toBe(0);\n+\t});\n+\n+\ttest(\"extracts only relevant sections from CONTRIBUTING.md\", async () => {\n+\t\twriteFileSync(\n+\t\t\tjoin(tmpDir, \"CONTRIBUTING.md\"),\n+\t\t\t[\n+\t\t\t\t\"# Contributing\",\n+\t\t\t\t\"Thanks for contributing!\",\n+\t\t\t\t\"## Code Style\",\n+\t\t\t\t\"Use tabs, not spaces.\",\n+\t\t\t\t\"## How to Submit\",\n+\t\t\t\t\"Open a PR on GitHub.\",\n+\t\t\t\t\"## Testing\",\n+\t\t\t\t\"Write tests first.\",\n+\t\t\t].join(\"\\n\"),\n+\t\t);\n+\n+\t\tconst rules = await importExistingRules(tmpDir, \"\");\n+\t\texpect(rules.length).toBe(1);\n+\t\texpect(rules[0]?.content).toContain(\"Code Style\");\n+\t\texpect(rules[0]?.content).toContain(\"Testing\");\n+\t\texpect(rules[0]?.content).not.toContain(\"How to Submit\");\n+\t});\n+});\n+\n+describe(\"formatImportedRules\", () => {\n+\ttest(\"formats rules with provenance comments\", () => {\n+\t\tconst result = formatImportedRules([\n+\t\t\t{ source: \"CLAUDE.md\", content: \"Use TypeScript.\" },\n+\t\t]);\n+\t\texpect(result).toContain(\"## Imported Rules\");\n+\t\texpect(result).toContain(\"<!-- imported_from: CLAUDE.md -->\");\n+\t\texpect(result).toContain(\"Use TypeScript.\");\n+\t});\n+\n+\ttest(\"returns empty string for no rules\", () => {\n+\t\texpect(formatImportedRules([])).toBe(\"\");\n+\t});\n+});\ndiff --git a/packages/core/src/prompts/loader.ts b/packages/core/src/prompts/loader.ts\nindex 1234e6f..d8a00d0 100644\n--- a/packages/core/src/prompts/loader.ts\n+++ b/packages/core/src/prompts/loader.ts\n@@ -1,4 +1,21 @@\n import { join } from \"node:path\";\n \n+// ── Rule file sources that may contain project conventions ──────────────\n+\n+const RULE_FILES = [\n+\t\"CLAUDE.md\",\n+\t\"AGENTS.md\",\n+\t\".cursorrules\",\n+\t\".github/copilot-instructions.md\",\n+\t\".windsurfrules\",\n+\t\".clinerules\",\n+\t\"CONTRIBUTING.md\",\n+] as const;\n+\n+export interface ImportedRule {\n+\tsource: string;\n+\tcontent: string;\n+}\n+\n /**\n  * Reads .maina/constitution.md, returns empty string if not found.\n@@ -19,4 +36,85 @@ export async function loadConstitution(mainaDir: string): Promise<string> {\n }\n \n+/**\n+ * Scan existing rule files (CLAUDE.md, AGENTS.md, .cursorrules, etc.)\n+ * and extract their content. Returns an array of imported rules with\n+ * provenance. Does NOT duplicate — if a rule file's content is already\n+ * present in the constitution, it's skipped.\n+ *\n+ * Never throws.\n+ */\n+export async function importExistingRules(\n+\trepoRoot: string,\n+\tconstitution: string,\n+): Promise<ImportedRule[]> {\n+\tconst rules: ImportedRule[] = [];\n+\n+\tfor (const relPath of RULE_FILES) {\n+\t\ttry {\n+\t\t\tconst filePath = join(repoRoot, relPath);\n+\t\t\tconst file = Bun.file(filePath);\n+\t\t\tconst exists = await file.exists();\n+\t\t\tif (!exists) continue;\n+\n+\t\t\tconst content = await file.text();\n+\t\t\tif (!content.trim()) continue;\n+\n+\t\t\t// Skip if the constitution already references this file\n+\t\t\tif (constitution.includes(`imported_from: ${relPath}`)) continue;\n+\n+\t\t\t// For CONTRIBUTING.md, extract only relevant sections\n+\t\t\tconst filtered =\n+\t\t\t\trelPath === \"CONTRIBUTING.md\"\n+\t\t\t\t\t? extractContributingSections(content)\n+\t\t\t\t\t: content;\n+\n+\t\t\tif (filtered.trim()) {\n+\t\t\t\trules.push({ source: relPath, content: filtered.trim() });\n+\t\t\t}\n+\t\t} catch {\n+\t\t\t// File read error — skip\n+\t\t}\n+\t}\n+\n+\treturn rules;\n+}\n+\n+/**\n+ * Extract convention-relevant sections from CONTRIBUTING.md.\n+ * Keeps: Code Style, Conventions, Testing, Commit, Review sections.\n+ * Drops: How to Submit, License, CoC, etc.\n+ */\n+function extractContributingSections(content: string): string {\n+\tconst keepPatterns =\n+\t\t/^#{1,3}\\s*(code\\s*style|conventions?|testing|commit|review|lint|format|architecture)/im;\n+\tconst lines = content.split(\"\\n\");\n+\tconst sections: string[] = [];\n+\tlet capturing = false;\n+\n+\tfor (const line of lines) {\n+\t\tif (/^#{1,3}\\s/.test(line)) {\n+\t\t\tcapturing = keepPatterns.test(line);\n+\t\t}\n+\t\tif (capturing) {\n+\t\t\tsections.push(line);\n+\t\t}\n+\t}\n+\n+\treturn sections.join(\"\\n\");\n+}\n+\n+/**\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": []
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/packages/docs/src/components/Hero.astro b/packages/docs/src/components/Hero.astro\nindex 9f386b9..4e123d1 100644\n--- a/packages/docs/src/components/Hero.astro\n+++ b/packages/docs/src/components/Hero.astro\n@@ -8,5 +8,5 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;\n   <h1>AI writes 41% of your code.<br><span class=\"accent\">Who's checking it?</span></h1>\n   <p class=\"hero-subtitle\">\n-    19+ tools &middot; 7 languages &middot; 12 AI tools &middot; 0 config\n+    Verification-first developer OS. CLI + MCP server that proves AI-generated code is correct before it merges.\n   </p>\n   <div class=\"hero-actions\">\n@@ -17,21 +17,3 @@ const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;\n     <code>curl -fsSL https://api.mainahq.com/install | bash</code>\n   </div>\n-  <div class=\"metrics\">\n-    <div class=\"metric\">\n-      <div class=\"metric-value\">19+</div>\n-      <div class=\"metric-label\">verify tools</div>\n-    </div>\n-    <div class=\"metric\">\n-      <div class=\"metric-value\">12</div>\n-      <div class=\"metric-label\">AI tools</div>\n-    </div>\n-    <div class=\"metric\">\n-      <div class=\"metric-value\">38+</div>\n-      <div class=\"metric-label\">commands</div>\n-    </div>\n-    <div class=\"metric\">\n-      <div class=\"metric-value\">10</div>\n-      <div class=\"metric-label\">MCP tools</div>\n-    </div>\n-  </div>\n </section>\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": []
+			}
+		},
+		{
+			"site": "review/index.ts#code-quality",
+			"input": {
+				"diff": "diff --git a/.changeset/fix-workspace-deps.md b/.changeset/fix-workspace-deps.md\ndeleted file mode 100644\nindex edff06a..0000000\n--- a/.changeset/fix-workspace-deps.md\n+++ /dev/null\n@@ -1,5 +0,0 @@\n----\n-\"@mainahq/cli\": patch\n----\n-\n-Fix: replace workspace:^ with real version ranges for @mainahq/core and @mainahq/mcp dependencies. The workspace protocol was being published to npm literally, making the CLI uninstallable.\ndiff --git a/packages/cli/CHANGELOG.md b/packages/cli/CHANGELOG.md\nindex f273328..4b95996 100644\n--- a/packages/cli/CHANGELOG.md\n+++ b/packages/cli/CHANGELOG.md\n@@ -1,4 +1,10 @@\n # @mainahq/cli\n \n+## 1.1.5\n+\n+### Patch Changes\n+\n+- [`30f4b22`](https://github.com/mainahq/maina/commit/30f4b22a9e60e6ecfb7434adbb463d1df2a5a57a) Thanks [@beeeku](https://github.com/beeeku)! - Fix: replace workspace:^ with real version ranges for @mainahq/core and @mainahq/mcp dependencies. The workspace protocol was being published to npm literally, making the CLI uninstallable.\n+\n ## 1.1.4\n \ndiff --git a/packages/cli/package.json b/packages/cli/package.json\nindex f0f5908..65c0e62 100644\n--- a/packages/cli/package.json\n+++ b/packages/cli/package.json\n@@ -1,5 +1,5 @@\n {\n   \"name\": \"@mainahq/cli\",\n-  \"version\": \"1.1.4\",\n+  \"version\": \"1.1.5\",\n   \"type\": \"module\",\n   \"license\": \"Apache-2.0\",\n"
+			},
+			"output": {
+				"stage": "code-quality",
+				"passed": true,
+				"findings": [
+					{
+						"stage": "code-quality",
+						"severity": "info",
+						"message": "Long line (332 chars) in added code",
+						"file": "packages/cli/CHANGELOG.md",
+						"line": 7
+					}
+				]
+			}
+		}
+	]
+}
