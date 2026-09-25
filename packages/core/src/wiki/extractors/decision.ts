@@ -190,7 +190,18 @@ export function extractSingleDecision(
 	};
 }
 
-export function extractDecisions(adrDir: string): Result<ExtractedDecision[]> {
+/** Decisions plus the ADR files that exist but could not be read. */
+interface DecisionScan {
+	readonly decisions: readonly ExtractedDecision[];
+	readonly unreadable: readonly string[];
+}
+
+/**
+ * Like {@link extractDecisions} but reports ADR files that exist and could
+ * not be read, so callers that act on absence (wiki pruning, #377) can tell
+ * "no decision" apart from "could not look".
+ */
+export function scanDecisions(adrDir: string): Result<DecisionScan> {
 	if (!existsSync(adrDir)) {
 		return { ok: false, error: `ADR directory does not exist: ${adrDir}` };
 	}
@@ -203,17 +214,23 @@ export function extractDecisions(adrDir: string): Result<ExtractedDecision[]> {
 	}
 
 	const decisions: ExtractedDecision[] = [];
+	const unreadable: string[] = [];
 
 	for (const entry of entries) {
 		if (!entry.endsWith(".md")) continue;
 		// `adr/README.md` is the index of decisions, not a decision.
 		if (entry.toLowerCase() === "readme.md") continue;
 
-		const result = extractSingleDecision(join(adrDir, entry));
-		if (result.ok) {
-			decisions.push(result.value);
-		}
+		const adrPath = join(adrDir, entry);
+		const result = extractSingleDecision(adrPath);
+		if (result.ok) decisions.push(result.value);
+		else if (existsSync(adrPath)) unreadable.push(entry);
 	}
 
-	return { ok: true, value: decisions };
+	return { ok: true, value: { decisions, unreadable } };
+}
+
+export function extractDecisions(adrDir: string): Result<ExtractedDecision[]> {
+	const scan = scanDecisions(adrDir);
+	return scan.ok ? { ok: true, value: [...scan.value.decisions] } : scan;
 }

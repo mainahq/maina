@@ -28,7 +28,7 @@ import type { Result } from "../db/index";
 import { type CommunityAlgorithm, detectCommunities } from "./communities";
 import type { CodeEntity } from "./extractors/code";
 import { scanCodeEntities } from "./extractors/code";
-import { extractDecisions } from "./extractors/decision";
+import { scanDecisions } from "./extractors/decision";
 import { extractFeatures } from "./extractors/feature";
 import { extractWorkflowTrace } from "./extractors/workflow";
 import type { KnowledgeGraph } from "./graph";
@@ -1203,9 +1203,9 @@ export async function compile(
 			: [];
 
 		const adrDir = join(repoRoot, "adr");
-		const decisionsResult = extractDecisions(adrDir);
+		const decisionsResult = scanDecisions(adrDir);
 		const decisions: ExtractedDecision[] = decisionsResult.ok
-			? decisionsResult.value
+			? [...decisionsResult.value.decisions]
 			: [];
 
 		const workflowResult = extractWorkflowTrace(mainaDir);
@@ -1435,9 +1435,10 @@ export async function compile(
 		// Pruning treats "not produced" as "deleted", so it runs only when the
 		// article set is authoritative. It is not when a sampled compile saw
 		// only a slice of the repo, when a source directory or file could not
-		// be listed, stat-ed or read, or when an existing `adr/` directory could not be read (an
-		// absent one is a genuinely empty decision set). Fail closed: keep
-		// the pages rather than delete real ones.
+		// be listed, stat-ed or read, or when an existing `adr/` directory or
+		// ADR file could not be read (an absent `adr/` is a genuinely empty
+		// decision set). Fail closed: keep the pages rather than delete real
+		// ones.
 		// Prune BEFORE writing: on a case-insensitive filesystem a case-only
 		// rename writes the new page into the old directory entry, and a
 		// post-write prune would then delete the page it just wrote.
@@ -1446,7 +1447,9 @@ export async function compile(
 			!sampleTruncated &&
 			undiscoverable.length === 0 &&
 			entityScan.unreadable.length === 0 &&
-			(decisionsResult.ok || !existsSync(adrDir));
+			(decisionsResult.ok
+				? decisionsResult.value.unreadable.length === 0
+				: !existsSync(adrDir));
 		if (!dryRun && canPrune) {
 			pruneStaleArticles(
 				wikiDir,

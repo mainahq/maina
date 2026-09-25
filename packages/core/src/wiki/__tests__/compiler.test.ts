@@ -538,6 +538,35 @@ describe("Wiki Compiler", () => {
 		);
 
 		it.skipIf(!canChmod)(
+			"keeps decision pages when an ADR file is unreadable",
+			async () => {
+				const first = await compile(makeOptions());
+				expect(first.ok).toBe(true);
+				if (!first.ok) return;
+				const decision = first.value.articles.find(
+					(a) => a.type === "decision",
+				);
+				expect(decision).toBeDefined();
+				if (!decision) return;
+				const decisionPath = join(
+					wikiDir,
+					decision.path.replace(/^wiki\//, ""),
+				);
+
+				const adrFile = join(repoRoot, "adr", "0001-use-jwt.md");
+				chmodSync(adrFile, 0o000);
+				try {
+					const second = await compile(makeOptions());
+					expect(second.ok).toBe(true);
+				} finally {
+					chmodSync(adrFile, 0o644);
+				}
+				expect(existsSync(decisionPath)).toBe(true);
+				expect(readStateJson().articleHashes[decision.path]).toBeDefined();
+			},
+		);
+
+		it.skipIf(!canChmod)(
 			"keeps entity pages when a source file is unreadable",
 			async () => {
 				const first = await compile(makeOptions());
