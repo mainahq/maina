@@ -24,6 +24,15 @@ import {
 
 const CORE_SRC = join(import.meta.dir, "..");
 
+/** Any TS/JS module (`.ts`, `.tsx`, `.mts`, `.cts`, `.js`, …) that is not a test or declaration. */
+function isCoreSource(name: string): boolean {
+	return (
+		/\.[cm]?[jt]sx?$/.test(name) &&
+		!/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(name) &&
+		!/\.d\.[cm]?ts$/.test(name)
+	);
+}
+
 function listSourceFiles(dir: string): readonly string[] {
 	return readdirSync(dir).flatMap((name) => {
 		const full = join(dir, name);
@@ -32,7 +41,7 @@ function listSourceFiles(dir: string): readonly string[] {
 				? []
 				: listSourceFiles(full);
 		}
-		return name.endsWith(".ts") && !name.endsWith(".test.ts") ? [full] : [];
+		return isCoreSource(name) ? [full] : [];
 	});
 }
 
@@ -67,6 +76,32 @@ function formatEntry(
 		.join(", ");
 	return `\t"${file}": { ${body} },`;
 }
+
+describe("core source selection", () => {
+	test("covers every TS/JS module extension but skips tests and declarations", () => {
+		const picked = [
+			"a.ts",
+			"b.tsx",
+			"c.mts",
+			"d.cts",
+			"e.js",
+			"f.mjs",
+			"g.test.ts",
+			"h.spec.tsx",
+			"i.d.ts",
+			"j.md",
+			"k.json",
+		].filter(isCoreSource);
+		expect(picked).toEqual([
+			"a.ts",
+			"b.tsx",
+			"c.mts",
+			"d.cts",
+			"e.js",
+			"f.mjs",
+		]);
+	});
+});
 
 describe("purity scanner", () => {
 	test("flags each forbidden construct with its line", () => {
@@ -106,6 +141,51 @@ describe("purity scanner", () => {
 			"const half = (a + b) / 2; process.cwd();",
 		].join("\n");
 		expect(scanSource(source)).toEqual([{ rule: "process.cwd", line: 3 }]);
+	});
+
+	test("a `/` with no closing `/` on its line is a division, not a regex", () => {
+		const source = [
+			"let n = i++ / 2; process.env.X;",
+			"let m = j-- / 3; console.log(m);",
+		].join("\n");
+		expect(scanSource(source)).toEqual([
+			{ rule: "process.env", line: 1 },
+			{ rule: "console", line: 2 },
+		]);
+	});
+
+	test("flags Bun.env and Bun.stdout as their process equivalents", () => {
+		const source = [
+			"const k = Bun.env.KEY;",
+			"Bun.write(Bun.stdout, 'x');",
+			"const f = Bun.file('a');",
+			"const b = myBun.env;",
+		].join("\n");
+		expect(scanSource(source)).toEqual([
+			{ rule: "process.env", line: 1 },
+			{ rule: "process.stdout", line: 2 },
+		]);
+	});
+
+	test("flags destructuring from process/console and named process imports", () => {
+		const source = [
+			"const { env, cwd } = process;",
+			"const { log } = console;",
+			'import { env as e } from "node:process";',
+			"import { stdout } from 'process';",
+			"const { platform } = process;",
+			'import { readFile } from "node:fs";',
+			"const { env: vars } = globalThis.process;",
+			'// import { env } from "node:process";',
+		].join("\n");
+		expect(scanSource(source)).toEqual([
+			{ rule: "process.env", line: 1 },
+			{ rule: "process.cwd", line: 1 },
+			{ rule: "console", line: 2 },
+			{ rule: "process.env", line: 3 },
+			{ rule: "process.stdout", line: 4 },
+			{ rule: "process.env", line: 7 },
+		]);
 	});
 
 	test("scans code inside template literal expressions", () => {
