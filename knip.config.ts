@@ -19,6 +19,7 @@ const config: KnipConfig = {
 				"ci/e2e/simulate-agent.ts!",
 				"scripts/*.ts!",
 				"scripts/dogfood/*.ts!",
+				"scripts/fixtures/*.ts!",
 				"scripts/**/__tests__/*.test.ts",
 			],
 			project: ["ci/e2e/*.ts!", "scripts/**/*.ts!"],
@@ -29,8 +30,14 @@ const config: KnipConfig = {
 			project: ["src/**/*.ts!"],
 		},
 		"packages/core": {
-			// Benches are run directly, so nothing imports them.
-			entry: [TESTS, "src/__golden__/**/*.test.ts", "bench/*.bench.ts"],
+			// Benches are run directly (the graph bench by CI's graph-bench
+			// job), so nothing imports them.
+			entry: [
+				TESTS,
+				"src/__golden__/**/*.test.ts",
+				"bench/*.bench.ts",
+				"bench/__tests__/*.test.ts",
+			],
 			// Test-only helpers (scanner, allow-list, port fakes, golden
 			// fixtures) are reachable from tests, not from production entries.
 			project: [
@@ -38,6 +45,7 @@ const config: KnipConfig = {
 				"!src/**/__tests__/**!",
 				"!src/__golden__/**!",
 				"!src/ports/testing.ts!",
+				"bench/**/*.ts",
 			],
 		},
 		"packages/runtime": {
