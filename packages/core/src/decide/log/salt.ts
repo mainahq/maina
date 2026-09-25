@@ -60,7 +60,10 @@ async function readSalt(
  * The repo's log salt, created on first use. A malformed salt file is an
  * error rather than silently replaced, since replacing it would break
  * replay against every earlier record. After creating one the file is read
- * back, so two processes racing to create it settle on the same salt.
+ * back, so a malformed or failed write is an error. `FsPort` has no
+ * exclusive create, so two processes creating it at once can each return
+ * their own salt; the file keeps the last one. That costs only `inputHash`
+ * matches for the loser's records, never privacy (both salts are secret).
  */
 export async function loadLogSalt(
 	ports: Readonly<{ fs: FsPort }>,

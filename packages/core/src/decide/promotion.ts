@@ -35,6 +35,7 @@ import {
 	buildDecisionRecord,
 	type DecisionLogPorts,
 } from "./log/append";
+import { logPrivacy } from "./log/salt";
 import type { DecisionLogError, DecisionRecord } from "./log/schema";
 import type { Outcome } from "./outcomes/types";
 import { createRegistry, withBackend } from "./registry";
@@ -129,7 +130,13 @@ export function shadowRun(
 	ports: ShadowPorts,
 	input: ShadowRunInput,
 ): Result<ShadowRunResult, DecideError | DecisionLogError> {
-	const { primary, shadow, log } = ports;
+	const { primary, shadow } = ports;
+	// Build and validate with the same privacy, so a record kept in the clear
+	// by `policy.log.paths: plain` is not then rejected on append.
+	const log: DecisionLogPorts = {
+		...ports.log,
+		privacy: ports.log.privacy ?? logPrivacy(primary.policy),
+	};
 	const decided = decide(primary, input.request);
 	if (!decided.ok) return decided;
 	const decisions = decided.value;

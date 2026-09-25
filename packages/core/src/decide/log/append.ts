@@ -29,7 +29,10 @@ import {
 
 export type DecisionLogPorts = Readonly<{
 	db: DbPort;
-	/** Defaults to `DEFAULT_LOG_PRIVACY` (free-form options hashed). */
+	/**
+	 * Defaults to `DEFAULT_LOG_PRIVACY` (free-form options hashed) in
+	 * `appendDecision`; `shadowRun` defaults it from `policy.log.paths`.
+	 */
 	privacy?: DecisionLogPrivacy;
 }>;
 
