@@ -19,6 +19,7 @@ import { getDiff, getStagedFiles, resolveBaseBranch } from "../git/index";
 import { detectLanguages } from "../language/detect";
 import type { LanguageId } from "../language/profile";
 import { getProfile } from "../language/profile";
+import { envFromRecord } from "../ports/env";
 import { type AIReviewResult, runAIReview } from "./ai-review";
 import { runBuiltinChecks } from "./builtin";
 import { checkConsistency } from "./consistency";
@@ -73,8 +74,10 @@ export interface PipelineOptions {
 	languages?: string[]; // override language detection
 	/**
 	 * Environment for the built-in type checker, injected by the caller (it
-	 * gets `NO_COLOR=1` on top). Other runners still inherit the parent
-	 * environment until they move onto a process port.
+	 * gets `NO_COLOR=1` on top), and for the AI review's key/host detection
+	 * (without one the AI review sees no key and is skipped). Other runners
+	 * still inherit the parent environment until they move onto a process
+	 * port.
 	 */
 	env?: SpawnEnv;
 }
@@ -376,6 +379,8 @@ export async function runPipeline(
 		entities: [], // Entities require tree-sitter + file body reads; wired when semantic index is hydrated
 		deep,
 		mainaDir,
+		root: cwd,
+		env: envFromRecord(options.env ?? {}),
 	});
 
 	const aiReport: ToolReport = {

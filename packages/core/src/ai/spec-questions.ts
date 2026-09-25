@@ -1,4 +1,5 @@
 import type { Result } from "../db/index";
+import type { AIContext } from "./index";
 import { tryAIGenerate } from "./try-generate";
 
 export interface SpecQuestion {
@@ -22,6 +23,7 @@ const MAX_QUESTIONS = 5;
 export async function generateSpecQuestions(
 	planContent: string,
 	mainaDir: string,
+	ctx: AIContext,
 ): Promise<Result<SpecQuestion[], string>> {
 	if (!planContent.trim()) {
 		return { ok: true, value: [] };
@@ -32,6 +34,7 @@ export async function generateSpecQuestions(
 		mainaDir,
 		{ plan: planContent },
 		`Analyze this implementation plan and return 3-5 clarifying questions as a JSON array.\n\n${planContent}`,
+		ctx,
 	);
 
 	if (!result.text) {

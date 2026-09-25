@@ -169,8 +169,8 @@ export function filterByDiffWithMap(
  */
 export async function filterByDiff(
 	findings: Finding[],
-	baseBranch?: string,
-	cwd?: string,
+	baseBranch: string | undefined,
+	cwd: string,
 ): Promise<DiffFilterResult> {
 	// Resolve the base instead of assuming "main"; an unresolvable ref must
 	// never make the filter fall open (#364).

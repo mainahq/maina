@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { loadAuthConfig } from "../cloud/auth";
 import { createCloudClient } from "../cloud/client";
 import type { CloudEpisodicEntry } from "../cloud/types";
 import { getChangedFiles, getRepoSlug, getStagedFiles } from "../git/index";
+import type { EnvPort } from "../ports/env";
 import {
 	assembleBudget,
 	type BudgetAllocation,
@@ -47,10 +48,11 @@ export interface AssembledContext {
 }
 
 export interface ContextOptions {
-	repoRoot?: string; // defaults to process.cwd()
+	repoRoot: string; // explicit repository root
+	env: EnvPort; // environment (MAINA_CLOUD_URL for team episodic entries)
 	mainaDir?: string; // defaults to join(repoRoot, '.maina')
 	searchQuery?: string; // for retrieval layer
-	scope?: string; // limit to specific directory
+	scope?: string; // limit to specific directory (relative to repoRoot)
 	modeOverride?: BudgetMode; // override the command-derived budget mode
 	modelContextWindow?: number; // override default 200K token context window
 }
@@ -216,7 +218,7 @@ function deduplicateCloudEntries(
 		}));
 }
 
-const CLOUD_URL = process.env.MAINA_CLOUD_URL ?? "https://api.mainahq.com";
+const DEFAULT_CLOUD_URL = "https://api.mainahq.com";
 
 /**
  * Build the episodic layer content. Never throws.
@@ -226,6 +228,7 @@ const CLOUD_URL = process.env.MAINA_CLOUD_URL ?? "https://api.mainahq.com";
 async function buildEpisodicLayer(
 	mainaDir: string,
 	repoRoot: string,
+	cloudUrl: string,
 	filter?: string[],
 ): Promise<LayerContent> {
 	try {
@@ -251,7 +254,7 @@ async function buildEpisodicLayer(
 			const auth = loadAuthConfig();
 			if (auth.ok && auth.value.accessToken) {
 				const client = createCloudClient({
-					baseUrl: CLOUD_URL,
+					baseUrl: cloudUrl,
 					token: auth.value.accessToken,
 				});
 				const repo = await getRepoSlug(repoRoot);
@@ -337,9 +340,10 @@ async function buildRetrievalLayer(
  */
 export async function assembleContext(
 	command: MainaCommand,
-	options: ContextOptions = {},
+	options: ContextOptions,
 ): Promise<AssembledContext> {
-	const repoRoot = options.repoRoot ?? process.cwd();
+	const { repoRoot } = options;
+	const cloudUrl = options.env.get("MAINA_CLOUD_URL") ?? DEFAULT_CLOUD_URL;
 	const mainaDir = options.mainaDir ?? join(repoRoot, ".maina");
 
 	const needs = getContextNeeds(command);
@@ -367,7 +371,9 @@ export async function assembleContext(
 		const episodicFilter = Array.isArray(needs.episodic)
 			? needs.episodic
 			: undefined;
-		layerPromises.push(buildEpisodicLayer(mainaDir, repoRoot, episodicFilter));
+		layerPromises.push(
+			buildEpisodicLayer(mainaDir, repoRoot, cloudUrl, episodicFilter),
+		);
 	}
 
 	// Retrieval layer — auto-generates search query from staged/changed files if not provided
@@ -408,7 +414,7 @@ export async function assembleContext(
 
 		if (query) {
 			const retrievalOptions: RetrievalOptions = {
-				cwd: options.scope ?? repoRoot,
+				cwd: options.scope ? resolve(repoRoot, options.scope) : repoRoot,
 				tokenBudget: budget.retrieval,
 			};
 			layerPromises.push(buildRetrievalLayer(query, retrievalOptions));

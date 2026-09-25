@@ -15,6 +15,7 @@ import {
 	type Result,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { processEnv } from "../env";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,8 +75,8 @@ export function detectAIAvailability(deps: InitActionDeps): {
 	hasKey: boolean;
 	inHostMode: boolean;
 } {
-	const checkKey = deps.checkApiKey ?? getApiKey;
-	const checkHost = deps.checkHostMode ?? isHostMode;
+	const checkKey = deps.checkApiKey ?? (() => getApiKey(processEnv));
+	const checkHost = deps.checkHostMode ?? (() => isHostMode(processEnv));
 	const key = checkKey();
 	const host = checkHost();
 	return { hasKey: key !== null, inHostMode: host };
@@ -157,6 +158,7 @@ export async function initAction(
 	const result = await bootstrap(cwd, {
 		force: options.force,
 		aiGenerate: aiAvailable,
+		env: processEnv,
 	});
 
 	if (!result.ok) {

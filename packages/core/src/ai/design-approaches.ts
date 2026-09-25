@@ -1,4 +1,5 @@
 import type { Result } from "../db/index";
+import type { AIContext } from "./index";
 import { tryAIGenerate } from "./try-generate";
 
 export interface DesignApproach {
@@ -23,6 +24,7 @@ const MAX_APPROACHES = 3;
 export async function generateDesignApproaches(
 	designContext: string,
 	mainaDir: string,
+	ctx: AIContext,
 ): Promise<Result<DesignApproach[], string>> {
 	if (!designContext.trim()) {
 		return { ok: true, value: [] };
@@ -33,6 +35,7 @@ export async function generateDesignApproaches(
 		mainaDir,
 		{ context: designContext },
 		`Propose 2-3 architectural approaches for this design decision as a JSON array.\n\n${designContext}`,
+		ctx,
 	);
 
 	if (!result.text) {

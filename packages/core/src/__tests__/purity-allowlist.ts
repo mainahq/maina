@@ -14,17 +14,9 @@ import type { PurityRule } from "./purity-scanner";
 export const PURITY_ALLOWLIST: Readonly<
 	Record<string, Readonly<Partial<Record<PurityRule, number>>>>
 > = {
-	"ai/delegation.ts": { "process.env": 5 },
 	"benchmark/runner.ts": { "process.env": 1 },
-	"config/index.ts": { "process.cwd": 1, "process.env": 18 },
-	"context/engine.ts": { "process.cwd": 1, "process.env": 1 },
-	"context/retrieval.ts": { "process.cwd": 3 },
 	"feedback/collector.ts": { "process.env": 1 },
-	"git/index.ts": { "process.cwd": 1, "process.env": 1 },
 	"mcp/clients.ts": { "process.env": 6 },
-	"receipt/agent-id.ts": { "process.cwd": 1, "process.env": 1 },
-	"receipt/build.ts": { "process.cwd": 1 },
-	"receipt/canonical.ts": { throw: 2 },
 	"setup/confirm.ts": {
 		"process.cwd": 1,
 		"process.env": 2,

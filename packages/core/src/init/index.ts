@@ -20,6 +20,7 @@ import {
 	scaffold,
 } from "../bootstrap/scaffold";
 import type { Result } from "../db/index";
+import type { EnvPort } from "../ports/env";
 import type { DetectedTool } from "../verify/detect";
 import { detectTools } from "../verify/detect";
 
@@ -28,6 +29,8 @@ import { detectTools } from "../verify/detect";
 export interface InitOptions {
 	force?: boolean;
 	aiGenerate?: boolean;
+	/** Environment holding the AI key; `aiGenerate` needs it to run. */
+	env?: EnvPort;
 }
 
 export interface InitReport {
@@ -1140,12 +1143,13 @@ function buildProjectSummary(repoRoot: string, stack: DetectedStack): string {
 async function tryGenerateConstitution(
 	repoRoot: string,
 	stack: DetectedStack,
+	env: EnvPort,
 ): Promise<string | null> {
 	try {
 		// Only attempt AI generation if we have an actual API key.
 		// Host delegation just dumps prompts to stderr which confuses users.
 		const { getApiKey } = await import("../config/index");
-		if (!getApiKey()) {
+		if (!getApiKey(env)) {
 			return null;
 		}
 
@@ -1176,6 +1180,7 @@ Replace [NEEDS CLARIFICATION] placeholders with reasonable defaults based on the
 Keep it concise (under 50 lines). Use markdown format starting with "# Project Constitution".
 
 ${summary}`,
+			{ root: repoRoot, env },
 		);
 
 		if (result.fromAI && result.text) {
@@ -1438,10 +1443,12 @@ export async function bootstrap(
 		// Try AI-generated constitution when requested
 		let constitutionOverride: string | undefined;
 		let aiGenerated = false;
-		if (aiGenerate) {
+		const aiEnv = options?.env;
+		if (aiGenerate && aiEnv) {
 			const aiConstitution = await tryGenerateConstitution(
 				repoRoot,
 				detectedStack,
+				aiEnv,
 			);
 			if (aiConstitution) {
 				constitutionOverride = aiConstitution;

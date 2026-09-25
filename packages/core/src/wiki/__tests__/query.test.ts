@@ -5,6 +5,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createFakeEnv } from "../../ports/testing";
 
 // ── Mock AI before importing queryWiki ──────────────────────────────────
 
@@ -137,6 +138,7 @@ afterEach(() => {
 describe("queryWiki", () => {
 	test("returns not-initialized message when wiki dir missing", async () => {
 		const result = await queryWiki({
+			env: createFakeEnv(),
 			wikiDir: join(tmpDir, "nonexistent"),
 			question: "test",
 		});
@@ -151,7 +153,11 @@ describe("queryWiki", () => {
 	test("returns empty message when wiki has no articles", async () => {
 		mkdirSync(join(wikiDir, "modules"), { recursive: true });
 
-		const result = await queryWiki({ wikiDir, question: "anything" });
+		const result = await queryWiki({
+			env: createFakeEnv(),
+			wikiDir,
+			question: "anything",
+		});
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -164,6 +170,7 @@ describe("queryWiki", () => {
 		seedWikiArticles(wikiDir);
 
 		const result = await queryWiki({
+			env: createFakeEnv(),
 			wikiDir,
 			question: "quantum computing blockchain",
 		});
@@ -180,6 +187,7 @@ describe("queryWiki", () => {
 		mockAIResponse = { text: null, fromAI: false, hostDelegation: false };
 
 		const result = await queryWiki({
+			env: createFakeEnv(),
 			wikiDir,
 			question: "authentication JWT",
 			repoRoot: tmpDir,
@@ -208,6 +216,7 @@ describe("queryWiki", () => {
 		};
 
 		const result = await queryWiki({
+			env: createFakeEnv(),
 			wikiDir,
 			question: "how does authentication work?",
 			repoRoot: tmpDir,
@@ -235,6 +244,7 @@ describe("queryWiki", () => {
 		}
 
 		const result = await queryWiki({
+			env: createFakeEnv(),
 			wikiDir,
 			question: "authentication",
 			maxArticles: 3,
@@ -251,6 +261,7 @@ describe("queryWiki", () => {
 		seedWikiArticles(wikiDir);
 
 		const result = await queryWiki({
+			env: createFakeEnv(),
 			wikiDir,
 			question: "authentication",
 		});
@@ -275,6 +286,7 @@ describe("queryWiki", () => {
 		);
 
 		const result = await queryWiki({
+			env: createFakeEnv(),
 			wikiDir,
 			question: "authentication JWT",
 			repoRoot: tmpDir,
@@ -301,6 +313,7 @@ describe("queryWiki", () => {
 		mockAIResponse = { text: null, fromAI: false, hostDelegation: false };
 
 		const result = await queryWiki({
+			env: createFakeEnv(),
 			wikiDir,
 			question: "User",
 		});

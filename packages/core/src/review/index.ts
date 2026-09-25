@@ -9,6 +9,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { AIContext } from "../ai/index";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,7 +31,9 @@ export interface ReviewOptions {
 	diff: string;
 	planContent?: string | null;
 	conventions?: string | null;
-	mainaDir?: string; // enables AI review when provided
+	mainaDir?: string; // enables AI review (with `ai`) and decision loading
+	/** Root + env for the AI review; stage 2 is deterministic without it. */
+	ai?: AIContext;
 	/** Accepted ADR summaries for spec compliance checking */
 	decisionSummaries?: string[] | null;
 }
@@ -368,6 +371,7 @@ export async function reviewCodeQualityWithAI(
 	diff: string,
 	conventions: string | null,
 	mainaDir: string,
+	ctx: AIContext,
 ): Promise<ReviewStageResult> {
 	// Always run deterministic checks first
 	const deterministicResult = reviewCodeQuality(diff, conventions);
@@ -385,6 +389,7 @@ export async function reviewCodeQualityWithAI(
 				language: "TypeScript",
 			},
 			`Review this diff:\n\n${diff}`,
+			ctx,
 		);
 
 		// Parse AI findings and merge with deterministic ones
@@ -487,13 +492,15 @@ export async function runTwoStageReview(
 		};
 	}
 
-	const stage2 = options.mainaDir
-		? await reviewCodeQualityWithAI(
-				options.diff,
-				options.conventions ?? null,
-				options.mainaDir,
-			)
-		: reviewCodeQuality(options.diff, options.conventions ?? null);
+	const stage2 =
+		options.mainaDir && options.ai
+			? await reviewCodeQualityWithAI(
+					options.diff,
+					options.conventions ?? null,
+					options.mainaDir,
+					options.ai,
+				)
+			: reviewCodeQuality(options.diff, options.conventions ?? null);
 
 	return {
 		stage1,

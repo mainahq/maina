@@ -5,6 +5,7 @@
 import { join } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { aiContext } from "../env";
 
 export function registerReviewTools(server: McpServer): void {
 	server.tool(
@@ -36,6 +37,7 @@ export function registerReviewTools(server: McpServer): void {
 					diff,
 					planContent,
 					mainaDir,
+					ai: aiContext(process.cwd()),
 				});
 				const durationMs = Date.now() - start;
 

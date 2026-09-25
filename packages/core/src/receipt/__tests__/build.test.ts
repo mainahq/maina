@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { createFakeEnv } from "../../ports/testing";
 import type { PipelineResult } from "../../verify/pipeline";
 import { buildReceipt } from "../build";
 import { renderReceiptHtml } from "../render";
@@ -45,6 +46,8 @@ describe("buildReceipt", () => {
 			pipeline: stubPipeline(),
 			constitutionHash: "a".repeat(64),
 			promptsHash: "b".repeat(64),
+			cwd: process.cwd(),
+			env: createFakeEnv(),
 		});
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
@@ -63,6 +66,8 @@ describe("buildReceipt", () => {
 			pipeline: stubPipeline(),
 			constitutionHash: "a".repeat(64),
 			promptsHash: "b".repeat(64),
+			cwd: process.cwd(),
+			env: createFakeEnv(),
 		});
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
@@ -77,6 +82,8 @@ describe("buildReceipt", () => {
 			pipeline: stubPipeline(),
 			constitutionHash: "a".repeat(64),
 			promptsHash: "b".repeat(64),
+			cwd: process.cwd(),
+			env: createFakeEnv(),
 			retries: 3,
 		});
 		expect(result.ok).toBe(true);
@@ -110,6 +117,8 @@ describe("buildReceipt", () => {
 			pipeline,
 			constitutionHash: "a".repeat(64),
 			promptsHash: "b".repeat(64),
+			cwd: process.cwd(),
+			env: createFakeEnv(),
 		});
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
@@ -133,6 +142,8 @@ describe("buildReceipt", () => {
 			pipeline,
 			constitutionHash: "a".repeat(64),
 			promptsHash: "b".repeat(64),
+			cwd: process.cwd(),
+			env: createFakeEnv(),
 		});
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
@@ -147,6 +158,8 @@ describe("renderReceiptHtml", () => {
 			pipeline: stubPipeline(),
 			constitutionHash: "a".repeat(64),
 			promptsHash: "b".repeat(64),
+			cwd: process.cwd(),
+			env: createFakeEnv(),
 		});
 		if (!result.ok) throw new Error("build failed");
 		const html = renderReceiptHtml(result.data);
@@ -164,6 +177,8 @@ describe("renderReceiptHtml", () => {
 			pipeline: stubPipeline(),
 			constitutionHash: "a".repeat(64),
 			promptsHash: "b".repeat(64),
+			cwd: process.cwd(),
+			env: createFakeEnv(),
 		});
 		if (!result.ok) throw new Error("build failed");
 		const html = renderReceiptHtml(result.data);
@@ -177,6 +192,8 @@ describe("renderReceiptHtml", () => {
 			pipeline: stubPipeline(),
 			constitutionHash: "a".repeat(64),
 			promptsHash: "b".repeat(64),
+			cwd: process.cwd(),
+			env: createFakeEnv(),
 		});
 		if (!result.ok) throw new Error("build failed");
 		const html = renderReceiptHtml(result.data);
@@ -192,6 +209,8 @@ describe("renderReceiptHtml", () => {
 			pipeline: stubPipeline(),
 			constitutionHash: "a".repeat(64),
 			promptsHash: "b".repeat(64),
+			cwd: process.cwd(),
+			env: createFakeEnv(),
 			retries: 2,
 		});
 		if (!result.ok) throw new Error("build failed");

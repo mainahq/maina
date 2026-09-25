@@ -26,6 +26,7 @@ import {
 	runVisualVerification,
 } from "@mainahq/core";
 import packageJson from "../../package.json" with { type: "json" };
+import { processEnv } from "../env";
 
 const CLI_VERSION = (packageJson as { version?: string }).version ?? "0.0.0";
 
@@ -376,7 +377,7 @@ export async function verifyAction(
 	);
 
 	// ── AI availability check ────────────────────────────────────────────
-	const ai = checkAIAvailability();
+	const ai = checkAIAvailability(processEnv);
 	if (!ai.available && !options.json) {
 		log.warning("Running without AI — deterministic checks only.");
 	}
@@ -444,6 +445,7 @@ export async function verifyAction(
 		const fixResult = await generateFixes(pipelineResult.findings, {
 			mainaDir,
 			cwd,
+			env: processEnv,
 		});
 		result.fixSuggestions = fixResult.suggestions;
 

@@ -8,7 +8,9 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { AIContext } from "../ai/index";
 import type { Result } from "../db/index";
+import type { EnvPort } from "../ports/env";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -23,12 +25,15 @@ export interface WikiQueryOptions {
 	question: string;
 	maxArticles?: number;
 	repoRoot?: string;
+	/** Environment deciding the AI key/host for answer synthesis. */
+	env: EnvPort;
 	/** Optional override for AI generation (used in tests). */
 	_aiGenerate?: (
 		task: string,
 		mainaDir: string,
 		variables: Record<string, string>,
 		userPrompt: string,
+		ctx: AIContext,
 	) => Promise<{ text: string | null; fromAI: boolean }>;
 }
 
@@ -325,6 +330,7 @@ export async function queryWiki(
 		const mainaDir = options.repoRoot
 			? join(options.repoRoot, ".maina")
 			: join(wikiDir, "..");
+		const root = options.repoRoot ?? join(mainaDir, "..");
 
 		const articlesContext = formatArticlesForPrompt(topArticles);
 		const userPrompt = [
@@ -340,6 +346,7 @@ export async function queryWiki(
 			mainaDir,
 			{ question },
 			userPrompt,
+			{ root, env: options.env },
 		);
 
 		if (aiResult.text) {

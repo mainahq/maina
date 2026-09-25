@@ -15,7 +15,9 @@
  * `modelVersion` for audit.
  */
 
-import { spawn } from "node:child_process";
+import { getHeadCommitMessage } from "../git/index";
+import type { EnvPort } from "../ports/env";
+import type { GitPort } from "../ports/git";
 
 export const AGENT_ID_PATTERN = /^[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*$/;
 
@@ -25,9 +27,13 @@ export interface AgentIdentity {
 }
 
 export interface DetectAgentOptions {
-	env?: NodeJS.ProcessEnv;
-	cwd?: string;
+	/** Environment to read `MAINA_AGENT_ID` / `MAINA_AGENT_MODEL` from. */
+	env: EnvPort;
+	/** Repository root whose HEAD commit may carry an `Agent:` trailer. */
+	cwd: string;
 	modelVersion?: string;
+	/** Git port; defaults to the real git binary. */
+	git?: GitPort;
 }
 
 /**
@@ -36,16 +42,16 @@ export interface DetectAgentOptions {
  * Returns a valid agent.id string matching AGENT_ID_PATTERN, never empty.
  */
 export async function detectAgent(
-	options: DetectAgentOptions = {},
+	options: DetectAgentOptions,
 ): Promise<AgentIdentity> {
-	const env = options.env ?? process.env;
+	const { env } = options;
 	const modelVersion =
 		nonEmpty(options.modelVersion) ??
-		nonEmpty(env.MAINA_AGENT_MODEL) ??
+		nonEmpty(env.get("MAINA_AGENT_MODEL")) ??
 		"unknown";
 
 	// 1. Environment override
-	const envId = env.MAINA_AGENT_ID;
+	const envId = env.get("MAINA_AGENT_ID");
 	if (envId && AGENT_ID_PATTERN.test(envId)) {
 		return { id: envId, modelVersion };
 	}
@@ -54,7 +60,8 @@ export async function detectAgent(
 	//    when we have structured host handshake plumbing.
 
 	// 3. Git trailer on HEAD commit
-	const trailer = await readAgentTrailer(options.cwd);
+	const message = await getHeadCommitMessage(options.cwd, options.git);
+	const trailer = message.match(/^Agent:\s*(\S+)\s*$/m)?.[1];
 	if (trailer && AGENT_ID_PATTERN.test(trailer)) {
 		return { id: trailer, modelVersion };
 	}
@@ -65,29 +72,4 @@ export async function detectAgent(
 
 function nonEmpty(s: string | undefined | null): string | undefined {
 	return s && s.length > 0 ? s : undefined;
-}
-
-async function readAgentTrailer(cwd?: string): Promise<string | null> {
-	try {
-		const message = await gitLastCommitMessage(cwd);
-		const match = message.match(/^Agent:\s*(\S+)\s*$/m);
-		return match?.[1] ?? null;
-	} catch {
-		return null;
-	}
-}
-
-function gitLastCommitMessage(cwd?: string): Promise<string> {
-	return new Promise((resolve) => {
-		const proc = spawn("git", ["log", "-1", "--pretty=format:%B"], {
-			cwd: cwd ?? process.cwd(),
-			stdio: ["ignore", "pipe", "ignore"],
-		});
-		let out = "";
-		proc.stdout.on("data", (chunk) => {
-			out += chunk.toString();
-		});
-		proc.on("close", () => resolve(out));
-		proc.on("error", () => resolve(""));
-	});
 }

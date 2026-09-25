@@ -22,6 +22,7 @@
 import { generate } from "../ai/index";
 import { hashContent } from "../cache/keys";
 import { createCacheManager } from "../cache/manager";
+import type { EnvPort } from "../ports/env";
 import { buildSystemPrompt } from "../prompts/engine";
 import type { Finding } from "./diff-filter";
 
@@ -42,7 +43,10 @@ export interface FixResult {
 
 export interface FixOptions {
 	mainaDir: string;
-	cwd?: string;
+	/** Repository root (config lookup for the AI call). */
+	cwd: string;
+	/** Environment deciding the AI key/provider. */
+	env: EnvPort;
 	contextText?: string;
 }
 
@@ -259,7 +263,7 @@ export async function generateFixes(
 		return { suggestions: [], cached: false };
 	}
 
-	const { mainaDir, contextText } = options;
+	const { mainaDir, contextText, cwd, env } = options;
 
 	// Build cache key from all findings
 	const cacheKey = buildFixCacheKey(findings);
@@ -296,6 +300,8 @@ export async function generateFixes(
 		userPrompt,
 		files: findings.map((f) => f.file),
 		mainaDir,
+		root: cwd,
+		env,
 	});
 
 	// Parse the response

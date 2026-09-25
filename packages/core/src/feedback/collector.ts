@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { hashContent } from "../cache/keys";
 import { loadAuthConfig } from "../cloud/auth";
 import { createCloudClient } from "../cloud/client";
@@ -103,7 +104,8 @@ export function recordFeedbackWithCompression(
 							baseUrl: CLOUD_URL,
 							token: auth.value.accessToken,
 						});
-						const repo = await getRepoSlug();
+						// The repo owning this .maina dir (explicit root, not the cwd).
+						const repo = await getRepoSlug(join(mainaDir, ".."));
 						const title =
 							record.task === "review"
 								? "Accepted review"

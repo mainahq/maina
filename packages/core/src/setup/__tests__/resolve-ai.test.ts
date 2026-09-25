@@ -2,8 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { EnvPort } from "../../ports/env";
 import type { StackContext } from "../context";
 import { resolveSetupAI } from "../resolve-ai";
+
+/** Live view of the test process env (tests toggle process.env directly). */
+const liveEnv: EnvPort = { get: (name) => process.env[name] };
 
 const STACK: StackContext = {
 	languages: ["typescript"],
@@ -71,6 +75,7 @@ describe("resolveSetupAI — host tier", () => {
 		const cwd = makeTmpDir();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -106,6 +111,7 @@ describe("resolveSetupAI — host tier", () => {
 		const cwd = makeTmpDir();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -151,6 +157,7 @@ describe("resolveSetupAI — cloud tier", () => {
 		let capturedBody: Record<string, unknown> = {};
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -195,6 +202,7 @@ describe("resolveSetupAI — cloud tier", () => {
 		const cwd = makeTmpDir();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -235,6 +243,7 @@ describe("resolveSetupAI — cloud tier", () => {
 		const cwd = makeTmpDir();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -263,6 +272,7 @@ describe("resolveSetupAI — cloud tier", () => {
 		const start = Date.now();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -288,6 +298,7 @@ describe("resolveSetupAI — cloud tier", () => {
 		const cwd = makeTmpDir();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -308,6 +319,7 @@ describe("resolveSetupAI — cloud tier", () => {
 		const cwd = makeTmpDir();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -331,6 +343,7 @@ describe("resolveSetupAI — byok tier", () => {
 		const cwd = makeTmpDir();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -354,6 +367,7 @@ describe("resolveSetupAI — byok tier", () => {
 		const cwd = makeTmpDir();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -378,6 +392,7 @@ describe("resolveSetupAI — degraded tier", () => {
 		const cwd = makeTmpDir();
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,
@@ -406,6 +421,7 @@ describe("resolveSetupAI — degraded tier", () => {
 		let byokCalled = false;
 		try {
 			const result = await resolveSetupAI({
+				env: liveEnv,
 				cwd,
 				stack: STACK,
 				repoSummary: SUMMARY,

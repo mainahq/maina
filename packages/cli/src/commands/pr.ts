@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { log } from "@clack/prompts";
 import {
+	type AIContext,
 	appendWorkflowStep,
 	generatePrSummary as coreGeneratePrSummary,
 	getCurrentBranch as coreGetCurrentBranch,
@@ -14,6 +15,7 @@ import {
 	recordFeedbackAsync,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { aiContext } from "../env";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,12 +43,16 @@ export interface PrDeps {
 	}) => Promise<
 		{ ok: true; value: { url: string } } | { ok: false; error: string }
 	>;
-	getDiff: (ref1?: string, ref2?: string, cwd?: string) => Promise<string>;
+	getDiff: (
+		ref1: string | undefined,
+		ref2: string | undefined,
+		cwd: string,
+	) => Promise<string>;
 	getRecentCommits: (
 		n: number,
-		cwd?: string,
+		cwd: string,
 	) => Promise<Array<{ hash: string; message: string }>>;
-	getCurrentBranch: (cwd?: string) => Promise<string>;
+	getCurrentBranch: (cwd: string) => Promise<string>;
 	runTwoStageReview: (
 		...args: Parameters<typeof coreRunTwoStageReview>
 	) => ReturnType<typeof coreRunTwoStageReview>;
@@ -55,6 +61,7 @@ export interface PrDeps {
 		commits: Array<{ hash: string; message: string }>,
 		reviewSummary: string,
 		mainaDir: string,
+		ctx: AIContext,
 	) => Promise<string>;
 	gatherVerificationProof: typeof gatherVerificationProof;
 	formatVerificationProof: typeof formatVerificationProof;
@@ -268,6 +275,7 @@ export async function prAction(
 		commits,
 		reviewSection,
 		mainaDir,
+		aiContext(cwd),
 	);
 
 	// ── Step 3b: Gather verification proof ──────────────────────────────

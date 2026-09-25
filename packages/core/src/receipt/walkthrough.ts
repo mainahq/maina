@@ -14,6 +14,8 @@
  * no-op.
  */
 
+import { join } from "node:path";
+import type { AIContext } from "../ai/index";
 import { tryAIGenerate } from "../ai/try-generate";
 import type { Diff } from "./types";
 
@@ -28,6 +30,7 @@ export interface WalkthroughInput {
 		status: "passed" | "failed" | "skipped";
 		findingsCount: number;
 	}>;
+	/** Defaults to `<ctx.root>/.maina` in `generateWalkthrough`. */
 	mainaDir?: string;
 }
 
@@ -54,6 +57,7 @@ const BANNED_C2_PATTERN =
 
 export async function generateWalkthrough(
 	input: WalkthroughInput,
+	ctx: AIContext,
 	deps: WalkthroughDeps = {},
 ): Promise<WalkthroughResult> {
 	const baseline = baselineWalkthrough(input);
@@ -63,9 +67,10 @@ export async function generateWalkthrough(
 	try {
 		result = await ai(
 			"walkthrough",
-			input.mainaDir ?? ".maina",
+			input.mainaDir ?? join(ctx.root, ".maina"),
 			walkthroughVariables(input),
 			walkthroughUserPrompt(input),
+			ctx,
 		);
 	} catch {
 		// AI call rejected — degrade gracefully to baseline rather than failing

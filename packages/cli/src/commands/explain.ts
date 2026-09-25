@@ -8,6 +8,7 @@ import {
 	tryAIGenerate,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { aiContext } from "../env";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -154,6 +155,7 @@ export async function explainAction(
 			mainaDir,
 			{ diagram, modules: modulesText },
 			`${wikiPreamble}Summarize this codebase structure:\n\n${diagram}\n\nModules:\n${modulesText}`,
+			aiContext(cwd),
 		);
 		if (aiResult.text) {
 			aiSummary = aiResult.text;

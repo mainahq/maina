@@ -21,6 +21,7 @@ import {
 	recordFeedbackAsync,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { aiContext, processEnv } from "../env";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ export async function designAction(
 	// ── Create mode ──────────────────────────────────────────────────────
 
 	// ── AI availability check ────────────────────────────────────────────
-	const ai = checkAIAvailability();
+	const ai = checkAIAvailability(processEnv);
 	if (!ai.available) {
 		log.error(ai.reason ?? "AI features unavailable.");
 		log.message(
@@ -235,7 +236,11 @@ export async function designAction(
 		if (specContent) {
 			const { generateHldLld } = await import("@mainahq/core");
 			log.info("Generating HLD/LLD from spec...");
-			const hldResult = await generateHldLld(specContent, mainaDir);
+			const hldResult = await generateHldLld(
+				specContent,
+				mainaDir,
+				aiContext(cwd),
+			);
 
 			if (hldResult.ok && hldResult.value) {
 				// Replace the HLD/LLD placeholder sections in the scaffolded ADR
@@ -266,6 +271,7 @@ export async function designAction(
 		const approachesResult = await generateDesignApproaches(
 			`ADR: ${title}`,
 			mainaDir,
+			aiContext(cwd),
 		);
 
 		if (approachesResult.ok && approachesResult.value.length > 0) {

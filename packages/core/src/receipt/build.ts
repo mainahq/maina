@@ -6,6 +6,8 @@
  */
 
 import { getRepoSlug } from "../git/index";
+import type { EnvPort } from "../ports/env";
+import type { GitPort } from "../ports/git";
 import type { Finding as PipelineFinding } from "../verify/diff-filter";
 import type { PipelineResult } from "../verify/pipeline";
 import { detectAgent } from "./agent-id";
@@ -67,7 +69,12 @@ export interface BuildReceiptInput {
 	diff?: { additions: number; deletions: number; files: number };
 	retries?: number;
 	walkthrough?: string;
-	cwd?: string;
+	/** Repository root: the repo slug and HEAD agent trailer are read here. */
+	cwd: string;
+	/** Environment for agent detection (`MAINA_AGENT_ID`, `MAINA_AGENT_MODEL`). */
+	env: EnvPort;
+	/** Git port; defaults to the real git binary. */
+	git?: GitPort;
 }
 
 export type BuildReceiptResult =
@@ -116,10 +123,15 @@ export function deriveChecksAndStatus(
 export async function buildReceipt(
 	input: BuildReceiptInput,
 ): Promise<BuildReceiptResult> {
-	const cwd = input.cwd ?? process.cwd();
-	const rawSlug = (await getRepoSlug(cwd)) || "";
+	const { cwd, env, git } = input;
+	const rawSlug = (await getRepoSlug(cwd, git)) || "";
 	const repo = REPO_SLUG_PATTERN.test(rawSlug) ? rawSlug : "unknown/unknown";
-	const agent = await detectAgent({ modelVersion: input.modelVersion, cwd });
+	const agent = await detectAgent({
+		modelVersion: input.modelVersion,
+		cwd,
+		env,
+		git,
+	});
 
 	const retries = input.retries ?? 0;
 	const { checks, status } = deriveChecksAndStatus(input.pipeline, retries);

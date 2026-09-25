@@ -22,6 +22,7 @@ import {
 	setVerificationResult,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { aiContext, processEnv } from "../env";
 import { exitCodeFromResult, outputJson } from "../json.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -307,7 +308,7 @@ export async function commitAction(
 
 	// Try AI-generated commit message before manual prompt
 	if (!message) {
-		const ai = checkAIAvailability();
+		const ai = checkAIAvailability(processEnv);
 
 		if (!ai.available) {
 			if (options.json) {
@@ -333,6 +334,7 @@ export async function commitAction(
 					`${featureScopeContext}${diff}`,
 					stagedFiles,
 					mainaDir,
+					aiContext(cwd),
 				);
 				if (suggested) {
 					message = suggested;
@@ -354,6 +356,7 @@ export async function commitAction(
 					`${featureScopeContext}${diff}`,
 					stagedFiles,
 					mainaDir,
+					aiContext(cwd),
 				);
 				if (suggested) {
 					const accepted = await confirm({
@@ -464,6 +467,7 @@ export async function commitAction(
 		try {
 			const ctx = await assembleContext("commit", {
 				repoRoot: cwd,
+				env: processEnv,
 				mainaDir,
 			});
 			contextTokens = ctx.tokens;

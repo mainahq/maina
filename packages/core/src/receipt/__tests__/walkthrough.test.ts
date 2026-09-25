@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { createFakeEnv } from "../../ports/testing";
 import {
 	baselineWalkthrough,
 	generateWalkthrough,
 	type WalkthroughInput,
 } from "../walkthrough";
+
+const TEST_AI = { root: ".", env: createFakeEnv() };
 
 function input(overrides: Partial<WalkthroughInput> = {}): WalkthroughInput {
 	return {
@@ -75,7 +78,7 @@ describe("baselineWalkthrough", () => {
 
 describe("generateWalkthrough", () => {
 	test("returns ai-source when AI output passes validation", async () => {
-		const result = await generateWalkthrough(input(), {
+		const result = await generateWalkthrough(input(), TEST_AI, {
 			tryAI: async () => ({
 				text: "Adds the receipt walkthrough generator. Maina ran 2 checks — both passed. Verified — passed 2 of 2 policy checks.",
 				fromAI: true,
@@ -87,7 +90,7 @@ describe("generateWalkthrough", () => {
 	});
 
 	test("falls back to baseline when AI output violates C2", async () => {
-		const result = await generateWalkthrough(input(), {
+		const result = await generateWalkthrough(input(), TEST_AI, {
 			tryAI: async () => ({
 				text: "Tweaks the renderer. 0 findings emerged. Safe to merge.",
 				fromAI: true,
@@ -98,7 +101,7 @@ describe("generateWalkthrough", () => {
 	});
 
 	test("falls back when AI emits a NEEDS CLARIFICATION marker", async () => {
-		const result = await generateWalkthrough(input(), {
+		const result = await generateWalkthrough(input(), TEST_AI, {
 			tryAI: async () => ({
 				text: "Some change. [NEEDS CLARIFICATION: what scope?] All passed.",
 				fromAI: true,
@@ -109,7 +112,7 @@ describe("generateWalkthrough", () => {
 	});
 
 	test("falls back when AI sentence count is wrong", async () => {
-		const result = await generateWalkthrough(input(), {
+		const result = await generateWalkthrough(input(), TEST_AI, {
 			tryAI: async () => ({
 				text: "Adds X. Maina ran checks. They passed. Looks good. Merge it. Final word. Done.",
 				fromAI: true,
@@ -120,7 +123,7 @@ describe("generateWalkthrough", () => {
 	});
 
 	test("falls back when AI is unavailable", async () => {
-		const result = await generateWalkthrough(input(), {
+		const result = await generateWalkthrough(input(), TEST_AI, {
 			tryAI: async () => ({
 				text: null,
 				fromAI: false,
@@ -131,7 +134,7 @@ describe("generateWalkthrough", () => {
 	});
 
 	test("falls back under host delegation (no concrete text yet)", async () => {
-		const result = await generateWalkthrough(input(), {
+		const result = await generateWalkthrough(input(), TEST_AI, {
 			tryAI: async () => ({
 				text: "host-delegated prompt body",
 				fromAI: false,

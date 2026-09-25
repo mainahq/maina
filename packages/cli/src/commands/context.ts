@@ -3,6 +3,7 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
 import { assembleContext } from "@mainahq/core";
 import { Command } from "commander";
+import { processEnv } from "../env";
 import { outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -130,6 +131,7 @@ export async function contextAction(
 
 	const assembleOptions: Parameters<typeof assembleContext>[1] = {
 		repoRoot,
+		env: processEnv,
 		mainaDir,
 	};
 	if (options.scope !== undefined) {
@@ -270,6 +272,7 @@ export function contextCommand(): Command {
 
 			const result = await assembleContext("context", {
 				repoRoot,
+				env: processEnv,
 				mainaDir,
 			});
 

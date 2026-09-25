@@ -12,6 +12,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { processEnv } from "../env";
 
 export function registerDeepWikiTools(server: McpServer): void {
 	server.tool(
@@ -27,6 +28,8 @@ export function registerDeepWikiTools(server: McpServer): void {
 				const result = await queryWiki({
 					question,
 					wikiDir,
+					repoRoot: process.cwd(),
+					env: processEnv,
 				});
 
 				if (!result.ok) {

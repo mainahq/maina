@@ -1,0 +1,7 @@
+---
+"@mainahq/core": major
+"@mainahq/cli": patch
+"@mainahq/mcp": patch
+---
+
+Context, AI, config, git, review and receipt modules take an explicit repository root and an injected `EnvPort` instead of reading `process.cwd()`/`process.env`. `getApiKey(env)`, `isHostMode(env)`, `shouldDelegateToHost(env)`, `resolveProvider(config, env)`, `checkAIAvailability(env)` and `outputDelegationRequest(req, env)` read the injected env; `findConfigFile(startDir)`/`loadConfig(startDir)` require the root. `tryAIGenerate`, `generateCommitMessage`, `generatePrSummary`, `generateSpecQuestions`, `generateDesignApproaches`, `generateHldLld`, `reviewCodeQualityWithAI` and `generateWalkthrough` take an `AIContext` (`{ root, env }`); `generate`, `runAIReview`, `generateFixes`, `resolveSetupAI` and `queryWiki` take `root`/`cwd` and `env` in their options, `runTwoStageReview` runs the AI stage only with `ai`, and wiki compile / `bootstrap` need `env` for their AI paths. `assembleContext` requires `repoRoot` and `env` (`MAINA_CLOUD_URL`), and retrieval requires `cwd`. Every git read goes through a `GitPort` (the real adapter spawns git; each function takes the root and an optional port), `getDiffStats` sums locale-independent `--numstat` output, and `buildReceipt`/`detectAgent` require `cwd` + `env` and read the HEAD `Agent:` trailer through the git port. Receipt canonicalization no longer throws internally. The CLI and MCP pass their live process environment at the edge.

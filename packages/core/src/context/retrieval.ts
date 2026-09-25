@@ -8,7 +8,7 @@ export interface SearchResult {
 export interface RetrievalOptions {
 	maxResults?: number; // default 20
 	tokenBudget?: number; // max tokens for results
-	cwd?: string;
+	cwd: string; // explicit directory to search in
 }
 
 /**
@@ -122,7 +122,7 @@ export async function searchWithZoekt(
 	query: string,
 	options: RetrievalOptions,
 ): Promise<SearchResult[]> {
-	const cwd = options.cwd ?? process.cwd();
+	const cwd = options.cwd;
 	const maxResults = options.maxResults ?? 20;
 
 	const zoektAvailable = await isToolAvailable("zoekt");
@@ -152,7 +152,7 @@ async function searchWithRipgrep(
 	query: string,
 	options: RetrievalOptions,
 ): Promise<SearchResult[]> {
-	const cwd = options.cwd ?? process.cwd();
+	const cwd = options.cwd;
 	const maxResults = options.maxResults ?? 20;
 
 	try {
@@ -220,7 +220,7 @@ async function searchWithGrep(
 	query: string,
 	options: RetrievalOptions,
 ): Promise<SearchResult[]> {
-	const cwd = options.cwd ?? process.cwd();
+	const cwd = options.cwd;
 	const maxResults = options.maxResults ?? 20;
 
 	try {
@@ -273,7 +273,7 @@ function countTokens(text: string): number {
  */
 export async function search(
 	query: string,
-	options: RetrievalOptions = {},
+	options: RetrievalOptions,
 ): Promise<SearchResult[]> {
 	const maxResults = options.maxResults ?? 20;
 	const tokenBudget = options.tokenBudget;

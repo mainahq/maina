@@ -14,59 +14,110 @@ type CanonicalizeResult =
 	| { ok: true; data: string }
 	| {
 			ok: false;
-			code: "unsupported-type" | "non-finite-number";
+			code:
+				| "unsupported-type"
+				| "non-finite-number"
+				| "cyclic-reference"
+				| "unreadable-value";
 			message: string;
 	  };
 
 /**
  * Total, non-throwing canonicalization. Returns a Result — every code path
  * produces either a canonical string or a structured error, so callers don't
- * have to wrap in try/catch.
+ * have to wrap in try/catch. The first unsupported value found (depth-first,
+ * in canonical key order) short-circuits the walk. A value that contains
+ * itself comes back as `cyclic-reference` instead of overflowing the stack;
+ * shared references that are not cycles canonicalize normally. Reading the
+ * value can still run foreign code (a throwing getter or Proxy trap) or
+ * exhaust the stack on absurdly deep nesting; those come back as
+ * `unreadable-value`, so the function stays total over `unknown`.
  */
 export function canonicalize(value: unknown): CanonicalizeResult {
 	try {
-		return { ok: true, data: canonicalizeUnsafe(value) };
+		return canonicalizeWithin(value, []);
 	} catch (e) {
-		const err = e as CanonicalizationError;
-		return { ok: false, code: err.code, message: err.message };
+		return {
+			ok: false,
+			code: "unreadable-value",
+			message: `Cannot read value to canonicalize: ${e instanceof Error ? e.message : String(e)}`,
+		};
 	}
 }
 
-class CanonicalizationError extends Error {
-	constructor(
-		public readonly code: "unsupported-type" | "non-finite-number",
-		message: string,
-	) {
-		super(message);
+/** `ancestors` holds the arrays/objects on the path from the root to `value`. */
+function canonicalizeWithin(
+	value: unknown,
+	ancestors: ReadonlyArray<object>,
+): CanonicalizeResult {
+	if (value === null) return { ok: true, data: "null" };
+	if (typeof value === "boolean") {
+		return { ok: true, data: value ? "true" : "false" };
 	}
-}
-
-function canonicalizeUnsafe(value: unknown): string {
-	if (value === null) return "null";
-	if (typeof value === "boolean") return value ? "true" : "false";
 	if (typeof value === "number") {
-		if (!Number.isFinite(value)) {
-			throw new CanonicalizationError(
-				"non-finite-number",
-				`Cannot canonicalize non-finite number: ${value}`,
-			);
-		}
-		return JSON.stringify(value);
+		return Number.isFinite(value)
+			? { ok: true, data: JSON.stringify(value) }
+			: {
+					ok: false,
+					code: "non-finite-number",
+					message: `Cannot canonicalize non-finite number: ${value}`,
+				};
 	}
-	if (typeof value === "string") return JSON.stringify(value);
+	if (typeof value === "string")
+		return { ok: true, data: JSON.stringify(value) };
+	if (typeof value === "object" && ancestors.includes(value)) {
+		return {
+			ok: false,
+			code: "cyclic-reference",
+			message: "Cannot canonicalize a value that contains itself",
+		};
+	}
+	const path = typeof value === "object" ? [...ancestors, value] : ancestors;
 	if (Array.isArray(value)) {
-		return `[${value.map(canonicalizeUnsafe).join(",")}]`;
+		// Array.from visits holes as `undefined` (unsupported), where `map`
+		// would skip them and leave a gap that `joinAll` cannot call.
+		return joinAll(
+			Array.from(value, (item) => () => canonicalizeWithin(item, path)),
+			"[",
+			"]",
+		);
 	}
 	if (typeof value === "object") {
 		const entries = Object.entries(value as Record<string, unknown>)
 			.filter(([, v]) => v !== undefined)
 			.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-		return `{${entries
-			.map(([k, v]) => `${JSON.stringify(k)}:${canonicalizeUnsafe(v)}`)
-			.join(",")}}`;
+		return joinAll(
+			entries.map(([k, v]) => () => {
+				const inner = canonicalizeWithin(v, path);
+				return inner.ok
+					? { ok: true, data: `${JSON.stringify(k)}:${inner.data}` }
+					: inner;
+			}),
+			"{",
+			"}",
+		);
 	}
-	throw new CanonicalizationError(
-		"unsupported-type",
-		`Cannot canonicalize value of type ${typeof value}`,
-	);
+	return {
+		ok: false,
+		code: "unsupported-type",
+		message: `Cannot canonicalize value of type ${typeof value}`,
+	};
+}
+
+/**
+ * Evaluate each part lazily and join the canonical strings, stopping at the
+ * first error so a bad value deep in a large structure costs no extra work.
+ */
+function joinAll(
+	parts: ReadonlyArray<() => CanonicalizeResult>,
+	open: string,
+	close: string,
+): CanonicalizeResult {
+	const out: string[] = [];
+	for (const part of parts) {
+		const result = part();
+		if (!result.ok) return result;
+		out.push(result.data);
+	}
+	return { ok: true, data: `${open}${out.join(",")}${close}` };
 }
