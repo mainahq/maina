@@ -15,7 +15,7 @@ import {
 	recordFeedbackAsync,
 } from "@mainahq/core";
 import { Command } from "commander";
-import { aiContext } from "../env";
+import { aiContext, processEnv } from "../env";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -326,14 +326,18 @@ export async function prAction(
 	appendWorkflowStep(mainaDir, "pr", `PR created: ${prUrl}.`);
 
 	const workflowId = getWorkflowId(branch);
-	recordFeedbackAsync(mainaDir, {
-		promptHash: "deterministic",
-		task: "pr",
-		accepted: true,
-		timestamp: new Date().toISOString(),
-		workflowStep: "pr",
-		workflowId,
-	});
+	recordFeedbackAsync(
+		mainaDir,
+		{
+			promptHash: "deterministic",
+			task: "pr",
+			accepted: true,
+			timestamp: new Date().toISOString(),
+			workflowStep: "pr",
+			workflowId,
+		},
+		{ env: processEnv },
+	);
 
 	return {
 		created: true,

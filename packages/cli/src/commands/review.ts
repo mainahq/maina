@@ -241,14 +241,18 @@ export function reviewCommand(): Command {
 				const mainaDir = join(process.cwd(), ".maina");
 				const accepted = result.result.verdict !== "not-ready";
 				try {
-					recordFeedbackWithCompression(mainaDir, {
-						promptHash: "review",
-						task: "review",
-						accepted,
-						timestamp: new Date().toISOString(),
-						modification: `verdict: ${result.result.verdict}`,
-						aiOutput: result.result.verdictReason,
-					});
+					recordFeedbackWithCompression(
+						mainaDir,
+						{
+							promptHash: "review",
+							task: "review",
+							accepted,
+							timestamp: new Date().toISOString(),
+							modification: `verdict: ${result.result.verdict}`,
+							aiOutput: result.result.verdictReason,
+						},
+						{ env: processEnv },
+					);
 				} catch {
 					// Feedback recording should never block the review
 				}

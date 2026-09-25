@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { envFromRecord } from "../../ports/env";
 import { createPosthogClient } from "../posthog-client";
 import { buildErrorEvent } from "../reporter";
 import { buildUsageEvent } from "../usage";
@@ -54,7 +55,9 @@ function makeFake(options?: {
 }
 
 const STUB_USAGE = buildUsageEvent("maina.commit", { passed: true }, "1.7.0");
+const env = envFromRecord({});
 const STUB_ERROR = buildErrorEvent(new Error("boom"), {
+	env,
 	command: "verify",
 	version: "1.7.0",
 });
@@ -63,6 +66,7 @@ describe("posthog-client — consent gate", () => {
 	test("T1: consent off — captureUsage never touches SDK", () => {
 		const fake = makeFake();
 		const client = createPosthogClient({
+			env,
 			createPosthog: fake.factory,
 			apiKeyOverride: "phc_test",
 			consent: { usage: false, errors: false },
@@ -75,6 +79,7 @@ describe("posthog-client — consent gate", () => {
 	test("T2: consent on, no key — SDK never instantiated", () => {
 		const fake = makeFake();
 		const client = createPosthogClient({
+			env,
 			createPosthog: fake.factory,
 			apiKeyOverride: "",
 			consent: { usage: true, errors: true },
@@ -88,6 +93,7 @@ describe("posthog-client — consent gate", () => {
 	test("T3: consent on, key set — exactly one capture per call", () => {
 		const fake = makeFake();
 		const client = createPosthogClient({
+			env,
 			createPosthog: fake.factory,
 			apiKeyOverride: "phc_test",
 			consent: { usage: true, errors: true },
@@ -104,6 +110,7 @@ describe("posthog-client — consent gate", () => {
 	test("T4: errors consent is independent of usage consent", () => {
 		const fake = makeFake();
 		const client = createPosthogClient({
+			env,
 			createPosthog: fake.factory,
 			apiKeyOverride: "phc_test",
 			consent: { usage: true, errors: false },
@@ -117,6 +124,7 @@ describe("posthog-client — consent gate", () => {
 	test("T6: captureUsage swallows SDK construction errors", () => {
 		const fake = makeFake({ throwOnConstruct: true });
 		const client = createPosthogClient({
+			env,
 			createPosthog: fake.factory,
 			apiKeyOverride: "phc_test",
 			consent: { usage: true, errors: true },
@@ -131,6 +139,7 @@ describe("posthog-client — flush budget", () => {
 	test("T5: flushTelemetry resolves within budget even if SDK shutdown hangs", async () => {
 		const fake = makeFake({ hangFlushMs: 5_000 });
 		const client = createPosthogClient({
+			env,
 			createPosthog: fake.factory,
 			apiKeyOverride: "phc_test",
 			consent: { usage: true, errors: true },
@@ -147,6 +156,7 @@ describe("posthog-client — flush budget", () => {
 	test("flushTelemetry is a no-op when SDK was never instantiated", async () => {
 		const fake = makeFake();
 		const client = createPosthogClient({
+			env,
 			createPosthog: fake.factory,
 			apiKeyOverride: "phc_test",
 			consent: { usage: false, errors: false },

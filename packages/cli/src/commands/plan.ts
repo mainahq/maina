@@ -26,6 +26,7 @@ import {
 	type WikiConsultResult,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { processEnv } from "../env";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -433,14 +434,18 @@ export async function planAction(
 
 	const branch = await getCurrentBranch(cwd);
 	const workflowId = getWorkflowId(branch);
-	recordFeedbackAsync(mainaDir, {
-		promptHash: "deterministic",
-		task: "plan",
-		accepted: true,
-		timestamp: new Date().toISOString(),
-		workflowStep: "plan",
-		workflowId,
-	});
+	recordFeedbackAsync(
+		mainaDir,
+		{
+			promptHash: "deterministic",
+			task: "plan",
+			accepted: true,
+			timestamp: new Date().toISOString(),
+			workflowStep: "plan",
+			workflowId,
+		},
+		{ env: processEnv },
+	);
 
 	return {
 		created: true,

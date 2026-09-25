@@ -73,6 +73,7 @@ test("true", () => { expect(true).toBe(true); });
 			storyName: "test-story",
 			testFiles: [testFile],
 			implDir: tmpDir,
+			env: process.env,
 		});
 
 		expect(result.ok).toBe(true);
@@ -101,6 +102,7 @@ test("fail", () => { expect(1).toBe(2); });
 			storyName: "fail-story",
 			testFiles: [testFile],
 			implDir: tmpDir,
+			env: process.env,
 		});
 
 		expect(result.ok).toBe(true);
@@ -108,6 +110,36 @@ test("fail", () => { expect(1).toBe(2); });
 			expect(result.value.testsPassed).toBe(1);
 			expect(result.value.testsFailed).toBe(1);
 			expect(result.value.testsTotal).toBe(2);
+		}
+	});
+
+	test("hands the injected env (plus MITT_IMPL_PATH) to the test child, not process.env", async () => {
+		const testFile = join(tmpDir, "env.ts");
+		writeFileSync(
+			testFile,
+			`import { test, expect } from "bun:test";
+test("marker", () => { expect(process.env.MAINA_292_MARKER).toBe("injected"); });
+test("impl path", () => { expect(process.env.MITT_IMPL_PATH).toBe(${JSON.stringify("__IMPL__")}); });
+`.replace("__IMPL__", tmpDir),
+		);
+		const previous = process.env.MAINA_292_MARKER;
+		process.env.MAINA_292_MARKER = "leaked";
+		try {
+			const result = await runBenchmark({
+				pipeline: "maina",
+				storyName: "env-story",
+				testFiles: [testFile],
+				implDir: tmpDir,
+				env: { PATH: process.env.PATH, MAINA_292_MARKER: "injected" },
+			});
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.value.testsPassed).toBe(2);
+				expect(result.value.testsFailed).toBe(0);
+			}
+		} finally {
+			if (previous === undefined) delete process.env.MAINA_292_MARKER;
+			else process.env.MAINA_292_MARKER = previous;
 		}
 	});
 });

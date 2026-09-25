@@ -118,7 +118,15 @@ export {
 	trackFile,
 } from "./context/working";
 // DB
-export type { Result } from "./db/index";
+export type {
+	DbHandle,
+	Result,
+	SqlBinding,
+	SqlBindings,
+	SqlChanges,
+	SqliteDatabase,
+	SqliteStatement,
+} from "./db/index";
 export { getFeedbackDb } from "./db/index";
 // Design (ADR)
 export {
@@ -187,6 +195,7 @@ export {
 // Feedback
 export {
 	type FeedbackRecord,
+	type FeedbackSyncContext,
 	getFeedbackSummary,
 	getWorkflowId,
 	recordFeedback,

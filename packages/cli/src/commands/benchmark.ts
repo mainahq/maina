@@ -86,6 +86,7 @@ export async function benchmarkAction(
 		storyName: story.config.name,
 		testFiles: testPaths,
 		implDir: story.storyDir,
+		env: process.env,
 	});
 
 	if (!runResult.ok) {

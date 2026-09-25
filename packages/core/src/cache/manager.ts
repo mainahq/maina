@@ -98,7 +98,7 @@ export function createCacheManager(mainaDir: string): CacheManager {
 	const { db } = dbResult.value;
 
 	// Prepared statements
-	const stmtGet = db.prepare<RawRow, [string]>(
+	const stmtGet = db.prepare(
 		`SELECT key, value, created_at, ttl, prompt_version, context_hash, model
 		 FROM cache_entries WHERE key = ?`,
 	);
@@ -109,9 +109,7 @@ export function createCacheManager(mainaDir: string): CacheManager {
 	);
 	const stmtDelete = db.prepare(`DELETE FROM cache_entries WHERE key = ?`);
 	const stmtClear = db.prepare(`DELETE FROM cache_entries`);
-	const stmtCount = db.prepare<{ cnt: number }, []>(
-		`SELECT COUNT(*) as cnt FROM cache_entries`,
-	);
+	const stmtCount = db.prepare(`SELECT COUNT(*) as cnt FROM cache_entries`);
 
 	// L1 in-memory map (maintains insertion order for eviction)
 	const l1 = new Map<string, CacheEntry>();
@@ -145,7 +143,7 @@ export function createCacheManager(mainaDir: string): CacheManager {
 		}
 
 		// Check L2
-		const row = stmtGet.get(key);
+		const row = stmtGet.get(key) as RawRow | null;
 		if (row == null) {
 			misses++;
 			return null;
@@ -215,7 +213,7 @@ export function createCacheManager(mainaDir: string): CacheManager {
 	}
 
 	function stats(): CacheStats {
-		const countRow = stmtCount.get();
+		const countRow = stmtCount.get() as { cnt: number } | null;
 		const entriesL2 = countRow?.cnt ?? 0;
 		return {
 			l1Hits,
