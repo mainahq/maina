@@ -109,6 +109,11 @@ function decisionLogs(): (
 			if (!(await nodeFs.exists(join(root, ".maina")))) {
 				return { ok: true, value: null };
 			}
+			// Another event may have started opening this root during the
+			// await: share it, so one salt is loaded and one store opened.
+			opening = logs.get(root);
+		}
+		if (opening === undefined) {
 			if (logs.size >= MAX_CACHED_ROOTS) evictAll();
 			opening = open(root);
 			logs.set(root, opening);

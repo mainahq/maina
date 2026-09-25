@@ -707,6 +707,23 @@ describe("systemGates", () => {
 			);
 		});
 
+		test("concurrent first events share one salt and one store", async () => {
+			const repo = newRepo();
+			const gates = systemGates({ home });
+			const decided = await Promise.all(
+				Array.from({ length: 8 }, () => gates.runtime(write(repo))),
+			);
+			const salt = saltOf(repo);
+			const state = riskState(write(repo), repo);
+			const logged = records(repo);
+			expect(logged.map((r) => r.id).sort()).toEqual(
+				decided.flatMap((d) => [...d.decisionIds]).sort(),
+			);
+			for (const r of logged) {
+				expect(r.inputHash).toBe(hashInput("action.risk", state, r.id, salt));
+			}
+		});
+
 		test("a repo without .maina is not written to", async () => {
 			const repo = newRepo(false);
 			const decided = await systemGates({ home }).runtime(write(repo));
