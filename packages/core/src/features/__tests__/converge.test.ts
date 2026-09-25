@@ -166,7 +166,9 @@ describe("converge", () => {
 
 describe("convergence on the receipt", () => {
 	const pipeline: PipelineResult = {
+		status: "passed",
 		passed: true,
+		scope: { kind: "files", files: ["src/export.ts"] },
 		syntaxPassed: true,
 		tools: [{ tool: "slop", findings: [], skipped: false, duration: 1 }],
 		findings: [],
