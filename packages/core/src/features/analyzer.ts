@@ -18,6 +18,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Result } from "../db/index";
+import { decideEach, defaultDecidePorts } from "../decide/decide";
 import { extractAcceptanceCriteria, STOP_WORDS } from "../utils";
 
 export interface AnalysisReport {
@@ -189,28 +190,29 @@ function checkSpecCoverage(
 		.map((t) => t.description.toLowerCase())
 		.join(" ");
 
-	const findings: AnalysisFinding[] = [];
-
+	const counted: Array<{ criterion: string; matched: number; total: number }> =
+		[];
 	for (const criterion of criteria) {
 		const keywords = significantWords(criterion);
 		if (keywords.length === 0) continue;
-
-		const matchedCount = keywords.filter((kw) =>
-			allTasksText.includes(kw),
-		).length;
-		const coverage = matchedCount / keywords.length;
-
-		if (coverage < 0.5) {
-			findings.push({
-				severity: "error",
-				category: "spec-coverage",
-				message: `Acceptance criterion not covered by any task: "${criterion}"`,
-				file: "spec.md",
-			});
-		}
+		const matched = keywords.filter((kw) => allTasksText.includes(kw)).length;
+		counted.push({ criterion, matched, total: keywords.length });
 	}
 
-	return findings;
+	const covered = decideEach(defaultDecidePorts, {
+		type: "spec.coverage",
+		check: "criterion",
+		trusted: counted.map(({ matched, total }) => ({ matched, total })),
+		untrusted: counted.map(({ criterion }) => ({ text: criterion })),
+	});
+	return counted
+		.filter((_, i) => covered[i] === false)
+		.map(({ criterion }) => ({
+			severity: "error",
+			category: "spec-coverage",
+			message: `Acceptance criterion not covered by any task: "${criterion}"`,
+			file: "spec.md",
+		}));
 }
 
 /**
@@ -225,7 +227,12 @@ function checkOrphanedTasks(
 	const specLower = specContent.toLowerCase();
 	const allSpecWords = new Set(significantWords(specLower));
 
-	const findings: AnalysisFinding[] = [];
+	const candidates: Array<{
+		task: ParsedTask;
+		hasSpecRef: boolean;
+		matched: number;
+		total: number;
+	}> = [];
 
 	// Deduplicate tasks by id to avoid checking the same task from both files
 	const seen = new Set<string>();
@@ -242,41 +249,39 @@ function checkOrphanedTasks(
 		const hasSpecRef = taskRefs.some((ref) =>
 			specLower.includes(ref.toLowerCase()),
 		);
-		if (hasSpecRef) continue; // Task explicitly references a spec requirement
-
 		const taskWords = significantWords(task.description);
-		if (taskWords.length === 0) continue;
+		// A task that references a spec requirement is never orphaned; one
+		// with no significant words cannot be judged.
+		if (!hasSpecRef && taskWords.length === 0) continue;
 
-		const matchedCount = taskWords.filter((w) => allSpecWords.has(w)).length;
-		const coverage = matchedCount / taskWords.length;
-
-		if (coverage < 0.2) {
-			const source = planTasks.includes(task) ? "plan.md" : "tasks.md";
-			findings.push({
-				severity: "warning",
-				category: "orphaned-task",
-				message: `Task does not map to any spec requirement: "${task.fullLine}"`,
-				file: source,
-			});
-		}
+		const matched = taskWords.filter((w) => allSpecWords.has(w)).length;
+		candidates.push({ task, hasSpecRef, matched, total: taskWords.length });
 	}
 
-	return findings;
+	const orphaned = decideEach(defaultDecidePorts, {
+		type: "spec.orphan",
+		check: "task",
+		trusted: candidates.map(({ hasSpecRef, matched, total }) => ({
+			hasSpecRef,
+			matched,
+			total,
+		})),
+		untrusted: candidates.map(({ task }) => ({ text: task.fullLine })),
+	});
+	return candidates
+		.filter((_, i) => orphaned[i] === true)
+		.map(({ task }) => ({
+			severity: "warning",
+			category: "orphaned-task",
+			message: `Task does not map to any spec requirement: "${task.fullLine}"`,
+			file: planTasks.includes(task) ? "plan.md" : "tasks.md",
+		}));
 }
 
 /**
- * Implementation-detail keywords that should not appear in spec.md.
- */
-const IMPL_KEYWORDS =
-	/\b(JWT|REST|SQL|endpoint|database|schema|implementation|deploy)\b/i;
-
-/**
- * User-story language that should not appear in plan.md.
- */
-const STORY_PATTERN = /\bAs a (user|developer|admin|customer)\b/i;
-
-/**
- * Check 4: WHAT/WHY vs HOW separation.
+ * Check 4: WHAT/WHY vs HOW separation. Each spec.md line is asked whether it
+ * leaks implementation detail, each plan.md line whether it holds
+ * user-story language (`spec.impl_leak`).
  */
 function checkSeparation(
 	specContent: string | null,
@@ -286,9 +291,14 @@ function checkSeparation(
 
 	if (specContent !== null) {
 		const lines = specContent.split("\n");
+		const leaks = decideEach(defaultDecidePorts, {
+			type: "spec.impl_leak",
+			check: "impl-in-spec",
+			untrusted: lines.map((text) => ({ text })),
+		});
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i] ?? "";
-			if (IMPL_KEYWORDS.test(line)) {
+			if (leaks[i]) {
 				findings.push({
 					severity: "warning",
 					category: "separation-violation",
@@ -302,9 +312,14 @@ function checkSeparation(
 
 	if (planContent !== null) {
 		const lines = planContent.split("\n");
+		const leaks = decideEach(defaultDecidePorts, {
+			type: "spec.impl_leak",
+			check: "story-in-plan",
+			untrusted: lines.map((text) => ({ text })),
+		});
 		for (let i = 0; i < lines.length; i++) {
 			const line = lines[i] ?? "";
-			if (STORY_PATTERN.test(line)) {
+			if (leaks[i]) {
 				findings.push({
 					severity: "warning",
 					category: "separation-violation",
@@ -355,6 +370,13 @@ function checkContradictions(
 		}
 	}
 
+	const pairs: Array<{
+		id: string;
+		plan: string;
+		tasks: string;
+		matched: number;
+		total: number;
+	}> = [];
 	for (const tasksTask of tasksTasks) {
 		if (!tasksTask.id) continue;
 		const planTask = planById.get(tasksTask.id);
@@ -366,16 +388,28 @@ function checkContradictions(
 
 		if (tasksWords.length === 0 || planWords.size === 0) continue;
 
-		const matchedCount = tasksWords.filter((w) => planWords.has(w)).length;
-		const coverage = matchedCount / Math.max(tasksWords.length, planWords.size);
+		pairs.push({
+			id: tasksTask.id,
+			plan: planTask.description,
+			tasks: tasksTask.description,
+			matched: tasksWords.filter((w) => planWords.has(w)).length,
+			total: Math.max(tasksWords.length, planWords.size),
+		});
+	}
 
-		if (coverage < 0.4) {
-			findings.push({
-				severity: "warning",
-				category: "contradiction",
-				message: `${tasksTask.id} has conflicting descriptions — plan.md: "${planTask.description}" vs tasks.md: "${tasksTask.description}"`,
-			});
-		}
+	const contradicts = decideEach(defaultDecidePorts, {
+		type: "spec.contradiction",
+		check: "task",
+		trusted: pairs.map(({ matched, total }) => ({ matched, total })),
+		untrusted: pairs.map(({ plan, tasks }) => ({ plan, tasks })),
+	});
+	for (const [i, pair] of pairs.entries()) {
+		if (!contradicts[i]) continue;
+		findings.push({
+			severity: "warning",
+			category: "contradiction",
+			message: `${pair.id} has conflicting descriptions — plan.md: "${pair.plan}" vs tasks.md: "${pair.tasks}"`,
+		});
 	}
 
 	return findings;

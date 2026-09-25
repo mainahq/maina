@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { decideEach, defaultDecidePorts } from "../decide/decide";
 
 export interface RulePreference {
 	ruleId: string;
@@ -12,8 +13,6 @@ export interface Preferences {
 	rules: Record<string, RulePreference>;
 	updatedAt: string;
 }
-
-const MIN_RULE_SAMPLES = 5;
 
 const PREFS_FILE = "preferences.json";
 
@@ -96,13 +95,26 @@ export function acknowledgeFinding(mainaDir: string, ruleId: string): void {
 }
 
 /**
- * Get rules with high false positive rates (>50% dismissed).
- * These should be downgraded in severity or suppressed.
+ * Get rules whose findings are noise: `decide` (`finding.real`) answers no,
+ * which the heuristic backend does for more than 50% dismissed over at
+ * least 5 samples. These should be downgraded in severity or suppressed.
  */
 export function getNoisyRules(mainaDir: string): RulePreference[] {
 	const prefs = loadPreferences(mainaDir);
-	return Object.values(prefs.rules).filter(
+	const rules = Object.values(prefs.rules).filter(
 		(rule) =>
-			rule.falsePositiveRate > 0.5 && rule.totalCount >= MIN_RULE_SAMPLES,
+			typeof rule.falsePositiveRate === "number" &&
+			typeof rule.totalCount === "number",
 	);
+	const real = decideEach(defaultDecidePorts, {
+		type: "finding.real",
+		check: "rule",
+		trusted: rules.map(({ falsePositiveRate, totalCount }) => ({
+			falsePositiveRate,
+			totalCount,
+		})),
+		untrusted: rules.map(({ ruleId }) => ({ ruleId })),
+		fallback: true,
+	});
+	return rules.filter((_, i) => real[i] === false);
 }

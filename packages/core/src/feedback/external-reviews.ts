@@ -14,6 +14,8 @@
  */
 
 import type { Result } from "../db/index";
+import { choiceAnswer, decide, defaultDecidePorts } from "../decide/decide";
+import { FINDING_CATEGORIES, REVIEWER_KINDS } from "../decide/types-catalog";
 import {
 	insertFindingRow,
 	selectFindings,
@@ -55,120 +57,35 @@ export const ALLOWED_REVIEWERS: readonly string[] = [
 	"coderabbitai[bot]",
 ];
 
-const KNOWN_BOTS = new Set<string>([
-	"copilot-pull-request-reviewer",
-	"copilot-pull-request-reviewer[bot]",
-	"coderabbitai",
-	"coderabbitai[bot]",
-	"github-actions",
-	"github-actions[bot]",
-	"renovate",
-	"renovate[bot]",
-	"dependabot",
-	"dependabot[bot]",
-]);
-
 // ── Categorisation ──────────────────────────────────────────────────────────
 
-interface CategoryRule {
-	category: FindingCategory;
-	patterns: RegExp[];
-}
-
 /**
- * Heuristic, keyword-driven classifier. v1 explicitly avoids LLM calls — we
- * want categorisation to be cheap and deterministic so the ingestion path
- * stays a weekend-sized chore. v2 may layer an LLM-backed reclassifier on top
- * of accumulated findings.
- */
-const RULES: CategoryRule[] = [
-	{
-		category: "api-mismatch",
-		patterns: [
-			/doesn[''‘’]t exist/i,
-			/does not exist/i,
-			/won[''‘’]t typecheck/i,
-			/will not typecheck/i,
-			/is not exported/i,
-			/no such export/i,
-			/cannot find (module|name|export)/i,
-			/undefined (export|symbol|identifier)/i,
-			/wrong import path/i,
-		],
-	},
-	{
-		category: "signature-drift",
-		patterns: [
-			/wrong signature/i,
-			/signature (changed|drift|mismatch)/i,
-			/expected\s+`?[^`]+`?\s+(but )?got/i,
-			/argument (count|type) mismatch/i,
-			/parameter[s]? (changed|differ)/i,
-			/return type/i,
-		],
-	},
-	{
-		category: "dead-code",
-		patterns: [
-			/\bunused\b/i,
-			/never (called|used|read|invoked)/i,
-			/dead code/i,
-			/unreachable/i,
-		],
-	},
-	{
-		category: "security",
-		patterns: [
-			/race condition/i,
-			/\brace\b/i,
-			/ENOENT/,
-			/spawn .* (failed|error)/i,
-			/credential/i,
-			/\bsecret\b/i,
-			/\btoken\b.*(leak|log)/i,
-			/sql injection/i,
-			/command injection/i,
-			/path traversal/i,
-			/unsanitised|unsanitized/i,
-		],
-	},
-	{
-		category: "style",
-		patterns: [
-			/console\.log/i,
-			/formatting/i,
-			/\bnit:?\b/i,
-			/style nit/i,
-			/typo/i,
-			/trailing whitespace/i,
-			/indentation/i,
-		],
-	},
-];
-
-/**
- * Categorise a review comment body using deterministic keyword rules.
- * Returns `"other"` when no rule matches.
+ * Categorise a review comment body via `decide` (`review.category`). The
+ * heuristic backend applies deterministic keyword rules and returns
+ * `"other"` when none matches; no LLM call.
  */
 export function categoriseComment(body: string): FindingCategory {
-	for (const rule of RULES) {
-		for (const pat of rule.patterns) {
-			if (pat.test(body)) return rule.category;
-		}
-	}
-	return "other";
+	const result = decide(defaultDecidePorts, {
+		type: "review.category",
+		state: { trusted: {}, untrusted: { body } },
+		questions: [
+			{ kind: "choice", id: "category", options: FINDING_CATEGORIES },
+		],
+	});
+	return choiceAnswer(result, FINDING_CATEGORIES, "other");
 }
 
 /**
- * Decide whether a reviewer name belongs to a bot. Heuristic only:
- * `[bot]` suffix, known list, or `*-bot` naming.
+ * Decide whether a reviewer name belongs to a bot (`review.reviewer_kind`).
+ * Heuristic only: `[bot]` suffix, known list, or `*-bot` naming.
  */
 export function classifyReviewerKind(reviewer: string): ReviewerKind {
-	const normalised = reviewer.toLowerCase();
-	if (KNOWN_BOTS.has(normalised)) return "bot";
-	if (normalised.endsWith("[bot]")) return "bot";
-	if (normalised.endsWith("-bot")) return "bot";
-	return "human";
+	const result = decide(defaultDecidePorts, {
+		type: "review.reviewer_kind",
+		state: { trusted: {}, untrusted: { reviewer } },
+		questions: [{ kind: "choice", id: "kind", options: REVIEWER_KINDS }],
+	});
+	return choiceAnswer(result, REVIEWER_KINDS, "human");
 }
 
 // ── Persistence (thin wrappers; input validation then repo call) ────────────

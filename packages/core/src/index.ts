@@ -140,6 +140,38 @@ export type {
 	SqliteStatement,
 } from "./db/index";
 export { getFeedbackDb } from "./db/index";
+// Decide (typed decision interface, FR-DEC-1/2)
+export {
+	type DecidePorts,
+	decide,
+	defaultDecidePorts,
+} from "./decide/decide";
+export {
+	type BackendRegistry,
+	createRegistry,
+	DEFAULT_REGISTRY,
+} from "./decide/registry";
+export {
+	type Answer,
+	type Backend,
+	type BackendAnswer,
+	type BackendError,
+	type BackendInput,
+	type BoolQuestion,
+	type ChoiceQuestion,
+	type DecideError,
+	type DecideRequest,
+	type Decision,
+	type DecisionBackend,
+	type DecisionState,
+	type DecisionType,
+	type DistributionEntry,
+	MAX_CHOICE_OPTIONS,
+	type Question,
+	type QuestionKind,
+	type ScoreQuestion,
+} from "./decide/types";
+export { DECISION_CATALOG, validateQuestions } from "./decide/types-catalog";
 // Design (ADR)
 export {
 	type AdrSummary,
