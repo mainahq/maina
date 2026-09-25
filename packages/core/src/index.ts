@@ -151,17 +151,25 @@ export {
 	createRegistry,
 	DEFAULT_REGISTRY,
 } from "./decide/registry";
-export type {
-	Answer,
-	Backend,
-	BackendAnswer,
-	BackendInput,
-	DecideError,
-	DecideRequest,
-	Decision,
-	DecisionState,
-	DistributionEntry,
-	Question,
+export {
+	type Answer,
+	type Backend,
+	type BackendAnswer,
+	type BackendError,
+	type BackendInput,
+	type BoolQuestion,
+	type ChoiceQuestion,
+	type DecideError,
+	type DecideRequest,
+	type Decision,
+	type DecisionBackend,
+	type DecisionState,
+	type DecisionType,
+	type DistributionEntry,
+	MAX_CHOICE_OPTIONS,
+	type Question,
+	type QuestionKind,
+	type ScoreQuestion,
 } from "./decide/types";
 export { DECISION_CATALOG, validateQuestions } from "./decide/types-catalog";
 // Design (ADR)

@@ -289,26 +289,14 @@ export function scoreSpec(specPath: string): Result<QualityScore> {
 		};
 	}
 
-	// Empty spec → all zeros
-	if (content.trim().length === 0) {
-		return {
-			ok: true,
-			value: {
-				overall: 0,
-				measurability: 0,
-				testability: 0,
-				ambiguity: 0,
-				completeness: 0,
-				details: ["Empty spec file — all dimensions score 0"],
-			},
-		};
-	}
-
+	// An empty spec is decided too: the heuristic scores it 0 everywhere.
+	const empty = content.trim().length === 0;
 	const counts = countSpec(content);
 	const result = decide(defaultDecidePorts, {
 		type: "spec.quality",
 		state: {
 			trusted: {
+				empty,
 				criteria: counts.criteria,
 				measurable: counts.measurable,
 				testable: counts.testable,
@@ -343,7 +331,9 @@ export function scoreSpec(specPath: string): Result<QualityScore> {
 			testability: score.testability,
 			ambiguity: score.ambiguity,
 			completeness: score.completeness,
-			details: describeScores(counts, score),
+			details: empty
+				? ["Empty spec file — all dimensions score 0"]
+				: describeScores(counts, score),
 		},
 	};
 }

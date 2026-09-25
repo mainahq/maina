@@ -64,9 +64,20 @@ function expectedOptions(question: Question): readonly unknown[] | undefined {
 /** Why `answer` is not a valid answer to `question`, or `undefined`. */
 function answerProblem(
 	question: Question,
-	answer: BackendAnswer,
+	answer: BackendAnswer | undefined,
 ): string | undefined {
+	// Backends (a model, later) can hand back anything: check the shape
+	// before reading it, so a malformed answer is an error, never a throw.
+	if (typeof answer !== "object" || answer === null) {
+		return "answer is missing";
+	}
 	const { distribution } = answer;
+	if (
+		!Array.isArray(distribution) ||
+		distribution.some((e) => typeof e !== "object" || e === null)
+	) {
+		return "distribution must be a list of { answer, p } entries";
+	}
 	if (distribution.some((e) => !Number.isFinite(e.p) || e.p < 0 || e.p > 1)) {
 		return "every probability must be within [0, 1]";
 	}
@@ -105,6 +116,17 @@ function answerProblem(
 		: "answer is not a mode of its distribution";
 }
 
+function backendFailed(
+	backend: Backend,
+	type: DecisionType,
+	message: string,
+): Result<never, DecideError> {
+	return {
+		ok: false,
+		error: { kind: "backend_failed", type, backend: backend.id, message },
+	};
+}
+
 function callBackend(
 	backend: Backend,
 	type: DecisionType,
@@ -120,21 +142,23 @@ function callBackend(
 			policy,
 		});
 	} catch (e) {
-		return {
-			ok: false,
-			error: {
-				kind: "backend_failed",
-				type,
-				backend: backend.id,
-				message: e instanceof Error ? e.message : String(e),
-			},
-		};
+		return backendFailed(
+			backend,
+			type,
+			e instanceof Error ? e.message : String(e),
+		);
+	}
+	if (typeof result !== "object" || result === null) {
+		return backendFailed(backend, type, "backend returned no result");
 	}
 	if (!result.ok) {
 		return {
 			ok: false,
 			error: { ...result.error, type, backend: backend.id },
 		};
+	}
+	if (!Array.isArray(result.value)) {
+		return backendFailed(backend, type, "backend returned no answer list");
 	}
 	return { ok: true, value: result.value };
 }
@@ -184,9 +208,11 @@ export function decide(
 	const latencyMs = Math.max(0, ports.clock.now() - started);
 	const decisions: Decision[] = [];
 	for (const [i, question] of request.questions.entries()) {
-		const answer = answers[i] as BackendAnswer;
+		const answer: BackendAnswer | undefined = answers[i];
 		const problem = answerProblem(question, answer);
-		if (problem !== undefined) return invalidAnswer(question.id, problem);
+		if (problem !== undefined || answer === undefined) {
+			return invalidAnswer(question.id, problem ?? "answer is missing");
+		}
 		decisions.push({
 			id: question.id,
 			type,

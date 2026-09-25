@@ -219,7 +219,8 @@ function percent(part: number, whole: number): number {
  * Scores 0–100 per dimension from the counts in state.trusted: `criteria`,
  * `measurable`, `testable`, `weaselWords`, `sectionsPresent`,
  * `sectionsRequired`, `clarificationMarkers`. `overall` is the equal-weight
- * average of the four dimensions.
+ * average of the four dimensions. `empty: true` (a blank spec) scores 0
+ * everywhere.
  */
 function qualityScores(
 	trusted: Readonly<Record<string, unknown>>,
@@ -243,6 +244,18 @@ function qualityScores(
 		markers === undefined
 	) {
 		return undefined;
+	}
+	// An empty spec scores 0 on every dimension, not 100 for "no weasel words".
+	if (asBoolean(counts?.empty) === true) {
+		return new Map(
+			[
+				"measurability",
+				"testability",
+				"ambiguity",
+				"completeness",
+				"overall",
+			].map((dimension) => [dimension, 0]),
+		);
 	}
 	const measurability = percent(measurable, criteria);
 	const testability = percent(testable, criteria);

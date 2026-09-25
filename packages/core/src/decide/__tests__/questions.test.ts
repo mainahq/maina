@@ -1,4 +1,13 @@
 import { describe, expect, test } from "bun:test";
+import type {
+	BackendError as PublicBackendError,
+	BoolQuestion as PublicBoolQuestion,
+	ChoiceQuestion as PublicChoiceQuestion,
+	DecisionBackend as PublicDecisionBackend,
+	DecisionType as PublicDecisionType,
+	QuestionKind as PublicQuestionKind,
+	ScoreQuestion as PublicScoreQuestion,
+} from "../../index";
 import { DEFAULT_POLICY } from "../../policy/defaults";
 import { DECISION_TYPES } from "../../policy/schema";
 import type { Question } from "../types";
@@ -128,5 +137,41 @@ describe("validateQuestions", () => {
 			kind: "invalid_question",
 			questionId: "second",
 		});
+	});
+});
+
+describe("public decide API", () => {
+	test("the core barrel exports the question, type and backend contracts", async () => {
+		const core = await import("../../index");
+		expect(core.MAX_CHOICE_OPTIONS).toBe(255);
+		// Type-only: these fail `bun run typecheck` if the barrel drops them.
+		const kinds: readonly PublicQuestionKind[] = ["choice", "score", "bool"];
+		const choice: PublicChoiceQuestion = {
+			kind: "choice",
+			id: "c",
+			options: ["bot", "human"],
+		};
+		const score: PublicScoreQuestion = {
+			kind: "score",
+			id: "s",
+			min: 0,
+			max: 1,
+		};
+		const bool: PublicBoolQuestion = { kind: "bool", id: "b" };
+		const type: PublicDecisionType = "review.reviewer_kind";
+		const backend: PublicDecisionBackend = "heuristic";
+		const error: PublicBackendError = {
+			kind: "unsupported",
+			questionId: undefined,
+			message: "m",
+		};
+		expect(core.validateQuestions(type, [choice]).ok).toBe(true);
+		expect(core.validateQuestions("slop", [bool]).ok).toBe(true);
+		expect(core.validateQuestions("spec.quality", [score]).ok).toBe(true);
+		expect([kinds.length, backend, error.kind]).toEqual([
+			3,
+			"heuristic",
+			"unsupported",
+		]);
 	});
 });

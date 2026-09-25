@@ -200,6 +200,34 @@ describe("heuristic confidence", () => {
 		expect(coverage(0, 4)).toMatchObject({ answer: false, confidence: 1 });
 	});
 
+	test("an empty spec scores 0 on every spec.quality dimension", () => {
+		const result = decide(defaultDecidePorts, {
+			type: "spec.quality",
+			state: {
+				trusted: {
+					empty: true,
+					criteria: 0,
+					measurable: 0,
+					testable: 0,
+					weaselWords: 0,
+					sectionsPresent: 0,
+					sectionsRequired: 3,
+					clarificationMarkers: 0,
+				},
+				untrusted: {},
+			},
+			questions: ["ambiguity", "completeness", "overall"].map((id) => ({
+				kind: "score" as const,
+				id,
+				min: 0,
+				max: 100,
+			})),
+		});
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.map((d) => d.answer)).toEqual([0, 0, 0]);
+	});
+
 	test("too few samples for a false-positive call is an even split that keeps the finding", () => {
 		const decision = onlyDecision({
 			type: "finding.real",

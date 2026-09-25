@@ -9,6 +9,7 @@ import { createRegistry, DEFAULT_REGISTRY } from "../registry";
 import type {
 	Answer,
 	Backend,
+	BackendAnswer,
 	DecideRequest,
 	Decision,
 	DecisionState,
@@ -437,6 +438,30 @@ describe("backend output is validated", () => {
 			throw new Error("boom");
 		});
 		expect(kindOf(result)).toBe("backend_failed");
+	});
+
+	test("a backend that returns no Result becomes a backend_failed error", () => {
+		const bad = [undefined, null, 42, { ok: true }] as unknown[];
+		for (const value of bad) {
+			const result = run(() => value as ReturnType<Backend["answer"]>);
+			expect(kindOf(result)).toBe("backend_failed");
+		}
+	});
+
+	test("malformed or sparse answers are rejected, never thrown", () => {
+		const malformed = [
+			[null],
+			[undefined],
+			[{ answer: true }],
+			[{ answer: true, distribution: "nope" }],
+			[{ answer: true, distribution: [null, { answer: false, p: 0 }] }],
+			// A sparse array of the right length.
+			new Array(1),
+		] as unknown as readonly BackendAnswer[][];
+		for (const value of malformed) {
+			const result = run(() => ({ ok: true, value }));
+			expect(kindOf(result)).toBe("invalid_answer");
+		}
 	});
 });
 
