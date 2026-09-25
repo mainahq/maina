@@ -21,6 +21,7 @@ import type {
 	DecideRequest,
 	Decision,
 	DecisionType,
+	DistributionEntry,
 	Question,
 } from "./types";
 import { validateQuestions } from "./types-catalog";
@@ -61,6 +62,12 @@ function expectedOptions(question: Question): readonly unknown[] | undefined {
 	}
 }
 
+function isEntry(
+	entry: DistributionEntry | undefined,
+): entry is DistributionEntry {
+	return typeof entry === "object" && entry !== null;
+}
+
 /** Why `answer` is not a valid answer to `question`, or `undefined`. */
 function answerProblem(
 	question: Question,
@@ -71,11 +78,15 @@ function answerProblem(
 	if (typeof answer !== "object" || answer === null) {
 		return "answer is missing";
 	}
-	const { distribution } = answer;
-	if (
-		!Array.isArray(distribution) ||
-		distribution.some((e) => typeof e !== "object" || e === null)
-	) {
+	if (!Array.isArray(answer.distribution)) {
+		return "distribution must be a list of { answer, p } entries";
+	}
+	// Array.from turns holes into `undefined`, which the check below rejects;
+	// array methods would silently skip them.
+	const distribution: readonly (DistributionEntry | undefined)[] = Array.from(
+		answer.distribution,
+	);
+	if (!distribution.every(isEntry)) {
 		return "distribution must be a list of { answer, p } entries";
 	}
 	if (distribution.some((e) => !Number.isFinite(e.p) || e.p < 0 || e.p > 1)) {
@@ -152,9 +163,26 @@ function callBackend(
 		return backendFailed(backend, type, "backend returned no result");
 	}
 	if (!result.ok) {
+		// Rebuild the error field by field: a malformed failure must not leak
+		// out of the DecideError contract.
+		const error: unknown = result.error;
+		const fields =
+			typeof error === "object" && error !== null
+				? (error as Readonly<Record<string, unknown>>)
+				: undefined;
+		if (fields?.kind !== "unsupported" || typeof fields.message !== "string") {
+			return backendFailed(backend, type, "backend returned a malformed error");
+		}
 		return {
 			ok: false,
-			error: { ...result.error, type, backend: backend.id },
+			error: {
+				kind: "unsupported",
+				type,
+				backend: backend.id,
+				questionId:
+					typeof fields.questionId === "string" ? fields.questionId : undefined,
+				message: fields.message,
+			},
 		};
 	}
 	if (!Array.isArray(result.value)) {

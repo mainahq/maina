@@ -441,7 +441,14 @@ describe("backend output is validated", () => {
 	});
 
 	test("a backend that returns no Result becomes a backend_failed error", () => {
-		const bad = [undefined, null, 42, { ok: true }] as unknown[];
+		const bad = [
+			undefined,
+			null,
+			42,
+			{ ok: true },
+			{ ok: false },
+			{ ok: false, error: { kind: "nope" } },
+		] as unknown[];
 		for (const value of bad) {
 			const result = run(() => value as ReturnType<Backend["answer"]>);
 			expect(kindOf(result)).toBe("backend_failed");
@@ -457,6 +464,9 @@ describe("backend output is validated", () => {
 			[{ answer: true, distribution: [null, { answer: false, p: 0 }] }],
 			// A sparse array of the right length.
 			new Array(1),
+			// A sparse distribution whose only entry is the answer.
+			// biome-ignore lint/suspicious/noSparseArray: the hole is the point
+			[{ answer: false, distribution: [, { answer: false, p: 1 }] }],
 		] as unknown as readonly BackendAnswer[][];
 		for (const value of malformed) {
 			const result = run(() => ({ ok: true, value }));
