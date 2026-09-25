@@ -74,6 +74,11 @@ function memoryFs(initial: Record<string, string> = {}): {
 			files.set(path, content);
 			return { ok: true, value: undefined };
 		},
+		create: (path, content): Result<"created" | "exists"> => {
+			if (files.has(path)) return { ok: true, value: "exists" };
+			files.set(path, content);
+			return { ok: true, value: "created" };
+		},
 	};
 	return { fs, files };
 }
@@ -243,7 +248,26 @@ describe("planOnboarding — preserves user content", () => {
 		expect(out).toBe(`${JSON.stringify(expected, null, 4)}\n`);
 	});
 
-	test("first merge into an existing file asks for a backup; later merges do not", () => {
+	test("a merge into a file that already has maina's region or key still asks for a backup", () => {
+		// e.g. files written by 1.x, which kept no backups: the first edit
+		// under the new flow must still copy the original bytes aside.
+		const { fs, files } = memoryFs(SCENARIOS["stale managed regions"]);
+		const ops = runOnce(fs);
+		const merges = ops.filter((o) => o.kind !== "create");
+		expect(merges.map((o) => o.path).sort()).toEqual([
+			".mcp.json",
+			"CLAUDE.md",
+		]);
+		for (const op of merges) expect(op.backup).toBe(true);
+		expect(files.get(".maina/backups/CLAUDE.md")).toBe(
+			SCENARIOS["stale managed regions"]?.["CLAUDE.md"],
+		);
+		expect(files.get(".maina/backups/.mcp.json")).toBe(
+			SCENARIOS["stale managed regions"]?.[".mcp.json"],
+		);
+	});
+
+	test("first merge into an existing file asks for a backup; creates do not", () => {
 		const { fs } = memoryFs({
 			"CLAUDE.md": USER_CLAUDE_MD,
 			".cursor/mcp.json": '{ "mcpServers": {} }\n',

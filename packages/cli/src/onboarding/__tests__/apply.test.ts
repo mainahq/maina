@@ -36,6 +36,12 @@ function memoryFs(
 			files.set(path, content);
 			return { ok: true, value: undefined };
 		},
+		create: (path, content): Result<"created" | "exists"> => {
+			if (failWrites.has(path)) return { ok: false, error: "EACCES" };
+			if (files.has(path)) return { ok: true, value: "exists" };
+			files.set(path, content);
+			return { ok: true, value: "created" };
+		},
 	};
 	return { fs, files };
 }
@@ -143,6 +149,33 @@ describe("applyOps — never overwrites", () => {
 			".maina/constitution.md",
 		]);
 		expect(files.get(".maina/constitution.md")).toBe("mine\n");
+	});
+
+	test("a file created between the read and the write is not replaced", () => {
+		// Another process creates the file after applyOps has read it as
+		// missing: the create must not clobber it.
+		const { fs, files } = memoryFs({ "AGENTS.md": "theirs\n" });
+		const racing: OnboardingFs = {
+			...fs,
+			read: (path) =>
+				path === "AGENTS.md" ? { ok: true, value: null } : fs.read(path),
+		};
+		for (const op of [
+			{ kind: "create", path: "AGENTS.md", content: "ours", backup: false },
+			{
+				kind: "merge-region",
+				path: "AGENTS.md",
+				content: "ours",
+				backup: false,
+			},
+		] as const) {
+			const result = applyOps([op], { fs: racing });
+			expect(result.ok).toBe(true);
+			if (!result.ok) return;
+			expect(result.value.created).toEqual([]);
+			expect(result.value.skipped.map((s) => s.path)).toEqual(["AGENTS.md"]);
+			expect(files.get("AGENTS.md")).toBe("theirs\n");
+		}
 	});
 
 	test("malformed JSON is skipped and left byte-identical (fail closed)", () => {

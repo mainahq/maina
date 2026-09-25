@@ -209,9 +209,9 @@ All commands return structured exit codes for CI integration:
 ### First-time setup
 
 ```bash
-maina init --install    # Bootstrap + install verification tools
+maina setup             # Detect, tailor and scaffold (idempotent)
 maina configure         # Set architecture constraints and conventions
-maina doctor            # Verify tool health
+maina doctor            # Verify tool health, list missing tools
 ```
 
 ### Daily development

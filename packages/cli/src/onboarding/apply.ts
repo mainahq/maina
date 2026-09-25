@@ -25,6 +25,14 @@ export interface OnboardingFs {
 	readonly read: (path: string) => Result<string | null>;
 	/** Atomic write that creates parent directories. */
 	readonly write: (path: string, content: string) => Result<void>;
+	/**
+	 * Atomic no-clobber create that creates parent directories. Never
+	 * replaces anything already at `path`; reports `"exists"` instead.
+	 */
+	readonly create: (
+		path: string,
+		content: string,
+	) => Result<"created" | "exists">;
 }
 
 interface ApplyPorts {
@@ -131,12 +139,10 @@ function backupOnce(
 	if (!existing.ok) return existing;
 	if (existing.value !== null) return { ok: true, value: "" };
 	// Backups hold copies of user files; keep them out of commits.
-	const ignore = fs.read(`${BACKUP_DIR}/.gitignore`);
-	if (ignore.ok && ignore.value === null) {
-		fs.write(`${BACKUP_DIR}/.gitignore`, "*\n");
-	}
-	const written = fs.write(target, original);
-	return written.ok ? { ok: true, value: target } : written;
+	fs.create(`${BACKUP_DIR}/.gitignore`, "*\n");
+	const created = fs.create(target, original);
+	if (!created.ok) return created;
+	return { ok: true, value: created.value === "created" ? target : "" };
 }
 
 function applyOne(fs: OnboardingFs, op: FileOp): Outcome {
@@ -158,11 +164,20 @@ function applyOne(fs: OnboardingFs, op: FileOp): Outcome {
 		backup = copied.value;
 	}
 
+	if (current === null) {
+		// No-clobber: a file that appeared since the read is left alone.
+		const created = fs.create(op.path, next.text);
+		if (!created.ok) {
+			return { kind: "skipped", reason: `write failed: ${created.error}` };
+		}
+		return created.value === "created"
+			? { kind: "created" }
+			: { kind: "skipped", reason: "appeared during setup; not overwritten" };
+	}
 	const written = fs.write(op.path, next.text);
 	if (!written.ok)
 		return { kind: "skipped", reason: `write failed: ${written.error}` };
-	const kind = current === null ? "created" : "merged";
-	return backup.length > 0 ? { kind, backup } : { kind };
+	return backup.length > 0 ? { kind: "merged", backup } : { kind: "merged" };
 }
 
 // ── Public API ──────────────────────────────────────────────────────────────

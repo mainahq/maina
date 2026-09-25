@@ -748,7 +748,6 @@ export async function setupAction(
 	// ── Phase 3: scaffold ───────────────────────────────────────────────────
 	const sp3 = deps.spinner();
 	sp3.start("Scaffolding files…");
-	const constitutionPath = join(cwd, ".maina", "constitution.md");
 
 	// Shared `.maina/` skeleton (prompts, features/.gitkeep, cache/,
 	// config.yml). Single source of truth used by both `init` and `setup`
@@ -802,7 +801,11 @@ export async function setupAction(
 		planOptions,
 	);
 	const applied = applyOps(ops, { fs: onboardingFs });
-	const constitutionPresent = existsSync(constitutionPath);
+	// Require a readable regular file, not just an existing path: a
+	// directory or unreadable entry here must not pass as a constitution.
+	const constitutionRead = onboardingFs.read(".maina/constitution.md");
+	const constitutionPresent =
+		constitutionRead.ok && constitutionRead.value !== null;
 	if (!applied.ok || !constitutionPresent) {
 		const reason = applied.ok
 			? (applied.value.skipped.find((s) => s.path === ".maina/constitution.md")

@@ -49,6 +49,22 @@ describe("nodeOnboardingFs", () => {
 		expect(readdirSync(join(root, "a/b"))).toEqual(["c.md"]);
 	});
 
+	test("create writes a missing file and never replaces an existing one", () => {
+		const fs = nodeOnboardingFs(root);
+		expect(fs.create("new/a.md", "x")).toEqual({ ok: true, value: "created" });
+		expect(readFileSync(join(root, "new/a.md"), "utf-8")).toBe("x");
+		expect(fs.create("new/a.md", "y")).toEqual({ ok: true, value: "exists" });
+		expect(readFileSync(join(root, "new/a.md"), "utf-8")).toBe("x");
+		expect(readdirSync(join(root, "new"))).toEqual(["a.md"]);
+	});
+
+	test("create treats a dangling symlink as existing", () => {
+		symlinkSync("nowhere.md", join(root, "CLAUDE.md"));
+		const fs = nodeOnboardingFs(root);
+		expect(fs.create("CLAUDE.md", "x")).toEqual({ ok: true, value: "exists" });
+		expect(lstatSync(join(root, "CLAUDE.md")).isSymbolicLink()).toBe(true);
+	});
+
 	test("write refuses to replace a symlink with a regular file", () => {
 		writeFileSync(join(root, "AGENTS.md"), "# Agents\n");
 		symlinkSync("AGENTS.md", join(root, "CLAUDE.md"));

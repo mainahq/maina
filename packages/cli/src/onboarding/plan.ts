@@ -25,11 +25,7 @@ import {
 	type AgentKind,
 	ALL_AGENTS,
 } from "./setup/agent-files/index";
-import {
-	extractManaged,
-	mergeManaged,
-	wrapManaged,
-} from "./setup/agent-files/region";
+import { mergeManaged, wrapManaged } from "./setup/agent-files/region";
 import type { StackContext } from "./setup/agent-files/types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -42,7 +38,10 @@ interface FileOpBase {
 	 * region. `merge-json-key`: the JSON-encoded value for `keyPath`.
 	 */
 	readonly content: string;
-	/** Copy the current file to `.maina/backups/` before the first write. */
+	/**
+	 * Copy the current file to `.maina/backups/` before writing, unless a
+	 * backup of it already exists (the first copy is kept).
+	 */
 	readonly backup: boolean;
 }
 
@@ -212,7 +211,9 @@ function planTarget(
 				kind: "merge-region",
 				path: spec.path,
 				content: body,
-				backup: extractManaged(existing) === null,
+				// Always: a region written by 1.x or by a teammate has no
+				// backup yet, and `applyOps` keeps only the first copy.
+				backup: true,
 			};
 		}
 		case "json-key": {
@@ -226,7 +227,7 @@ function planTarget(
 				path: spec.path,
 				keyPath: spec.keyPath,
 				content: JSON.stringify(value),
-				backup: merged.kind === "merged" && !merged.hadKey,
+				backup: true,
 			};
 		}
 		default: {

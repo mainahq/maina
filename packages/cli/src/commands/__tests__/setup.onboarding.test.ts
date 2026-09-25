@@ -175,6 +175,13 @@ describe("setupAction — single onboarding flow", () => {
 		).toBe(true);
 	});
 
+	test("a constitution path that is not a readable file bails", async () => {
+		mkdirSync(join(cwd, ".maina", "constitution.md"), { recursive: true });
+		const result = await run();
+		expect(result.bailed).toBe(true);
+		expect(result.bailReason).toBe("constitution_write_failed");
+	});
+
 	test("setup exposes --legacy-agents and --plugin", () => {
 		const flags = setupCommand().options.map((o) => o.long);
 		expect(flags).toContain("--legacy-agents");

@@ -13,6 +13,7 @@
 
 import {
 	existsSync,
+	linkSync,
 	lstatSync,
 	mkdirSync,
 	readFileSync,
@@ -26,6 +27,57 @@ import type { OnboardingFs } from "./apply";
 
 function message(e: unknown): string {
 	return e instanceof Error ? e.message : String(e);
+}
+
+function errorCode(e: unknown): string | undefined {
+	return typeof e === "object" && e !== null && "code" in e
+		? String((e as { code: unknown }).code)
+		: undefined;
+}
+
+function tempPath(full: string): string {
+	return `${full}.maina.tmp.${process.pid}.${Math.random().toString(36).slice(2)}`;
+}
+
+function removeQuietly(path: string): void {
+	try {
+		rmSync(path, { force: true });
+	} catch {
+		// The temp file was never created (e.g. parent is a file).
+	}
+}
+
+/**
+ * Publish `content` at `full` only if nothing is there. `link(2)` is atomic
+ * and fails with EEXIST when the name exists (a dangling symlink included),
+ * so a file created by someone else after our read is never replaced.
+ * Filesystems without hard links fall back to an exclusive `wx` open.
+ */
+function createNoClobber(full: string, content: string): "created" | "exists" {
+	mkdirSync(dirname(full), { recursive: true });
+	const tmp = tempPath(full);
+	try {
+		writeFileSync(tmp, content, "utf-8");
+		try {
+			linkSync(tmp, full);
+			return "created";
+		} catch (e) {
+			const code = errorCode(e);
+			if (code === "EEXIST") return "exists";
+			if (code !== "EPERM" && code !== "ENOTSUP" && code !== "ENOSYS") {
+				throw e;
+			}
+		}
+		try {
+			writeFileSync(full, content, { encoding: "utf-8", flag: "wx" });
+			return "created";
+		} catch (e) {
+			if (errorCode(e) === "EEXIST") return "exists";
+			throw e;
+		}
+	} finally {
+		removeQuietly(tmp);
+	}
 }
 
 export function nodeOnboardingFs(root: string): OnboardingFs {
@@ -44,7 +96,7 @@ export function nodeOnboardingFs(root: string): OnboardingFs {
 		},
 		write: (path, content) => {
 			const full = join(root, path);
-			const tmp = `${full}.maina.tmp.${process.pid}.${Math.random().toString(36).slice(2)}`;
+			const tmp = tempPath(full);
 			try {
 				if (lstatSync(full, { throwIfNoEntry: false })?.isSymbolicLink()) {
 					return { ok: false, error: "is a symbolic link; not replaced" };
@@ -58,11 +110,14 @@ export function nodeOnboardingFs(root: string): OnboardingFs {
 				renameSync(tmp, full);
 				return { ok: true, value: undefined };
 			} catch (e) {
-				try {
-					rmSync(tmp, { force: true });
-				} catch {
-					// The temp file was never created (e.g. parent is a file).
-				}
+				removeQuietly(tmp);
+				return { ok: false, error: message(e) };
+			}
+		},
+		create: (path, content) => {
+			try {
+				return { ok: true, value: createNoClobber(join(root, path), content) };
+			} catch (e) {
 				return { ok: false, error: message(e) };
 			}
 		},
