@@ -1,0 +1,805 @@
+{
+	"site": "verify/slop.ts",
+	"cases": [
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "examples/todo-api/index.ts",
+				"content": "import { err } from \"./src/response\";\nimport {\n\thandleCreateTodo,\n\thandleDeleteTodo,\n\thandleGetTodo,\n\thandleListTodos,\n\thandleUpdateTodo,\n} from \"./src/routes\";\n\nconst port = Number(process.env.PORT) || 3000;\n\nconst server = Bun.serve({\n\tport,\n\tasync fetch(req) {\n\t\tconst url = new URL(req.url);\n\t\tconst path = url.pathname;\n\n\t\t// GET /todos\n\t\tif (path === \"/todos\" && req.method === \"GET\") {\n\t\t\treturn handleListTodos();\n\t\t}\n\n\t\t// POST /todos\n\t\tif (path === \"/todos\" && req.method === \"POST\") {\n\t\t\treturn handleCreateTodo(req);\n\t\t}\n\n\t\t// /todos/:id routes\n\t\tconst match = path.match(/^\\/todos\\/([^/]+)$/);\n\t\tif (match) {\n\t\t\tconst id = match[1];\n\t\t\tif (req.method === \"GET\") return handleGetTodo(id);\n\t\t\tif (req.method === \"PATCH\") return handleUpdateTodo(id, req);\n\t\t\tif (req.method === \"DELETE\") return handleDeleteTodo(id);\n\t\t}\n\n\t\treturn err(\"not found\", 404);\n\t},\n});\n\nexport { server };\n",
+				"existing": [
+					{
+						"path": "examples/todo-api/src/response.ts",
+						"kind": "file"
+					}
+				]
+			},
+			"output": []
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "scripts/check-receipts-index.ts",
+				"content": "#!/usr/bin/env bun\n/**\n * Receipts index link-integrity guard (#269).\n *\n * Parses `.maina/receipts/index.html`, extracts every per-receipt link\n * (`href=\"./<64-hex>/index.html\"`), and asserts:\n *   1. every linked hash directory exists on disk under `.maina/receipts/`\n *   2. each directory contains both `index.html` and `receipt.json`\n *   3. no link is duplicated\n *   4. the index file itself exists when the receipts directory does\n *\n * Exits 0 on clean, 1 on any failure (prints the offending hashes for\n * grep-to-IDE navigation). The Pages workflow runs this before staging\n * receipts under `dist/` so we never publish a 404 to mainahq.com.\n *\n * Run manually:\n *     bun scripts/check-receipts-index.ts\n *\n * CI wires this in via the docs.yml \"Stage receipts\" step.\n */\n\nimport { existsSync, readFileSync, statSync } from \"node:fs\";\nimport { join } from \"node:path\";\n\nconst RECEIPTS_DIR = \".maina/receipts\";\nconst INDEX_PATH = join(RECEIPTS_DIR, \"index.html\");\nconst HASH_HREF = /href=\"\\.\\/([0-9a-f]{64})\\/index\\.html\"/g;\n\nexport interface CheckResult {\n\tmissingDirs: string[];\n\tmissingHtml: string[];\n\tmissingJson: string[];\n\tduplicateHashes: string[];\n\t/** Total link count seen in the index (including duplicates). Computed\n\t * once during parse so the CLI doesn't have to re-read + re-regex the\n\t * index file just to print the count. */\n\ttotal: number;\n}\n\n/** True when `statSync` reports a directory. Wrapped in try/catch because\n * a TOCTOU race or a permission flip between `existsSync` and `statSync`\n * would otherwise crash the guard with an unstructured throw. */\nfunction isDirectorySafe(dir: string): boolean {\n\ttry {\n\t\treturn statSync(dir).isDirectory();\n\t} catch {\n\t\treturn false;\n\t}\n}\n\nexport function checkReceiptsIndex(\n\tindexPath: string,\n\treceiptsDir: string,\n): CheckResult {\n\tconst result: CheckResult = {\n\t\tmissingDirs: [],\n\t\tmissingHtml: [],\n\t\tmissingJson: [],\n\t\tduplicateHashes: [],\n\t\ttotal: 0,\n\t};\n\n\tconst html = readFileSync(indexPath, \"utf-8\");\n\tconst matches = [...html.matchAll(HASH_HREF)];\n\tconst hashes = matches.map((m) => m[1]).filter((h): h is string => !!h);\n\tresult.total = hashes.length;\n\n\tconst seen = new Set<string>();\n\tfor (const hash of hashes) {\n\t\tif (seen.has(hash)) {\n\t\t\tresult.duplicateHashes.push(hash);\n\t\t\tcontinue;\n\t\t}\n\t\tseen.add(hash);\n\n\t\tconst dir = join(receiptsDir, hash);\n\t\tif (!isDirectorySafe(dir)) {\n\t\t\tresult.missingDirs.push(hash);\n\t\t\tcontinue;\n\t\t}\n\t\tif (!existsSync(join(dir, \"index.html\"))) result.missingHtml.push(hash);\n\t\tif (!existsSync(join(dir, \"receipt.json\"))) result.missingJson.push(hash);\n\t}\n\treturn result;\n}\n\nexport function isClean(r: CheckResult): boolean {\n\treturn (\n\t\tr.missingDirs.length === 0 &&\n\t\tr.missingHtml.length === 0 &&\n\t\tr.missingJson.length === 0 &&\n\t\tr.duplicateHashes.length === 0\n\t);\n}\n\nfunction reportAndExit(r: CheckResult): never {\n\tif (isClean(r)) {\n\t\tprocess.stdout.write(\n\t\t\t`Receipt index integrity: ${r.total} link(s) checked, all resolve.\\n`,\n\t\t);\n\t\tprocess.exit(0);\n\t}\n\tprocess.stderr.write(\"Receipt index integrity FAILED:\\n\");\n\t// Print full hashes so the offending directory is grep-uniquely\n\t// identifiable — short prefixes can collide.\n\tfor (const h of r.missingDirs) {\n\t\tprocess.stderr.write(`  missing directory: ${h}\\n`);\n\t}\n\tfor (const h of r.missingHtml) {\n\t\tprocess.stderr.write(`  missing index.html: ${h}\\n`);\n\t}\n\tfor (const h of r.missingJson) {\n\t\tprocess.stderr.write(`  missing receipt.json: ${h}\\n`);\n\t}\n\tfor (const h of r.duplicateHashes) {\n\t\tprocess.stderr.write(`  duplicate link: ${h}\\n`);\n\t}\n\tprocess.exit(1);\n}\n\nif (import.meta.main) {\n\tif (!existsSync(RECEIPTS_DIR)) {\n\t\t// No receipts directory at all → nothing to check (e.g. fresh\n\t\t// checkout). The docs workflow has its own \"fail if missing\"\n\t\t// guard for the publish path; this script stays advisory here.\n\t\tprocess.stdout.write(\"Receipts directory absent — nothing to check.\\n\");\n\t\tprocess.exit(0);\n\t}\n\tif (!existsSync(INDEX_PATH)) {\n\t\tprocess.stderr.write(\n\t\t\t`Receipts directory exists but ${INDEX_PATH} is missing.\\n`,\n\t\t);\n\t\tprocess.exit(1);\n\t}\n\treportAndExit(checkReceiptsIndex(INDEX_PATH, RECEIPTS_DIR));\n}\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "scripts/check-receipts-index.ts",
+					"line": 123,
+					"message": "3 consecutive lines of commented-out code",
+					"severity": "warning",
+					"ruleId": "slop/commented-code"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/cli/src/commands/setup-wiki.ts",
+				"content": "/**\n * `seedWiki` — sub-task 6 of `maina setup`.\n *\n * Coordinates the first wiki compile during setup with three constraints:\n *   1. **Empty repo:** skip silently, do not fabricate a success message.\n *   2. **Already present:** prompt to rebuild (interactive) or default to keep\n *      (non-interactive). We do not blow away an existing wiki without consent.\n *   3. **Time budget:** 10s in the foreground. If compile takes longer, the\n *      promise keeps running in the background and we return immediately so the\n *      wizard can finish. Background failures are logged to\n *      `.maina/logs/setup.log` (append-only) — they do not fail setup.\n *\n * The actual compile work is delegated to `wikiCompileAction({ sample: true })`\n * (see `commands/wiki/compile.ts`), which in sample mode caps the source-file\n * set so the foreground budget is realistic for moderately sized repos.\n */\n\nimport { appendFileSync, mkdirSync } from \"node:fs\";\nimport { join } from \"node:path\";\nimport { wikiCompileAction } from \"./wiki/compile\";\n\n// ── Types ───────────────────────────────────────────────────────────────────\n\nexport interface SeedWikiOptions {\n\tcwd: string;\n\t/** From `StackContext.isEmpty` — repo has no detectable source files. */\n\tstackIsEmpty: boolean;\n\t/** True when `.maina/wiki/` already exists on disk. */\n\twikiAlreadyPresent: boolean;\n\t/** True when neither `--ci` nor `--yes` was passed. */\n\tinteractive: boolean;\n\t/** True when `--yes` was passed (assume defaults). */\n\tyes: boolean;\n\t/** Foreground time budget. Defaults to 10s. */\n\ttimeoutMs?: number;\n\t// ── DI for testing ──────────────────────────────────────────────────────\n\tcompile?: (opts: {\n\t\tcwd: string;\n\t\tsample: boolean;\n\t}) => Promise<{ pages: number }>;\n\tprompt?: (msg: string) => Promise<boolean>;\n\tlogger?: {\n\t\tinfo: (m: string) => void;\n\t\twarning: (m: string) => void;\n\t\tsuccess: (m: string) => void;\n\t};\n}\n\nexport interface SeedWikiResult {\n\t/** Did we actually invoke the compiler. */\n\tran: boolean;\n\t/** Why we did not run, if applicable. */\n\tskipped: \"empty-repo\" | \"user-kept\" | null;\n\t/** Page count when known; `null` when backgrounded or errored. */\n\tpages: number | null;\n\t/** True when the compile timed out and continues in background. */\n\tbackgrounded: boolean;\n\t/** Foreground error message, if compile rejected before timeout. */\n\terror: string | null;\n}\n\n// ── Defaults ────────────────────────────────────────────────────────────────\n\nconst DEFAULT_TIMEOUT_MS = 10_000;\n\nconst NOOP_LOGGER = {\n\tinfo: () => {},\n\twarning: () => {},\n\tsuccess: () => {},\n};\n\nasync function defaultCompile(opts: {\n\tcwd: string;\n\tsample: boolean;\n}): Promise<{ pages: number }> {\n\tconst result = await wikiCompileAction({\n\t\tcwd: opts.cwd,\n\t\tsample: opts.sample,\n\t\tjson: true, // keep the wiki command quiet during setup\n\t\tfull: true, // first-time seed is always a full pass\n\t});\n\treturn { pages: result.articlesTotal };\n}\n\nconst TIMEOUT_SENTINEL = Symbol(\"seedWiki.timeout\");\n\n// ── Action ──────────────────────────────────────────────────────────────────\n\n/**\n * Run the first wiki compile. Always resolves; never throws.\n */\nexport async function seedWiki(opts: SeedWikiOptions): Promise<SeedWikiResult> {\n\tconst logger = opts.logger ?? NOOP_LOGGER;\n\tconst compile = opts.compile ?? defaultCompile;\n\tconst timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;\n\n\t// 1. Empty repo → skip with no fake success.\n\tif (opts.stackIsEmpty) {\n\t\treturn {\n\t\t\tran: false,\n\t\t\tskipped: \"empty-repo\",\n\t\t\tpages: null,\n\t\t\tbackgrounded: false,\n\t\t\terror: null,\n\t\t};\n\t}\n\n\t// 2. Wiki already present → prompt or default-keep.\n\tif (opts.wikiAlreadyPresent) {\n\t\tlet rebuild = false;\n\t\tif (opts.interactive && opts.prompt) {\n\t\t\trebuild = await opts.prompt(\"Wiki already exists. Rebuild?\");\n\t\t} else {\n\t\t\t// --yes / --ci: do not destroy existing work\n\t\t\trebuild = false;\n\t\t}\n\t\tif (!rebuild) {\n\t\t\treturn {\n\t\t\t\tran: false,\n\t\t\t\tskipped: \"user-kept\",\n\t\t\t\tpages: null,\n\t\t\t\tbackgrounded: false,\n\t\t\t\terror: null,\n\t\t\t};\n\t\t}\n\t}\n\n\t// 3. Race the compile against the foreground budget.\n\tconst compilePromise = compile({ cwd: opts.cwd, sample: true });\n\n\t// Keep a reference so we can attach a `.catch` for background continuation.\n\t// We swallow the rejection here for the race itself; the foreground arm\n\t// re-throws via the wrapper below to let the catch decide.\n\tlet timeoutHandle: ReturnType<typeof setTimeout> | undefined;\n\tconst timeoutPromise = new Promise<typeof TIMEOUT_SENTINEL>((resolve) => {\n\t\ttimeoutHandle = setTimeout(() => resolve(TIMEOUT_SENTINEL), timeoutMs);\n\t});\n\n\tlet raceWinner:\n\t\t| { kind: \"compile\"; value: { pages: number } }\n\t\t| { kind: \"compile-error\"; error: unknown }\n\t\t| { kind: \"timeout\" };\n\n\ttry {\n\t\tconst winner = await Promise.race([\n\t\t\tcompilePromise.then(\n\t\t\t\t(value) => ({ kind: \"compile\" as const, value }),\n\t\t\t\t(error) => ({ kind: \"compile-error\" as const, error }),\n\t\t\t),\n\t\t\ttimeoutPromise.then(() => ({ kind: \"timeout\" as const })),\n\t\t]);\n\t\traceWinner = winner;\n\t} finally {\n\t\tif (timeoutHandle !== undefined) clearTimeout(timeoutHandle);\n\t}\n\n\tif (raceWinner.kind === \"compile\") {\n\t\tlogger.success(`Wiki seeded (${raceWinner.value.pages} pages).`);\n\t\treturn {\n\t\t\tran: true,\n\t\t\tskipped: null,\n\t\t\tpages: raceWinner.value.pages,\n\t\t\tbackgrounded: false,\n\t\t\terror: null,\n\t\t};\n\t}\n\n\tif (raceWinner.kind === \"compile-error\") {\n\t\tconst msg =\n\t\t\traceWinner.error instanceof Error\n\t\t\t\t? raceWinner.error.message\n\t\t\t\t: String(raceWinner.error);\n\t\tlogger.warning(`Wiki seed failed: ${msg}`);\n\t\treturn {\n\t\t\tran: true,\n\t\t\tskipped: null,\n\t\t\tpages: null,\n\t\t\tbackgrounded: false,\n\t\t\terror: msg,\n\t\t};\n\t}\n\n\t// Timeout: keep the compile running in the background, hook a logger\n\t// onto its eventual settlement, and return immediately.\n\tlogger.info(\n\t\t\"Wiki compile is taking longer than expected — continuing in background.\",\n\t);\n\tcompilePromise.catch((err: unknown) => {\n\t\twriteBackgroundLog(opts.cwd, err);\n\t});\n\treturn {\n\t\tran: true,\n\t\tskipped: null,\n\t\tpages: null,\n\t\tbackgrounded: true,\n\t\terror: null,\n\t};\n}\n\n// ── Helpers ─────────────────────────────────────────────────────────────────\n\nfunction writeBackgroundLog(cwd: string, err: unknown): void {\n\ttry {\n\t\tconst dir = join(cwd, \".maina\", \"logs\");\n\t\tmkdirSync(dir, { recursive: true });\n\t\tconst file = join(dir, \"setup.log\");\n\t\tconst ts = new Date().toISOString();\n\t\tconst msg = err instanceof Error ? (err.stack ?? err.message) : String(err);\n\t\tappendFileSync(file, `[${ts}] wiki background compile failed: ${msg}\\n`);\n\t} catch {\n\t\t// last-resort: swallow — we cannot fail setup from a background hook.\n\t}\n}\n",
+				"existing": [
+					{
+						"path": "packages/cli/src/commands/wiki/compile.ts",
+						"kind": "file"
+					}
+				]
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "packages/cli/src/commands/setup-wiki.ts",
+					"line": 67,
+					"message": "Empty function/method body detected",
+					"severity": "warning",
+					"ruleId": "slop/empty-body"
+				},
+				{
+					"tool": "slop",
+					"file": "packages/cli/src/commands/setup-wiki.ts",
+					"line": 68,
+					"message": "Empty function/method body detected",
+					"severity": "warning",
+					"ruleId": "slop/empty-body"
+				},
+				{
+					"tool": "slop",
+					"file": "packages/cli/src/commands/setup-wiki.ts",
+					"line": 69,
+					"message": "Empty function/method body detected",
+					"severity": "warning",
+					"ruleId": "slop/empty-body"
+				},
+				{
+					"tool": "slop",
+					"file": "packages/cli/src/commands/setup-wiki.ts",
+					"line": 131,
+					"message": "3 consecutive lines of commented-out code",
+					"severity": "warning",
+					"ruleId": "slop/commented-code"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "scripts/check-paths.ts",
+				"content": "#!/usr/bin/env bun\n/**\n * Wave 4 / G13 regression guard — scripts/check-paths.ts.\n *\n * Walks every TypeScript source file under `packages/` (excluding tests\n * and build output) and fails the build if any `join(…)` call contains\n * two literal `.maina` segments. Two literals inside a single join()\n * are the hallmark of the \"double-.maina\" foot-gun the wave 1–3 work\n * almost re-introduced when new callers started forwarding a\n * `mainaDir` parameter that was actually the repo root.\n *\n * Exit 0 = clean. Exit 1 = one or more matches; each printed with\n * file:line for grep-to-IDE navigation.\n *\n * Run manually:\n *     bun scripts/check-paths.ts\n *\n * CI wires this in via `bun run check:paths`.\n */\n\nimport { readdirSync, readFileSync, statSync } from \"node:fs\";\nimport { join, relative } from \"node:path\";\n\nconst DOUBLE_DOT_MAINA =\n\t/join\\([^)]*[\"']\\.maina[\"'][^)]*[\"']\\.maina[\"'][^)]*\\)/;\n\nconst ROOT = join(import.meta.dir, \"..\");\nconst ROOTS_TO_WALK = [\"packages\"];\nconst SKIP_DIRS = new Set([\n\t\"node_modules\",\n\t\"dist\",\n\t\"build\",\n\t\".git\",\n\t\"__tests__\",\n\t\"__fixtures__\",\n\t\"coverage\",\n]);\nconst ALLOWED_EXT = new Set([\".ts\", \".tsx\", \".mts\", \".cts\"]);\n\ninterface Hit {\n\tfile: string;\n\tline: number;\n\ttext: string;\n}\n\nfunction walk(dir: string, hits: Hit[]): void {\n\tlet entries: string[];\n\ttry {\n\t\tentries = readdirSync(dir);\n\t} catch {\n\t\treturn;\n\t}\n\tfor (const name of entries) {\n\t\tif (SKIP_DIRS.has(name)) continue;\n\t\tconst full = join(dir, name);\n\t\tlet stats: ReturnType<typeof statSync>;\n\t\ttry {\n\t\t\tstats = statSync(full);\n\t\t} catch {\n\t\t\tcontinue;\n\t\t}\n\t\tif (stats.isDirectory()) {\n\t\t\twalk(full, hits);\n\t\t\tcontinue;\n\t\t}\n\t\tif (!stats.isFile()) continue;\n\t\tconst dot = name.lastIndexOf(\".\");\n\t\tif (dot < 0) continue;\n\t\tif (!ALLOWED_EXT.has(name.slice(dot))) continue;\n\t\tscanFile(full, hits);\n\t}\n}\n\nfunction scanFile(path: string, hits: Hit[]): void {\n\tlet body: string;\n\ttry {\n\t\tbody = readFileSync(path, \"utf-8\");\n\t} catch {\n\t\treturn;\n\t}\n\tconst lines = body.split(/\\r?\\n/);\n\tfor (let i = 0; i < lines.length; i++) {\n\t\tconst line = lines[i] ?? \"\";\n\t\tif (DOUBLE_DOT_MAINA.test(line)) {\n\t\t\thits.push({ file: path, line: i + 1, text: line.trim() });\n\t\t}\n\t}\n}\n\nfunction main(): void {\n\tconst hits: Hit[] = [];\n\tfor (const rel of ROOTS_TO_WALK) {\n\t\twalk(join(ROOT, rel), hits);\n\t}\n\tif (hits.length === 0) {\n\t\t// eslint-disable-next-line no-console\n\t\tconsole.log(\"check-paths: OK — no literal `.maina/.maina/` joins found.\");\n\t\tprocess.exit(0);\n\t}\n\t// eslint-disable-next-line no-console\n\tconsole.error(\n\t\t`check-paths: FAIL — ${hits.length} literal '.maina/.maina/' join(…) call(s) detected.`,\n\t);\n\tfor (const h of hits) {\n\t\t// eslint-disable-next-line no-console\n\t\tconsole.error(`  ${relative(ROOT, h.file)}:${h.line}  ${h.text}`);\n\t}\n\t// eslint-disable-next-line no-console\n\tconsole.error(\n\t\t\"\\nFix: pass the repo root (not the `.maina` dir) and rely on the \" +\n\t\t\t\"internal `.maina/` segment. See G13 / numbering.no-double.test.ts.\",\n\t);\n\tprocess.exit(1);\n}\n\nmain();\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "scripts/check-paths.ts",
+					"line": 97,
+					"column": 3,
+					"message": "Print/log statement found in production code",
+					"severity": "warning",
+					"ruleId": "slop/console-log"
+				},
+				{
+					"tool": "slop",
+					"file": "scripts/check-paths.ts",
+					"line": 101,
+					"column": 2,
+					"message": "Print/log statement found in production code",
+					"severity": "warning",
+					"ruleId": "slop/console-log"
+				},
+				{
+					"tool": "slop",
+					"file": "scripts/check-paths.ts",
+					"line": 106,
+					"column": 3,
+					"message": "Print/log statement found in production code",
+					"severity": "warning",
+					"ruleId": "slop/console-log"
+				},
+				{
+					"tool": "slop",
+					"file": "scripts/check-paths.ts",
+					"line": 109,
+					"column": 2,
+					"message": "Print/log statement found in production code",
+					"severity": "warning",
+					"ruleId": "slop/console-log"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.3.ts",
+				"content": "import { describe, expect, it } from \"bun:test\";\nimport { resolveReferencedFunctions } from \"../ai-review\";\n\ndescribe(\"resolveReferencedFunctions\", () => {\n  it(\"should extract function calls from added lines in diff\", () => {\n    const diff = `--- a/src/app.ts\n+++ b/src/app.ts\n@@ -10,3 +10,5 @@ function existing() {\n+  const result = validateInput(data);\n+  processResult(result);\n   return true;`;\n\n    const entities = [\n      { name: \"validateInput\", kind: \"function\" as const, startLine: 1, endLine: 5, filePath: \"src/utils.ts\",\n        body: \"function validateInput(data: unknown) {\\n  if (!data) return null;\\n  return data;\\n}\" },\n      { name: \"processResult\", kind: \"function\" as const, startLine: 10, endLine: 15, filePath: \"src/utils.ts\",\n        body: \"function processResult(result: unknown) {\\n  console.log(result);\\n}\" },\n      { name: \"unusedFunction\", kind: \"function\" as const, startLine: 20, endLine: 25, filePath: \"src/other.ts\",\n        body: \"function unusedFunction() { return 1; }\" },\n    ];\n\n    const result = resolveReferencedFunctions(diff, entities);\n\n    expect(result).toHaveLength(2);\n    expect(result[0].name).toBe(\"validateInput\");\n    expect(result[1].name).toBe(\"processResult\");\n  });\n\n  it(\"should cap at 3 referenced functions per file\", () => {\n    const diff = `--- a/src/app.ts\n+++ b/src/app.ts\n@@ -1,3 +1,7 @@\n+  fn1();\n+  fn2();\n+  fn3();\n+  fn4();`;\n\n    const entities = [\n      { name: \"fn1\", kind: \"function\" as const, startLine: 1, endLine: 3, filePath: \"src/a.ts\", body: \"function fn1() {}\" },\n      { name: \"fn2\", kind: \"function\" as const, startLine: 1, endLine: 3, filePath: \"src/b.ts\", body: \"function fn2() {}\" },\n      { name: \"fn3\", kind: \"function\" as const, startLine: 1, endLine: 3, filePath: \"src/c.ts\", body: \"function fn3() {}\" },\n      { name: \"fn4\", kind: \"function\" as const, startLine: 1, endLine: 3, filePath: \"src/d.ts\", body: \"function fn4() {}\" },\n    ];\n\n    const result = resolveReferencedFunctions(diff, entities);\n    expect(result).toHaveLength(3);\n  });\n\n  it(\"should return empty array when no functions match\", () => {\n    const diff = `+++ b/src/app.ts\n@@ -1,1 +1,2 @@\n+  const x = 42;`;\n\n    const result = resolveReferencedFunctions(diff, []);\n    expect(result).toHaveLength(0);\n  });\n});\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.3.ts",
+					"line": 2,
+					"message": "Import \"../ai-review\" does not resolve to an existing file",
+					"severity": "error",
+					"ruleId": "slop/hallucinated-import"
+				},
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.3.ts",
+					"line": 17,
+					"column": 61,
+					"message": "Print/log statement found in production code",
+					"severity": "warning",
+					"ruleId": "slop/console-log"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/cli/src/commands/setup-emitter.ts",
+				"content": "/**\n * Per-phase JSON emitter for `maina setup --ci`.\n *\n * The CI mode emits one single-line JSON object per pipeline phase to stdout\n * (preflight → detect → infer → scaffold → wiki → verify → done) so an\n * orchestrator can stream-parse setup progress without screen-scraping the\n * human UX. The emitter is the *only* stdout writer in CI mode; nothing else\n * may write to stdout while a CI run is in flight.\n *\n * Pluggable via DI: tests pass a writer spy to capture lines without touching\n * `process.stdout`. Interactive mode uses `noopEmitter()` so the wizard can\n * call `emitter.phase(...)` unconditionally without polluting the TTY.\n */\n\n// ── Types ────────────────────────────────────────────────────────────────────\n\nexport type PhaseName =\n\t| \"preflight\"\n\t| \"detect\"\n\t| \"infer\"\n\t| \"scaffold\"\n\t| \"wiki\"\n\t| \"verify\"\n\t| \"done\";\n\nexport type PhaseStatus = \"ok\" | \"skipped\" | \"error\" | \"degraded\";\n\nexport interface PhaseEvent {\n\tphase: PhaseName;\n\tstatus: PhaseStatus;\n\t// Phase-specific fields (languages, aiSource, files, pages, findings, etc.)\n\t[key: string]: unknown;\n}\n\nexport interface SetupEmitter {\n\tphase(event: PhaseEvent): void;\n\tdone(event: PhaseEvent & { phase: \"done\" }): void;\n}\n\n// ── Implementations ──────────────────────────────────────────────────────────\n\n/**\n * JSON-line emitter. Writes one single-line JSON object per call via the\n * supplied writer. The default writer streams to stdout with a trailing `\\n`;\n * the writer is invoked with the *raw* JSON string (no embedded newline) so\n * tests can assert each line is parseable on its own.\n */\nexport function jsonEmitter(\n\twrite: (line: string) => void = (l) => {\n\t\tprocess.stdout.write(`${l}\\n`);\n\t},\n): SetupEmitter {\n\tconst emit = (event: PhaseEvent): void => {\n\t\t// Force single-line output. JSON.stringify with no spacing has no\n\t\t// embedded newlines for plain values; structured fields stay compact.\n\t\tconst line = JSON.stringify(event);\n\t\twrite(line);\n\t};\n\treturn {\n\t\tphase: emit,\n\t\tdone: emit,\n\t};\n}\n\n/**\n * No-op emitter for interactive mode. Allows call sites to invoke\n * `emitter.phase(...)` unconditionally.\n */\nexport function noopEmitter(): SetupEmitter {\n\treturn {\n\t\tphase: () => {},\n\t\tdone: () => {},\n\t};\n}\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "packages/cli/src/commands/setup-emitter.ts",
+					"line": 71,
+					"message": "Empty function/method body detected",
+					"severity": "warning",
+					"ruleId": "slop/empty-body"
+				},
+				{
+					"tool": "slop",
+					"file": "packages/cli/src/commands/setup-emitter.ts",
+					"line": 72,
+					"message": "Empty function/method body detected",
+					"severity": "warning",
+					"ruleId": "slop/empty-body"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.0.ts",
+				"content": "it(\"should map code-review to mechanical tier\", () => {\n  const { getTaskTier } = require(\"../../ai/tiers\");\n  expect(getTaskTier(\"code-review\")).toBe(\"mechanical\");\n});\n\nit(\"should map deep-code-review to standard tier\", () => {\n  const { getTaskTier } = require(\"../../ai/tiers\");\n  expect(getTaskTier(\"deep-code-review\")).toBe(\"standard\");\n});\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.0.ts",
+					"line": 2,
+					"message": "Import \"../../ai/tiers\" does not resolve to an existing file",
+					"severity": "error",
+					"ruleId": "slop/hallucinated-import"
+				},
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.0.ts",
+					"line": 7,
+					"message": "Import \"../../ai/tiers\" does not resolve to an existing file",
+					"severity": "error",
+					"ruleId": "slop/hallucinated-import"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/cli/src/__tests__/install-path.test.ts",
+				"content": "/**\n * W1: install.sh emits well-known exit codes and a copy-pasteable PATH hint.\n *\n * Runs install.sh with a crafted PATH containing a fake `bun` that we control,\n * then asserts the exit code and stderr/stdout contents. No Docker required.\n *\n * Exit codes:\n *   10 — no package manager found\n *   11 — install command failed\n *   12 — install succeeded but `maina` is not on PATH\n *   0  — `maina` is on PATH\n */\n\nimport { afterEach, beforeEach, describe, expect, test } from \"bun:test\";\nimport {\n\tchmodSync,\n\texistsSync,\n\tmkdirSync,\n\trmSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { tmpdir } from \"node:os\";\nimport { join, resolve } from \"node:path\";\n\nconst INSTALL_SH = resolve(import.meta.dir, \"../../../..\", \"install.sh\");\n\nfunction makeTmpBinDir(): string {\n\tconst dir = join(\n\t\ttmpdir(),\n\t\t`maina-install-bin-${Date.now()}-${Math.random().toString(36).slice(2)}`,\n\t);\n\tmkdirSync(dir, { recursive: true });\n\treturn dir;\n}\n\n/**\n * Write an executable stub to `dir/name` that runs `script` via bash.\n */\nfunction writeStub(dir: string, name: string, script: string): void {\n\tconst path = join(dir, name);\n\twriteFileSync(path, `#!/bin/bash\\n${script}\\n`);\n\tchmodSync(path, 0o755);\n}\n\nasync function runInstallSh(\n\tpathOverride: string,\n): Promise<{ exitCode: number; stdout: string; stderr: string }> {\n\tconst proc = Bun.spawn({\n\t\tcmd: [\"bash\", INSTALL_SH],\n\t\tenv: {\n\t\t\tPATH: pathOverride,\n\t\t\tHOME: process.env.HOME ?? \"/tmp\",\n\t\t\tSHELL: \"/bin/bash\",\n\t\t\tCI: \"1\",\n\t\t},\n\t\tstdout: \"pipe\",\n\t\tstderr: \"pipe\",\n\t\tstdin: \"ignore\",\n\t});\n\tconst [stdout, stderr] = await Promise.all([\n\t\tnew Response(proc.stdout).text(),\n\t\tnew Response(proc.stderr).text(),\n\t]);\n\tconst exitCode = await proc.exited;\n\treturn { exitCode, stdout, stderr };\n}\n\nlet binDir: string;\n\nbeforeEach(() => {\n\tbinDir = makeTmpBinDir();\n});\n\nafterEach(() => {\n\trmSync(binDir, { recursive: true, force: true });\n});\n\ndescribe(\"install.sh — exit codes\", () => {\n\ttest(\"exists at repo root\", () => {\n\t\texpect(existsSync(INSTALL_SH)).toBe(true);\n\t});\n\n\ttest(\"exit 10 when no package manager is found\", async () => {\n\t\t// PATH has nothing — no bun, npm, pnpm, yarn, no maina, no claude, etc.\n\t\t// But we need `bash`, `grep`, `uname`, `mkdir`, `echo` — use a minimal\n\t\t// path that includes /bin and /usr/bin only, no node-ish tools. On macOS\n\t\t// those aren't in /bin either, so assemble a tiny dir with just coreutils\n\t\t// shims by using the system path stripped of typical node installs. Since\n\t\t// we can't cleanly isolate, we skip this test when a package manager is\n\t\t// on the default $PATH.\n\t\tconst system = \"/usr/bin:/bin\";\n\t\tconst { exitCode, stdout, stderr } = await runInstallSh(system);\n\t\t// On hosts where bun/npm/pnpm/yarn are installed in /usr/bin (rare), this\n\t\t// test will not produce exit 10. Guard with an early return in that case.\n\t\tconst hasPm = /Package manager: (bun|pnpm|yarn|npm)/.test(stdout + stderr);\n\t\tif (hasPm) return;\n\t\texpect(exitCode).toBe(10);\n\t});\n\n\ttest(\"exit 11 when bun install fails\", async () => {\n\t\t// Fake bun that fails on `install -g`\n\t\twriteStub(\n\t\t\tbinDir,\n\t\t\t\"bun\",\n\t\t\t'if [ \"$1\" = \"install\" ] && [ \"$2\" = \"-g\" ]; then\\n  echo \"bun install failed (mock)\" >&2\\n  exit 1\\nfi\\necho \"1.0.0\"',\n\t\t);\n\t\tconst { exitCode, stdout, stderr } = await runInstallSh(\n\t\t\t`${binDir}:/usr/bin:/bin`,\n\t\t);\n\t\texpect(exitCode).toBe(11);\n\t\texpect(stdout + stderr).toContain(\"npm install -g\");\n\t});\n\n\ttest(\"exit 12 when install succeeds but maina is not on PATH\", async () => {\n\t\t// Fake bun that \"succeeds\" on install -g but does not put maina anywhere\n\t\twriteStub(binDir, \"bun\", \"exit 0\");\n\t\tconst { exitCode, stdout, stderr } = await runInstallSh(\n\t\t\t`${binDir}:/usr/bin:/bin`,\n\t\t);\n\t\texpect(exitCode).toBe(12);\n\t\tconst combined = stdout + stderr;\n\t\t// Must include either the zsh, bash, or fish profile hint\n\t\texpect(combined).toMatch(/\\.zshrc|\\.bashrc|config\\.fish|shell profile/);\n\t\t// Must include the PATH export hint\n\t\texpect(combined).toMatch(/bun\\/bin/);\n\t});\n\n\ttest(\"no silent bunx fallback when install succeeds but PATH missing\", async () => {\n\t\twriteStub(binDir, \"bun\", \"exit 0\");\n\t\twriteStub(binDir, \"bunx\", 'echo \"1.0.0\"');\n\t\tconst { exitCode, stdout } = await runInstallSh(`${binDir}:/usr/bin:/bin`);\n\t\texpect(exitCode).toBe(12);\n\t\t// The old behaviour announced \"available via bunx\" — must be gone.\n\t\texpect(stdout).not.toContain(\"available via bunx\");\n\t});\n});\n",
+				"existing": []
+			},
+			"output": []
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/cli/src/commands/sync.ts",
+				"content": "/**\n * `maina sync push` — Upload local prompts to maina cloud.\n * `maina sync pull` — Download team prompts from maina cloud.\n */\n\nimport { createHash } from \"node:crypto\";\nimport {\n\texistsSync,\n\tmkdirSync,\n\treaddirSync,\n\treadFileSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { join } from \"node:path\";\nimport { intro, log, outro, spinner } from \"@clack/prompts\";\nimport type { PromptRecord } from \"@mainahq/core\";\nimport { createCloudClient, loadAuthConfig } from \"@mainahq/core\";\nimport { Command } from \"commander\";\n\n// ── Constants ───────────────────────────────────────────────────────────────\n\nconst DEFAULT_CLOUD_URL =\n\tprocess.env.MAINA_CLOUD_URL ?? \"https://api.mainahq.com\";\n\n// ── Helpers ─────────────────────────────────────────────────────────────────\n\nfunction hashContent(content: string): string {\n\treturn createHash(\"sha256\").update(content).digest(\"hex\");\n}\n\nfunction loadLocalPrompts(promptsDir: string): PromptRecord[] {\n\tif (!existsSync(promptsDir)) {\n\t\treturn [];\n\t}\n\n\tconst files = readdirSync(promptsDir).filter((f) => f.endsWith(\".md\"));\n\treturn files.map((file) => {\n\t\tconst filePath = join(promptsDir, file);\n\t\tconst content = readFileSync(filePath, \"utf-8\");\n\t\treturn {\n\t\t\tid: file.replace(/\\.md$/, \"\"),\n\t\t\tname: file.replace(/\\.md$/, \"\"),\n\t\t\tpath: file,\n\t\t\tcontent,\n\t\t\thash: hashContent(content),\n\t\t\tupdatedAt: new Date().toISOString(),\n\t\t};\n\t});\n}\n\n// ── Push Action ─────────────────────────────────────────────────────────────\n\nexport interface SyncActionResult {\n\tsynced: boolean;\n\tcount: number;\n\treason?: string;\n}\n\nexport async function syncPushAction(cwd?: string): Promise<SyncActionResult> {\n\tconst root = cwd ?? process.cwd();\n\tconst promptsDir = join(root, \".maina\", \"prompts\");\n\n\tconst authResult = loadAuthConfig();\n\tif (!authResult.ok) {\n\t\treturn { synced: false, count: 0, reason: authResult.error };\n\t}\n\n\tconst prompts = loadLocalPrompts(promptsDir);\n\tif (prompts.length === 0) {\n\t\treturn {\n\t\t\tsynced: false,\n\t\t\tcount: 0,\n\t\t\treason: \"No prompts found in .maina/prompts/\",\n\t\t};\n\t}\n\n\tconst client = createCloudClient({\n\t\tbaseUrl: DEFAULT_CLOUD_URL,\n\t\ttoken: authResult.value.accessToken,\n\t});\n\n\tconst result = await client.putPrompts(prompts);\n\tif (!result.ok) {\n\t\tconst errMsg =\n\t\t\ttypeof result.error === \"string\"\n\t\t\t\t? result.error\n\t\t\t\t: JSON.stringify(result.error);\n\t\treturn { synced: false, count: 0, reason: errMsg };\n\t}\n\n\treturn { synced: true, count: prompts.length };\n}\n\n// ── Pull Action ─────────────────────────────────────────────────────────────\n\nexport async function syncPullAction(cwd?: string): Promise<SyncActionResult> {\n\tconst root = cwd ?? process.cwd();\n\tconst promptsDir = join(root, \".maina\", \"prompts\");\n\n\tconst authResult = loadAuthConfig();\n\tif (!authResult.ok) {\n\t\treturn { synced: false, count: 0, reason: authResult.error };\n\t}\n\n\tconst client = createCloudClient({\n\t\tbaseUrl: DEFAULT_CLOUD_URL,\n\t\ttoken: authResult.value.accessToken,\n\t});\n\n\tconst result = await client.getPrompts();\n\tif (!result.ok) {\n\t\tconst errMsg =\n\t\t\ttypeof result.error === \"string\"\n\t\t\t\t? result.error\n\t\t\t\t: JSON.stringify(result.error);\n\t\treturn { synced: false, count: 0, reason: errMsg };\n\t}\n\n\tconst prompts = result.value ?? [];\n\tif (prompts.length === 0) {\n\t\treturn {\n\t\t\tsynced: true,\n\t\t\tcount: 0,\n\t\t\treason: \"No team prompts yet.\",\n\t\t};\n\t}\n\n\ttry {\n\t\tmkdirSync(promptsDir, { recursive: true });\n\t} catch (e) {\n\t\treturn {\n\t\t\tsynced: false,\n\t\t\tcount: 0,\n\t\t\treason: `Could not create ${promptsDir}: ${e instanceof Error ? e.message : String(e)}`,\n\t\t};\n\t}\n\n\tlet written = 0;\n\tconst skipped: string[] = [];\n\n\tfor (const prompt of prompts) {\n\t\t// Defensive: a malformed server payload (missing path/content) used to\n\t\t// throw out of the loop and leave `@clack/prompts`' spinner monitor to\n\t\t// print a generic \"Something went wrong\" (see #196).\n\t\tif (typeof prompt?.path !== \"string\" || prompt.path.length === 0) {\n\t\t\tskipped.push(`<unknown id=${String(prompt?.id ?? \"?\")}>`);\n\t\t\tcontinue;\n\t\t}\n\t\tif (typeof prompt.content !== \"string\") {\n\t\t\tskipped.push(prompt.path);\n\t\t\tcontinue;\n\t\t}\n\n\t\ttry {\n\t\t\tconst filePath = join(promptsDir, prompt.path);\n\t\t\twriteFileSync(filePath, prompt.content, \"utf-8\");\n\t\t\twritten++;\n\t\t} catch (e) {\n\t\t\tskipped.push(\n\t\t\t\t`${prompt.path} (${e instanceof Error ? e.message : String(e)})`,\n\t\t\t);\n\t\t}\n\t}\n\n\tif (written === 0 && skipped.length > 0) {\n\t\treturn {\n\t\t\tsynced: false,\n\t\t\tcount: 0,\n\t\t\treason: `All ${skipped.length} prompt(s) skipped: ${skipped.join(\", \")}`,\n\t\t};\n\t}\n\n\treturn {\n\t\tsynced: true,\n\t\tcount: written,\n\t\treason:\n\t\t\tskipped.length > 0\n\t\t\t\t? `Skipped ${skipped.length}: ${skipped.join(\", \")}`\n\t\t\t\t: undefined,\n\t};\n}\n\n// ── Commander Command ───────────────────────────────────────────────────────\n\nexport function syncCommand(): Command {\n\tconst cmd = new Command(\"sync\").description(\"Sync prompts with maina cloud\");\n\n\tcmd\n\t\t.command(\"push\")\n\t\t.description(\"Upload local prompts to the cloud\")\n\t\t.action(async () => {\n\t\t\tintro(\"maina sync push\");\n\n\t\t\tconst s = spinner();\n\t\t\ts.start(\"Uploading prompts...\");\n\n\t\t\tconst result = await syncPushAction();\n\n\t\t\tif (result.synced) {\n\t\t\t\ts.stop(\"Done\");\n\t\t\t\tlog.success(`Pushed ${result.count} prompt(s) to cloud.`);\n\t\t\t\toutro(\"Sync complete.\");\n\t\t\t} else {\n\t\t\t\ts.stop(\"Failed\");\n\t\t\t\tlog.error(\n\t\t\t\t\ttypeof result.reason === \"string\"\n\t\t\t\t\t\t? result.reason\n\t\t\t\t\t\t: String(result.reason ?? \"Unknown error\"),\n\t\t\t\t);\n\t\t\t\toutro(\"Sync failed.\");\n\t\t\t}\n\t\t});\n\n\tcmd\n\t\t.command(\"pull\")\n\t\t.description(\"Download team prompts from the cloud\")\n\t\t.action(async () => {\n\t\t\tintro(\"maina sync pull\");\n\n\t\t\tconst s = spinner();\n\t\t\ts.start(\"Downloading prompts...\");\n\n\t\t\tconst result = await syncPullAction();\n\n\t\t\tif (result.synced) {\n\t\t\t\ts.stop(\"Done\");\n\t\t\t\tif (result.count === 0 && result.reason) {\n\t\t\t\t\t// Empty team — show the friendly message instead of \"Pulled 0\".\n\t\t\t\t\tlog.info(result.reason);\n\t\t\t\t} else {\n\t\t\t\t\tlog.success(`Pulled ${result.count} prompt(s) from cloud.`);\n\t\t\t\t\tif (result.reason) {\n\t\t\t\t\t\t// Partial success: some records were malformed and skipped.\n\t\t\t\t\t\tlog.warning(result.reason);\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\toutro(\"Sync complete.\");\n\t\t\t} else {\n\t\t\t\ts.stop(\"Failed\");\n\t\t\t\tlog.error(\n\t\t\t\t\ttypeof result.reason === \"string\"\n\t\t\t\t\t\t? result.reason\n\t\t\t\t\t\t: String(result.reason ?? \"Unknown error\"),\n\t\t\t\t);\n\t\t\t\toutro(\"Sync failed.\");\n\t\t\t}\n\t\t});\n\n\treturn cmd;\n}\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "packages/cli/src/commands/sync.ts",
+					"line": 142,
+					"message": "3 consecutive lines of commented-out code",
+					"severity": "warning",
+					"ruleId": "slop/commented-code"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "scripts/docs-manifest.ts",
+				"content": "#!/usr/bin/env bun\n/**\n * Wave 4 / G11 — build-time SSOT for \"how many commands, MCP tools,\n * skills does maina ship?\".\n *\n * Two modes:\n *\n *   bun scripts/docs-manifest.ts\n *     Emit a JSON manifest on stdout. Used for docs/landing copy\n *     generation — never hand-typed.\n *\n *   bun scripts/docs-manifest.ts --check\n *     Grep README.md and packages/docs/src/content/docs/**.md{,x} for\n *     hand-typed `N commands` / `N MCP tools` / `N skills` patterns.\n *     Fail with exit 1 and a pointer to the manifest if any match.\n *\n * The number-extractor is a simple regex; prose like \"nine commands\"\n * (spelled-out number) does not match, so legitimate text is safe.\n */\n\nimport { readdirSync, readFileSync, statSync } from \"node:fs\";\nimport { join, relative } from \"node:path\";\n\nconst ROOT = join(import.meta.dir, \"..\");\n\n// ── Sources of truth ────────────────────────────────────────────────────────\n\nfunction countVisibleCommands(): number {\n\tconst path = join(ROOT, \"packages\", \"cli\", \"src\", \"program.ts\");\n\tconst body = readFileSync(path, \"utf-8\");\n\n\t// Everything between `// ── Workflow` (first block) and\n\t// `// ── Internals` is user-facing.\n\tconst start = body.indexOf(\"// ── Workflow\");\n\tconst end = body.indexOf(\"// ── Internals\");\n\tif (start < 0 || end < 0 || end <= start) {\n\t\tthrow new Error(\n\t\t\t\"docs-manifest: could not locate Workflow/Internals section markers in program.ts\",\n\t\t);\n\t}\n\tconst visible = body.slice(start, end);\n\tconst matches = visible.match(/program\\.addCommand\\(/g) ?? [];\n\treturn matches.length;\n}\n\nfunction countMcpTools(): number {\n\tconst path = join(ROOT, \"packages\", \"mcp\", \"src\", \"server.ts\");\n\tconst body = readFileSync(path, \"utf-8\");\n\t// `ALL_TOOL_DESCRIPTIONS` is the canonical list. We parse the array\n\t// literal length by counting occurrences of `name: \"` after its\n\t// opening.\n\tconst start = body.indexOf(\"ALL_TOOL_DESCRIPTIONS\");\n\tif (start < 0) {\n\t\tthrow new Error(\n\t\t\t\"docs-manifest: ALL_TOOL_DESCRIPTIONS not found in server.ts\",\n\t\t);\n\t}\n\tconst end = body.indexOf(\"];\", start);\n\tconst block = body.slice(start, end);\n\tconst matches = block.match(/name:\\s*\"/g) ?? [];\n\treturn matches.length;\n}\n\nfunction listSkills(): string[] {\n\tconst root = join(ROOT, \"packages\", \"skills\");\n\tconst out: string[] = [];\n\tlet entries: string[];\n\ttry {\n\t\tentries = readdirSync(root);\n\t} catch {\n\t\treturn out;\n\t}\n\tfor (const name of entries) {\n\t\tconst full = join(root, name);\n\t\ttry {\n\t\t\tif (!statSync(full).isDirectory()) continue;\n\t\t} catch {\n\t\t\tcontinue;\n\t\t}\n\t\tconst skillPath = join(full, \"SKILL.md\");\n\t\ttry {\n\t\t\tif (statSync(skillPath).isFile()) out.push(name);\n\t\t} catch {\n\t\t\t// skip\n\t\t}\n\t}\n\treturn out.sort();\n}\n\nfunction listMcpToolNames(): string[] {\n\tconst path = join(ROOT, \"packages\", \"mcp\", \"src\", \"server.ts\");\n\tconst body = readFileSync(path, \"utf-8\");\n\tconst start = body.indexOf(\"ALL_TOOL_DESCRIPTIONS\");\n\tconst end = body.indexOf(\"];\", start);\n\tconst block = body.slice(start, end);\n\tconst names: string[] = [];\n\tconst re = /name:\\s*\"([^\"]+)\"/g;\n\tlet m: RegExpExecArray | null;\n\t// biome-ignore lint/suspicious/noAssignInExpressions: idiomatic regex scan\n\twhile ((m = re.exec(block)) !== null) {\n\t\tnames.push(m[1] ?? \"\");\n\t}\n\treturn names.filter((n) => n.length > 0);\n}\n\nfunction listVisibleCommandNames(): string[] {\n\tconst path = join(ROOT, \"packages\", \"cli\", \"src\", \"program.ts\");\n\tconst body = readFileSync(path, \"utf-8\");\n\tconst start = body.indexOf(\"// ── Workflow\");\n\tconst end = body.indexOf(\"// ── Internals\");\n\tconst visible = body.slice(start, end);\n\tconst names: string[] = [];\n\tconst re = /program\\.addCommand\\((\\w+)Command\\(/g;\n\tlet m: RegExpExecArray | null;\n\t// biome-ignore lint/suspicious/noAssignInExpressions: idiomatic regex scan\n\twhile ((m = re.exec(visible)) !== null) {\n\t\tnames.push(m[1] ?? \"\");\n\t}\n\treturn names.filter((n) => n.length > 0);\n}\n\n// ── Manifest build ──────────────────────────────────────────────────────────\n\nexport interface DocsManifest {\n\tgeneratedAt: string;\n\tcommands: {\n\t\tvisible: number;\n\t\tnames: string[];\n\t};\n\tmcpTools: {\n\t\ttotal: number;\n\t\tnames: string[];\n\t};\n\tskills: {\n\t\ttotal: number;\n\t\tnames: string[];\n\t};\n}\n\nexport function buildManifest(): DocsManifest {\n\tconst commandNames = listVisibleCommandNames();\n\tconst toolNames = listMcpToolNames();\n\tconst skillNames = listSkills();\n\treturn {\n\t\tgeneratedAt: new Date().toISOString(),\n\t\tcommands: {\n\t\t\tvisible: countVisibleCommands(),\n\t\t\tnames: commandNames,\n\t\t},\n\t\tmcpTools: {\n\t\t\ttotal: countMcpTools(),\n\t\t\tnames: toolNames,\n\t\t},\n\t\tskills: {\n\t\t\ttotal: skillNames.length,\n\t\t\tnames: skillNames,\n\t\t},\n\t};\n}\n\n// ── --check mode ────────────────────────────────────────────────────────────\n\nconst CHECK_PATTERN = /\\b(\\d+)\\s+(commands|MCP tools|skills)\\b/gi;\n\n/** Files we scan for hand-typed counts. */\nfunction checkTargets(): string[] {\n\tconst targets: string[] = [join(ROOT, \"README.md\")];\n\tconst docsRoot = join(ROOT, \"packages\", \"docs\", \"src\", \"content\", \"docs\");\n\ttry {\n\t\twalkMarkdown(docsRoot, targets);\n\t} catch {\n\t\t// docs package optional\n\t}\n\treturn targets;\n}\n\nfunction walkMarkdown(dir: string, out: string[]): void {\n\tlet entries: string[];\n\ttry {\n\t\tentries = readdirSync(dir);\n\t} catch {\n\t\treturn;\n\t}\n\tfor (const name of entries) {\n\t\tconst full = join(dir, name);\n\t\tlet stats: ReturnType<typeof statSync>;\n\t\ttry {\n\t\t\tstats = statSync(full);\n\t\t} catch {\n\t\t\tcontinue;\n\t\t}\n\t\tif (stats.isDirectory()) {\n\t\t\twalkMarkdown(full, out);\n\t\t\tcontinue;\n\t\t}\n\t\tif (!stats.isFile()) continue;\n\t\tif (!name.endsWith(\".md\") && !name.endsWith(\".mdx\")) continue;\n\t\tout.push(full);\n\t}\n}\n\ninterface CheckHit {\n\tfile: string;\n\tline: number;\n\ttext: string;\n}\n\nfunction runCheck(): number {\n\tconst manifest = buildManifest();\n\tconst hits: CheckHit[] = [];\n\tfor (const file of checkTargets()) {\n\t\tlet body: string;\n\t\ttry {\n\t\t\tbody = readFileSync(file, \"utf-8\");\n\t\t} catch {\n\t\t\tcontinue;\n\t\t}\n\t\tconst lines = body.split(/\\r?\\n/);\n\t\tfor (let i = 0; i < lines.length; i++) {\n\t\t\tconst line = lines[i] ?? \"\";\n\t\t\t// Skip ignore-annotated lines (HTML comment for .md, JSX comment for\n\t\t\t// .mdx). The annotation must appear on the line immediately before\n\t\t\t// the hand-typed count OR on the same line.\n\t\t\tconst prev = i > 0 ? (lines[i - 1] ?? \"\") : \"\";\n\t\t\tconst ignoreMarker =\n\t\t\t\t/<!--\\s*docs-manifest:\\s*ignore\\s*-->|\\{\\/\\*\\s*docs-manifest:\\s*ignore\\s*\\*\\/\\}/i;\n\t\t\tif (ignoreMarker.test(line) || ignoreMarker.test(prev)) continue;\n\t\t\tconst matches = line.matchAll(CHECK_PATTERN);\n\t\t\tfor (const _m of matches) {\n\t\t\t\thits.push({ file, line: i + 1, text: line.trim() });\n\t\t\t}\n\t\t}\n\t}\n\tif (hits.length === 0) {\n\t\t// eslint-disable-next-line no-console\n\t\tconsole.log(\n\t\t\t\"docs-manifest --check: OK — no hand-typed counts in docs sources.\",\n\t\t);\n\t\t// eslint-disable-next-line no-console\n\t\tconsole.log(\n\t\t\t`Live counts → commands=${manifest.commands.visible} mcpTools=${manifest.mcpTools.total} skills=${manifest.skills.total}`,\n\t\t);\n\t\treturn 0;\n\t}\n\t// eslint-disable-next-line no-console\n\tconsole.error(\n\t\t`docs-manifest --check: FAIL — ${hits.length} hand-typed count(s) detected.`,\n\t);\n\tfor (const h of hits) {\n\t\t// eslint-disable-next-line no-console\n\t\tconsole.error(`  ${relative(ROOT, h.file)}:${h.line}  ${h.text}`);\n\t}\n\t// eslint-disable-next-line no-console\n\tconsole.error(\n\t\t\"\\nFix: remove the hand-typed numbers and link readers to `bun run docs:manifest`.\",\n\t);\n\t// eslint-disable-next-line no-console\n\tconsole.error(\n\t\t`Live counts → commands=${manifest.commands.visible} mcpTools=${manifest.mcpTools.total} skills=${manifest.skills.total}`,\n\t);\n\treturn 1;\n}\n\n// ── Entrypoint ──────────────────────────────────────────────────────────────\n\nfunction main(): void {\n\tconst args = process.argv.slice(2);\n\tif (args.includes(\"--check\")) {\n\t\tprocess.exit(runCheck());\n\t}\n\tconst manifest = buildManifest();\n\t// eslint-disable-next-line no-console\n\tconsole.log(JSON.stringify(manifest, null, 2));\n}\n\nif (import.meta.main) {\n\tmain();\n}\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "scripts/docs-manifest.ts",
+					"line": 236,
+					"column": 3,
+					"message": "Print/log statement found in production code",
+					"severity": "warning",
+					"ruleId": "slop/console-log"
+				},
+				{
+					"tool": "slop",
+					"file": "scripts/docs-manifest.ts",
+					"line": 240,
+					"column": 3,
+					"message": "Print/log statement found in production code",
+					"severity": "warning",
+					"ruleId": "slop/console-log"
+				},
+				{
+					"tool": "slop",
+					"file": "scripts/docs-manifest.ts",
+					"line": 246,
+					"column": 2,
+					"message": "Print/log statement found in production code",
+					"severity": "warning",
+					"ruleId": "slop/console-log"
+				},
+				{
+					"tool": "slop",
+					"file": "scripts/docs-manifest.ts",
+					"line": 251,
+					"column": 3,
+					"message": "Print/log statement found in production code",
+					"severity": "warning",
+					"ruleId": "slop/console-log"
+				},
+				{
+					"tool": "slop",
+					"file": "scripts/docs-manifest.ts",
+					"line": 254,
+					"column": 2,
+					"message": "Print/log statement found in production code",
+					"severity": "warning",
+					"ruleId": "slop/console-log"
+				},
+				{
+					"tool": "slop",
+					"file": "scripts/docs-manifest.ts",
+					"line": 258,
+					"column": 2,
+					"message": "Print/log statement found in production code",
+					"severity": "warning",
+					"ruleId": "slop/console-log"
+				},
+				{
+					"tool": "slop",
+					"file": "scripts/docs-manifest.ts",
+					"line": 273,
+					"column": 2,
+					"message": "Print/log statement found in production code",
+					"severity": "warning",
+					"ruleId": "slop/console-log"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.4.ts",
+				"content": "/**\n * AI Review — semantic code review using LLM.\n *\n * Two tiers:\n * - mechanical (always-on): diff + referenced functions, <3s, warnings only\n * - standard (--deep): adds spec/plan context, can emit errors\n */\n\nimport type { Finding } from \"./diff-filter\";\n\n// ─── Types ────────────────────────────────────────────────────────────────\n\nexport interface ReferencedFunction {\n  name: string;\n  filePath: string;\n  body: string;\n}\n\nexport interface EntityWithBody {\n  name: string;\n  kind: string;\n  startLine: number;\n  endLine: number;\n  filePath: string;\n  body: string;\n}\n\nexport interface AIReviewOptions {\n  diff: string;\n  entities: EntityWithBody[];\n  deep?: boolean;\n  specContext?: string;\n  planContext?: string;\n  mainaDir: string;\n}\n\nexport interface AIReviewResult {\n  findings: Finding[];\n  skipped: boolean;\n  tier: \"mechanical\" | \"standard\";\n  duration: number;\n}\n\nconst MAX_REFS_PER_FILE = 3;\n\n// ─── Referenced Function Resolution ───────────────────────────────────────\n\n/**\n * Extract function/method names called in added lines of a diff,\n * then match them against known entities to get their bodies.\n * Capped at MAX_REFS_PER_FILE (3) to bound token usage.\n */\nexport function resolveReferencedFunctions(\n  diff: string,\n  entities: EntityWithBody[],\n): ReferencedFunction[] {\n  // Extract added lines from diff\n  const addedLines = diff\n    .split(\"\\n\")\n    .filter((line) => line.startsWith(\"+\") && !line.startsWith(\"+++\"))\n    .join(\"\\n\");\n\n  if (!addedLines.trim()) return [];\n\n  // Extract identifier-like tokens that could be function calls\n  // Match word( pattern — likely a function call\n  const callPattern = /\\b([a-zA-Z_$][\\w$]*)\\s*\\(/g;\n  const calledNames = new Set<string>();\n  for (const match of addedLines.matchAll(callPattern)) {\n    if (match[1]) calledNames.add(match[1]);\n  }\n\n  // Remove common keywords that match the pattern\n  const KEYWORDS = new Set([\n    \"if\", \"for\", \"while\", \"switch\", \"catch\", \"function\", \"return\",\n    \"new\", \"typeof\", \"instanceof\", \"await\", \"async\", \"import\", \"export\",\n    \"const\", \"let\", \"var\", \"class\", \"throw\",\n  ]);\n  for (const kw of KEYWORDS) calledNames.delete(kw);\n\n  if (calledNames.size === 0) return [];\n\n  // Match against known entities\n  const matched: ReferencedFunction[] = [];\n  for (const entity of entities) {\n    if (matched.length >= MAX_REFS_PER_FILE) break;\n    if (calledNames.has(entity.name)) {\n      matched.push({\n        name: entity.name,\n        filePath: entity.filePath,\n        body: entity.body,\n      });\n    }\n  }\n\n  return matched;\n}\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.4.ts",
+					"line": 9,
+					"message": "Import \"./diff-filter\" does not resolve to an existing file",
+					"severity": "error",
+					"ruleId": "slop/hallucinated-import"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/cli/src/commands/__tests__/prompt.test.ts",
+				"content": "import { afterEach, beforeEach, describe, expect, test } from \"bun:test\";\nimport { existsSync, mkdirSync } from \"node:fs\";\nimport { join } from \"node:path\";\n\nlet tmpDir: string;\n\nbeforeEach(() => {\n\ttmpDir = join(\n\t\timport.meta.dir,\n\t\t`tmp-prompt-${Date.now()}-${Math.random().toString(36).slice(2)}`,\n\t);\n\tmkdirSync(tmpDir, { recursive: true });\n});\n\nafterEach(() => {\n\ttry {\n\t\tconst { rmSync } = require(\"node:fs\");\n\t\trmSync(tmpDir, { recursive: true, force: true });\n\t} catch {\n\t\t// ignore\n\t}\n});\n\ndescribe(\"prompt edit\", () => {\n\ttest(\"creates prompt file from default template if not exists\", async () => {\n\t\tconst { loadDefault } = await import(\"@mainahq/core\");\n\t\tconst promptsDir = join(tmpDir, \"prompts\");\n\t\tmkdirSync(promptsDir, { recursive: true });\n\t\tconst filePath = join(promptsDir, \"review.md\");\n\n\t\t// Simulate what prompt edit does: create from default\n\t\tconst defaultContent = await loadDefault(\"review\");\n\t\tawait Bun.write(filePath, defaultContent);\n\n\t\texpect(existsSync(filePath)).toBe(true);\n\t\tconst content = await Bun.file(filePath).text();\n\t\texpect(content).toContain(\"{{constitution}}\");\n\t});\n});\n\ndescribe(\"prompt list\", () => {\n\ttest(\"getPromptStats returns empty array when no feedback\", async () => {\n\t\tconst { getPromptStats } = await import(\"@mainahq/core\");\n\t\tconst stats = getPromptStats(tmpDir);\n\t\texpect(stats).toEqual([]);\n\t});\n});\n",
+				"existing": []
+			},
+			"output": []
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/cli/src/index.ts",
+				"content": "#!/usr/bin/env bun\n\nimport { sendCliErrorReport } from \"@mainahq/core\";\nimport pkg from \"../package.json\" with { type: \"json\" };\n\n// ── Top-level error handling ────────────────────────────────────────────────\n\n// `DEBUG=1` and `NODE_DEBUG=1` are honoured as aliases — users naturally\n// reach for the generic env vars before discovering our prefixed one.\nconst DEBUG =\n\tprocess.argv.includes(\"--debug\") ||\n\tprocess.env.MAINA_DEBUG === \"1\" ||\n\tprocess.env.DEBUG === \"1\" ||\n\tprocess.env.NODE_DEBUG === \"1\";\n\nfunction printAndReport(err: unknown, origin: string): void {\n\tconst e = err instanceof Error ? err : new Error(String(err ?? \"unknown\"));\n\tconst code = (e as Error & { code?: unknown }).code;\n\tconst prefix =\n\t\torigin === \"unhandledRejection\" ? \"Unhandled rejection\" : \"Error\";\n\tconst codeStr =\n\t\ttypeof code === \"string\" || typeof code === \"number\" ? ` [${code}]` : \"\";\n\tprocess.stderr.write(`${prefix}${codeStr}: ${e.message}\\n`);\n\tif (DEBUG && e.stack) {\n\t\tprocess.stderr.write(`${e.stack}\\n`);\n\t} else {\n\t\tprocess.stderr.write(\n\t\t\t\"(run with --debug, MAINA_DEBUG=1, or DEBUG=1 for full stack)\\n\",\n\t\t);\n\t}\n\n\t// Preserve the original failure code when one is available: a numeric\n\t// `err.code`, or whatever the app has already set on `process.exitCode`.\n\t// Fall back to 1.\n\tconst existing = process.exitCode;\n\tconst exitCode =\n\t\ttypeof code === \"number\"\n\t\t\t? code\n\t\t\t: typeof existing === \"number\" && existing !== 0\n\t\t\t\t? existing\n\t\t\t\t: 1;\n\tprocess.exitCode = exitCode;\n\n\t// Fire-and-forget; never block the crash path on the network call.\n\t// `sendCliErrorReport` already swallows its own errors and times out at 1s.\n\tvoid sendCliErrorReport(e, {\n\t\tmainaVersion: pkg.version,\n\t\targv: process.argv,\n\t}).finally(() => {\n\t\tprocess.exit(exitCode);\n\t});\n\n\t// Safety net: if telemetry somehow hangs past its own timeout, force exit\n\t// with the preserved code. `.unref()` lets Node terminate early if the\n\t// telemetry promise resolved first.\n\tsetTimeout(() => process.exit(exitCode), 1500).unref?.();\n}\n\nprocess.on(\"uncaughtException\", (err) =>\n\tprintAndReport(err, \"uncaughtException\"),\n);\nprocess.on(\"unhandledRejection\", (reason) =>\n\tprintAndReport(reason, \"unhandledRejection\"),\n);\n\n// MCP server mode: `maina --mcp` starts the MCP server instead of the CLI\nif (process.argv.includes(\"--mcp\")) {\n\tconst { startServer } = await import(\"@mainahq/mcp\");\n\tawait startServer();\n} else {\n\tconst { createProgram } = await import(\"./program\");\n\tconst program = createProgram();\n\tprogram.parse();\n}\n",
+				"existing": [
+					{
+						"path": "packages/cli/package.json",
+						"kind": "file"
+					}
+				]
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "packages/cli/src/index.ts",
+					"line": 53,
+					"message": "3 consecutive lines of commented-out code",
+					"severity": "warning",
+					"ruleId": "slop/commented-code"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "snippets/.maina_features_012-multi-language-verify_plan.md.29.ts",
+				"content": "import { describe, expect, it } from \"bun:test\";\nimport {\n  getProfile,\n  TYPESCRIPT_PROFILE,\n  type LanguageId,\n} from \"../profile\";\n\ndescribe(\"LanguageProfile\", () => {\n  it(\"should return TypeScript profile by default\", () => {\n    const profile = getProfile(\"typescript\");\n    expect(profile.id).toBe(\"typescript\");\n    expect(profile.extensions).toContain(\".ts\");\n    expect(profile.extensions).toContain(\".tsx\");\n    expect(profile.syntaxTool).toBe(\"biome\");\n    expect(profile.commentPrefixes).toContain(\"//\");\n  });\n\n  it(\"should return Python profile\", () => {\n    const profile = getProfile(\"python\");\n    expect(profile.id).toBe(\"python\");\n    expect(profile.extensions).toContain(\".py\");\n    expect(profile.syntaxTool).toBe(\"ruff\");\n    expect(profile.commentPrefixes).toContain(\"#\");\n  });\n\n  it(\"should return Go profile\", () => {\n    const profile = getProfile(\"go\");\n    expect(profile.id).toBe(\"go\");\n    expect(profile.extensions).toContain(\".go\");\n    expect(profile.syntaxTool).toBe(\"go-vet\");\n    expect(profile.commentPrefixes).toContain(\"//\");\n  });\n\n  it(\"should return Rust profile\", () => {\n    const profile = getProfile(\"rust\");\n    expect(profile.id).toBe(\"rust\");\n    expect(profile.extensions).toContain(\".rs\");\n    expect(profile.syntaxTool).toBe(\"clippy\");\n    expect(profile.commentPrefixes).toContain(\"//\");\n  });\n\n  it(\"should have test file pattern for each language\", () => {\n    expect(TYPESCRIPT_PROFILE.testFilePattern.test(\"app.test.ts\")).toBe(true);\n    expect(getProfile(\"python\").testFilePattern.test(\"test_app.py\")).toBe(true);\n    expect(getProfile(\"go\").testFilePattern.test(\"app_test.go\")).toBe(true);\n    expect(getProfile(\"rust\").testFilePattern.test(\"tests/mod.rs\")).toBe(true);\n  });\n\n  it(\"should have console/print patterns for slop detection\", () => {\n    expect(TYPESCRIPT_PROFILE.printPattern.test(\"console.log('x')\")).toBe(true);\n    expect(getProfile(\"python\").printPattern.test(\"print('x')\")).toBe(true);\n    expect(getProfile(\"go\").printPattern.test(\"fmt.Println(x)\")).toBe(true);\n    expect(getProfile(\"rust\").printPattern.test(\"println!(x)\")).toBe(true);\n  });\n});\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_012-multi-language-verify_plan.md.29.ts",
+					"line": 50,
+					"column": 50,
+					"message": "Print/log statement found in production code",
+					"severity": "warning",
+					"ruleId": "slop/console-log"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.5.ts",
+				"content": "import { afterAll, beforeEach, mock } from \"bun:test\";\nimport { runAIReview, type AIReviewOptions } from \"../ai-review\";\n\n// Mock tryAIGenerate\nlet mockAIResult: { text: string | null; fromAI: boolean; hostDelegation: boolean } = {\n  text: null, fromAI: false, hostDelegation: false,\n};\n\nmock.module(\"../../ai/try-generate\", () => ({\n  tryAIGenerate: async () => mockAIResult,\n}));\n\nmock.module(\"../../cache/keys\", () => ({\n  hashContent: (s: string) => `hash-${s.length}`,\n  buildCacheKey: async () => \"test-cache-key\",\n}));\n\nafterAll(() => mock.restore());\n\ndescribe(\"runAIReview\", () => {\n  const baseOptions: AIReviewOptions = {\n    diff: \"+  const x = validateInput(data);\",\n    entities: [],\n    mainaDir: \".maina\",\n  };\n\n  beforeEach(() => {\n    mockAIResult = { text: null, fromAI: false, hostDelegation: false };\n  });\n\n  it(\"should return findings from AI response (mechanical tier)\", async () => {\n    mockAIResult = {\n      text: JSON.stringify({\n        findings: [{\n          file: \"src/app.ts\",\n          line: 10,\n          message: \"validateInput may return null but caller doesn't check\",\n          severity: \"warning\",\n          ruleId: \"ai-review/edge-case\",\n        }],\n      }),\n      fromAI: true,\n      hostDelegation: false,\n    };\n\n    const result = await runAIReview(baseOptions);\n\n    expect(result.findings).toHaveLength(1);\n    expect(result.findings[0].tool).toBe(\"ai-review\");\n    expect(result.findings[0].severity).toBe(\"warning\");\n    expect(result.tier).toBe(\"mechanical\");\n    expect(result.skipped).toBe(false);\n  });\n\n  it(\"should cap severity to warning in mechanical mode\", async () => {\n    mockAIResult = {\n      text: JSON.stringify({\n        findings: [{\n          file: \"src/app.ts\", line: 5,\n          message: \"bad\", severity: \"error\",\n          ruleId: \"ai-review/contract\",\n        }],\n      }),\n      fromAI: true,\n      hostDelegation: false,\n    };\n\n    const result = await runAIReview(baseOptions);\n\n    expect(result.findings[0].severity).toBe(\"warning\");\n  });\n\n  it(\"should allow error severity in deep mode\", async () => {\n    mockAIResult = {\n      text: JSON.stringify({\n        findings: [{\n          file: \"src/app.ts\", line: 5,\n          message: \"spec violation\", severity: \"error\",\n          ruleId: \"ai-review/spec-compliance\",\n        }],\n      }),\n      fromAI: true,\n      hostDelegation: false,\n    };\n\n    const result = await runAIReview({ ...baseOptions, deep: true });\n\n    expect(result.findings[0].severity).toBe(\"error\");\n    expect(result.tier).toBe(\"standard\");\n  });\n\n  it(\"should skip gracefully when AI is unavailable\", async () => {\n    mockAIResult = { text: null, fromAI: false, hostDelegation: false };\n\n    const result = await runAIReview(baseOptions);\n\n    expect(result.findings).toHaveLength(0);\n    expect(result.skipped).toBe(true);\n  });\n\n  it(\"should skip gracefully on malformed AI response\", async () => {\n    mockAIResult = { text: \"not json\", fromAI: true, hostDelegation: false };\n\n    const result = await runAIReview(baseOptions);\n\n    expect(result.findings).toHaveLength(0);\n    expect(result.skipped).toBe(true);\n  });\n\n  it(\"should handle host delegation by skipping\", async () => {\n    mockAIResult = {\n      text: \"[HOST_DELEGATION] prompt here\",\n      fromAI: false,\n      hostDelegation: true,\n    };\n\n    const result = await runAIReview(baseOptions);\n\n    expect(result.skipped).toBe(true);\n  });\n});\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.5.ts",
+					"line": 2,
+					"message": "Import \"../ai-review\" does not resolve to an existing file",
+					"severity": "error",
+					"ruleId": "slop/hallucinated-import"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/cli/src/commands/cache.ts",
+				"content": "import { join } from \"node:path\";\nimport { intro, log, outro } from \"@clack/prompts\";\nimport { createCacheManager } from \"@mainahq/core\";\nimport { Command } from \"commander\";\n\nexport function cacheCommand(): Command {\n\tconst cmd = new Command(\"cache\").description(\"Cache management commands\");\n\n\tcmd\n\t\t.command(\"stats\")\n\t\t.description(\"Show cache hit rate, entries, and storage info\")\n\t\t.action(() => {\n\t\t\tintro(\"maina cache stats\");\n\n\t\t\tconst repoRoot = process.cwd();\n\t\t\tconst mainaDir = join(repoRoot, \".maina\");\n\n\t\t\tconst manager = createCacheManager(mainaDir);\n\t\t\tconst stats = manager.stats();\n\n\t\t\tconst hitRate =\n\t\t\t\tstats.totalQueries > 0\n\t\t\t\t\t? (\n\t\t\t\t\t\t\t((stats.l1Hits + stats.l2Hits) / stats.totalQueries) *\n\t\t\t\t\t\t\t100\n\t\t\t\t\t\t).toFixed(1)\n\t\t\t\t\t: \"0.0\";\n\n\t\t\tconst lines = [\n\t\t\t\t`  ${\"Metric\".padEnd(20)} Value`,\n\t\t\t\t`  ${\"─\".repeat(20)} ${\"─\".repeat(12)}`,\n\t\t\t\t`  ${\"Total queries\".padEnd(20)} ${stats.totalQueries}`,\n\t\t\t\t`  ${\"L1 hits (memory)\".padEnd(20)} ${stats.l1Hits}`,\n\t\t\t\t`  ${\"L2 hits (SQLite)\".padEnd(20)} ${stats.l2Hits}`,\n\t\t\t\t`  ${\"Misses\".padEnd(20)} ${stats.misses}`,\n\t\t\t\t`  ${\"Hit rate\".padEnd(20)} ${hitRate}%`,\n\t\t\t\t`  ${\"L1 entries\".padEnd(20)} ${stats.entriesL1}`,\n\t\t\t\t`  ${\"L2 entries\".padEnd(20)} ${stats.entriesL2}`,\n\t\t\t];\n\n\t\t\tlog.message(lines.join(\"\\n\"));\n\n\t\t\t// Check SQLite file size\n\t\t\ttry {\n\t\t\t\tconst dbPath = join(mainaDir, \"cache\", \"cache.db\");\n\t\t\t\tconst file = Bun.file(dbPath);\n\t\t\t\tconst size = file.size;\n\t\t\t\tconst sizeStr =\n\t\t\t\t\tsize < 1024\n\t\t\t\t\t\t? `${size} B`\n\t\t\t\t\t\t: size < 1024 * 1024\n\t\t\t\t\t\t\t? `${(size / 1024).toFixed(1)} KB`\n\t\t\t\t\t\t\t: `${(size / (1024 * 1024)).toFixed(1)} MB`;\n\t\t\t\tlog.info(`Storage: ${sizeStr}`);\n\t\t\t} catch {\n\t\t\t\tlog.info(\"Storage: N/A\");\n\t\t\t}\n\n\t\t\toutro(\"Done.\");\n\t\t});\n\n\treturn cmd;\n}\n",
+				"existing": []
+			},
+			"output": []
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/cli/src/program.ts",
+				"content": "import { flushTelemetry } from \"@mainahq/core\";\nimport { Command } from \"commander\";\nimport pkg from \"../package.json\";\nimport { analyzeCommand } from \"./commands/analyze\";\nimport { applyFixCommand } from \"./commands/apply-fix\";\nimport { benchmarkCommand } from \"./commands/benchmark\";\nimport { brainstormCommand } from \"./commands/brainstorm\";\nimport { cacheCommand } from \"./commands/cache\";\nimport { commitCommand } from \"./commands/commit\";\nimport { configureCommand } from \"./commands/configure\";\nimport { contextCommand } from \"./commands/context\";\nimport { designCommand } from \"./commands/design\";\nimport { doctorCommand } from \"./commands/doctor\";\nimport { explainCommand } from \"./commands/explain\";\nimport { feedbackCommand } from \"./commands/feedback\";\nimport { initCommand } from \"./commands/init\";\nimport { learnCommand } from \"./commands/learn\";\nimport { loginCommand, logoutCommand } from \"./commands/login\";\nimport { mcpCommand } from \"./commands/mcp\";\nimport { planCommand } from \"./commands/plan\";\nimport { prCommand } from \"./commands/pr\";\nimport { promptCommand } from \"./commands/prompt\";\nimport { receiptCommand } from \"./commands/receipt\";\nimport { reviewCommand } from \"./commands/review\";\nimport { reviewDesignCommand } from \"./commands/review-design\";\nimport { setupCommand } from \"./commands/setup\";\nimport { slopCommand } from \"./commands/slop\";\nimport { specCommand } from \"./commands/spec\";\nimport { statsCommand } from \"./commands/stats\";\nimport { statusCommand } from \"./commands/status\";\nimport { syncCommand } from \"./commands/sync\";\nimport { teamCommand } from \"./commands/team\";\nimport { ticketCommand } from \"./commands/ticket\";\nimport { verifyCommand } from \"./commands/verify\";\nimport { verifyReceiptCommand } from \"./commands/verify-receipt\";\nimport { visualCommand } from \"./commands/visual\";\nimport { wikiCommand } from \"./commands/wiki/index\";\n\nexport function createProgram(): Command {\n\tconst program = new Command();\n\tprogram\n\t\t.name(\"maina\")\n\t\t.description(\n\t\t\t`Verification-first developer operating system\n\nWorkflow:\n  brainstorm    Explore ideas interactively\n  ticket        Create GitHub issue from feature\n  plan          Scaffold feature directory\n  design        Create architecture decision record\n  spec          Generate test stubs from spec\n\nBuild & Verify:\n  verify         Run verification pipeline\n  verify-receipt Ratify a receipt JSON file offline\n  receipt        Run verify and emit a signed v1 receipt (JSON + HTML)\n  commit         Verify + commit with message\n  review         Two-stage code review\n  slop           Detect AI slop patterns\n  pr             Create pull request\n\nWiki:\n  wiki init     Compile codebase knowledge\n  wiki query    Ask about the codebase\n  wiki compile  Recompile wiki articles\n  wiki status   Wiki health and coverage\n\nSetup & Config:\n  init          Bootstrap maina in repo\n  setup         Guided first-time setup\n  doctor        Check tool and engine health\n  login         Cloud authentication\n  configure     Edit maina config\n  mcp add       Install maina MCP server in supported AI clients\n  mcp remove    Uninstall maina MCP server from clients\n  mcp list      Show maina MCP install status per client`,\n\t\t)\n\t\t.version(pkg.version)\n\t\t.option(\n\t\t\t\"--debug\",\n\t\t\t\"print full stack traces and error codes on failure (also MAINA_DEBUG=1 or DEBUG=1)\",\n\t\t);\n\n\t// Drain any pending telemetry events at the end of every command so the\n\t// process doesn't exit with in-flight HTTP requests. Budgeted at 2 s —\n\t// short enough to keep `maina commit` snappy when the network is dead,\n\t// long enough for a healthy PostHog ingest to complete (< 300 ms typical).\n\tprogram.hook(\"postAction\", async () => {\n\t\ttry {\n\t\t\tawait flushTelemetry(2_000);\n\t\t} catch {\n\t\t\t// Telemetry must never block or throw from the exit hook.\n\t\t}\n\t});\n\n\t// Belt-and-braces drain for commands that call `process.exit()` directly\n\t// (login/logout/doctor all do this under certain branches) — Commander's\n\t// `postAction` hook does not fire in those cases so queued captures\n\t// would otherwise be dropped. `beforeExit` is Node's last reliable hook\n\t// before the event loop drains; `SIGINT`/`SIGTERM` cover Ctrl-C and\n\t// orchestrator kills. `flushTelemetry` is a no-op when no SDK was ever\n\t// instantiated, so this is free when telemetry is off.\n\tlet exitDrained = false;\n\tconst drain = async (code: number | null): Promise<void> => {\n\t\tif (exitDrained) return;\n\t\texitDrained = true;\n\t\ttry {\n\t\t\tawait flushTelemetry(2_000);\n\t\t} catch {\n\t\t\t// swallow\n\t\t}\n\t\tif (code !== null) process.exit(code);\n\t};\n\tprocess.once(\"beforeExit\", () => {\n\t\tvoid drain(null);\n\t});\n\tprocess.once(\"SIGINT\", () => {\n\t\tvoid drain(130);\n\t});\n\tprocess.once(\"SIGTERM\", () => {\n\t\tvoid drain(143);\n\t});\n\n\t// ── Workflow ─────────────────────────────────────────────────────────\n\tprogram.addCommand(brainstormCommand());\n\tprogram.addCommand(ticketCommand());\n\tprogram.addCommand(planCommand());\n\tprogram.addCommand(designCommand());\n\tprogram.addCommand(specCommand());\n\n\t// ── Build & Verify ──────────────────────────────────────────────────\n\tprogram.addCommand(verifyCommand());\n\tprogram.addCommand(verifyReceiptCommand());\n\tprogram.addCommand(receiptCommand());\n\tprogram.addCommand(applyFixCommand());\n\tprogram.addCommand(commitCommand());\n\tprogram.addCommand(reviewCommand());\n\tprogram.addCommand(reviewDesignCommand());\n\tprogram.addCommand(slopCommand());\n\tprogram.addCommand(prCommand());\n\n\t// ── Wiki ────────────────────────────────────────────────────────────\n\tprogram.addCommand(wikiCommand());\n\n\t// ── Setup & Config ──────────────────────────────────────────────────\n\tprogram.addCommand(initCommand());\n\tprogram.addCommand(setupCommand());\n\tprogram.addCommand(doctorCommand());\n\tprogram.addCommand(loginCommand());\n\tprogram.addCommand(logoutCommand());\n\tprogram.addCommand(configureCommand());\n\tprogram.addCommand(mcpCommand());\n\n\t// ── Internals ───────────────────────────────────────────────────────\n\t//\n\t// Wave 4 / G11: these commands are plumbing that the majority of users\n\t// never type. They stay **registered** (so existing scripts keep\n\t// working and muscle memory is not broken) but are `.hidden()` from\n\t// the top-level `maina --help` listing so first-time users see a\n\t// short, curated command surface. Call them by name to use them.\n\tconst internals = [\n\t\tanalyzeCommand(),\n\t\tbenchmarkCommand(),\n\t\tcacheCommand(),\n\t\tcontextCommand(),\n\t\texplainCommand(),\n\t\tfeedbackCommand(),\n\t\tlearnCommand(),\n\t\tpromptCommand(),\n\t\tstatsCommand(),\n\t\tstatusCommand(),\n\t\tsyncCommand(),\n\t\tteamCommand(),\n\t\tvisualCommand(),\n\t];\n\tfor (const cmd of internals) {\n\t\t// Commander does not expose a public `.hidden()` method but respects\n\t\t// the internal `_hidden` flag when rendering `helpInformation()`.\n\t\t// Setting it keeps the command callable while removing it from the\n\t\t// top-level help listing — exactly what G11 asks for.\n\t\t(cmd as unknown as { _hidden: boolean })._hidden = true;\n\t\tprogram.addCommand(cmd);\n\t}\n\n\treturn program;\n}\n",
+				"existing": [
+					{
+						"path": "packages/cli/package.json",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/analyze.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/apply-fix.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/benchmark.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/brainstorm.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/cache.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/commit.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/configure.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/context.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/design.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/doctor.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/explain.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/feedback.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/init.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/learn.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/login.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/mcp.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/plan.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/pr.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/prompt.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/receipt.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/review.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/review-design.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/setup.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/slop.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/spec.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/stats.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/status.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/sync.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/team.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/ticket.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/verify.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/verify-receipt.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/visual.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/cli/src/commands/wiki/index.ts",
+						"kind": "file"
+					}
+				]
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "packages/cli/src/program.ts",
+					"line": 177,
+					"message": "3 consecutive lines of commented-out code",
+					"severity": "warning",
+					"ruleId": "slop/commented-code"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.6.ts",
+				"content": "import { tryAIGenerate } from \"../ai/try-generate\";\nimport { buildCacheKey, hashContent } from \"../cache/keys\";\nimport { createCacheManager, type CacheManager } from \"../cache/manager\";\n\n// ─── AI Review Runner ─────────────────────────────────────────────────────\n\nconst VALID_RULE_IDS = new Set([\n  \"ai-review/cross-function\",\n  \"ai-review/edge-case\",\n  \"ai-review/dead-code\",\n  \"ai-review/contract\",\n  \"ai-review/spec-compliance\",\n  \"ai-review/architecture\",\n  \"ai-review/coverage-gap\",\n]);\n\n/**\n * Parse the AI response JSON into Finding[].\n * Returns null on any parse failure — caller should treat as skip.\n */\nfunction parseAIResponse(text: string, deep: boolean): Finding[] | null {\n  try {\n    // Strip markdown fences if present\n    const cleaned = text.replace(/^",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.6.ts",
+					"line": 1,
+					"message": "Import \"../ai/try-generate\" does not resolve to an existing file",
+					"severity": "error",
+					"ruleId": "slop/hallucinated-import"
+				},
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.6.ts",
+					"line": 2,
+					"message": "Import \"../cache/keys\" does not resolve to an existing file",
+					"severity": "error",
+					"ruleId": "slop/hallucinated-import"
+				},
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.6.ts",
+					"line": 3,
+					"message": "Import \"../cache/manager\" does not resolve to an existing file",
+					"severity": "error",
+					"ruleId": "slop/hallucinated-import"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/cli/src/commands/visual.ts",
+				"content": "import { join } from \"node:path\";\nimport { intro, log, outro, spinner } from \"@clack/prompts\";\nimport {\n\tappendWorkflowStep,\n\tdetectWebProject,\n\tloadVisualConfig,\n\tupdateBaselines,\n} from \"@mainahq/core\";\nimport { Command } from \"commander\";\n\nexport interface VisualActionOptions {\n\tcwd?: string;\n}\n\nexport interface VisualActionResult {\n\tupdated: string[];\n\terrors: string[];\n}\n\nexport async function visualUpdateAction(\n\toptions: VisualActionOptions,\n): Promise<VisualActionResult> {\n\tconst cwd = options.cwd ?? process.cwd();\n\tconst mainaDir = join(cwd, \".maina\");\n\n\tconst config = loadVisualConfig(mainaDir);\n\n\tif (config.urls.length === 0 && !detectWebProject(cwd)) {\n\t\tlog.warn(\n\t\t\t'No URLs configured. Add \"visual.urls\" to .maina/preferences.json.',\n\t\t);\n\t\treturn { updated: [], errors: [\"No URLs configured\"] };\n\t}\n\n\tconst result = await updateBaselines(mainaDir, config);\n\n\treturn result;\n}\n\nexport function visualCommand(): Command {\n\tconst cmd = new Command(\"visual\").description(\n\t\t\"Visual verification management\",\n\t);\n\n\tcmd\n\t\t.command(\"update\")\n\t\t.description(\"Capture current screenshots as baselines\")\n\t\t.action(async () => {\n\t\t\tintro(\"maina visual update\");\n\n\t\t\tconst s = spinner();\n\t\t\ts.start(\"Capturing baseline screenshots…\");\n\n\t\t\tconst result = await visualUpdateAction({});\n\n\t\t\ts.stop(\"Capture complete.\");\n\n\t\t\tif (result.updated.length > 0) {\n\t\t\t\tfor (const file of result.updated) {\n\t\t\t\t\tlog.success(`  Updated: ${file}`);\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tif (result.errors.length > 0) {\n\t\t\t\tfor (const error of result.errors) {\n\t\t\t\t\tlog.error(`  Error: ${error}`);\n\t\t\t\t}\n\t\t\t}\n\n\t\t\tconst mainaDir = join(process.cwd(), \".maina\");\n\t\t\tappendWorkflowStep(\n\t\t\t\tmainaDir,\n\t\t\t\t\"visual-update\",\n\t\t\t\t`Updated ${result.updated.length} baseline(s). ${result.errors.length} error(s).`,\n\t\t\t);\n\n\t\t\tif (result.updated.length > 0) {\n\t\t\t\toutro(\n\t\t\t\t\t`${result.updated.length} baseline(s) updated. Commit them to git.`,\n\t\t\t\t);\n\t\t\t} else {\n\t\t\t\toutro(\"No baselines updated.\");\n\t\t\t}\n\t\t});\n\n\treturn cmd;\n}\n",
+				"existing": []
+			},
+			"output": []
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/core/src/config/index.ts",
+				"content": "import { existsSync } from \"node:fs\";\nimport { dirname, join } from \"node:path\";\n\nexport interface MainaConfig {\n\tmodels: {\n\t\tmechanical: string;\n\t\tstandard: string;\n\t\tarchitectural: string;\n\t\tlocal: string;\n\t};\n\tprovider: string;\n\tbudget: {\n\t\tdaily: number;\n\t\tperTask: number;\n\t\talertAt: number;\n\t};\n\tapiKey?: string;\n}\n\nconst DEFAULT_CONFIG: MainaConfig = {\n\t// Defaults lock to the current-generation Claude 4.X family (April 2026):\n\t// - mechanical → Haiku 4.5 (cheap + fast, same-provider as the other tiers\n\t//   so one key covers every call; replaces Gemini 2.5 Flash as the cheap\n\t//   default — Gemini can still be set per-tier via `maina.config.ts`).\n\t// - standard → Sonnet 4.6 (replaces Sonnet 4 from May 2025).\n\t// - architectural → Opus 4.7 (actual top tier, not a clone of standard).\n\t//   The earlier default aliased architectural to the same Sonnet 4 as\n\t//   standard, which silently downgraded `maina design-review`, `learn`,\n\t//   and architecture work to a mid-tier model.\n\tmodels: {\n\t\tmechanical: \"anthropic/claude-haiku-4-5\",\n\t\tstandard: \"anthropic/claude-sonnet-4-6\",\n\t\tarchitectural: \"anthropic/claude-opus-4-7\",\n\t\tlocal: \"ollama/qwen3-coder-8b\",\n\t},\n\tprovider: \"openrouter\",\n\tbudget: {\n\t\tdaily: 5.0,\n\t\tperTask: 0.5,\n\t\talertAt: 0.8,\n\t},\n};\n\n/**\n * Returns a deep copy of the default config so callers cannot mutate the\n * internal defaults.\n */\nexport function getDefaultConfig(): MainaConfig {\n\treturn {\n\t\t...DEFAULT_CONFIG,\n\t\tmodels: { ...DEFAULT_CONFIG.models },\n\t\tbudget: { ...DEFAULT_CONFIG.budget },\n\t};\n}\n\n/**\n * Walks up the directory tree starting at `startDir` (defaults to\n * process.cwd()) looking for `maina.config.ts` then `maina.config.js`.\n * Returns the absolute path of the first match, or null if none found.\n */\nexport function findConfigFile(startDir?: string): string | null {\n\tlet dir = startDir ?? process.cwd();\n\tconst names = [\"maina.config.ts\", \"maina.config.js\"];\n\n\twhile (true) {\n\t\tfor (const name of names) {\n\t\t\tconst candidate = join(dir, name);\n\t\t\tif (existsSync(candidate)) {\n\t\t\t\treturn candidate;\n\t\t\t}\n\t\t}\n\n\t\tconst parent = dirname(dir);\n\t\t// Reached filesystem root — stop\n\t\tif (parent === dir) {\n\t\t\treturn null;\n\t\t}\n\t\tdir = parent;\n\t}\n}\n\n/**\n * Finds and dynamically imports the maina config file, then deep-merges it\n * with the defaults.  Falls back to defaults silently on any error.\n */\nexport async function loadConfig(startDir?: string): Promise<MainaConfig> {\n\tconst configPath = findConfigFile(startDir);\n\n\tif (configPath === null) {\n\t\treturn getDefaultConfig();\n\t}\n\n\ttry {\n\t\tconst mod = await import(configPath);\n\t\tconst userConfig: Partial<MainaConfig> = mod.default ?? mod;\n\t\treturn { ...DEFAULT_CONFIG, ...userConfig };\n\t} catch {\n\t\treturn getDefaultConfig();\n\t}\n}\n\n/**\n * Returns the API key from environment variables, preferring MAINA_API_KEY\n * over OPENROUTER_API_KEY.  When MAINA_HOST_MODE is set, also checks for\n * ANTHROPIC_API_KEY (set by Claude Code and similar host agents).\n * Returns null when no key is found.\n */\nexport function getApiKey(): string | null {\n\treturn (\n\t\tprocess.env.MAINA_API_KEY ??\n\t\tprocess.env.OPENROUTER_API_KEY ??\n\t\tprocess.env.ANTHROPIC_API_KEY ??\n\t\tnull\n\t);\n}\n\n/**\n * Resolves the active provider, allowing the MAINA_PROVIDER environment\n * variable to override whatever is in the config.\n *\n * When running in host mode (MAINA_HOST_MODE=true or ANTHROPIC_API_KEY is set\n * without explicit provider), auto-detects the appropriate provider:\n * - ANTHROPIC_API_KEY → \"anthropic\"\n * - Otherwise → config default\n */\nexport function resolveProvider(config: MainaConfig): string {\n\t// Explicit override always wins\n\tif (process.env.MAINA_PROVIDER) {\n\t\treturn process.env.MAINA_PROVIDER;\n\t}\n\n\t// Host mode auto-detection: if running inside Claude Code or similar,\n\t// ANTHROPIC_API_KEY is available but no explicit Maina key\n\tif (isHostMode()) {\n\t\tif (\n\t\t\tprocess.env.ANTHROPIC_API_KEY &&\n\t\t\t!process.env.MAINA_API_KEY &&\n\t\t\t!process.env.OPENROUTER_API_KEY\n\t\t) {\n\t\t\treturn \"anthropic\";\n\t\t}\n\t}\n\n\treturn config.provider;\n}\n\n/**\n * Detect if Maina is running inside a host agent environment\n * (e.g., Claude Code, Cursor, Codex).\n *\n * Checks for:\n * - MAINA_HOST_MODE=true (explicit opt-in)\n * - CLAUDECODE=1 (Claude Code sets this — note: no underscore)\n * - CLAUDE_CODE_ENTRYPOINT (Claude Code sets this to \"cli\")\n * - CURSOR=1 (Cursor sets this)\n * - ANTHROPIC_API_KEY without MAINA_API_KEY\n */\nexport function isHostMode(): boolean {\n\tif (process.env.MAINA_HOST_MODE === \"true\") return true;\n\t// Claude Code sets CLAUDECODE=1 (no underscore) and CLAUDE_CODE_ENTRYPOINT\n\tif (process.env.CLAUDECODE === \"1\") return true;\n\tif (process.env.CLAUDE_CODE_ENTRYPOINT) return true;\n\tif (process.env.CURSOR === \"1\") return true;\n\t// Infer host mode when we have an Anthropic key but no explicit Maina config\n\tif (\n\t\tprocess.env.ANTHROPIC_API_KEY &&\n\t\t!process.env.MAINA_API_KEY &&\n\t\t!process.env.OPENROUTER_API_KEY\n\t) {\n\t\treturn true;\n\t}\n\treturn false;\n}\n\n/**\n * When running inside a host agent (Claude Code, Cursor), AI calls should\n * be delegated to the host rather than making direct API calls.\n *\n * Returns structured prompt data that the host agent can process.\n * The MCP server or skills package uses this to pass context to the host.\n *\n * NOTE: Currently unused — retained for MCP/skills host delegation (Sprint 10+).\n */\nexport interface HostDelegation {\n\tmode: \"host\";\n\tsystemPrompt: string;\n\tuserPrompt: string;\n\ttask: string;\n}\n\n/**\n * Check if AI should be delegated to host instead of direct API call.\n *\n * NOTE: In practice this currently returns true only when MAINA_HOST_MODE=true\n * is set explicitly with no API keys. The common Claude Code scenario\n * (CLAUDECODE=1 without API keys) triggers isHostMode() but also triggers\n * this function's delegation. The generate() function handles this by\n * returning a [HOST_DELEGATION] prompt string.\n */\nexport function shouldDelegateToHost(): boolean {\n\tif (!isHostMode()) return false;\n\t// If user has their own API key, use it directly\n\tif (process.env.MAINA_API_KEY || process.env.OPENROUTER_API_KEY) return false;\n\tif (process.env.ANTHROPIC_API_KEY) return false;\n\t// In host mode with no key — delegate to host agent\n\treturn true;\n}\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "packages/core/src/config/index.ts",
+					"line": 21,
+					"message": "6 consecutive lines of commented-out code",
+					"severity": "warning",
+					"ruleId": "slop/commented-code"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.7.ts",
+				"content": "import type { AIReviewResult } from \"../ai-review\";\n\nlet mockAIReviewResult: AIReviewResult = {\n  findings: [], skipped: true, tier: \"mechanical\", duration: 0,\n};\n\nmock.module(\"../ai-review\", () => ({\n  runAIReview: async (..._args: unknown[]) => {\n    callOrder.push(\"runAIReview\");\n    return mockAIReviewResult;\n  },\n}));\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.7.ts",
+					"line": 1,
+					"message": "Import \"../ai-review\" does not resolve to an existing file",
+					"severity": "error",
+					"ruleId": "slop/hallucinated-import"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/core/src/ai/__tests__/spec-questions.test.ts",
+				"content": "import { afterAll, beforeEach, describe, expect, mock, test } from \"bun:test\";\n\n// ── Mock State ──────────────────────────────────────────────────────────────\n\nlet mockAIResponse: string | null = null;\n\n// ── Mocks ───────────────────────────────────────────────────────────────────\n\nmock.module(\"../try-generate\", () => ({\n\ttryAIGenerate: async (\n\t\t_task: string,\n\t\t_mainaDir: string,\n\t\t_variables: Record<string, string>,\n\t\t_userPrompt: string,\n\t) => ({\n\t\ttext: mockAIResponse,\n\t\tfromAI: mockAIResponse !== null,\n\t\thostDelegation: false,\n\t}),\n}));\n\nafterAll(() => {\n\tmock.restore();\n});\n\n// ── Import after mocks ──────────────────────────────────────────────────────\n\nconst { generateSpecQuestions } = await import(\"../spec-questions\");\n\n// ── Tests ───────────────────────────────────────────────────────────────────\n\ndescribe(\"generateSpecQuestions\", () => {\n\tbeforeEach(() => {\n\t\tmockAIResponse = null;\n\t});\n\n\t// ── Happy Path ──────────────────────────────────────────────────────────\n\n\tdescribe(\"happy path\", () => {\n\t\ttest(\"returns parsed questions from valid AI JSON response\", async () => {\n\t\t\tmockAIResponse = JSON.stringify([\n\t\t\t\t{\n\t\t\t\t\tquestion: \"Should cache invalidate on branch switch?\",\n\t\t\t\t\ttype: \"select\",\n\t\t\t\t\toptions: [\"Yes\", \"No\", \"Both\"],\n\t\t\t\t\treason: \"Not specified in plan\",\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\tquestion: \"What error message for missing API key?\",\n\t\t\t\t\ttype: \"text\",\n\t\t\t\t\treason: \"Error handling unspecified\",\n\t\t\t\t},\n\t\t\t]);\n\n\t\t\tconst result = await generateSpecQuestions(\n\t\t\t\t\"## Tasks\\n- T001: Add cache\",\n\t\t\t\t\".maina\",\n\t\t\t);\n\n\t\t\texpect(result.ok).toBe(true);\n\t\t\tif (result.ok) {\n\t\t\t\texpect(result.value).toHaveLength(2);\n\t\t\t\texpect(result.value[0]?.question).toBe(\n\t\t\t\t\t\"Should cache invalidate on branch switch?\",\n\t\t\t\t);\n\t\t\t\texpect(result.value[0]?.type).toBe(\"select\");\n\t\t\t\texpect(result.value[0]?.options).toEqual([\"Yes\", \"No\", \"Both\"]);\n\t\t\t\texpect(result.value[1]?.type).toBe(\"text\");\n\t\t\t}\n\t\t});\n\n\t\ttest(\"returns empty array when AI says plan is clear\", async () => {\n\t\t\tmockAIResponse = \"[]\";\n\n\t\t\tconst result = await generateSpecQuestions(\n\t\t\t\t\"## Tasks\\n- T001: Clear task\",\n\t\t\t\t\".maina\",\n\t\t\t);\n\n\t\t\texpect(result.ok).toBe(true);\n\t\t\tif (result.ok) {\n\t\t\t\texpect(result.value).toHaveLength(0);\n\t\t\t}\n\t\t});\n\t});\n\n\t// ── Edge Cases ──────────────────────────────────────────────────────────\n\n\tdescribe(\"edge cases\", () => {\n\t\ttest(\"returns empty array when plan content is empty\", async () => {\n\t\t\tconst result = await generateSpecQuestions(\"\", \".maina\");\n\n\t\t\texpect(result.ok).toBe(true);\n\t\t\tif (result.ok) {\n\t\t\t\texpect(result.value).toHaveLength(0);\n\t\t\t}\n\t\t});\n\n\t\ttest(\"handles AI response with markdown fences around JSON\", async () => {\n\t\t\tmockAIResponse =\n\t\t\t\t'```json\\n[{\"question\":\"Test?\",\"type\":\"text\",\"reason\":\"r\"}]\\n```';\n\n\t\t\tconst result = await generateSpecQuestions(\n\t\t\t\t\"## Tasks\\n- T001: Test\",\n\t\t\t\t\".maina\",\n\t\t\t);\n\n\t\t\texpect(result.ok).toBe(true);\n\t\t\tif (result.ok) {\n\t\t\t\texpect(result.value).toHaveLength(1);\n\t\t\t\texpect(result.value[0]?.question).toBe(\"Test?\");\n\t\t\t}\n\t\t});\n\n\t\ttest(\"caps questions at 5 even if AI returns more\", async () => {\n\t\t\tconst sixQuestions = Array.from({ length: 6 }, (_, i) => ({\n\t\t\t\tquestion: `Question ${i + 1}?`,\n\t\t\t\ttype: \"text\",\n\t\t\t\treason: `Reason ${i + 1}`,\n\t\t\t}));\n\t\t\tmockAIResponse = JSON.stringify(sixQuestions);\n\n\t\t\tconst result = await generateSpecQuestions(\n\t\t\t\t\"## Tasks\\n- T001: Test\",\n\t\t\t\t\".maina\",\n\t\t\t);\n\n\t\t\texpect(result.ok).toBe(true);\n\t\t\tif (result.ok) {\n\t\t\t\texpect(result.value.length).toBeLessThanOrEqual(5);\n\t\t\t}\n\t\t});\n\t});\n\n\t// ── Error Handling ──────────────────────────────────────────────────────\n\n\tdescribe(\"error handling\", () => {\n\t\ttest(\"returns empty array when AI is not available (null response)\", async () => {\n\t\t\tmockAIResponse = null;\n\n\t\t\tconst result = await generateSpecQuestions(\n\t\t\t\t\"## Tasks\\n- T001: Test\",\n\t\t\t\t\".maina\",\n\t\t\t);\n\n\t\t\texpect(result.ok).toBe(true);\n\t\t\tif (result.ok) {\n\t\t\t\texpect(result.value).toHaveLength(0);\n\t\t\t}\n\t\t});\n\n\t\ttest(\"returns empty array when AI returns malformed JSON\", async () => {\n\t\t\tmockAIResponse = \"not valid json at all\";\n\n\t\t\tconst result = await generateSpecQuestions(\n\t\t\t\t\"## Tasks\\n- T001: Test\",\n\t\t\t\t\".maina\",\n\t\t\t);\n\n\t\t\texpect(result.ok).toBe(true);\n\t\t\tif (result.ok) {\n\t\t\t\texpect(result.value).toHaveLength(0);\n\t\t\t}\n\t\t});\n\n\t\ttest(\"filters out questions missing required fields\", async () => {\n\t\t\tmockAIResponse = JSON.stringify([\n\t\t\t\t{ question: \"Valid?\", type: \"text\", reason: \"Valid reason\" },\n\t\t\t\t{ type: \"text\", reason: \"Missing question field\" },\n\t\t\t\t{\n\t\t\t\t\tquestion: \"Also valid?\",\n\t\t\t\t\ttype: \"select\",\n\t\t\t\t\toptions: [\"A\", \"B\"],\n\t\t\t\t\treason: \"OK\",\n\t\t\t\t},\n\t\t\t]);\n\n\t\t\tconst result = await generateSpecQuestions(\n\t\t\t\t\"## Tasks\\n- T001: Test\",\n\t\t\t\t\".maina\",\n\t\t\t);\n\n\t\t\texpect(result.ok).toBe(true);\n\t\t\tif (result.ok) {\n\t\t\t\texpect(result.value).toHaveLength(2);\n\t\t\t\texpect(result.value[0]?.question).toBe(\"Valid?\");\n\t\t\t\texpect(result.value[1]?.question).toBe(\"Also valid?\");\n\t\t\t}\n\t\t});\n\t});\n});\n",
+				"existing": []
+			},
+			"output": []
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/core/src/mcp/index.ts",
+				"content": "/**\n * `maina mcp` — install, remove, and list the maina MCP server across\n * supported AI clients.\n *\n * Public entry points: `runAdd`, `runRemove`, `runList`. Each takes a\n * RunOptions describing the requested clients, scope, dry-run mode, and\n * cwd. Each returns a per-client list of ApplyResult / status records.\n */\n\nimport { addOnClient, inspectClient, removeFromClient } from \"./apply\";\nimport { buildClientRegistry, listClientIds } from \"./clients\";\nimport type { ApplyResult, McpClientId, RunOptions } from \"./types\";\n\nexport { buildClientRegistry, listClientIds } from \"./clients\";\nexport type {\n\tApplyResult,\n\tMcpClientId,\n\tMcpClientInfo,\n\tMcpScope,\n\tRunOptions,\n} from \"./types\";\n\ninterface ResolvedClient {\n\tid: McpClientId;\n\tconfigPath: string;\n\tscope: \"global\" | \"project\";\n}\n\nasync function selectClients(\n\topts: RunOptions,\n): Promise<{ targets: ResolvedClient[]; skipped: McpClientId[] }> {\n\tconst registry = buildClientRegistry(opts.home);\n\tconst requested = opts.clients ?? listClientIds();\n\tconst targets: ResolvedClient[] = [];\n\tconst skipped: McpClientId[] = [];\n\n\tfor (const id of requested) {\n\t\tconst info = registry[id];\n\t\t// When the user explicitly named clients, respect the choice and\n\t\t// skip detection. Auto-mode (no --client list) only writes to\n\t\t// clients we believe are present.\n\t\tconst explicit = opts.clients !== undefined;\n\t\tif (!explicit) {\n\t\t\tconst installed = await info.detect();\n\t\t\tif (!installed) {\n\t\t\t\tskipped.push(id);\n\t\t\t\tcontinue;\n\t\t\t}\n\t\t}\n\t\tif (opts.scope === \"global\" || opts.scope === \"both\") {\n\t\t\ttargets.push({\n\t\t\t\tid,\n\t\t\t\tconfigPath: info.globalConfigPath(),\n\t\t\t\tscope: \"global\",\n\t\t\t});\n\t\t}\n\t\tif (\n\t\t\t(opts.scope === \"project\" || opts.scope === \"both\") &&\n\t\t\tinfo.projectConfigPath\n\t\t) {\n\t\t\ttargets.push({\n\t\t\t\tid,\n\t\t\t\tconfigPath: info.projectConfigPath(opts.cwd),\n\t\t\t\tscope: \"project\",\n\t\t\t});\n\t\t}\n\t}\n\treturn { targets, skipped };\n}\n\nexport interface RunReport {\n\tresults: ApplyResult[];\n\tskipped: McpClientId[];\n}\n\nexport async function runAdd(opts: RunOptions): Promise<RunReport> {\n\tconst registry = buildClientRegistry(opts.home);\n\tconst { targets, skipped } = await selectClients(opts);\n\tconst results: ApplyResult[] = [];\n\tfor (const t of targets) {\n\t\tconst info = registry[t.id];\n\t\tresults.push(\n\t\t\tawait addOnClient(info, {\n\t\t\t\tconfigPath: t.configPath,\n\t\t\t\tscope: t.scope,\n\t\t\t\tdryRun: opts.dryRun,\n\t\t\t}),\n\t\t);\n\t}\n\treturn { results, skipped };\n}\n\nexport async function runRemove(opts: RunOptions): Promise<RunReport> {\n\tconst registry = buildClientRegistry(opts.home);\n\tconst { targets, skipped } = await selectClients(opts);\n\tconst results: ApplyResult[] = [];\n\tfor (const t of targets) {\n\t\tconst info = registry[t.id];\n\t\tresults.push(\n\t\t\tawait removeFromClient(info, {\n\t\t\t\tconfigPath: t.configPath,\n\t\t\t\tscope: t.scope,\n\t\t\t\tdryRun: opts.dryRun,\n\t\t\t}),\n\t\t);\n\t}\n\treturn { results, skipped };\n}\n\nexport interface ListEntry {\n\tclientId: McpClientId;\n\tlabel: string;\n\tscope: \"global\" | \"project\";\n\tconfigPath: string;\n\tdetected: boolean;\n\tinstalled: boolean;\n\terror?: string;\n}\n\nexport async function runList(\n\topts: RunOptions,\n): Promise<{ entries: ListEntry[] }> {\n\tconst registry = buildClientRegistry(opts.home);\n\tconst requested = opts.clients ?? listClientIds();\n\tconst entries: ListEntry[] = [];\n\tfor (const id of requested) {\n\t\tconst info = registry[id];\n\t\tconst detected = await info.detect();\n\t\tconst scopes: Array<\"global\" | \"project\"> =\n\t\t\topts.scope === \"both\"\n\t\t\t\t? [\"global\", \"project\"]\n\t\t\t\t: opts.scope === \"project\"\n\t\t\t\t\t? [\"project\"]\n\t\t\t\t\t: [\"global\"];\n\t\tfor (const scope of scopes) {\n\t\t\t// If a client doesn't define a project-scope config path, skip\n\t\t\t// the project entry entirely rather than silently reporting the\n\t\t\t// global path with `scope: \"project\"` (which would mislead users\n\t\t\t// who explicitly asked for `--scope project`).\n\t\t\tif (scope === \"project\" && !info.projectConfigPath) continue;\n\t\t\tconst path =\n\t\t\t\tscope === \"project\" && info.projectConfigPath\n\t\t\t\t\t? info.projectConfigPath(opts.cwd)\n\t\t\t\t\t: info.globalConfigPath();\n\t\t\tconst status = await inspectClient(info, path);\n\t\t\tentries.push({\n\t\t\t\tclientId: id,\n\t\t\t\tlabel: info.label,\n\t\t\t\tscope,\n\t\t\t\tconfigPath: path,\n\t\t\t\tdetected,\n\t\t\t\tinstalled: status.installed,\n\t\t\t\t...(status.error ? { error: status.error } : {}),\n\t\t\t});\n\t\t}\n\t}\n\treturn { entries };\n}\n",
+				"existing": [
+					{
+						"path": "packages/core/src/mcp/apply.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/core/src/mcp/clients.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/core/src/mcp/types.ts",
+						"kind": "file"
+					}
+				]
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "packages/core/src/mcp/index.ts",
+					"line": 137,
+					"message": "3 consecutive lines of commented-out code",
+					"severity": "warning",
+					"ruleId": "slop/commented-code"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.10.ts",
+				"content": "import { runAIReview, type AIReviewResult } from \"./ai-review\";\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.10.ts",
+					"line": 1,
+					"message": "Import \"./ai-review\" does not resolve to an existing file",
+					"severity": "error",
+					"ruleId": "slop/hallucinated-import"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/core/src/benchmark/runner.ts",
+				"content": "import type { Result } from \"../db/index\";\nimport type { BenchmarkMetrics } from \"./types\";\n\nexport interface TestResult {\n\tpassed: number;\n\tfailed: number;\n\ttotal: number;\n}\n\nexport interface RunBenchmarkOptions {\n\tpipeline: \"maina\" | \"speckit\";\n\tstoryName: string;\n\ttestFiles: string[];\n\timplDir: string;\n\ttokensInput?: number;\n\ttokensOutput?: number;\n\tverifyFindings?: number;\n\tspecQualityScore?: number;\n\timplLOC?: number;\n\tattemptsToPass?: number;\n\tbugsIntroduced?: number;\n\ttoolsUsed?: string[];\n}\n\n/**\n * Parse bun test stdout to extract pass/fail counts.\n */\nexport function parseTestOutput(output: string): TestResult {\n\tconst passMatch = output.match(/(\\d+)\\s+pass/);\n\tconst failMatch = output.match(/(\\d+)\\s+fail/);\n\n\tconst passed = passMatch ? Number.parseInt(passMatch[1] as string, 10) : 0;\n\tconst failed = failMatch ? Number.parseInt(failMatch[1] as string, 10) : 0;\n\n\treturn { passed, failed, total: passed + failed };\n}\n\n/**\n * Run benchmark tests against an implementation directory.\n * Spawns `bun test` on the provided test files and captures metrics.\n */\nexport async function runBenchmark(\n\toptions: RunBenchmarkOptions,\n): Promise<Result<BenchmarkMetrics>> {\n\tconst startMs = performance.now();\n\n\ttry {\n\t\tconst proc = Bun.spawn([\"bun\", \"test\", ...options.testFiles], {\n\t\t\tcwd: options.implDir,\n\t\t\tstdout: \"pipe\",\n\t\t\tstderr: \"pipe\",\n\t\t\tenv: {\n\t\t\t\t...process.env,\n\t\t\t\tMITT_IMPL_PATH: options.implDir,\n\t\t\t},\n\t\t});\n\n\t\tconst stdout = await new Response(proc.stdout).text();\n\t\tconst stderr = await new Response(proc.stderr).text();\n\t\tawait proc.exited;\n\n\t\tconst combined = stdout + stderr;\n\t\tconst testResult = parseTestOutput(combined);\n\t\tconst wallClockMs = Math.round(performance.now() - startMs);\n\n\t\treturn {\n\t\t\tok: true,\n\t\t\tvalue: {\n\t\t\t\tpipeline: options.pipeline,\n\t\t\t\tstoryName: options.storyName,\n\t\t\t\twallClockMs,\n\t\t\t\ttokensInput: options.tokensInput ?? 0,\n\t\t\t\ttokensOutput: options.tokensOutput ?? 0,\n\t\t\t\ttestsTotal: testResult.total,\n\t\t\t\ttestsPassed: testResult.passed,\n\t\t\t\ttestsFailed: testResult.failed,\n\t\t\t\tverifyFindings: options.verifyFindings ?? 0,\n\t\t\t\tspecQualityScore: options.specQualityScore ?? 0,\n\t\t\t\timplLOC: options.implLOC ?? 0,\n\t\t\t\tattemptsToPass: options.attemptsToPass ?? 1,\n\t\t\t\tbugsIntroduced: options.bugsIntroduced ?? 0,\n\t\t\t\ttoolsUsed: options.toolsUsed ?? [],\n\t\t\t},\n\t\t};\n\t} catch (e) {\n\t\treturn {\n\t\t\tok: false,\n\t\t\terror: `Benchmark run failed: ${e instanceof Error ? e.message : String(e)}`,\n\t\t};\n\t}\n}\n",
+				"existing": [
+					{
+						"path": "packages/core/src/db/index.ts",
+						"kind": "file"
+					},
+					{
+						"path": "packages/core/src/benchmark/types.ts",
+						"kind": "file"
+					}
+				]
+			},
+			"output": []
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/core/src/setup/confirm.ts",
+				"content": "/**\n * Rule confirmation — TTY y/n/e UI + non-TTY auto-accept.\n *\n * TTY path: lazily imports `@clack/prompts` (a CLI-layer dep, not a core\n * dep) and asks y/n/e per rule. The `e` branch opens `$EDITOR` to let the\n * user rewrite the rule before accepting.\n *\n * Non-TTY path: auto-accepts rules at or above `autoAcceptThreshold`\n * (default 0.6) and rejects the rest. No stdin reads, safe for CI.\n *\n * Rejected rules are appended (de-duplicated) to `.maina/rejected.yml` so\n * future setup re-runs can re-surface them if their confidence rises.\n */\n\nimport {\n\texistsSync,\n\tmkdirSync,\n\treadFileSync,\n\tunlinkSync,\n\twriteFileSync,\n} from \"node:fs\";\nimport { tmpdir } from \"node:os\";\nimport { join } from \"node:path\";\nimport type { Rule } from \"./adopt\";\n\nexport interface ConfirmOptions {\n\t/** Default: `process.stdout.isTTY`. */\n\tinteractive?: boolean;\n\t/** Non-TTY default: 0.6. Range 0..1. */\n\tautoAcceptThreshold?: number;\n\t/** Where `rejected.yml` lives. Default: `<cwd>/.maina`. */\n\tmainaDir?: string;\n\t/** Injection point for tests — replaces `@clack/prompts.select`. */\n\tpromptImpl?: (rule: Rule) => Promise<\"y\" | \"n\" | \"e\">;\n\t/** Injection point for tests — replaces the `$EDITOR` invocation. */\n\teditImpl?: (rule: Rule) => Promise<Rule>;\n\t/** Override `Date.now()` for deterministic tests. */\n\tnowIso?: () => string;\n}\n\nexport interface ConfirmResult {\n\taccepted: Rule[];\n\trejected: Rule[];\n}\n\nexport async function confirmRules(\n\trules: Rule[],\n\topts: ConfirmOptions = {},\n): Promise<ConfirmResult> {\n\tif (rules.length === 0) {\n\t\treturn { accepted: [], rejected: [] };\n\t}\n\n\tconst interactive =\n\t\topts.interactive !== undefined\n\t\t\t? opts.interactive\n\t\t\t: typeof process !== \"undefined\" && Boolean(process.stdout.isTTY);\n\tconst threshold = opts.autoAcceptThreshold ?? 0.6;\n\tconst mainaDir = opts.mainaDir ?? join(process.cwd(), \".maina\");\n\n\tconst accepted: Rule[] = [];\n\tconst rejected: Rule[] = [];\n\n\tif (interactive) {\n\t\tconst selectRule = opts.promptImpl ?? (await loadClackPrompt());\n\t\tfor (const rule of rules) {\n\t\t\tconst verdict = await selectRule(rule);\n\t\t\tif (verdict === \"y\") {\n\t\t\t\taccepted.push(rule);\n\t\t\t} else if (verdict === \"n\") {\n\t\t\t\trejected.push(rule);\n\t\t\t} else if (verdict === \"e\") {\n\t\t\t\tconst edited = opts.editImpl\n\t\t\t\t\t? await opts.editImpl(rule)\n\t\t\t\t\t: await openEditor(rule);\n\t\t\t\taccepted.push(edited);\n\t\t\t}\n\t\t}\n\t} else {\n\t\tfor (const rule of rules) {\n\t\t\tif (rule.confidence >= threshold) {\n\t\t\t\taccepted.push(rule);\n\t\t\t} else {\n\t\t\t\trejected.push(rule);\n\t\t\t}\n\t\t}\n\t}\n\n\tif (rejected.length > 0) {\n\t\tappendRejected(\n\t\t\tmainaDir,\n\t\t\trejected,\n\t\t\topts.nowIso ?? (() => new Date().toISOString()),\n\t\t);\n\t}\n\n\treturn { accepted, rejected };\n}\n\n// ── rejected.yml ─────────────────────────────────────────────────────────────\n\ninterface RejectedEntry {\n\ttext: string;\n\tsource: string;\n\tconfidence: number;\n\trejectedAt: string;\n}\n\nfunction appendRejected(\n\tmainaDir: string,\n\trules: Rule[],\n\tnowIso: () => string,\n): void {\n\ttry {\n\t\tif (!existsSync(mainaDir)) {\n\t\t\tmkdirSync(mainaDir, { recursive: true });\n\t\t}\n\t} catch {\n\t\treturn;\n\t}\n\tconst path = join(mainaDir, \"rejected.yml\");\n\tconst existing = parseRejected(safeRead(path) ?? \"\");\n\tconst seen = new Set(existing.map((e) => normalise(e.text)));\n\tconst ts = nowIso();\n\tfor (const rule of rules) {\n\t\tconst key = normalise(rule.text);\n\t\tif (seen.has(key)) continue;\n\t\texisting.push({\n\t\t\ttext: rule.text,\n\t\t\tsource: rule.source,\n\t\t\tconfidence: rule.confidence,\n\t\t\trejectedAt: ts,\n\t\t});\n\t\tseen.add(key);\n\t}\n\twriteRejected(path, existing);\n}\n\nfunction writeRejected(path: string, entries: RejectedEntry[]): void {\n\tconst lines: string[] = [\"# maina rejected rules\", \"rules:\"];\n\tfor (const e of entries) {\n\t\tlines.push(`  - text: ${yamlString(e.text)}`);\n\t\tlines.push(`    source: ${yamlString(e.source)}`);\n\t\tlines.push(`    confidence: ${e.confidence}`);\n\t\tlines.push(`    rejectedAt: ${yamlString(e.rejectedAt)}`);\n\t}\n\ttry {\n\t\twriteFileSync(path, `${lines.join(\"\\n\")}\\n`, \"utf-8\");\n\t} catch {\n\t\t// Swallow — a read-only filesystem must not abort setup.\n\t}\n}\n\nfunction parseRejected(yaml: string): RejectedEntry[] {\n\tconst out: RejectedEntry[] = [];\n\tconst lines = yaml.split(\"\\n\");\n\tlet cur: Partial<RejectedEntry> | null = null;\n\tfor (const raw of lines) {\n\t\tconst line = raw.replace(/\\r$/, \"\");\n\t\tif (/^\\s*- text:/.test(line)) {\n\t\t\tif (cur?.text) out.push(cur as RejectedEntry);\n\t\t\tcur = { text: extractYamlValue(line) };\n\t\t} else if (cur && /^\\s*source:/.test(line)) {\n\t\t\tcur.source = extractYamlValue(line);\n\t\t} else if (cur && /^\\s*confidence:/.test(line)) {\n\t\t\tconst v = Number.parseFloat(extractYamlValue(line));\n\t\t\tcur.confidence = Number.isFinite(v) ? v : 0;\n\t\t} else if (cur && /^\\s*rejectedAt:/.test(line)) {\n\t\t\tcur.rejectedAt = extractYamlValue(line);\n\t\t}\n\t}\n\tif (cur?.text) out.push(cur as RejectedEntry);\n\treturn out.filter(\n\t\t(e): e is RejectedEntry =>\n\t\t\ttypeof e.text === \"string\" &&\n\t\t\ttypeof e.source === \"string\" &&\n\t\t\ttypeof e.confidence === \"number\" &&\n\t\t\ttypeof e.rejectedAt === \"string\",\n\t);\n}\n\nfunction extractYamlValue(line: string): string {\n\tconst idx = line.indexOf(\":\");\n\tif (idx === -1) return \"\";\n\tconst rest = line.slice(idx + 1).trim();\n\t// Remove surrounding quotes if present.\n\tif (\n\t\t(rest.startsWith('\"') && rest.endsWith('\"')) ||\n\t\t(rest.startsWith(\"'\") && rest.endsWith(\"'\"))\n\t) {\n\t\treturn rest.slice(1, -1).replace(/\\\\\"/g, '\"');\n\t}\n\treturn rest;\n}\n\nfunction yamlString(s: string): string {\n\t// Quote if it contains characters that need quoting.\n\tif (/[:#\\n\"']/.test(s) || s.startsWith(\" \") || s.endsWith(\" \")) {\n\t\treturn `\"${s.replace(/\\\\/g, \"\\\\\\\\\").replace(/\"/g, '\\\\\"')}\"`;\n\t}\n\treturn s;\n}\n\nfunction normalise(s: string): string {\n\treturn s\n\t\t.toLowerCase()\n\t\t.replace(/\\s+/g, \" \")\n\t\t.replace(/[.!?]+$/u, \"\")\n\t\t.trim();\n}\n\nfunction safeRead(path: string): string | null {\n\ttry {\n\t\treturn readFileSync(path, \"utf-8\");\n\t} catch {\n\t\treturn null;\n\t}\n}\n\n// ── TTY plumbing ─────────────────────────────────────────────────────────────\n\n/**\n * Lazily load `@clack/prompts`. Falls back to a non-interactive accepter if\n * the package is not installed (it's a CLI-layer dep, not a core dep).\n */\nasync function loadClackPrompt(): Promise<\n\t(rule: Rule) => Promise<\"y\" | \"n\" | \"e\">\n> {\n\ttry {\n\t\t// `@clack/prompts` is a CLI-layer dependency — core does not declare it,\n\t\t// so we dynamic-import via a computed specifier to suppress bundler\n\t\t// resolution at typecheck time.\n\t\tconst spec = \"@clack/prompts\";\n\t\tconst mod = (await import(/* @vite-ignore */ spec)) as unknown as {\n\t\t\tselect: (input: {\n\t\t\t\tmessage: string;\n\t\t\t\toptions: { value: string; label: string; hint?: string }[];\n\t\t\t\tinitialValue?: string;\n\t\t\t}) => Promise<string | symbol>;\n\t\t\tisCancel: (v: unknown) => boolean;\n\t\t};\n\t\treturn async (rule: Rule) => {\n\t\t\tconst answer = await mod.select({\n\t\t\t\tmessage: `Rule: \"${rule.text}\"\\nSource: ${rule.source} | Confidence: ${rule.confidence.toFixed(2)}`,\n\t\t\t\toptions: [\n\t\t\t\t\t{ value: \"y\", label: \"yes, keep it\" },\n\t\t\t\t\t{ value: \"n\", label: \"no, drop it\" },\n\t\t\t\t\t{ value: \"e\", label: \"edit\" },\n\t\t\t\t],\n\t\t\t\tinitialValue: rule.confidence >= 0.6 ? \"y\" : \"n\",\n\t\t\t});\n\t\t\tif (mod.isCancel(answer)) return \"n\";\n\t\t\treturn answer === \"e\" ? \"e\" : answer === \"y\" ? \"y\" : \"n\";\n\t\t};\n\t} catch {\n\t\t// Fallback: treat as non-interactive with 0.6 threshold.\n\t\treturn async (rule: Rule) =>\n\t\t\trule.confidence >= 0.6 ? (\"y\" as const) : (\"n\" as const);\n\t}\n}\n\nasync function openEditor(rule: Rule): Promise<Rule> {\n\t// Write the current rule text to a temp file, spawn $EDITOR (falling back\n\t// to `vi`), and read the edited text back. If anything fails — missing\n\t// editor, non-zero exit, empty edit — we keep the original rule rather\n\t// than dropping user-authored content silently.\n\tconst editorRaw = process.env.VISUAL ?? process.env.EDITOR ?? \"vi\";\n\t// `$VISUAL` / `$EDITOR` routinely carry args: `code --wait`, `vim -u NONE`,\n\t// `emacs -nw`, etc. Passing the whole string as argv[0] would make Bun\n\t// look for a binary literally named `\"code --wait\"`. We tokenise on\n\t// whitespace; quoted editor strings aren't part of the standard contract\n\t// (`git`/`VISUAL` conventions are whitespace-separated) so we don't\n\t// attempt full shell-word parsing.\n\tconst editorArgv = editorRaw\n\t\t.trim()\n\t\t.split(/\\s+/)\n\t\t.filter((s) => s.length > 0);\n\tif (editorArgv.length === 0) return rule;\n\tconst tmp = join(\n\t\ttmpdir(),\n\t\t`maina-rule-${Date.now()}-${Math.random().toString(36).slice(2)}.txt`,\n\t);\n\tconst header =\n\t\t\"# Edit the rule below. Lines starting with `#` are ignored.\\n\" +\n\t\t`# Source: ${rule.source}\\n` +\n\t\t`# Confidence: ${rule.confidence.toFixed(2)}\\n\\n`;\n\ttry {\n\t\twriteFileSync(tmp, header + rule.text + \"\\n\");\n\t\tconst proc = Bun.spawn({\n\t\t\tcmd: [...editorArgv, tmp],\n\t\t\tstdin: \"inherit\",\n\t\t\tstdout: \"inherit\",\n\t\t\tstderr: \"inherit\",\n\t\t});\n\t\tconst code = await proc.exited;\n\t\tif (code !== 0) return rule;\n\t\tconst raw = readFileSync(tmp, \"utf-8\");\n\t\tconst edited = raw\n\t\t\t.split(/\\r?\\n/)\n\t\t\t.filter((l) => !l.startsWith(\"#\"))\n\t\t\t.join(\"\\n\")\n\t\t\t.trim();\n\t\tif (edited.length === 0) return rule;\n\t\treturn { ...rule, text: edited };\n\t} catch {\n\t\treturn rule;\n\t} finally {\n\t\ttry {\n\t\t\tunlinkSync(tmp);\n\t\t} catch {\n\t\t\t// ignore cleanup failures\n\t\t}\n\t}\n}\n",
+				"existing": [
+					{
+						"path": "packages/core/src/setup/adopt.ts",
+						"kind": "file"
+					}
+				]
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "packages/core/src/setup/confirm.ts",
+					"line": 269,
+					"message": "4 consecutive lines of commented-out code",
+					"severity": "warning",
+					"ruleId": "slop/commented-code"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.17.ts",
+				"content": "import { describe, expect, it } from \"bun:test\";\nimport { scaffoldAdr } from \"../index\";\nimport { existsSync, mkdirSync, readFileSync, rmSync } from \"node:fs\";\nimport { join } from \"node:path\";\n\ndescribe(\"scaffoldAdr with HLD/LLD\", () => {\n  const testDir = join(import.meta.dir, \"__fixtures__/adr-hld\");\n\n  it(\"should include HLD and LLD sections in scaffold\", async () => {\n    if (existsSync(testDir)) rmSync(testDir, { recursive: true });\n    mkdirSync(testDir, { recursive: true });\n\n    const result = await scaffoldAdr(testDir, \"0001\", \"Test Decision\");\n\n    expect(result.ok).toBe(true);\n    if (!result.ok) return;\n\n    const content = readFileSync(result.value, \"utf-8\");\n\n    // HLD sections\n    expect(content).toContain(\"## High-Level Design\");\n    expect(content).toContain(\"### System Overview\");\n    expect(content).toContain(\"### Component Boundaries\");\n    expect(content).toContain(\"### Data Flow\");\n    expect(content).toContain(\"### External Dependencies\");\n\n    // LLD sections\n    expect(content).toContain(\"## Low-Level Design\");\n    expect(content).toContain(\"### Interfaces & Types\");\n    expect(content).toContain(\"### Function Signatures\");\n    expect(content).toContain(\"### DB Schema Changes\");\n    expect(content).toContain(\"### Sequence of Operations\");\n    expect(content).toContain(\"### Error Handling\");\n    expect(content).toContain(\"### Edge Cases\");\n\n    // Cleanup\n    rmSync(testDir, { recursive: true });\n  });\n});\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.17.ts",
+					"line": 2,
+					"message": "Import \"../index\" does not resolve to an existing file",
+					"severity": "error",
+					"ruleId": "slop/hallucinated-import"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/core/src/constitution/__tests__/git-analyzer.test.ts",
+				"content": "import { afterEach, beforeEach, describe, expect, test } from \"bun:test\";\nimport { mkdirSync, rmSync, writeFileSync } from \"node:fs\";\nimport { tmpdir } from \"node:os\";\nimport { join } from \"node:path\";\nimport {\n\tanalyzeCiWorkflows,\n\tanalyzeCodeowners,\n\tanalyzeCommitConventions,\n\tanalyzeGitAndCi,\n\tanalyzeHotPaths,\n} from \"../git-analyzer\";\n\nlet tmpDir: string;\n\nbeforeEach(() => {\n\ttmpDir = join(\n\t\ttmpdir(),\n\t\t`git-analyzer-${Date.now()}-${Math.random().toString(36).slice(2)}`,\n\t);\n\tmkdirSync(tmpDir, { recursive: true });\n});\n\nafterEach(() => {\n\trmSync(tmpDir, { recursive: true, force: true });\n});\n\n// ── analyzeCiWorkflows ──────────────────────────────────────────────────\n\ndescribe(\"analyzeCiWorkflows\", () => {\n\ttest(\"extracts workflow names from yml files\", () => {\n\t\tmkdirSync(join(tmpDir, \".github\", \"workflows\"), { recursive: true });\n\t\twriteFileSync(\n\t\t\tjoin(tmpDir, \".github\", \"workflows\", \"ci.yml\"),\n\t\t\t\"name: CI\\non: [push]\\njobs:\\n  test:\\n    runs-on: ubuntu-latest\",\n\t\t);\n\t\twriteFileSync(\n\t\t\tjoin(tmpDir, \".github\", \"workflows\", \"deploy.yaml\"),\n\t\t\t\"name: Deploy\\non: [push]\\njobs:\\n  deploy:\\n    runs-on: ubuntu-latest\",\n\t\t);\n\n\t\tconst rules = analyzeCiWorkflows(tmpDir);\n\t\texpect(rules.length).toBe(1);\n\t\texpect(rules[0]?.text).toContain(\"CI\");\n\t\texpect(rules[0]?.text).toContain(\"Deploy\");\n\t\texpect(rules[0]?.confidence).toBe(1.0);\n\t});\n\n\ttest(\"returns empty for missing .github/workflows\", () => {\n\t\tconst rules = analyzeCiWorkflows(tmpDir);\n\t\texpect(rules.length).toBe(0);\n\t});\n});\n\n// ── analyzeCodeowners ───────────────────────────────────────────────────\n\ndescribe(\"analyzeCodeowners\", () => {\n\ttest(\"detects CODEOWNERS at repo root\", () => {\n\t\twriteFileSync(\n\t\t\tjoin(tmpDir, \"CODEOWNERS\"),\n\t\t\t\"# Code owners\\n*.ts @team-ts\\n*.py @team-py\\n\",\n\t\t);\n\n\t\tconst rules = analyzeCodeowners(tmpDir);\n\t\texpect(rules.length).toBe(1);\n\t\texpect(rules[0]?.text).toContain(\"CODEOWNERS\");\n\t\texpect(rules[0]?.text).toContain(\"2 rules\");\n\t});\n\n\ttest(\"detects CODEOWNERS in .github/\", () => {\n\t\tmkdirSync(join(tmpDir, \".github\"), { recursive: true });\n\t\twriteFileSync(join(tmpDir, \".github\", \"CODEOWNERS\"), \"*.ts @lead\\n\");\n\n\t\tconst rules = analyzeCodeowners(tmpDir);\n\t\texpect(rules.length).toBe(1);\n\t});\n\n\ttest(\"returns empty when no CODEOWNERS\", () => {\n\t\tconst rules = analyzeCodeowners(tmpDir);\n\t\texpect(rules.length).toBe(0);\n\t});\n});\n\n// ── analyzeCommitConventions (uses real git) ────────────────────────────\n\ndescribe(\"analyzeCommitConventions\", () => {\n\ttest(\"runs on actual repo without error\", async () => {\n\t\t// Use the maina repo itself — may be shallow clone in CI\n\t\tconst rules = await analyzeCommitConventions(process.cwd(), 50);\n\t\t// On full clone: should detect conventional commits\n\t\t// On shallow clone: may return empty (graceful degradation)\n\t\texpect(rules.length).toBeGreaterThanOrEqual(0);\n\t\tif (rules.length > 0) {\n\t\t\texpect(rules[0]?.text).toContain(\"Conventional commits\");\n\t\t}\n\t});\n\n\ttest(\"returns empty for non-git directory\", async () => {\n\t\tconst rules = await analyzeCommitConventions(tmpDir);\n\t\texpect(rules.length).toBe(0);\n\t});\n});\n\n// ── analyzeHotPaths (uses real git) ─────────────────────────────────────\n\ndescribe(\"analyzeHotPaths\", () => {\n\ttest(\"runs on actual repo without error\", async () => {\n\t\tconst rules = await analyzeHotPaths(process.cwd(), 5);\n\t\texpect(rules.length).toBeGreaterThanOrEqual(0);\n\t});\n});\n\n// ── analyzeGitAndCi ─────────────────────────────────────────────────────\n\ndescribe(\"analyzeGitAndCi\", () => {\n\ttest(\"combines all analyzers\", async () => {\n\t\t// Use maina repo — has git history + CI workflows\n\t\t// On shallow clones, commit analysis may return empty\n\t\tconst rules = await analyzeGitAndCi(process.cwd());\n\t\texpect(rules.length).toBeGreaterThanOrEqual(1);\n\n\t\t// CI workflows should always be detected (file-based, not git-dependent)\n\t\tconst hasCi = rules.some((r) => r.text.includes(\"CI\"));\n\t\texpect(hasCi).toBe(true);\n\t});\n});\n",
+				"existing": []
+			},
+			"output": []
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "packages/core/src/verify/ignore.ts",
+				"content": "/**\n * Verify Ignore — default file/directory exclusions for the verify pipeline.\n *\n * Bundled artifacts (dist/, build/, *.min.js, ncc/esbuild/rollup output)\n * are not source code; running pattern-based slop detection on a minified\n * bundle produces tens of thousands of false positives (#207). These are\n * filtered out before any verify tool sees the file list.\n *\n * Project-local extras live in `.maina/ignore`, one pattern per line, `#` for\n * comments. The matcher is a deliberately small subset of `.gitignore` — see\n * the comment on `matchesPattern` for the exact supported syntax and the\n * features that are NOT implemented (negation, `**`, character classes).\n */\n\nimport { existsSync, readFileSync } from \"node:fs\";\nimport { join } from \"node:path\";\n\n// ─── Patterns ─────────────────────────────────────────────────────────────\n\n/**\n * Directory names whose contents are always skipped. Matched as path segments\n * — `dist/index.js` is ignored, but `distribute/foo.ts` is not.\n */\nexport const DEFAULT_IGNORE_DIRS: readonly string[] = [\n\t\"node_modules\",\n\t\"dist\",\n\t\"build\",\n\t\"out\",\n\t\".next\",\n\t\".nuxt\",\n\t\".svelte-kit\",\n\t\".turbo\",\n\t\".vercel\",\n\t\".netlify\",\n\t\".output\",\n\t\".cache\",\n\t\"coverage\",\n\t\"target\", // Rust/Java\n\t\"vendor\", // Go/PHP\n\t\".venv\",\n\t\"__pycache__\",\n\t\".pytest_cache\",\n\t\".tox\",\n\t\".mypy_cache\",\n\t\".gradle\",\n\t\".idea\",\n\t\".vscode-test\",\n];\n\n/**\n * Filename suffix patterns that mark bundled or minified output.\n * Suffix-only is enough to catch the common ncc/esbuild/rollup/webpack\n * outputs without inspecting file contents.\n */\nexport const DEFAULT_IGNORE_SUFFIXES: readonly string[] = [\n\t\".min.js\",\n\t\".min.css\",\n\t\".min.mjs\",\n\t\".min.cjs\",\n\t\".bundle.js\",\n\t\".bundle.mjs\",\n\t\".bundle.cjs\",\n\t\"-bundle.js\",\n\t\".chunk.js\",\n\t\".d.ts\", // declaration files — not user source\n\t\".map\", // source maps\n];\n\n// ─── Path Helpers ─────────────────────────────────────────────────────────\n\n/**\n * Normalize a path to forward slashes so the same pattern works on Windows.\n */\nfunction normalize(p: string): string {\n\treturn p.replace(/\\\\/g, \"/\");\n}\n\nfunction pathSegments(p: string): string[] {\n\treturn normalize(p)\n\t\t.split(\"/\")\n\t\t.filter((s) => s.length > 0);\n}\n\n// ─── Core Predicate ────────────────────────────────────────────────────────\n\n/**\n * Returns true when the file should be excluded from verify.\n *\n * Checks (in order):\n *   1. Path segments against `DEFAULT_IGNORE_DIRS` plus any `extraDirs`.\n *   2. Filename suffix against `DEFAULT_IGNORE_SUFFIXES`.\n *   3. Each pattern in `extraPatterns` evaluated with the matcher described\n *      on `matchesPattern` (small `.gitignore` subset; not a full\n *      implementation).\n */\nexport function isIgnored(\n\tfile: string,\n\toptions?: {\n\t\textraDirs?: readonly string[];\n\t\textraPatterns?: readonly string[];\n\t},\n): boolean {\n\tconst norm = normalize(file);\n\tconst segments = pathSegments(norm);\n\tconst lower = norm.toLowerCase();\n\n\tconst dirSet = new Set<string>([\n\t\t...DEFAULT_IGNORE_DIRS,\n\t\t...(options?.extraDirs ?? []),\n\t]);\n\tfor (const seg of segments) {\n\t\tif (dirSet.has(seg)) return true;\n\t}\n\n\tfor (const suffix of DEFAULT_IGNORE_SUFFIXES) {\n\t\tif (lower.endsWith(suffix)) return true;\n\t}\n\n\tfor (const pattern of options?.extraPatterns ?? []) {\n\t\tif (matchesPattern(norm, pattern)) return true;\n\t}\n\n\treturn false;\n}\n\n/**\n * Pattern matcher for `.maina/ignore`. This is a deliberately small subset\n * of `.gitignore` — enough for the hand-written project-local extras we\n * expect (block a fixture dir, ignore a `*.snap` suffix) without pulling in\n * `ignore` or `micromatch`.\n *\n * Supported (with the same semantics gitignore uses):\n *\n *   - `foo/`           — directory; matches any path with `foo` as a segment.\n *   - `foo`            — bare name; matches `foo` as a segment (file or dir).\n *   - `/foo`           — anchored to the repo root; only matches `foo` and\n *                        files inside `foo/`.\n *   - `*.snap`         — suffix glob; the leading `*` matches any chars\n *                        (including none) inside one path segment.\n *   - `dir/*.js`       — directory + suffix glob; `*` matches within a\n *                        single segment, so `dir/a.js` matches but\n *                        `dir/sub/a.js` does NOT.\n *\n * Explicitly NOT supported (so we don't surprise users who reach for them):\n *\n *   - `**` recursive globs            (use a directory pattern instead)\n *   - `!pattern` negation             (no allow-listing)\n *   - `[a-z]` character classes\n *   - `?` single-char wildcards\n *   - Patterns with more than one `*`\n *   - Mid-segment matching of bare names other than via `*.suffix`\n */\nfunction matchesPattern(norm: string, raw: string): boolean {\n\tconst pattern = raw.trim();\n\tif (pattern.length === 0 || pattern.startsWith(\"#\")) return false;\n\n\tconst anchored = pattern.startsWith(\"/\");\n\tlet body = anchored ? pattern.slice(1) : pattern;\n\n\t// Trailing slash → directory match (gitignore convention).\n\tconst isDirOnly = body.endsWith(\"/\");\n\tif (isDirOnly) body = body.slice(0, -1);\n\n\t// Pure suffix glob, e.g. *.snap — `*` matches within a single segment.\n\tif (body.startsWith(\"*.\")) {\n\t\tconst suffix = body.slice(1).toLowerCase();\n\t\tconst lower = norm.toLowerCase();\n\t\tif (!lower.endsWith(suffix)) return false;\n\t\t// Ensure the `*` did not span a `/` — final segment must contain\n\t\t// the entire match.\n\t\tconst segStart = lower.lastIndexOf(\"/\") + 1;\n\t\treturn lower.indexOf(suffix, segStart) !== -1;\n\t}\n\n\t// `dir/*.js` style — directory prefix + single-segment suffix glob.\n\t// The `*` must NOT cross a `/`, so `dir/*.js` matches `dir/a.js` but not\n\t// `dir/sub/a.js`. Patterns with more than one `*` are unsupported.\n\tconst starIdx = body.indexOf(\"*\");\n\tif (starIdx !== -1) {\n\t\tif (body.indexOf(\"*\", starIdx + 1) !== -1) return false;\n\t\tconst prefix = body.slice(0, starIdx);\n\t\tconst suffix = body.slice(starIdx + 1);\n\t\tconst tryMatch = (hay: string, hayStart: number) => {\n\t\t\tif (!hay.startsWith(prefix, hayStart)) return false;\n\t\t\tconst tailStart = hayStart + prefix.length;\n\t\t\tif (!hay.endsWith(suffix)) return false;\n\t\t\tconst tailEnd = hay.length - suffix.length;\n\t\t\tif (tailEnd < tailStart) return false;\n\t\t\t// The wildcard span must not include a path separator.\n\t\t\treturn (\n\t\t\t\thay.indexOf(\"/\", tailStart) === -1 ||\n\t\t\t\thay.indexOf(\"/\", tailStart) >= tailEnd\n\t\t\t);\n\t\t};\n\t\tif (anchored) return tryMatch(norm, 0);\n\t\t// Non-anchored: try every segment boundary as the prefix start.\n\t\tif (tryMatch(norm, 0)) return true;\n\t\tfor (let i = 0; i < norm.length; i++) {\n\t\t\tif (norm[i] === \"/\" && tryMatch(norm, i + 1)) return true;\n\t\t}\n\t\treturn false;\n\t}\n\n\t// Bare name or `dir/` — match the segment anywhere in the path (for\n\t// non-anchored patterns) or only at the path root (anchored). A\n\t// trailing-slash pattern (`dir/`) requires the name to appear as a\n\t// directory segment, never as a bare file basename.\n\tif (anchored) {\n\t\tif (isDirOnly) return norm.startsWith(`${body}/`);\n\t\treturn norm === body || norm.startsWith(`${body}/`);\n\t}\n\tif (!isDirOnly && norm === body) return true;\n\tif (norm.startsWith(`${body}/`)) return true;\n\tif (norm.includes(`/${body}/`)) return true;\n\tif (!isDirOnly && norm.endsWith(`/${body}`)) return true;\n\treturn false;\n}\n\n// ─── File Filter ───────────────────────────────────────────────────────────\n\nexport interface FilterIgnoredResult {\n\tkept: string[];\n\tignored: string[];\n}\n\n/**\n * Filter a list of file paths, removing ignored ones.\n *\n * Reads optional patterns from `<cwd>/.maina/ignore` (one pattern per line,\n * `#` comments) and merges them with the built-in defaults. The pattern\n * syntax is the small `.gitignore` subset documented on `matchesPattern`,\n * not full gitignore. Missing or unreadable files are silently treated as\n * empty.\n */\nexport function filterIgnoredFiles(\n\tfiles: readonly string[],\n\tcwd?: string,\n): FilterIgnoredResult {\n\tconst extras = loadMainaIgnore(cwd ?? process.cwd());\n\tconst kept: string[] = [];\n\tconst ignored: string[] = [];\n\tfor (const file of files) {\n\t\tif (isIgnored(file, { extraPatterns: extras })) {\n\t\t\tignored.push(file);\n\t\t} else {\n\t\t\tkept.push(file);\n\t\t}\n\t}\n\treturn { kept, ignored };\n}\n\n/**\n * Read `.maina/ignore` if present. Returns the list of non-comment,\n * non-empty pattern lines.\n */\nexport function loadMainaIgnore(cwd: string): string[] {\n\tconst path = join(cwd, \".maina\", \"ignore\");\n\tif (!existsSync(path)) return [];\n\tlet raw: string;\n\ttry {\n\t\traw = readFileSync(path, \"utf-8\");\n\t} catch {\n\t\treturn [];\n\t}\n\treturn raw\n\t\t.split(/\\r?\\n/)\n\t\t.map((line) => line.trim())\n\t\t.filter((line) => line.length > 0 && !line.startsWith(\"#\"));\n}\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "packages/core/src/verify/ignore.ts",
+					"line": 204,
+					"message": "3 consecutive lines of commented-out code",
+					"severity": "warning",
+					"ruleId": "slop/commented-code"
+				}
+			]
+		},
+		{
+			"site": "verify/slop.ts",
+			"input": {
+				"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.19.ts",
+				"content": "import { afterAll, beforeEach, mock } from \"bun:test\";\nimport { generateHldLld } from \"../index\";\n\nlet mockAIResult = { text: null as string | null, fromAI: false, hostDelegation: false };\n\nmock.module(\"../../ai/try-generate\", () => ({\n  tryAIGenerate: async () => mockAIResult,\n}));\n\nafterAll(() => mock.restore());\n\ndescribe(\"generateHldLld\", () => {\n  beforeEach(() => {\n    mockAIResult = { text: null, fromAI: false, hostDelegation: false };\n  });\n\n  it(\"should return AI-generated HLD/LLD content when spec exists\", async () => {\n    const hldLldContent = `## High-Level Design\n\n### System Overview\nThis adds AI review to the verify pipeline.\n\n### Component Boundaries\n- ai-review.ts: AI review logic\n\n### Data Flow\nDiff -> AI -> Findings\n\n### External Dependencies\nNone\n\n## Low-Level Design\n\n### Interfaces & Types\nAIReviewResult interface\n\n### Function Signatures\nrunAIReview(options): Promise<AIReviewResult>\n\n### DB Schema Changes\nNone\n\n### Sequence of Operations\n1. Get diff 2. Call AI\n\n### Error Handling\nGraceful skip on failure\n\n### Edge Cases\nEmpty diff returns no findings`;\n\n    mockAIResult = { text: hldLldContent, fromAI: true, hostDelegation: false };\n\n    const result = await generateHldLld(\"Test spec content\", \".maina\");\n\n    expect(result.ok).toBe(true);\n    if (!result.ok) return;\n    expect(result.value).toContain(\"## High-Level Design\");\n    expect(result.value).toContain(\"## Low-Level Design\");\n  });\n\n  it(\"should return null when AI is unavailable\", async () => {\n    mockAIResult = { text: null, fromAI: false, hostDelegation: false };\n\n    const result = await generateHldLld(\"Test spec\", \".maina\");\n\n    expect(result.ok).toBe(true);\n    if (!result.ok) return;\n    expect(result.value).toBeNull();\n  });\n});\n",
+				"existing": []
+			},
+			"output": [
+				{
+					"tool": "slop",
+					"file": "snippets/.maina_features_011-self-improvement_verify-ai-review-hld-lld-plan.md.19.ts",
+					"line": 2,
+					"message": "Import \"../index\" does not resolve to an existing file",
+					"severity": "error",
+					"ruleId": "slop/hallucinated-import"
+				}
+			]
+		}
+	]
+}

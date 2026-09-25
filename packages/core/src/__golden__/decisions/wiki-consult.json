@@ -1,0 +1,981 @@
+{
+	"site": "wiki/consult.ts",
+	"cases": [
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "plan",
+				"query": "Feature: Internal Stats Tracker",
+				"wiki": {
+					"modules/ai.md": "# Module: ai\n\n> Auto-generated module article for `ai`.\n\n## Entities\n\n- **validateAIOutput** (function) — `packages/core/src/ai/validate.ts:42` [PR: 0.0007]\n- **AIValidationResult** (interface) — `packages/core/src/ai/validate.ts:8` [PR: 0.0005]\n",
+					"modules/benchmark.md": "# Module: benchmark\n\n> Auto-generated module article for `benchmark`.\n\n## Entities\n\n- **loadStory** (function) — `packages/core/src/benchmark/story-loader.ts:41` [PR: 0.0007]\n- **listStories** (function) — `packages/core/src/benchmark/story-loader.ts:10` [PR: 0.0005]\n",
+					"modules/cache.md": "# Module: cache\n\n> Auto-generated module article for `cache`.\n\n## Entities\n\n- **buildCacheKey** (function) — `packages/core/src/cache/keys.ts:39` [PR: 0.0009]\n- **hashFiles** (function) — `packages/core/src/cache/keys.ts:29` [PR: 0.0007]\n- **CacheKeyInput** (interface) — `packages/core/src/cache/keys.ts:1` [PR: 0.0005]\n",
+					"decisions/0001-karpathy-principled-spec-quality-system.md": "# Decision: Karpathy-Principled Spec Quality System\n\n> Status: **proposed**\n\n## Context\n\nAfter 8 sprints and 769 tests, maina has a complete verification pipeline for code but no quality gate for specifications. The spec/plan analyzer catches structural issues (missing sections, orphaned tasks) but doesn't measure whether specs are actually good — measurable, testable, unambiguous.\n\nAndrej Karpathy's principles apply directly:\n- \"The most dangerous thing is a slightly wrong answer\" — A spec that seems complete but has gaps is worse than no spec\n- \"You need to stare at your data\" — Specs are training data for implementation. Garbage in, garbage out.\n- \"Loss curves don't lie\" — Track spec quality metrics over time. Are they improving?\n\nAdditionally, the code review revealed we need rationalization prevention (skip tracking) and red-green enforcement for test stubs.\n\n## Decision\n\nBuild a spec quality scoring system that:\n\n",
+					"decisions/0002-multi-language-verify-pipeline.md": "# Decision: Multi-language verify pipeline\n\n> Status: **accepted**\n\n## Context\n\nMaina's verify pipeline was hardcoded for TypeScript/JavaScript — Biome for syntax guard, JS-specific slop patterns, tree-sitter tuned for TS imports, file collectors only scanning .ts/.js. This blocked adoption for any non-TypeScript project, contradicting the product spec's \"any repo\" promise.\n\n## Decision\n\nIntroduce a LanguageProfile abstraction that maps each supported language to its tools, file patterns, and slop detection rules. The pipeline auto-detects languages from project marker files and routes to the appropriate linter.\n\nSupported languages: TypeScript (Biome), Python (ruff), Go (go vet), Rust (clippy).\n\n## Rationale\n\n### Positive\n\n- Maina works with Python, Go, and Rust projects out of the box\n- Language detection is automatic — no configuration needed\n- Existing TypeScript behavior is fully preserved (backward compatible)\n- Adding new languages requires only a new LanguageProfile entry\n\n",
+					"decisions/0003-fix-host-delegation-for-cli-ai-tasks.md": "# Decision: Fix host delegation for CLI AI tasks\n\n> Status: **proposed**\n\n## Context\n\nWhen `maina design --hld` runs inside Claude Code, the subprocess detects host mode (CLAUDECODE=1) but has no API keys. `shouldDelegateToHost()` returns true, but the subprocess can't send delegation prompts back to the host. AI-dependent CLI commands silently produce empty output.\n\n## Decision\n\nThree changes:\n1. `tryAIGenerate` strips `[HOST_DELEGATION]` prefix and returns the structured prompt as usable text instead of marking it as delegation\n2. `generateHldLld` returns an explicit error instead of silent null when AI is unavailable\n3. CLI design command shows clear error message when HLD generation fails\n\n## Rationale\n\n### Positive\n\n- No more silently empty ADRs from `--hld`\n- Clear error messages when AI is unavailable\n- Host delegation text is usable as structured content\n\n### Negative\n\n- Delegation text is a prompt, not AI-generated content — lower quality than actual AI output\n\n### Neutral\n\n",
+					"features/001-stats-tracker.md": "# Feature: Implementation Plan\n\n## Spec Assertions\n\n- [ ] Record a commit snapshot with timing, token, cache, and quality stats after every successful maina commit via recordSnapshot in commitAction\n- [ ] Implement maina stats command showing last commit stats, rolling averages, and trend arrows\n- [ ] Support maina stats --json to output raw commit snapshots as JSON\n- [ ] Support maina stats --last N to limit displayed commits\n- [ ] Compute trends comparing recent N vs previous N commits with directional indicators via getTrends\n- [ ] Add commit_snapshots Drizzle schema to the database\n- [ ] Stats recording wrapped in try/catch so it never blocks a commit\n- [ ] Implement tracker with recordSnapshot, getStats, getLatest, getTrends functions\n\n## Tasks\n\nProgress: 0/6 (0%)\n\n- [ ] T001: Add `commit_snapshots` Drizzle schema to `packages/core/src/db/schema.ts`\n- [ ] T002: Write tests for `tracker.ts` — `recordSnapshot`, `getStats`, `getLatest`, `getTrends`\n",
+					"features/002-ticket.md": "# Feature: Implementation Plan\n\n## Spec Assertions\n\n- [ ] `maina ticket` creates a GitHub Issue via the gh CLI\n- [ ] Ticket includes a title and body provided by the user via interactive prompts\n- [ ] Context Engine semantic layer auto-detects relevant modules and adds them as labels\n- [ ] Supports `--title` and `--body` flags for non-interactive use\n- [ ] Supports `--label` flag to add custom labels\n- [ ] Gracefully handles missing gh CLI with helpful error message\n- [ ] Works without AI — module tagging uses tree-sitter entity index, not LLM\n\n## Tasks\n\nProgress: 0/4 (0%)\n\n- [ ] T001: Write tests for core ticket module — detectModules, buildIssueBody, createTicket\n- [ ] T002: Implement packages/core/src/ticket/index.ts with gh CLI integration\n- [ ] T003: Write tests for maina ticket CLI command — interactive and non-interactive modes\n- [ ] T004: Implement packages/cli/src/commands/ticket.ts and register in program.ts\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/003-pr-and-init.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - PR creation via gh CLI, two-stage review core logic, init bootstrapping, status display ### Out of Scope - GitLab/Bitbucket support (GitHub only for v1) - PR merge automation (review only, human merges) - CI workflow for non-GitHub platforms\n\n## Tasks\n\nProgress: 0/5 (0%)\n\n- [ ] T001: Write tests and implement two-stage PR review in packages/core/src/review/index.ts\n- [ ] T002: Write tests and implement maina pr CLI command with gh CLI integration\n- [ ] T003: Write tests and implement maina init bootstrapping in packages/core/src/init/index.ts\n- [ ] T004: Write tests and implement maina init CLI command\n- [ ] T005: Write tests and implement maina status CLI command reading working.json\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n"
+				}
+			},
+			"output": {
+				"relatedModules": [],
+				"relatedDecisions": [
+					{
+						"id": "0001-karpathy-principled-spec-quality-system",
+						"title": "Karpathy-Principled Spec Quality System",
+						"status": "proposed"
+					}
+				],
+				"relatedFeatures": [
+					{
+						"id": "001-stats-tracker",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "002-ticket",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "003-pr-and-init",
+						"title": "Implementation Plan"
+					}
+				],
+				"suggestions": [
+					"Feature 001-stats-tracker did something similar — check wiki/features/001-stats-tracker.md",
+					"Feature 002-ticket did something similar — check wiki/features/002-ticket.md",
+					"Feature 003-pr-and-init did something similar — check wiki/features/003-pr-and-init.md"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "plan",
+				"query": "Feature: Todo API CRUD",
+				"wiki": {
+					"modules/cluster-10.md": "# Module: cluster-10\n\n> Auto-generated module article for `cluster-10`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-100.md": "# Module: cluster-100\n\n> Auto-generated module article for `cluster-100`.\n\n## Entities\n\n- **captureResult** (function) — `packages/core/src/feedback/capture.ts:55` [PR: 0.0012]\n- **getCachedResult** (function) — `packages/core/src/feedback/capture.ts:30` [PR: 0.0009]\n- **buildToolCacheKey** (function) — `packages/core/src/feedback/capture.ts:22` [PR: 0.0007]\n- **CaptureInput** (interface) — `packages/core/src/feedback/capture.ts:12` [PR: 0.0005]\n",
+					"modules/cluster-101.md": "# Module: cluster-101\n\n> Auto-generated module article for `cluster-101`.\n\n## Entities\n\n- **checkAIAvailability** (function) — `packages/core/src/ai/availability.ts:9` [PR: 0.0008]\n- **AIAvailability** (interface) — `packages/core/src/ai/availability.ts:3` [PR: 0.0005]\n",
+					"decisions/0004-workflow-context-forwarding.md": "# Decision: Workflow context forwarding\n\n> Status: **proposed**\n\n## Context\n\nEach maina workflow step is stateless. Step N has no knowledge of steps 1 through N-1. This causes AI calls to miss spec decisions, design review flags, and prior verification results.\n\n## Decision\n\nAdd a rolling workflow context file (`.maina/workflow/current.md`) that each maina command appends to. The context engine includes this in the working layer, making it available to all AI calls. `maina plan` resets it for new features.\n\n## Rationale\n\n### Positive\n\n- Every workflow step has full context from prior steps\n- AI calls (review, commit, design) make better decisions with workflow history\n- Human-readable markdown — easy to inspect and debug\n\n### Negative\n\n- File grows with each step (~100 tokens per step, ~1000 tokens for a full workflow)\n- Must be reset correctly on new features to avoid stale context\n\n### Neutral\n\n- Follows the same file-based pattern as working.json\n",
+					"decisions/0005-background-rl-feedback-at-each-workflow-step.md": "# Decision: Background RL feedback at each workflow step\n\n> Status: **proposed**\n\n## Context\n\nThe RL feedback loop only captures commit message and review outcomes. Workflow-level data (which specs led to clean code, which reviews caught issues) is lost. Feedback calls are synchronous, adding latency.\n\n## Decision\n\nAdd `recordFeedbackAsync` that fires via `queueMicrotask` — zero blocking. Extend feedback records with `workflowStep` and `workflowId` fields. Every CLI command that appends workflow context also records async feedback. `maina learn` shows per-step accept rates.\n\n## Rationale\n\n### Positive\n\n- Full workflow trace captured for every feature\n- Zero latency impact — async recording never blocks commands\n- `maina learn` can analyze per-step patterns (which steps have low accept rates)\n\n### Negative\n\n- Slightly more data in feedback.db (one row per workflow step per feature)\n- Async recording means feedback might be lost if process exits immediately\n\n### Neutral\n\n",
+					"decisions/0006-post-workflow-rl-self-improvement-loop.md": "# Decision: Post-workflow RL self-improvement loop\n\n> Status: **proposed**\n\n## Context\n\nFeature 015 added `workflow_step` and `workflow_id` columns to feedback records, but nothing reads them. `maina learn` only shows per-command metrics, missing workflow-level patterns.\n\n## Decision\n\nAdd `analyseWorkflowFeedback` and `analyseWorkflowRuns` functions to the evolution module. Enhance `maina learn` to show per-step accept rates and recent workflow run summaries. This completes the RL feedback loop: record → analyze → improve.\n\n## Rationale\n\n### Positive\n\n- Per-step visibility: which workflow phases underperform\n- Per-run tracking: see if overall workflow quality is trending up\n- Data foundation for future correlation analysis\n\n### Negative\n\n- More output in `maina learn` — could feel overwhelming\n- Workflow data sparse until enough features go through full lifecycle\n\n### Neutral\n\n- Builds on existing feedback.db schema (no new tables)\n",
+					"features/006-karpathy-spec-quality.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Spec quality scoring (deterministic, no AI) - Skip event tracking in stats - Red-green enforcement in maina spec - Plan-to-code traceability checking - Spec evolution metrics in maina stats ### Out of Scope - AI-powered spec improvement suggestions (future — use learn command instead) - Blocking commits on low spec scores (warning only) - Cross-project spec comparison\n\n## Tasks\n\nProgress: 0/5 (0%)\n\n- [ ] T001: Write tests and implement spec quality scoring in packages/core/src/features/quality.ts\n- [ ] T002: Write tests and implement skip event tracking in stats/tracker.ts\n- [ ] T003: Add red-green enforcement to maina spec — auto-run stubs and verify all fail\n- [ ] T004: Write tests and implement plan-to-code traceability in packages/core/src/features/traceability.ts\n- [ ] T005: Add --specs flag to maina stats showing spec quality evolution over time\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/007-todo-api-crud.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - HTTP server with JSON CRUD endpoints for todos - Persistent storage across server restarts - Input validation and error handling - Integration tests covering all endpoints ### Out of Scope - Authentication or authorization - Pagination or filtering - Frontend UI\n\n## Tasks\n\nProgress: 0/6 (0%)\n\n- [ ] T001: Set up SQLite database module with lazy-init and todos table\n- [ ] T002: Create response envelope helpers (ok, err) matching { data, error, meta }\n- [ ] T003: Implement todo repository with list, get, create, update, delete\n- [ ] T004: Implement route handlers with input validation\n- [ ] T005: Wire up Bun.serve() entrypoint with routes and configurable port\n- [ ] T006: Write integration tests covering CRUD lifecycle, validation, and 404s\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/008-benchmark-comparison.md": "# Feature: Benchmark: Claude + Superpowers vs Claude + Maina\n\n## Scope\n\n### In Scope - Metrics we can derive from git history, stats.db, feedback.db, benchmarks - Qualitative observations from the development process - Sprint-by-sprint progression showing maina bootstrapping itself ### Out of Scope - A/B testing with separate teams (single developer project) - Cost analysis (API spend tracking not implemented)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n"
+				}
+			},
+			"output": {
+				"relatedModules": [],
+				"relatedDecisions": [
+					{
+						"id": "0004-workflow-context-forwarding",
+						"title": "Workflow context forwarding",
+						"status": "proposed"
+					},
+					{
+						"id": "0005-background-rl-feedback-at-each-workflow-step",
+						"title": "Background RL feedback at each workflow step",
+						"status": "proposed"
+					},
+					{
+						"id": "0006-post-workflow-rl-self-improvement-loop",
+						"title": "Post-workflow RL self-improvement loop",
+						"status": "proposed"
+					}
+				],
+				"relatedFeatures": [
+					{
+						"id": "006-karpathy-spec-quality",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "007-todo-api-crud",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "008-benchmark-comparison",
+						"title": "Benchmark: Claude + Superpowers vs Claude + Maina"
+					}
+				],
+				"suggestions": [
+					"Feature 006-karpathy-spec-quality did something similar — check wiki/features/006-karpathy-spec-quality.md",
+					"Feature 007-todo-api-crud did something similar — check wiki/features/007-todo-api-crud.md",
+					"Feature 008-benchmark-comparison did something similar — check wiki/features/008-benchmark-comparison.md"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "plan",
+				"query": "Feature 013: Fix Host Delegation for CLI AI Tasks",
+				"wiki": {
+					"modules/cluster-106.md": "# Module: cluster-106\n\n> Auto-generated module article for `cluster-106`.\n\n## Entities\n\n- **configureCommand** (function) — `packages/cli/src/commands/configure.ts:205` [PR: 0.0010]\n- **configureAction** (function) — `packages/cli/src/commands/configure.ts:36` [PR: 0.0007]\n- **ConfigureActionOptions** (interface) — `packages/cli/src/commands/configure.ts:31` [PR: 0.0005]\n",
+					"modules/cluster-107.md": "# Module: cluster-107\n\n> Auto-generated module article for `cluster-107`.\n\n## Entities\n\n- **createCloudClient** (function) — `packages/core/src/cloud/client.ts:139` [PR: 0.0008]\n- **CloudClient** (interface) — `packages/core/src/cloud/client.ts:57` [PR: 0.0005]\n",
+					"modules/cluster-109.md": "# Module: cluster-109\n\n> Auto-generated module article for `cluster-109`.\n\n## Entities\n\n- **deleteTodo** (function) — `examples/todo-api/src/repo.ts:65` [PR: 0.0016]\n- **updateTodo** (function) — `examples/todo-api/src/repo.ts:42` [PR: 0.0011]\n- **createTodo** (function) — `examples/todo-api/src/repo.ts:35` [PR: 0.0009]\n- **getTodo** (function) — `examples/todo-api/src/repo.ts:28` [PR: 0.0007]\n- **listTodos** (function) — `examples/todo-api/src/repo.ts:21` [PR: 0.0006]\n- **Todo** (interface) — `examples/todo-api/src/repo.ts:3` [PR: 0.0005]\n",
+					"decisions/0007-visual-verification-with-playwright.md": "# Decision: Visual verification with Playwright\n\n> Status: **proposed**\n\n## Context\n\nMaina verifies code correctness but not visual correctness. Web projects can pass all gates and still ship broken layouts. This is the last verification gap.\n\n## Decision\n\nAdd visual verification using Playwright for screenshots and pixelmatch for pixel comparison. Opt-in via `maina verify --visual`. Baselines stored in `.maina/visual-baselines/` and committed to git. Configurable threshold and URLs in preferences.json.\n\n## Rationale\n\n### Positive\n\n- Visual regressions caught before merge\n- Baselines as source of truth — reviewable in PRs\n- No external service dependency (all local)\n\n### Negative\n\n- Requires Playwright installed (graceful skip if missing)\n- Slower than static analysis (~5-10s per page)\n- Baselines add to repo size (PNG files)\n\n### Neutral\n\n- Opt-in only — doesn't slow default verify\n- Chromium-only for v1, expandable later\n",
+					"decisions/0008-verification-proof-in-pr-body.md": "# Decision: Verification proof in PR body\n\n> Status: **proposed**\n\n## Context\n\nPRs include no evidence that verification ran. Reviewers must trust claims like \"tests pass\" without proof.\n\n## Decision\n\nAdd `buildVerificationProof` to gather pipeline, test, review, slop, and visual results into a formatted markdown section. `maina pr` appends this proof to the PR body automatically using collapsible `<details>` blocks.\n\n## Rationale\n\n### Positive\n\n- Every PR carries auditable verification evidence\n- Reviewers can expand sections to see per-tool results\n- Visual regression data visible in PR without leaving GitHub\n\n### Negative\n\n- PR body becomes longer (mitigated by collapsible sections)\n- Adds ~5-10s to PR creation (runs verification pipeline)\n\n### Neutral\n\n- Does not block PR creation on failure — just reports\n",
+					"decisions/0009-ai-delegation-protocol-for-host-agents.md": "# Decision: AI delegation protocol for host agents\n\n> Status: **proposed**\n\n## Context\n\nAI features are non-functional when maina runs as a subprocess inside Claude Code, Codex, or OpenCode. No API key is available. The current DelegationPrompt object is returned but never acted on.\n\n## Decision\n\nPlain text stdout protocol. AI-dependent steps output `---MAINA_AI_REQUEST---` blocks. Any host agent reading stdout can parse and process them. No IPC, no binary, no dependencies.\n\n## Rationale\n\n### Positive\n\n- AI features work in every MCP-compatible host\n- Zero integration effort for hosts — just parse stdout\n- Existing direct API path unchanged\n\n### Negative\n\n- Host must understand the protocol (simple text parsing)\n- No result injection back into pipeline (host acts independently)\n\n### Neutral\n\n- Protocol is versioned and extensible\n",
+					"features/011-self-improvement.md": "# Feature: Implementation Plan — Feature 011: Self-Improvement\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/012-multi-language-verify.md": "# Feature: Multi-Language Verify Support Implementation Plan\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/013-fix-host-delegation.md": "# Feature: Implementation Plan\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n"
+				}
+			},
+			"output": {
+				"relatedModules": [],
+				"relatedDecisions": [
+					{
+						"id": "0009-ai-delegation-protocol-for-host-agents",
+						"title": "AI delegation protocol for host agents",
+						"status": "proposed"
+					}
+				],
+				"relatedFeatures": [],
+				"suggestions": []
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "plan",
+				"query": "Feature: [Name]",
+				"wiki": {
+					"modules/cluster-113.md": "# Module: cluster-113\n\n> Auto-generated module article for `cluster-113`.\n\n## Entities\n\n- **extractAcceptanceCriteria** (function) — `packages/core/src/utils.ts:58` [PR: 0.0010]\n- **STOP_WORDS** (variable) — `packages/core/src/utils.ts:29` [PR: 0.0007]\n- **toKebabCase** (function) — `packages/core/src/utils.ts:9` [PR: 0.0005]\n",
+					"modules/cluster-115.md": "# Module: cluster-115\n\n> Auto-generated module article for `cluster-115`.\n\n## Entities\n\n- **extractDecisions** (function) — `packages/core/src/wiki/extractors/decision.ts:193` [PR: 0.0008]\n- **extractSingleDecision** (function) — `packages/core/src/wiki/extractors/decision.ts:133` [PR: 0.0005]\n",
+					"modules/cluster-116.md": "# Module: cluster-116\n\n> Auto-generated module article for `cluster-116`.\n\n## Entities\n\n- **extractFeatures** (function) — `packages/core/src/wiki/extractors/feature.ts:177` [PR: 0.0008]\n- **extractSingleFeature** (function) — `packages/core/src/wiki/extractors/feature.ts:124` [PR: 0.0005]\n",
+					"decisions/0010-v03x-hardening-verify-gaps-rl-loop-hldlld.md": "# Decision: v0.3.x Hardening: Verify Gaps + RL Loop + HLD/LLD\n\n> Status: **accepted**\n\n## Context\n\nTier 3 benchmark (2026-04-03): SpecKit achieved 100% on 95 hidden validation tests. Maina got 97.9% (2 bugs). SpecKit's 58s self-review caught 4 issues that Maina's verify pipeline missed because no external tools were installed. `maina verify` returned \"0 findings, passed\" — false confidence.\n\nAdditionally, `maina design` only produces ADR scaffolds with no HLD/LLD generation, `maina spec` and `maina design` lack `--auto` flags (blocking CI/benchmark automation), and the RL loop doesn't close automatically after workflow completion.\n\n## Decision\n\nAdd built-in verification checks that work without external tools, AI-powered review via delegation protocol, HLD/LLD generation in design, automation flags, and automatic post-workflow RL trace analysis. Execute sequentially: deterministic checks first, then AI features, then automation.\n\n## Rationale\n\n### Positive\n\n",
+					"decisions/0011-v040-polish-ci.md": "# Decision: v0.4.0 Polish + CI\n\n> Status: **accepted**\n\n## Context\n\nMaina CLI outputs human-readable text only. CI pipelines need machine-readable JSON, meaningful exit codes, and a GitHub Action for easy integration. The language profile system only detects a project's primary language, missing per-file analysis in polyglot repos. PHP (4th most popular backend language) has no support. DAST and performance auditing are gaps in the verification pipeline.\n\n## Decision\n\nAdd 7 features in 4 phases: structured output (--json, exit codes), CI integration (GitHub Action), language expansion (PHP, per-file detection), and new verification tools (ZAP DAST, Lighthouse).\n\n## Rationale\n\n### Positive\n\n- Every maina command becomes CI-ready with `--json` and meaningful exit codes\n- GitHub Action makes adoption a 3-line YAML change\n- PHP developers can use maina\n- Polyglot repos get accurate per-file analysis\n- Security and performance coverage expands\n\n### Negative\n\n",
+					"decisions/0012-v050-cloud-client-maina-cloud.md": "# Decision: v0.5.0 Cloud Client + maina-cloud\n\n> Status: **accepted**\n\n## Context\n\nMaina is local-only. Teams need shared prompts, feedback, and A/B testing coordination. The cloud infrastructure must be private (business logic), while the CLI client stays open source.\n\n## Decision\n\nSplit into two repos: open-source CLI client in mainahq/maina, private Workers service repo (mainahq/maina-cloud). Shared types ensure API contract consistency. GitHub OAuth device flow for auth. Workkit packages power the cloud service.\n\n## Rationale\n\n### Positive\n\n- Cloud business logic stays private\n- CLI client is open source — community can see how sync works\n- Shared types prevent API drift\n- Workkit dogfooding starts immediately\n\n### Negative\n\n- Two repos to maintain\n- Shared types need manual sync (mitigated by shared types package later)\n- OAuth device flow is more complex than simple API key\n\n### Neutral\n\n- Cloud repo is standard Cloudflare Workers project\n",
+					"features/016-post-workflow-rl.md": "# Feature: Implementation Plan\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/017-visual-verification.md": "# Feature: Implementation Plan\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/018-verification-proof-pr.md": "# Feature: Implementation Plan\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/019-tool-install-guide.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope -  ### Out of Scope -\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n"
+				}
+			},
+			"output": {
+				"relatedModules": [
+					{
+						"name": "cluster-116",
+						"path": "modules/cluster-116.md",
+						"entities": 2
+					}
+				],
+				"relatedDecisions": [
+					{
+						"id": "0010-v03x-hardening-verify-gaps-rl-loop-hldlld",
+						"title": "v0.3.x Hardening: Verify Gaps + RL Loop + HLD/LLD",
+						"status": "accepted"
+					},
+					{
+						"id": "0011-v040-polish-ci",
+						"title": "v0.4.0 Polish + CI",
+						"status": "accepted"
+					}
+				],
+				"relatedFeatures": [
+					{
+						"id": "016-post-workflow-rl",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "017-visual-verification",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "018-verification-proof-pr",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "019-tool-install-guide",
+						"title": "Implementation Plan"
+					}
+				],
+				"suggestions": [
+					"ADR 0010-v03x-hardening-verify-gaps-rl-loop-hldlld (v0.3.x Hardening: Verify Gaps + RL Loop + HLD/LLD) is accepted — ensure compatibility",
+					"ADR 0011-v040-polish-ci (v0.4.0 Polish + CI) is accepted — ensure compatibility",
+					"Feature 016-post-workflow-rl did something similar — check wiki/features/016-post-workflow-rl.md",
+					"Feature 017-visual-verification did something similar — check wiki/features/017-visual-verification.md",
+					"Feature 018-verification-proof-pr did something similar — check wiki/features/018-verification-proof-pr.md",
+					"Feature 019-tool-install-guide did something similar — check wiki/features/019-tool-install-guide.md"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "plan",
+				"query": "v0.4.0 — Polish + CI",
+				"wiki": {
+					"modules/cluster-120.md": "# Module: cluster-120\n\n> Auto-generated module article for `cluster-120`.\n\n## Entities\n\n- **generateLinks** (function) — `packages/core/src/wiki/linker.ts:69` [PR: 0.0008]\n- **LinkResult** (interface) — `packages/core/src/wiki/linker.ts:13` [PR: 0.0005]\n",
+					"modules/cluster-121.md": "# Module: cluster-121\n\n> Auto-generated module article for `cluster-121`.\n\n## Entities\n\n- **generateSpecQuestions** (function) — `packages/core/src/ai/spec-questions.ts:22` [PR: 0.0008]\n- **SpecQuestion** (interface) — `packages/core/src/ai/spec-questions.ts:4` [PR: 0.0005]\n",
+					"modules/cluster-123.md": "# Module: cluster-123\n\n> Auto-generated module article for `cluster-123`.\n\n## Entities\n\n- **closeDb** (function) — `examples/todo-api/src/db.ts:21` [PR: 0.0008]\n- **getDb** (function) — `examples/todo-api/src/db.ts:5` [PR: 0.0005]\n",
+					"decisions/0013-report-storage-backend-cloudflare-r2.md": "# Decision: Report storage backend (Cloudflare R2)\n\n> Status: **accepted**\n\n## Context\n\nMaina Cloud verification generates proof artifacts that need durable, publicly readable storage: JSON reports, HTML report views, and PNG screenshots for visual-diff checks. The system needs:\n\n- Signed uploads from CI (no server-side proxy for large payloads)\n- Public read access with CDN caching for report permalinks\n- Per-run cleanup for retention and GDPR deletion\n- Cost predictability at scale (10k–100k runs/month)\n\nmaina-cloud already runs on Cloudflare Workers and uses the `@workkit` monorepo for infrastructure primitives.\n\n## Decision\n\nUse **Cloudflare R2** as the storage backend for all verification artifacts. All R2 operations go through **`@workkit/r2`** (`@workkit/r2@0.1.1`, MIT) — the typed R2 client library that provides presigned URLs, streaming helpers, multipart upload, and error handling out of the box.\n\n### Bucket Layout\n\n```\nmaina-reports/\n  r/<run-id>/\n",
+					"decisions/0014-experiment-gate-stagehand-orama.md": "# Decision: Experiment gate criteria for Stagehand and Orama\n\n> Status: **accepted**\n\n## Context\n\nWeek 5 includes two experimental spikes: Stagehand (AI-driven browser automation as a Playwright alternative) and Orama (hybrid BM25+vector search for wiki). Without pre-defined go/no-go criteria, \"we invested time so let's ship it\" bias takes over.\n\n## Decision\n\n### Stagehand Gate (`docs/decisions/0002-stagehand-gate.md`)\n\nShip only if ALL criteria are met across 50 benchmark runs:\n\n| Metric | Threshold | Rationale |\n|--------|-----------|-----------|\n| Pass rate | ≥95% | Playwright baseline is ~99%; 95% is acceptable for AI-driven |\n| Token cost per verify | ≤$0.05 | Must be viable at 100k runs/mo ($5k ceiling) |\n| Cache hit rate (after first run) | ≥80% | Same flow on same page should cache; AI variance is the risk |\n\n### Orama Gate (`docs/decisions/0003-orama-gate.md`)\n\nShip only if ALL criteria are met on a 30-query test set across 100 wiki pages:\n\n| Metric | Threshold | Rationale |\n",
+					"decisions/0015-cli-mcp-coequal.md": "# Decision: CLI and MCP are co-equal first-class surfaces\n\n> Status: **accepted**\n\n## Context\n\nMaina serves two user shapes:\n\n1. **Agent-native** — Claude Code, Cursor, Windsurf, Copilot via MCP tools\n2. **Terminal-native** — CI pipelines, pre-commit hooks, scripting via `maina <cmd>`\n\nEarly feature work risks accidentally privileging one surface. For example, a feature might be CLI-only with no MCP equivalent, or MCP-first with a CLI afterthought.\n\n## Decision\n\n**Every feature must be reachable via both `maina <cmd>` and an equivalent MCP tool.**\n\n### Rules\n\n1. **Feature parity**: if `maina verify` exists, `verify` MCP tool must exist with equivalent functionality\n2. **PR checklist**: every PR review includes \"Does this feature work equally well from CLI and MCP?\"\n3. **Marketing parity**: mainahq.com shows both paths above the fold (curl install command + MCP badges for Claude Code, Cursor, Windsurf)\n",
+					"features/021-ai-delegation-protocol.md": "# Feature: Implementation Plan\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/022-brainstorm-command.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope -  ### Out of Scope -\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/023-enterprise-languages.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope -  ### Out of Scope -\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/024-v04-polish-ci.md": "# Feature: Implementation Plan — v0.4.0 Polish + CI\n\n## Scope\n\n### In Scope - `--json` flag on all commands - Exit codes (0/1/2/3) - GitHub Action (`mainahq/verify-action`) - PHP language profile (PHPStan, Psalm) - Per-file language detection - ZAP DAST integration - Lighthouse integration ### Out of Scope - GitLab CI / Buildkite integrations (deferred to v0.6.0 hosted verify) - PHP framework-specific rules (Laravel, Symfony) - Lighthouse CI (scheduled runs) — just single-run auditing for now\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n"
+				}
+			},
+			"output": {
+				"relatedModules": [],
+				"relatedDecisions": [],
+				"relatedFeatures": [
+					{
+						"id": "024-v04-polish-ci",
+						"title": "Implementation Plan — v0.4.0 Polish + CI"
+					}
+				],
+				"suggestions": [
+					"Feature 024-v04-polish-ci did something similar — check wiki/features/024-v04-polish-ci.md"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "plan",
+				"query": "Feature 029: AI-Driven Interactive maina init",
+				"wiki": {
+					"modules/cluster-129.md": "# Module: cluster-129\n\n> Auto-generated module article for `cluster-129`.\n\n## Entities\n\n- **renderTemplate** (function) — `packages/core/src/prompts/loader.ts:61` [PR: 0.0011]\n- **mergePrompts** (function) — `packages/core/src/prompts/loader.ts:47` [PR: 0.0008]\n- **loadUserOverride** (function) — `packages/core/src/prompts/loader.ts:25` [PR: 0.0006]\n",
+					"modules/cluster-13.md": "# Module: cluster-13\n\n> Auto-generated module article for `cluster-13`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-130.md": "# Module: cluster-130\n\n> Auto-generated module article for `cluster-130`.\n\n## Entities\n\n- **noContent** (function) — `examples/todo-api/src/response.ts:17` [PR: 0.0011]\n- **err** (function) — `examples/todo-api/src/response.ts:12` [PR: 0.0008]\n- **ok** (function) — `examples/todo-api/src/response.ts:7` [PR: 0.0006]\n",
+					"decisions/0016-error-reporting-backend.md": "# Decision: Error and telemetry backend (PostHog)\n\n> Status: **accepted**\n\n## Context\n\nMaina needs crash reporting, usage telemetry, and product analytics for both the open-source CLI and the Cloud service. Requirements:\n\n- OSS: opt-in, aggressive PII scrubbing, zero data until consent\n- Cloud: opt-out (default on), account-linked for support triage\n- Single platform preferred over stitching multiple backends together\n\n## Decision\n\nUse **PostHog** as the single backend for errors, usage telemetry, and product analytics.\n\n- **Cloud**: PostHog Cloud (EU hosting available, generous free tier — 1M events/mo)\n- **OSS**: PostHog Cloud with aggressive client-side scrubbing (same SDK, same project, scrubbed before send)\n- **One SDK**: `posthog-node` for all server-side events\n- **Fallback**: If PostHog's error tracking proves insufficient for stack trace depth or source map support, evaluate adding Sentry alongside — but start with one platform\n\n### Why PostHog Over Sentry + Separate Analytics\n",
+					"decisions/0017-no-workkit-search.md": "# Decision: Kill decision — @workkit for wiki search\n\n> Status: **accepted**\n\n## Context\n\nInternal discussion considered using @workkit as a search library for wiki queries. @workkit is a Cloudflare Workers toolkit — it has no search capabilities. Maina uses Pagefind for docs site search and Orama (under evaluation, gated by ADR 0014) for in-app wiki search.\n\n## Decision\n\nDo not use @workkit for search. Revisit only if @workkit ships dedicated search features.\n\n## Rationale\n\n- Pagefind handles docs site search (already working)\n- Orama evaluation for in-app search proceeds under experiment gates (ADR 0014)\n- @workkit continues to be used for its actual purpose: R2, KV, D1, auth, etc.\n",
+					"decisions/0018-no-passmark.md": "# Decision: Kill decision — Passmark adoption\n\n> Status: **accepted**\n\n## Context\n\nPassmark was considered as a browser automation tool for visual verification. Evaluation:\n\n- Passmark wraps Playwright — it's not a replacement, it's a layer on top\n- FSL license has a \"Competing Use\" clause — risky for a verification tool\n- 185 GitHub stars — not battle-tested\n- Stagehand (MIT, larger community) does the same thing without the Redis requirement\n\n## Decision\n\nDo not adopt Passmark. Evaluate Stagehand instead (gated by ADR 0014 experiment criteria).\n\n## Rationale\n\n- Stagehand evaluation scheduled as #126 (feature-flagged spike)\n- Playwright remains the baseline for scripted browser verification\n- No licensing risk from FSL\n",
+					"features/024-v05-cloud-client.md": "# Feature: Implementation Plan — v0.5.0 Cloud Client + maina-cloud\n\n## Scope\n\n",
+					"features/025-v06-hosted-verification.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - `--cloud` flag on `maina verify` command (maina repo) - `CloudClient.submitVerify/getVerifyStatus/getVerifyResult` methods (maina repo) - Shared type exports: `Finding`, `PipelineResult`, `ToolReport`, `DetectedTool` from `@mainahq/core` - Workers Workflow migration replacing Durable Object (maina-cloud) - `@workkit/ratelimit` middleware on API endpoints (maina-cloud) - `@workkit/cache` SWR keyed on `team_id:diff_hash:prompt_version` (maina-cloud) - `@workkit/crypto` replacing manual sha256/HMAC (maina-cloud) - `mainahq/verify-action` GitHub Action (new repo) ### Out of Scope - Container execution for heavy tools (enterprise, future) - Inline PR review comments (commit status only for now) - Dashboard / billing (v0.7.0) - `mainahq/workflow-action` autonomous coding (v0.7.0+) - New storage schemas\n\n## Tasks\n\nProgress: 0/31 (0%)\n\n- [ ] T001: Write tests for verify type exports from @mainahq/core\n",
+					"features/026-v07-rl-flywheel.md": "# Feature: Implementation Plan\n\n## Scope\n\n",
+					"features/029-ai-driven-init.md": "# Feature: Feature 029: AI-Driven Interactive maina init\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n"
+				}
+			},
+			"output": {
+				"relatedModules": [],
+				"relatedDecisions": [
+					{
+						"id": "0017-no-workkit-search",
+						"title": "Kill decision — @workkit for wiki search",
+						"status": "accepted"
+					}
+				],
+				"relatedFeatures": [
+					{
+						"id": "024-v05-cloud-client",
+						"title": "Implementation Plan — v0.5.0 Cloud Client + maina-cloud"
+					},
+					{
+						"id": "025-v06-hosted-verification",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "029-ai-driven-init",
+						"title": "Feature 029: AI-Driven Interactive maina init"
+					}
+				],
+				"suggestions": [
+					"ADR 0017-no-workkit-search (Kill decision — @workkit for wiki search) is accepted — ensure compatibility",
+					"Feature 024-v05-cloud-client did something similar — check wiki/features/024-v05-cloud-client.md",
+					"Feature 025-v06-hosted-verification did something similar — check wiki/features/025-v06-hosted-verification.md",
+					"Feature 029-ai-driven-init did something similar — check wiki/features/029-ai-driven-init.md"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "plan",
+				"query": "Feature: ADR — Report Storage Backend (R2)",
+				"wiki": {
+					"modules/cluster-135.md": "# Module: cluster-135\n\n> Auto-generated module article for `cluster-135`.\n\n## Entities\n\n- **startServer** (function) — `packages/mcp/src/server.ts:30` [PR: 0.0008]\n- **createMcpServer** (function) — `packages/mcp/src/server.ts:14` [PR: 0.0005]\n",
+					"modules/cluster-136.md": "# Module: cluster-136\n\n> Auto-generated module article for `cluster-136`.\n\n## Entities\n\n- **storeCompressedReview** (function) — `packages/core/src/feedback/compress.ts:82` [PR: 0.0008]\n- **compressReview** (function) — `packages/core/src/feedback/compress.ts:12` [PR: 0.0005]\n",
+					"modules/cluster-137.md": "# Module: cluster-137\n\n> Auto-generated module article for `cluster-137`.\n\n## Entities\n\n- **syncCommand** (function) — `packages/cli/src/commands/sync.ts:127` [PR: 0.0012]\n- **syncPullAction** (function) — `packages/cli/src/commands/sync.ts:91` [PR: 0.0009]\n- **syncPushAction** (function) — `packages/cli/src/commands/sync.ts:58` [PR: 0.0007]\n- **SyncActionResult** (interface) — `packages/cli/src/commands/sync.ts:52` [PR: 0.0005]\n",
+					"decisions/0019-no-fern-no-sdk.md": "# Decision: Kill decision — Fern + multi-language SDKs\n\n> Status: **accepted**\n\n## Context\n\nFern was considered for auto-generating multi-language SDKs. Evaluation:\n\n- Maina has no REST API to wrap — MCP is the polyglot surface\n- Peers (Ruff, uv, Biome, Bun, Vitest, Astro) ship zero SDKs\n- Fern costs ~$600/mo per language — not justified without a REST API\n- MCP clients already speak the protocol natively (Claude Code, Cursor, Windsurf, Copilot)\n\n## Decision\n\nDo not use Fern. Do not build multi-language SDKs. MCP is the polyglot interface.\n\nRevisit in 2027 Q2 if a hosted REST API exists — use Speakeasy then, not Fern.\n\n## Rationale\n\n- Zero SDK maintenance burden\n- MCP remains the single cross-platform integration surface\n- Blog post: \"Why Maina has no SDK\" (pairs with #112)\n- Roadmap tickets referencing Fern/SDK closed as won't-fix\n",
+					"decisions/0020-no-lsif.md": "# Decision: No LSIF usage — SCIP is the target format\n\n> Status: **accepted**\n\n## Context\n\nSourcegraph migrated off LSIF in v4.6, replacing it with SCIP. Audit: does Maina use LSIF anywhere?\n\n`rg -i \"lsif\"` across the codebase: **zero hits** (one false positive in bun.lock package hash).\n\n## Decision\n\nNo LSIF migration needed. SCIP is the target format for the code intelligence epic (#133).\n\n## Rationale\n\n- SCIP ingest (#124) proceeds without migration overhead\n- This ADR closes the audit cleanly\n",
+					"decisions/0021-error-id-surface-for-cli-and-mcp.md": "# Decision: Error ID surface for CLI and MCP\n\n> Status: **accepted**\n\n## Context\n\nWhen maina crashes, users file issues saying \"it didn't work\" with no way to reference the specific error. Maintainers can't correlate reports with stack traces. We need a short, user-quotable error identifier that maps back to an event.\n\n## Decision\n\nGenerate deterministic 6-char error IDs using DJB2 hash of `errorClass:errorMessage`, encoded in a base32 alphabet without ambiguous characters (O/0/I/l). Format: `ERR-<6chars>`.\n\n**Deterministic fingerprinting** (same error = same ID) was chosen over unique event IDs because:\n- Users quoting the same ID in different issues signals \"this is the same bug\"\n- PostHog/Sentry backend assigns unique event IDs independently\n- Fingerprinting enables dedup at the reporting layer\n\n### Surfaces\n\n- CLI stderr: `Error ERR-ab12cd. <message>\\nReport at github.com/mainahq/maina/issues (include this ID).`\n- MCP error responses: `{ \"error\": \"...\", \"error_id\": \"ERR-ab12cd\" }`\n",
+					"features/029-ai-driven-init.md": "# Feature: Feature 029: AI-Driven Interactive maina init\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/030-mcp-agent-files.md": "# Feature: Feature 030: Auto-Configure MCP + Agent Instruction Files During Init\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/031-landing-light-mode.md": "# Feature: Feature 031: Landing Page Full Light Mode\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/036-adr-report-storage-r2.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Writing the ADR document with all acceptance criteria - Cost comparison table (R2 vs S3 vs Supabase Storage) - Bucket layout specification - Retention and GDPR policies ### Out of Scope - Implementing any infrastructure changes - Building the report viewer (that's #131) - CI upload pipeline (that's part of PR comment v2)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n"
+				}
+			},
+			"output": {
+				"relatedModules": [],
+				"relatedDecisions": [
+					{
+						"id": "0021-error-id-surface-for-cli-and-mcp",
+						"title": "Error ID surface for CLI and MCP",
+						"status": "accepted"
+					}
+				],
+				"relatedFeatures": [
+					{
+						"id": "036-adr-report-storage-r2",
+						"title": "Implementation Plan"
+					}
+				],
+				"suggestions": [
+					"ADR 0021-error-id-surface-for-cli-and-mcp (Error ID surface for CLI and MCP) is accepted — ensure compatibility",
+					"Feature 036-adr-report-storage-r2 did something similar — check wiki/features/036-adr-report-storage-r2.md"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "plan",
+				"query": "Feature: [Name]",
+				"wiki": {
+					"modules/cluster-141.md": "# Module: cluster-141\n\n> Auto-generated module article for `cluster-141`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-142.md": "# Module: cluster-142\n\n> Auto-generated module article for `cluster-142`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-143.md": "# Module: cluster-143\n\n> Auto-generated module article for `cluster-143`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0021-glob-scoped-constitution-rules.md": "# Decision: Glob-scoped constitution rules\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0022-mcp-install-badges-on-hero.md": "# Decision: MCP install badges on hero\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0022-wiki-is-a-view-of-the-context-engine.md": "# Decision: Wiki is a view of the Context engine\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"features/034-v110-roundtrip-flywheel.md": "# Feature: Feature 034: v1.1.0 Round-Trip Flywheel — Implementation Plan\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/035-wiki-foundation.md": "# Feature: Wiki Foundation (Sprint 0)\n\n## Tasks\n\nProgress: 0/7 (0%)\n\n- [ ] T001: Define all wiki types in types.ts\n- [ ] T002: Implement state management with SHA-256 hashing (depends on T001)\n- [ ] T003: Implement schema management (depends on T001)\n- [ ] T004: Implement code entity extractor (depends on T001)\n- [ ] T005: Implement feature extractor (depends on T001)\n- [ ] T006: Implement decision extractor (depends on T001)\n- [ ] T007: Implement workflow trace extractor (depends on T001)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/036-adr-report-storage-r2.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Writing the ADR document with all acceptance criteria - Cost comparison table (R2 vs S3 vs Supabase Storage) - Bucket layout specification - Retention and GDPR policies ### Out of Scope - Implementing any infrastructure changes - Building the report viewer (that's #131) - CI upload pipeline (that's part of PR comment v2)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/037-sticky-pr-comment.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope -  ### Out of Scope -\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n"
+				}
+			},
+			"output": {
+				"relatedModules": [],
+				"relatedDecisions": [],
+				"relatedFeatures": [
+					{
+						"id": "034-v110-roundtrip-flywheel",
+						"title": "Feature 034: v1.1.0 Round-Trip Flywheel — Implementation Plan"
+					},
+					{
+						"id": "035-wiki-foundation",
+						"title": "Wiki Foundation (Sprint 0)"
+					},
+					{
+						"id": "036-adr-report-storage-r2",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "037-sticky-pr-comment",
+						"title": "Implementation Plan"
+					}
+				],
+				"suggestions": [
+					"Feature 034-v110-roundtrip-flywheel did something similar — check wiki/features/034-v110-roundtrip-flywheel.md",
+					"Feature 035-wiki-foundation did something similar — check wiki/features/035-wiki-foundation.md",
+					"Feature 036-adr-report-storage-r2 did something similar — check wiki/features/036-adr-report-storage-r2.md",
+					"Feature 037-sticky-pr-comment did something similar — check wiki/features/037-sticky-pr-comment.md"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "plan",
+				"query": "Feature: PII and code-content scrubbing library",
+				"wiki": {
+					"modules/cluster-148.md": "# Module: cluster-148\n\n> Auto-generated module article for `cluster-148`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-149.md": "# Module: cluster-149\n\n> Auto-generated module article for `cluster-149`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-15.md": "# Module: cluster-15\n\n> Auto-generated module article for `cluster-15`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0022-wiki-is-a-view.md": "# Decision: Wiki is a view of the Context engine\n\n> Status: **accepted**\n\n## Context\n\nThe wiki was initially presented as a standalone feature: \"codebase knowledge compiler.\" This creates confusion — users think Maina has two products (verification + wiki) instead of one system with multiple views.\n\nThe Context engine is the core. It has 4 layers (Working, Episodic, Semantic, Retrieval) that gather codebase context. The wiki is not a layer — it's a *view* that renders the knowledge graph built from those layers as persistent, human-readable articles. Same engine, same data, different rendering.\n\n## Decision\n\nReposition the wiki as \"a view of the Context engine\" in all messaging:\n\n- **Context engine** (core) — the product, the thing that understands your codebase\n- **Wiki** (view) — human-readable articles compiled from the knowledge graph\n- **Blast radius** (view, future) — impact analysis rendered from the dependency graph\n",
+					"decisions/0023-lint-config-and-manifest-parsers-for-constitution.md": "# Decision: Lint-config and manifest parsers for constitution\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0023-pii-and-code-content-scrubbing-library.md": "# Decision: PII and code-content scrubbing library\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"features/037-glob-scoped-constitution.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - `constitution.d/` directory support with per-file `applies_to:` globs - Loader that merges root + shards deterministically - Glob matching for filtering rules per file path - Backward compatibility when directory is absent ### Out of Scope - AI-powered rule assignment to shards (manual for now) - Cookbook docs (separate issue)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/037-import-rule-adapters.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope -  ### Out of Scope -\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/037-split-quickstart.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - New /quickstart page with 3 commands - Rename /getting-started to /full-setup - Update all nav/sidebar/internal links ### Out of Scope - MCP badges on hero (separate issue #98) - Docs number consistency (separate issue #99)\n\n## Tasks\n\nProgress: 5/5 (100%)\n\n- [x] T1: Create quickstart.mdx with 3 commands (curl, init, commit)\n- [x] T2: Rename getting-started.mdx to full-setup.mdx, update frontmatter\n- [x] T3: Update astro.config.mjs sidebar (Quickstart > Commands > Full Setup)\n- [x] T4: Update all internal links (Hero, nav, Features, cloud)\n- [x] T5: Verify build passes\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/039-pii-scrubber.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - `scrubPii(text)` — general text scrubber - `scrubStackTrace(stack)` — stack-trace-specific scrubber - `scrubErrorEvent(event)` — full event scrubber for PostHog/Sentry payloads ### Out of Scope - Server-side scrubbing (client-only by design) - Fuzz testing (future enhancement)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n"
+				}
+			},
+			"output": {
+				"relatedModules": [],
+				"relatedDecisions": [
+					{
+						"id": "0023-pii-and-code-content-scrubbing-library",
+						"title": "PII and code-content scrubbing library",
+						"status": "proposed"
+					}
+				],
+				"relatedFeatures": [
+					{
+						"id": "039-pii-scrubber",
+						"title": "Implementation Plan"
+					}
+				],
+				"suggestions": [
+					"Feature 039-pii-scrubber did something similar — check wiki/features/039-pii-scrubber.md"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "plan",
+				"query": "Feature: Pattern sampler (TS — regex-based V1)",
+				"wiki": {
+					"modules/cluster-154.md": "# Module: cluster-154\n\n> Auto-generated module article for `cluster-154`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-155.md": "# Module: cluster-155\n\n> Auto-generated module article for `cluster-155`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-156.md": "# Module: cluster-156\n\n> Auto-generated module article for `cluster-156`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0023-progressive-mcp-tool-disclosure.md": "# Decision: Progressive MCP tool disclosure\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0024-deep-wiki-compatible-mcp-server.md": "# Decision: DeepWiki-compatible MCP server\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0024-opt-in-usage-telemetry.md": "# Decision: Opt-in usage telemetry\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"features/038-lock-docs-numbers.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Build script that counts from source - stats.json output - Landing page reads from stats.json ### Out of Scope - CI check for hand-typed counts (future)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/038-mcp-install-badges.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Three badge components in the Hero - Claude Code: `claude mcp add-json maina '{\"command\":\"maina\",\"args\":[\"--mcp\"]}'` - Cursor: deeplink `cursor://anysphere.cursor-deeplink/mcp/install?name=maina&config=<base64>` - Windsurf: copy MCP config to clipboard with toast notification ### Out of Scope - Other IDEs (Cline, Roo, etc.) — future issue - Badge click analytics (needs telemetry first)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/038-wiki-is-a-view.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - README architecture section update - ADR documenting the positioning decision - Consistent vocabulary in docs ### Out of Scope - Website nav restructure (separate issue) - Code changes (none needed — it's already structured correctly)\n\n## Tasks\n\nProgress: 3/3 (100%)\n\n- [x] T1: Write ADR 0022 documenting wiki-as-view positioning\n- [x] T2: Update wiki.mdx with Context engine framing (4 layers, wiki renders the graph)\n- [x] T3: Fix layer count to match existing Context engine docs (4 layers, not 5)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/041-treesitter-pattern-sampler.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - TypeScript pattern detection via tree-sitter queries - Sampling logic (<=100 files, deterministic selection) - Constitution rule emission with confidence scores ### Out of Scope - Python patterns (stubbed but gated behind flag) - Go, Rust, Java, C#, PHP (future) - Interactive propose/accept (separate issue #117)\n\n## Tasks\n\nProgress: 8/8 (100%)\n\n- [x] T1: Write TDD test stubs from spec (25 red, confirmed failing)\n- [x] T2: Implement `sampleFiles()` — deterministic file sampling\n- [x] T3: Implement `detectAsyncStyle()` — async/await vs .then\n- [x] T4: Implement `detectFunctionStyle()` — arrow vs declaration\n- [x] T5: Implement `detectImportStyle()` — named vs default\n- [x] T6: Implement `detectErrorHandling()` — try/catch vs .catch\n- [x] T7: Implement `samplePatterns()` — combined runner (17 tests green)\n- [x] T8: `maina verify` + `maina review` (READY) + `maina analyze` — all pass\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n"
+				}
+			},
+			"output": {
+				"relatedModules": [],
+				"relatedDecisions": [],
+				"relatedFeatures": [
+					{
+						"id": "038-lock-docs-numbers",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "038-mcp-install-badges",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "038-wiki-is-a-view",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "041-treesitter-pattern-sampler",
+						"title": "Implementation Plan"
+					}
+				],
+				"suggestions": [
+					"Feature 038-lock-docs-numbers did something similar — check wiki/features/038-lock-docs-numbers.md",
+					"Feature 038-mcp-install-badges did something similar — check wiki/features/038-mcp-install-badges.md",
+					"Feature 038-wiki-is-a-view did something similar — check wiki/features/038-wiki-is-a-view.md",
+					"Feature 041-treesitter-pattern-sampler did something similar — check wiki/features/041-treesitter-pattern-sampler.md"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "plan",
+				"query": "Feature: Source map + release tracking in CI",
+				"wiki": {
+					"modules/cluster-160.md": "# Module: cluster-160\n\n> Auto-generated module article for `cluster-160`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-161.md": "# Module: cluster-161\n\n> Auto-generated module article for `cluster-161`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-162.md": "# Module: cluster-162\n\n> Auto-generated module article for `cluster-162`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0024-oss-error-reporting-with-post-hog.md": "# Decision: OSS error reporting with PostHog\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0025-git-hub-checks-api-integration.md": "# Decision: GitHub Checks API integration\n\n> Status: **accepted**\n\n## Context\n\nMaina's verify-action posts inline review comments on findings. But there's no GitHub Check Run — teams can't use \"required status checks\" to gate merges, and there's no pass/fail summary in the PR status box.\n\n## Decision\n\nCreate a GitHub Check Run via `POST /repos/{owner}/{repo}/check-runs` with:\n- **Conclusion**: `success` (no errors), `failure` (errors found), `neutral` (warnings only)\n- **Summary**: \"18/20 passed · 2 warnings\"\n- **Annotations**: up to 50 line-level annotations from verify findings\n- **Details URL**: `mainahq.com/r/<run-id>` when available\n\nUse `fetch` directly — no Octokit dependency. Same pattern as `sticky-comment.ts`.\n\n## Rationale\n\n### Positive\n- Teams can gate merges on Maina verification\n- Quick pass/fail visible in PR status box\n- Annotations link to exact file:line in the diff\n\n### Negative\n- Requires `checks:write` permission (GitHub App or PAT)\n",
+					"decisions/0025-tree-sitter-pattern-sampler-for-constitution.md": "# Decision: Pattern sampler for constitution rules\n\n> Status: **accepted**\n\n## Context\n\nConfig files and git history capture explicit conventions, but coding style patterns (async/await vs .then, arrow vs declaration functions, named vs default imports) are implicit in the code itself. These need detection from code samples.\n\n## Decision\n\nUse regex-based pattern detection on sampled files (<=100 per language, deterministic selection). Regex is sufficient for the target patterns and avoids the complexity of tree-sitter AST parsing for V1.\n\nConfidence scoring: prevalence ratio × 0.7 (capped). If 90% of async operations use await, confidence = 0.63. Medium-confidence rules require user confirmation.\n\n## Rationale\n\n### Positive\n- Detects patterns that no config file captures\n- Deterministic: same repo → same rules\n- Fast: regex over 100 files takes <1s\n\n### Negative\n- Regex is less precise than AST for complex patterns (acceptable for V1)\n",
+					"features/039-progressive-mcp-disclosure.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Split tool registration into core (3) and extended (7) - `list_tools` meta-tool that returns descriptions of all tools - `--all-tools` flag on `maina --mcp` - Config support ### Out of Scope - Dynamic tool loading based on project type - Per-session tool negotiation\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/040-deepwiki-mcp.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - 3 new MCP tools matching DeepWiki's surface - Delegation to existing wiki engine functions - Registered alongside existing Maina tools ### Out of Scope - Standalone `maina-wiki-mcp` package (future) - Full DeepWiki test harness compatibility\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/040-oss-error-reporting.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - `packages/core/src/telemetry/reporter.ts` — error reporting with PostHog - Consent check from `~/.maina/config.yml` - Integration with PII scrubber ### Out of Scope - Consent prompt UI (CLI command, separate issue) - `maina errors status/off` commands (separate issue) - Cloud error reporting (separate issue #122)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/044-source-map-release-tracking.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - CI workflow for source map upload on release tags - Version extraction from package.json in CI - Source map generation enabled in build config ### Out of Scope - PostHog source map processing (PostHog handles this server-side) - Python components (no Python in maina)\n\n## Tasks\n\nProgress: 0/4 (0%)\n\n- [ ] T1: Create `.github/workflows/release-sourcemaps.yml`\n- [ ] T2: Enable sourcemap in build config if not already\n- [ ] T3: Add version extraction step\n- [ ] T4: maina verify + review\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n"
+				}
+			},
+			"output": {
+				"relatedModules": [],
+				"relatedDecisions": [],
+				"relatedFeatures": [
+					{
+						"id": "044-source-map-release-tracking",
+						"title": "Implementation Plan"
+					}
+				],
+				"suggestions": [
+					"Feature 044-source-map-release-tracking did something similar — check wiki/features/044-source-map-release-tracking.md"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "plan",
+				"query": "Feature 050: Onboarding-60s — Wave 1",
+				"wiki": {
+					"modules/cluster-167.md": "# Module: cluster-167\n\n> Auto-generated module article for `cluster-167`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-168.md": "# Module: cluster-168\n\n> Auto-generated module article for `cluster-168`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-169.md": "# Module: cluster-169\n\n> Auto-generated module article for `cluster-169`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0026-cloud-error-reporting-with-account-linking.md": "# Decision: Cloud error reporting with account linking\n\n> Status: **accepted**\n\n## Context\n\nCloud users need error reporting linked to their account for support triage. OSS reporter (#121) provides scrubbed error events. Cloud extends this with user_id, org_id, plan_tier — never email or name.\n\n## Decision\n\nExtend the OSS `buildErrorEvent()` with cloud-specific metadata. Default-on for Cloud users, opt-out via user settings. Events tagged with IDs only, never PII.\n\n## Rationale\n\n### Positive\n- Support can find errors by user/org in PostHog within 30s\n- Plan-tier tagging enables prioritized triage for paid customers\n\n### Negative\n- Default-on may concern privacy-conscious users (mitigated: opt-out is immediate, only IDs sent)\n",
+					"decisions/0026-interview-gap-filler-for-constitution.md": "# Decision: Interview gap-filler for constitution\n\n> Status: **accepted**\n\n## Context\n\nConfig parsers, git analyzers, and pattern samplers detect ~70% of conventions. The remaining ~20% needs human input: files AI should never touch, deploy gotchas, common contributor mistakes. Rejected proposals should persist so `maina learn --update` doesn't re-ask.\n\n## Decision\n\n3 fixed interview questions (deterministic, not AI-generated):\n1. \"Files AI should never touch?\" → glob patterns\n2. \"Deploy-time gotchas?\" → free text\n3. \"What does every new contributor get wrong?\" → free text\n\nRejected rules stored in `.maina/rejected.yml` as a simple list. `filterProposals()` removes any rule whose text matches a rejected entry.\n\nHuman-provided answers get confidence 0.8 (higher than scan-inferred 0.4-0.7, lower than explicit config 1.0).\n\n## Rationale\n\n### Positive\n- Fills gaps that automated scanners can't detect\n- Rejected rules persist — no re-asking\n",
+					"decisions/0027-slash-command-parser-for-pr-comments.md": "# Decision: Slash command parser for PR comments\n\n> Status: **accepted**\n\n## Context\n\nUsers want to interact with Maina from PR comments (`/maina retry`, `/maina explain`, `/maina approve`). The parser needs to be a pure function in core — the webhook handler in maina-cloud delegates to it.\n\n## Decision\n\nRegex-based parser: `/maina <command> [args]`. Returns typed `SlashCommand` or null. ACL helper checks PR author + write permission. No GitHub API calls in the parser — pure function.\n\n## Rationale\n\n### Positive\n- Parser is testable and reusable (core, not cloud-specific)\n- Webhook handler stays thin (parse → validate → dispatch)\n\n### Negative\n- Regex parsing can't handle complex arguments (acceptable — commands are simple)\n",
+					"features/041-treesitter-pattern-sampler.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - TypeScript pattern detection via tree-sitter queries - Sampling logic (<=100 files, deterministic selection) - Constitution rule emission with confidence scores ### Out of Scope - Python patterns (stubbed but gated behind flag) - Go, Rust, Java, C#, PHP (future) - Interactive propose/accept (separate issue #117)\n\n## Tasks\n\nProgress: 8/8 (100%)\n\n- [x] T1: Write TDD test stubs from spec (25 red, confirmed failing)\n- [x] T2: Implement `sampleFiles()` — deterministic file sampling\n- [x] T3: Implement `detectAsyncStyle()` — async/await vs .then\n- [x] T4: Implement `detectFunctionStyle()` — arrow vs declaration\n- [x] T5: Implement `detectImportStyle()` — named vs default\n- [x] T6: Implement `detectErrorHandling()` — try/catch vs .catch\n- [x] T7: Implement `samplePatterns()` — combined runner (17 tests green)\n- [x] T8: `maina verify` + `maina review` (READY) + `maina analyze` — all pass\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n",
+					"features/042-cloud-error-reporting.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Cloud error event builder extending OSS reporter - Opt-out check from cloud user settings - Cloud-specific metadata (user_id, org_id, plan_tier) ### Out of Scope - Dashboard UI for error history (maina-cloud repo) - GDPR purge endpoint (maina-cloud repo) - PostHog SDK integration (future)\n\n## Tasks\n\nProgress: 6/6 (100%)\n\n- [x] T1: Write TDD test stubs (18 red confirmed)\n- [x] T2: Implement `CloudErrorContext` type with user_id, org_id, plan_tier\n- [x] T3: Implement `buildCloudErrorEvent()` extending base event (PII scrubbed)\n- [x] T4: Implement `isCloudReportingEnabled()` — default true, opt-out\n- [x] T5: Implement `reportCloudError()` — consent-gated with Result (10 tests green)\n- [x] T6: Also fixed scrubStackTrace to scrub emails/secrets in stack lines\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/042-interview-gap-filler.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - 3 fixed interview questions - Rejected rules persistence in `.maina/rejected.yml` - Filtering logic for `maina learn --update` - Non-TTY mode support ### Out of Scope - Interactive UI (clack prompts) — that's in the CLI command layer - AI-generated follow-up questions\n\n## Tasks\n\nProgress: 6/6 (100%)\n\n- [x] T1: Write TDD test stubs from spec (18 red, confirmed failing)\n- [x] T2: Implement `getInterviewQuestions()` — 3 fixed questions\n- [x] T3: Implement `loadRejectedRules()` / `saveRejectedRules()` — persistence with dedup\n- [x] T4: Implement `filterProposals()` — remove rejected from proposals\n- [x] T5: Implement `buildRulesFromAnswers()` — answers → ConstitutionRule[] (12 tests green)\n- [x] T6: `maina verify` + `maina review` + `maina analyze`\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n"
+				}
+			},
+			"output": {
+				"relatedModules": [],
+				"relatedDecisions": [],
+				"relatedFeatures": [
+					{
+						"id": "041-treesitter-pattern-sampler",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "042-cloud-error-reporting",
+						"title": "Implementation Plan"
+					},
+					{
+						"id": "042-interview-gap-filler",
+						"title": "Implementation Plan"
+					}
+				],
+				"suggestions": [
+					"Feature 041-treesitter-pattern-sampler did something similar — check wiki/features/041-treesitter-pattern-sampler.md",
+					"Feature 042-cloud-error-reporting did something similar — check wiki/features/042-cloud-error-reporting.md",
+					"Feature 042-interview-gap-filler did something similar — check wiki/features/042-interview-gap-filler.md"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "design",
+				"query": "Decision: Karpathy-Principled Spec Quality System",
+				"wiki": {
+					"modules/cluster-173.md": "# Module: cluster-173\n\n> Auto-generated module article for `cluster-173`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-174.md": "# Module: cluster-174\n\n> Auto-generated module article for `cluster-174`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-175.md": "# Module: cluster-175\n\n> Auto-generated module article for `cluster-175`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0027-symbol-page-templates-for-wiki.md": "# Decision: Symbol page templates for wiki\n\n> Status: **accepted**\n\n## Context\n\nWiki entity articles need structured per-symbol documentation: signature, location, refs, and call graph diagrams. Currently entities get minimal text. Adding templates makes the wiki navigable as a code reference.\n\n## Decision\n\nTemplate-based generation (no AI) with Mermaid diagrams for call relationships. Pure function: `(entity, refs) → markdown`. Content-hash keyed for deterministic caching.\n\nMermaid `graph LR` chosen because it renders natively in GitHub, Starlight docs, and any markdown viewer without JavaScript.\n\n## Rationale\n\n### Positive\n- Every entity gets a structured, navigable page\n- Mermaid diagrams render everywhere without JS\n- Deterministic output enables caching\n\n### Negative\n- LLM prose requires API key or host delegation (falls back to template-only when unavailable)\n- Diagrams may get complex for highly-connected symbols (mitigated: cap at 20 refs per direction)\n",
+					"decisions/0028-visual-diff-backend-argos.md": "# Decision: Visual diff backend — Argos\n\n> Status: **accepted**\n\n## Context\n\nMaina's verify engine needs visual regression testing — compare before/after screenshots on PRs. Two options evaluated:\n\n| Option | License | Hosting | Cost |\n|--------|---------|---------|------|\n| Argos | OSS (free for OSS) | Managed + self-hosted | Free for open source |\n| Lost Pixel | OSS | Self-hosted only | Free (infra cost) |\n\n## Decision\n\nUse **Argos** for visual diff:\n\n- Free managed plan for open-source projects\n- GitHub Check integration built-in\n- Baseline storage + per-branch comparison out of the box\n- Self-hosted option available if needed later\n- Less ops burden than Lost Pixel (no self-hosting required to start)\n\n## Rationale\n\n### Positive\n- Zero infra to maintain (managed plan)\n- GitHub Check integration for merge gating\n- Per-branch baselines handle feature branch divergence\n\n### Negative\n- External dependency for visual diffs (mitigated: can self-host later)\n",
+					"decisions/0029-scip-type-script-ingest-for-wiki.md": "# Decision: SCIP TypeScript ingest for wiki\n\n> Status: **accepted**\n\n## Context\n\nCustom regex parsers miss complex cross-file relationships. SCIP (Sourcegraph, Apache-2.0) is the successor to LSIF — 5-10x smaller, 3x faster. Running `scip-typescript` gives precise symbol data for free.\n\n## Decision\n\nSpawn `scip-typescript` as a subprocess, parse JSON output, normalize into internal types. Graceful fallback when not installed — wiki continues to work with regex-based extraction.\n\n## Rationale\n\n### Positive\n- Precise symbol refs (callers/callees) across files\n- Monorepo support via multiple tsconfig.json discovery\n- No protobuf dependency — use JSON output mode\n\n### Negative\n- External tool dependency (mitigated: graceful fallback + maina doctor recommendation)\n- Subprocess spawning adds latency (mitigated: only runs during wiki compile, not on every command)\n",
+					"features/044-playwright-mcp-interop.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Cookbook docs page showing the interop flow - Example MCP config combining both servers ### Out of Scope - Direct Playwright MCP SDK dependency (they're independent MCP servers) - MCP registry submission (future marketing task)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/044-source-map-release-tracking.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - CI workflow for source map upload on release tags - Version extraction from package.json in CI - Source map generation enabled in build config ### Out of Scope - PostHog source map processing (PostHog handles this server-side) - Python components (no Python in maina)\n\n## Tasks\n\nProgress: 0/4 (0%)\n\n- [ ] T1: Create `.github/workflows/release-sourcemaps.yml`\n- [ ] T2: Enable sourcemap in build config if not already\n- [ ] T3: Add version extraction step\n- [ ] T4: maina verify + review\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/045-scip-typescript-ingest.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Subprocess invocation of scip-typescript - Output parsing (SCIP protobuf → internal types) - Monorepo support (find all tsconfig.json) - Availability check + graceful fallback ### Out of Scope - Wiki article generation from SCIP data (uses existing symbol-page.ts) - Installing scip-typescript (user responsibility or maina doctor recommendation)\n\n## Tasks\n\nProgress: 6/6 (100%)\n\n- [x] T1: Write TDD test stubs (19 red confirmed)\n- [x] T2: Implement `isScipAvailable()` — PATH check\n- [x] T3: Implement `findTsConfigs()` — monorepo glob with depth limit\n- [x] T4: Implement `runScipTypescript()` — spawn + parse\n- [x] T5: Implement `parseScipOutput()` — JSON → ScipSymbol[] (11 tests green)\n- [x] T6: maina verify + review\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"decisions/0001-karpathy-principled-spec-quality-system.md": "# Decision: Karpathy-Principled Spec Quality System\n\n> Status: **proposed**\n\n## Context\n\nAfter 8 sprints and 769 tests, maina has a complete verification pipeline for code but no quality gate for specifications. The spec/plan analyzer catches structural issues (missing sections, orphaned tasks) but doesn't measure whether specs are actually good — measurable, testable, unambiguous.\n\nAndrej Karpathy's principles apply directly:\n- \"The most dangerous thing is a slightly wrong answer\" — A spec that seems complete but has gaps is worse than no spec\n- \"You need to stare at your data\" — Specs are training data for implementation. Garbage in, garbage out.\n- \"Loss curves don't lie\" — Track spec quality metrics over time. Are they improving?\n\nAdditionally, the code review revealed we need rationalization prevention (skip tracking) and red-green enforcement for test stubs.\n\n## Decision\n\nBuild a spec quality scoring system that:\n\n"
+				}
+			},
+			"output": {
+				"conflicts": [],
+				"alignments": [
+					{
+						"adr": "0001-karpathy-principled-spec-quality-system",
+						"title": "Karpathy-Principled Spec Quality System"
+					}
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "design",
+				"query": "Adopt eslint and prettier for linting",
+				"wiki": {
+					"modules/cluster-228.md": "# Module: cluster-228\n\n> Auto-generated module article for `cluster-228`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-229.md": "# Module: cluster-229\n\n> Auto-generated module article for `cluster-229`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-23.md": "# Module: cluster-23\n\n> Auto-generated module article for `cluster-23`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0021-glob-scoped-constitution-rules.md": "# Decision: Glob-scoped constitution rules\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0022-mcp-install-badges-on-hero.md": "# Decision: MCP install badges on hero\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0022-wiki-is-a-view-of-the-context-engine.md": "# Decision: Wiki is a view of the Context engine\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"features/036-adr-report-storage-r2.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Writing the ADR document with all acceptance criteria - Cost comparison table (R2 vs S3 vs Supabase Storage) - Bucket layout specification - Retention and GDPR policies ### Out of Scope - Implementing any infrastructure changes - Building the report viewer (that's #131) - CI upload pipeline (that's part of PR comment v2)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/037-error-id-surface.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Error ID generation function - CLI stderr format: `Error ERR-ab12cd. Report at github.com/mainahq/maina/issues` - MCP error format: `{ \"error\": \"...\", \"error_id\": \"ERR-ab12cd\" }` - Recent error ID storage (last 5, for `maina doctor`) ### Out of Scope - Wiring into every CLI command (incremental, per-command) - PostHog integration (separate issue) - GitHub issue template (separate issue)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/037-git-ci-analyzer.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - `analyzeCommitConventions()`, `analyzeHotPaths()`, `analyzeCiWorkflows()`, `analyzeCodeowners()` - Combined `analyzeGitAndCi()` running all in parallel - Each rule has `{ text, confidence, source }` ### Out of Scope - Interactive propose/accept flow (separate issue #117) - Writing rules to constitution.md (consumer responsibility)\n\n## Tasks\n\nProgress: 6/6 (100%)\n\n- [x] T1: Implement analyzeCommitConventions (conventional commit regex, scope extraction)\n- [x] T2: Implement analyzeHotPaths (git log --name-only, top N churn)\n- [x] T3: Implement analyzeCiWorkflows (read .github/workflows/*.yml)\n- [x] T4: Implement analyzeCodeowners (check 3 paths: root, .github/, docs/)\n- [x] T5: Implement analyzeGitAndCi (parallel combination)\n- [x] T6: Write tests (9 tests: CI workflows, CODEOWNERS, commit conventions, hot paths, combined)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"decisions/0001-karpathy-principled-spec-quality-system.md": "# Decision: Karpathy-Principled Spec Quality System\n\n> Status: **proposed**\n\n## Context\n\nAfter 8 sprints and 769 tests, maina has a complete verification pipeline for code but no quality gate for specifications. The spec/plan analyzer catches structural issues (missing sections, orphaned tasks) but doesn't measure whether specs are actually good — measurable, testable, unambiguous.\n\nAndrej Karpathy's principles apply directly:\n- \"The most dangerous thing is a slightly wrong answer\" — A spec that seems complete but has gaps is worse than no spec\n- \"You need to stare at your data\" — Specs are training data for implementation. Garbage in, garbage out.\n- \"Loss curves don't lie\" — Track spec quality metrics over time. Are they improving?\n\nAdditionally, the code review revealed we need rationalization prevention (skip tracking) and red-green enforcement for test stubs.\n\n## Decision\n\nBuild a spec quality scoring system that:\n\n"
+				}
+			},
+			"output": {
+				"conflicts": [],
+				"alignments": []
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "design",
+				"query": "Decision: Verification proof in PR body",
+				"wiki": {
+					"modules/cluster-184.md": "# Module: cluster-184\n\n> Auto-generated module article for `cluster-184`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-185.md": "# Module: cluster-185\n\n> Auto-generated module article for `cluster-185`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-186.md": "# Module: cluster-186\n\n> Auto-generated module article for `cluster-186`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0001-karpathy-principled-spec-quality-system.md": "# Decision: Karpathy-Principled Spec Quality System\n\n> Status: **proposed**\n\n## Context\n\nAfter 8 sprints and 769 tests, maina has a complete verification pipeline for code but no quality gate for specifications. The spec/plan analyzer catches structural issues (missing sections, orphaned tasks) but doesn't measure whether specs are actually good — measurable, testable, unambiguous.\n\nAndrej Karpathy's principles apply directly:\n- \"The most dangerous thing is a slightly wrong answer\" — A spec that seems complete but has gaps is worse than no spec\n- \"You need to stare at your data\" — Specs are training data for implementation. Garbage in, garbage out.\n- \"Loss curves don't lie\" — Track spec quality metrics over time. Are they improving?\n\nAdditionally, the code review revealed we need rationalization prevention (skip tracking) and red-green enforcement for test stubs.\n\n## Decision\n\nBuild a spec quality scoring system that:\n\n",
+					"decisions/0002-multi-language-verify-pipeline.md": "# Decision: Multi-language verify pipeline\n\n> Status: **accepted**\n\n## Context\n\nMaina's verify pipeline was hardcoded for TypeScript/JavaScript — Biome for syntax guard, JS-specific slop patterns, tree-sitter tuned for TS imports, file collectors only scanning .ts/.js. This blocked adoption for any non-TypeScript project, contradicting the product spec's \"any repo\" promise.\n\n## Decision\n\nIntroduce a LanguageProfile abstraction that maps each supported language to its tools, file patterns, and slop detection rules. The pipeline auto-detects languages from project marker files and routes to the appropriate linter.\n\nSupported languages: TypeScript (Biome), Python (ruff), Go (go vet), Rust (clippy).\n\n## Rationale\n\n### Positive\n\n- Maina works with Python, Go, and Rust projects out of the box\n- Language detection is automatic — no configuration needed\n- Existing TypeScript behavior is fully preserved (backward compatible)\n- Adding new languages requires only a new LanguageProfile entry\n\n",
+					"decisions/0003-fix-host-delegation-for-cli-ai-tasks.md": "# Decision: Fix host delegation for CLI AI tasks\n\n> Status: **proposed**\n\n## Context\n\nWhen `maina design --hld` runs inside Claude Code, the subprocess detects host mode (CLAUDECODE=1) but has no API keys. `shouldDelegateToHost()` returns true, but the subprocess can't send delegation prompts back to the host. AI-dependent CLI commands silently produce empty output.\n\n## Decision\n\nThree changes:\n1. `tryAIGenerate` strips `[HOST_DELEGATION]` prefix and returns the structured prompt as usable text instead of marking it as delegation\n2. `generateHldLld` returns an explicit error instead of silent null when AI is unavailable\n3. CLI design command shows clear error message when HLD generation fails\n\n## Rationale\n\n### Positive\n\n- No more silently empty ADRs from `--hld`\n- Clear error messages when AI is unavailable\n- Host delegation text is usable as structured content\n\n### Negative\n\n- Delegation text is a prompt, not AI-generated content — lower quality than actual AI output\n\n### Neutral\n\n",
+					"features/003-pr-and-init.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - PR creation via gh CLI, two-stage review core logic, init bootstrapping, status display ### Out of Scope - GitLab/Bitbucket support (GitHub only for v1) - PR merge automation (review only, human merges) - CI workflow for non-GitHub platforms\n\n## Tasks\n\nProgress: 0/5 (0%)\n\n- [ ] T001: Write tests and implement two-stage PR review in packages/core/src/review/index.ts\n- [ ] T002: Write tests and implement maina pr CLI command with gh CLI integration\n- [ ] T003: Write tests and implement maina init bootstrapping in packages/core/src/init/index.ts\n- [ ] T004: Write tests and implement maina init CLI command\n- [ ] T005: Write tests and implement maina status CLI command reading working.json\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/004-mcp-server.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - stdio MCP server with @modelcontextprotocol/sdk - 8 tools delegating to existing engines - Cache-aware responses - `maina --mcp` flag on CLI entrypoint ### Out of Scope - HTTP/SSE transport (stdio only for v1) - MCP resources/prompts (tools only for v1) - Auto-installation into IDE configs\n\n## Tasks\n\nProgress: 0/6 (0%)\n\n- [ ] T001: Install @modelcontextprotocol/sdk, write tests and implement MCP server scaffold with stdio transport\n- [ ] T002: Write tests and implement context tools (getContext, getConventions) delegating to Context Engine + Prompt Engine\n- [ ] T003: Write tests and implement verify tools (verify, checkSlop) delegating to Verify Engine\n- [ ] T004: Write tests and implement feature tools (suggestTests, analyzeFeature) delegating to Features module\n- [ ] T005: Write tests and implement explain tool (explainModule) delegating to Explain module\n- [ ] T006: Wire --mcp flag into CLI entrypoint and test end-to-end\n\n",
+					"features/005-rl-feedback-and-skills.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Feedback collection wired into tryAIGenerate and commit flow - Preference learning from dismissed findings - Episodic compression of accepted reviews - Skills SKILL.md files in packages/skills/ ### Out of Scope - Online learning (real-time prompt updates) — batch only via `maina learn` - Custom model fine-tuning - Skills marketplace or registry\n\n## Tasks\n\nProgress: 0/6 (0%)\n\n- [ ] T001: Write tests and implement feedback collector — wire into tryAIGenerate to record every AI interaction\n- [ ] T002: Write tests and implement preference learning — track dismissed findings, write preferences.json\n- [ ] T003: Enhance maina learn to propose improved prompts with A/B testing when accept rate drops\n- [ ] T004: Write tests and implement episodic compression — accepted reviews become few-shot examples\n- [ ] T005: Create skills package with 5 SKILL.md files using progressive disclosure\n",
+					"decisions/0008-verification-proof-in-pr-body.md": "# Decision: Verification proof in PR body\n\n> Status: **proposed**\n\n## Context\n\nPRs include no evidence that verification ran. Reviewers must trust claims like \"tests pass\" without proof.\n\n## Decision\n\nAdd `buildVerificationProof` to gather pipeline, test, review, slop, and visual results into a formatted markdown section. `maina pr` appends this proof to the PR body automatically using collapsible `<details>` blocks.\n\n## Rationale\n\n### Positive\n\n- Every PR carries auditable verification evidence\n- Reviewers can expand sections to see per-tool results\n- Visual regression data visible in PR without leaving GitHub\n\n### Negative\n\n- PR body becomes longer (mitigated by collapsible sections)\n- Adds ~5-10s to PR creation (runs verification pipeline)\n\n### Neutral\n\n- Does not block PR creation on failure — just reports\n"
+				}
+			},
+			"output": {
+				"conflicts": [],
+				"alignments": [
+					{
+						"adr": "0001-karpathy-principled-spec-quality-system",
+						"title": "Karpathy-Principled Spec Quality System"
+					},
+					{
+						"adr": "0002-multi-language-verify-pipeline",
+						"title": "Multi-language verify pipeline"
+					},
+					{
+						"adr": "0003-fix-host-delegation-for-cli-ai-tasks",
+						"title": "Fix host delegation for CLI AI tasks"
+					},
+					{
+						"adr": "0008-verification-proof-in-pr-body",
+						"title": "Verification proof in PR body"
+					}
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "design",
+				"query": "Switch the test runner to jest",
+				"wiki": {
+					"modules/cluster-234.md": "# Module: cluster-234\n\n> Auto-generated module article for `cluster-234`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-235.md": "# Module: cluster-235\n\n> Auto-generated module article for `cluster-235`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-236.md": "# Module: cluster-236\n\n> Auto-generated module article for `cluster-236`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0022-wiki-is-a-view.md": "# Decision: Wiki is a view of the Context engine\n\n> Status: **accepted**\n\n## Context\n\nThe wiki was initially presented as a standalone feature: \"codebase knowledge compiler.\" This creates confusion — users think Maina has two products (verification + wiki) instead of one system with multiple views.\n\nThe Context engine is the core. It has 4 layers (Working, Episodic, Semantic, Retrieval) that gather codebase context. The wiki is not a layer — it's a *view* that renders the knowledge graph built from those layers as persistent, human-readable articles. Same engine, same data, different rendering.\n\n## Decision\n\nReposition the wiki as \"a view of the Context engine\" in all messaging:\n\n- **Context engine** (core) — the product, the thing that understands your codebase\n- **Wiki** (view) — human-readable articles compiled from the knowledge graph\n- **Blast radius** (view, future) — impact analysis rendered from the dependency graph\n",
+					"decisions/0023-lint-config-and-manifest-parsers-for-constitution.md": "# Decision: Lint-config and manifest parsers for constitution\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0023-pii-and-code-content-scrubbing-library.md": "# Decision: PII and code-content scrubbing library\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"features/037-split-quickstart.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - New /quickstart page with 3 commands - Rename /getting-started to /full-setup - Update all nav/sidebar/internal links ### Out of Scope - MCP badges on hero (separate issue #98) - Docs number consistency (separate issue #99)\n\n## Tasks\n\nProgress: 5/5 (100%)\n\n- [x] T1: Create quickstart.mdx with 3 commands (curl, init, commit)\n- [x] T2: Rename getting-started.mdx to full-setup.mdx, update frontmatter\n- [x] T3: Update astro.config.mjs sidebar (Quickstart > Commands > Full Setup)\n- [x] T4: Update all internal links (Hero, nav, Features, cloud)\n- [x] T5: Verify build passes\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/037-sticky-pr-comment.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope -  ### Out of Scope -\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/038-cookbook-pages.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - 4 cookbook MDX pages in docs - Sidebar section ### Out of Scope - Example repos (future) - Video tutorials\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"decisions/0008-verification-proof-in-pr-body.md": "# Decision: Verification proof in PR body\n\n> Status: **proposed**\n\n## Context\n\nPRs include no evidence that verification ran. Reviewers must trust claims like \"tests pass\" without proof.\n\n## Decision\n\nAdd `buildVerificationProof` to gather pipeline, test, review, slop, and visual results into a formatted markdown section. `maina pr` appends this proof to the PR body automatically using collapsible `<details>` blocks.\n\n## Rationale\n\n### Positive\n\n- Every PR carries auditable verification evidence\n- Reviewers can expand sections to see per-tool results\n- Visual regression data visible in PR without leaving GitHub\n\n### Negative\n\n- PR body becomes longer (mitigated by collapsible sections)\n- Adds ~5-10s to PR creation (runs verification pipeline)\n\n### Neutral\n\n- Does not block PR creation on failure — just reports\n"
+				}
+			},
+			"output": {
+				"conflicts": [],
+				"alignments": [
+					{
+						"adr": "0008-verification-proof-in-pr-body",
+						"title": "Verification proof in PR body"
+					}
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "design",
+				"query": "Decision: Error and telemetry backend (PostHog)",
+				"wiki": {
+					"modules/cluster-190.md": "# Module: cluster-190\n\n> Auto-generated module article for `cluster-190`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-191.md": "# Module: cluster-191\n\n> Auto-generated module article for `cluster-191`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-192.md": "# Module: cluster-192\n\n> Auto-generated module article for `cluster-192`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0004-workflow-context-forwarding.md": "# Decision: Workflow context forwarding\n\n> Status: **proposed**\n\n## Context\n\nEach maina workflow step is stateless. Step N has no knowledge of steps 1 through N-1. This causes AI calls to miss spec decisions, design review flags, and prior verification results.\n\n## Decision\n\nAdd a rolling workflow context file (`.maina/workflow/current.md`) that each maina command appends to. The context engine includes this in the working layer, making it available to all AI calls. `maina plan` resets it for new features.\n\n## Rationale\n\n### Positive\n\n- Every workflow step has full context from prior steps\n- AI calls (review, commit, design) make better decisions with workflow history\n- Human-readable markdown — easy to inspect and debug\n\n### Negative\n\n- File grows with each step (~100 tokens per step, ~1000 tokens for a full workflow)\n- Must be reset correctly on new features to avoid stale context\n\n### Neutral\n\n- Follows the same file-based pattern as working.json\n",
+					"decisions/0005-background-rl-feedback-at-each-workflow-step.md": "# Decision: Background RL feedback at each workflow step\n\n> Status: **proposed**\n\n## Context\n\nThe RL feedback loop only captures commit message and review outcomes. Workflow-level data (which specs led to clean code, which reviews caught issues) is lost. Feedback calls are synchronous, adding latency.\n\n## Decision\n\nAdd `recordFeedbackAsync` that fires via `queueMicrotask` — zero blocking. Extend feedback records with `workflowStep` and `workflowId` fields. Every CLI command that appends workflow context also records async feedback. `maina learn` shows per-step accept rates.\n\n## Rationale\n\n### Positive\n\n- Full workflow trace captured for every feature\n- Zero latency impact — async recording never blocks commands\n- `maina learn` can analyze per-step patterns (which steps have low accept rates)\n\n### Negative\n\n- Slightly more data in feedback.db (one row per workflow step per feature)\n- Async recording means feedback might be lost if process exits immediately\n\n### Neutral\n\n",
+					"decisions/0006-post-workflow-rl-self-improvement-loop.md": "# Decision: Post-workflow RL self-improvement loop\n\n> Status: **proposed**\n\n## Context\n\nFeature 015 added `workflow_step` and `workflow_id` columns to feedback records, but nothing reads them. `maina learn` only shows per-command metrics, missing workflow-level patterns.\n\n## Decision\n\nAdd `analyseWorkflowFeedback` and `analyseWorkflowRuns` functions to the evolution module. Enhance `maina learn` to show per-step accept rates and recent workflow run summaries. This completes the RL feedback loop: record → analyze → improve.\n\n## Rationale\n\n### Positive\n\n- Per-step visibility: which workflow phases underperform\n- Per-run tracking: see if overall workflow quality is trending up\n- Data foundation for future correlation analysis\n\n### Negative\n\n- More output in `maina learn` — could feel overwhelming\n- Workflow data sparse until enough features go through full lifecycle\n\n### Neutral\n\n- Builds on existing feedback.db schema (no new tables)\n",
+					"features/008-benchmark-comparison.md": "# Feature: Benchmark: Claude + Superpowers vs Claude + Maina\n\n## Scope\n\n### In Scope - Metrics we can derive from git history, stats.db, feedback.db, benchmarks - Qualitative observations from the development process - Sprint-by-sprint progression showing maina bootstrapping itself ### Out of Scope - A/B testing with separate teams (single developer project) - Cost analysis (API spend tracking not implemented)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/009-interactive-design.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Interactive question-asking in `maina spec` (B) - Multiple approach proposals in `maina design` (C) - Recording answers/decisions in spec.md and ADR - MCP tool integration for `suggestTests` - `--no-interactive` flag for CI/subagent use ### Out of Scope - Visual companion / browser mockups (A) — future sprint - Redesigning existing commands beyond spec and design - Chat-style multi-turn conversation (questions are one-shot per run) - Custom question templates (use AI to derive from plan content)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/010-benchmark-harness.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Benchmark harness CLI command (`maina benchmark`) - Story format (story.json + spec.md + tests/) - Maina pipeline runner (spec → plan → implement → verify → test) - Spec Kit pipeline runner (specify → plan → tasks → implement → test) - Metrics collection (tokens, time, test results, findings, spec score) - JSON + terminal comparison report - Tier 1 story: mitt event emitter ### Out of Scope - Running Spec Kit automatically (requires separate installation — harness records metrics from manual runs) - Generating library code automatically - CI integration - Web dashboard for results\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"decisions/0016-error-reporting-backend.md": "# Decision: Error and telemetry backend (PostHog)\n\n> Status: **accepted**\n\n## Context\n\nMaina needs crash reporting, usage telemetry, and product analytics for both the open-source CLI and the Cloud service. Requirements:\n\n- OSS: opt-in, aggressive PII scrubbing, zero data until consent\n- Cloud: opt-out (default on), account-linked for support triage\n- Single platform preferred over stitching multiple backends together\n\n## Decision\n\nUse **PostHog** as the single backend for errors, usage telemetry, and product analytics.\n\n- **Cloud**: PostHog Cloud (EU hosting available, generous free tier — 1M events/mo)\n- **OSS**: PostHog Cloud with aggressive client-side scrubbing (same SDK, same project, scrubbed before send)\n- **One SDK**: `posthog-node` for all server-side events\n- **Fallback**: If PostHog's error tracking proves insufficient for stack trace depth or source map support, evaluate adding Sentry alongside — but start with one platform\n\n### Why PostHog Over Sentry + Separate Analytics\n"
+				}
+			},
+			"output": {
+				"conflicts": [],
+				"alignments": [
+					{
+						"adr": "0016-error-reporting-backend",
+						"title": "Error and telemetry backend (PostHog)"
+					}
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "design",
+				"query": "Run the CLI on node with npm scripts",
+				"wiki": {
+					"modules/cluster-240.md": "# Module: cluster-240\n\n> Auto-generated module article for `cluster-240`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-241.md": "# Module: cluster-241\n\n> Auto-generated module article for `cluster-241`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-242.md": "# Module: cluster-242\n\n> Auto-generated module article for `cluster-242`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0023-progressive-mcp-tool-disclosure.md": "# Decision: Progressive MCP tool disclosure\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0024-deep-wiki-compatible-mcp-server.md": "# Decision: DeepWiki-compatible MCP server\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0024-opt-in-usage-telemetry.md": "# Decision: Opt-in usage telemetry\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"features/038-wiki-is-a-view.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - README architecture section update - ADR documenting the positioning decision - Consistent vocabulary in docs ### Out of Scope - Website nav restructure (separate issue) - Code changes (none needed — it's already structured correctly)\n\n## Tasks\n\nProgress: 3/3 (100%)\n\n- [x] T1: Write ADR 0022 documenting wiki-as-view positioning\n- [x] T2: Update wiki.mdx with Context engine framing (4 layers, wiki renders the graph)\n- [x] T3: Fix layer count to match existing Context engine docs (4 layers, not 5)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/039-lint-config-parsers.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Config file parsers for JS/TS ecosystem (biome, eslint, tsconfig, editorconfig, prettier) - Package.json script and engine extraction - Each parser returns ConstitutionRule[] with confidence scores ### Out of Scope - Python configs (pyproject.toml, ruff.toml) — future extension - Go, Rust, Java configs — future extension - Writing rules to constitution.md (consumer responsibility)\n\n## Tasks\n\nProgress: 8/8 (100%)\n\n- [x] T1: Implement parseBiomeConfig (lint rules, formatter settings)\n- [x] T2: Implement parseEslintConfig (detect config variant)\n- [x] T3: Implement parseTsConfig (strict, target, paths)\n- [x] T4: Implement parseEditorConfig (indent, charset)\n- [x] T5: Implement parsePrettierConfig (detect config variant)\n- [x] T6: Implement parsePackageJson (type, engines, scripts)\n- [x] T7: Implement parseAllConfigs (combined runner)\n- [x] T8: Write tests with tmpDir fixtures\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n",
+					"features/039-pii-scrubber.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - `scrubPii(text)` — general text scrubber - `scrubStackTrace(stack)` — stack-trace-specific scrubber - `scrubErrorEvent(event)` — full event scrubber for PostHog/Sentry payloads ### Out of Scope - Server-side scrubbing (client-only by design) - Fuzz testing (future enhancement)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"decisions/0016-error-reporting-backend.md": "# Decision: Error and telemetry backend (PostHog)\n\n> Status: **accepted**\n\n## Context\n\nMaina needs crash reporting, usage telemetry, and product analytics for both the open-source CLI and the Cloud service. Requirements:\n\n- OSS: opt-in, aggressive PII scrubbing, zero data until consent\n- Cloud: opt-out (default on), account-linked for support triage\n- Single platform preferred over stitching multiple backends together\n\n## Decision\n\nUse **PostHog** as the single backend for errors, usage telemetry, and product analytics.\n\n- **Cloud**: PostHog Cloud (EU hosting available, generous free tier — 1M events/mo)\n- **OSS**: PostHog Cloud with aggressive client-side scrubbing (same SDK, same project, scrubbed before send)\n- **One SDK**: `posthog-node` for all server-side events\n- **Fallback**: If PostHog's error tracking proves insufficient for stack trace depth or source map support, evaluate adding Sentry alongside — but start with one platform\n\n### Why PostHog Over Sentry + Separate Analytics\n"
+				}
+			},
+			"output": {
+				"conflicts": [],
+				"alignments": [
+					{
+						"adr": "0016-error-reporting-backend",
+						"title": "Error and telemetry backend (PostHog)"
+					}
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "design",
+				"query": "Decision: Wiki is a view of the Context engine",
+				"wiki": {
+					"modules/cluster-197.md": "# Module: cluster-197\n\n> Auto-generated module article for `cluster-197`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-198.md": "# Module: cluster-198\n\n> Auto-generated module article for `cluster-198`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-199.md": "# Module: cluster-199\n\n> Auto-generated module article for `cluster-199`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0007-visual-verification-with-playwright.md": "# Decision: Visual verification with Playwright\n\n> Status: **proposed**\n\n## Context\n\nMaina verifies code correctness but not visual correctness. Web projects can pass all gates and still ship broken layouts. This is the last verification gap.\n\n## Decision\n\nAdd visual verification using Playwright for screenshots and pixelmatch for pixel comparison. Opt-in via `maina verify --visual`. Baselines stored in `.maina/visual-baselines/` and committed to git. Configurable threshold and URLs in preferences.json.\n\n## Rationale\n\n### Positive\n\n- Visual regressions caught before merge\n- Baselines as source of truth — reviewable in PRs\n- No external service dependency (all local)\n\n### Negative\n\n- Requires Playwright installed (graceful skip if missing)\n- Slower than static analysis (~5-10s per page)\n- Baselines add to repo size (PNG files)\n\n### Neutral\n\n- Opt-in only — doesn't slow default verify\n- Chromium-only for v1, expandable later\n",
+					"decisions/0008-verification-proof-in-pr-body.md": "# Decision: Verification proof in PR body\n\n> Status: **proposed**\n\n## Context\n\nPRs include no evidence that verification ran. Reviewers must trust claims like \"tests pass\" without proof.\n\n## Decision\n\nAdd `buildVerificationProof` to gather pipeline, test, review, slop, and visual results into a formatted markdown section. `maina pr` appends this proof to the PR body automatically using collapsible `<details>` blocks.\n\n## Rationale\n\n### Positive\n\n- Every PR carries auditable verification evidence\n- Reviewers can expand sections to see per-tool results\n- Visual regression data visible in PR without leaving GitHub\n\n### Negative\n\n- PR body becomes longer (mitigated by collapsible sections)\n- Adds ~5-10s to PR creation (runs verification pipeline)\n\n### Neutral\n\n- Does not block PR creation on failure — just reports\n",
+					"decisions/0009-ai-delegation-protocol-for-host-agents.md": "# Decision: AI delegation protocol for host agents\n\n> Status: **proposed**\n\n## Context\n\nAI features are non-functional when maina runs as a subprocess inside Claude Code, Codex, or OpenCode. No API key is available. The current DelegationPrompt object is returned but never acted on.\n\n## Decision\n\nPlain text stdout protocol. AI-dependent steps output `---MAINA_AI_REQUEST---` blocks. Any host agent reading stdout can parse and process them. No IPC, no binary, no dependencies.\n\n## Rationale\n\n### Positive\n\n- AI features work in every MCP-compatible host\n- Zero integration effort for hosts — just parse stdout\n- Existing direct API path unchanged\n\n### Negative\n\n- Host must understand the protocol (simple text parsing)\n- No result injection back into pipeline (host acts independently)\n\n### Neutral\n\n- Protocol is versioned and extensible\n",
+					"features/013-fix-host-delegation.md": "# Feature: Implementation Plan\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/014-workflow-context.md": "# Feature: Implementation Plan\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/015-background-rl-feedback.md": "# Feature: Implementation Plan\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"decisions/0022-wiki-is-a-view-of-the-context-engine.md": "# Decision: Wiki is a view of the Context engine\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n"
+				}
+			},
+			"output": {
+				"conflicts": [],
+				"alignments": [
+					{
+						"adr": "0007-visual-verification-with-playwright",
+						"title": "Visual verification with Playwright"
+					},
+					{
+						"adr": "0008-verification-proof-in-pr-body",
+						"title": "Verification proof in PR body"
+					},
+					{
+						"adr": "0009-ai-delegation-protocol-for-host-agents",
+						"title": "AI delegation protocol for host agents"
+					},
+					{
+						"adr": "0022-wiki-is-a-view-of-the-context-engine",
+						"title": "Wiki is a view of the Context engine"
+					}
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "design",
+				"query": "Store findings in postgres instead of a local file",
+				"wiki": {
+					"modules/cluster-25.md": "# Module: cluster-25\n\n> Auto-generated module article for `cluster-25`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-250.md": "# Module: cluster-250\n\n> Auto-generated module article for `cluster-250`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-26.md": "# Module: cluster-26\n\n> Auto-generated module article for `cluster-26`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0024-oss-error-reporting-with-post-hog.md": "# Decision: OSS error reporting with PostHog\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0025-git-hub-checks-api-integration.md": "# Decision: GitHub Checks API integration\n\n> Status: **accepted**\n\n## Context\n\nMaina's verify-action posts inline review comments on findings. But there's no GitHub Check Run — teams can't use \"required status checks\" to gate merges, and there's no pass/fail summary in the PR status box.\n\n## Decision\n\nCreate a GitHub Check Run via `POST /repos/{owner}/{repo}/check-runs` with:\n- **Conclusion**: `success` (no errors), `failure` (errors found), `neutral` (warnings only)\n- **Summary**: \"18/20 passed · 2 warnings\"\n- **Annotations**: up to 50 line-level annotations from verify findings\n- **Details URL**: `mainahq.com/r/<run-id>` when available\n\nUse `fetch` directly — no Octokit dependency. Same pattern as `sticky-comment.ts`.\n\n## Rationale\n\n### Positive\n- Teams can gate merges on Maina verification\n- Quick pass/fail visible in PR status box\n- Annotations link to exact file:line in the diff\n\n### Negative\n- Requires `checks:write` permission (GitHub App or PAT)\n",
+					"decisions/0025-tree-sitter-pattern-sampler-for-constitution.md": "# Decision: Pattern sampler for constitution rules\n\n> Status: **accepted**\n\n## Context\n\nConfig files and git history capture explicit conventions, but coding style patterns (async/await vs .then, arrow vs declaration functions, named vs default imports) are implicit in the code itself. These need detection from code samples.\n\n## Decision\n\nUse regex-based pattern detection on sampled files (<=100 per language, deterministic selection). Regex is sufficient for the target patterns and avoids the complexity of tree-sitter AST parsing for V1.\n\nConfidence scoring: prevalence ratio × 0.7 (capped). If 90% of async operations use await, confidence = 0.63. Medium-confidence rules require user confirmation.\n\n## Rationale\n\n### Positive\n- Detects patterns that no config file captures\n- Deterministic: same repo → same rules\n- Fast: regex over 100 files takes <1s\n\n### Negative\n- Regex is less precise than AST for complex patterns (acceptable for V1)\n",
+					"features/040-oss-error-reporting.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - `packages/core/src/telemetry/reporter.ts` — error reporting with PostHog - Consent check from `~/.maina/config.yml` - Integration with PII scrubber ### Out of Scope - Consent prompt UI (CLI command, separate issue) - `maina errors status/off` commands (separate issue) - Cloud error reporting (separate issue #122)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/040-usage-telemetry.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Usage event tracking functions - Separate consent check from error reporting - Event schema definition ### Out of Scope - PostHog SDK integration (future) - `maina telemetry off` command (future) - Consent prompt UI (future)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/041-github-checks-api.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - `packages/core/src/github/checks.ts` — Check Run creation - Annotation formatting from verify findings - Auth header handling (token vs app) ### Out of Scope - Re-run action button (needs workflow_dispatch, separate issue) - Required-check rule configuration docs (separate) - Actual GitHub Action changes (verify-action repo)\n\n## Tasks\n\nProgress: 5/5 (100%)\n\n- [x] T1: Write TDD test stubs from spec criteria (16 tests, red phase confirmed)\n- [x] T2: Implement `formatAnnotations()` — Finding[] → GitHub annotation format\n- [x] T3: Implement `determineConclusion()` — findings → success/failure/neutral\n- [x] T4: Implement `createCheckRun()` — POST to GitHub Checks API\n- [x] T5: Run `maina verify` + `maina review` + `maina analyze`\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"decisions/0022-wiki-is-a-view-of-the-context-engine.md": "# Decision: Wiki is a view of the Context engine\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n"
+				}
+			},
+			"output": {
+				"conflicts": [],
+				"alignments": [
+					{
+						"adr": "0025-git-hub-checks-api-integration",
+						"title": "GitHub Checks API integration"
+					}
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "design",
+				"query": "Decision: GitHub Checks API integration",
+				"wiki": {
+					"modules/cluster-202.md": "# Module: cluster-202\n\n> Auto-generated module article for `cluster-202`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-203.md": "# Module: cluster-203\n\n> Auto-generated module article for `cluster-203`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-204.md": "# Module: cluster-204\n\n> Auto-generated module article for `cluster-204`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0010-v03x-hardening-verify-gaps-rl-loop-hldlld.md": "# Decision: v0.3.x Hardening: Verify Gaps + RL Loop + HLD/LLD\n\n> Status: **accepted**\n\n## Context\n\nTier 3 benchmark (2026-04-03): SpecKit achieved 100% on 95 hidden validation tests. Maina got 97.9% (2 bugs). SpecKit's 58s self-review caught 4 issues that Maina's verify pipeline missed because no external tools were installed. `maina verify` returned \"0 findings, passed\" — false confidence.\n\nAdditionally, `maina design` only produces ADR scaffolds with no HLD/LLD generation, `maina spec` and `maina design` lack `--auto` flags (blocking CI/benchmark automation), and the RL loop doesn't close automatically after workflow completion.\n\n## Decision\n\nAdd built-in verification checks that work without external tools, AI-powered review via delegation protocol, HLD/LLD generation in design, automation flags, and automatic post-workflow RL trace analysis. Execute sequentially: deterministic checks first, then AI features, then automation.\n\n## Rationale\n\n### Positive\n\n",
+					"decisions/0011-v040-polish-ci.md": "# Decision: v0.4.0 Polish + CI\n\n> Status: **accepted**\n\n## Context\n\nMaina CLI outputs human-readable text only. CI pipelines need machine-readable JSON, meaningful exit codes, and a GitHub Action for easy integration. The language profile system only detects a project's primary language, missing per-file analysis in polyglot repos. PHP (4th most popular backend language) has no support. DAST and performance auditing are gaps in the verification pipeline.\n\n## Decision\n\nAdd 7 features in 4 phases: structured output (--json, exit codes), CI integration (GitHub Action), language expansion (PHP, per-file detection), and new verification tools (ZAP DAST, Lighthouse).\n\n## Rationale\n\n### Positive\n\n- Every maina command becomes CI-ready with `--json` and meaningful exit codes\n- GitHub Action makes adoption a 3-line YAML change\n- PHP developers can use maina\n- Polyglot repos get accurate per-file analysis\n- Security and performance coverage expands\n\n### Negative\n\n",
+					"decisions/0012-v050-cloud-client-maina-cloud.md": "# Decision: v0.5.0 Cloud Client + maina-cloud\n\n> Status: **accepted**\n\n## Context\n\nMaina is local-only. Teams need shared prompts, feedback, and A/B testing coordination. The cloud infrastructure must be private (business logic), while the CLI client stays open source.\n\n## Decision\n\nSplit into two repos: open-source CLI client in mainahq/maina, private Workers service repo (mainahq/maina-cloud). Shared types ensure API contract consistency. GitHub OAuth device flow for auth. Workkit packages power the cloud service.\n\n## Rationale\n\n### Positive\n\n- Cloud business logic stays private\n- CLI client is open source — community can see how sync works\n- Shared types prevent API drift\n- Workkit dogfooding starts immediately\n\n### Negative\n\n- Two repos to maintain\n- Shared types need manual sync (mitigated by shared types package later)\n- OAuth device flow is more complex than simple API key\n\n### Neutral\n\n- Cloud repo is standard Cloudflare Workers project\n",
+					"features/018-verification-proof-pr.md": "# Feature: Implementation Plan\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/019-tool-install-guide.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope -  ### Out of Scope -\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/020-unified-host-delegation.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope -  ### Out of Scope -\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"decisions/0025-git-hub-checks-api-integration.md": "# Decision: GitHub Checks API integration\n\n> Status: **accepted**\n\n## Context\n\nMaina's verify-action posts inline review comments on findings. But there's no GitHub Check Run — teams can't use \"required status checks\" to gate merges, and there's no pass/fail summary in the PR status box.\n\n## Decision\n\nCreate a GitHub Check Run via `POST /repos/{owner}/{repo}/check-runs` with:\n- **Conclusion**: `success` (no errors), `failure` (errors found), `neutral` (warnings only)\n- **Summary**: \"18/20 passed · 2 warnings\"\n- **Annotations**: up to 50 line-level annotations from verify findings\n- **Details URL**: `mainahq.com/r/<run-id>` when available\n\nUse `fetch` directly — no Octokit dependency. Same pattern as `sticky-comment.ts`.\n\n## Rationale\n\n### Positive\n- Teams can gate merges on Maina verification\n- Quick pass/fail visible in PR status box\n- Annotations link to exact file:line in the diff\n\n### Negative\n- Requires `checks:write` permission (GitHub App or PAT)\n"
+				}
+			},
+			"output": {
+				"conflicts": [],
+				"alignments": [
+					{
+						"adr": "0010-v03x-hardening-verify-gaps-rl-loop-hldlld",
+						"title": "v0.3.x Hardening: Verify Gaps + RL Loop + HLD/LLD"
+					},
+					{
+						"adr": "0011-v040-polish-ci",
+						"title": "v0.4.0 Polish + CI"
+					},
+					{
+						"adr": "0012-v050-cloud-client-maina-cloud",
+						"title": "v0.5.0 Cloud Client + maina-cloud"
+					},
+					{
+						"adr": "0025-git-hub-checks-api-integration",
+						"title": "GitHub Checks API integration"
+					}
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "design",
+				"query": "Use vitest for unit tests",
+				"wiki": {
+					"modules/cluster-30.md": "# Module: cluster-30\n\n> Auto-generated module article for `cluster-30`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-31.md": "# Module: cluster-31\n\n> Auto-generated module article for `cluster-31`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-32.md": "# Module: cluster-32\n\n> Auto-generated module article for `cluster-32`.\n\n## Entities\n\n_No entities detected._\n",
+					"decisions/0026-cloud-error-reporting-with-account-linking.md": "# Decision: Cloud error reporting with account linking\n\n> Status: **accepted**\n\n## Context\n\nCloud users need error reporting linked to their account for support triage. OSS reporter (#121) provides scrubbed error events. Cloud extends this with user_id, org_id, plan_tier — never email or name.\n\n## Decision\n\nExtend the OSS `buildErrorEvent()` with cloud-specific metadata. Default-on for Cloud users, opt-out via user settings. Events tagged with IDs only, never PII.\n\n## Rationale\n\n### Positive\n- Support can find errors by user/org in PostHog within 30s\n- Plan-tier tagging enables prioritized triage for paid customers\n\n### Negative\n- Default-on may concern privacy-conscious users (mitigated: opt-out is immediate, only IDs sent)\n",
+					"decisions/0026-interview-gap-filler-for-constitution.md": "# Decision: Interview gap-filler for constitution\n\n> Status: **accepted**\n\n## Context\n\nConfig parsers, git analyzers, and pattern samplers detect ~70% of conventions. The remaining ~20% needs human input: files AI should never touch, deploy gotchas, common contributor mistakes. Rejected proposals should persist so `maina learn --update` doesn't re-ask.\n\n## Decision\n\n3 fixed interview questions (deterministic, not AI-generated):\n1. \"Files AI should never touch?\" → glob patterns\n2. \"Deploy-time gotchas?\" → free text\n3. \"What does every new contributor get wrong?\" → free text\n\nRejected rules stored in `.maina/rejected.yml` as a simple list. `filterProposals()` removes any rule whose text matches a rejected entry.\n\nHuman-provided answers get confidence 0.8 (higher than scan-inferred 0.4-0.7, lower than explicit config 1.0).\n\n## Rationale\n\n### Positive\n- Fills gaps that automated scanners can't detect\n- Rejected rules persist — no re-asking\n",
+					"decisions/0027-slash-command-parser-for-pr-comments.md": "# Decision: Slash command parser for PR comments\n\n> Status: **accepted**\n\n## Context\n\nUsers want to interact with Maina from PR comments (`/maina retry`, `/maina explain`, `/maina approve`). The parser needs to be a pure function in core — the webhook handler in maina-cloud delegates to it.\n\n## Decision\n\nRegex-based parser: `/maina <command> [args]`. Returns typed `SlashCommand` or null. ACL helper checks PR author + write permission. No GitHub API calls in the parser — pure function.\n\n## Rationale\n\n### Positive\n- Parser is testable and reusable (core, not cloud-specific)\n- Webhook handler stays thin (parse → validate → dispatch)\n\n### Negative\n- Regex parsing can't handle complex arguments (acceptable — commands are simple)\n",
+					"features/042-interview-gap-filler.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - 3 fixed interview questions - Rejected rules persistence in `.maina/rejected.yml` - Filtering logic for `maina learn --update` - Non-TTY mode support ### Out of Scope - Interactive UI (clack prompts) — that's in the CLI command layer - AI-generated follow-up questions\n\n## Tasks\n\nProgress: 6/6 (100%)\n\n- [x] T1: Write TDD test stubs from spec (18 red, confirmed failing)\n- [x] T2: Implement `getInterviewQuestions()` — 3 fixed questions\n- [x] T3: Implement `loadRejectedRules()` / `saveRejectedRules()` — persistence with dedup\n- [x] T4: Implement `filterProposals()` — remove rejected from proposals\n- [x] T5: Implement `buildRulesFromAnswers()` — answers → ConstitutionRule[] (12 tests green)\n- [x] T6: `maina verify` + `maina review` + `maina analyze`\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/043-slash-commands.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Command parser (pure function: text → parsed command or null) - Command types and validation - ACL check helper (PR author + write permission) ### Out of Scope - Webhook handler (maina-cloud repo) - GitHub API calls (separate module) - Bot emoji reactions (maina-cloud repo)\n\n## Tasks\n\nProgress: 5/5 (100%)\n\n- [x] T1: Write TDD test stubs (15 red confirmed)\n- [x] T2: Define `SlashCommand` type with retry/explain/approve variants\n- [x] T3: Implement `parseSlashCommand(text)` — regex parser (13 tests green)\n- [x] T4: Implement `isAuthorized()` — PR author + write perm ACL\n- [x] T5: `maina verify` + `maina review` + `maina analyze`\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/043-symbol-page-templates.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Symbol page template generator in wiki compiler - Mermaid diagram generation from entity refs - Deterministic output (same entity → same page) ### Out of Scope - LLM-generated prose descriptions (future — needs AI integration) - Interactive graph navigation (future — needs frontend)\n\n## Tasks\n\nProgress: 7/7 (100%)\n\n- [x] T1: Write TDD test stubs (23 red confirmed)\n- [x] T2: Implement `formatSignature()` — kind labels, export status\n- [x] T3: Implement `formatLocation()` — file:line\n- [x] T4: Implement `formatRefs()` — inbound/outbound, cap at 20\n- [x] T5: Implement `formatMermaidDiagram()` — graph LR with arrow directions\n- [x] T6: Implement `generateSymbolPage()` — combined (13 tests green)\n- [x] T7: `maina verify` + `maina review` + `maina analyze`\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"decisions/0025-git-hub-checks-api-integration.md": "# Decision: GitHub Checks API integration\n\n> Status: **accepted**\n\n## Context\n\nMaina's verify-action posts inline review comments on findings. But there's no GitHub Check Run — teams can't use \"required status checks\" to gate merges, and there's no pass/fail summary in the PR status box.\n\n## Decision\n\nCreate a GitHub Check Run via `POST /repos/{owner}/{repo}/check-runs` with:\n- **Conclusion**: `success` (no errors), `failure` (errors found), `neutral` (warnings only)\n- **Summary**: \"18/20 passed · 2 warnings\"\n- **Annotations**: up to 50 line-level annotations from verify findings\n- **Details URL**: `mainahq.com/r/<run-id>` when available\n\nUse `fetch` directly — no Octokit dependency. Same pattern as `sticky-comment.ts`.\n\n## Rationale\n\n### Positive\n- Teams can gate merges on Maina verification\n- Quick pass/fail visible in PR status box\n- Annotations link to exact file:line in the diff\n\n### Negative\n- Requires `checks:write` permission (GitHub App or PAT)\n"
+				}
+			},
+			"output": {
+				"conflicts": [],
+				"alignments": []
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "brainstorm",
+				"wiki": {
+					"modules/cluster-79.md": "# Module: cluster-79\n\n> Auto-generated module article for `cluster-79`.\n\n## Entities\n\n- **analyzeWorkflowTrace** (function) — `packages/core/src/feedback/trace-analysis.ts:138` [PR: 0.0012]\n- **TraceResult** (interface) — `packages/core/src/feedback/trace-analysis.ts:31` [PR: 0.0009]\n- **PromptImprovement** (interface) — `packages/core/src/feedback/trace-analysis.ts:24` [PR: 0.0007]\n- **TraceStep** (interface) — `packages/core/src/feedback/trace-analysis.ts:17` [PR: 0.0005]\n",
+					"modules/cluster-8.md": "# Module: cluster-8\n\n> Auto-generated module article for `cluster-8`.\n\n## Entities\n\n_No entities detected._\n",
+					"modules/cluster-80.md": "# Module: cluster-80\n\n> Auto-generated module article for `cluster-80`.\n\n## Entities\n\n- **runTrivy** (function) — `packages/core/src/verify/trivy.ts:126` [PR: 0.0012]\n- **parseTrivyJson** (function) — `packages/core/src/verify/trivy.ts:66` [PR: 0.0009]\n- **TrivyResult** (interface) — `packages/core/src/verify/trivy.ts:21` [PR: 0.0007]\n- **TrivyOptions** (interface) — `packages/core/src/verify/trivy.ts:14` [PR: 0.0005]\n",
+					"decisions/0013-report-storage-backend-cloudflare-r2.md": "# Decision: Report storage backend (Cloudflare R2)\n\n> Status: **accepted**\n\n## Context\n\nMaina Cloud verification generates proof artifacts that need durable, publicly readable storage: JSON reports, HTML report views, and PNG screenshots for visual-diff checks. The system needs:\n\n- Signed uploads from CI (no server-side proxy for large payloads)\n- Public read access with CDN caching for report permalinks\n- Per-run cleanup for retention and GDPR deletion\n- Cost predictability at scale (10k–100k runs/month)\n\nmaina-cloud already runs on Cloudflare Workers and uses the `@workkit` monorepo for infrastructure primitives.\n\n## Decision\n\nUse **Cloudflare R2** as the storage backend for all verification artifacts. All R2 operations go through **`@workkit/r2`** (`@workkit/r2@0.1.1`, MIT) — the typed R2 client library that provides presigned URLs, streaming helpers, multipart upload, and error handling out of the box.\n\n### Bucket Layout\n\n```\nmaina-reports/\n  r/<run-id>/\n",
+					"decisions/0014-experiment-gate-stagehand-orama.md": "# Decision: Experiment gate criteria for Stagehand and Orama\n\n> Status: **accepted**\n\n## Context\n\nWeek 5 includes two experimental spikes: Stagehand (AI-driven browser automation as a Playwright alternative) and Orama (hybrid BM25+vector search for wiki). Without pre-defined go/no-go criteria, \"we invested time so let's ship it\" bias takes over.\n\n## Decision\n\n### Stagehand Gate (`docs/decisions/0002-stagehand-gate.md`)\n\nShip only if ALL criteria are met across 50 benchmark runs:\n\n| Metric | Threshold | Rationale |\n|--------|-----------|-----------|\n| Pass rate | ≥95% | Playwright baseline is ~99%; 95% is acceptable for AI-driven |\n| Token cost per verify | ≤$0.05 | Must be viable at 100k runs/mo ($5k ceiling) |\n| Cache hit rate (after first run) | ≥80% | Same flow on same page should cache; AI variance is the risk |\n\n### Orama Gate (`docs/decisions/0003-orama-gate.md`)\n\nShip only if ALL criteria are met on a 30-query test set across 100 wiki pages:\n\n| Metric | Threshold | Rationale |\n",
+					"decisions/0015-cli-mcp-coequal.md": "# Decision: CLI and MCP are co-equal first-class surfaces\n\n> Status: **accepted**\n\n## Context\n\nMaina serves two user shapes:\n\n1. **Agent-native** — Claude Code, Cursor, Windsurf, Copilot via MCP tools\n2. **Terminal-native** — CI pipelines, pre-commit hooks, scripting via `maina <cmd>`\n\nEarly feature work risks accidentally privileging one surface. For example, a feature might be CLI-only with no MCP equivalent, or MCP-first with a CLI afterthought.\n\n## Decision\n\n**Every feature must be reachable via both `maina <cmd>` and an equivalent MCP tool.**\n\n### Rules\n\n1. **Feature parity**: if `maina verify` exists, `verify` MCP tool must exist with equivalent functionality\n2. **PR checklist**: every PR review includes \"Does this feature work equally well from CLI and MCP?\"\n3. **Marketing parity**: mainahq.com shows both paths above the fold (curl install command + MCP badges for Claude Code, Cursor, Windsurf)\n",
+					"features/024-v04-polish-ci.md": "# Feature: Implementation Plan — v0.4.0 Polish + CI\n\n## Scope\n\n### In Scope - `--json` flag on all commands - Exit codes (0/1/2/3) - GitHub Action (`mainahq/verify-action`) - PHP language profile (PHPStan, Psalm) - Per-file language detection - ZAP DAST integration - Lighthouse integration ### Out of Scope - GitLab CI / Buildkite integrations (deferred to v0.6.0 hosted verify) - PHP framework-specific rules (Laravel, Symfony) - Lighthouse CI (scheduled runs) — just single-run auditing for now\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/024-v05-cloud-client.md": "# Feature: Implementation Plan — v0.5.0 Cloud Client + maina-cloud\n\n## Scope\n\n",
+					"features/025-v06-hosted-verification.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - `--cloud` flag on `maina verify` command (maina repo) - `CloudClient.submitVerify/getVerifyStatus/getVerifyResult` methods (maina repo) - Shared type exports: `Finding`, `PipelineResult`, `ToolReport`, `DetectedTool` from `@mainahq/core` - Workers Workflow migration replacing Durable Object (maina-cloud) - `@workkit/ratelimit` middleware on API endpoints (maina-cloud) - `@workkit/cache` SWR keyed on `team_id:diff_hash:prompt_version` (maina-cloud) - `@workkit/crypto` replacing manual sha256/HMAC (maina-cloud) - `mainahq/verify-action` GitHub Action (new repo) ### Out of Scope - Container execution for heavy tools (enterprise, future) - Inline PR review comments (commit status only for now) - Dashboard / billing (v0.7.0) - `mainahq/workflow-action` autonomous coding (v0.7.0+) - New storage schemas\n\n## Tasks\n\nProgress: 0/31 (0%)\n\n- [ ] T001: Write tests for verify type exports from @mainahq/core\n",
+					"architecture/monorepo-structure.md": "# Architecture: Monorepo Structure\n\n> Auto-generated architecture article describing the monorepo layout.\n\nThis monorepo contains 22 packages across `packages/cli/`, `packages/core/`, `packages/mcp/`, `packages/skills/`, `packages/docs/`.\n\n## packages/cli/\n\n### dist\n\n- **Path:** `packages/cli/dist/`\n- **Description:** _No description available for dist._\n\n### node_modules\n\n- **Path:** `packages/cli/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n- **Path:** `packages/cli/src/`\n- **Description:** _No description available for src._\n\n## packages/core/\n\n### node_modules\n\n- **Path:** `packages/core/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n- **Path:** `packages/core/src/`\n- **Description:** _No description available for src._\n\n## packages/mcp/\n\n### node_modules\n\n- **Path:** `packages/mcp/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n",
+					"architecture/three-engines.md": "# Architecture: Three Engines\n\n> Auto-generated architecture article describing the three-engine pattern.\n\nMaina's core is organized around three engines that work together:\n\n1. **Context Engine** (`context/`) — Observes the codebase via 4-layer retrieval (Working, Episodic, Semantic, Retrieval), PageRank scoring, and dynamic token budgets.\n2. **Prompt Engine** (`prompts/`) — Learns from project conventions via constitution loading, custom prompts, versioning, and A/B-tested evolution.\n3. **Verify Engine** (`verify/`) — Verifies AI-generated code via a multi-stage pipeline: syntax guard, parallel tools, diff filter, AI fix, and two-stage review.\n\n## Context Engine\n\nSource files (`packages/core/src/context/`):\n\n- `budget.ts`\n- `engine.ts`\n- `episodic.ts`\n- `relevance.ts`\n- `retrieval.ts`\n- `selector.ts`\n- `semantic.ts`\n- `treesitter.ts`\n- `wiki.ts`\n- `working.ts`\n\n## Prompts Engine\n\nSource files (`packages/core/src/prompts/`):\n\n- `engine.ts`\n- `evolution.ts`\n- `loader.ts`\n\n"
+				}
+			},
+			"output": {
+				"architecture": "# Architecture: Monorepo Structure\n\n> Auto-generated architecture article describing the monorepo layout.\n\nThis monorepo contains 22 packages across `packages/cli/`, `packages/core/`, `packages/mcp/`, `packages/skills/`, `packages/docs/`.\n\n## packages/cli/\n\n### dist\n\n- **Path:** `packages/cli/dist/`\n- **Description:** _No description available for dist._\n\n### node_modules\n\n- **Path:** `packages/cli/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n- **Path:** `packages/cli/src/`\n- **Description:** _No description available for src._\n\n## packages/core/\n\n### node_modules\n\n- **Path:** `packages/core/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n- **Path:** `packages/core/src/`\n- **Description:** _No description available for src._\n\n## packages/mcp/\n\n### node_modules\n\n- **Path:** `packages/mcp/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n\n\n---\n\n# Architecture: Three Engines\n\n> Auto-generated architecture article describing the three-engine pattern.\n\nMaina's core is organized around three engines that work together:\n\n1. **Context Engine** (`context/`) — Observes the codebase via 4-layer retrieval (Working, Episodic, Semantic, Retrieval), PageRank scoring, and dynamic token budgets.\n2. **Prompt Engine** (`prompts/`) — Learns from project conventions via constitution loading, custom prompts, versioning, and A/B-tested evolution.\n3. **Verify Engine** (`verify/`) — Verifies AI-generated code via a multi-stage pipeline: syntax guard, parallel tools, diff filter, AI fix, and two-stage review.\n\n## Context Engine\n\nSource files (`packages/core/src/context/`):\n\n- `budget.ts`\n- `engine.ts`\n- `episodic.ts`\n- `relevance.ts`\n- `retrieval.ts`\n- `selector.ts`\n- `semantic.ts`\n- `treesitter.ts`\n- `wiki.ts`\n- `working.ts`\n\n## Prompts Engine\n\nSource files (`packages/core/src/prompts/`):\n\n- `engine.ts`\n- `evolution.ts`\n- `loader.ts`\n\n",
+				"moduleCount": 3,
+				"decisionCount": 3,
+				"recentFeatures": [
+					"025-v06-hosted-verification: Feature: Implementation Plan",
+					"024-v05-cloud-client: Feature: Implementation Plan — v0.5.0 Cloud Client + maina-cloud",
+					"024-v04-polish-ci: Feature: Implementation Plan — v0.4.0 Polish + CI"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "brainstorm",
+				"wiki": {
+					"modules/cluster-86.md": "# Module: cluster-86\n\n> Auto-generated module article for `cluster-86`.\n\n## Entities\n\n- **visualCommand** (function) — `packages/cli/src/commands/visual.ts:40` [PR: 0.0012]\n- **visualUpdateAction** (function) — `packages/cli/src/commands/visual.ts:20` [PR: 0.0009]\n- **VisualActionResult** (interface) — `packages/cli/src/commands/visual.ts:15` [PR: 0.0007]\n- **VisualActionOptions** (interface) — `packages/cli/src/commands/visual.ts:11` [PR: 0.0005]\n",
+					"modules/cluster-87.md": "# Module: cluster-87\n\n> Auto-generated module article for `cluster-87`.\n\n## Entities\n\n- **wikiIngestCommand** (function) — `packages/cli/src/commands/wiki/ingest.ts:90` [PR: 0.0012]\n- **wikiIngestAction** (function) — `packages/cli/src/commands/wiki/ingest.ts:40` [PR: 0.0009]\n- **WikiIngestOptions** (interface) — `packages/cli/src/commands/wiki/ingest.ts:23` [PR: 0.0007]\n- **WikiIngestResult** (interface) — `packages/cli/src/commands/wiki/ingest.ts:16` [PR: 0.0005]\n",
+					"modules/cluster-88.md": "# Module: cluster-88\n\n> Auto-generated module article for `cluster-88`.\n\n## Entities\n\n- **wikiInitCommand** (function) — `packages/cli/src/commands/wiki/init.ts:115` [PR: 0.0012]\n- **wikiInitAction** (function) — `packages/cli/src/commands/wiki/init.ts:36` [PR: 0.0009]\n- **WikiInitOptions** (interface) — `packages/cli/src/commands/wiki/init.ts:28` [PR: 0.0007]\n- **WikiInitResult** (interface) — `packages/cli/src/commands/wiki/init.ts:18` [PR: 0.0005]\n",
+					"decisions/0016-error-reporting-backend.md": "# Decision: Error and telemetry backend (PostHog)\n\n> Status: **accepted**\n\n## Context\n\nMaina needs crash reporting, usage telemetry, and product analytics for both the open-source CLI and the Cloud service. Requirements:\n\n- OSS: opt-in, aggressive PII scrubbing, zero data until consent\n- Cloud: opt-out (default on), account-linked for support triage\n- Single platform preferred over stitching multiple backends together\n\n## Decision\n\nUse **PostHog** as the single backend for errors, usage telemetry, and product analytics.\n\n- **Cloud**: PostHog Cloud (EU hosting available, generous free tier — 1M events/mo)\n- **OSS**: PostHog Cloud with aggressive client-side scrubbing (same SDK, same project, scrubbed before send)\n- **One SDK**: `posthog-node` for all server-side events\n- **Fallback**: If PostHog's error tracking proves insufficient for stack trace depth or source map support, evaluate adding Sentry alongside — but start with one platform\n\n### Why PostHog Over Sentry + Separate Analytics\n",
+					"decisions/0017-no-workkit-search.md": "# Decision: Kill decision — @workkit for wiki search\n\n> Status: **accepted**\n\n## Context\n\nInternal discussion considered using @workkit as a search library for wiki queries. @workkit is a Cloudflare Workers toolkit — it has no search capabilities. Maina uses Pagefind for docs site search and Orama (under evaluation, gated by ADR 0014) for in-app wiki search.\n\n## Decision\n\nDo not use @workkit for search. Revisit only if @workkit ships dedicated search features.\n\n## Rationale\n\n- Pagefind handles docs site search (already working)\n- Orama evaluation for in-app search proceeds under experiment gates (ADR 0014)\n- @workkit continues to be used for its actual purpose: R2, KV, D1, auth, etc.\n",
+					"decisions/0018-no-passmark.md": "# Decision: Kill decision — Passmark adoption\n\n> Status: **accepted**\n\n## Context\n\nPassmark was considered as a browser automation tool for visual verification. Evaluation:\n\n- Passmark wraps Playwright — it's not a replacement, it's a layer on top\n- FSL license has a \"Competing Use\" clause — risky for a verification tool\n- 185 GitHub stars — not battle-tested\n- Stagehand (MIT, larger community) does the same thing without the Redis requirement\n\n## Decision\n\nDo not adopt Passmark. Evaluate Stagehand instead (gated by ADR 0014 experiment criteria).\n\n## Rationale\n\n- Stagehand evaluation scheduled as #126 (feature-flagged spike)\n- Playwright remains the baseline for scripted browser verification\n- No licensing risk from FSL\n",
+					"features/028-project-aware-tools.md": "# Feature: Project-Aware Tool Detection Implementation Plan\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/029-ai-driven-init.md": "# Feature: Feature 029: AI-Driven Interactive maina init\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/030-mcp-agent-files.md": "# Feature: Feature 030: Auto-Configure MCP + Agent Instruction Files During Init\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"architecture/three-engines.md": "# Architecture: Three Engines\n\n> Auto-generated architecture article describing the three-engine pattern.\n\nMaina's core is organized around three engines that work together:\n\n1. **Context Engine** (`context/`) — Observes the codebase via 4-layer retrieval (Working, Episodic, Semantic, Retrieval), PageRank scoring, and dynamic token budgets.\n2. **Prompt Engine** (`prompts/`) — Learns from project conventions via constitution loading, custom prompts, versioning, and A/B-tested evolution.\n3. **Verify Engine** (`verify/`) — Verifies AI-generated code via a multi-stage pipeline: syntax guard, parallel tools, diff filter, AI fix, and two-stage review.\n\n## Context Engine\n\nSource files (`packages/core/src/context/`):\n\n- `budget.ts`\n- `engine.ts`\n- `episodic.ts`\n- `relevance.ts`\n- `retrieval.ts`\n- `selector.ts`\n- `semantic.ts`\n- `treesitter.ts`\n- `wiki.ts`\n- `working.ts`\n\n## Prompts Engine\n\nSource files (`packages/core/src/prompts/`):\n\n- `engine.ts`\n- `evolution.ts`\n- `loader.ts`\n\n",
+					"architecture/verification-pipeline.md": "# Architecture: Verification Pipeline\n\n> Auto-generated architecture article listing all verify tools.\n\nThe verification pipeline runs a multi-stage process to prove AI-generated code is correct before it merges.\n\n## Pipeline Stages\n\n1. **Syntax Guard** — Fast linting (<500ms)\n2. **Parallel Deterministic Tools** — Semgrep, Trivy, Secretlint, SonarQube, coverage, mutation\n3. **Diff-Only Filter** — Only report findings on changed lines\n4. **AI Fix** — Automatic fix suggestions\n5. **Two-Stage AI Review** — Spec compliance, then code quality\n\n## Verify Tools\n\n- **ai-review** — Two-stage AI review (spec compliance + code quality)\n- **builtin** — Built-in verification checks\n- **consistency** — Code consistency analysis\n- **coverage** — Code coverage tracking via diff-cover\n- **detect** — Language and tool detection\n- **diff-filter** — Diff-only filter — only report findings on changed lines\n- **fix** — AI-powered automatic fix suggestions\n- **lighthouse** — Lighthouse performance audits\n"
+				}
+			},
+			"output": {
+				"architecture": "# Architecture: Three Engines\n\n> Auto-generated architecture article describing the three-engine pattern.\n\nMaina's core is organized around three engines that work together:\n\n1. **Context Engine** (`context/`) — Observes the codebase via 4-layer retrieval (Working, Episodic, Semantic, Retrieval), PageRank scoring, and dynamic token budgets.\n2. **Prompt Engine** (`prompts/`) — Learns from project conventions via constitution loading, custom prompts, versioning, and A/B-tested evolution.\n3. **Verify Engine** (`verify/`) — Verifies AI-generated code via a multi-stage pipeline: syntax guard, parallel tools, diff filter, AI fix, and two-stage review.\n\n## Context Engine\n\nSource files (`packages/core/src/context/`):\n\n- `budget.ts`\n- `engine.ts`\n- `episodic.ts`\n- `relevance.ts`\n- `retrieval.ts`\n- `selector.ts`\n- `semantic.ts`\n- `treesitter.ts`\n- `wiki.ts`\n- `working.ts`\n\n## Prompts Engine\n\nSource files (`packages/core/src/prompts/`):\n\n- `engine.ts`\n- `evolution.ts`\n- `loader.ts`\n\n\n\n---\n\n# Architecture: Verification Pipeline\n\n> Auto-generated architecture article listing all verify tools.\n\nThe verification pipeline runs a multi-stage process to prove AI-generated code is correct before it merges.\n\n## Pipeline Stages\n\n1. **Syntax Guard** — Fast linting (<500ms)\n2. **Parallel Deterministic Tools** — Semgrep, Trivy, Secretlint, SonarQube, coverage, mutation\n3. **Diff-Only Filter** — Only report findings on changed lines\n4. **AI Fix** — Automatic fix suggestions\n5. **Two-Stage AI Review** — Spec compliance, then code quality\n\n## Verify Tools\n\n- **ai-review** — Two-stage AI review (spec compliance + code quality)\n- **builtin** — Built-in verification checks\n- **consistency** — Code consistency analysis\n- **coverage** — Code coverage tracking via diff-cover\n- **detect** — Language and tool detection\n- **diff-filter** — Diff-only filter — only report findings on changed lines\n- **fix** — AI-powered automatic fix suggestions\n- **lighthouse** — Lighthouse performance audits\n",
+				"moduleCount": 3,
+				"decisionCount": 3,
+				"recentFeatures": [
+					"030-mcp-agent-files: Feature: Feature 030: Auto-Configure MCP + Agent Instruction Files During Init",
+					"029-ai-driven-init: Feature: Feature 029: AI-Driven Interactive maina init",
+					"028-project-aware-tools: Feature: Project-Aware Tool Detection Implementation Plan"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "brainstorm",
+				"wiki": {
+					"modules/cluster-92.md": "# Module: cluster-92\n\n> Auto-generated module article for `cluster-92`.\n\n## Entities\n\n- **runZap** (function) — `packages/core/src/verify/zap.ts:149` [PR: 0.0012]\n- **parseZapJson** (function) — `packages/core/src/verify/zap.ts:76` [PR: 0.0009]\n- **ZapResult** (interface) — `packages/core/src/verify/zap.ts:21` [PR: 0.0007]\n- **ZapOptions** (interface) — `packages/core/src/verify/zap.ts:14` [PR: 0.0005]\n",
+					"modules/cluster-93.md": "# Module: cluster-93\n\n> Auto-generated module article for `cluster-93`.\n\n## Entities\n\n- **assembleEpisodicText** (function) — `packages/core/src/context/episodic.ts:237` [PR: 0.0020]\n- **decayAllEntries** (function) — `packages/core/src/context/episodic.ts:212` [PR: 0.0014]\n- **pruneEntries** (function) — `packages/core/src/context/episodic.ts:177` [PR: 0.0011]\n- **getEntries** (function) — `packages/core/src/context/episodic.ts:152` [PR: 0.0009]\n- **accessEntry** (function) — `packages/core/src/context/episodic.ts:115` [PR: 0.0008]\n- **addEntry** (function) — `packages/core/src/context/episodic.ts:67` [PR: 0.0007]\n- **calculateDecay** (function) — `packages/core/src/context/episodic.ts:55` [PR: 0.0006]\n- **EpisodicEntry** (interface) — `packages/core/src/context/episodic.ts:3` [PR: 0.0005]\n",
+					"modules/cluster-95.md": "# Module: cluster-95\n\n> Auto-generated module article for `cluster-95`.\n\n## Entities\n\n- **persistSemanticContext** (function) — `packages/core/src/context/semantic.ts:282` [PR: 0.0017]\n- **assembleSemanticText** (function) — `packages/core/src/context/semantic.ts:205` [PR: 0.0012]\n- **getTopEntities** (function) — `packages/core/src/context/semantic.ts:192` [PR: 0.0009]\n- **buildSemanticContext** (function) — `packages/core/src/context/semantic.ts:135` [PR: 0.0008]\n- **loadCustomContext** (function) — `packages/core/src/context/semantic.ts:103` [PR: 0.0007]\n- **loadConstitution (packages)** (function) — `packages/core/src/context/semantic.ts:86` [PR: 0.0006]\n- **loadConstitution (packages)** (function) — `packages/core/src/prompts/loader.ts:7` [PR: 0.0006]\n- **SemanticContext** (interface) — `packages/core/src/context/semantic.ts:12` [PR: 0.0005]\n",
+					"decisions/0019-no-fern-no-sdk.md": "# Decision: Kill decision — Fern + multi-language SDKs\n\n> Status: **accepted**\n\n## Context\n\nFern was considered for auto-generating multi-language SDKs. Evaluation:\n\n- Maina has no REST API to wrap — MCP is the polyglot surface\n- Peers (Ruff, uv, Biome, Bun, Vitest, Astro) ship zero SDKs\n- Fern costs ~$600/mo per language — not justified without a REST API\n- MCP clients already speak the protocol natively (Claude Code, Cursor, Windsurf, Copilot)\n\n## Decision\n\nDo not use Fern. Do not build multi-language SDKs. MCP is the polyglot interface.\n\nRevisit in 2027 Q2 if a hosted REST API exists — use Speakeasy then, not Fern.\n\n## Rationale\n\n- Zero SDK maintenance burden\n- MCP remains the single cross-platform integration surface\n- Blog post: \"Why Maina has no SDK\" (pairs with #112)\n- Roadmap tickets referencing Fern/SDK closed as won't-fix\n",
+					"decisions/0020-no-lsif.md": "# Decision: No LSIF usage — SCIP is the target format\n\n> Status: **accepted**\n\n## Context\n\nSourcegraph migrated off LSIF in v4.6, replacing it with SCIP. Audit: does Maina use LSIF anywhere?\n\n`rg -i \"lsif\"` across the codebase: **zero hits** (one false positive in bun.lock package hash).\n\n## Decision\n\nNo LSIF migration needed. SCIP is the target format for the code intelligence epic (#133).\n\n## Rationale\n\n- SCIP ingest (#124) proceeds without migration overhead\n- This ADR closes the audit cleanly\n",
+					"decisions/0021-error-id-surface-for-cli-and-mcp.md": "# Decision: Error ID surface for CLI and MCP\n\n> Status: **accepted**\n\n## Context\n\nWhen maina crashes, users file issues saying \"it didn't work\" with no way to reference the specific error. Maintainers can't correlate reports with stack traces. We need a short, user-quotable error identifier that maps back to an event.\n\n## Decision\n\nGenerate deterministic 6-char error IDs using DJB2 hash of `errorClass:errorMessage`, encoded in a base32 alphabet without ambiguous characters (O/0/I/l). Format: `ERR-<6chars>`.\n\n**Deterministic fingerprinting** (same error = same ID) was chosen over unique event IDs because:\n- Users quoting the same ID in different issues signals \"this is the same bug\"\n- PostHog/Sentry backend assigns unique event IDs independently\n- Fingerprinting enables dedup at the reporting layer\n\n### Surfaces\n\n- CLI stderr: `Error ERR-ab12cd. <message>\\nReport at github.com/mainahq/maina/issues (include this ID).`\n- MCP error responses: `{ \"error\": \"...\", \"error_id\": \"ERR-ab12cd\" }`\n",
+					"features/033-v103-quick-wins.md": "# Feature: Feature 033: v1.0.3 Quick Wins\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/034-v110-roundtrip-flywheel.md": "# Feature: Feature 034: v1.1.0 Round-Trip Flywheel — Implementation Plan\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/035-wiki-foundation.md": "# Feature: Wiki Foundation (Sprint 0)\n\n## Tasks\n\nProgress: 0/7 (0%)\n\n- [ ] T001: Define all wiki types in types.ts\n- [ ] T002: Implement state management with SHA-256 hashing (depends on T001)\n- [ ] T003: Implement schema management (depends on T001)\n- [ ] T004: Implement code entity extractor (depends on T001)\n- [ ] T005: Implement feature extractor (depends on T001)\n- [ ] T006: Implement decision extractor (depends on T001)\n- [ ] T007: Implement workflow trace extractor (depends on T001)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"architecture/verification-pipeline.md": "# Architecture: Verification Pipeline\n\n> Auto-generated architecture article listing all verify tools.\n\nThe verification pipeline runs a multi-stage process to prove AI-generated code is correct before it merges.\n\n## Pipeline Stages\n\n1. **Syntax Guard** — Fast linting (<500ms)\n2. **Parallel Deterministic Tools** — Semgrep, Trivy, Secretlint, SonarQube, coverage, mutation\n3. **Diff-Only Filter** — Only report findings on changed lines\n4. **AI Fix** — Automatic fix suggestions\n5. **Two-Stage AI Review** — Spec compliance, then code quality\n\n## Verify Tools\n\n- **ai-review** — Two-stage AI review (spec compliance + code quality)\n- **builtin** — Built-in verification checks\n- **consistency** — Code consistency analysis\n- **coverage** — Code coverage tracking via diff-cover\n- **detect** — Language and tool detection\n- **diff-filter** — Diff-only filter — only report findings on changed lines\n- **fix** — AI-powered automatic fix suggestions\n- **lighthouse** — Lighthouse performance audits\n",
+					"architecture/monorepo-structure.md": "# Architecture: Monorepo Structure\n\n> Auto-generated architecture article describing the monorepo layout.\n\nThis monorepo contains 22 packages across `packages/cli/`, `packages/core/`, `packages/mcp/`, `packages/skills/`, `packages/docs/`.\n\n## packages/cli/\n\n### dist\n\n- **Path:** `packages/cli/dist/`\n- **Description:** _No description available for dist._\n\n### node_modules\n\n- **Path:** `packages/cli/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n- **Path:** `packages/cli/src/`\n- **Description:** _No description available for src._\n\n## packages/core/\n\n### node_modules\n\n- **Path:** `packages/core/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n- **Path:** `packages/core/src/`\n- **Description:** _No description available for src._\n\n## packages/mcp/\n\n### node_modules\n\n- **Path:** `packages/mcp/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n"
+				}
+			},
+			"output": {
+				"architecture": "# Architecture: Monorepo Structure\n\n> Auto-generated architecture article describing the monorepo layout.\n\nThis monorepo contains 22 packages across `packages/cli/`, `packages/core/`, `packages/mcp/`, `packages/skills/`, `packages/docs/`.\n\n## packages/cli/\n\n### dist\n\n- **Path:** `packages/cli/dist/`\n- **Description:** _No description available for dist._\n\n### node_modules\n\n- **Path:** `packages/cli/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n- **Path:** `packages/cli/src/`\n- **Description:** _No description available for src._\n\n## packages/core/\n\n### node_modules\n\n- **Path:** `packages/core/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n- **Path:** `packages/core/src/`\n- **Description:** _No description available for src._\n\n## packages/mcp/\n\n### node_modules\n\n- **Path:** `packages/mcp/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n\n\n---\n\n# Architecture: Verification Pipeline\n\n> Auto-generated architecture article listing all verify tools.\n\nThe verification pipeline runs a multi-stage process to prove AI-generated code is correct before it merges.\n\n## Pipeline Stages\n\n1. **Syntax Guard** — Fast linting (<500ms)\n2. **Parallel Deterministic Tools** — Semgrep, Trivy, Secretlint, SonarQube, coverage, mutation\n3. **Diff-Only Filter** — Only report findings on changed lines\n4. **AI Fix** — Automatic fix suggestions\n5. **Two-Stage AI Review** — Spec compliance, then code quality\n\n## Verify Tools\n\n- **ai-review** — Two-stage AI review (spec compliance + code quality)\n- **builtin** — Built-in verification checks\n- **consistency** — Code consistency analysis\n- **coverage** — Code coverage tracking via diff-cover\n- **detect** — Language and tool detection\n- **diff-filter** — Diff-only filter — only report findings on changed lines\n- **fix** — AI-powered automatic fix suggestions\n- **lighthouse** — Lighthouse performance audits\n",
+				"moduleCount": 3,
+				"decisionCount": 3,
+				"recentFeatures": [
+					"035-wiki-foundation: Feature: Wiki Foundation (Sprint 0)",
+					"034-v110-roundtrip-flywheel: Feature: Feature 034: v1.1.0 Round-Trip Flywheel — Implementation Plan",
+					"033-v103-quick-wins: Feature: Feature 033: v1.0.3 Quick Wins"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "brainstorm",
+				"wiki": {
+					"modules/config.md": "# Module: config\n\n> Auto-generated module article for `config`.\n\n## Entities\n\n- **shouldDelegateToHost** (function) — `packages/core/src/config/index.ts:191` [PR: 0.0019]\n- **HostDelegation** (interface) — `packages/core/src/config/index.ts:175` [PR: 0.0013]\n- **isHostMode** (function) — `packages/core/src/config/index.ts:149` [PR: 0.0010]\n- **resolveProvider** (function) — `packages/core/src/config/index.ts:117` [PR: 0.0008]\n- **getApiKey** (function) — `packages/core/src/config/index.ts:99` [PR: 0.0007]\n- **loadConfig** (function) — `packages/core/src/config/index.ts:77` [PR: 0.0006]\n- **findConfigFile** (function) — `packages/core/src/config/index.ts:52` [PR: 0.0006]\n- **getDefaultConfig** (function) — `packages/core/src/config/index.ts:39` [PR: 0.0005]\n- **MainaConfig** (interface) — `packages/core/src/config/index.ts:4` [PR: 0.0005]\n",
+					"modules/constitution.md": "# Module: constitution\n\n> Auto-generated module article for `constitution`.\n\n## Entities\n\n- **parseAllConfigs** (function) — `packages/core/src/constitution/config-parsers.ts:262` [PR: 0.0016]\n- **parsePrettierConfig** (function) — `packages/core/src/constitution/config-parsers.ts:233` [PR: 0.0011]\n- **parsePackageJson** (function) — `packages/core/src/constitution/config-parsers.ts:178` [PR: 0.0009]\n- **parseEditorConfig** (function) — `packages/core/src/constitution/config-parsers.ts:134` [PR: 0.0007]\n- **parseTsConfig** (function) — `packages/core/src/constitution/config-parsers.ts:92` [PR: 0.0006]\n- **parseEslintConfig** (function) — `packages/core/src/constitution/config-parsers.ts:62` [PR: 0.0005]\n- **parseBiomeConfig** (function) — `packages/core/src/constitution/config-parsers.ts:15` [PR: 0.0005]\n",
+					"modules/context.md": "# Module: context\n\n> Auto-generated module article for `context`.\n\n## Entities\n\n- **assembleWikiText** (function) — `packages/core/src/context/wiki.ts:270` [PR: 0.0009]\n- **loadWikiContext** (function) — `packages/core/src/context/wiki.ts:170` [PR: 0.0006]\n- **WikiContextOptions** (interface) — `packages/core/src/context/wiki.ts:8` [PR: 0.0005]\n",
+					"decisions/0021-glob-scoped-constitution-rules.md": "# Decision: Glob-scoped constitution rules\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0022-mcp-install-badges-on-hero.md": "# Decision: MCP install badges on hero\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0022-wiki-is-a-view-of-the-context-engine.md": "# Decision: Wiki is a view of the Context engine\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"features/037-git-ci-analyzer.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - `analyzeCommitConventions()`, `analyzeHotPaths()`, `analyzeCiWorkflows()`, `analyzeCodeowners()` - Combined `analyzeGitAndCi()` running all in parallel - Each rule has `{ text, confidence, source }` ### Out of Scope - Interactive propose/accept flow (separate issue #117) - Writing rules to constitution.md (consumer responsibility)\n\n## Tasks\n\nProgress: 6/6 (100%)\n\n- [x] T1: Implement analyzeCommitConventions (conventional commit regex, scope extraction)\n- [x] T2: Implement analyzeHotPaths (git log --name-only, top N churn)\n- [x] T3: Implement analyzeCiWorkflows (read .github/workflows/*.yml)\n- [x] T4: Implement analyzeCodeowners (check 3 paths: root, .github/, docs/)\n- [x] T5: Implement analyzeGitAndCi (parallel combination)\n- [x] T6: Write tests (9 tests: CI workflows, CODEOWNERS, commit conventions, hot paths, combined)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/037-glob-scoped-constitution.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - `constitution.d/` directory support with per-file `applies_to:` globs - Loader that merges root + shards deterministically - Glob matching for filtering rules per file path - Backward compatibility when directory is absent ### Out of Scope - AI-powered rule assignment to shards (manual for now) - Cookbook docs (separate issue)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/037-import-rule-adapters.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope -  ### Out of Scope -\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"architecture/monorepo-structure.md": "# Architecture: Monorepo Structure\n\n> Auto-generated architecture article describing the monorepo layout.\n\nThis monorepo contains 22 packages across `packages/cli/`, `packages/core/`, `packages/mcp/`, `packages/skills/`, `packages/docs/`.\n\n## packages/cli/\n\n### dist\n\n- **Path:** `packages/cli/dist/`\n- **Description:** _No description available for dist._\n\n### node_modules\n\n- **Path:** `packages/cli/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n- **Path:** `packages/cli/src/`\n- **Description:** _No description available for src._\n\n## packages/core/\n\n### node_modules\n\n- **Path:** `packages/core/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n- **Path:** `packages/core/src/`\n- **Description:** _No description available for src._\n\n## packages/mcp/\n\n### node_modules\n\n- **Path:** `packages/mcp/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n",
+					"architecture/three-engines.md": "# Architecture: Three Engines\n\n> Auto-generated architecture article describing the three-engine pattern.\n\nMaina's core is organized around three engines that work together:\n\n1. **Context Engine** (`context/`) — Observes the codebase via 4-layer retrieval (Working, Episodic, Semantic, Retrieval), PageRank scoring, and dynamic token budgets.\n2. **Prompt Engine** (`prompts/`) — Learns from project conventions via constitution loading, custom prompts, versioning, and A/B-tested evolution.\n3. **Verify Engine** (`verify/`) — Verifies AI-generated code via a multi-stage pipeline: syntax guard, parallel tools, diff filter, AI fix, and two-stage review.\n\n## Context Engine\n\nSource files (`packages/core/src/context/`):\n\n- `budget.ts`\n- `engine.ts`\n- `episodic.ts`\n- `relevance.ts`\n- `retrieval.ts`\n- `selector.ts`\n- `semantic.ts`\n- `treesitter.ts`\n- `wiki.ts`\n- `working.ts`\n\n## Prompts Engine\n\nSource files (`packages/core/src/prompts/`):\n\n- `engine.ts`\n- `evolution.ts`\n- `loader.ts`\n\n"
+				}
+			},
+			"output": {
+				"architecture": "# Architecture: Monorepo Structure\n\n> Auto-generated architecture article describing the monorepo layout.\n\nThis monorepo contains 22 packages across `packages/cli/`, `packages/core/`, `packages/mcp/`, `packages/skills/`, `packages/docs/`.\n\n## packages/cli/\n\n### dist\n\n- **Path:** `packages/cli/dist/`\n- **Description:** _No description available for dist._\n\n### node_modules\n\n- **Path:** `packages/cli/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n- **Path:** `packages/cli/src/`\n- **Description:** _No description available for src._\n\n## packages/core/\n\n### node_modules\n\n- **Path:** `packages/core/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n- **Path:** `packages/core/src/`\n- **Description:** _No description available for src._\n\n## packages/mcp/\n\n### node_modules\n\n- **Path:** `packages/mcp/node_modules/`\n- **Description:** _No description available for node_modules._\n\n### src\n\n\n\n---\n\n# Architecture: Three Engines\n\n> Auto-generated architecture article describing the three-engine pattern.\n\nMaina's core is organized around three engines that work together:\n\n1. **Context Engine** (`context/`) — Observes the codebase via 4-layer retrieval (Working, Episodic, Semantic, Retrieval), PageRank scoring, and dynamic token budgets.\n2. **Prompt Engine** (`prompts/`) — Learns from project conventions via constitution loading, custom prompts, versioning, and A/B-tested evolution.\n3. **Verify Engine** (`verify/`) — Verifies AI-generated code via a multi-stage pipeline: syntax guard, parallel tools, diff filter, AI fix, and two-stage review.\n\n## Context Engine\n\nSource files (`packages/core/src/context/`):\n\n- `budget.ts`\n- `engine.ts`\n- `episodic.ts`\n- `relevance.ts`\n- `retrieval.ts`\n- `selector.ts`\n- `semantic.ts`\n- `treesitter.ts`\n- `wiki.ts`\n- `working.ts`\n\n## Prompts Engine\n\nSource files (`packages/core/src/prompts/`):\n\n- `engine.ts`\n- `evolution.ts`\n- `loader.ts`\n\n",
+				"moduleCount": 3,
+				"decisionCount": 3,
+				"recentFeatures": [
+					"037-import-rule-adapters: Feature: Implementation Plan",
+					"037-glob-scoped-constitution: Feature: Implementation Plan",
+					"037-git-ci-analyzer: Feature: Implementation Plan"
+				]
+			}
+		},
+		{
+			"site": "wiki/consult.ts",
+			"input": {
+				"mode": "brainstorm",
+				"wiki": {
+					"modules/docs.md": "# Module: docs\n\n> Auto-generated module article for `docs`.\n\n## Entities\n\n- **collections** (variable) — `packages/docs/src/content.config.ts:5` [PR: 0.0005]\n",
+					"modules/errors.md": "# Module: errors\n\n> Auto-generated module article for `errors`.\n\n## Entities\n\n- **formatErrorForMcp** (function) — `packages/core/src/errors/error-id.ts:40` [PR: 0.0010]\n- **formatErrorForCli** (function) — `packages/core/src/errors/error-id.ts:32` [PR: 0.0007]\n- **generateErrorIdFromString** (function) — `packages/core/src/errors/error-id.ts:24` [PR: 0.0006]\n- **generateErrorId** (function) — `packages/core/src/errors/error-id.ts:15` [PR: 0.0005]\n",
+					"modules/explain.md": "# Module: explain\n\n> Auto-generated module article for `explain`.\n\n## Entities\n\n- **generateModuleSummary** (function) — `packages/core/src/explain/index.ts:102` [PR: 0.0010]\n- **generateDependencyDiagram** (function) — `packages/core/src/explain/index.ts:52` [PR: 0.0007]\n- **DiagramOptions** (interface) — `packages/core/src/explain/index.ts:22` [PR: 0.0006]\n- **ModuleSummary** (interface) — `packages/core/src/explain/index.ts:13` [PR: 0.0005]\n",
+					"decisions/0022-wiki-is-a-view.md": "# Decision: Wiki is a view of the Context engine\n\n> Status: **accepted**\n\n## Context\n\nThe wiki was initially presented as a standalone feature: \"codebase knowledge compiler.\" This creates confusion — users think Maina has two products (verification + wiki) instead of one system with multiple views.\n\nThe Context engine is the core. It has 4 layers (Working, Episodic, Semantic, Retrieval) that gather codebase context. The wiki is not a layer — it's a *view* that renders the knowledge graph built from those layers as persistent, human-readable articles. Same engine, same data, different rendering.\n\n## Decision\n\nReposition the wiki as \"a view of the Context engine\" in all messaging:\n\n- **Context engine** (core) — the product, the thing that understands your codebase\n- **Wiki** (view) — human-readable articles compiled from the knowledge graph\n- **Blast radius** (view, future) — impact analysis rendered from the dependency graph\n",
+					"decisions/0023-lint-config-and-manifest-parsers-for-constitution.md": "# Decision: Lint-config and manifest parsers for constitution\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"decisions/0023-pii-and-code-content-scrubbing-library.md": "# Decision: PII and code-content scrubbing library\n\n> Status: **proposed**\n\n## Context\n\nWhat is the issue that we're seeing that is motivating this decision or change?\n\n[NEEDS CLARIFICATION] Describe the context.\n\n## Decision\n\nWhat is the change that we're proposing and/or doing?\n\n[NEEDS CLARIFICATION] Describe the decision.\n\n## Rationale\n\nWhat becomes easier or more difficult to do because of this change?\n\n### Positive\n\n- [NEEDS CLARIFICATION]\n\n### Negative\n\n- [NEEDS CLARIFICATION]\n\n### Neutral\n\n- [NEEDS CLARIFICATION]\n",
+					"features/038-cookbook-pages.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - 4 cookbook MDX pages in docs - Sidebar section ### Out of Scope - Example repos (future) - Video tutorials\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/038-lock-docs-numbers.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Build script that counts from source - stats.json output - Landing page reads from stats.json ### Out of Scope - CI check for hand-typed counts (future)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"features/038-mcp-install-badges.md": "# Feature: Implementation Plan\n\n## Scope\n\n### In Scope - Three badge components in the Hero - Claude Code: `claude mcp add-json maina '{\"command\":\"maina\",\"args\":[\"--mcp\"]}'` - Cursor: deeplink `cursor://anysphere.cursor-deeplink/mcp/install?name=maina&config=<base64>` - Windsurf: copy MCP config to clipboard with toast notification ### Out of Scope - Other IDEs (Cline, Roo, etc.) — future issue - Badge click analytics (needs telemetry first)\n\n## Status\n\n- **Branch:** _none_\n- **PR:** _none_\n- **Merged:** no\n",
+					"architecture/three-engines.md": "# Architecture: Three Engines\n\n> Auto-generated architecture article describing the three-engine pattern.\n\nMaina's core is organized around three engines that work together:\n\n1. **Context Engine** (`context/`) — Observes the codebase via 4-layer retrieval (Working, Episodic, Semantic, Retrieval), PageRank scoring, and dynamic token budgets.\n2. **Prompt Engine** (`prompts/`) — Learns from project conventions via constitution loading, custom prompts, versioning, and A/B-tested evolution.\n3. **Verify Engine** (`verify/`) — Verifies AI-generated code via a multi-stage pipeline: syntax guard, parallel tools, diff filter, AI fix, and two-stage review.\n\n## Context Engine\n\nSource files (`packages/core/src/context/`):\n\n- `budget.ts`\n- `engine.ts`\n- `episodic.ts`\n- `relevance.ts`\n- `retrieval.ts`\n- `selector.ts`\n- `semantic.ts`\n- `treesitter.ts`\n- `wiki.ts`\n- `working.ts`\n\n## Prompts Engine\n\nSource files (`packages/core/src/prompts/`):\n\n- `engine.ts`\n- `evolution.ts`\n- `loader.ts`\n\n",
+					"architecture/verification-pipeline.md": "# Architecture: Verification Pipeline\n\n> Auto-generated architecture article listing all verify tools.\n\nThe verification pipeline runs a multi-stage process to prove AI-generated code is correct before it merges.\n\n## Pipeline Stages\n\n1. **Syntax Guard** — Fast linting (<500ms)\n2. **Parallel Deterministic Tools** — Semgrep, Trivy, Secretlint, SonarQube, coverage, mutation\n3. **Diff-Only Filter** — Only report findings on changed lines\n4. **AI Fix** — Automatic fix suggestions\n5. **Two-Stage AI Review** — Spec compliance, then code quality\n\n## Verify Tools\n\n- **ai-review** — Two-stage AI review (spec compliance + code quality)\n- **builtin** — Built-in verification checks\n- **consistency** — Code consistency analysis\n- **coverage** — Code coverage tracking via diff-cover\n- **detect** — Language and tool detection\n- **diff-filter** — Diff-only filter — only report findings on changed lines\n- **fix** — AI-powered automatic fix suggestions\n- **lighthouse** — Lighthouse performance audits\n"
+				}
+			},
+			"output": {
+				"architecture": "# Architecture: Three Engines\n\n> Auto-generated architecture article describing the three-engine pattern.\n\nMaina's core is organized around three engines that work together:\n\n1. **Context Engine** (`context/`) — Observes the codebase via 4-layer retrieval (Working, Episodic, Semantic, Retrieval), PageRank scoring, and dynamic token budgets.\n2. **Prompt Engine** (`prompts/`) — Learns from project conventions via constitution loading, custom prompts, versioning, and A/B-tested evolution.\n3. **Verify Engine** (`verify/`) — Verifies AI-generated code via a multi-stage pipeline: syntax guard, parallel tools, diff filter, AI fix, and two-stage review.\n\n## Context Engine\n\nSource files (`packages/core/src/context/`):\n\n- `budget.ts`\n- `engine.ts`\n- `episodic.ts`\n- `relevance.ts`\n- `retrieval.ts`\n- `selector.ts`\n- `semantic.ts`\n- `treesitter.ts`\n- `wiki.ts`\n- `working.ts`\n\n## Prompts Engine\n\nSource files (`packages/core/src/prompts/`):\n\n- `engine.ts`\n- `evolution.ts`\n- `loader.ts`\n\n\n\n---\n\n# Architecture: Verification Pipeline\n\n> Auto-generated architecture article listing all verify tools.\n\nThe verification pipeline runs a multi-stage process to prove AI-generated code is correct before it merges.\n\n## Pipeline Stages\n\n1. **Syntax Guard** — Fast linting (<500ms)\n2. **Parallel Deterministic Tools** — Semgrep, Trivy, Secretlint, SonarQube, coverage, mutation\n3. **Diff-Only Filter** — Only report findings on changed lines\n4. **AI Fix** — Automatic fix suggestions\n5. **Two-Stage AI Review** — Spec compliance, then code quality\n\n## Verify Tools\n\n- **ai-review** — Two-stage AI review (spec compliance + code quality)\n- **builtin** — Built-in verification checks\n- **consistency** — Code consistency analysis\n- **coverage** — Code coverage tracking via diff-cover\n- **detect** — Language and tool detection\n- **diff-filter** — Diff-only filter — only report findings on changed lines\n- **fix** — AI-powered automatic fix suggestions\n- **lighthouse** — Lighthouse performance audits\n",
+				"moduleCount": 3,
+				"decisionCount": 3,
+				"recentFeatures": [
+					"038-mcp-install-badges: Feature: Implementation Plan",
+					"038-lock-docs-numbers: Feature: Implementation Plan",
+					"038-cookbook-pages: Feature: Implementation Plan"
+				]
+			}
+		}
+	]
+}

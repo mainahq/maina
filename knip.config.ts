@@ -15,7 +15,7 @@ const config: KnipConfig = {
 		"packages/core": {
 			entry: ["src/index.ts"],
 			project: ["src/**/*.ts"],
-			ignore: ["src/**/__tests__/**"],
+			ignore: ["src/**/__tests__/**", "src/__golden__/**"],
 		},
 		"packages/runtime": {
 			entry: ["src/**/__tests__/**/*.test.ts"],

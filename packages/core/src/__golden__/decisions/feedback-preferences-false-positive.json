@@ -1,0 +1,2457 @@
+{
+	"site": "feedback/preferences.ts#false-positive",
+	"cases": [
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/console-log",
+					"dismissCount": 18,
+					"totalCount": 28,
+					"falsePositiveRate": 0.6428571428571429
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					}
+				]
+			},
+			"output": []
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/console-log",
+					"dismissCount": 18,
+					"totalCount": 28,
+					"falsePositiveRate": 0.6428571428571429
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": []
+			},
+			"output": []
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": []
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": []
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/commented-code",
+					"dismissCount": 5,
+					"totalCount": 5,
+					"falsePositiveRate": 1
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/hallucinated-import",
+					"dismissCount": 3,
+					"totalCount": 5,
+					"falsePositiveRate": 0.6
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					}
+				]
+			},
+			"output": []
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					}
+				]
+			},
+			"output": []
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/empty-body",
+					"dismissCount": 4,
+					"totalCount": 7,
+					"falsePositiveRate": 0.5714285714285714
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					}
+				]
+			},
+			"output": []
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/commented-code",
+					"dismissCount": 5,
+					"totalCount": 9,
+					"falsePositiveRate": 0.5555555555555556
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					}
+				]
+			},
+			"output": []
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "biome/lint/suspicious/noExplicitAny",
+					"dismissCount": 7,
+					"totalCount": 13,
+					"falsePositiveRate": 0.5384615384615384
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					}
+				]
+			},
+			"output": []
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/empty-body",
+					"dismissCount": 10,
+					"totalCount": 11,
+					"falsePositiveRate": 0.9090909090909091
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/todo-without-ticket",
+					"dismissCount": 26,
+					"totalCount": 51,
+					"falsePositiveRate": 0.5098039215686274
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					}
+				]
+			},
+			"output": []
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "biome/lint/suspicious/noExplicitAny",
+					"dismissCount": 5,
+					"totalCount": 5,
+					"falsePositiveRate": 1
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/hallucinated-import",
+					"dismissCount": 5,
+					"totalCount": 6,
+					"falsePositiveRate": 0.8333333333333334
+				},
+				{
+					"ruleId": "biome/lint/suspicious/noExplicitAny",
+					"dismissCount": 6,
+					"totalCount": 8,
+					"falsePositiveRate": 0.75
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/todo-without-ticket",
+					"dismissCount": 4,
+					"totalCount": 5,
+					"falsePositiveRate": 0.8
+				},
+				{
+					"ruleId": "slop/commented-code",
+					"dismissCount": 5,
+					"totalCount": 7,
+					"falsePositiveRate": 0.7142857142857143
+				},
+				{
+					"ruleId": "slop/hallucinated-import",
+					"dismissCount": 6,
+					"totalCount": 9,
+					"falsePositiveRate": 0.6666666666666666
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/empty-body",
+					"dismissCount": 4,
+					"totalCount": 6,
+					"falsePositiveRate": 0.6666666666666666
+				},
+				{
+					"ruleId": "slop/todo-without-ticket",
+					"dismissCount": 5,
+					"totalCount": 8,
+					"falsePositiveRate": 0.625
+				},
+				{
+					"ruleId": "slop/commented-code",
+					"dismissCount": 6,
+					"totalCount": 10,
+					"falsePositiveRate": 0.6
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/console-log",
+					"dismissCount": 4,
+					"totalCount": 7,
+					"falsePositiveRate": 0.5714285714285714
+				},
+				{
+					"ruleId": "slop/empty-body",
+					"dismissCount": 5,
+					"totalCount": 9,
+					"falsePositiveRate": 0.5555555555555556
+				},
+				{
+					"ruleId": "slop/todo-without-ticket",
+					"dismissCount": 6,
+					"totalCount": 6,
+					"falsePositiveRate": 1
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/console-log",
+					"dismissCount": 5,
+					"totalCount": 5,
+					"falsePositiveRate": 1
+				},
+				{
+					"ruleId": "slop/empty-body",
+					"dismissCount": 6,
+					"totalCount": 7,
+					"falsePositiveRate": 0.8571428571428571
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/console-log",
+					"dismissCount": 6,
+					"totalCount": 8,
+					"falsePositiveRate": 0.75
+				},
+				{
+					"ruleId": "biome/lint/suspicious/noExplicitAny",
+					"dismissCount": 4,
+					"totalCount": 6,
+					"falsePositiveRate": 0.6666666666666666
+				}
+			]
+		},
+		{
+			"site": "feedback/preferences.ts#false-positive",
+			"input": {
+				"events": [
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/console-log",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/empty-body",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/todo-without-ticket",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/commented-code",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "slop/hallucinated-import",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "acknowledge"
+					},
+					{
+						"ruleId": "biome/lint/suspicious/noExplicitAny",
+						"action": "dismiss"
+					}
+				]
+			},
+			"output": [
+				{
+					"ruleId": "slop/commented-code",
+					"dismissCount": 3,
+					"totalCount": 5,
+					"falsePositiveRate": 0.6
+				},
+				{
+					"ruleId": "slop/hallucinated-import",
+					"dismissCount": 4,
+					"totalCount": 7,
+					"falsePositiveRate": 0.5714285714285714
+				},
+				{
+					"ruleId": "biome/lint/suspicious/noExplicitAny",
+					"dismissCount": 5,
+					"totalCount": 9,
+					"falsePositiveRate": 0.5555555555555556
+				}
+			]
+		}
+	]
+}

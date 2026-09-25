@@ -1,0 +1,4 @@
+# Recorded fixture data, not source: golden decision inputs/outputs (#284).
+# They embed real diffs and code snippets, so slop/builtin checks misread them.
+packages/core/src/__golden__/decisions/
+scripts/golden-corpus/
