@@ -1,0 +1,59 @@
+name: Dogfood friction
+description: Friction found while building Maina with Maina (wrong deny/allow, crash, missing override, slow gate).
+labels: ["dogfood", "v1"]
+
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: P0 blocks the next v1 wave.
+      options:
+        - "P0: wrong allow, hook/gate crash, or no override path"
+        - "P1: wrong deny/ask that blocked normal work"
+        - "P2: slow, noisy or confusing"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - PreToolUse bootstrap hook (.maina/dogfood/hook-bootstrap.ts)
+        - Receipt check (Dogfood workflow / receipt-check)
+        - "bun run dogfood:receipt"
+        - maina verify / maina commit
+        - Weekly report
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: action
+    attributes:
+      label: Action and decision
+      description: The tool call or command, the verdict you got and the one you expected. Paste the matching `.maina/dogfood/log.jsonl` line if there is one (redact secrets).
+      placeholder: |
+        tool: Bash
+        action: git push origin v1/123-foo
+        got: deny (protected-push)
+        expected: allow (feature branch)
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround used
+      description: e.g. MAINA_DOGFOOD_OVERRIDE=1, ran the command by hand, skipped a step.

@@ -28,6 +28,9 @@ packages/core/src/feedback/__tests__/tmp-capture-*
 .maina/benchmarks/*.json
 !.maina/benchmarks/stories/
 .maina/wiki/.search-index.json
+# Dogfood bootstrap (#286): per-machine decision log + local receipts
+.maina/dogfood/log.jsonl
+.maina/dogfood/receipts/
 
 # Maina — shared files ARE tracked:
 # .maina/constitution.md
@@ -41,7 +44,10 @@ packages/docs/.astro/
 
 # Superpowers brainstorm sessions
 .superpowers/
-.claude/
+# Claude Code: local settings/worktrees stay private; the repo's shared
+# settings.json (dogfood PreToolUse hook, #286) is tracked.
+.claude/*
+!.claude/settings.json
 
 # Test-generated scratch directories and fixtures (wiki tmp dirs, language detect fixtures)
 packages/**/__tests__/tmp-*/
