@@ -125,6 +125,75 @@ describe("produceReceipt", () => {
 		expect(f.verifyCalls).toHaveLength(1);
 	});
 
+	// Review on #286: the cache keyed on HEAD alone, so a receipt written by
+	// pre-push before the PR existed (diffed against origin/master) was later
+	// published as the PR's receipt, and a failed receipt could never be redone.
+	test("does not reuse a local receipt computed against another base", async () => {
+		const OTHER = "c".repeat(40);
+		const noPr = {
+			"gh pr view --json number,headRefOid,baseRefName,title": {
+				code: 1,
+				stdout: "",
+				stderr: "no pull requests found",
+			},
+		};
+		const f = fake({
+			...noPr,
+			"git fetch --quiet origin master": { code: 0, stdout: "", stderr: "" },
+			"git merge-base origin/master HEAD": {
+				code: 0,
+				stdout: `${OTHER}\n`,
+				stderr: "",
+			},
+			[`git diff --name-only --diff-filter=d ${OTHER} HEAD`]: {
+				code: 0,
+				stdout: "README.md\n",
+				stderr: "",
+			},
+		});
+		const prePush = await produceReceipt({ publish: false }, f.ports);
+		expect(prePush.ok && prePush.value.receipt.base).toBe(OTHER);
+
+		// The PR now exists against v1/main: same HEAD, different merge-base.
+		const g = fake();
+		for (const [k, v] of f.files) g.files.set(k, v);
+		const r = await produceReceipt({ publish: true }, g.ports);
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		expect(r.value.reused).toBe(false);
+		expect(r.value.receipt.base).toBe(BASE);
+		expect(g.verifyCalls).toHaveLength(1);
+		expect(parseReceiptComment(g.comments[0] ?? "")?.base).toBe(BASE);
+	});
+
+	test("does not reuse a failed local receipt", async () => {
+		const f = fake(
+			{},
+			{ status: "failed", receiptHash: null, passed: 0, total: 0 },
+		);
+		await produceReceipt({ publish: false }, f.ports);
+		const g = fake();
+		for (const [k, v] of f.files) g.files.set(k, v);
+		const r = await produceReceipt({ publish: true }, g.ports);
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		expect(r.value.reused).toBe(false);
+		expect(r.value.receipt.status).toBe("passed");
+		expect(g.verifyCalls).toHaveLength(1);
+	});
+
+	test("the PR base wins over --base / MAINA_BASE when a PR exists", async () => {
+		const f = fake();
+		const r = await produceReceipt(
+			{ publish: true, base: "origin/master" },
+			f.ports,
+		);
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value.receipt.base).toBe(BASE);
+		expect(f.calls).toContain("git merge-base origin/v1/main HEAD");
+		expect(f.calls).not.toContain("git merge-base origin/master HEAD");
+	});
+
 	test("--no-publish writes locally and never comments", async () => {
 		const f = fake();
 		const r = await produceReceipt({ publish: false }, f.ports);

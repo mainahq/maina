@@ -172,15 +172,45 @@ function tokenize(segment: string): readonly string[] {
 	for (const m of segment.matchAll(re)) {
 		tokens.push(m[1] ?? m[2] ?? m[3] ?? "");
 	}
-	return tokens;
+	// Subshell parens hug their first/last word: `(rm -rf /)`.
+	if (tokens.length > 0) {
+		tokens[0] = (tokens[0] ?? "").replace(/^\(+/, "");
+		const last = tokens.length - 1;
+		tokens[last] = (tokens[last] ?? "").replace(/\)+$/, "");
+	}
+	return tokens.filter((t) => t.length > 0);
 }
 
+/**
+ * Leading words that run the rest of the segment as a command: wrappers,
+ * negation, brace groups and compound-statement keywords.
+ */
 const WRAPPERS: ReadonlySet<string> = new Set([
 	"time",
 	"nohup",
 	"exec",
 	"command",
 	"builtin",
+	"!",
+	"{",
+	"if",
+	"then",
+	"elif",
+	"else",
+	"while",
+	"until",
+	"do",
+]);
+
+/** Commands whose relative path arguments depend on the working directory. */
+const PATH_SENSITIVE: ReadonlySet<string> = new Set([
+	"rm",
+	"cp",
+	"mv",
+	"tee",
+	"touch",
+	"chmod",
+	"chown",
 ]);
 
 /** Drop leading `VAR=x` assignments and trivial wrappers. */
@@ -289,9 +319,21 @@ function checkSegment(
 	const cmd = basename(exe);
 	const sub = args[0] ?? "";
 
-	// Nested shells: evaluate the inner script too.
-	if (/^(ba|z)?sh$/.test(cmd) && args[0] === "-c" && args[1]) {
-		return evaluateShell(args[1], cwd, ctx);
+	// Nested shells (`sh -c`, `bash -lc`, `sh -e -c`) and eval: evaluate the
+	// inner script too.
+	if (/^(ba|z|da|k)?sh$/.test(cmd)) {
+		const ci = args.findIndex((a) => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(a));
+		const script = args[ci + 1];
+		if (
+			ci >= 0 &&
+			script &&
+			args.slice(0, ci).every((a) => a.startsWith("-"))
+		) {
+			return evaluateShell(script, cwd, ctx);
+		}
+	}
+	if (cmd === "eval" && args.length > 0) {
+		return evaluateShell(args.join(" "), cwd, ctx);
 	}
 	if (cmd === "sudo" || cmd === "doas") {
 		return deny("destructive-shell", `privilege escalation (${cmd})`);
@@ -382,30 +424,95 @@ function checkSegment(
 	return undefined;
 }
 
+const REDIRECT_RE =
+	/(?:\d|&)?>>?(?:&\d+|\s*(?:"[^"]*"|'[^']*'|[^\s;&|()<>]+))/g;
+
+const isRelative = (p: string, home: string): boolean =>
+	!isAbsolute(expandHome(p, home));
+
+/**
+ * Where a `cd`/`pushd` segment moves to: a path, `undefined` when the hook
+ * cannot resolve it (variables, substitution, `cd -`), or `null` when the
+ * segment is not a directory change.
+ */
+function cdTarget(
+	tokens: readonly string[],
+	cwd: string | undefined,
+	home: string,
+): string | undefined | null {
+	const [exe = "", ...args] = stripPrefix(tokens);
+	const cmd = basename(exe);
+	if (cmd !== "cd" && cmd !== "pushd") return null;
+	if (args.includes("-")) return undefined; // `cd -`: previous directory
+	const target = positional(args)[0] ?? "~";
+	if (/[$`]/.test(expandHome(target, home))) return undefined;
+	if (cwd === undefined && isRelative(target, home)) return undefined;
+	return resolveFrom(target, cwd ?? "/", home);
+}
+
 function evaluateShell(
 	command: string,
-	cwd: string,
+	cwd0: string,
 	ctx: HookContext,
 ): Decision | undefined {
 	if (/:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/.test(command)) {
 		return deny("destructive-shell", "fork bomb");
 	}
-	for (const target of redirectTargets(command)) {
-		if (isSecretPath(target)) return deny("secrets", `redirect to ${target}`);
-		if (!isWritable(resolveFrom(target, cwd, ctx.home), ctx)) {
-			return deny("write-outside-repo", `redirect to ${target}`);
-		}
-	}
-	// Remove redirections before tokenising so `> file` is not an argument.
-	const stripped = command.replace(
-		/(?:\d|&)?>>?(?:&\d+|\s*(?:"[^"]*"|'[^']*'|[^\s;&|()<>]+))/g,
-		" ",
-	);
-	for (const segment of splitSegments(stripped)) {
-		const d = checkSegment(tokenize(segment), cwd, ctx);
+	// A deny anywhere wins; the first ask is kept in case nothing denies.
+	let pending: Decision | undefined;
+	const consider = (d: Decision | undefined): Decision | undefined => {
+		if (d?.verdict === "deny") return d;
+		pending ??= d;
+		return undefined;
+	};
+
+	// Command substitution runs too: `$(...)` and backticks.
+	for (const m of command.matchAll(/\$\(([^()]*)\)|`([^`]*)`/g)) {
+		const inner = (m[1] ?? m[2] ?? "").trim();
+		if (inner.length === 0) continue;
+		const d = consider(evaluateShell(inner, cwd0, ctx));
 		if (d) return d;
 	}
-	return undefined;
+
+	// Track `cd` across segments; `undefined` means "unknown directory".
+	let cwd: string | undefined = cwd0;
+	for (const segment of splitSegments(command)) {
+		const targets = redirectTargets(segment);
+		// Remove redirections before tokenising so `> file` is not an argument.
+		const tokens = tokenize(segment.replace(REDIRECT_RE, " "));
+		const next = cdTarget(tokens, cwd, ctx.home);
+		if (next !== null) {
+			cwd = next;
+			continue;
+		}
+		for (const target of targets) {
+			if (isSecretPath(target)) return deny("secrets", `redirect to ${target}`);
+			if (cwd === undefined && isRelative(target, ctx.home)) {
+				consider({
+					verdict: "ask",
+					reason: `write-outside-repo: redirect to ${target} after an unresolvable cd`,
+				});
+			} else if (!isWritable(resolveFrom(target, cwd ?? cwd0, ctx.home), ctx)) {
+				return deny("write-outside-repo", `redirect to ${target}`);
+			}
+		}
+		const [exe = "", ...args] = stripPrefix(tokens);
+		let checked = tokens;
+		if (cwd === undefined && PATH_SENSITIVE.has(basename(exe))) {
+			const relative = positional(args).filter((a) => isRelative(a, ctx.home));
+			if (relative.length > 0) {
+				consider({
+					verdict: "ask",
+					reason: `destructive-shell: ${basename(exe)} ${relative.join(" ")} after an unresolvable cd`,
+				});
+				// Absolute-path rules still apply to the remaining arguments.
+				checked = [exe, ...args.filter((a) => !relative.includes(a))];
+			}
+		}
+		const d = consider(checkSegment(checked, cwd ?? cwd0, ctx));
+		if (d) return d;
+	}
+	return pending;
 }
 
 function contentOf(input: Readonly<Record<string, unknown>>): string {

@@ -157,3 +157,26 @@ describe("selectReceipt", () => {
 		if (!r.ok) expect(r.error.code).toBe("missing");
 	});
 });
+
+describe("receipt-check CLI", () => {
+	// Review on #286: an exception (gh missing, bad JSON) escaped main() and
+	// failed the job even in report-only mode.
+	const script = new URL("../receipt-check.ts", import.meta.url).pathname;
+	const run = async (args: readonly string[]): Promise<number> => {
+		const proc = Bun.spawn([process.execPath, script, ...args], {
+			// No PATH: spawning `gh` throws instead of returning an exit code.
+			env: { PATH: "" },
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		return proc.exited;
+	};
+
+	test("a crash is report-only by default (exit 0)", async () => {
+		expect(await run(["--pr", "1"])).toBe(0);
+	});
+
+	test("a crash fails the check under --enforce (exit 1)", async () => {
+		expect(await run(["--pr", "1", "--enforce"])).toBe(1);
+	});
+});

@@ -137,6 +137,68 @@ describe("evaluate: deny list", () => {
 	}
 });
 
+describe("evaluate: shell structure cannot hide a denied command", () => {
+	// Review on #286: `cd` changed the effective directory without the hook
+	// noticing, and subshells, groups, command substitution, `if/then`,
+	// `eval` and combined `sh -lc` flags all let a deny-list command through.
+	const denied: ReadonlyArray<readonly [string, string]> = [
+		["cd .. then rm -rf the repo", "cd .. && rm -rf maina"],
+		["cd ~ then rm -rf", "cd ~ && rm -rf Documents"],
+		["cd / then rm -rf", "cd / && rm -rf usr"],
+		["cd outside then redirect", "cd /etc && echo x > hosts"],
+		["cd outside then touch", "cd .. && touch other.txt"],
+		["subshell", "(rm -rf /)"],
+		["brace group", "{ rm -rf ~; }"],
+		["$() substitution", "echo $(rm -rf ~)"],
+		["backtick substitution", "echo `rm -rf ~`"],
+		["if/then body", "if true; then rm -rf ~; fi"],
+		["bash -lc", "bash -lc 'rm -rf ~'"],
+		["sh -e -c", "sh -e -c 'git push origin master'"],
+		["eval", "eval 'rm -rf ~'"],
+		["negation", "! git push origin master"],
+		["deny wins over an earlier ask", 'cd "$DIR" && ls; rm -rf /'],
+	];
+	for (const [name, command] of denied) {
+		test(`denies: ${name}`, () => {
+			expect(evaluate(bash(command), ctx).verdict).toBe("deny");
+		});
+	}
+
+	test("asks when a relative rm follows a cd the hook cannot resolve", () => {
+		expect(evaluate(bash('cd "$DIR" && rm -rf build'), ctx).verdict).toBe(
+			"ask",
+		);
+		expect(evaluate(bash('cd "$TMP" && rm -rf .'), ctx).verdict).toBe("ask");
+		expect(evaluate(bash("cd - && echo x > out.txt"), ctx).verdict).toBe("ask");
+	});
+
+	test("absolute targets still deny after an unresolvable cd", () => {
+		expect(evaluate(bash('cd "$DIR" && rm -rf build /'), ctx).verdict).toBe(
+			"deny",
+		);
+	});
+
+	const allowed: ReadonlyArray<readonly [string, string]> = [
+		["subshell cd in repo", "(cd packages/cli && bun test)"],
+		["cd in repo then rm", "cd packages && rm -rf build"],
+		["cd tmp then rm", "cd /tmp && rm -rf maina-x"],
+		["unresolvable cd, harmless command", 'cd "$DIR" && bun test'],
+		[
+			"commit message with scope and .env mention",
+			'git commit -m "fix(core): ignore .env.local (see docs)"',
+		],
+		[
+			"heredoc commit message",
+			"git commit -m \"$(cat <<'EOF'\nfeat(ci): x\n\nbody line\nEOF\n)\"",
+		],
+	];
+	for (const [name, command] of allowed) {
+		test(`allows: ${name}`, () => {
+			expect(evaluate(bash(command), ctx).verdict).toBe("allow");
+		});
+	}
+});
+
 describe("evaluate: benign commands are left alone", () => {
 	const allowed: ReadonlyArray<readonly [string, HookInput]> = [
 		["bun test", bash("bun test scripts/dogfood")],

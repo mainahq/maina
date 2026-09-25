@@ -8,7 +8,8 @@
  * 2. Finds the current branch's PR (`gh pr view`) and checks HEAD is pushed.
  * 3. Runs the maina 1.x verify pipeline (`maina receipt`) over the files the
  *    PR changes versus its merge-base, and writes a local dogfood receipt to
- *    `.maina/dogfood/receipts/<sha>.json` (reused if it already exists).
+ *    `.maina/dogfood/receipts/<sha>.json` (reused only if it passed against
+ *    the same merge-base).
  * 4. Publishes the receipt to the PR as a comment and re-runs the Dogfood
  *    check so `receipt-check` sees it for the PR head.
  *
@@ -119,12 +120,10 @@ async function currentPr(ports: ReceiptPorts): Promise<PrInfo | undefined> {
 	}
 }
 
-async function verifyHead(
-	head: string,
+async function mergeBase(
 	baseRef: string,
-	title: string,
 	ports: ReceiptPorts,
-): Promise<Result<DogfoodReceipt, ReceiptError>> {
+): Promise<Result<string, ReceiptError>> {
 	if (baseRef.startsWith("origin/")) {
 		// Best effort: offline pushes still verify against the local ref.
 		await ports.exec([
@@ -139,7 +138,15 @@ async function verifyHead(
 	if (mb.code !== 0) {
 		return fail("no-base", `Cannot find merge-base with ${baseRef}.`);
 	}
-	const base = mb.stdout.trim();
+	return { ok: true, value: mb.stdout.trim().toLowerCase() };
+}
+
+async function verifyHead(
+	head: string,
+	base: string,
+	title: string,
+	ports: ReceiptPorts,
+): Promise<Result<DogfoodReceipt, ReceiptError>> {
 	const diff = await ports.exec([
 		"git",
 		"diff",
@@ -272,13 +279,25 @@ export async function produceReceipt(
 		);
 	}
 
+	// The PR's own base wins; --base / MAINA_BASE only apply without a PR.
+	const baseRef = pr
+		? `origin/${pr.baseRefName}`
+		: (opts.base ?? "origin/master");
+	const mb = await mergeBase(baseRef, ports);
+	if (!mb.ok) return mb;
+	const base = mb.value;
+
+	// Reuse a local receipt only if it attests the same commit over the same
+	// diff (merge-base) and passed; anything else is re-verified.
 	const path = `${ports.root}/.maina/dogfood/receipts/${head}.json`;
 	const cached = (() => {
 		const text = ports.readFile(path);
 		if (!text) return undefined;
 		try {
 			const r = asReceipt(JSON.parse(text));
-			return r?.commit === head ? r : undefined;
+			return r?.commit === head && r.base === base && r.status === "passed"
+				? r
+				: undefined;
 		} catch {
 			return undefined;
 		}
@@ -288,10 +307,8 @@ export async function produceReceipt(
 	if (cached) {
 		receipt = cached;
 	} else {
-		const baseRef =
-			opts.base ?? (pr ? `origin/${pr.baseRefName}` : "origin/master");
 		const title = pr?.title ?? `commit ${head.slice(0, 12)}`;
-		const v = await verifyHead(head, baseRef, title, ports);
+		const v = await verifyHead(head, base, title, ports);
 		if (!v.ok) return v;
 		receipt = v.value;
 		ports.writeFile(path, `${JSON.stringify(receipt, null, 2)}\n`);

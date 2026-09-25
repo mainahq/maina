@@ -272,5 +272,15 @@ async function main(): Promise<number> {
 }
 
 if (import.meta.main) {
-	process.exitCode = await main();
+	try {
+		process.exitCode = await main();
+	} catch (e) {
+		// Report-only must stay green even when gh or its output breaks.
+		const msg = e instanceof Error ? e.message : String(e);
+		const enforce = process.argv.includes("--enforce");
+		process.stdout.write(
+			`::${enforce ? "error" : "warning"} title=Dogfood receipt::receipt-check crashed: ${msg}\n`,
+		);
+		process.exitCode = enforce ? 1 : 0;
+	}
 }
