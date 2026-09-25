@@ -78,28 +78,35 @@ export async function indexRepo(
 	root: string,
 	options: GraphStoreOptions = {},
 ): Promise<Result<GraphSyncReport, GraphStoreError>> {
-	const listed = await listIndexable(ports, root);
-	if (!listed.ok) {
-		return {
-			ok: false,
-			error: {
-				kind: "fs",
-				path: listed.error.path,
-				message: listed.error.message,
-			},
-		};
-	}
-	const listedSet = new Set(listed.value);
 	// A stored path the listing no longer covers (deleted, newly ignored, or
 	// added by `updateFiles` outside the indexed set) is dropped, so the store
-	// matches what a fresh index would build.
+	// matches what a fresh index would build. Each attempt lists the repo
+	// again: a retry after a concurrent commit must not drop a file that
+	// commit added after an earlier listing.
 	const synced = await sync(
 		ports,
 		root,
-		(stored) => ({
-			examine: listed.value,
-			drop: stored.filter((p) => !listedSet.has(p)).sort(),
-		}),
+		async (stored) => {
+			const listed = await listIndexable(ports, root);
+			if (!listed.ok) {
+				return {
+					ok: false,
+					error: {
+						kind: "fs",
+						path: listed.error.path,
+						message: listed.error.message,
+					},
+				};
+			}
+			const listedSet = new Set(listed.value);
+			return {
+				ok: true,
+				value: {
+					examine: listed.value,
+					drop: stored.filter((p) => !listedSet.has(p)).sort(),
+				},
+			};
+		},
 		options,
 	);
 	if (!synced.ok) return synced;
@@ -144,7 +151,10 @@ export async function updateFiles(
 	return sync(
 		ports,
 		root,
-		() => ({ examine: [...new Set(relative)].sort(), drop: [] }),
+		async () => ({
+			ok: true,
+			value: { examine: [...new Set(relative)].sort(), drop: [] },
+		}),
 		options,
 	);
 }

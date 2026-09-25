@@ -427,8 +427,13 @@ const sorted = (xs: readonly string[]): readonly string[] => [...xs].sort();
 export async function sync(
 	ports: GraphStorePorts,
 	root: string,
-	/** Given the stored paths, the paths to examine and to drop. */
-	scopeOf: (storedPaths: readonly string[]) => Scope,
+	/**
+	 * Given the stored paths, the paths to examine and to drop. Called once
+	 * per attempt, so a retry scopes against the newer store and disk.
+	 */
+	scopeOf: (
+		storedPaths: readonly string[],
+	) => Promise<Result<Scope, GraphStoreError>>,
 	options: GraphStoreOptions,
 ): Promise<Result<GraphSyncReport, GraphStoreError>> {
 	const migrated = migrateGraphStore(ports.db);
@@ -437,10 +442,12 @@ export async function sync(
 	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 		const stored = loadStored(ports.db);
 		if (!stored.ok) return { ok: false, error: dbError(stored.error) };
+		const scope = await scopeOf([...stored.value.keys()]);
+		if (!scope.ok) return scope;
 		const planned = await plan(
 			ports,
 			root,
-			scopeOf([...stored.value.keys()]),
+			scope.value,
 			stored.value,
 			options.parse ?? parseFile,
 		);

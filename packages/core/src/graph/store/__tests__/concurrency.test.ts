@@ -112,11 +112,42 @@ describe("concurrent updateFiles", () => {
 		});
 
 		expect(result.ok).toBe(false);
-		if (!result.ok) expect(result.error.kind).toBe("conflict");
-		expect(commits).toBeGreaterThan(1);
+		if (!result.ok) {
+			expect(result.error).toEqual({ kind: "conflict", attempts: 3 });
+		}
+		expect(commits).toBe(3);
 		// The other writer's commits are intact.
 		expect(
 			snapshot(repo.db).files.find((f) => f.path === "src/value.ts")?.hash,
 		).toBe(hashOf(version(100 + commits)));
+	});
+});
+
+describe("concurrent indexRepo", () => {
+	test("a retried index lists the repo again, so it keeps a file a newer sync added", async () => {
+		const repo = createRepo({ "src/value.ts": version(0), "src/use.ts": USE });
+		unwrap(await indexRepo(repo.ports, ROOT));
+
+		// The index lists the repo, reads version 1, then stalls in the parser.
+		await repo.write("src/value.ts", version(1));
+		const gate = gatedParse();
+		const index = indexRepo(repo.ports, ROOT, { parse: gate.parse });
+		await gate.entered;
+
+		// A file created after that listing is added and committed meanwhile.
+		const extra = `export const extra = 1;\n`;
+		await repo.write("src/extra.ts", extra);
+		unwrap(await updateFiles(repo.ports, ROOT, ["src/extra.ts"]));
+
+		gate.release();
+		unwrap(await index);
+
+		expect(dumpTables(repo.db)).toEqual(
+			await rebuilt({
+				"src/value.ts": version(1),
+				"src/use.ts": USE,
+				"src/extra.ts": extra,
+			}),
+		);
 	});
 });
