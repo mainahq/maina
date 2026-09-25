@@ -385,18 +385,21 @@ describe("decision log", () => {
 	const SALT_A = "a".repeat(64);
 	const SALT_B = "b".repeat(64);
 
-	const stores: string[] = [];
+	const stores: Array<Readonly<{ dir: string; close: () => void }>> = [];
 	afterAll(() => {
-		for (const dir of stores) rmSync(dir, { recursive: true, force: true });
+		for (const { dir, close } of stores) {
+			close();
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	/** A fresh, migrated decision store per test, opened the way the CLI opens it. */
 	function decisionDb(): DbPort {
 		const dir = mkdtempSync(join(tmpdir(), "maina-gate-db-"));
-		stores.push(dir);
 		const store = openDecisionStore(dir);
 		if (!store.ok) throw new Error(store.error);
-		const { db } = store.value;
+		const { db, close } = store.value;
+		stores.push({ dir, close });
 		const migrated = migrateDecisionLog(db);
 		if (!migrated.ok) throw new Error(migrated.error.message);
 		return db;
