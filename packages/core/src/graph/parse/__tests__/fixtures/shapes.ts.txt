@@ -1,0 +1,56 @@
+import { readFile } from "node:fs/promises";
+import * as path from "node:path";
+import Base, { type Shape, format as fmt } from "./base";
+import type { Id } from "./ids";
+import "./polyfill";
+export { helper } from "./helper";
+export { default as Legacy, util } from "./legacy";
+export * from "./all";
+export * as geometry from "./geometry";
+
+export interface Named {
+	name: string;
+}
+
+export type Radius = number;
+
+export enum Color {
+	Red,
+	Green,
+}
+
+export function greet(who: Named): string {
+	return fmt(who.name);
+}
+
+export const area = (r: Radius): number => Math.PI * square(r);
+
+function square(x: number): number {
+	return x * x;
+}
+
+export class Circle extends Base implements Shape {
+	constructor(private readonly r: Radius) {
+		super();
+	}
+
+	area(): number {
+		return this.scale(square(this.r));
+	}
+
+	private scale(v: number): number {
+		return v;
+	}
+}
+
+abstract class Solid {
+	abstract volume(): number;
+}
+
+async function load(p: string): Promise<Circle> {
+	const text = await readFile(path.join("data", p), "utf8");
+	return new Circle(text.length);
+}
+
+export { load, Solid };
+export type { Id };

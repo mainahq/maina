@@ -1,0 +1,47 @@
+import os
+import os.path as osp
+from typing import List, Optional
+from .base import Base, Shape as S
+from . import util
+from .star import *
+
+
+def greet(name: str) -> str:
+    return util.format(name.strip())
+
+
+def _private() -> None:
+    pass
+
+
+class Circle(Base, S):
+    def __init__(self, r: float) -> None:
+        self.r = r
+
+    @property
+    def area(self) -> float:
+        return self.scale(square(self.r))
+
+    def scale(self, v: float) -> float:
+        return v
+
+
+def square(x: float) -> float:
+    return x * x
+
+
+def load(p: Optional[str]) -> List[Circle]:
+    text = open(osp.join("data", p)).read()
+    return [Circle(len(text))]
+
+
+def test_square():
+    assert square(2) == 4
+
+
+class TestCircle:
+    def test_area(self):
+        assert Circle(1).area > 0
+
+    def helper(self):
+        return None

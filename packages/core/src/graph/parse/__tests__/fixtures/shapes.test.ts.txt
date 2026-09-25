@@ -1,0 +1,20 @@
+import { describe, expect, it, test } from "bun:test";
+import { Circle, greet } from "./shapes";
+
+describe("greet", () => {
+	test("formats the name", () => {
+		expect(greet({ name: "a" })).toBe("a");
+	});
+
+	it.skip("is skipped", () => {});
+
+	test.each([1, 2])("case %i", (n) => {
+		expect(new Circle(n).area()).toBeGreaterThan(0);
+	});
+});
+
+describe.only("focused", () => {
+	it("runs", () => {});
+});
+
+test(dynamicName, () => {});

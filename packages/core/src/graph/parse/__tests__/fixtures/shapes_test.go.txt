@@ -1,0 +1,18 @@
+package shapes
+
+import "testing"
+
+func TestArea(t *testing.T) {
+	c := NewCircle(1)
+	if c.Area() <= 0 {
+		t.Fatal("area")
+	}
+}
+
+func BenchmarkArea(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		NewCircle(2).Area()
+	}
+}
+
+func helper() {}
