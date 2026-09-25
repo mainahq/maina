@@ -2,7 +2,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createFakeEnv } from "../../ports/testing";
+import { createProcessGit } from "../../git/index";
+import { systemFs } from "../../graph/system";
+import { createFakeEnv, createMemoryDb } from "../../ports/testing";
+import { systemProcess } from "../../process/index";
 import { assembleContext } from "../engine";
 
 // #390: these tests used to point `repoRoot` at process.cwd(), so every call
@@ -264,6 +267,64 @@ describe("assembleContext", () => {
 		expect(typeof result.budget.total).toBe("number");
 		expect(typeof result.budget.headroom).toBe("number");
 		expect(result.budget.total).toBeGreaterThan(0);
+	});
+
+	test("assembleContext('review') returns graph-derived semantic context", async () => {
+		const result = await assembleContext("review", {
+			repoRoot,
+			env: createFakeEnv(),
+			mainaDir: tempMainaDir,
+		});
+
+		const semantic = result.layers.find((l) => l.name === "semantic");
+		expect(semantic?.included).toBe(true);
+		expect(semantic?.tokens ?? 0).toBeGreaterThan(50);
+		expect(result.text).toContain("## Code Graph");
+		// A snippet of a touched file, read through the graph's line ranges.
+		expect(result.text).toContain("export function formatSum(");
+	});
+
+	test("no full-repo walk per call: the graph is listed once, then synced by path", async () => {
+		const git = createProcessGit(systemProcess);
+		const gitCalls: string[] = [];
+		const listings: string[] = [];
+		const graph = {
+			db: createMemoryDb(),
+			git: {
+				run: (root: string, args: readonly string[]) => {
+					gitCalls.push(args.join(" "));
+					return git.run(root, args);
+				},
+			},
+			fs: {
+				...systemFs,
+				readDir: (path: string) => {
+					listings.push(path);
+					return systemFs.readDir(path);
+				},
+			},
+		};
+		const lsFiles = () => gitCalls.filter((c) => c.startsWith("ls-files"));
+
+		const first = await assembleContext("review", {
+			repoRoot,
+			env: createFakeEnv(),
+			mainaDir: tempMainaDir,
+			graph,
+		});
+		expect(first.text).toContain("## Code Graph");
+		expect(lsFiles()).toHaveLength(1);
+
+		listings.length = 0;
+		const second = await assembleContext("review", {
+			repoRoot,
+			env: createFakeEnv(),
+			mainaDir: tempMainaDir,
+			graph,
+		});
+		expect(second.text).toContain("## Code Graph");
+		expect(lsFiles()).toHaveLength(1);
+		expect(listings).toEqual([]);
 	});
 
 	test("modelContextWindow option reduces output budget", async () => {

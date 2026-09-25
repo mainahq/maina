@@ -45,7 +45,7 @@ const CONTEXT_NEEDS: Record<MainaCommand, ContextNeeds> = {
 	review: {
 		working: true,
 		episodic: ["past-reviews"],
-		semantic: ["adrs"],
+		semantic: ["adrs", "graph"],
 		retrieval: false,
 		wiki: true,
 	},

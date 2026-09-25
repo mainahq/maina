@@ -8,13 +8,20 @@
  *
  * Request handling lives behind ports: `gate` answers `hook.evaluate`, and the
  * optional `handlers` answer `decide`, `graph.query` and `verify.run`. A
- * method without a port answers `not_implemented`.
+ * method without a port answers `not_implemented`. The optional `observe`
+ * port sees each hook event first and runs background work beside the gate,
+ * such as the graph hooks' incremental syncs (FR-GRAPH-2).
  */
 
 import { chmodSync, rmSync } from "node:fs";
 import type { Result } from "@mainahq/core";
 import type { Socket, UnixSocketListener } from "bun";
-import { type GateEvaluator, parseGateDecision, parseGateEvent } from "./gate";
+import {
+	type GateEvaluator,
+	type GateEvent,
+	parseGateDecision,
+	parseGateEvent,
+} from "./gate";
 import {
 	createLineSplitter,
 	createWriter,
@@ -48,6 +55,12 @@ export type RequestHandler = (params: unknown) => unknown;
 export type RuntimePorts = Readonly<{
 	gate: GateEvaluator;
 	handlers?: Readonly<Partial<Record<DelegatedMethod, RequestHandler>>>;
+	/**
+	 * Sees every valid hook event before the gate evaluates it, for background
+	 * work such as keeping the code graph current (FR-GRAPH-2). Returns the
+	 * work's promise, or null for none.
+	 */
+	observe?: (event: GateEvent) => Promise<unknown> | null;
 }>;
 
 type RuntimeConfig = Readonly<{
@@ -121,9 +134,11 @@ function encodeSafely(response: Response): string {
 async function evaluateHook(
 	gate: GateEvaluator,
 	params: unknown,
+	observe: (event: GateEvent) => void,
 ): Promise<Outcome> {
 	const event = parseGateEvent(params);
 	if (event === null) return rpcError("bad_request", "invalid gate event");
+	observe(event);
 	const ran = await runPort(() => gate(event));
 	if (!ran.ok) return ran;
 	const decision = parseGateDecision(ran.value);
@@ -196,12 +211,33 @@ export function startRuntime(
 		idleTtlMs,
 	});
 
+	/**
+	 * Hands an event to the observer port without waiting for its work,
+	 * which keeps the runtime from going idle until it finishes. An observer
+	 * that throws or rejects never affects the gate.
+	 */
+	const observe = (event: GateEvent): void => {
+		if (!ports.observe) return;
+		let work: Promise<unknown> | null;
+		try {
+			work = ports.observe(event);
+		} catch {
+			return;
+		}
+		if (work === null) return;
+		idle.begin();
+		work.then(
+			() => idle.end(),
+			() => idle.end(),
+		);
+	};
+
 	const dispatch = (req: Request): Promise<Outcome> => {
 		switch (req.method) {
 			case "status":
 				return Promise.resolve({ ok: true, value: status() });
 			case "hook.evaluate":
-				return evaluateHook(ports.gate, req.params);
+				return evaluateHook(ports.gate, req.params, observe);
 			case "decide":
 			case "graph.query":
 			case "verify.run": {

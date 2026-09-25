@@ -13,7 +13,7 @@
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { dirname, join } from "node:path";
 import { resolveModel } from "../ai/tiers";
 import { validateAIOutput } from "../ai/validate";
 import type { Config } from "../config/schema";
@@ -30,6 +30,12 @@ import {
 	dismissFinding,
 	getNoisyRules,
 } from "../feedback/preferences";
+import { indexRepo, readGraph } from "../graph/store/index";
+import {
+	createFakeGit,
+	createMemoryDb,
+	createMemoryFs,
+} from "../ports/testing";
 import { reviewCodeQuality, reviewSpecCompliance } from "../review/index";
 import { detectSlop } from "../verify/slop";
 import {
@@ -296,28 +302,39 @@ async function runWiki(input: WikiInput): Promise<unknown> {
 	});
 }
 
+/**
+ * PageRank over the code graph's file edges (FR-GRAPH-5): the files are
+ * indexed into an in-memory graph store, which walks them (no git), and
+ * `buildGraph` projects the stored graph onto files. Paths are repo-relative.
+ */
 async function runRelevance(input: RelevanceInput): Promise<unknown> {
-	return withTempDir(async (dir) => {
-		writeTree(dir, input.files);
-		const abs = (p: string): string => join(dir, p);
-		const rel = (p: string): string => relative(dir, p);
-		const graph = await buildGraph(Object.keys(input.files).map(abs));
-		const scores = scoreRelevance(graph, {
-			touchedFiles: input.touchedFiles.map(abs),
-			mentionedFiles: input.mentionedFiles.map(abs),
-			currentTicketTerms: [],
-		});
-		const edges: Array<[string, string, number]> = [];
-		for (const [source, targets] of graph.edges) {
-			for (const [target, weight] of targets) {
-				edges.push([rel(source), rel(target), weight]);
-			}
-		}
-		return {
-			edges,
-			scores: [...scores].map(([file, score]) => [rel(file), score]),
-		};
+	const root = "/golden";
+	const ports = {
+		fs: createMemoryFs(
+			Object.fromEntries(
+				Object.entries(input.files).map(([p, c]) => [`${root}/${p}`, c]),
+			),
+		),
+		git: createFakeGit(),
+		db: createMemoryDb(),
+	};
+	const indexed = await indexRepo(ports, root);
+	if (!indexed.ok) return { error: indexed.error };
+	const snapshot = readGraph(ports.db);
+	if (!snapshot.ok) return { error: snapshot.error };
+	const graph = buildGraph(snapshot.value);
+	const scores = scoreRelevance(graph, {
+		touchedFiles: input.touchedFiles,
+		mentionedFiles: input.mentionedFiles,
+		currentTicketTerms: [],
 	});
+	const edges: Array<[string, string, number]> = [];
+	for (const [source, targets] of graph.edges) {
+		for (const [target, weight] of targets) {
+			edges.push([source, target, weight]);
+		}
+	}
+	return { edges, scores: [...scores] };
 }
 
 function runTiers(input: TiersInput): unknown {

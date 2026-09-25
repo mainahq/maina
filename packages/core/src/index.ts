@@ -529,6 +529,12 @@ export {
 	readGraph as readCodeGraph,
 	updateFiles,
 } from "./graph/store/index";
+// Graph — the store's real adapters, for the runtime's graph hooks
+export {
+	type OpenedGraph as OpenedCodeGraph,
+	type OpenGraphError as OpenCodeGraphError,
+	openCodeGraph,
+} from "./graph/system";
 // Hooks
 export {
 	executeHook,

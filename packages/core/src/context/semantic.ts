@@ -1,13 +1,20 @@
 import { readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
-import { getContextDb } from "../db/index";
+import { join } from "node:path";
+import { getContextDb, type Result } from "../db/index";
+import { impact, minimalContext } from "../graph/query/index";
+import type { ContextSnippet } from "../graph/query/types";
 import {
-	buildGraph,
-	type DependencyGraph,
-	scoreRelevance,
-	type TaskContext,
-} from "./relevance";
-import { parseFile } from "./treesitter";
+	hasFullIndex,
+	indexRepo,
+	readGraph,
+	updateFiles,
+} from "../graph/store/index";
+import type {
+	GraphStoreError,
+	GraphStoreOptions,
+	GraphStorePorts,
+} from "../graph/store/types";
+import { buildGraph, type DependencyGraph, scoreRelevance } from "./relevance";
 
 export interface SemanticContext {
 	entities: {
@@ -20,64 +27,35 @@ export interface SemanticContext {
 	scores: Map<string, number>;
 	constitution: string | null;
 	customContext: string[];
+	/** The touched code and its graph neighbourhood; null when nothing touched is indexed. */
+	code: GraphCode | null;
 }
 
-const SOURCE_EXTENSIONS = new Set([
-	".ts",
-	".tsx",
-	".js",
-	".jsx",
-	".py",
-	".pyi",
-	".go",
-	".rs",
-	".cs",
-	".java",
-	".kt",
-]);
+/** Graph-derived code context for the touched files (FR-GRAPH-5). */
+export type GraphCode = Readonly<{
+	snippets: readonly ContextSnippet[];
+	tokens: number;
+	/** Tokens saved against reading every snippet's file in full. */
+	savedTokens: number;
+	/** Non-test files depending on the touched code. */
+	dependents: readonly string[];
+	/** Ids of tests exercising the touched code or its callers. */
+	tests: readonly string[];
+	/** Share (0..1) of the other non-test files among the dependents. */
+	blastScore: number;
+}>;
 
-/**
- * Recursively walks a directory and collects source files,
- * excluding node_modules, dist, and .git directories.
- */
-function collectSourceFiles(dir: string): string[] {
-	const results: string[] = [];
-	const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);
+/** The graph store the semantic layer reads and keeps current. */
+type SemanticPorts = GraphStorePorts;
 
-	function walk(current: string): void {
-		let entries: string[];
-		try {
-			entries = readdirSync(current) as unknown as string[];
-		} catch {
-			return;
-		}
-
-		for (const entry of entries) {
-			if (SKIP_DIRS.has(entry)) continue;
-
-			const fullPath = join(current, entry);
-			let stat: ReturnType<typeof statSync> | undefined;
-			try {
-				stat = statSync(fullPath);
-			} catch {
-				continue;
-			}
-
-			if (stat.isDirectory()) {
-				walk(fullPath);
-			} else if (stat.isFile()) {
-				const dotIdx = entry.lastIndexOf(".");
-				const ext = dotIdx >= 0 ? entry.slice(dotIdx) : "";
-				if (SOURCE_EXTENSIONS.has(ext)) {
-					results.push(fullPath);
-				}
-			}
-		}
-	}
-
-	walk(dir);
-	return results;
-}
+type SemanticRequest = Readonly<{
+	root: string;
+	mainaDir: string;
+	/** Repo-relative paths the task touches (staged and recently changed). */
+	touchedFiles: readonly string[];
+	/** Ceiling on the code snippets' tokens; 0 leaves code out. */
+	codeBudgetTokens: number;
+}>;
 
 /**
  * Reads .maina/constitution.md if it exists, returning its content.
@@ -125,63 +103,99 @@ export async function loadCustomContext(mainaDir: string): Promise<string[]> {
 }
 
 /**
- * Builds the full semantic context for a repo:
- * - Scans .ts/.js files (excluding node_modules/dist/.git)
- * - Builds dependency graph
- * - Runs PageRank (personalized toward task context)
- * - Loads constitution and custom context
- * - Attaches relevance scores to all parsed entities
+ * Brings the store current for one call without walking the repository: a
+ * store that was never fully indexed is indexed once, after that only the
+ * touched paths are synced (content-hash incremental). The runtime keeps
+ * the rest current from host events (FR-GRAPH-2).
+ */
+async function syncTouched(
+	ports: SemanticPorts,
+	root: string,
+	touched: readonly string[],
+	options: GraphStoreOptions,
+): Promise<Result<unknown, GraphStoreError>> {
+	const indexed = hasFullIndex(ports.db);
+	if (!indexed.ok) return indexed;
+	return indexed.value
+		? updateFiles(ports, root, touched, options)
+		: indexRepo(ports, root, options);
+}
+
+/** Snippets of the touched code and its neighbourhood, plus its impact. */
+async function graphCode(
+	ports: SemanticPorts,
+	root: string,
+	touched: readonly string[],
+	budgetTokens: number,
+): Promise<Result<GraphCode, GraphStoreError>> {
+	const context = await minimalContext(ports, root, {
+		files: touched,
+		budgetTokens,
+	});
+	if (!context.ok) return context;
+	const reach = impact(ports, { files: touched });
+	if (!reach.ok) return reach;
+	return {
+		ok: true,
+		value: {
+			snippets: context.value.snippets,
+			tokens: context.value.tokens,
+			savedTokens: context.value.savedTokens,
+			dependents: reach.value.dependents,
+			tests: reach.value.tests.map((t) => t.id),
+			blastScore: reach.value.blastScore,
+		},
+	};
+}
+
+/**
+ * The semantic layer read from the code graph (FR-GRAPH-5): entities are
+ * the stored top-level symbols, PageRank runs over the graph's file edges
+ * personalised to the touched files, and the touched code comes back as
+ * line-exact snippets with its callers, callees, dependents and tests.
+ * Paths are repo-relative.
  */
 export async function buildSemanticContext(
-	repoRoot: string,
-	mainaDir: string,
-	taskContext: TaskContext,
-): Promise<SemanticContext> {
-	// Collect all relevant source files
-	const files = collectSourceFiles(repoRoot);
+	ports: SemanticPorts,
+	request: SemanticRequest,
+	options: GraphStoreOptions = {},
+): Promise<Result<SemanticContext, GraphStoreError>> {
+	const { root, mainaDir, touchedFiles, codeBudgetTokens } = request;
+	const synced = await syncTouched(ports, root, touchedFiles, options);
+	if (!synced.ok) return synced;
+	const snapshot = readGraph(ports.db);
+	if (!snapshot.ok) return snapshot;
 
-	// Build dependency graph
-	const graph = await buildGraph(files);
+	const graph = buildGraph(snapshot.value);
+	const touched = [...new Set(touchedFiles)].filter((p) => graph.nodes.has(p));
+	const scores = scoreRelevance(graph, {
+		touchedFiles: touched,
+		mentionedFiles: [],
+		currentTicketTerms: [],
+	});
+	const entities = snapshot.value.nodes
+		.filter((n) => n.kind !== "file" && !n.test && n.parent === null)
+		.map((n) => ({
+			filePath: n.path,
+			name: n.name,
+			kind: n.kind,
+			relevance: scores.get(n.path) ?? 0,
+		}));
 
-	// Run PageRank with task personalization
-	const scores = scoreRelevance(graph, taskContext);
-
-	// Parse entities from all files and annotate with relevance.
-	// Entity filePaths are stored as relative to repoRoot for LLM consumption.
-	const entities: SemanticContext["entities"] = [];
-
-	for (const file of files) {
-		const fileScore = scores.get(file) ?? 0;
-		const relPath = relative(repoRoot, file);
-		let parsed: Awaited<ReturnType<typeof parseFile>> | undefined;
-		try {
-			parsed = await parseFile(file);
-		} catch {
-			continue;
-		}
-
-		for (const entity of parsed.entities) {
-			entities.push({
-				filePath: relPath,
-				name: entity.name,
-				kind: entity.kind,
-				relevance: fileScore,
-			});
-		}
+	let code: GraphCode | null = null;
+	if (touched.length > 0 && codeBudgetTokens > 0) {
+		const built = await graphCode(ports, root, touched, codeBudgetTokens);
+		if (!built.ok) return built;
+		code = built.value;
 	}
 
-	// Load constitution and custom context
 	const [constitution, customContext] = await Promise.all([
 		loadConstitution(mainaDir),
 		loadCustomContext(mainaDir),
 	]);
-
 	return {
-		entities,
-		graph,
-		scores,
-		constitution,
-		customContext,
+		ok: true,
+		value: { entities, graph, scores, constitution, customContext, code },
 	};
 }
 
@@ -271,31 +285,69 @@ export function assembleSemanticText(
 		}
 	}
 
+	if (context.code && shouldInclude("graph")) {
+		parts.push(renderGraphCode(context.code));
+	}
+
 	return parts.join("\n");
 }
 
+/** Most dependents or tests listed before the rest are counted. */
+const LIST_LIMIT = 20;
+
+function listed(items: readonly string[]): string {
+	const shown = items
+		.slice(0, LIST_LIMIT)
+		.map((item) => `\`${item}\``)
+		.join(", ");
+	const more = items.length - LIST_LIMIT;
+	return more > 0 ? `${shown} (+${more} more)` : shown;
+}
+
+/** The code graph section: impact summary, then each snippet in priority order. */
+function renderGraphCode(code: GraphCode): string {
+	const lines = [
+		"## Code Graph\n",
+		`Touched code and its graph neighbourhood: ${code.snippets.length} snippets, ${code.tokens} tokens (${code.savedTokens} fewer than reading the files in full).`,
+		"",
+		`- Blast radius: ${Math.round(code.blastScore * 100)}% of the other source files depend on it`,
+	];
+	if (code.dependents.length > 0) {
+		lines.push(`- Dependents: ${listed(code.dependents)}`);
+	}
+	if (code.tests.length > 0) lines.push(`- Tests: ${listed(code.tests)}`);
+	for (const s of code.snippets) {
+		lines.push(
+			"",
+			`### ${s.path}:${s.startLine}-${s.endLine} \`${s.qualifiedName}\` (${s.reason})`,
+			"```",
+			s.text,
+			"```",
+		);
+	}
+	lines.push("");
+	return lines.join("\n");
+}
+
 /**
- * Persist semantic context (entities + dependency edges) to the context DB.
- * Replaces all existing data — this is a full re-index.
- * Never throws — silently fails on DB errors.
+ * Mirrors the graph-derived entities and file edges into the context DB's
+ * legacy `semantic_entities` / `dependency_edges` tables, which `explain`,
+ * `ticket` and `stats` still read. Paths are repo-relative, as the graph
+ * stores them. Replaces the previous rows in one transaction; never throws.
  */
 export function persistSemanticContext(
 	mainaDir: string,
 	context: SemanticContext,
-	repoRoot: string,
 ): void {
+	const dbResult = getContextDb(mainaDir);
+	if (!dbResult.ok) return;
+	const db = dbResult.value.db;
 	try {
-		const dbResult = getContextDb(mainaDir);
-		if (!dbResult.ok) return;
-
-		const db = dbResult.value.db;
 		const now = new Date().toISOString();
-
-		// Clear existing data and re-insert (full re-index)
+		db.exec("BEGIN");
 		db.exec("DELETE FROM semantic_entities");
 		db.exec("DELETE FROM dependency_edges");
 
-		// Insert entities
 		const insertEntity = db.prepare(
 			`INSERT INTO semantic_entities (id, file_path, name, kind, start_line, end_line, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -312,23 +364,24 @@ export function persistSemanticContext(
 			);
 		}
 
-		// Insert dependency edges
 		const insertEdge = db.prepare(
 			`INSERT INTO dependency_edges (id, source_file, target_file, weight, type)
 			 VALUES (?, ?, ?, ?, ?)`,
 		);
 		for (const [source, targets] of context.graph.edges) {
 			for (const [target, weight] of targets) {
-				insertEdge.run(
-					crypto.randomUUID(),
-					relative(repoRoot, source),
-					relative(repoRoot, target),
-					weight,
-					"import",
-				);
+				insertEdge.run(crypto.randomUUID(), source, target, weight, "import");
 			}
 		}
+		db.exec("COMMIT");
 	} catch {
-		// Persistence failure should never propagate
+		// Persistence failure never propagates.
+		try {
+			db.exec("ROLLBACK");
+		} catch {
+			// No transaction was open.
+		}
+	} finally {
+		db.close();
 	}
 }

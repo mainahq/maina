@@ -46,6 +46,9 @@ export type {
 	GraphSyncReport,
 } from "./types";
 
+/** `graph_meta` key set once `indexRepo` has completed. */
+const INDEXED_KEY = "indexed";
+
 /** Repo-relative posix path, or null for a path outside `root`. */
 function relativeTo(root: string, path: string): string | null {
 	const slashed = path.replaceAll("\\", "/");
@@ -85,7 +88,7 @@ export async function indexRepo(
 	// A stored path the listing no longer covers (deleted, newly ignored, or
 	// added by `updateFiles` outside the indexed set) is dropped, so the store
 	// matches what a fresh index would build.
-	return sync(
+	const synced = await sync(
 		ports,
 		root,
 		(stored) => ({
@@ -94,6 +97,27 @@ export async function indexRepo(
 		}),
 		options,
 	);
+	if (!synced.ok) return synced;
+	const marked = ports.db.run(
+		"INSERT OR REPLACE INTO graph_meta (key, value) VALUES (?, '1')",
+		[INDEXED_KEY],
+	);
+	return marked.ok ? synced : { ok: false, error: dbError(marked.error) };
+}
+
+/**
+ * Whether `indexRepo` has completed against this store at least once, so a
+ * reader can keep it current with `updateFiles` alone instead of listing
+ * the whole repository again.
+ */
+export function hasFullIndex(db: DbPort): Result<boolean, GraphStoreError> {
+	const migrated = migrateGraphStore(db);
+	if (!migrated.ok) return { ok: false, error: dbError(migrated.error) };
+	const rows = db.all("SELECT value FROM graph_meta WHERE key = ?", [
+		INDEXED_KEY,
+	]);
+	if (!rows.ok) return { ok: false, error: dbError(rows.error) };
+	return { ok: true, value: rows.value.length > 0 };
 }
 
 /**

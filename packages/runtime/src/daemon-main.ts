@@ -12,6 +12,7 @@
 
 import { parseArgs } from "node:util";
 import { systemGates } from "./gate-system";
+import { createGraphSync, systemGraphSyncPorts } from "./graph-hooks";
 import { startRuntime } from "./server";
 
 type Args = Readonly<{
@@ -53,8 +54,16 @@ export async function runDaemon(argv: readonly string[]): Promise<number> {
 		process.stderr.write("maina runtime: invalid arguments\n");
 		return 2;
 	}
+	const graph = createGraphSync(systemGraphSyncPorts(), {
+		onError: (root, error) => {
+			const message = error instanceof Error ? error.message : String(error);
+			process.stderr.write(
+				`maina runtime: graph sync failed for ${root}: ${message}\n`,
+			);
+		},
+	});
 	const started = startRuntime(
-		{ gate: systemGates().runtime },
+		{ gate: systemGates().runtime, observe: graph.observe },
 		{
 			endpoint: {
 				address: args.address,

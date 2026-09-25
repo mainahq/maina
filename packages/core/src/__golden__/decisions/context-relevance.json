@@ -33,12 +33,17 @@
 					[
 						"packages/core/src/ai/availability.ts",
 						"packages/core/src/config/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/ai/commit-msg.ts",
 						"packages/core/src/ai/try-generate.ts",
-						1
+						0.5
+					],
+					[
+						"packages/core/src/ai/design-approaches.ts",
+						"packages/core/src/ai/try-generate.ts",
+						0.5
 					],
 					[
 						"packages/core/src/ai/design-approaches.ts",
@@ -46,54 +51,49 @@
 						0.5
 					],
 					[
-						"packages/core/src/ai/design-approaches.ts",
-						"packages/core/src/ai/try-generate.ts",
-						1
-					],
-					[
-						"packages/core/src/ai/index.ts",
-						"packages/core/src/cache/keys.ts",
-						1
-					],
-					[
-						"packages/core/src/ai/index.ts",
-						"packages/core/src/cache/manager.ts",
-						1
-					],
-					[
-						"packages/core/src/ai/index.ts",
-						"packages/core/src/cache/ttl.ts",
-						1
-					],
-					[
-						"packages/core/src/ai/index.ts",
-						"packages/core/src/config/index.ts",
-						1
-					],
-					[
 						"packages/core/src/ai/index.ts",
 						"packages/core/src/ai/tiers.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/ai/index.ts",
 						"packages/core/src/ai/validate.ts",
-						1
+						0.5
+					],
+					[
+						"packages/core/src/ai/index.ts",
+						"packages/core/src/cache/keys.ts",
+						0.5
+					],
+					[
+						"packages/core/src/ai/index.ts",
+						"packages/core/src/cache/manager.ts",
+						0.5
+					],
+					[
+						"packages/core/src/ai/index.ts",
+						"packages/core/src/cache/ttl.ts",
+						0.5
+					],
+					[
+						"packages/core/src/ai/index.ts",
+						"packages/core/src/config/index.ts",
+						0.5
 					],
 					[
 						"packages/core/src/ai/pr-summary.ts",
 						"packages/core/src/ai/try-generate.ts",
-						1
-					],
-					[
-						"packages/core/src/ai/spec-questions.ts",
-						"packages/core/src/db/index.ts",
 						0.5
 					],
 					[
 						"packages/core/src/ai/spec-questions.ts",
 						"packages/core/src/ai/try-generate.ts",
-						1
+						0.5
+					],
+					[
+						"packages/core/src/ai/spec-questions.ts",
+						"packages/core/src/db/index.ts",
+						0.5
 					],
 					[
 						"packages/core/src/ai/tiers.ts",
@@ -102,32 +102,32 @@
 					],
 					[
 						"packages/core/src/ai/try-generate.ts",
-						"packages/core/src/config/index.ts",
-						1
+						"packages/core/src/ai/delegation.ts",
+						0.5
 					],
 					[
 						"packages/core/src/ai/try-generate.ts",
-						"packages/core/src/ai/delegation.ts",
-						1
+						"packages/core/src/config/index.ts",
+						0.5
 					],
 					[
 						"packages/core/src/cache/manager.ts",
 						"packages/core/src/db/index.ts",
-						1
+						0.5
 					]
 				],
 				"scores": [
 					[
 						"packages/core/src/ai/availability.ts",
-						0.4228340804580405
+						0.42284774547593484
 					],
 					[
 						"packages/core/src/ai/commit-msg.ts",
-						0.08456681609160809
+						0.08456954909518696
 					],
 					[
 						"packages/core/src/ai/delegation.ts",
-						0.03054194486410224
+						0.03054414178240747
 					],
 					[
 						"packages/core/src/ai/design-approaches.ts",
@@ -151,7 +151,7 @@
 					],
 					[
 						"packages/core/src/ai/try-generate.ts",
-						0.07191920228702449
+						0.07191573697734385
 					],
 					[
 						"packages/core/src/ai/validate.ts",
@@ -171,7 +171,7 @@
 					],
 					[
 						"packages/core/src/config/index.ts",
-						0.3901379562992247
+						0.39012282666912684
 					],
 					[
 						"packages/core/src/db/index.ts",
@@ -206,22 +206,22 @@
 					],
 					[
 						"packages/core/src/benchmark/runner.ts",
-						"packages/core/src/db/index.ts",
+						"packages/core/src/benchmark/types.ts",
 						0.5
 					],
 					[
 						"packages/core/src/benchmark/runner.ts",
-						"packages/core/src/benchmark/types.ts",
-						0.5
-					],
-					[
-						"packages/core/src/benchmark/story-loader.ts",
 						"packages/core/src/db/index.ts",
 						0.5
 					],
 					[
 						"packages/core/src/benchmark/story-loader.ts",
 						"packages/core/src/benchmark/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/benchmark/story-loader.ts",
+						"packages/core/src/db/index.ts",
 						0.5
 					]
 				],
@@ -265,6 +265,11 @@
 			"output": {
 				"edges": [
 					[
+						"packages/core/src/bootstrap/index.ts",
+						"packages/core/src/bootstrap/scaffold.ts",
+						0.5
+					],
+					[
 						"packages/core/src/bootstrap/scaffold.ts",
 						"packages/core/src/db/index.ts",
 						0.5
@@ -305,7 +310,7 @@
 					[
 						"packages/core/src/cache/manager.ts",
 						"packages/core/src/db/index.ts",
-						1
+						0.5
 					]
 				],
 				"scores": [
@@ -348,22 +353,22 @@
 				"edges": [
 					[
 						"packages/core/src/cloud/auth.ts",
-						"packages/core/src/db/index.ts",
+						"packages/core/src/cloud/types.ts",
 						0.5
 					],
 					[
 						"packages/core/src/cloud/auth.ts",
-						"packages/core/src/cloud/types.ts",
-						0.5
-					],
-					[
-						"packages/core/src/cloud/client.ts",
 						"packages/core/src/db/index.ts",
 						0.5
 					],
 					[
 						"packages/core/src/cloud/client.ts",
 						"packages/core/src/cloud/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/cloud/client.ts",
+						"packages/core/src/db/index.ts",
 						0.5
 					]
 				],
@@ -411,12 +416,12 @@
 					],
 					[
 						"packages/core/src/constitution/interview.ts",
-						"packages/core/src/db/index.ts",
+						"packages/core/src/constitution/git-analyzer.ts",
 						0.5
 					],
 					[
 						"packages/core/src/constitution/interview.ts",
-						"packages/core/src/constitution/git-analyzer.ts",
+						"packages/core/src/db/index.ts",
 						0.5
 					],
 					[
@@ -481,16 +486,11 @@
 				"edges": [
 					[
 						"packages/core/src/cloud/auth.ts",
-						"packages/core/src/db/index.ts",
-						0.5
-					],
-					[
-						"packages/core/src/cloud/auth.ts",
 						"packages/core/src/cloud/types.ts",
 						0.5
 					],
 					[
-						"packages/core/src/cloud/client.ts",
+						"packages/core/src/cloud/auth.ts",
 						"packages/core/src/db/index.ts",
 						0.5
 					],
@@ -500,39 +500,39 @@
 						0.5
 					],
 					[
+						"packages/core/src/cloud/client.ts",
+						"packages/core/src/db/index.ts",
+						0.5
+					],
+					[
 						"packages/core/src/context/engine.ts",
 						"packages/core/src/cloud/auth.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/context/engine.ts",
 						"packages/core/src/cloud/client.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/context/engine.ts",
 						"packages/core/src/cloud/types.ts",
 						0.5
-					],
-					[
-						"packages/core/src/context/engine.ts",
-						"packages/core/src/git/index.ts",
-						1
 					],
 					[
 						"packages/core/src/context/engine.ts",
 						"packages/core/src/context/budget.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/context/engine.ts",
 						"packages/core/src/context/episodic.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/context/engine.ts",
 						"packages/core/src/context/retrieval.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/context/engine.ts",
@@ -542,22 +542,27 @@
 					[
 						"packages/core/src/context/engine.ts",
 						"packages/core/src/context/wiki.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/context/engine.ts",
 						"packages/core/src/context/working.ts",
-						1
+						0.5
+					],
+					[
+						"packages/core/src/context/engine.ts",
+						"packages/core/src/git/index.ts",
+						0.5
 					],
 					[
 						"packages/core/src/context/episodic.ts",
 						"packages/core/src/db/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/context/relevance.ts",
 						"packages/core/src/context/treesitter.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/context/selector.ts",
@@ -566,33 +571,33 @@
 					],
 					[
 						"packages/core/src/context/semantic.ts",
-						"packages/core/src/db/index.ts",
-						1
-					],
-					[
-						"packages/core/src/context/semantic.ts",
 						"packages/core/src/context/relevance.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/context/semantic.ts",
 						"packages/core/src/context/treesitter.ts",
-						1
+						0.5
 					],
 					[
-						"packages/core/src/context/wiki.ts",
-						"packages/core/src/wiki/signals.ts",
-						1
+						"packages/core/src/context/semantic.ts",
+						"packages/core/src/db/index.ts",
+						0.5
 					],
 					[
 						"packages/core/src/context/wiki.ts",
 						"packages/core/src/context/budget.ts",
-						1
+						0.5
+					],
+					[
+						"packages/core/src/context/wiki.ts",
+						"packages/core/src/wiki/signals.ts",
+						0.5
 					],
 					[
 						"packages/core/src/context/working.ts",
 						"packages/core/src/git/index.ts",
-						1
+						0.5
 					]
 				],
 				"scores": [
@@ -622,11 +627,11 @@
 					],
 					[
 						"packages/core/src/context/relevance.ts",
-						0.4878087823389883
+						0.48780962484371737
 					],
 					[
 						"packages/core/src/context/retrieval.ts",
-						0.09756175646779765
+						0.09756192496874348
 					],
 					[
 						"packages/core/src/context/selector.ts",
@@ -638,7 +643,7 @@
 					],
 					[
 						"packages/core/src/context/treesitter.ts",
-						0.41462946119321403
+						0.4146284501875392
 					],
 					[
 						"packages/core/src/context/wiki.ts",
@@ -680,7 +685,7 @@
 					[
 						"packages/core/src/db/index.ts",
 						"packages/core/src/db/schema.ts",
-						1
+						0.5
 					]
 				],
 				"scores": [
@@ -716,7 +721,7 @@
 					[
 						"packages/core/src/design/index.ts",
 						"packages/core/src/ai/try-generate.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/design/index.ts",
@@ -726,7 +731,7 @@
 					[
 						"packages/core/src/design/index.ts",
 						"packages/core/src/utils.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/design/review.ts",
@@ -736,21 +741,21 @@
 					[
 						"packages/core/src/design/review.ts",
 						"packages/core/src/prompts/loader.ts",
-						1
+						0.5
 					]
 				],
 				"scores": [
 					[
 						"packages/core/src/ai/try-generate.ts",
-						0.18699628545925706
+						0.15583023788271416
 					],
 					[
 						"packages/core/src/db/index.ts",
-						0.09349814272962853
+						0.15583023788271416
 					],
 					[
 						"packages/core/src/design/index.ts",
-						0.5325092863518573
+						0.5325092863518575
 					],
 					[
 						"packages/core/src/design/review.ts",
@@ -762,7 +767,7 @@
 					],
 					[
 						"packages/core/src/utils.ts",
-						0.18699628545925706
+						0.15583023788271416
 					]
 				]
 			}
@@ -798,7 +803,7 @@
 					[
 						"packages/core/src/features/analyzer.ts",
 						"packages/core/src/utils.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/features/checklist.ts",
@@ -808,7 +813,7 @@
 					[
 						"packages/core/src/features/checklist.ts",
 						"packages/core/src/utils.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/features/numbering.ts",
@@ -818,7 +823,7 @@
 					[
 						"packages/core/src/features/numbering.ts",
 						"packages/core/src/utils.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/features/quality.ts",
@@ -834,7 +839,7 @@
 				"scores": [
 					[
 						"packages/core/src/db/index.ts",
-						0.7712895377128955
+						0.7919708029197081
 					],
 					[
 						"packages/core/src/features/analyzer.ts",
@@ -866,7 +871,7 @@
 					],
 					[
 						"packages/core/src/utils.ts",
-						0.08272506082725058
+						0.062043795620437936
 					]
 				]
 			}
@@ -904,7 +909,7 @@
 					[
 						"packages/core/src/cache/manager.ts",
 						"packages/core/src/db/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/cloud/auth.ts",
@@ -919,57 +924,57 @@
 					[
 						"packages/core/src/feedback/capture.ts",
 						"packages/core/src/cache/keys.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/feedback/capture.ts",
 						"packages/core/src/cache/manager.ts",
-						1
-					],
-					[
-						"packages/core/src/feedback/capture.ts",
-						"packages/core/src/stats/tracker.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/feedback/capture.ts",
 						"packages/core/src/feedback/collector.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/feedback/capture.ts",
 						"packages/core/src/feedback/signals.ts",
-						1
+						0.5
+					],
+					[
+						"packages/core/src/feedback/capture.ts",
+						"packages/core/src/stats/tracker.ts",
+						0.5
 					],
 					[
 						"packages/core/src/feedback/collector.ts",
 						"packages/core/src/cache/keys.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/feedback/collector.ts",
 						"packages/core/src/cloud/auth.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/feedback/collector.ts",
 						"packages/core/src/cloud/client.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/feedback/collector.ts",
 						"packages/core/src/db/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/feedback/collector.ts",
 						"packages/core/src/feedback/compress.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/feedback/external-reviews-repo.ts",
 						"packages/core/src/db/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/feedback/external-reviews-repo.ts",
@@ -984,7 +989,7 @@
 					[
 						"packages/core/src/feedback/external-reviews.ts",
 						"packages/core/src/feedback/external-reviews-repo.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/feedback/external-reviews.ts",
@@ -994,17 +999,17 @@
 					[
 						"packages/core/src/feedback/receipt-fp.ts",
 						"packages/core/src/db/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/feedback/signals.ts",
 						"packages/core/src/db/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/feedback/sync.ts",
 						"packages/core/src/db/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/stats/tracker.ts",
@@ -1031,7 +1036,7 @@
 					],
 					[
 						"packages/core/src/db/index.ts",
-						0.1880089908848011
+						0.17624589085301787
 					],
 					[
 						"packages/core/src/feedback/capture.ts",
@@ -1047,19 +1052,19 @@
 					],
 					[
 						"packages/core/src/feedback/external-reviews-repo.ts",
-						0.17625752806517508
+						0.12368135324512575
 					],
 					[
 						"packages/core/src/feedback/external-reviews-types.ts",
-						0.1380688774586943
+						0.17624589085301787
 					],
 					[
 						"packages/core/src/feedback/external-reviews.ts",
-						0.4147205029927745
+						0.4365223875406987
 					],
 					[
 						"packages/core/src/feedback/preferences.ts",
-						0.08294410059855489
+						0.08730447750813976
 					],
 					[
 						"packages/core/src/feedback/receipt-fp.ts",
@@ -1096,7 +1101,7 @@
 					[
 						"packages/core/src/git/trailer.ts",
 						"packages/core/src/receipt/canonical.ts",
-						1
+						0.5
 					]
 				],
 				"scores": [
@@ -1189,15 +1194,21 @@
 				]
 			},
 			"output": {
-				"edges": [],
+				"edges": [
+					[
+						"packages/core/src/hooks/index.ts",
+						"packages/core/src/hooks/runner.ts",
+						0.5
+					]
+				],
 				"scores": [
 					[
 						"packages/core/src/hooks/index.ts",
-						0.16666666666666666
+						0.145985401459854
 					],
 					[
 						"packages/core/src/hooks/runner.ts",
-						0.8333333333333334
+						0.8540145985401459
 					]
 				]
 			}
@@ -1219,7 +1230,7 @@
 					[
 						"packages/core/src/language/detect.ts",
 						"packages/core/src/language/profile.ts",
-						1
+						0.5
 					]
 				],
 				"scores": [
@@ -1261,7 +1272,7 @@
 					[
 						"packages/core/src/mcp/clients.ts",
 						"packages/core/src/mcp/launcher.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/mcp/clients.ts",
@@ -1271,17 +1282,17 @@
 					[
 						"packages/core/src/mcp/entry.ts",
 						"packages/core/src/mcp/launcher.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/mcp/index.ts",
 						"packages/core/src/mcp/apply.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/mcp/index.ts",
 						"packages/core/src/mcp/clients.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/mcp/index.ts",
@@ -1297,7 +1308,7 @@
 				"scores": [
 					[
 						"packages/core/src/db/index.ts",
-						0.11518544044593401
+						0.16336450420548895
 					],
 					[
 						"packages/core/src/mcp/apply.ts",
@@ -1305,7 +1316,7 @@
 					],
 					[
 						"packages/core/src/mcp/clients.ts",
-						0.4782783430473137
+						0.4522337955562983
 					],
 					[
 						"packages/core/src/mcp/entry.ts",
@@ -1317,11 +1328,11 @@
 					],
 					[
 						"packages/core/src/mcp/launcher.ts",
-						0.2710241443378349
+						0.19220085011910648
 					],
 					[
 						"packages/core/src/mcp/types.ts",
-						0.13551207216891745
+						0.19220085011910648
 					]
 				]
 			}
@@ -1349,37 +1360,37 @@
 					[
 						"packages/core/src/prompts/engine.ts",
 						"packages/core/src/cache/keys.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/prompts/engine.ts",
 						"packages/core/src/db/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/prompts/engine.ts",
 						"packages/core/src/prompts/defaults/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/prompts/engine.ts",
 						"packages/core/src/prompts/evolution.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/prompts/engine.ts",
 						"packages/core/src/prompts/loader.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/prompts/evolution.ts",
 						"packages/core/src/cache/keys.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/prompts/evolution.ts",
 						"packages/core/src/db/index.ts",
-						1
+						0.5
 					]
 				],
 				"scores": [
@@ -1444,7 +1455,27 @@
 					[
 						"packages/core/src/receipt/build.ts",
 						"packages/core/src/git/index.ts",
-						1
+						0.5
+					],
+					[
+						"packages/core/src/receipt/build.ts",
+						"packages/core/src/receipt/agent-id.ts",
+						0.5
+					],
+					[
+						"packages/core/src/receipt/build.ts",
+						"packages/core/src/receipt/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/receipt/build.ts",
+						"packages/core/src/receipt/verify.ts",
+						0.5
+					],
+					[
+						"packages/core/src/receipt/build.ts",
+						"packages/core/src/receipt/walkthrough.ts",
+						0.5
 					],
 					[
 						"packages/core/src/receipt/build.ts",
@@ -1457,28 +1488,38 @@
 						0.5
 					],
 					[
-						"packages/core/src/receipt/build.ts",
-						"packages/core/src/receipt/agent-id.ts",
-						1
-					],
-					[
-						"packages/core/src/receipt/build.ts",
+						"packages/core/src/receipt/index-page.ts",
 						"packages/core/src/receipt/types.ts",
 						0.5
 					],
 					[
-						"packages/core/src/receipt/build.ts",
-						"packages/core/src/receipt/verify.ts",
-						1
+						"packages/core/src/receipt/index.ts",
+						"packages/core/src/receipt/agent-id.ts",
+						0.5
 					],
 					[
-						"packages/core/src/receipt/build.ts",
-						"packages/core/src/receipt/walkthrough.ts",
-						1
+						"packages/core/src/receipt/index.ts",
+						"packages/core/src/receipt/autofix.ts",
+						0.5
 					],
 					[
+						"packages/core/src/receipt/index.ts",
+						"packages/core/src/receipt/build.ts",
+						0.5
+					],
+					[
+						"packages/core/src/receipt/index.ts",
+						"packages/core/src/receipt/canonical.ts",
+						0.5
+					],
+					[
+						"packages/core/src/receipt/index.ts",
 						"packages/core/src/receipt/index-page.ts",
-						"packages/core/src/receipt/types.ts",
+						0.5
+					],
+					[
+						"packages/core/src/receipt/index.ts",
+						"packages/core/src/receipt/render.ts",
 						0.5
 					],
 					[
@@ -1489,7 +1530,7 @@
 					[
 						"packages/core/src/receipt/verify.ts",
 						"packages/core/src/receipt/canonical.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/receipt/verify.ts",
@@ -1499,7 +1540,7 @@
 					[
 						"packages/core/src/receipt/walkthrough.ts",
 						"packages/core/src/ai/try-generate.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/receipt/walkthrough.ts",
@@ -1509,12 +1550,12 @@
 					[
 						"packages/core/src/verify/diff-filter.ts",
 						"packages/core/src/git/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/pipeline.ts",
 						"packages/core/src/git/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/pipeline.ts",
@@ -1537,7 +1578,7 @@
 					],
 					[
 						"packages/core/src/receipt/autofix.ts",
-						0.5393886836439141
+						0.5401227656720299
 					],
 					[
 						"packages/core/src/receipt/build.ts",
@@ -1561,7 +1602,7 @@
 					],
 					[
 						"packages/core/src/receipt/types.ts",
-						0.4606113163560859
+						0.4598772343279702
 					],
 					[
 						"packages/core/src/receipt/verify.ts",
@@ -1664,17 +1705,62 @@
 					[
 						"packages/core/src/setup/context.ts",
 						"packages/core/src/language/detect.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/setup/context.ts",
 						"packages/core/src/setup/adopt.ts",
-						1
+						0.5
+					],
+					[
+						"packages/core/src/setup/index.ts",
+						"packages/core/src/setup/adopt.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/index.ts",
+						"packages/core/src/setup/confirm.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/index.ts",
+						"packages/core/src/setup/context.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/index.ts",
+						"packages/core/src/setup/fingerprint.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/index.ts",
+						"packages/core/src/setup/prompts.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/index.ts",
+						"packages/core/src/setup/recovery.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/index.ts",
+						"packages/core/src/setup/resolve-ai.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/index.ts",
+						"packages/core/src/setup/skills-deploy.ts",
+						0.5
+					],
+					[
+						"packages/core/src/setup/index.ts",
+						"packages/core/src/setup/tailor.ts",
+						0.5
 					],
 					[
 						"packages/core/src/setup/resolve-ai.ts",
 						"packages/core/src/config/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/setup/resolve-ai.ts",
@@ -1689,7 +1775,7 @@
 					[
 						"packages/core/src/setup/resolve-ai.ts",
 						"packages/core/src/setup/prompts.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/setup/resolve-ai.ts",
@@ -1699,7 +1785,7 @@
 					[
 						"packages/core/src/setup/resolve-ai.ts",
 						"packages/core/src/setup/tailor.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/setup/skills-deploy.ts",
@@ -1720,55 +1806,55 @@
 				"scores": [
 					[
 						"packages/core/src/config/index.ts",
-						0
+						0.005249104207256289
 					],
 					[
 						"packages/core/src/db/index.ts",
-						0
+						0.14109988810135973
 					],
 					[
 						"packages/core/src/language/detect.ts",
-						0
+						0.017079307455681966
 					],
 					[
 						"packages/core/src/setup/adopt.ts",
-						0
+						0.10885392403174927
 					],
 					[
 						"packages/core/src/setup/confirm.ts",
-						0
+						0.037052691710672665
 					],
 					[
 						"packages/core/src/setup/context.ts",
-						0
+						0.06027999133252957
 					],
 					[
 						"packages/core/src/setup/fingerprint.ts",
-						0
+						0.037052691710672665
 					],
 					[
 						"packages/core/src/setup/index.ts",
-						1
+						0.3923216302749457
 					],
 					[
 						"packages/core/src/setup/prompts.ts",
-						0
+						0.04230179591792895
 					],
 					[
 						"packages/core/src/setup/recovery.ts",
-						0
+						0.04230179591792895
 					],
 					[
 						"packages/core/src/setup/resolve-ai.ts",
-						0
+						0.037052691710672665
 					],
 					[
 						"packages/core/src/setup/skills-deploy.ts",
-						0
+						0.037052691710672665
 					],
 					[
 						"packages/core/src/setup/tailor.ts",
-						0
+						0.04230179591792895
 					]
 				]
 			}
@@ -1788,6 +1874,11 @@
 			},
 			"output": {
 				"edges": [
+					[
+						"packages/core/src/stats/index.ts",
+						"packages/core/src/stats/tracker.ts",
+						0.5
+					],
 					[
 						"packages/core/src/stats/tracker.ts",
 						"packages/core/src/db/index.ts",
@@ -1835,7 +1926,7 @@
 					[
 						"packages/core/src/telemetry/cli-error-reporter.ts",
 						"packages/core/src/telemetry/scrubber.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/telemetry/cloud-reporter.ts",
@@ -1850,22 +1941,22 @@
 					[
 						"packages/core/src/telemetry/posthog-client.ts",
 						"packages/core/src/telemetry/reporter.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/telemetry/posthog-client.ts",
 						"packages/core/src/telemetry/usage.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/telemetry/reporter.ts",
 						"packages/core/src/errors/error-id.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/telemetry/reporter.ts",
 						"packages/core/src/telemetry/scrubber.ts",
-						1
+						0.5
 					]
 				],
 				"scores": [
@@ -1937,32 +2028,32 @@
 					[
 						"packages/core/src/ai/index.ts",
 						"packages/core/src/cache/keys.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/ai/index.ts",
 						"packages/core/src/cache/manager.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/prompts/engine.ts",
 						"packages/core/src/cache/keys.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/ai-review.ts",
 						"packages/core/src/ai/try-generate.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/ai-review.ts",
 						"packages/core/src/cache/keys.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/ai-review.ts",
 						"packages/core/src/cache/manager.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/ai-review.ts",
@@ -1982,7 +2073,7 @@
 					[
 						"packages/core/src/verify/coverage.ts",
 						"packages/core/src/verify/detect.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/coverage.ts",
@@ -1992,27 +2083,27 @@
 					[
 						"packages/core/src/verify/diff-filter.ts",
 						"packages/core/src/git/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/fix.ts",
 						"packages/core/src/ai/index.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/fix.ts",
 						"packages/core/src/cache/keys.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/fix.ts",
 						"packages/core/src/cache/manager.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/fix.ts",
 						"packages/core/src/prompts/engine.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/fix.ts",
@@ -2022,7 +2113,7 @@
 					[
 						"packages/core/src/verify/lighthouse.ts",
 						"packages/core/src/verify/detect.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/lighthouse.ts",
@@ -2032,7 +2123,7 @@
 					[
 						"packages/core/src/verify/mutation.ts",
 						"packages/core/src/verify/detect.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/verify/mutation.ts",
@@ -2047,19 +2138,19 @@
 					],
 					[
 						"packages/core/src/ai/try-generate.ts",
-						0.09841380987694053
+						0.08349263995974343
 					],
 					[
 						"packages/core/src/cache/keys.ts",
-						0.09841380987694053
+						0.08349263995974343
 					],
 					[
 						"packages/core/src/cache/manager.ts",
-						0.09841380987694053
+						0.08349263995974343
 					],
 					[
 						"packages/core/src/git/index.ts",
-						0.10038209836894026
+						0.12774500390853702
 					],
 					[
 						"packages/core/src/prompts/engine.ts",
@@ -2067,11 +2158,11 @@
 					],
 					[
 						"packages/core/src/verify/ai-review.ts",
-						0.40523325012325795
+						0.3929086035705789
 					],
 					[
 						"packages/core/src/verify/builtin.ts",
-						0.0810466500246516
+						0.07858172071411577
 					],
 					[
 						"packages/core/src/verify/consistency.ts",
@@ -2087,7 +2178,7 @@
 					],
 					[
 						"packages/core/src/verify/diff-filter.ts",
-						0.11809657185232864
+						0.15028675192753815
 					],
 					[
 						"packages/core/src/verify/fix.ts",
@@ -2137,7 +2228,7 @@
 					[
 						"packages/core/src/wiki/communities.ts",
 						"packages/core/src/wiki/louvain.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/wiki/compiler.ts",
@@ -2152,7 +2243,7 @@
 					[
 						"packages/core/src/wiki/compiler.ts",
 						"packages/core/src/wiki/communities.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/wiki/compiler.ts",
@@ -2162,17 +2253,17 @@
 					[
 						"packages/core/src/wiki/compiler.ts",
 						"packages/core/src/wiki/extractors/decision.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/wiki/compiler.ts",
 						"packages/core/src/wiki/extractors/feature.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/wiki/compiler.ts",
 						"packages/core/src/wiki/extractors/workflow.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/wiki/compiler.ts",
@@ -2182,12 +2273,12 @@
 					[
 						"packages/core/src/wiki/compiler.ts",
 						"packages/core/src/wiki/indexer.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/wiki/compiler.ts",
 						"packages/core/src/wiki/linker.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/wiki/export.ts",
@@ -2222,7 +2313,7 @@
 					[
 						"packages/core/src/wiki/hooks.ts",
 						"packages/core/src/wiki/compiler.ts",
-						1
+						0.5
 					],
 					[
 						"packages/core/src/wiki/linker.ts",
@@ -2238,67 +2329,67 @@
 				"scores": [
 					[
 						"packages/core/src/ai/try-generate.ts",
-						0.03565340302384839
+						0.037661550629552266
 					],
 					[
 						"packages/core/src/db/index.ts",
-						0.2621535207055289
+						0.263697314590342
 					],
 					[
 						"packages/core/src/wiki/communities.ts",
-						0.03884389507334929
+						0.037661550629552266
 					],
 					[
 						"packages/core/src/wiki/compiler.ts",
-						0.06005620139195551
+						0.0602062546393191
 					],
 					[
 						"packages/core/src/wiki/consult.ts",
-						0.03246291097434749
+						0.03254400980187982
 					],
 					[
 						"packages/core/src/wiki/export.ts",
-						0.03246291097434749
+						0.03254400980187982
 					],
 					[
 						"packages/core/src/wiki/extractors/code.ts",
-						0.11747804201094939
+						0.12039745170344919
 					],
 					[
 						"packages/core/src/wiki/extractors/decision.ts",
-						0.03884389507334929
+						0.037661550629552266
 					],
 					[
 						"packages/core/src/wiki/extractors/feature.ts",
-						0.03884389507334929
+						0.037661550629552266
 					],
 					[
 						"packages/core/src/wiki/extractors/workflow.ts",
-						0.03884389507334929
+						0.037661550629552266
 					],
 					[
 						"packages/core/src/wiki/graph.ts",
-						0.09626380049867056
+						0.0973359355588083
 					],
 					[
 						"packages/core/src/wiki/hooks.ts",
-						0.03246291097434749
+						0.03254400980187982
 					],
 					[
 						"packages/core/src/wiki/indexer.ts",
-						0.03884389507334929
+						0.037661550629552266
 					],
 					[
 						"packages/core/src/wiki/linker.ts",
-						0.03884389507334929
+						0.037661550629552266
 					],
 					[
 						"packages/core/src/wiki/louvain.ts",
-						0.06548001803156164
+						0.06455614989369658
 					],
 					[
 						"packages/core/src/wiki/query.ts",
-						0.03246291097434749
+						0.03254400980187982
 					]
 				]
 			}
@@ -2332,37 +2423,37 @@
 					[
 						"packages/cli/src/commands/analyze.ts",
 						"packages/cli/src/json.ts",
-						1
+						0.5
 					],
 					[
 						"packages/cli/src/commands/apply-fix.ts",
 						"packages/cli/src/json.ts",
-						1
+						0.5
 					],
 					[
 						"packages/cli/src/commands/commit.ts",
 						"packages/cli/src/json.ts",
-						1
+						0.5
 					],
 					[
 						"packages/cli/src/commands/configure.ts",
 						"packages/cli/src/commands/setup.ts",
-						1
+						0.5
 					],
 					[
 						"packages/cli/src/commands/context.ts",
 						"packages/cli/src/json.ts",
-						1
+						0.5
 					],
 					[
 						"packages/cli/src/commands/doctor.ts",
 						"packages/cli/src/json.ts",
-						1
+						0.5
 					],
 					[
 						"packages/cli/src/commands/setup.ts",
 						"packages/cli/src/json.ts",
-						1
+						0.5
 					]
 				],
 				"scores": [
@@ -2441,39 +2532,44 @@
 			"output": {
 				"edges": [
 					[
+						"packages/mcp/src/index.ts",
+						"packages/mcp/src/server.ts",
+						0.5
+					],
+					[
 						"packages/mcp/src/server.ts",
 						"packages/mcp/src/tools/context.ts",
-						1
+						0.5
 					],
 					[
 						"packages/mcp/src/server.ts",
 						"packages/mcp/src/tools/deepwiki.ts",
-						1
+						0.5
 					],
 					[
 						"packages/mcp/src/server.ts",
 						"packages/mcp/src/tools/explain.ts",
-						1
+						0.5
 					],
 					[
 						"packages/mcp/src/server.ts",
 						"packages/mcp/src/tools/features.ts",
-						1
+						0.5
 					],
 					[
 						"packages/mcp/src/server.ts",
 						"packages/mcp/src/tools/review.ts",
-						1
+						0.5
 					],
 					[
 						"packages/mcp/src/server.ts",
 						"packages/mcp/src/tools/verify.ts",
-						1
+						0.5
 					],
 					[
 						"packages/mcp/src/server.ts",
 						"packages/mcp/src/tools/wiki.ts",
-						1
+						0.5
 					]
 				],
 				"scores": [
@@ -2507,7 +2603,7 @@
 					],
 					[
 						"packages/mcp/src/tools/verify.ts",
-						0.8333333333333334
+						0.8333333333333333
 					],
 					[
 						"packages/mcp/src/tools/wiki.ts",
@@ -2535,17 +2631,17 @@
 					[
 						"examples/todo-api/src/repo.ts",
 						"examples/todo-api/src/db.ts",
-						1
+						0.5
 					],
 					[
 						"examples/todo-api/src/routes.ts",
 						"examples/todo-api/src/repo.ts",
-						1
+						0.5
 					],
 					[
 						"examples/todo-api/src/routes.ts",
 						"examples/todo-api/src/response.ts",
-						1
+						0.5
 					]
 				],
 				"scores": [
