@@ -16,6 +16,12 @@
  * caller's turn (an async git probe), so an event never delays the gate's
  * answer. A sync never rejects; failures go to `onError`.
  *
+ * A sync that loses the store's write race to another writer every time
+ * (`{ kind: "conflict" }`) is queued again, folded into whatever work
+ * arrived meanwhile, so its paths are not left stale until the next event.
+ * A run of conflicts is bounded (`conflictRetries`); once it is spent the
+ * conflict goes to `onError` and the work is dropped.
+ *
  * Event shape (spec §6.2): the event's `root` (in `input.root`) or else its
  * `cwd` names the directory, and a post-action carries
  * `input.action = { kind, path | paths }`, relative paths being relative to
@@ -95,7 +101,15 @@ export type GraphSyncPorts = Readonly<{
 type GraphSyncOptions = Readonly<{
 	/** A failed sync (`GraphSyncError`) or a port that threw or rejected. */
 	onError?: (root: string, error: unknown) => void;
+	/**
+	 * How many times in a row a root's conflicted sync is queued again
+	 * before the conflict is reported and the work dropped. Default 3; a
+	 * value that is not a whole number >= 0 (so never unbounded) gets it.
+	 */
+	conflictRetries?: number;
 }>;
+
+const DEFAULT_CONFLICT_RETRIES = 3;
 
 type GraphSync = Readonly<{
 	/**
@@ -128,23 +142,61 @@ export function createGraphSync(
 ): GraphSync {
 	const lanes = new Map<string, Lane>();
 
-	const runJob = async (root: string, job: Pending): Promise<void> => {
+	const requested = options.conflictRetries;
+	const conflictRetries =
+		requested !== undefined && Number.isInteger(requested) && requested >= 0
+			? requested
+			: DEFAULT_CONFLICT_RETRIES;
+
+	/** Hands an error to `onError`; a reporter that throws never wedges a root. */
+	const report = (root: string, error: unknown): void => {
+		try {
+			options.onError?.(root, error);
+		} catch {
+			// Nothing left to report to.
+		}
+	};
+
+	/** Runs one job: the sync's error, or null once it is done or reported. */
+	const runJob = async (
+		root: string,
+		job: Pending,
+	): Promise<GraphSyncError | null> => {
 		try {
 			const synced = job.full
 				? await ports.syncAll(root)
 				: await ports.syncPaths(root, [...job.paths].sort());
-			if (!synced.ok) options.onError?.(root, synced.error);
+			return synced.ok ? null : synced.error;
 		} catch (error) {
-			options.onError?.(root, error);
+			report(root, error);
+			return null;
 		}
+	};
+
+	/** Folds a conflicted job into the lane's next one; it settles with it. */
+	const requeue = (lane: Lane, job: Pending): void => {
+		const retry = lane.pending ?? newPending();
+		lane.pending = retry;
+		if (job.full) retry.full = true;
+		for (const path of job.paths) retry.paths.add(path);
+		void retry.done.then(job.resolve);
 	};
 
 	const drain = async (root: string, lane: Lane): Promise<void> => {
 		lane.running = true;
+		// Conflicted runs in a row; the budget resets once a run is not one.
+		let conflicts = 0;
 		while (lane.pending !== null) {
 			const job = lane.pending;
 			lane.pending = null;
-			await runJob(root, job);
+			const error = await runJob(root, job);
+			if (error?.kind === "conflict" && conflicts < conflictRetries) {
+				conflicts++;
+				requeue(lane, job);
+				continue;
+			}
+			conflicts = 0;
+			if (error !== null) report(root, error);
 			job.resolve();
 		}
 		lane.running = false;
@@ -167,7 +219,7 @@ export function createGraphSync(
 		try {
 			root = await ports.rootOf(trigger.dir);
 		} catch (error) {
-			options.onError?.(trigger.dir, error);
+			report(trigger.dir, error);
 			return;
 		}
 		if (root !== null) await enqueue(root, trigger);
