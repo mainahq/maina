@@ -10,17 +10,22 @@
 
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
+import { join } from "node:path";
+import { openDecisionDb } from "@mainahq/cli/src/decision-store";
 import { nodeFs } from "@mainahq/cli/src/ports";
 import {
 	type GateContext,
+	loadLogSalt,
 	loadPolicy,
 	loadShellParser,
+	type Result,
 	readUserPolicy,
 } from "@mainahq/core";
 import {
 	createGateEvaluator,
 	type GateEvaluator,
 	type GateEvaluatorDeps,
+	type GateLog,
 } from "./gate";
 import { gitProbe, resolveRoot } from "./root";
 
@@ -65,6 +70,60 @@ function systemDeps(options: SystemOptions): GateEvaluatorDeps {
 		},
 		clock: { now: () => performance.now() },
 		newId: () => randomUUID(),
+		logFor: decisionLogs(),
+	};
+}
+
+/**
+ * Each root's decision log: `.maina/decisions.db`, keyed by the repo's
+ * salt. The store is opened and the salt loaded once per root, then reused
+ * for every event; a failure is not remembered, so the next event retries.
+ * A root without `.maina/` keeps no log, so the gate never creates one.
+ */
+function decisionLogs(): (
+	root: string,
+) => Promise<Result<GateLog | null, unknown>> {
+	type Opened = Result<Readonly<{ log: GateLog; close: () => void }>, unknown>;
+	const logs = new Map<string, Promise<Opened>>();
+	const open = async (root: string): Promise<Opened> => {
+		// The salt first: a salt that cannot be loaded leaves no store behind.
+		const salt = await loadLogSalt({ fs: nodeFs }, root);
+		if (!salt.ok) return salt;
+		const store = openDecisionDb(join(root, ".maina"));
+		if (!store.ok) return store;
+		const { db, close } = store.value;
+		return {
+			ok: true,
+			value: { log: { db, salt: salt.value, now: () => Date.now() }, close },
+		};
+	};
+	const evictAll = () => {
+		for (const opening of logs.values()) {
+			void opening.then((o) => o.ok && o.value.close());
+		}
+		logs.clear();
+	};
+	return async (root) => {
+		let opening = logs.get(root);
+		if (opening === undefined) {
+			if (!(await nodeFs.exists(join(root, ".maina")))) {
+				return { ok: true, value: null };
+			}
+			// Another event may have started opening this root during the
+			// await: share it, so one salt is loaded and one store opened.
+			opening = logs.get(root);
+		}
+		if (opening === undefined) {
+			if (logs.size >= MAX_CACHED_ROOTS) evictAll();
+			opening = open(root);
+			logs.set(root, opening);
+		}
+		const opened = await opening;
+		if (!opened.ok) {
+			if (logs.get(root) === opening) logs.delete(root);
+			return opened;
+		}
+		return { ok: true, value: opened.value.log };
 	};
 }
 
