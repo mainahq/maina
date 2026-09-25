@@ -176,6 +176,8 @@ mock.module("../../language/profile", () => ({
 		id: "typescript",
 		syntaxTool: "biome",
 	}),
+	// builtin.ts (not mocked) imports isCodeFile from this module (#372)
+	isCodeFile: (filePath: string) => /\.(tsx?|jsx?|mjs|cjs)$/i.test(filePath),
 }));
 
 afterAll(() => {

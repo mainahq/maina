@@ -134,6 +134,12 @@ describe("isCodeFile (#372)", () => {
 		}
 	});
 
+	it("accepts component formats that hold script code", () => {
+		for (const f of ["App.vue", "Button.svelte", "pages/index.astro"]) {
+			expect(isCodeFile(f)).toBe(true);
+		}
+	});
+
 	it("accepts every language-profile extension", () => {
 		for (const id of getSupportedLanguages()) {
 			for (const ext of getProfile(id).extensions) {
