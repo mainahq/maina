@@ -18,6 +18,10 @@ on:
     branches: [master, "v1/**"]
     paths:
       - "install.sh"
+      - "bun.lock"
+      - "packages/cli/package.json"
+      - "packages/core/package.json"
+      - "packages/mcp/package.json"
       - "packages/cli/src/**"
       - "packages/core/src/mcp/**"
       - "packages/core/src/setup/**"
@@ -28,6 +32,10 @@ on:
     branches: ["v1/main"]
     paths:
       - "install.sh"
+      - "bun.lock"
+      - "packages/cli/package.json"
+      - "packages/core/package.json"
+      - "packages/mcp/package.json"
       - "packages/cli/src/**"
       - "packages/core/src/mcp/**"
       - "packages/core/src/setup/**"

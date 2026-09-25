@@ -116,10 +116,11 @@ export interface KnownFailure {
 	readonly installPath: InstallPath;
 	/** Env modes the failure applies to; all when omitted. */
 	readonly envs?: readonly EnvMode[];
-	/** Acceptable reasons; the case must fail with one of these. */
-	readonly problems: readonly KnownProblem[];
-	/** Issue whose fix makes this case pass. */
-	readonly issue: number;
+	/**
+	 * Acceptable reasons, each mapped to the issue whose fix removes it.
+	 * The case must fail with one of these keys.
+	 */
+	readonly fixes: Readonly<Partial<Record<KnownProblem, number>>>;
 	/**
 	 * The outcome depends on registry latency (a cold download can beat
 	 * the budget on a fast runner), so a pass is tolerated. When it does
@@ -135,39 +136,34 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
 	{
 		host: "claude-code",
 		installPath: "plugin",
-		problems: ["no-plugin"],
-		issue: 341,
+		fixes: { "no-plugin": 341 },
 	},
 	{
 		host: "cursor",
 		installPath: "plugin",
-		problems: ["no-plugin"],
-		issue: 342,
+		fixes: { "no-plugin": 342 },
 	},
-	{ host: "codex", installPath: "plugin", problems: ["no-plugin"], issue: 343 },
+	{ host: "codex", installPath: "plugin", fixes: { "no-plugin": 343 } },
 
 	// P1: every Claude installer writes settings.json, which Claude ignores.
 	{
 		host: "claude-code",
 		installPath: "cli-setup",
-		problems: ["P1"],
-		issue: 299,
+		fixes: { P1: 299 },
 	},
 	{
 		host: "claude-code",
 		installPath: "cli-mcp-add",
-		problems: ["P1"],
-		issue: 299,
+		fixes: { P1: 299 },
 	},
 	{
 		host: "claude-code",
 		installPath: "install-sh",
-		problems: ["P1"],
-		issue: 299,
+		fixes: { P1: 299 },
 	},
 	// P1: setup and install.sh never write a Codex MCP entry at all.
-	{ host: "codex", installPath: "cli-setup", problems: ["P1"], issue: 299 },
-	{ host: "codex", installPath: "install-sh", problems: ["P1"], issue: 299 },
+	{ host: "codex", installPath: "cli-setup", fixes: { P1: 299 } },
+	{ host: "codex", installPath: "install-sh", fixes: { P1: 299 } },
 
 	// P3: setup runs without a global `maina`, so the entry pins
 	// `bunx @mainahq/cli@<version under test>`. Every unreleased build (each
@@ -176,8 +172,7 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
 	{
 		host: "cursor",
 		installPath: "cli-setup",
-		problems: ["P3", "P4"],
-		issue: 294,
+		fixes: { P3: 294, P4: 298 },
 	},
 
 	// P2: absolute path to a `#!/usr/bin/env bun` script; GUI PATH has no bun.
@@ -185,23 +180,20 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
 		host: "cursor",
 		installPath: "cli-mcp-add",
 		envs: GUI_LAUNCH,
-		problems: ["P2"],
-		issue: 294,
+		fixes: { P2: 294 },
 	},
 	{
 		host: "codex",
 		installPath: "cli-mcp-add",
 		envs: GUI_LAUNCH,
-		problems: ["P2"],
-		issue: 294,
+		fixes: { P2: 294 },
 	},
 	// P2: install.sh writes a bare `bunx`, which a GUI PATH cannot resolve…
 	{
 		host: "cursor",
 		installPath: "install-sh",
 		envs: GUI_LAUNCH,
-		problems: ["P2"],
-		issue: 299,
+		fixes: { P2: 299 },
 	},
 	// …and P4 from a terminal: unpinned `bunx @mainahq/cli` downloads the
 	// package on first spawn (2.6–5.2 s on a laptop, ~1.1 s on a CI runner).
@@ -209,11 +201,16 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
 		host: "cursor",
 		installPath: "install-sh",
 		envs: ["full"],
-		problems: ["P4"],
-		issue: 298,
+		fixes: { P4: 298 },
 		mayPass: true,
 	},
 ];
+
+export function problemsOf(k: KnownFailure): readonly KnownProblem[] {
+	return (Object.keys(k.fixes) as KnownProblem[]).filter(
+		(p) => k.fixes[p] !== undefined,
+	);
+}
 
 export function expectedFailure(c: {
 	readonly host: HostId;
@@ -252,6 +249,7 @@ export function classifyProblem(error: CaseError): KnownProblem | undefined {
 			return "P4";
 		case "installer-failed":
 		case "config-invalid":
+		case "handshake-rejected":
 		case "tool-call-failed":
 			return undefined;
 		default: {
@@ -699,6 +697,17 @@ export async function probeLaunch(
 				kind: "handshake-timeout",
 				message: `no initialize response within ${HANDSHAKE_TIMEOUT_MS}ms`,
 				timeoutMs: HANDSHAKE_TIMEOUT_MS,
+			},
+		});
+	}
+	if (init.msg.error !== undefined) {
+		return finish({
+			started: false,
+			handshakeMs: null,
+			toolCallOk: false,
+			error: {
+				kind: "handshake-rejected",
+				message: `initialize returned a JSON-RPC error: ${JSON.stringify(init.msg.error).slice(0, 500)}`,
 			},
 		});
 	}

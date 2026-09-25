@@ -79,6 +79,7 @@ export type CaseError =
 			readonly message: string;
 			readonly timeoutMs: number;
 	  }
+	| { readonly kind: "handshake-rejected"; readonly message: string }
 	| {
 			readonly kind: "cold-start-over-budget";
 			readonly message: string;

@@ -32,6 +32,7 @@ import {
 	INSTALL_PATHS,
 	KNOWN_FAILURES,
 	probeLaunch,
+	problemsOf,
 	resolveLaunch,
 	runCase,
 } from "../matrix";
@@ -196,12 +197,18 @@ describe("resolveLaunch", () => {
 
 // ── MCP probe ──────────────────────────────────────────────────────────────
 
-/** A fake MCP server: answers `initialize` after `delayMs`, then `verify`. */
+/**
+ * A fake MCP server using the SDK's stdio framing (newline-delimited JSON,
+ * see `@modelcontextprotocol/sdk` `shared/stdio.js`). It answers
+ * `initialize` after `delayMs` (or rejects it when told to), then `verify`.
+ */
 const FAKE_SERVER = `
 const delayMs = Number(process.argv[2]);
+const reject = process.argv[3] === "reject";
 let buf = "";
-const reply = (id, result) =>
-	process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\\n");
+const send = (msg) =>
+	process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...msg }) + "\\n");
+const reply = (id, result) => send({ id, result });
 process.stdin.on("data", (d) => {
 	buf += d;
 	let i = buf.indexOf("\\n");
@@ -209,7 +216,9 @@ process.stdin.on("data", (d) => {
 		const msg = JSON.parse(buf.slice(0, i));
 		buf = buf.slice(i + 1);
 		i = buf.indexOf("\\n");
-		if (msg.id === 1) setTimeout(() => reply(1, {}), delayMs);
+		if (msg.id === 1 && reject) {
+			send({ id: 1, error: { code: -32602, message: "unsupported protocol" } });
+		} else if (msg.id === 1) setTimeout(() => reply(1, {}), delayMs);
 		if (msg.id === 2) reply(2, { content: [{ type: "text", text: "ok" }] });
 	}
 });
@@ -219,6 +228,7 @@ describe("probeLaunch", () => {
 	const withServer = async (
 		delayMs: number,
 		budgetMs: number,
+		mode: "accept" | "reject" = "accept",
 	): Promise<Awaited<ReturnType<typeof probeLaunch>>> => {
 		const dir = mkdtempSync(join(tmpdir(), "maina-probe-"));
 		const script = join(dir, "server.js");
@@ -227,7 +237,7 @@ describe("probeLaunch", () => {
 			return await probeLaunch(
 				{
 					command: process.execPath,
-					args: [script, String(delayMs)],
+					args: [script, String(delayMs), mode],
 					env: {},
 					source: "test",
 				},
@@ -254,6 +264,15 @@ describe("probeLaunch", () => {
 		expect(r.toolCallOk).toBe(true);
 		expect(r.error?.kind).toBe("cold-start-over-budget");
 		expect(r.error && classifyProblem(r.error)).toBe("P4");
+	});
+
+	test("an initialize answered with a JSON-RPC error is not a start", async () => {
+		const r = await withServer(0, 5_000, "reject");
+		expect(r.started).toBe(false);
+		expect(r.handshakeMs).toBeNull();
+		expect(r.toolCallOk).toBe(false);
+		expect(r.error?.kind).toBe("handshake-rejected");
+		expect(r.error?.message).toContain("unsupported protocol");
 	});
 });
 
@@ -321,21 +340,30 @@ describe("classifyProblem", () => {
 // ── Known-failure table hygiene ────────────────────────────────────────────
 
 describe("KNOWN_FAILURES", () => {
-	test("every entry links the issue that fixes it", () => {
+	test("every accepted problem links the issue that fixes it", () => {
 		for (const k of KNOWN_FAILURES) {
-			expect(k.issue).toBeGreaterThan(0);
-			expect(k.problems.length).toBeGreaterThan(0);
+			expect(problemsOf(k).length).toBeGreaterThan(0);
+			for (const p of problemsOf(k)) expect(k.fixes[p]).toBeGreaterThan(0);
 		}
+	});
+
+	test("a case accepting P3 or P4 points each at its own fix", () => {
+		const k = expectedFailure({
+			host: "cursor",
+			installPath: "cli-setup",
+			env: "minimal",
+		});
+		expect(k?.fixes).toEqual({ P3: 294, P4: 298 });
 	});
 
 	test("only latency-bound (P4-only) entries may pass", () => {
 		for (const k of KNOWN_FAILURES.filter((k) => k.mayPass === true)) {
-			expect(k.problems).toEqual(["P4"]);
+			expect(problemsOf(k)).toEqual(["P4"]);
 		}
 	});
 
 	test("P1–P4 are each reproduced by at least one case", () => {
-		const covered = new Set(KNOWN_FAILURES.flatMap((k) => k.problems));
+		const covered = new Set(KNOWN_FAILURES.flatMap((k) => problemsOf(k)));
 		for (const p of ["P1", "P2", "P3", "P4"] as const) {
 			expect(covered.has(p)).toBe(true);
 		}
@@ -361,7 +389,11 @@ describe.skipIf(!osResult.ok)("real-config matrix", () => {
 					? undefined
 					: expectedFailure({ host, installPath, env });
 				const label = known
-					? `${host} × ${installPath} × ${env} (expected-fail ${known.problems.join("|")}${known.mayPass ? " or pass" : ""}, fixed by #${known.issue})`
+					? `${host} × ${installPath} × ${env} (expected-fail ${problemsOf(
+							known,
+						)
+							.map((p) => `${p} → #${known.fixes[p]}`)
+							.join(" | ")}${known.mayPass ? ", or pass" : ""})`
 					: `${host} × ${installPath} × ${env}`;
 
 				test(label, async () => {
@@ -375,7 +407,7 @@ describe.skipIf(!osResult.ok)("real-config matrix", () => {
 						// Diff shows the full error when the reason drifts.
 						expect({ problem, error: r.error }).toMatchObject({
 							problem: expect.stringMatching(
-								new RegExp(`^(${known.problems.join("|")})$`),
+								new RegExp(`^(${problemsOf(known).join("|")})$`),
 							),
 						});
 						return;
