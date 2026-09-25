@@ -11,6 +11,7 @@ import {
 	type OpenedGraph,
 	type OpenGraphError,
 	openCodeGraph,
+	systemFs,
 } from "../graph/system";
 import type { ClockPort } from "../ports/clock";
 import type { EnvPort } from "../ports/env";
@@ -312,6 +313,7 @@ async function loadTeamEpisodicEntries(
 		.slice(0, 12);
 	return loadCloudEpisodicEntries({
 		mainaDir: request.mainaDir,
+		fs: systemFs,
 		key: `${request.cloudUrl}|${repo}|${account}`,
 		fetch: () => client.getEpisodicEntries(repo),
 		timeoutMs: request.cloudTimeoutMs,

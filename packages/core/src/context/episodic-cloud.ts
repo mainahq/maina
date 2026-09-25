@@ -8,10 +8,10 @@
  * waiting on the network again.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import type { CloudEpisodicEntry } from "../cloud/types";
 import type { Result } from "../db/index";
+import type { FsPort } from "../ports/fs";
 
 /** Hard ceiling on one cloud fetch. */
 export const DEFAULT_CLOUD_EPISODIC_TIMEOUT_MS = 1_500;
@@ -30,6 +30,8 @@ type CacheRecord = Readonly<{
 
 type CloudEpisodicRequest = Readonly<{
 	mainaDir: string;
+	/** Filesystem for the cache file under `mainaDir/cache/`. */
+	fs: FsPort;
 	/** Identifies the source: cloud URL, repository slug and account. */
 	key: string;
 	/** One attempt at the cloud; its own timeout is a second line of defence. */
@@ -41,33 +43,53 @@ type CloudEpisodicRequest = Readonly<{
 const cachePath = (mainaDir: string): string =>
 	join(mainaDir, "cache", "episodic-cloud.json");
 
-function readCache(mainaDir: string): CacheRecord | null {
+/** Only the fields the episodic merge reads; anything else is a bad cache. */
+const isCachedEntry = (value: unknown): value is CloudEpisodicEntry => {
+	if (typeof value !== "object" || value === null) return false;
+	const e = value as Record<string, unknown>;
+	return (
+		typeof e.id === "string" &&
+		typeof e.title === "string" &&
+		typeof e.summary === "string" &&
+		typeof e.relevanceScore === "number"
+	);
+};
+
+const parseCache = (content: string): CacheRecord | null => {
 	try {
-		const path = cachePath(mainaDir);
-		if (!existsSync(path)) return null;
-		const parsed = JSON.parse(readFileSync(path, "utf8")) as CacheRecord;
+		const parsed = JSON.parse(content) as Record<string, unknown> | null;
 		if (
+			typeof parsed !== "object" ||
+			parsed === null ||
 			typeof parsed.key !== "string" ||
 			typeof parsed.fetchedAt !== "number" ||
 			typeof parsed.ok !== "boolean" ||
-			!Array.isArray(parsed.entries)
+			!Array.isArray(parsed.entries) ||
+			!parsed.entries.every(isCachedEntry)
 		) {
 			return null;
 		}
-		return parsed;
+		return parsed as CacheRecord;
 	} catch {
 		return null;
 	}
+};
+
+async function readCache(
+	fs: FsPort,
+	mainaDir: string,
+): Promise<CacheRecord | null> {
+	const content = await fs.readFile(cachePath(mainaDir));
+	return content.ok ? parseCache(content.value) : null;
 }
 
-function writeCache(mainaDir: string, record: CacheRecord): void {
-	try {
-		const path = cachePath(mainaDir);
-		mkdirSync(dirname(path), { recursive: true });
-		writeFileSync(path, JSON.stringify(record), "utf8");
-	} catch {
-		// A cache that cannot be written only costs the next call a fetch.
-	}
+/** A cache that cannot be written only costs the next call a fetch. */
+async function writeCache(
+	fs: FsPort,
+	mainaDir: string,
+	record: CacheRecord,
+): Promise<void> {
+	await fs.writeFile(cachePath(mainaDir), JSON.stringify(record));
 }
 
 const isFresh = (record: CacheRecord, key: string, now: number): boolean => {
@@ -113,14 +135,14 @@ async function withDeadline(
 export async function loadCloudEpisodicEntries(
 	request: CloudEpisodicRequest,
 ): Promise<readonly CloudEpisodicEntry[]> {
-	const cached = readCache(request.mainaDir);
+	const cached = await readCache(request.fs, request.mainaDir);
 	if (cached && isFresh(cached, request.key, request.now())) {
 		return cached.entries;
 	}
 
 	const result = await withDeadline(request);
 	const entries = result.ok ? result.value : [];
-	writeCache(request.mainaDir, {
+	await writeCache(request.fs, request.mainaDir, {
 		key: request.key,
 		fetchedAt: request.now(),
 		ok: result.ok,
