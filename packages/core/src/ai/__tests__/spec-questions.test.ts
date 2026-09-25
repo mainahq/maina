@@ -137,6 +137,58 @@ describe("generateSpecQuestions", () => {
 				expect(result.value.length).toBeLessThanOrEqual(5);
 			}
 		});
+
+		test("puts the recommended option first", async () => {
+			mockAIResponse = JSON.stringify([
+				{
+					question: "Invalidate on?",
+					type: "select",
+					options: ["Branch switch", "Explicit clear", "Both"],
+					recommended: "Both",
+					reason: "Unspecified",
+				},
+			]);
+
+			const result = await generateSpecQuestions(
+				"## Tasks\n- T001: Test",
+				".maina",
+				TEST_AI,
+			);
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.value[0]?.options).toEqual([
+					"Both",
+					"Branch switch",
+					"Explicit clear",
+				]);
+				expect(result.value[0]?.recommended).toBe("Both");
+			}
+		});
+
+		test("drops a recommendation that is not one of the options", async () => {
+			mockAIResponse = JSON.stringify([
+				{
+					question: "Invalidate on?",
+					type: "select",
+					options: ["A", "B"],
+					recommended: 7,
+					reason: "Unspecified",
+				},
+			]);
+
+			const result = await generateSpecQuestions(
+				"## Tasks\n- T001: Test",
+				".maina",
+				TEST_AI,
+			);
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.value[0]?.options).toEqual(["A", "B"]);
+				expect(result.value[0]?.recommended).toBeUndefined();
+			}
+		});
 	});
 
 	// ── Error Handling ──────────────────────────────────────────────────────

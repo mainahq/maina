@@ -6,20 +6,44 @@
  * - plan.md  — HOW (architecture, tasks)
  * - tasks.md — Task breakdown (task list with status)
  *
- * Checks performed:
+ * Checks performed (the six `ANALYSIS_CATEGORIES`):
  * 1. Missing files
  * 2. Spec coverage — acceptance criteria addressed by tasks
  * 3. Orphaned tasks — tasks not mapping to any spec requirement
  * 4. WHAT/WHY vs HOW separation — implementation details in spec, user stories in plan
  * 5. Task status consistency — task counts match between plan.md and tasks.md
  * 6. Contradictions — conflicting information between plan.md and tasks.md
+ *
+ * `analyzeArtifacts` (FR-SPEC-3) calibrates each finding on the confidence
+ * `decide` gave it: a finding under its decision type's policy threshold is
+ * downgraded one severity level, and an error at or over the threshold
+ * blocks. `analyze(featureDir)` reads the files and reports the uncalibrated
+ * findings.
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Result } from "../db/index";
-import { decideEach, defaultDecidePorts } from "../decide/decide";
+import {
+	type DecidePorts,
+	defaultDecidePorts,
+	type JudgedAnswer,
+	judgeEach,
+} from "../decide/decide";
+import type { DecisionType } from "../policy/schema";
 import { extractAcceptanceCriteria, STOP_WORDS } from "../utils";
+
+export const ANALYSIS_CATEGORIES = [
+	"missing-file",
+	"spec-coverage",
+	"orphaned-task",
+	"separation-violation",
+	"task-consistency",
+	"contradiction",
+] as const;
+
+export type AnalysisCategory = (typeof ANALYSIS_CATEGORIES)[number];
+export type AnalysisSeverity = "error" | "warning" | "info";
 
 export interface AnalysisReport {
 	featureDir: string;
@@ -28,18 +52,42 @@ export interface AnalysisReport {
 }
 
 export interface AnalysisFinding {
-	severity: "error" | "warning" | "info";
-	category:
-		| "missing-file"
-		| "spec-coverage"
-		| "orphaned-task"
-		| "separation-violation"
-		| "task-consistency"
-		| "contradiction";
+	severity: AnalysisSeverity;
+	category: AnalysisCategory;
 	message: string;
 	file?: string;
 	line?: number;
 }
+
+/** A finding with its severity calibrated against the policy. */
+export type CalibratedFinding = Readonly<
+	AnalysisFinding & {
+		/** The severity before calibration. */
+		baseSeverity: AnalysisSeverity;
+		/** `decide`'s confidence in the finding; 1 for exact checks. */
+		confidence: number;
+		/** The policy's confidence threshold for the finding's decision type. */
+		threshold: number;
+		/** An error at or over the threshold. */
+		blocking: boolean;
+	}
+>;
+
+export type CalibratedReport = Readonly<{
+	findings: readonly CalibratedFinding[];
+	summary: Readonly<{ errors: number; warnings: number; info: number }>;
+	/** Any finding blocks. */
+	blocking: boolean;
+}>;
+
+/** An uncalibrated finding plus what calibration needs. */
+type JudgedFinding = AnalysisFinding & {
+	confidence: number;
+	/** The decision type that produced it; absent for exact checks. */
+	decisionType?: DecisionType;
+	/** False when `decide` failed and the finding is its fallback. */
+	decided?: boolean;
+};
 
 /**
  * Read a file if it exists, returning null if missing.
@@ -54,13 +102,29 @@ function readOptionalFile(path: string): string | null {
 }
 
 /**
- * Extract task lines from a markdown file's `## Tasks` section.
+ * Extract task lines from a markdown file's `## Tasks` (or the tasks
+ * template's `## Phases`) section.
  * Returns objects with the task id (if present) and description.
  */
 interface ParsedTask {
 	id: string | null;
 	description: string;
 	fullLine: string;
+}
+
+/** `T001: text` or the template's `**T-001** text`. */
+function parseTaskContent(taskContent: string): ParsedTask {
+	const idMatch =
+		taskContent.match(/^(T\d+):\s*(.*)/i) ??
+		taskContent.match(/^\*\*(T-\d+)\*\*\s*(.*)/i);
+	if (idMatch) {
+		return {
+			id: idMatch[1]?.toUpperCase() ?? null,
+			description: idMatch[2] ?? "",
+			fullLine: taskContent,
+		};
+	}
+	return { id: null, description: taskContent, fullLine: taskContent };
 }
 
 function extractTasks(content: string): ParsedTask[] {
@@ -71,7 +135,7 @@ function extractTasks(content: string): ParsedTask[] {
 	for (const line of lines) {
 		const trimmed = line.trim();
 
-		if (/^##?\s+tasks/i.test(trimmed)) {
+		if (/^##?\s+(tasks|phases)/i.test(trimmed)) {
 			inSection = true;
 			continue;
 		}
@@ -88,21 +152,7 @@ function extractTasks(content: string): ParsedTask[] {
 		if (inSection && trimmed.startsWith("-")) {
 			const taskContent = trimmed.replace(/^-\s*(\[.\]\s*)?/, "").trim();
 			if (taskContent.length === 0) continue;
-
-			const idMatch = taskContent.match(/^(T\d+):\s*(.*)/i);
-			if (idMatch) {
-				tasks.push({
-					id: idMatch[1]?.toUpperCase() ?? null,
-					description: idMatch[2] ?? "",
-					fullLine: taskContent,
-				});
-			} else {
-				tasks.push({
-					id: null,
-					description: taskContent,
-					fullLine: taskContent,
-				});
-			}
+			tasks.push(parseTaskContent(taskContent));
 		}
 
 		// Support heading format: ### T001: description
@@ -143,8 +193,8 @@ function checkMissingFiles(
 	specContent: string | null,
 	planContent: string | null,
 	tasksContent: string | null,
-): AnalysisFinding[] {
-	const findings: AnalysisFinding[] = [];
+): JudgedFinding[] {
+	const findings: JudgedFinding[] = [];
 
 	if (specContent === null) {
 		findings.push({
@@ -152,6 +202,7 @@ function checkMissingFiles(
 			category: "missing-file",
 			message: "spec.md is missing — cannot verify WHAT/WHY requirements",
 			file: "spec.md",
+			confidence: 1,
 		});
 	}
 
@@ -161,6 +212,7 @@ function checkMissingFiles(
 			category: "missing-file",
 			message: "plan.md is missing — cannot verify HOW implementation plan",
 			file: "plan.md",
+			confidence: 1,
 		});
 	}
 
@@ -170,20 +222,36 @@ function checkMissingFiles(
 			category: "missing-file",
 			message: "tasks.md is missing — task tracking not available",
 			file: "tasks.md",
+			confidence: 1,
 		});
 	}
 
 	return findings;
 }
 
+/** The candidates `judged` flagged (`answer === want`), with their confidence. */
+function flagged<T>(
+	candidates: readonly T[],
+	judged: readonly JudgedAnswer[],
+	want: boolean,
+): Array<{ item: T; confidence: number; decided: boolean }> {
+	return candidates.flatMap((item, i) => {
+		const j = judged[i];
+		return j !== undefined && j.answer === want
+			? [{ item, confidence: j.confidence, decided: j.decided }]
+			: [];
+	});
+}
+
 /**
  * Check 2: Spec coverage — every acceptance criterion should be addressed by at least one task.
  */
 function checkSpecCoverage(
+	ports: DecidePorts,
 	specContent: string,
 	planTasks: ParsedTask[],
 	tasksTasks: ParsedTask[],
-): AnalysisFinding[] {
+): JudgedFinding[] {
 	const criteria = extractAcceptanceCriteria(specContent);
 	const allTasks = [...planTasks, ...tasksTasks];
 	const allTasksText = allTasks
@@ -199,30 +267,31 @@ function checkSpecCoverage(
 		counted.push({ criterion, matched, total: keywords.length });
 	}
 
-	const covered = decideEach(defaultDecidePorts, {
+	const covered = judgeEach(ports, {
 		type: "spec.coverage",
 		check: "criterion",
 		trusted: counted.map(({ matched, total }) => ({ matched, total })),
 		untrusted: counted.map(({ criterion }) => ({ text: criterion })),
 	});
-	return counted
-		.filter((_, i) => covered[i] === false)
-		.map(({ criterion }) => ({
-			severity: "error",
-			category: "spec-coverage",
-			message: `Acceptance criterion not covered by any task: "${criterion}"`,
-			file: "spec.md",
-		}));
+	return flagged(counted, covered, false).map(({ item, ...judged }) => ({
+		severity: "error",
+		category: "spec-coverage",
+		message: `Acceptance criterion not covered by any task: "${item.criterion}"`,
+		file: "spec.md",
+		...judged,
+		decisionType: "spec.coverage",
+	}));
 }
 
 /**
  * Check 3: Orphaned tasks — tasks that don't map to any requirement in spec.md.
  */
 function checkOrphanedTasks(
+	ports: DecidePorts,
 	specContent: string,
 	planTasks: ParsedTask[],
 	tasksTasks: ParsedTask[],
-): AnalysisFinding[] {
+): JudgedFinding[] {
 	// Include full spec text for broad keyword matching
 	const specLower = specContent.toLowerCase();
 	const allSpecWords = new Set(significantWords(specLower));
@@ -258,7 +327,7 @@ function checkOrphanedTasks(
 		candidates.push({ task, hasSpecRef, matched, total: taskWords.length });
 	}
 
-	const orphaned = decideEach(defaultDecidePorts, {
+	const orphaned = judgeEach(ports, {
 		type: "spec.orphan",
 		check: "task",
 		trusted: candidates.map(({ hasSpecRef, matched, total }) => ({
@@ -268,14 +337,14 @@ function checkOrphanedTasks(
 		})),
 		untrusted: candidates.map(({ task }) => ({ text: task.fullLine })),
 	});
-	return candidates
-		.filter((_, i) => orphaned[i] === true)
-		.map(({ task }) => ({
-			severity: "warning",
-			category: "orphaned-task",
-			message: `Task does not map to any spec requirement: "${task.fullLine}"`,
-			file: planTasks.includes(task) ? "plan.md" : "tasks.md",
-		}));
+	return flagged(candidates, orphaned, true).map(({ item, ...judged }) => ({
+		severity: "warning",
+		category: "orphaned-task",
+		message: `Task does not map to any spec requirement: "${item.task.fullLine}"`,
+		file: planTasks.includes(item.task) ? "plan.md" : "tasks.md",
+		...judged,
+		decisionType: "spec.orphan",
+	}));
 }
 
 /**
@@ -284,54 +353,47 @@ function checkOrphanedTasks(
  * user-story language (`spec.impl_leak`).
  */
 function checkSeparation(
+	ports: DecidePorts,
 	specContent: string | null,
 	planContent: string | null,
-): AnalysisFinding[] {
-	const findings: AnalysisFinding[] = [];
-
-	if (specContent !== null) {
-		const lines = specContent.split("\n");
-		const leaks = decideEach(defaultDecidePorts, {
-			type: "spec.impl_leak",
+): JudgedFinding[] {
+	const sides = [
+		{
+			content: specContent,
 			check: "impl-in-spec",
-			untrusted: lines.map((text) => ({ text })),
-		});
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i] ?? "";
-			if (leaks[i]) {
-				findings.push({
-					severity: "warning",
-					category: "separation-violation",
-					message: `spec.md contains implementation detail: "${line.trim()}"`,
-					file: "spec.md",
-					line: i + 1,
-				});
-			}
-		}
-	}
-
-	if (planContent !== null) {
-		const lines = planContent.split("\n");
-		const leaks = decideEach(defaultDecidePorts, {
-			type: "spec.impl_leak",
+			file: "spec.md",
+			describe: (line: string) =>
+				`spec.md contains implementation detail: "${line}"`,
+		},
+		{
+			content: planContent,
 			check: "story-in-plan",
-			untrusted: lines.map((text) => ({ text })),
-		});
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i] ?? "";
-			if (leaks[i]) {
-				findings.push({
-					severity: "warning",
-					category: "separation-violation",
-					message: `plan.md contains user story language: "${line.trim()}"`,
-					file: "plan.md",
-					line: i + 1,
-				});
-			}
-		}
-	}
+			file: "plan.md",
+			describe: (line: string) =>
+				`plan.md contains user story language: "${line}"`,
+		},
+	] as const;
 
-	return findings;
+	return sides.flatMap(({ content, check, file, describe }) => {
+		if (content === null) return [];
+		const lines = content.split("\n").map((text, i) => ({ text, line: i + 1 }));
+		const leaks = judgeEach(ports, {
+			type: "spec.impl_leak",
+			check,
+			untrusted: lines.map(({ text }) => ({ text })),
+		});
+		return flagged(lines, leaks, true).map(
+			({ item, ...judged }): JudgedFinding => ({
+				severity: "warning",
+				category: "separation-violation",
+				message: describe(item.text.trim()),
+				file,
+				line: item.line,
+				...judged,
+				decisionType: "spec.impl_leak",
+			}),
+		);
+	});
 }
 
 /**
@@ -340,29 +402,26 @@ function checkSeparation(
 function checkTaskConsistency(
 	planTasks: ParsedTask[],
 	tasksTasks: ParsedTask[],
-): AnalysisFinding[] {
-	const findings: AnalysisFinding[] = [];
-
-	if (planTasks.length !== tasksTasks.length) {
-		findings.push({
+): JudgedFinding[] {
+	if (planTasks.length === tasksTasks.length) return [];
+	return [
+		{
 			severity: "warning",
 			category: "task-consistency",
 			message: `Task count mismatch: plan.md has ${planTasks.length} tasks, tasks.md has ${tasksTasks.length} tasks`,
-		});
-	}
-
-	return findings;
+			confidence: 1,
+		},
+	];
 }
 
 /**
  * Check 6: Contradictions — conflicting task descriptions for the same T-number.
  */
 function checkContradictions(
+	ports: DecidePorts,
 	planTasks: ParsedTask[],
 	tasksTasks: ParsedTask[],
-): AnalysisFinding[] {
-	const findings: AnalysisFinding[] = [];
-
+): JudgedFinding[] {
 	const planById = new Map<string, ParsedTask>();
 	for (const task of planTasks) {
 		if (task.id) {
@@ -397,22 +456,105 @@ function checkContradictions(
 		});
 	}
 
-	const contradicts = decideEach(defaultDecidePorts, {
+	const contradicts = judgeEach(ports, {
 		type: "spec.contradiction",
 		check: "task",
 		trusted: pairs.map(({ matched, total }) => ({ matched, total })),
 		untrusted: pairs.map(({ plan, tasks }) => ({ plan, tasks })),
 	});
-	for (const [i, pair] of pairs.entries()) {
-		if (!contradicts[i]) continue;
-		findings.push({
-			severity: "warning",
-			category: "contradiction",
-			message: `${pair.id} has conflicting descriptions — plan.md: "${pair.plan}" vs tasks.md: "${pair.tasks}"`,
-		});
-	}
+	return flagged(pairs, contradicts, true).map(({ item, ...judged }) => ({
+		severity: "warning",
+		category: "contradiction",
+		message: `${item.id} has conflicting descriptions — plan.md: "${item.plan}" vs tasks.md: "${item.tasks}"`,
+		...judged,
+		decisionType: "spec.contradiction",
+	}));
+}
 
-	return findings;
+/** Every check's findings, in check order. */
+function judgeArtifacts(
+	ports: DecidePorts,
+	specContent: string | null,
+	planContent: string | null,
+	tasksContent: string | null,
+): JudgedFinding[] {
+	const planTasks = planContent ? extractTasks(planContent) : [];
+	const tasksTasks = tasksContent ? extractTasks(tasksContent) : [];
+	const hasTasks = planTasks.length > 0 || tasksTasks.length > 0;
+	const bothTaskFiles = Boolean(planContent && tasksContent);
+
+	return [
+		...checkMissingFiles(specContent, planContent, tasksContent),
+		...(specContent && hasTasks
+			? checkSpecCoverage(ports, specContent, planTasks, tasksTasks)
+			: []),
+		...(specContent && hasTasks
+			? checkOrphanedTasks(ports, specContent, planTasks, tasksTasks)
+			: []),
+		...checkSeparation(ports, specContent, planContent),
+		...(bothTaskFiles ? checkTaskConsistency(planTasks, tasksTasks) : []),
+		...(bothTaskFiles ? checkContradictions(ports, planTasks, tasksTasks) : []),
+	];
+}
+
+function summarize(findings: readonly AnalysisFinding[]) {
+	return {
+		errors: findings.filter((f) => f.severity === "error").length,
+		warnings: findings.filter((f) => f.severity === "warning").length,
+		info: findings.filter((f) => f.severity === "info").length,
+	};
+}
+
+const DOWNGRADE: Readonly<Record<AnalysisSeverity, AnalysisSeverity>> = {
+	error: "warning",
+	warning: "info",
+	info: "info",
+};
+
+/**
+ * Analyzes spec, plan and tasks text (`null` for a missing file) and
+ * calibrates every finding: under its decision type's policy confidence
+ * threshold it drops one severity level; an error at or over the threshold
+ * blocks. Exact checks (missing files, task counts) have confidence 1 and
+ * threshold 0. When `decide` fails, its fallback findings keep their
+ * severity (fail closed) rather than being downgraded as unsure.
+ */
+export function analyzeArtifacts(
+	spec: string | null,
+	plan: string | null,
+	tasks: string | null,
+	ports: DecidePorts = defaultDecidePorts,
+): CalibratedReport {
+	const findings = judgeArtifacts(ports, spec, plan, tasks).map(
+		({
+			confidence,
+			decisionType,
+			decided = true,
+			...finding
+		}): CalibratedFinding => {
+			const threshold =
+				decisionType === undefined
+					? 0
+					: ports.policy.decisions[decisionType].thresholds.confidence;
+			const severity =
+				!decided || confidence >= threshold
+					? finding.severity
+					: DOWNGRADE[finding.severity];
+			return {
+				...finding,
+				severity,
+				baseSeverity: finding.severity,
+				confidence,
+				threshold,
+				blocking: severity === "error",
+			};
+		},
+	);
+	return {
+		findings,
+		summary: summarize(findings),
+		blocking: findings.some((f) => f.blocking),
+	};
 }
 
 /**
@@ -430,50 +572,17 @@ export function analyze(featureDir: string): Result<AnalysisReport, string> {
 		};
 	}
 
-	const specContent = readOptionalFile(join(featureDir, "spec.md"));
-	const planContent = readOptionalFile(join(featureDir, "plan.md"));
-	const tasksContent = readOptionalFile(join(featureDir, "tasks.md"));
-
-	const findings: AnalysisFinding[] = [];
-
-	// Check 1: Missing files
-	findings.push(...checkMissingFiles(specContent, planContent, tasksContent));
-
-	// Extract tasks from available files
-	const planTasks = planContent ? extractTasks(planContent) : [];
-	const tasksTasks = tasksContent ? extractTasks(tasksContent) : [];
-
-	// Check 2: Spec coverage (requires spec + at least one task source)
-	if (specContent && (planTasks.length > 0 || tasksTasks.length > 0)) {
-		findings.push(...checkSpecCoverage(specContent, planTasks, tasksTasks));
-	}
-
-	// Check 3: Orphaned tasks (requires spec)
-	if (specContent && (planTasks.length > 0 || tasksTasks.length > 0)) {
-		findings.push(...checkOrphanedTasks(specContent, planTasks, tasksTasks));
-	}
-
-	// Check 4: WHAT/WHY vs HOW separation
-	findings.push(...checkSeparation(specContent, planContent));
-
-	// Check 5: Task consistency (requires both plan and tasks)
-	if (planContent && tasksContent) {
-		findings.push(...checkTaskConsistency(planTasks, tasksTasks));
-	}
-
-	// Check 6: Contradictions (requires both plan and tasks)
-	if (planContent && tasksContent) {
-		findings.push(...checkContradictions(planTasks, tasksTasks));
-	}
-
-	const summary = {
-		errors: findings.filter((f) => f.severity === "error").length,
-		warnings: findings.filter((f) => f.severity === "warning").length,
-		info: findings.filter((f) => f.severity === "info").length,
-	};
+	const findings = judgeArtifacts(
+		defaultDecidePorts,
+		readOptionalFile(join(featureDir, "spec.md")),
+		readOptionalFile(join(featureDir, "plan.md")),
+		readOptionalFile(join(featureDir, "tasks.md")),
+	).map(
+		({ confidence: _c, decisionType: _t, decided: _d, ...finding }) => finding,
+	);
 
 	return {
 		ok: true,
-		value: { featureDir, findings, summary },
+		value: { featureDir, findings, summary: summarize(findings) },
 	};
 }

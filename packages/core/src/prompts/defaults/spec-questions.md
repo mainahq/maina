@@ -26,8 +26,11 @@ Do NOT ask:
 Output format: valid JSON array. Each question object has:
 - `question` (string): the clarifying question
 - `type` ("text" | "select"): "text" for open-ended, "select" for multiple choice
-- `options` (string[], optional): choices for "select" type questions
+- `options` (string[], optional): 2-5 choices for "select" type questions
+- `recommended` (string, optional): the option you recommend, copied exactly from `options`; it is shown first
 - `reason` (string): why this question matters for spec quality
+
+Prefer "select" questions: they are asked one at a time as multiple choice, with your recommendation first.
 
 Example:
 ```json
@@ -36,6 +39,7 @@ Example:
     "question": "Should the cache invalidate on branch switch or only on explicit clear?",
     "type": "select",
     "options": ["Branch switch", "Explicit clear only", "Both"],
+    "recommended": "Branch switch",
     "reason": "The plan mentions caching but doesn't specify invalidation strategy"
   },
   {

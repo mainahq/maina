@@ -1,0 +1,5 @@
+---
+"@mainahq/core": minor
+---
+
+Spec workflow upgrade. The spec, plan and tasks templates in `prompts/templates/` are now the single source for feature scaffolds: `numbering.ts` no longer carries inline template text. New: `clarify` (at most 3 markers and 5 questions, asked one at a time as multiple choice with the recommendation first, answers written back into the spec), `constitutionGate` (an unchecked MUST rule blocks unless the plan's justification table records it), `analyzeArtifacts` (the six analyzer categories with severity calibrated on `decide` confidence and blocking at the policy threshold), `converge` / `convergeCheck` (gaps typed `missing | partial | contradicts | unrequested`, recorded on the receipt through `BuildReceiptInput.extraChecks`) and `tickChecklistItem` / `unattestedTicks` (a checklist item is ticked only by a `decide` id or a human, never by the writing agent). `scoreSpec` holds template-format specs to the template's mandatory sections, traceability reads template tasks from tasks.md, and `generateSpecQuestions` puts the recommended option first.

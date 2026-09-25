@@ -63,7 +63,11 @@ outcome.]
 > Each requirement is one MUST or MUST NOT statement. The verifier maps
 > requirement → check → finding. If a requirement can't be expressed as a
 > check, it's underspecified — mark it `[NEEDS CLARIFICATION: …]` and
-> resolve before implementation begins.
+> resolve before implementation begins. Keep at most **3** markers: for
+> anything else, make an informed guess and record it under Assumptions.
+> `maina` asks about the markers one question at a time (at most 5), as
+> multiple choice with its recommendation first, and writes each answer
+> back into this spec.
 
 ### Functional requirements
 

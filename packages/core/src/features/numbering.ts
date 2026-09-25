@@ -6,8 +6,14 @@
  */
 
 import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { Result } from "../db/index";
+import {
+	FEATURE_TEMPLATES,
+	type FeatureTemplateKind,
+	renderTemplate,
+	type TemplateValues,
+} from "../prompts/templates/index";
 import { toKebabCase } from "../utils";
 
 /**
@@ -120,139 +126,37 @@ export interface DesignChoices {
 	clarifications?: Array<{ question: string; answer: string }>;
 }
 
-// ─── Spec Template (Product Manager perspective) ─────────────────────────────
-// Think as a PM: What problem are we solving? For whom? How will we know it works?
-// Inspired by Superpowers brainstorming: purpose, constraints, success criteria.
+// ─── Scaffolding ─────────────────────────────────────────────────────────────
+// The spec/plan/tasks text lives in `prompts/templates/*.md`, the single
+// source of truth; nothing here restates it.
 
-const SPEC_TEMPLATE = `# Feature: [Name]
-
-## Problem Statement
-
-What specific problem does this solve? Who experiences it? What happens if we don't solve it?
-
-- [NEEDS CLARIFICATION] Define the problem clearly.
-
-## Target User
-
-Who benefits? What is their current workflow? What frustrates them about it?
-
-- Primary: [NEEDS CLARIFICATION]
-- Secondary: [NEEDS CLARIFICATION]
-
-## User Stories
-
-- As a [role], I want [capability] so that [benefit].
-
-## Success Criteria
-
-How do we know this works? Every criterion must be testable — if you can't write
-an assertion for it, the requirement isn't clear enough.
-
-- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.
-
-## Scope
-
-### In Scope
-
-- [NEEDS CLARIFICATION] What this feature does.
-
-### Out of Scope
-
-- [NEEDS CLARIFICATION] What this feature explicitly does NOT do (prevents over-building).
-
-## Design Decisions
-
-Key choices made and WHY. Record tradeoffs — future you will thank you.
-
-- [NEEDS CLARIFICATION] What alternatives were considered? Why was this one chosen?
-
-## Open Questions
-
-- [NEEDS CLARIFICATION] List ambiguities. Every question here must be resolved before implementation.
-`;
-
-// ─── Plan Template (Technical Architect perspective) ─────────────────────────
-// Think as an architect: What's the simplest approach? What are the failure modes?
-// How does this fit into the existing system? Where are the integration points?
-
-const PLAN_TEMPLATE = `# Implementation Plan
-
-> HOW only — see spec.md for WHAT and WHY.
-
-## Architecture
-
-What is the technical approach? How does it fit into existing architecture?
-Where are the integration points with existing code?
-
-- Pattern: [NEEDS CLARIFICATION]
-- Integration points: [NEEDS CLARIFICATION]
-
-## Key Technical Decisions
-
-What libraries, patterns, or approaches? WHY these and not alternatives?
-
-- [NEEDS CLARIFICATION]
-
-## Files
-
-| File | Purpose | New/Modified |
-|------|---------|-------------|
-| [NEEDS CLARIFICATION] | | |
-
-## Tasks
-
-TDD: every implementation task must have a preceding test task.
-
-- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.
-
-## Failure Modes
-
-What can go wrong? How do we handle it gracefully?
-
-- [NEEDS CLARIFICATION]
-
-## Testing Strategy
-
-Unit tests, integration tests, or both? What mocks are needed?
-
-- [NEEDS CLARIFICATION]
-`;
-
-// ─── Tasks Template ──────────────────────────────────────────────────────────
-
-const TASKS_TEMPLATE = `# Task Breakdown
-
-## Tasks
-
-Each task should be completable in one commit. Test tasks precede implementation tasks.
-
-- [ ] [NEEDS CLARIFICATION] Define tasks.
-
-## Dependencies
-
-Which tasks block which? Draw the critical path.
-
-- [NEEDS CLARIFICATION]
-
-## Definition of Done
-
-How do we know this feature is complete?
-
-- [ ] All tests pass
-- [ ] Biome lint clean
-- [ ] TypeScript compiles
-- [ ] maina analyze shows no errors
-- [ ] [NEEDS CLARIFICATION] Feature-specific criteria
-`;
+/** The feature name and branch a feature directory implies (`001-name`). */
+function templateValues(featureDir: string, name?: string): TemplateValues {
+	const branch = basename(featureDir);
+	return {
+		name: name ?? branch.replace(/^\d{3}-/, ""),
+		branch,
+	};
+}
 
 /**
- * Create three template files inside the feature directory:
- * - spec.md — WHAT and WHY only
- * - plan.md — HOW only
- * - tasks.md — Task breakdown
+ * `block` inserted ahead of the first `## <heading>` line of `doc`, or
+ * appended when the heading is absent.
  */
-export async function scaffoldFeature(
+function insertBeforeHeading(
+	doc: string,
+	heading: string,
+	block: string,
+): string {
+	const lines = doc.split("\n");
+	const at = lines.findIndex((line) => line.startsWith(`## ${heading}`));
+	if (at === -1) return `${doc.trimEnd()}\n\n${block}\n`;
+	return [...lines.slice(0, at), block, "", ...lines.slice(at)].join("\n");
+}
+
+async function writeFeatureFiles(
 	featureDir: string,
+	files: Readonly<Record<FeatureTemplateKind, string>>,
 ): Promise<Result<void>> {
 	try {
 		if (!existsSync(featureDir)) {
@@ -261,11 +165,9 @@ export async function scaffoldFeature(
 				error: `Feature directory does not exist: ${featureDir}`,
 			};
 		}
-
-		await Bun.write(join(featureDir, "spec.md"), SPEC_TEMPLATE);
-		await Bun.write(join(featureDir, "plan.md"), PLAN_TEMPLATE);
-		await Bun.write(join(featureDir, "tasks.md"), TASKS_TEMPLATE);
-
+		for (const kind of ["spec", "plan", "tasks"] as const) {
+			await Bun.write(join(featureDir, `${kind}.md`), files[kind]);
+		}
 		return { ok: true, value: undefined };
 	} catch (e) {
 		const message = e instanceof Error ? e.message : String(e);
@@ -274,131 +176,77 @@ export async function scaffoldFeature(
 }
 
 /**
- * Build a spec.md from design choices, filling in concrete details
- * instead of generic [NEEDS CLARIFICATION] markers.
+ * Create three template files inside the feature directory, rendered from
+ * the shipped templates:
+ * - spec.md — WHAT and WHY only
+ * - plan.md — HOW only, opening with the constitution gate
+ * - tasks.md — WHEN: the phased task list
  */
-function buildEnrichedSpec(name: string, choices: DesignChoices): string {
-	const lines: string[] = [];
-	lines.push(`# Feature: ${name}`);
-	lines.push("");
-
-	if (choices.description) {
-		lines.push("## Problem Statement");
-		lines.push("");
-		lines.push(choices.description);
-		lines.push("");
-	}
-
-	lines.push("## User Stories");
-	lines.push("");
-	lines.push("- As a [role], I want [capability] so that [benefit].");
-	lines.push("");
-
-	lines.push("## Success Criteria");
-	lines.push("");
-	lines.push(
-		"- [ ] [NEEDS CLARIFICATION] Define measurable, testable criteria.",
-	);
-	lines.push("");
-
-	if (choices.tradeoffs && choices.tradeoffs.length > 0) {
-		lines.push("## Design Decisions");
-		lines.push("");
-		for (const tradeoff of choices.tradeoffs) {
-			lines.push(`- ${tradeoff}`);
-		}
-		lines.push("");
-	}
-
-	if (choices.clarifications && choices.clarifications.length > 0) {
-		lines.push("## Resolved Questions");
-		lines.push("");
-		for (const c of choices.clarifications) {
-			lines.push(`- **Q:** ${c.question}`);
-			lines.push(`  **A:** ${c.answer}`);
-		}
-		lines.push("");
-	}
-
-	lines.push("## Open Questions");
-	lines.push("");
-	lines.push("- [NEEDS CLARIFICATION] Resolve before implementation.");
-	lines.push("");
-	return lines.join("\n");
+export async function scaffoldFeature(
+	featureDir: string,
+): Promise<Result<void>> {
+	const values = templateValues(featureDir);
+	return writeFeatureFiles(featureDir, {
+		spec: renderTemplate(FEATURE_TEMPLATES.spec, values),
+		plan: renderTemplate(FEATURE_TEMPLATES.plan, values),
+		tasks: renderTemplate(FEATURE_TEMPLATES.tasks, values),
+	});
 }
 
-/**
- * Build a plan.md from design choices, pre-filling architecture
- * and library selections.
- */
-function buildEnrichedPlan(choices: DesignChoices): string {
+/** The spec template with the user's WHAT/WHY choices filled in. */
+function buildEnrichedSpec(values: TemplateValues, choices: DesignChoices) {
+	let spec = renderTemplate(FEATURE_TEMPLATES.spec, values);
+	if (choices.description) {
+		spec = insertBeforeHeading(
+			spec,
+			"User journeys",
+			`## Problem statement\n\n${choices.description}\n`,
+		);
+	}
+	if (choices.tradeoffs && choices.tradeoffs.length > 0) {
+		const lines = choices.tradeoffs.map((t) => `- ${t}`).join("\n");
+		spec = insertBeforeHeading(
+			spec,
+			"Assumptions",
+			`## Design decisions\n\n${lines}\n`,
+		);
+	}
+	if (choices.clarifications && choices.clarifications.length > 0) {
+		const lines = choices.clarifications
+			.map((c) => `- Q: ${c.question} → A: ${c.answer}`)
+			.join("\n");
+		spec = `${spec.trimEnd()}\n\n## Clarifications\n\n${lines}\n`;
+	}
+	return spec;
+}
+
+/** The plan template with the user's HOW choices filled in. */
+function buildEnrichedPlan(values: TemplateValues, choices: DesignChoices) {
+	const plan = renderTemplate(FEATURE_TEMPLATES.plan, values);
 	const lines: string[] = [];
-	lines.push("# Implementation Plan");
-	lines.push("");
-	lines.push("> HOW only — see spec.md for WHAT and WHY.");
-	lines.push("");
-
-	lines.push("## Architecture");
-	lines.push("");
-	if (choices.pattern) {
-		lines.push(`- Pattern: **${choices.pattern}**`);
-	} else {
-		lines.push("- [NEEDS CLARIFICATION] Describe the technical approach.");
-	}
-	lines.push("");
-
-	if (choices.libraries && choices.libraries.length > 0) {
-		lines.push("## Key Technical Decisions");
-		lines.push("");
-		for (const lib of choices.libraries) {
-			lines.push(`- ${lib}`);
-		}
-		lines.push("");
-	}
-
-	lines.push("## Tasks");
-	lines.push("");
-	lines.push("TDD: every implementation task must have a preceding test task.");
-	lines.push("");
-	lines.push(
-		"- [ ] [NEEDS CLARIFICATION] Break down into small, testable tasks.",
+	if (choices.pattern) lines.push(`- Pattern: **${choices.pattern}**`);
+	for (const lib of choices.libraries ?? []) lines.push(`- Library: ${lib}`);
+	if (lines.length === 0) return plan;
+	return insertBeforeHeading(
+		plan,
+		"Module map",
+		`## Design choices\n\n${lines.join("\n")}\n`,
 	);
-	lines.push("");
-
-	lines.push("## Failure Modes");
-	lines.push("");
-	lines.push("- [NEEDS CLARIFICATION] What can go wrong?");
-	lines.push("");
-	return lines.join("\n");
 }
 
 /**
  * Scaffold feature files enriched with user's design choices.
- * Falls back to generic templates for any missing choices.
+ * Falls back to the plain templates for any missing choices.
  */
 export async function scaffoldFeatureWithContext(
 	featureDir: string,
 	name: string,
 	choices: DesignChoices,
 ): Promise<Result<void>> {
-	try {
-		if (!existsSync(featureDir)) {
-			return {
-				ok: false,
-				error: `Feature directory does not exist: ${featureDir}`,
-			};
-		}
-
-		const spec = buildEnrichedSpec(name, choices);
-		const plan = buildEnrichedPlan(choices);
-
-		await Bun.write(join(featureDir, "spec.md"), spec);
-		await Bun.write(join(featureDir, "plan.md"), plan);
-		await Bun.write(join(featureDir, "tasks.md"), TASKS_TEMPLATE);
-
-		return { ok: true, value: undefined };
-	} catch (e) {
-		const message = e instanceof Error ? e.message : String(e);
-		return { ok: false, error: `Failed to scaffold feature: ${message}` };
-	}
+	const values = templateValues(featureDir, name);
+	return writeFeatureFiles(featureDir, {
+		spec: buildEnrichedSpec(values, choices),
+		plan: buildEnrichedPlan(values, choices),
+		tasks: renderTemplate(FEATURE_TEMPLATES.tasks, values),
+	});
 }

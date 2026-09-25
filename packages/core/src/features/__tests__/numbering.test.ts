@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import {
+	FEATURE_TEMPLATES,
+	renderTemplate,
+} from "../../prompts/templates/index";
 import type { DesignChoices } from "../numbering";
 import {
 	createFeatureDir,
@@ -187,41 +191,49 @@ describe("scaffoldFeature", () => {
 		expect(existsSync(join(featureDir, "tasks.md"))).toBe(true);
 	});
 
-	test("spec.md contains WHAT/WHY sections only (no HOW)", async () => {
+	test("writes the shipped templates, the single source of truth", async () => {
 		await scaffoldFeature(featureDir);
-		const content = readFileSync(join(featureDir, "spec.md"), "utf-8");
-		// WHAT/WHY sections
-		expect(content).toContain("Feature:");
-		expect(content).toContain("User Stories");
-		expect(content).toContain("Success Criteria");
-		expect(content).toContain("Problem Statement");
-		expect(content).toContain("Out of Scope");
-		// Must NOT contain HOW sections
-		expect(content).not.toContain("## Architecture");
-		expect(content).not.toContain("## Tasks");
+		for (const kind of ["spec", "plan", "tasks"] as const) {
+			const written = readFileSync(join(featureDir, `${kind}.md`), "utf-8");
+			expect(written).toBe(
+				renderTemplate(FEATURE_TEMPLATES[kind], {
+					name: "test-feature",
+					branch: "001-test-feature",
+				}),
+			);
+		}
 	});
 
-	test("plan.md contains HOW sections only", async () => {
+	test("fills the feature name and branch placeholders", async () => {
 		await scaffoldFeature(featureDir);
-		const content = readFileSync(join(featureDir, "plan.md"), "utf-8");
-		// HOW sections
-		expect(content).toContain("Architecture");
-		expect(content).toContain("Tasks");
-		expect(content).toContain("Failure Modes");
-		expect(content).toContain("Testing Strategy");
-		// Must NOT contain WHAT/WHY sections
-		expect(content).not.toContain("User Stories");
-		expect(content).not.toContain("Success Criteria");
+		const spec = readFileSync(join(featureDir, "spec.md"), "utf-8");
+		expect(spec).toContain("# Verification Specification: test-feature");
+		expect(spec).toContain("**Branch**: `001-test-feature`");
+		expect(spec).not.toContain("[FEATURE NAME]");
+		expect(spec).not.toContain("[###-feature-name]");
 	});
 
-	test("all files contain [NEEDS CLARIFICATION] marker", async () => {
+	test("spec.md holds WHAT only, plan.md the constitution gate, tasks.md phases", async () => {
 		await scaffoldFeature(featureDir);
 		const spec = readFileSync(join(featureDir, "spec.md"), "utf-8");
 		const plan = readFileSync(join(featureDir, "plan.md"), "utf-8");
 		const tasks = readFileSync(join(featureDir, "tasks.md"), "utf-8");
-		expect(spec).toContain("[NEEDS CLARIFICATION]");
-		expect(plan).toContain("[NEEDS CLARIFICATION]");
-		expect(tasks).toContain("[NEEDS CLARIFICATION]");
+		expect(spec).toContain("## Requirements *(mandatory)*");
+		expect(spec).not.toContain("## Module map");
+		expect(plan).toContain("## Constitution gate");
+		expect(plan).not.toContain("## User journeys");
+		expect(tasks).toContain("## Phases");
+		expect(spec).toContain("[NEEDS CLARIFICATION:");
+		expect(plan).toContain("[NEEDS CLARIFICATION:");
+	});
+
+	test("numbering.ts carries no inline template constants", () => {
+		const source = readFileSync(
+			join(import.meta.dir, "..", "numbering.ts"),
+			"utf-8",
+		);
+		expect(source).not.toMatch(/const\s+(SPEC|PLAN|TASKS)_TEMPLATE\s*=/);
+		expect(source).toContain("prompts/templates");
 	});
 
 	test("returns error if featureDir does not exist", async () => {
@@ -293,7 +305,7 @@ describe("scaffoldFeatureWithContext", () => {
 		expect(plan).toContain("drizzle");
 		expect(plan).toContain("zod");
 		// Plan should NOT contain WHAT/WHY
-		expect(plan).toContain("HOW only");
+		expect(plan).not.toContain("## User journeys");
 	});
 
 	test("falls back to generic markers when choices are empty", async () => {
@@ -304,7 +316,7 @@ describe("scaffoldFeatureWithContext", () => {
 		expect(result.ok).toBe(true);
 
 		const plan = readFileSync(join(tmpDir, "plan.md"), "utf-8");
-		expect(plan).toContain("[NEEDS CLARIFICATION]");
+		expect(plan).toContain("[NEEDS CLARIFICATION:");
 	});
 
 	test("creates tasks.md with standard template", async () => {
@@ -314,6 +326,25 @@ describe("scaffoldFeatureWithContext", () => {
 		await scaffoldFeatureWithContext(tmpDir, "test", choices);
 
 		const tasks = readFileSync(join(tmpDir, "tasks.md"), "utf-8");
-		expect(tasks).toContain("Task Breakdown");
+		expect(tasks).toBe(
+			renderTemplate(FEATURE_TEMPLATES.tasks, {
+				name: "test",
+				branch: basename(tmpDir),
+			}),
+		);
+	});
+
+	test("enriched spec and plan keep the template's sections", async () => {
+		mkdirSync(tmpDir, { recursive: true });
+		await scaffoldFeatureWithContext(tmpDir, "user-auth", {
+			description: "Login",
+			pattern: "repository",
+		});
+		const spec = readFileSync(join(tmpDir, "spec.md"), "utf-8");
+		const plan = readFileSync(join(tmpDir, "plan.md"), "utf-8");
+		expect(spec).toContain("# Verification Specification: user-auth");
+		expect(spec).toContain("## Requirements *(mandatory)*");
+		expect(plan).toContain("## Constitution gate");
+		expect(plan).toContain("## Module map");
 	});
 });

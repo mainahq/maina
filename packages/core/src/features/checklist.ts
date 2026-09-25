@@ -11,6 +11,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { Result } from "../db/index";
 import { decideEach, defaultDecidePorts } from "../decide/decide";
+import { ID_PATTERN } from "../decide/log/schema";
 import { extractAcceptanceCriteria } from "../utils";
 
 export interface VerificationReport {
@@ -369,4 +370,157 @@ export function verifyPlan(
 		ok: true,
 		value: { passed, checks },
 	};
+}
+
+// ─── Ticking ─────────────────────────────────────────────────────────────────
+
+/**
+ * Who ticks a checklist item (FR-SPEC-6). Only a `decide` decision or a
+ * human may; the writing agent never ticks its own checklist.
+ */
+export type TickSource =
+	| Readonly<{ kind: "decide"; decisionId: string }>
+	| Readonly<{ kind: "human"; actor: string }>
+	| Readonly<{ kind: "agent"; agentId: string }>;
+
+export type TickError = Readonly<{
+	kind:
+		| "source_not_allowed"
+		| "invalid_source"
+		| "unknown_decision"
+		| "item_not_found"
+		| "already_ticked";
+	message: string;
+}>;
+
+export type TickOptions = Readonly<{
+	/** When given, a decide id must be one the decision log holds. */
+	isKnownDecision?: (id: string) => boolean;
+}>;
+
+/** An item ticked with no recorded decide or human source. */
+export type UnattestedTick = Readonly<{ item: string; line: number }>;
+
+const CHECKLIST_ITEM = /^(\s*-\s+\[)([ xX])(\]\s+)(.*)$/;
+const TICKED_BY = /<!--\s*ticked-by:\s*(decide|human):(\S+?)\s*-->/;
+/** Human actors: a name without whitespace or comment terminators. */
+const ACTOR = /^[^\s<>]{1,128}$/;
+
+/** Bold label (`**T-001**`, `**Stack alignment**`) or leading task id. */
+function itemLabel(text: string): string | undefined {
+	return (
+		text.match(/^\*\*(.+?)\*\*/)?.[1]?.trim() ?? text.match(/^(T-?\d+)\b/i)?.[1]
+	);
+}
+
+function tickFailure(
+	kind: TickError["kind"],
+	message: string,
+): Result<never, TickError> {
+	return { ok: false, error: { kind, message } };
+}
+
+/** The provenance tag for `source`, or why the source may not tick. */
+function provenance(
+	source: TickSource,
+	options: TickOptions,
+): Result<string, TickError> {
+	switch (source.kind) {
+		case "agent":
+			return tickFailure(
+				"source_not_allowed",
+				`agent ${source.agentId} cannot tick its own checklist; a decide id or a human must`,
+			);
+		case "decide":
+			// Decide ids follow the decision log's id format.
+			if (!ID_PATTERN.test(source.decisionId)) {
+				return tickFailure("invalid_source", "decide id is malformed");
+			}
+			if (options.isKnownDecision?.(source.decisionId) === false) {
+				return tickFailure(
+					"unknown_decision",
+					`decision ${source.decisionId} is not in the decision log`,
+				);
+			}
+			return { ok: true, value: `decide:${source.decisionId}` };
+		case "human": {
+			const actor = source.actor.trim();
+			if (!ACTOR.test(actor)) {
+				return tickFailure("invalid_source", "human tick needs an actor name");
+			}
+			return { ok: true, value: `human:${actor}` };
+		}
+		default: {
+			const unreachable: never = source;
+			return unreachable;
+		}
+	}
+}
+
+/**
+ * Ticks the checklist item labelled `item` in `content` and records who
+ * ticked it. Refuses the writing agent, malformed sources, unknown decide ids
+ * (when `isKnownDecision` is given), unknown items and items already ticked.
+ */
+export function tickChecklistItem(
+	content: string,
+	item: string,
+	source: TickSource,
+	options: TickOptions = {},
+): Result<string, TickError> {
+	const tag = provenance(source, options);
+	if (!tag.ok) return tag;
+	const lines = content.split("\n");
+	const index = lines.findIndex((line) => {
+		const text = line.match(CHECKLIST_ITEM)?.[4];
+		return text !== undefined && itemLabel(text) === item;
+	});
+	const match = lines[index]?.match(CHECKLIST_ITEM);
+	if (!match) return tickFailure("item_not_found", `no checklist item ${item}`);
+	if (match[2] !== " ") {
+		return tickFailure("already_ticked", `${item} is already ticked`);
+	}
+	lines[index] =
+		`${match[1]}x${match[3]}${match[4]} <!-- ticked-by: ${tag.value} -->`;
+	return { ok: true, value: lines.join("\n") };
+}
+
+/**
+ * Whether a ticked item's text records a source that may tick: a
+ * `ticked-by` tag naming a well-formed decide id (known to the log when
+ * `isKnownDecision` is given) or a human actor. Checks that grade ticked
+ * items (constitution gate, converge) count only attested ticks.
+ */
+export function isAttestedTick(
+	text: string,
+	options: TickOptions = {},
+): boolean {
+	const tag = text.match(TICKED_BY);
+	const kind = tag?.[1];
+	const id = tag?.[2] ?? "";
+	if (kind === undefined) return false;
+	const source: TickSource =
+		kind === "decide"
+			? { kind: "decide", decisionId: id }
+			: { kind: "human", actor: id };
+	return provenance(source, options).ok;
+}
+
+/**
+ * Ticked items that carry no valid `ticked-by` decide or human source
+ * (see `isAttestedTick`).
+ */
+export function unattestedTicks(
+	content: string,
+	options: TickOptions = {},
+): readonly UnattestedTick[] {
+	const found: UnattestedTick[] = [];
+	for (const [i, line] of content.split("\n").entries()) {
+		const match = line.match(CHECKLIST_ITEM);
+		const text = match?.[4];
+		if (text === undefined || match?.[2] === " ") continue;
+		if (isAttestedTick(text, options)) continue;
+		found.push({ item: itemLabel(text) ?? text.trim(), line: i + 1 });
+	}
+	return found;
 }

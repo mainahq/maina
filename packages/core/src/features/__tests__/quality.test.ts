@@ -292,4 +292,56 @@ Something.
 		if (!result.ok) return;
 		expect(result.value.details.length).toBeGreaterThan(0);
 	});
+
+	// --- A spec written from the shipped template is scored against it ---
+	test("a template-format spec needs the template's mandatory sections", () => {
+		const specPath = join(tmpDir, "spec.md");
+		writeFileSync(
+			specPath,
+			`# Verification Specification: Login
+
+## User journeys *(mandatory)*
+
+### Journey 1 — Sign in (Priority: P1)
+
+## Requirements *(mandatory)*
+
+- **FR-001**: System MUST reject passwords under 12 characters
+
+## Success criteria *(mandatory)*
+
+- **SC-001**: \`login\` returns 401 for 3 bad attempts
+`,
+		);
+		const result = scoreSpec(specPath);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.completeness).toBe(100);
+		expect(result.value.details).toContain(
+			"Completeness: 100 — 3/3 sections present",
+		);
+	});
+
+	test("a template-format spec missing a mandatory section loses completeness", () => {
+		const specPath = join(tmpDir, "spec.md");
+		writeFileSync(
+			specPath,
+			`# Verification Specification: Login
+
+## Requirements *(mandatory)*
+
+- **FR-001**: System MUST authenticate via [NEEDS CLARIFICATION: SSO or OAuth?]
+`,
+		);
+		const result = scoreSpec(specPath);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		const completeness = result.value.details.find((d) =>
+			d.startsWith("Completeness"),
+		);
+		expect(completeness).toContain("1/3 sections present");
+		expect(completeness).toContain("missing: User journeys, Success criteria");
+		// The template's `[NEEDS CLARIFICATION: …]` form counts as a marker.
+		expect(completeness).toContain("1 [NEEDS CLARIFICATION] marker(s)");
+	});
 });
