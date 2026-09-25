@@ -11,12 +11,17 @@
  * method without a port answers `not_implemented`. The optional `observe`
  * port sees each hook event first and runs background work beside the gate,
  * such as the graph hooks' incremental syncs (FR-GRAPH-2).
+ *
+ * A `session.stop` hook event is not a gate event: the optional `stop` port
+ * answers it (verify on the session's changes, FR-VER-7) and the gate never
+ * sees it. Without the port a stop is let through silently.
  */
 
 import { chmodSync, rmSync } from "node:fs";
 import type { Result } from "@mainahq/core";
 import type { Socket, UnixSocketListener } from "bun";
 import {
+	type GateDecision,
 	type GateEvaluator,
 	type GateEvent,
 	parseGateDecision,
@@ -45,6 +50,7 @@ import {
 	type RegistryError,
 	releasePidFile,
 } from "./registry";
+import { QUIET_STOP, SESSION_STOP } from "./stop-verify";
 
 /** Methods served by an optional handler port. */
 export type DelegatedMethod = Exclude<Method, "hook.evaluate" | "status">;
@@ -61,6 +67,12 @@ export type RuntimePorts = Readonly<{
 	 * work's promise, or null for none.
 	 */
 	observe?: (event: GateEvent) => Promise<unknown> | null;
+	/**
+	 * Answers a `session.stop` event with the stop decision host adapters
+	 * render through their stop contracts (see `adapters/stop.ts`): `deny`
+	 * blocks the stop, an `allow` reason is the summary to show.
+	 */
+	stop?: (event: GateEvent) => GateDecision | Promise<GateDecision>;
 }>;
 
 type RuntimeConfig = Readonly<{
@@ -132,18 +144,33 @@ function encodeSafely(response: Response): string {
 }
 
 async function evaluateHook(
-	gate: GateEvaluator,
+	ports: RuntimePorts,
 	params: unknown,
 	observe: (event: GateEvent) => void,
 ): Promise<Outcome> {
 	const event = parseGateEvent(params);
 	if (event === null) return rpcError("bad_request", "invalid gate event");
 	observe(event);
-	const ran = await runPort(() => gate(event));
+	if (event.kind === SESSION_STOP) return stopSession(ports.stop, event);
+	const ran = await runPort(() => ports.gate(event));
 	if (!ran.ok) return ran;
 	const decision = parseGateDecision(ran.value);
 	return decision === null
 		? rpcError("handler_failed", "gate returned an invalid decision")
+		: { ok: true, value: decision };
+}
+
+/** The `session.stop` handler: the stop port's decision, or a quiet allow. */
+async function stopSession(
+	stop: RuntimePorts["stop"],
+	event: GateEvent,
+): Promise<Outcome> {
+	if (stop === undefined) return { ok: true, value: QUIET_STOP };
+	const ran = await runPort(() => stop(event));
+	if (!ran.ok) return ran;
+	const decision = parseGateDecision(ran.value);
+	return decision === null
+		? rpcError("handler_failed", "stop returned an invalid decision")
 		: { ok: true, value: decision };
 }
 
@@ -237,7 +264,7 @@ export function startRuntime(
 			case "status":
 				return Promise.resolve({ ok: true, value: status() });
 			case "hook.evaluate":
-				return evaluateHook(ports.gate, req.params, observe);
+				return evaluateHook(ports, req.params, observe);
 			case "decide":
 			case "graph.query":
 			case "verify.run": {
