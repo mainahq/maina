@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, posix } from "node:path";
 import type { LanguageId } from "../language/profile";
 import type { Finding } from "./diff-filter";
 
@@ -118,7 +118,7 @@ export function groupFilesByProject(
 	const groups = new Map<string, string[]>();
 	for (const file of files) {
 		if (!TS_FILE.test(file)) continue;
-		let dir = dirname(file);
+		let dir = posix.dirname(file);
 		for (;;) {
 			const rel = dir === "." ? "" : dir;
 			if (exists(join(root, rel, "tsconfig.json"))) {
@@ -126,7 +126,7 @@ export function groupFilesByProject(
 				break;
 			}
 			if (rel === "") break;
-			dir = dirname(dir);
+			dir = posix.dirname(dir);
 		}
 	}
 	return groups;
@@ -138,7 +138,11 @@ export function rebaseFindings(
 	projectDir: string,
 ): Finding[] {
 	if (projectDir === "") return [...findings];
-	return findings.map((f) => ({ ...f, file: join(projectDir, f.file) }));
+	// Repo-relative paths are forward-slash, matching git diff keys.
+	return findings.map((f) => ({
+		...f,
+		file: posix.join(projectDir, f.file.replaceAll("\\", "/")),
+	}));
 }
 
 /** Nearest node_modules/.bin/<command> from `dir` up to `root`, else the bare command. */
@@ -161,12 +165,7 @@ async function runTscProject(
 	try {
 		const proc = Bun.spawn(
 			[command, "-p", ".", "--noEmit", "--pretty", "false"],
-			{
-				cwd,
-				stdout: "pipe",
-				stderr: "pipe",
-				env: { ...process.env, NO_COLOR: "1" },
-			},
+			{ cwd, stdout: "pipe", stderr: "pipe" },
 		);
 		const output =
 			(await new Response(proc.stdout).text()) +

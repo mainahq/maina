@@ -71,6 +71,22 @@ describe("rebaseFindings", () => {
 		expect(out[0]?.file).toBe("packages/a/src/x.ts");
 	});
 
+	test("normalises backslash paths to forward slashes", () => {
+		const out = rebaseFindings(
+			[
+				{
+					tool: "tsc",
+					file: "src\\deep\\x.ts",
+					line: 1,
+					message: "m",
+					severity: "error",
+				},
+			],
+			"packages/a",
+		);
+		expect(out[0]?.file).toBe("packages/a/src/deep/x.ts");
+	});
+
 	test("leaves root-project paths unchanged", () => {
 		const f = {
 			tool: "tsc",
