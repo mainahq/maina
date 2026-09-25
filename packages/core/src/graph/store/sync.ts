@@ -43,7 +43,8 @@ export const dbError = (e: DbError): GraphStoreError => ({
 	message: e.message,
 });
 
-const hashOf = (content: string): string =>
+/** The content hash `graph_files.hash` stores: sha256, hex. */
+export const hashOf = (content: string): string =>
 	createHash("sha256").update(content).digest("hex");
 
 /** Lines as an editor shows them: a trailing newline does not start a new line. */

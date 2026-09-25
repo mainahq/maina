@@ -1,0 +1,6 @@
+import { mid } from "./mid";
+
+/** Three less than mid. */
+export function top(n: number): number {
+	return mid(n) - 3;
+}

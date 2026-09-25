@@ -317,6 +317,23 @@ export {
 	type SymbolKind,
 	type SyntaxIssue,
 } from "./graph/parse/index";
+// Graph — impact, minimal context and search queries (FR-GRAPH-3, FR-GRAPH-4)
+export {
+	type ContextSnippet as CodeGraphContextSnippet,
+	type GraphContextPorts,
+	type GraphReadPorts,
+	type ImpactedNode as CodeGraphImpactedNode,
+	type ImpactReport as CodeGraphImpactReport,
+	type ImpactRequest as CodeGraphImpactRequest,
+	impact as codeGraphImpact,
+	type MinimalContext as CodeGraphMinimalContext,
+	type MinimalContextRequest as CodeGraphMinimalContextRequest,
+	minimalContext as codeGraphMinimalContext,
+	type NodeRef as CodeGraphNodeRef,
+	type SearchHit as CodeGraphSearchHit,
+	type SearchOptions as CodeGraphSearchOptions,
+	search as searchCodeGraph,
+} from "./graph/query/index";
 // Graph — incremental content-hash store (FR-GRAPH-2)
 // (`GraphNode`/`GraphEdge` already name the wiki graph, hence the prefix.)
 export {

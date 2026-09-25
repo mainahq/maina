@@ -1,0 +1,5 @@
+import { top } from "./top";
+
+export function app(): number {
+	return top(1);
+}
