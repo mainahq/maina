@@ -65,7 +65,9 @@ Options considered:
   `~/.aws`, `~/.gnupg`, `~/.config/gh`, ...), the holdout, policy
   `file.read.outside` denies and the worktrees root, with the worker's own
   worktree carved back out, so it cannot read a sibling's. Network: the hosts
-  of policy `network` rules. It refuses a worktrees root at or above the home
+  of policy `network` rules; a `network` deny rule that names no host (`*`, a
+  glob inside the host) empties the allowlist, since it could cover any
+  allowed host and the gate checks denies first. It refuses a worktrees root at or above the home
   directory (denying reads there would hide the agent's own binary) and a
   holdout that contains the worktree.
 - **Per-worker temp directory.** `srt` sets the worker's `TMPDIR` to a shared

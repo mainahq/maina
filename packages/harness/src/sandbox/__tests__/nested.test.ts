@@ -15,6 +15,7 @@ import {
 import {
 	integrationTitle,
 	makeLayout,
+	REQUIRE_SANDBOX,
 	run,
 	SKIP_REASON,
 	shell,
@@ -243,10 +244,17 @@ describe.skipIf(SKIP_REASON !== undefined)(
 			SPIKE_MS,
 		);
 
+		// The `sandbox` CI job installs Codex: there a missing codex fails the
+		// spike instead of skipping it, so a broken install cannot pass green.
 		const codex = Bun.which("codex");
-		test.skipIf(codex === null)(
+		test.skipIf(codex === null && !REQUIRE_SANDBOX)(
 			`Codex's inner sandbox (codex sandbox) under the outer one${codex === null ? " [skipped: codex is not on PATH]" : ""}`,
 			async () => {
+				if (codex === null) {
+					throw new Error(
+						"codex is not on PATH (MAINA_REQUIRE_SANDBOX=1): the nested-sandbox spike cannot run",
+					);
+				}
 				const { started, ran } = await startsUnderOuter(
 					(tmp) =>
 						`HOME='${tmp}' CODEX_HOME='${tmp}' '${codex}' sandbox -- /bin/echo inner-ok`,

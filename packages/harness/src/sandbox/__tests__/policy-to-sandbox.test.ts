@@ -138,6 +138,26 @@ describe("policyToSandbox: network", () => {
 		expect(opts.netAllow).toEqual([]);
 	});
 
+	// A deny the sandbox cannot express as a host must not leave the allow
+	// rules it would cut into open: the gate denies first, so the sandbox
+	// allows no policy host at all rather than more than the gate would.
+	test.each([
+		["a bare *", "*"],
+		["a glob inside the host", "*evil.example.com*"],
+		["a wildcard port", "evil.example.com:*"],
+	])("a network deny naming no host (%s) closes the allowlist", (_label, match) => {
+		const opts = options(
+			withRules({
+				allow: [
+					{ match: "*.example.com", kind: "network" },
+					{ match: "registry.npmjs.org", kind: "network" },
+				],
+				deny: [{ match, kind: "network" }],
+			}),
+		);
+		expect(opts.netAllow).toEqual([]);
+	});
+
 	test("carries no credentials: the credential proxy adds them", () => {
 		expect(options().credentials).toEqual([]);
 	});

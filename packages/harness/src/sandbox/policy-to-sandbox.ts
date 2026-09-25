@@ -9,7 +9,9 @@
  *   worker's own worktree is carved back out, so it cannot read another
  *   worker's.
  * - Network: the hosts of policy `network` allow rules; `network` deny
- *   rules are checked first. Credentials' hosts are added by the adapter.
+ *   rules are checked first. A deny rule that names no host (`*`, a glob
+ *   inside the host) empties the allowlist. Credentials' hosts are added
+ *   by the adapter.
  *
  * The sandbox is a floor under the gate, not a copy of it: an `ask` or a
  * shell rule has no sandbox form and stays with the gate.
@@ -81,6 +83,15 @@ function hostsOf(rules: readonly RulePolicy[]): string[] {
 	];
 }
 
+/**
+ * A `network` rule whose match names no host (`*`, `*evil.com*`,
+ * `evil.com:*`): the sandbox has no form for it.
+ */
+const hasHostlessRule = (rules: readonly RulePolicy[]): boolean =>
+	rules.some(
+		(rule) => rule.kind === "network" && ruleHost(rule.match) === undefined,
+	);
+
 /** A rule's path: `~/x` under `home`, relative under `base`, absolute as is. */
 function rulePath(match: string, home: string, base: string): string {
 	if (match === "~") return home;
@@ -147,6 +158,10 @@ export function policyToSandbox(
 	}
 
 	const { allow, deny } = policy.rules;
+	// The gate checks deny rules first. A deny the sandbox cannot express
+	// could cover any allowed host, so no policy host is allowed at all:
+	// the sandbox fails closed rather than allow what the gate denies.
+	const netAllow = hasHostlessRule(deny) ? [] : hostsOf(allow);
 	return {
 		ok: true,
 		value: {
@@ -159,7 +174,7 @@ export function policyToSandbox(
 				...pathsOf(deny, "file.read.outside", home, wt),
 			],
 			readAllow: [wt, ...writable],
-			netAllow: hostsOf(allow),
+			netAllow,
 			netDeny: hostsOf(deny),
 			credentials: [],
 			...(context.tmpDir === undefined ? {} : { tmpDir: context.tmpDir }),
