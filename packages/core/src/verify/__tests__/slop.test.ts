@@ -321,6 +321,26 @@ import { z } from "zod";`;
 			expect(findings.map((f) => f.line)).toEqual([1]);
 		});
 
+		it("keeps an escaped \\${ as template text and balances braces across lines", () => {
+			const content = [
+				"const esc = `cost \\${",
+				'import { e } from "./missing-h";',
+				"`;",
+				"const body = `x ${items.map((i) => {",
+				"\treturn i;",
+				"})} y",
+				'import { f } from "./missing-i";',
+				"`;",
+				'const r = require("./missing-j");',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "escape.ts"),
+				TMP_DIR,
+			);
+			expect(findings.map((f) => f.line)).toEqual([9]);
+		});
+
 		it("flags re-exports from missing modules", () => {
 			const content =
 				'export { a } from "./missing-a";\nexport * from "./missing-b";';
