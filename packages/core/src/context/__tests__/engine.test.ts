@@ -1,28 +1,112 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFakeEnv } from "../../ports/testing";
 import { assembleContext } from "../engine";
 
-// Create a temporary .maina dir for tests
+// #390: these tests used to point `repoRoot` at process.cwd(), so every call
+// built the semantic layer over the whole maina monorepo (5s timeouts under
+// load). A tiny git fixture keeps the engine's behaviour identical while
+// bounding the work to a handful of files.
+
+const FIXTURE_BRANCH = "engine-fixture";
+
+let fixtureRoot: string;
+let repoRoot: string;
 let tempMainaDir: string;
-const repoRoot = process.cwd();
+
+// Drop inherited GIT_* variables (git exports GIT_DIR / GIT_INDEX_FILE to
+// hooks). If the suite runs from a hook, a leaked GIT_DIR would point
+// `git init` / `git commit` at the host repository and commit fixture files
+// onto the developer's branch.
+const fixtureGitEnv = (): Record<string, string> => {
+	const env: Record<string, string> = { LC_ALL: "C" };
+	for (const [key, value] of Object.entries(process.env)) {
+		if (value !== undefined && !key.startsWith("GIT_") && key !== "LC_ALL") {
+			env[key] = value;
+		}
+	}
+	return env;
+};
+
+const git = (cwd: string, ...args: string[]): void => {
+	const proc = Bun.spawnSync(["git", ...args], {
+		cwd,
+		env: fixtureGitEnv(),
+	});
+	if (proc.exitCode !== 0) {
+		throw new Error(`git ${args.join(" ")} failed: ${proc.stderr.toString()}`);
+	}
+};
+
+const commitFile = (path: string, content: string, message: string): void => {
+	writeFileSync(join(repoRoot, path), content);
+	git(repoRoot, "add", path);
+	git(repoRoot, "commit", "-q", "-m", message);
+};
 
 beforeAll(() => {
-	tempMainaDir = join(tmpdir(), `maina-engine-test-${Date.now()}`);
+	fixtureRoot = mkdtempSync(join(tmpdir(), "maina-engine-test-"));
+	repoRoot = join(fixtureRoot, "repo");
+	tempMainaDir = join(fixtureRoot, "maina");
+	mkdirSync(join(repoRoot, "src"), { recursive: true });
 	mkdirSync(join(tempMainaDir, "context"), { recursive: true });
+
+	git(repoRoot, "init", "-q", "-b", FIXTURE_BRANCH);
+	git(repoRoot, "config", "user.email", "t@example.com");
+	git(repoRoot, "config", "user.name", "t");
+	git(repoRoot, "config", "commit.gpgsign", "false");
+
+	// Six commits: enough history for the engine's HEAD~3 / HEAD~5 lookups.
+	commitFile(
+		"src/math.ts",
+		"export function add(a: number, b: number): number {\n\treturn a + b;\n}\n",
+		"feat: add",
+	);
+	commitFile(
+		"src/format.ts",
+		'import { add } from "./math";\n\nexport function formatSum(a: number, b: number): string {\n\treturn "sum=" + String(add(a, b));\n}\n',
+		"feat: formatSum",
+	);
+	commitFile(
+		"src/index.ts",
+		'export { add } from "./math";\nexport { formatSum } from "./format";\n',
+		"feat: index",
+	);
+	commitFile(
+		"src/assemble.ts",
+		'import { formatSum } from "./format";\n\nexport function assembleContext(): string {\n\treturn formatSum(1, 2);\n}\n',
+		"feat: assemble",
+	);
+	commitFile("README.md", "# engine fixture\n", "docs: readme");
+	commitFile(
+		"src/math.ts",
+		"export function add(a: number, b: number): number {\n\treturn b + a;\n}\n",
+		"refactor: add",
+	);
 });
 
 afterAll(() => {
 	try {
-		rmSync(tempMainaDir, { recursive: true, force: true });
+		rmSync(fixtureRoot, { recursive: true, force: true });
 	} catch {
 		// ignore cleanup errors
 	}
 });
 
 describe("assembleContext", () => {
+	test("context is assembled from the fixture repo, not the host checkout", async () => {
+		const result = await assembleContext("commit", {
+			repoRoot,
+			env: createFakeEnv(),
+			mainaDir: tempMainaDir,
+		});
+
+		expect(result.text).toContain(`Current branch: ${FIXTURE_BRANCH}`);
+		expect(result.text).toContain("src/math.ts");
+	});
+
 	test("assembleContext('commit') returns an AssembledContext object", async () => {
 		const result = await assembleContext("commit", {
 			repoRoot,
