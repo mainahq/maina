@@ -6,6 +6,7 @@
  * No I/O, no side effects, no subprocess spawns.
  */
 
+import { isCodeFile } from "../language/profile";
 import type { Finding } from "./diff-filter";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -348,8 +349,13 @@ export function checkAnyType(filePath: string, content: string): Finding[] {
 
 /**
  * Run all built-in checks on a single file and return aggregated findings.
+ *
+ * Code-smell checks run only on source files. Data and docs files (`.json`,
+ * `.jsonl`, `.yml`, `.md`, fixtures, …) often hold code snippets in their
+ * strings, so only the hardcoded-secret scan applies to them (#372).
  */
 export function runBuiltinChecks(filePath: string, content: string): Finding[] {
+	if (!isCodeFile(filePath)) return checkSecrets(filePath, content);
 	return [
 		...checkConsoleLogs(filePath, content),
 		...checkUnusedImports(filePath, content),

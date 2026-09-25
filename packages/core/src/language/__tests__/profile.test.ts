@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	getProfile,
 	getSupportedLanguages,
+	isCodeFile,
 	TYPESCRIPT_PROFILE,
 } from "../profile";
 
@@ -114,5 +115,56 @@ describe("LanguageProfile", () => {
 	it("should include php in supported languages", () => {
 		const languages = getSupportedLanguages();
 		expect(languages).toContain("php");
+	});
+});
+
+describe("isCodeFile (#372)", () => {
+	it("accepts JS/TS module extensions", () => {
+		for (const f of [
+			"a.ts",
+			"a.tsx",
+			"a.js",
+			"a.jsx",
+			"a.mjs",
+			"a.cjs",
+			"a.mts",
+			"a.cts",
+		]) {
+			expect(isCodeFile(f)).toBe(true);
+		}
+	});
+
+	it("accepts component formats that hold script code", () => {
+		for (const f of ["App.vue", "Button.svelte", "pages/index.astro"]) {
+			expect(isCodeFile(f)).toBe(true);
+		}
+	});
+
+	it("accepts every language-profile extension", () => {
+		for (const id of getSupportedLanguages()) {
+			for (const ext of getProfile(id).extensions) {
+				expect(isCodeFile(`src/file${ext}`)).toBe(true);
+			}
+		}
+	});
+
+	it("rejects data and docs files", () => {
+		for (const f of [
+			"fixtures/case.json",
+			"corpus/cases.jsonl",
+			".github/workflows/ci.yml",
+			"config.yaml",
+			"README.md",
+			"notes.txt",
+			"Makefile",
+			"dir.ts/data.json",
+		]) {
+			expect(isCodeFile(f)).toBe(false);
+		}
+	});
+
+	it("is case-insensitive on the extension", () => {
+		expect(isCodeFile("LEGACY.JS")).toBe(true);
+		expect(isCodeFile("DATA.JSON")).toBe(false);
 	});
 });

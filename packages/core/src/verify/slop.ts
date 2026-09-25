@@ -13,7 +13,7 @@ import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { CacheManager } from "../cache/manager";
 import type { LanguageProfile } from "../language/profile";
-import { TYPESCRIPT_PROFILE } from "../language/profile";
+import { isCodeFile, TYPESCRIPT_PROFILE } from "../language/profile";
 import type { Finding } from "./diff-filter";
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ function hashContent(content: string): string {
 }
 
 // Bump this when detection logic changes to invalidate stale cache entries
-const SLOP_CACHE_VERSION = 2;
+const SLOP_CACHE_VERSION = 3; // v3: data/docs files skipped (#372)
 
 function cacheKey(fileHash: string): string {
 	return `slop:v${SLOP_CACHE_VERSION}:${fileHash}`;
@@ -166,8 +166,9 @@ export function detectHallucinatedImports(
 	profile?: LanguageProfile,
 ): Finding[] {
 	const lang = profile ?? TYPESCRIPT_PROFILE;
-	// Skip test files and markdown files — code blocks in .md trigger false positives
-	if (lang.testFilePattern.test(file) || file.endsWith(".md")) {
+	// Skip test files and non-code files — code snippets held in .md, .json,
+	// .yml etc. trigger false positives (#372)
+	if (lang.testFilePattern.test(file) || !isCodeFile(file)) {
 		return [];
 	}
 
@@ -441,10 +442,14 @@ export async function detectSlop(
 	const cwd = options?.cwd ?? process.cwd();
 	const cache = options?.cache;
 
-	const allFindings: Finding[] = [];
-	let allCached = files.length > 0;
+	// Slop patterns are code patterns: data/docs files (.json, .yml, .md, …)
+	// are skipped so snippets stored in their strings aren't misread (#372)
+	const codeFiles = files.filter(isCodeFile);
 
-	for (const file of files) {
+	const allFindings: Finding[] = [];
+	let allCached = codeFiles.length > 0;
+
+	for (const file of codeFiles) {
 		const filePath = isAbsolute(file) ? file : resolve(cwd, file);
 		let content: string;
 		try {
