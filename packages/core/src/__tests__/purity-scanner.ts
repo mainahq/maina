@@ -130,7 +130,7 @@ function regexEnd(source: string, start: number): number {
  * Replace comments, string contents, template text and regex literals with
  * spaces. Code inside `${…}` template expressions is kept.
  */
-export function maskNonCode(source: string): string {
+function maskNonCode(source: string): string {
 	const out: string[] = [];
 	// Each entry is the brace depth at which a `${` expression was opened.
 	const templateStack: number[] = [];

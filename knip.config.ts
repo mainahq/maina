@@ -18,24 +18,31 @@ const config: KnipConfig = {
 			entry: [
 				"ci/e2e/simulate-agent.ts!",
 				"scripts/*.ts!",
-				"scripts/__tests__/*.test.ts",
+				"scripts/dogfood/*.ts!",
+				"scripts/**/__tests__/*.test.ts",
 			],
 			project: ["ci/e2e/*.ts!", "scripts/**/*.ts!"],
 		},
 		"packages/cli": {
-			entry: ["src/index.ts!", TESTS],
+			entry: [TESTS],
 			project: ["src/**/*.ts!"],
 		},
 		"packages/core": {
-			entry: ["src/index.ts!", TESTS],
-			project: ["src/**/*.ts!"],
+			entry: [TESTS],
+			// Test-only helpers (scanner, allow-list, port fakes) are reachable
+			// from tests, not from production entries.
+			project: [
+				"src/**/*.ts!",
+				"!src/**/__tests__/**!",
+				"!src/ports/testing.ts!",
+			],
 		},
 		"packages/runtime": {
 			entry: ["src/**/__tests__/**/*.test.ts"],
 			project: ["src/**/*.ts"],
 		},
 		"packages/mcp": {
-			entry: ["src/index.ts!", TESTS],
+			entry: [TESTS],
 			project: ["src/**/*.ts!"],
 		},
 		"packages/skills": {
@@ -54,8 +61,6 @@ const config: KnipConfig = {
 		css: (text: string) =>
 			[...text.matchAll(/(?<=@)import[^;]+/g)].map(([m]) => m).join("\n"),
 	},
-	// Built artifact invoked by workflows after `bun run build`.
-	ignoreBinaries: ["packages/cli/dist/index.js"],
 };
 
 export default config;

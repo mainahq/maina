@@ -81,8 +81,10 @@ export function createMemoryFs(
 
 // ── git ─────────────────────────────────────────────────────────────────────
 
+/** @public test-fake API consumed by core refactors (wave A). */
 export type GitCall = Readonly<{ root: string; args: readonly string[] }>;
 
+/** @public test-fake API consumed by core refactors (wave A). */
 export type FakeGit = GitPort & Readonly<{ calls: () => readonly GitCall[] }>;
 
 /** Scripted git: keys are the space-joined args, values are stdout. */
@@ -142,6 +144,7 @@ export function createMemoryDb(): DbPort {
 
 // ── clock ───────────────────────────────────────────────────────────────────
 
+/** @public test-fake API consumed by core refactors (wave A). */
 export type FixedClock = ClockPort &
 	Readonly<{ advance: (ms: number) => void }>;
 
@@ -157,12 +160,14 @@ export function createFixedClock(startMs = 0): FixedClock {
 
 // ── logger ──────────────────────────────────────────────────────────────────
 
+/** @public test-fake API consumed by core refactors (wave A). */
 export type LogEntry = Readonly<{
 	level: LogLevel;
 	message: string;
 	fields: LogFields | undefined;
 }>;
 
+/** @public test-fake API consumed by core refactors (wave A). */
 export type MemoryLogger = LoggerPort &
 	Readonly<{ entries: () => readonly LogEntry[] }>;
 
@@ -184,6 +189,7 @@ export function createMemoryLogger(): MemoryLogger {
 
 // ── model ───────────────────────────────────────────────────────────────────
 
+/** @public test-fake API consumed by core refactors (wave A). */
 export type FakeModel = ModelPort &
 	Readonly<{ requests: () => readonly ModelRequest[] }>;
 
