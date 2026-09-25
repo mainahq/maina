@@ -11,7 +11,6 @@
 # serves a rules-only status notice, and CLI mode exits 69.
 
 set -u
-umask 077
 
 say() { printf 'maina launcher: %s\n' "$*" >&2; }
 
@@ -196,6 +195,9 @@ install_runtime() {
 	mkdir -p "$dir" 2>/dev/null || { reason=cache_unwritable; return 1; }
 
 	# Download next to the final path, so the install is one atomic rename.
+	# The runtime itself inherits the host's umask, so only this step is private.
+	host_umask=$(umask)
+	umask 077
 	tmp=$dir/.maina.$$.part
 	rm -f "$tmp" "$tmp.sig"
 	if ! fetch "$url" "$tmp"; then reason=download_failed
@@ -206,6 +208,7 @@ install_runtime() {
 	elif ! chmod 0755 "$tmp" || ! mv -f "$tmp" "$bin"; then reason=cache_unwritable
 	fi
 	rm -f "$tmp" "$tmp.sig"
+	umask "$host_umask"
 	[ -z "$reason" ]
 }
 

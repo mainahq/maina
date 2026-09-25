@@ -68,18 +68,20 @@ export function createReleaseKey(): ReleaseKey {
 }
 
 /**
- * A fake runtime: answers an MCP `initialize` in `mcp` mode, and otherwise
- * echoes the arguments it was started with.
+ * A fake runtime: answers an MCP `initialize` in `mcp` mode, prints its
+ * umask for `cli umask`, and otherwise echoes the arguments it was started
+ * with.
  */
 const SHELL_FAKE_RUNTIME = new TextEncoder().encode(
 	[
 		"#!/bin/sh",
-		'case "$1" in',
-		"  mcp)",
+		'case "$1:$2" in',
+		"  mcp:*)",
 		"    IFS= read -r line",
 		`    printf '%s\\n' '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{},"serverInfo":{"name":"fake-runtime","version":"0"}}}'`,
 		"    cat >/dev/null",
 		"    ;;",
+		"  cli:umask) umask ;;",
 		"  *) printf 'fake-runtime %s\\n' \"$*\" ;;",
 		"esac",
 		"",
