@@ -71,12 +71,15 @@ const config: KnipConfig = {
 			],
 		},
 		"packages/harness": {
-			// Private until release: the orchestrator and the worker registry
-			// are the entries. The fake ACP agent is spawned by path from the
+			// Private until release: the orchestrator, the worker registry and
+			// the sandbox (adapter + inner-sandbox configuration) are the
+			// entries. The fake ACP agent is spawned by path from the
 			// orchestrator tests.
 			entry: [
 				"src/orchestrator.ts!",
 				"src/workers/registry.ts!",
+				"src/sandbox/runtime-adapter.ts!",
+				"src/sandbox/nested.ts!",
 				TESTS,
 				"src/__fixtures__/*.ts",
 			],
