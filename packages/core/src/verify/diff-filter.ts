@@ -24,6 +24,8 @@ export interface Finding {
 	message: string;
 	severity: "error" | "warning" | "info";
 	ruleId?: string;
+	/** P(real problem) from `decide` (`finding.real`), set by the triage (#329). */
+	realProbability?: number;
 }
 
 export interface DiffFilterResult {

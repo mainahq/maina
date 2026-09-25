@@ -164,6 +164,15 @@ export async function buildReceipt(
 			}),
 		feedback: [],
 		retries,
+		...(input.pipeline.triage
+			? {
+					triage: {
+						decisionId: input.pipeline.triage.decisionId,
+						needsReview: input.pipeline.triage.needsReview,
+						confidence: roundProbability(input.pipeline.triage.confidence),
+					},
+				}
+			: {}),
 	};
 
 	const hashResult = computeHash(receiptWithoutHash);
@@ -181,6 +190,14 @@ export async function buildReceipt(
 	};
 }
 
+/**
+ * A probability rounded to 4 decimal places: short, and never serialised
+ * with an exponent (`1e-7`), which the canonical form does not cover.
+ */
+function roundProbability(p: number): number {
+	return Math.round(p * 10_000) / 10_000;
+}
+
 function mapFinding(f: PipelineFinding): ReceiptFinding {
 	return {
 		severity: f.severity,
@@ -188,6 +205,9 @@ function mapFinding(f: PipelineFinding): ReceiptFinding {
 		...(f.line > 0 ? { line: f.line } : {}),
 		message: f.message,
 		...(f.ruleId ? { rule: f.ruleId } : {}),
+		...(f.realProbability !== undefined && Number.isFinite(f.realProbability)
+			? { realProbability: roundProbability(f.realProbability) }
+			: {}),
 	};
 }
 

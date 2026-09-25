@@ -9,6 +9,11 @@
  * 4. Run all available tools in PARALLEL (slop, builtin, semgrep, trivy, secretlint)
  * 5. Collect all findings
  * 6. Apply diff-only filter (unless diffOnly === false)
+ * 6b. Triage the findings through `decide`: noise suppressed at the
+ *    policy's `finding.real` threshold, severity from `finding.severity`
+ *    (#329)
+ * 6c. Triage the diff (`diff.needs_review`): the AI review goes deep only
+ *    when it says so or `deep` is set; its entities come from the graph
  * 7. Status: failed on any error finding; passed only when a tool actually
  *    ran on a file in scope; otherwise skipped (#328)
  * 8. Return unified PipelineResult
@@ -17,9 +22,12 @@
 import { existsSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { createCacheManager } from "../cache/manager";
-import { getNoisyRules } from "../feedback/preferences";
+import { type DecidePorts, defaultDecidePorts } from "../decide/decide";
+import { loadPreferences } from "../feedback/preferences";
 import { getDiff, resolveBaseBranch } from "../git/index";
 import { resolveScopeFiles, type ScopeKind } from "../git/scope";
+import type { GraphContextPorts } from "../graph/query/types";
+import { codeGraphDbPath, openCodeGraph } from "../graph/system";
 import { detectLanguages } from "../language/detect";
 import type { LanguageId } from "../language/profile";
 import { getProfile, isCodeFile } from "../language/profile";
@@ -36,6 +44,7 @@ import type { Finding } from "./diff-filter";
 import { filterByDiff } from "./diff-filter";
 import { filterIgnoredFiles } from "./ignore";
 import { runMutation } from "./mutation";
+import { type EntityWithBody, graphReviewEntities } from "./review-entities";
 import { runSecretlint } from "./secretlint";
 import { runSemgrep } from "./semgrep";
 import { detectSlop } from "./slop";
@@ -44,6 +53,12 @@ import type { SyntaxDiagnostic } from "./syntax-guard";
 import { syntaxGuard } from "./syntax-guard";
 import { detectDocClaims } from "./tools/doc-claims";
 import { runWikiLintTool } from "./tools/wiki-lint-runner";
+import {
+	runsDeepReview,
+	type Triage,
+	triageDiff,
+	triageFindings,
+} from "./triage";
 import { runTrivy } from "./trivy";
 import { runTypecheck, type SpawnEnv } from "./typecheck";
 
@@ -88,6 +103,11 @@ export interface PipelineResult {
 	duration: number; // total ms
 	cacheHits: number; // cache L1+L2 hits during this run
 	cacheMisses: number; // cache misses during this run
+	/**
+	 * The review triage (`diff.needs_review`), when the pipeline got as far
+	 * as the AI review (#329). The receipt records it.
+	 */
+	triage?: Triage;
 }
 
 export interface PipelineOptions {
@@ -100,7 +120,8 @@ export interface PipelineOptions {
 	scope?: ScopeKind;
 	baseBranch?: string; // for diff filter (default: resolveBaseBranch)
 	diffOnly?: boolean; // default: true
-	deep?: boolean; // NEW — triggers standard-tier AI review
+	/** Force the standard-tier AI review; the triage can also ask for it (#329). */
+	deep?: boolean;
 	/** Repository root (explicit; core never reads the process cwd). */
 	cwd: string;
 	mainaDir?: string;
@@ -120,6 +141,17 @@ export interface PipelineOptions {
 	 * `GitPort`, not this port.
 	 */
 	process?: CorePorts["process"];
+	/**
+	 * Policy and backends for the findings and review triage (#329). The
+	 * built-in policy and backends when omitted.
+	 */
+	decide?: DecidePorts;
+	/**
+	 * Code-graph ports the AI review's entities are read from. When omitted
+	 * the store under `mainaDir` is opened if it exists; without one the
+	 * review gets no entities.
+	 */
+	graph?: GraphContextPorts;
 }
 
 // ─── Tool Runner Helpers ──────────────────────────────────────────────────
@@ -160,6 +192,53 @@ const FILE_EVIDENCE_TOOLS: ReadonlySet<string> = new Set([
 	"secretlint",
 	"typecheck",
 ]);
+
+/**
+ * `report` with each finding replaced by its triaged copy, and the ones the
+ * noise filter suppressed dropped. Findings the triage never saw (hidden by
+ * the diff filter) are kept as they are.
+ */
+function withTriaged(
+	report: ToolReport,
+	triaged: ReadonlyMap<Finding, Finding | null>,
+): ToolReport {
+	const findings = report.findings.flatMap((finding) => {
+		const t = triaged.get(finding);
+		if (t === undefined) return [finding];
+		return t === null ? [] : [t];
+	});
+	return { ...report, findings };
+}
+
+/**
+ * The graph symbols `diff` calls, for the AI review: from `graph` when
+ * given, else from the store under `mainaDir` when there is one. Any
+ * failure means no entities, never a failed run.
+ */
+async function reviewEntities(
+	graph: GraphContextPorts | undefined,
+	mainaDir: string,
+	cwd: string,
+	diff: string,
+): Promise<readonly EntityWithBody[]> {
+	if (!diff.trim()) return [];
+	const read = async (ports: GraphContextPorts) => {
+		const result = await graphReviewEntities(ports, cwd, diff);
+		return result.ok ? result.value : [];
+	};
+	if (graph) return read(graph);
+	// Opening the store creates it; verify never should.
+	if (!existsSync(codeGraphDbPath(mainaDir))) return [];
+	const opened = openCodeGraph(mainaDir);
+	if (!opened.ok) return [];
+	try {
+		return await read(opened.value.ports);
+	} catch {
+		return [];
+	} finally {
+		opened.value.close();
+	}
+}
 
 /** failed on any error finding; passed only with evidence; else skipped. */
 function deriveStatus(
@@ -453,29 +532,15 @@ export async function runPipeline(
 		hiddenCount = 0;
 	}
 
-	// ── Step 6b: Skip or downgrade noisy rules based on preferences ─────
-	try {
-		const noisy = getNoisyRules(mainaDir);
-		const noisyMap = new Map(noisy.map((r) => [r.ruleId, r]));
-		shownFindings = shownFindings.filter((finding) => {
-			if (!finding.ruleId) return true;
-			const rule = noisyMap.get(finding.ruleId);
-			if (!rule) return true;
-			// Skip entirely if FP rate > 50% — these erode trust
-			if (rule.falsePositiveRate > 0.5) return false;
-			// Downgrade if borderline (>30%)
-			if (rule.falsePositiveRate > 0.3) {
-				if (finding.severity === "error") finding.severity = "warning";
-				else if (finding.severity === "warning") finding.severity = "info";
-			}
-			return true;
-		});
-	} catch {
-		// Preference loading failure should never block verification
-	}
+	// ── Step 6b: Findings triage through decide (#329) ──────────────────
+	// finding.real at the policy's threshold suppresses noise; finding.severity
+	// sets the rest. Probabilities, not dismiss ratios, drive both.
+	const decidePorts = options.decide ?? defaultDecidePorts;
+	const preferences = loadPreferences(mainaDir);
+	const triaged = triageFindings(decidePorts, shownFindings, preferences);
+	shownFindings = [...triaged.kept];
 
-	// ── Step 7: AI review (mechanical always, standard if --deep) ────────
-	const deep = options.deep ?? false;
+	// ── Step 7: AI review (deep only on --deep or when triage asks) ──────
 	let diffText = "";
 	try {
 		diffText = diffOnly ? await getDiff(baseBranch, undefined, cwd) : "";
@@ -483,29 +548,42 @@ export async function runPipeline(
 		// getDiff failure should not block pipeline
 	}
 
+	const triageResult = triageDiff(decidePorts, diffText);
+	const triage = triageResult.ok ? triageResult.value : undefined;
+	const deep = runsDeepReview(options.deep ?? false, triage);
+
 	const aiReviewResult: AIReviewResult = await runAIReview({
 		diff: diffText,
-		entities: [], // Entities require tree-sitter + file body reads; wired when semantic index is hydrated
+		entities: await reviewEntities(options.graph, mainaDir, cwd, diffText),
 		deep,
 		mainaDir,
 		root: cwd,
 		env: envFromRecord(options.env ?? {}),
 	});
 
+	const aiTriaged = triageFindings(
+		decidePorts,
+		aiReviewResult.findings,
+		preferences,
+	);
 	const aiReport: ToolReport = {
 		tool: "ai-review",
-		findings: aiReviewResult.findings,
+		findings: [...aiTriaged.kept],
 		skipped: aiReviewResult.skipped,
 		duration: aiReviewResult.duration,
 	};
 
-	toolReports.push(aiReport);
+	// Reports carry the triaged findings too: the receipt is built from them.
+	const reports = [
+		...toolReports.map((r) => withTriaged(r, triaged.byOriginal)),
+		aiReport,
+	];
 
 	// Merge AI findings into shown findings
-	shownFindings.push(...aiReviewResult.findings);
+	shownFindings.push(...aiTriaged.kept);
 
 	// ── Step 8: Determine status ──────────────────────────────────────────
-	const status = deriveStatus(shownFindings, toolReports);
+	const status = deriveStatus(shownFindings, reports);
 
 	// ── Step 9: Return unified result ─────────────────────────────────────
 	const cacheStats = slopCache.stats();
@@ -514,12 +592,13 @@ export async function runPipeline(
 		passed: status === "passed",
 		scope,
 		syntaxPassed: true,
-		tools: toolReports,
+		tools: reports,
 		findings: shownFindings,
 		hiddenCount,
 		detectedTools,
 		duration: Math.round(performance.now() - start),
 		cacheHits: cacheStats.l1Hits + cacheStats.l2Hits,
 		cacheMisses: cacheStats.misses,
+		...(triage ? { triage } : {}),
 	};
 }

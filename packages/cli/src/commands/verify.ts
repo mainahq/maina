@@ -622,7 +622,10 @@ export function verifyCommand(): Command {
 			"--base <ref>",
 			"Base branch for diff (default: $MAINA_BASE, origin/HEAD, master, main)",
 		)
-		.option("--deep", "Run standard-tier AI semantic review")
+		.option(
+			"--deep",
+			"Force the standard-tier AI semantic review (the triage already runs it on large or sensitive diffs)",
+		)
 		.option("--visual", "Run visual regression checks")
 		.option("--cloud", "Run verification on maina cloud")
 		.action(async (options) => {

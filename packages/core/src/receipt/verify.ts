@@ -164,6 +164,8 @@ function validateShape(
 	if (checksErr) return checksErr;
 	const fbErr = validateFeedback(r.feedback);
 	if (fbErr) return fbErr;
+	const triageErr = validateTriage(r.triage);
+	if (triageErr) return triageErr;
 
 	return { ok: true };
 }
@@ -272,6 +274,15 @@ function validateChecks(v: unknown) {
 					"string when present",
 				);
 			}
+			if (
+				f.realProbability !== undefined &&
+				!isProbability(f.realProbability)
+			) {
+				return invalid(
+					`checks[${i}].findings[${j}].realProbability`,
+					"a number in [0, 1] when present",
+				);
+			}
 		}
 		if (c.patch !== undefined) {
 			const p = c.patch as Record<string, unknown>;
@@ -284,6 +295,25 @@ function validateChecks(v: unknown) {
 			}
 		}
 	}
+	return null;
+}
+
+function isProbability(v: unknown): boolean {
+	return typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1;
+}
+
+/** `triage` is optional (#329); when present every field is checked. */
+function validateTriage(v: unknown) {
+	if (v === undefined) return null;
+	if (typeof v !== "object" || v === null || Array.isArray(v))
+		return invalid("triage", "object when present");
+	const t = v as Record<string, unknown>;
+	if (typeof t.decisionId !== "string" || t.decisionId.length === 0)
+		return invalid("triage.decisionId", "non-empty string");
+	if (typeof t.needsReview !== "boolean")
+		return invalid("triage.needsReview", "boolean");
+	if (!isProbability(t.confidence))
+		return invalid("triage.confidence", "a number in [0, 1]");
 	return null;
 }
 
