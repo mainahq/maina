@@ -1,4 +1,4 @@
-import { describe, expect, it, test } from "bun:test";
+import { describe, expect, it, setDefaultTimeout, test } from "bun:test";
 import {
 	detectTool,
 	detectTools,
@@ -9,6 +9,11 @@ import {
 
 // Tests run from the repository; pass it as the explicit root (#290).
 const ROOT = process.cwd();
+
+// detectTools spawns every registered tool's version probe for real. The
+// isolated runner runs 8 test files at once, and when this file shares a
+// batch with the other detect suite the probes queue past bun's 5s default.
+setDefaultTimeout(30_000);
 
 // ─── Type checks ────────────────────────────────────────────────────────────
 

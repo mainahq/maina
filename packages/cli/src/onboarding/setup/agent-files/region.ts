@@ -20,6 +20,22 @@ export function wrapManaged(content: string): string {
 }
 
 /**
+ * True when `content` has managed markers that do not form exactly one
+ * start-then-end pair (a stray start, a lone end, two regions, or the end
+ * before the start). Merging into such a file could pair markers wrongly and
+ * replace user text on a later run, so callers must leave it untouched.
+ */
+export function hasUnbalancedManagedMarkers(content: string): boolean {
+	const starts = content.split(MAINA_REGION_START).length - 1;
+	const ends = content.split(MAINA_REGION_END).length - 1;
+	if (starts === 0 && ends === 0) return false;
+	if (starts !== 1 || ends !== 1) return true;
+	return (
+		content.indexOf(MAINA_REGION_END) < content.indexOf(MAINA_REGION_START)
+	);
+}
+
+/**
  * Merge maina-managed content into an existing file.
  * - If the file already contains a maina-managed region, replace it in place.
  * - Otherwise, append the wrapped region to the end with a blank line separator.
@@ -60,126 +76,4 @@ export function extractManaged(content: string): string | null {
 	const inner = content.slice(startIdx + MAINA_REGION_START.length, endIdx);
 	// Trim one leading and one trailing newline introduced by wrapManaged.
 	return inner.replace(/^\n/, "").replace(/\n$/, "");
-}
-
-// ── JSON keyed merge ────────────────────────────────────────────────────────
-//
-// Markdown files use the `<!-- maina-managed:* -->` delimiters above; JSON
-// configs (`.claude/settings.json`, `.cursor/mcp.json`, …) cannot carry
-// comments, so the "managed region" concept maps to a specific keyed path
-// inside the JSON object. Everything outside that path is preserved byte
-// for byte after serialisation.
-
-interface MergeJsonKeyedOptions {
-	/**
-	 * Dotted path (or array path) into the parsed JSON where the maina
-	 * entry should live. Intermediate containers are created if missing.
-	 * Example: `["mcpServers", "maina"]`.
-	 */
-	path: string[];
-	/** The value to place at `path`. */
-	value: unknown;
-	/** Indent for serialisation. Default: 2. */
-	indent?: number;
-}
-
-type MergeJsonKeyedResult =
-	| { kind: "merged"; text: string }
-	| { kind: "created"; text: string }
-	| { kind: "malformed"; text: string };
-
-/**
- * Merge a single keyed value into a JSON document, preserving every other
- * key. Pure function — callers decide how to persist the output.
- *
- * - If `existingText` is empty/whitespace, returns a fresh document with
- *   just the path populated (`kind: "created"`).
- * - If `existingText` parses to an object, the key at `path` is replaced
- *   (`kind: "merged"`). Other keys are untouched.
- * - If `existingText` is unparseable JSON, returns `kind: "malformed"`
- *   and a fresh document. The caller is expected to preserve the original
- *   somewhere (typically a `.bak.<ts>` sibling) before overwriting.
- */
-export function mergeJsonKeyed(
-	existingText: string,
-	opts: MergeJsonKeyedOptions,
-): MergeJsonKeyedResult {
-	const indent = opts.indent ?? 2;
-	const trimmed = existingText.trim();
-
-	if (trimmed.length === 0) {
-		const fresh = setAtPath({}, opts.path, opts.value);
-		return {
-			kind: "created",
-			text: `${JSON.stringify(fresh, null, indent)}\n`,
-		};
-	}
-
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(existingText);
-	} catch {
-		const fresh = setAtPath({}, opts.path, opts.value);
-		return {
-			kind: "malformed",
-			text: `${JSON.stringify(fresh, null, indent)}\n`,
-		};
-	}
-
-	if (!isPlainObject(parsed)) {
-		// e.g. JSON array/primitive at top level — we can't merge into it.
-		// Treat as malformed so the caller backs it up.
-		const fresh = setAtPath({}, opts.path, opts.value);
-		return {
-			kind: "malformed",
-			text: `${JSON.stringify(fresh, null, indent)}\n`,
-		};
-	}
-
-	const next = setAtPath(parsed, opts.path, opts.value);
-	return {
-		kind: "merged",
-		text: `${JSON.stringify(next, null, indent)}\n`,
-	};
-}
-
-function isPlainObject(x: unknown): x is Record<string, unknown> {
-	return (
-		typeof x === "object" &&
-		x !== null &&
-		!Array.isArray(x) &&
-		Object.getPrototypeOf(x) === Object.prototype
-	);
-}
-
-function setAtPath(
-	root: Record<string, unknown>,
-	path: string[],
-	value: unknown,
-): Record<string, unknown> {
-	if (path.length === 0) return root;
-	// Work on a shallow-cloned tree so callers holding references to `root`
-	// don't see mutations. JSON round-tripping already de-duplicated aliases,
-	// so a clone at each level is safe and cheap.
-	const out: Record<string, unknown> = { ...root };
-	let cursor: Record<string, unknown> = out;
-	for (let i = 0; i < path.length - 1; i++) {
-		const key = path[i];
-		if (key === undefined) continue;
-		const existing = cursor[key];
-		if (isPlainObject(existing)) {
-			const clone = { ...existing };
-			cursor[key] = clone;
-			cursor = clone;
-		} else {
-			const fresh: Record<string, unknown> = {};
-			cursor[key] = fresh;
-			cursor = fresh;
-		}
-	}
-	const last = path[path.length - 1];
-	if (last !== undefined) {
-		cursor[last] = value;
-	}
-	return out;
 }

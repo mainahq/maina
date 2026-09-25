@@ -11,16 +11,13 @@ import {
 	existsSync,
 	mkdirSync,
 	readdirSync,
+	readFileSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type {
-	AgentKind,
-	SetupAIResult,
-	StackContext,
-} from "../../onboarding/setup/index";
+import type { SetupAIResult, StackContext } from "../../onboarding/setup/index";
 import {
 	detectEnvironment,
 	resolveCiMode,
@@ -97,7 +94,6 @@ function makeDeps(
 		| "isDirty"
 		| "resolveAI"
 		| "assembleStack"
-		| "writeAgentFiles"
 		| "runVerify"
 		| "confirm"
 	>
@@ -119,10 +115,6 @@ function makeDeps(
 		isDirty: async () => false,
 		resolveAI: async () => fakeAI("byok"),
 		assembleStack: async () => ({ ok: true, value: fakeStack() }),
-		writeAgentFiles: async () => ({
-			ok: true,
-			value: { written: ["AGENTS.md", "CLAUDE.md"], warnings: [] },
-		}),
 		runVerify: async () => ({ findings: [], clean: true }),
 		confirm: async () => true,
 		seedWiki: async () => ({
@@ -196,8 +188,11 @@ describe("setupAction — mode detection", () => {
 		const deps = makeDeps();
 		const result = await setupAction({ cwd: tmpDir, yes: true }, deps);
 		expect(result.mode).toBe("update");
-		// Constitution gets re-tailored on update too
-		expect(result.constitutionWritten).toBe(true);
+		// Never overwritten: update refreshes managed regions only (#288).
+		expect(result.constitutionWritten).toBe(false);
+		expect(
+			readFileSync(join(tmpDir, ".maina", "constitution.md"), "utf-8"),
+		).toBe("# Existing\n");
 	});
 
 	test("--reset backs up .maina/ and runs fresh", async () => {
@@ -268,38 +263,31 @@ describe("setupAction — AI source threading", () => {
 // ── Wizard: agent flag ──────────────────────────────────────────────────────
 
 describe("setupAction — agents flag", () => {
-	test("passes selected agents through to writeAgentFiles", async () => {
+	test("writes only the selected agent files", async () => {
 		makeGitRepo(tmpDir);
-		let captured: AgentKind[] | undefined;
-		const deps = makeDeps({
-			writeAgentFiles: async (_cwd, _ctx, _qr, agents) => {
-				captured = agents;
-				return {
-					ok: true,
-					value: { written: ["AGENTS.md"], warnings: [] },
-				};
-			},
-		});
 		const opts: SetupActionOptions = {
 			cwd: tmpDir,
 			yes: true,
 			agents: ["agents", "cursor"],
 		};
-		await setupAction(opts, deps);
-		expect(captured).toEqual(["agents", "cursor"]);
+		const result = await setupAction(opts, makeDeps());
+		expect(result.agentFilesWritten).toContain("AGENTS.md");
+		expect(result.agentFilesWritten).toContain(".cursor/rules/maina.mdc");
+		expect(existsSync(join(tmpDir, "CLAUDE.md"))).toBe(false);
 	});
 
-	test("undefined agents → writes all (writer receives undefined)", async () => {
+	test("undefined agents → writes all five instruction files", async () => {
 		makeGitRepo(tmpDir);
-		let captured: AgentKind[] | undefined = ["agents"];
-		const deps = makeDeps({
-			writeAgentFiles: async (_cwd, _ctx, _qr, agents) => {
-				captured = agents;
-				return { ok: true, value: { written: [], warnings: [] } };
-			},
-		});
-		await setupAction({ cwd: tmpDir, yes: true }, deps);
-		expect(captured).toBeUndefined();
+		await setupAction({ cwd: tmpDir, yes: true }, makeDeps());
+		for (const path of [
+			"AGENTS.md",
+			"CLAUDE.md",
+			".cursor/rules/maina.mdc",
+			".github/copilot-instructions.md",
+			".windsurf/rules/maina.md",
+		]) {
+			expect(existsSync(join(tmpDir, path))).toBe(true);
+		}
 	});
 });
 
@@ -391,17 +379,12 @@ describe("setupAction — edge cases", () => {
 
 	test("agent file warnings are surfaced", async () => {
 		makeGitRepo(tmpDir);
-		const deps = makeDeps({
-			writeAgentFiles: async () => ({
-				ok: true,
-				value: {
-					written: ["AGENTS.md"],
-					warnings: ["skip CLAUDE.md: read-only"],
-				},
-			}),
-		});
-		const result = await setupAction({ cwd: tmpDir, yes: true }, deps);
-		expect(result.agentFilesWarnings).toContain("skip CLAUDE.md: read-only");
+		// A directory where CLAUDE.md should be makes the file unreadable.
+		mkdirSync(join(tmpDir, "CLAUDE.md"), { recursive: true });
+		const result = await setupAction({ cwd: tmpDir, yes: true }, makeDeps());
+		expect(
+			result.agentFilesWarnings.some((w) => w.startsWith("skip CLAUDE.md:")),
+		).toBe(true);
 	});
 
 	test("returns durationMs", async () => {

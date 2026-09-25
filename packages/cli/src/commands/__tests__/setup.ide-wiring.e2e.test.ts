@@ -111,10 +111,6 @@ describe("setupAction IDE-wiring e2e fixture", () => {
 						},
 						// biome-ignore lint/suspicious/noExplicitAny: minimal stub
 					}) as any,
-				writeAgentFiles: async () => ({
-					ok: true,
-					value: { written: [], warnings: [] },
-				}),
 				runVerify: async () => ({ findings: [], clean: true }),
 				confirm: async () => true,
 				seedWiki: async () => ({
@@ -208,10 +204,6 @@ describe("setupAction IDE-wiring e2e fixture", () => {
 						},
 						// biome-ignore lint/suspicious/noExplicitAny: minimal stub
 					}) as any,
-				writeAgentFiles: async () => ({
-					ok: true,
-					value: { written: [], warnings: [] },
-				}),
 				runVerify: async () => ({ findings: [], clean: true }),
 				confirm: async () => true,
 				seedWiki: async () => ({
@@ -285,10 +277,6 @@ describe("setupAction IDE-wiring e2e fixture", () => {
 						},
 						// biome-ignore lint/suspicious/noExplicitAny: minimal stub
 					}) as any,
-				writeAgentFiles: async () => ({
-					ok: true,
-					value: { written: [], warnings: [] },
-				}),
 				runVerify: async () => ({ findings: [], clean: true }),
 				confirm: async () => true,
 				seedWiki: async () => ({
@@ -364,10 +352,6 @@ describe("setupAction IDE-wiring e2e fixture", () => {
 						},
 						// biome-ignore lint/suspicious/noExplicitAny: minimal stub
 					}) as any,
-				writeAgentFiles: async () => ({
-					ok: true,
-					value: { written: [], warnings: [] },
-				}),
 				runVerify: async () => ({ findings: [], clean: true }),
 				confirm: async () => true,
 				seedWiki: async () => ({

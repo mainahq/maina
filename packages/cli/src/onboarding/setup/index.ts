@@ -2,9 +2,9 @@
  * Setup module — primitives used by the `maina setup` wizard.
  *
  * Sub-modules:
- * - `agent-files/` — tailored agent instruction files with managed-region
- *   merges (AGENTS.md, CLAUDE.md, .cursor/rules/maina.mdc, etc.) and the
- *   keyed-JSON-merge writers for IDE MCP configs.
+ * - `agent-files/` — tailored agent instruction file generators
+ *   (AGENTS.md, CLAUDE.md, .cursor/rules/maina.mdc, etc.) and the
+ *   managed-region helpers. Writing happens in `../plan.ts` + `../apply.ts`.
  * - `context.ts` — `StackContext` assembler: languages, frameworks, tooling,
  *   CI, and repo size detected from the working tree.
  * - `resolve-ai.ts` — constitution generation with degraded fallbacks.
@@ -13,13 +13,7 @@
  * sub-modules directly.
  */
 
-export { writeClaudeSettings } from "./agent-files/claude";
-export { writeCursorMcp } from "./agent-files/cursor";
-export {
-	type AgentKind,
-	ALL_AGENTS,
-	writeAllAgentFiles,
-} from "./agent-files/index";
+export { type AgentKind, ALL_AGENTS } from "./agent-files/index";
 export {
 	assembleStackContext,
 	type StackContext,

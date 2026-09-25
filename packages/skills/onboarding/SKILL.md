@@ -17,8 +17,8 @@ When setting up maina for the first time in a repository, configuring it for a n
 
 ## Steps
 
-1. **Bootstrap maina** with `maina init` (or `npx @mainahq/cli init`). This creates `.maina/` config, detects your project stack, and writes a constitution file.
-2. **Run guided configuration** with `maina setup`. This walks through model selection, API keys, and tool-specific MCP configuration.
+1. **Onboard maina** with `maina setup` (or `npx @mainahq/cli setup`). This detects your project stack, writes `.maina/` and a constitution, and adds maina's managed region to agent files and its `mcpServers.maina` key to MCP configs. It is safe to re-run: it never overwrites your files and backs up originals to `.maina/backups/`. (`maina init` is a deprecated alias.)
+2. **Opt into older agent files** with `maina setup --legacy-agents` if you use Cline, Roo Code, Continue.dev, Amazon Q, Aider or Gemini CLI rule files.
 3. **Verify the installation** with `maina doctor`. This checks that the CLI, MCP server, AI provider, and verification tools are all working.
 4. **Compile codebase knowledge** with `maina wiki init`. This scans your codebase, extracts entities via tree-sitter, and generates initial wiki articles.
 5. **Review available MCP tools** -- once configured, your AI coding tool can call these MCP tools directly:
@@ -49,46 +49,46 @@ brainstorm -> ticket -> plan -> design -> spec -> implement
 ## Per-Tool Setup
 
 ### Claude Code
-MCP auto-configured via `.claude/settings.json`. Run `maina init` and it is ready.
+MCP auto-configured via `.mcp.json` and `.claude/settings.json`. Run `maina setup` and it is ready.
 
 ### Cursor
-MCP via `.cursor/mcp.json` or project-level `.mcp.json`. Rules loaded from `.cursorrules`. Run `maina init`.
+MCP via `.cursor/mcp.json` or project-level `.mcp.json`. Rules loaded from `.cursor/rules/maina.mdc`. Run `maina setup`.
 
 ### Windsurf
-Rules loaded from `.windsurfrules`. MCP requires global configuration: run `maina setup` to write it.
+Rules loaded from `.windsurf/rules/maina.md`. MCP requires global configuration: run `maina setup` to write it.
 
 ### Continue.dev
-MCP auto-discovered from `.continue/mcpServers/maina.json`. Run `maina init`.
+MCP auto-discovered from `.continue/mcpServers/maina.json`. Run `maina setup --legacy-agents`.
 
 ### Cline
-Rules loaded from `.clinerules`. MCP configured via VS Code settings: run `maina setup`.
+Rules loaded from `.clinerules` (`maina setup --legacy-agents`). MCP configured via VS Code settings: run `maina mcp add`.
 
 ### Roo Code
-MCP via `.roo/mcp.json`. Rules loaded from `.roo/rules/maina.md`. Run `maina init`.
+MCP via `.roo/mcp.json`. Rules loaded from `.roo/rules/maina.md`. Run `maina setup --legacy-agents`.
 
 ### GitHub Copilot
-MCP via `.vscode/mcp.json`. Instructions loaded from `.github/copilot-instructions.md`. Run `maina init`.
+MCP via `.vscode/mcp.json`. Instructions loaded from `.github/copilot-instructions.md`. Run `maina setup`.
 
 ### Amazon Q
-MCP via `.amazonq/mcp.json`. Run `maina init`.
+MCP via `.amazonq/mcp.json`. Run `maina setup --legacy-agents`.
 
 ### Zed
 MCP via global `~/.config/zed/settings.json`. Run `maina setup` to write the config.
 
 ### Aider
-No MCP support. Uses `CONVENTIONS.md` and `.aider.conf.yml` for context. Run `maina init`.
+No MCP support. Uses `CONVENTIONS.md` and `.aider.conf.yml` for context. Run `maina setup --legacy-agents`.
 
 ### Gemini CLI
-MCP via `.mcp.json`. Instructions loaded from `GEMINI.md`. Run `maina init`.
+MCP via `.mcp.json`. Instructions loaded from `GEMINI.md`. Run `maina setup --legacy-agents`.
 
 ### Codex CLI
-Instructions loaded from `AGENTS.md`. Run `maina init`.
+Instructions loaded from `AGENTS.md`. Run `maina setup`.
 
 ## Example
 
 ```bash
 # First-time setup
-npx @mainahq/cli init
+npx @mainahq/cli setup
 # Detected: TypeScript, bun, biome
 # Created .maina/ configuration
 # Wrote constitution to .maina/constitution.md
@@ -110,6 +110,6 @@ maina wiki init
 ## Notes
 
 - All commands work as both CLI (`maina <command>` or `npx @mainahq/cli <command>`) and MCP tools inside AI coding tools.
-- MCP configuration is written automatically by `maina init` for tools that support project-level config files.
-- For tools that require global config (Windsurf, Zed), use `maina setup` instead.
+- MCP configuration is merged automatically by `maina setup` for tools that support project-level config files.
+- For tools that require global config (Windsurf, Zed), use `maina mcp add`.
 - Run `maina doctor` at any time to verify your setup is healthy.
