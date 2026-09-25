@@ -316,6 +316,35 @@ export function detectTodosWithoutTickets(
 	return findings;
 }
 
+/** A bare natural-language word, optionally wrapped in `(`/`)` or trailing punctuation. */
+const PROSE_WORD = /^\(?[A-Za-z][A-Za-z'’-]*[.,:;!?]?\)?[.,:;!?]?$/;
+/** Consecutive prose words that mark a comment line as a sentence. */
+const PROSE_RUN = 4;
+
+/**
+ * True when a comment line (prefix already stripped) reads as a sentence
+ * rather than code. Prose explanations routinely contain parentheses,
+ * backtick code spans, quotes and keywords like "if"/"return", which the
+ * code patterns would otherwise match (#394).
+ *
+ * A line ending in a statement/block terminator is never prose. Otherwise
+ * inline code spans and double-quoted strings are dropped, and a run of
+ * `PROSE_RUN` plain words in a row marks the line as prose: real code rarely
+ * has four bare identifiers separated only by spaces.
+ */
+function looksLikeProse(stripped: string): boolean {
+	if (/(?:[;{}]|=>)\s*$/.test(stripped)) return false;
+	const withoutSpans = stripped
+		.replace(/`[^`]*`/g, " ")
+		.replace(/"[^"]*"/g, " ");
+	let run = 0;
+	for (const token of withoutSpans.split(/\s+/)) {
+		run = PROSE_WORD.test(token) ? run + 1 : 0;
+		if (run >= PROSE_RUN) return true;
+	}
+	return false;
+}
+
 /**
  * Detect commented-out code blocks (3+ consecutive comment lines with code patterns).
  *
@@ -355,6 +384,7 @@ export function detectCommentedCode(
 			.replace(/^\s*\/\*\s?/, "")
 			.trim();
 		if (stripped.length === 0) return false;
+		if (looksLikeProse(stripped)) return false;
 
 		return codePatterns.some((p) => p.test(stripped));
 	}

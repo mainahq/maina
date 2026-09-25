@@ -218,6 +218,50 @@ function double(n: number): number {
 			const findings = detectCommentedCode(content, "src/app.ts");
 			expect(findings.length).toBe(0);
 		});
+
+		it("should still detect commented-out code without semicolons", () => {
+			const content = `// if (user.isAdmin) {
+//   grantAccess(user)
+//   audit.log("granted", user.id)
+// }
+export const x = 1;`;
+			const findings = detectCommentedCode(content, "src/app.ts");
+			expect(findings.length).toBe(1);
+			expect(findings[0]?.line).toBe(1);
+		});
+
+		// #394: prose explanations that happen to contain parentheses,
+		// backtick code spans or keywords are not commented-out code.
+		it.each([
+			[
+				"parenthetical asides",
+				`		// No receipts directory at all → nothing to check (e.g. fresh
+		// checkout). The docs workflow has its own "fail if missing"
+		// guard for the publish path; this script stays advisory here.`,
+			],
+			[
+				"backtick code spans",
+				`	// Commander does not expose a public \`.hidden()\` method but respects
+	// the internal \`_hidden\` flag when rendering \`helpInformation()\`.
+	// Setting it keeps the command callable while removing it from the`,
+			],
+			[
+				"issue references and quoted output",
+				`		// Defensive: a malformed server payload (missing path/content) used to
+		// throw out of the loop and leave \`@clack/prompts\`' spinner monitor to
+		// print a generic "Something went wrong" (see #196).`,
+			],
+			[
+				"sentences that start with keywords",
+				`	// If the file is missing, return an Err so the caller decides;
+	// for a stale cache (older than one day) we fall back to the
+	// default config (which is always safe to load).`,
+			],
+		])("should not flag prose comment blocks with %s", (_label, prose) => {
+			const content = `function f() {\n${prose}\n\treturn 1;\n}\n`;
+			const findings = detectCommentedCode(content, "src/app.ts");
+			expect(findings).toEqual([]);
+		});
 	});
 
 	// ─── Cache integration ───────────────────────────────────────────────────
