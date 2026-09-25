@@ -206,6 +206,37 @@ async function readRepoLayer(
 		: parsed;
 }
 
+/** The user policy file under `home`: `~/.maina/policy.json`. */
+export function userPolicyFile(home: string): string {
+	return join(home, ".maina", "policy.json");
+}
+
+/**
+ * The raw JSON of the user policy under `home`, for `loadPolicy`'s
+ * `userDefault`; `undefined` when there is no file. An unreadable or
+ * unparsable file is an error, never a silent default.
+ */
+export async function readUserPolicy(
+	ports: Pick<CorePorts, "fs">,
+	home: string,
+): Promise<Result<unknown, readonly PolicyError[]>> {
+	const file = userPolicyFile(home);
+	const raw = await readJsonFile(ports.fs, file);
+	if (raw.ok) return raw;
+	return {
+		ok: false,
+		error: [
+			{
+				kind: raw.error.kind,
+				source: "user",
+				file,
+				path: "",
+				message: raw.error.message,
+			},
+		],
+	};
+}
+
 /**
  * Loads the effective policy for `root`: the built-in defaults, then the
  * caller-supplied user default (already read by the runtime; `undefined`

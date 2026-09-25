@@ -360,4 +360,34 @@ describe("systemGates", () => {
 			"deny",
 		);
 	});
+
+	test("reads the user policy, so `maina allow --always` takes effect (FR-GATE-8)", async () => {
+		const home = mkdtempSync(join(tmpdir(), "maina-gate-home-"));
+		try {
+			const push = shell("git push origin main", repo);
+			expect((await systemGates({ home }).runtime(push)).verdict).toBe("ask");
+			mkdirSync(join(home, ".maina"), { recursive: true });
+			writeFileSync(
+				join(home, ".maina", "policy.json"),
+				JSON.stringify({
+					rules: { allow: [{ match: "git push origin main", kind: "shell" }] },
+				}),
+			);
+			expect((await systemGates({ home }).runtime(push)).verdict).toBe("allow");
+		} finally {
+			rmSync(home, { recursive: true, force: true });
+		}
+	});
+
+	test("an invalid user policy asks instead of being ignored", async () => {
+		const home = mkdtempSync(join(tmpdir(), "maina-gate-home-"));
+		try {
+			mkdirSync(join(home, ".maina"), { recursive: true });
+			writeFileSync(join(home, ".maina", "policy.json"), "{ nope");
+			const result = await systemGates({ home }).runtime(shell("ls", repo));
+			expect(result.verdict).toBe("ask");
+		} finally {
+			rmSync(home, { recursive: true, force: true });
+		}
+	});
 });

@@ -60,6 +60,11 @@ export type GateResult = Readonly<{
 	decisionIds: readonly string[];
 	/** The gate could not run in full (no model answer, no shell grammar). */
 	degraded: boolean;
+	/**
+	 * The lowest confidence among the `action.risk` answers, when the model
+	 * answered; absent when a rule decided alone. Feeds the message's band.
+	 */
+	confidence?: number;
 	/** A rewrite of the tool input for the host to run instead. */
 	rewrittenInput?: Readonly<Record<string, unknown>>;
 }>;
@@ -125,6 +130,7 @@ function evaluate(
 		reason: model.note === undefined ? reason : `${reason}; ${model.note}`,
 		decisionIds: model.ids,
 		degraded: blind || model.degraded,
+		...(model.confidence === undefined ? {} : { confidence: model.confidence }),
 	};
 }
 
@@ -199,6 +205,8 @@ type ModelOutcome = Readonly<{
 	ids: readonly string[];
 	degraded: boolean;
 	note: string | undefined;
+	/** The lowest confidence among the answers, when there were any. */
+	confidence?: number;
 }>;
 
 const NO_MODEL: ModelOutcome = {
@@ -245,10 +253,23 @@ function consultModel(
 		if (decision === undefined) return modelAsk(ids, true, "no decision");
 		decisions.push(decision);
 	}
-	const ids = decisions.map((d) => d.id);
-
-	const budget = ports.budgetMs ?? DEFAULT_GATE_BUDGET_MS;
 	const elapsed = ports.clock.now() - started;
+	const judged = judgeAnswers(decisions, policy, ports.budgetMs, elapsed);
+	return {
+		...judged,
+		confidence: Math.min(...decisions.map((d) => d.confidence)),
+	};
+}
+
+/** What the collected `action.risk` answers amount to, after the checks. */
+function judgeAnswers(
+	decisions: readonly Decision[],
+	policy: Policy,
+	budgetMs: number | undefined,
+	elapsed: number,
+): ModelOutcome {
+	const ids = decisions.map((d) => d.id);
+	const budget = budgetMs ?? DEFAULT_GATE_BUDGET_MS;
 	if (!(elapsed <= budget)) {
 		return modelAsk(
 			ids,
