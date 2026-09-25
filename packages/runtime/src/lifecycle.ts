@@ -58,18 +58,32 @@ type DaemonOptions = Readonly<{
 	endpoint: Endpoint;
 	version: string;
 	idleTtlMs: number;
-	/** Bun executable; defaults to the one running this process. */
+	/** Executable; defaults to the one running this process. */
 	execPath?: string;
 }>;
 
-const DAEMON_ENTRY = fileURLToPath(new URL("./daemon.ts", import.meta.url));
+/** Where a compiled runtime's modules live: Bun's `$bunfs` (`B:/~BUN` on Windows). */
+const COMPILED_MODULE = /^file:\/\/\/(\$bunfs\/|[A-Za-z]:\/~BUN\/)/;
 
-/** Spawns `daemon.ts` detached from this process, with stdio closed. */
+/**
+ * The command that starts a daemon. From source it is `daemon.ts` run by
+ * bun; inside a compiled standalone runtime (ADR 0045) it is the executable
+ * itself in `runtime-daemon` mode.
+ */
+export function daemonCommand(
+	moduleUrl: string,
+	execPath: string,
+): readonly string[] {
+	return COMPILED_MODULE.test(moduleUrl)
+		? [execPath, "runtime-daemon"]
+		: [execPath, fileURLToPath(new URL("./daemon.ts", moduleUrl))];
+}
+
+/** Spawns the daemon detached from this process, with stdio closed. */
 export function daemonSpawner(options: DaemonOptions): SpawnRuntime {
 	const { endpoint, version, idleTtlMs } = options;
 	const argv = [
-		options.execPath ?? process.execPath,
-		DAEMON_ENTRY,
+		...daemonCommand(import.meta.url, options.execPath ?? process.execPath),
 		"--address",
 		endpoint.address,
 		"--pid-file",

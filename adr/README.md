@@ -56,6 +56,7 @@ Each file records one decision: the context, what was decided, and what it costs
 | [0042](0042-delete-unwired-verify-runners-and-dead-modules.md) | Delete unwired verify runners (Lighthouse, ZAP) and other dead modules | Accepted |
 | [0043](0043-zod-for-config-and-policy-validation.md) | Zod for config and policy validation | Accepted |
 | [0044](0044-resident-runtime-ipc-transport.md) | Resident runtime IPC transport | Accepted |
+| [0045](0045-standalone-runtime-packaging-and-launcher.md) | Standalone runtime packaging and launcher | Accepted |
 
 ## Renumbering (mainahq/maina#295)
 
