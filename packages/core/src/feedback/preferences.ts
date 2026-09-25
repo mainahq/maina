@@ -35,7 +35,19 @@ export function loadPreferences(mainaDir: string): Preferences {
 
 	try {
 		const raw = readFileSync(path, "utf-8");
-		return JSON.parse(raw) as Preferences;
+		const parsed: unknown = JSON.parse(raw);
+		// `null`, an array or a file without a `rules` object is no preferences.
+		const rules = (parsed as { rules?: unknown } | null)?.rules;
+		if (
+			typeof parsed !== "object" ||
+			Array.isArray(parsed) ||
+			typeof rules !== "object" ||
+			rules === null ||
+			Array.isArray(rules)
+		) {
+			return { rules: {}, updatedAt: new Date().toISOString() };
+		}
+		return parsed as Preferences;
 	} catch {
 		return {
 			rules: {},
@@ -92,6 +104,33 @@ export function acknowledgeFinding(mainaDir: string, ruleId: string): void {
 	updateRate(rule);
 	prefs.updatedAt = new Date().toISOString();
 	savePreferences(mainaDir, prefs);
+}
+
+/** What `finding.real` is judged from for one rule. */
+type RuleOutcomes = Readonly<{
+	falsePositiveRate: number;
+	totalCount: number;
+}>;
+
+/**
+ * The recorded outcomes of `ruleId`'s findings, or none (a 0 rate over 0
+ * samples) for a finding without a rule or a rule never dismissed or
+ * acknowledged. Pure: the verify triage feeds this to `decide`.
+ */
+export function ruleOutcomes(
+	prefs: Preferences,
+	ruleId: string | undefined,
+): RuleOutcomes {
+	// A hand-edited file can lack `rules`; never throw on it.
+	const rule = ruleId === undefined ? undefined : prefs.rules?.[ruleId];
+	const rate = rule?.falsePositiveRate;
+	const total = rule?.totalCount;
+	return typeof rate === "number" &&
+		typeof total === "number" &&
+		Number.isFinite(rate) &&
+		Number.isFinite(total)
+		? { falsePositiveRate: rate, totalCount: total }
+		: { falsePositiveRate: 0, totalCount: 0 };
 }
 
 /**

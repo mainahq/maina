@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	acknowledgeFinding,
@@ -7,6 +7,7 @@ import {
 	getNoisyRules,
 	loadPreferences,
 	type Preferences,
+	ruleOutcomes,
 	savePreferences,
 } from "../preferences";
 
@@ -165,5 +166,28 @@ describe("round-trip", () => {
 		expect(loaded.rules["rule-b"]?.dismissCount).toBe(0);
 		expect(loaded.rules["rule-b"]?.totalCount).toBe(5);
 		expect(loaded.updatedAt).toBe("2026-04-03T00:00:00.000Z");
+	});
+});
+
+describe("preferences for the verify triage (#329)", () => {
+	test("a file that is not a preferences object loads as none", () => {
+		for (const content of ["null", "[]", '{"rules":null}', '{"rules":[]}']) {
+			writeFileSync(join(tmpDir, "preferences.json"), content);
+			expect(loadPreferences(tmpDir).rules).toEqual({});
+		}
+	});
+
+	test("ruleOutcomes reads a rule's outcomes, or none", () => {
+		dismissFinding(tmpDir, "rule-a");
+		acknowledgeFinding(tmpDir, "rule-a");
+		const prefs = loadPreferences(tmpDir);
+		expect(ruleOutcomes(prefs, "rule-a")).toEqual({
+			falsePositiveRate: 0.5,
+			totalCount: 2,
+		});
+		const none = { falsePositiveRate: 0, totalCount: 0 };
+		expect(ruleOutcomes(prefs, "unknown")).toEqual(none);
+		expect(ruleOutcomes(prefs, undefined)).toEqual(none);
+		expect(ruleOutcomes(prefs, "constructor")).toEqual(none);
 	});
 });

@@ -60,6 +60,12 @@ Biome runs first, in under 500ms. If the code does not parse, the entire pipelin
 
 Only findings on changed lines are reported. If a file had 50 pre-existing warnings and you changed 3 lines, you see findings for those 3 lines only. This eliminates the noise that makes developers ignore tool output. Inspired by Reviewdog.
 
+### Findings and review triage
+
+Every finding gets a `realProbability`: how likely it is to be a real problem, judged from how often you dismissed that rule before. A finding Maina is confident is noise (at or above the `finding.real` confidence threshold in your policy) is dropped; one that is more likely noise than real is shown one severity lower. Probabilities, not raw dismiss ratios, drive both, so a threshold in `.maina/policy.json` tunes them.
+
+The diff is triaged too. A large diff, a wide one, or one that touches security-sensitive paths (auth, sessions, secrets, tokens, payments, migrations) gets the standard-tier AI review without `--deep`; everything else gets the fast mechanical one. The receipt records the triage decision (`triage: { decisionId, needsReview, confidence }`), and the AI review sees the bodies of the functions your diff calls, read from the code graph.
+
 ### Auto-detection
 
 Tools are auto-detected at runtime. If Semgrep is installed, it runs. If it is not, it is skipped -- not an error. Maina works with zero external tools installed (Biome is built-in), and gets more powerful as you add tools.

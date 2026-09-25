@@ -107,7 +107,7 @@ function sqliteDbPort(db: SqliteDatabase): DbPort {
 }
 
 /** The store's database file for a `.maina` directory. */
-const codeGraphDbPath = (mainaDir: string): string =>
+export const codeGraphDbPath = (mainaDir: string): string =>
 	join(mainaDir, "graph", "index.db");
 
 export type OpenGraphError = Readonly<{

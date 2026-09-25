@@ -139,6 +139,10 @@ mock.module("../diff-filter", () => ({
 	},
 }));
 
+// The diff the AI review and the review triage see (#329).
+const SMALL_DIFF = "+  some changed code";
+let mockDiff = SMALL_DIFF;
+
 mock.module("../../git/index", () => ({
 	getStagedFiles: async (..._args: unknown[]) => {
 		callOrder.push("getStagedFiles");
@@ -147,7 +151,7 @@ mock.module("../../git/index", () => ({
 	resolveBaseBranch: async (_cwd?: string, preferred?: string) =>
 		preferred ?? "main",
 	getDiff: async (..._args: unknown[]) => {
-		return "+  some changed code";
+		return mockDiff;
 	},
 }));
 
@@ -175,9 +179,12 @@ let mockAIReviewResult: {
 	duration: 0,
 };
 
+let capturedAIReviewOptions: Record<string, unknown> | null = null;
+
 mock.module("../ai-review", () => ({
-	runAIReview: async (..._args: unknown[]) => {
+	runAIReview: async (options: Record<string, unknown>) => {
 		callOrder.push("runAIReview");
+		capturedAIReviewOptions = options;
 		return mockAIReviewResult;
 	},
 }));
@@ -273,6 +280,8 @@ describe("VerifyPipeline", () => {
 		mockStagedFiles = ["src/app.ts"];
 		mockWorkingTreeFiles = ["src/app.ts"];
 		capturedScopeKind = null;
+		mockDiff = SMALL_DIFF;
+		capturedAIReviewOptions = null;
 		mockAIReviewResult = {
 			findings: [],
 			skipped: true,
@@ -718,7 +727,11 @@ describe("VerifyPipeline", () => {
 		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 
 		expect(callOrder).toContain("runAIReview");
-		expect(result.findings).toContainEqual(aiReviewFinding);
+		// Triaged like every finding: no recorded outcomes → an even split (#329).
+		expect(result.findings).toContainEqual({
+			...aiReviewFinding,
+			realProbability: 0.5,
+		});
 		const aiReport = result.tools.find((t) => t.tool === "ai-review");
 		expect(aiReport).toBeDefined();
 		expect(aiReport?.skipped).toBe(false);
@@ -727,6 +740,77 @@ describe("VerifyPipeline", () => {
 	it("should pass deep flag to AI review when specified", async () => {
 		await runPipeline({ cwd: ROOT, files: ["src/app.ts"], deep: true });
 		expect(callOrder).toContain("runAIReview");
+		expect(capturedAIReviewOptions?.deep).toBe(true);
+	});
+
+	it("runs no deep review when the triage says the diff needs none (#329)", async () => {
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
+		expect(capturedAIReviewOptions?.deep).toBe(false);
+		expect(result.triage).toMatchObject({ needsReview: false, confidence: 1 });
+		expect(result.triage?.decisionId).toMatch(/^needs_review:[0-9a-f]{16}$/);
+	});
+
+	it("runs a deep review when the triage says the diff needs one (#329)", async () => {
+		mockDiff = [
+			"diff --git a/src/auth/login.ts b/src/auth/login.ts",
+			"--- a/src/auth/login.ts",
+			"+++ b/src/auth/login.ts",
+			"@@ -1,0 +1,1 @@",
+			"+export const allow = true;",
+		].join("\n");
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
+		expect(result.triage?.needsReview).toBe(true);
+		expect(capturedAIReviewOptions?.deep).toBe(true);
+	});
+
+	it("suppresses a finding decide is confident is noise, and drops it from its report (#329)", async () => {
+		const mainaDir = join(ROOT, ".maina-noise");
+		mkdirSync(mainaDir, { recursive: true });
+		writeFileSync(
+			join(mainaDir, "preferences.json"),
+			JSON.stringify({
+				updatedAt: "2026-01-01T00:00:00.000Z",
+				rules: {
+					"slop/noisy": {
+						ruleId: "slop/noisy",
+						dismissCount: 9,
+						totalCount: 10,
+						falsePositiveRate: 0.9,
+					},
+					"slop/borderline": {
+						ruleId: "slop/borderline",
+						dismissCount: 6,
+						totalCount: 10,
+						falsePositiveRate: 0.6,
+					},
+				},
+			}),
+		);
+		const noisy = makeFinding({ tool: "slop", ruleId: "slop/noisy" });
+		const borderline = makeFinding({
+			tool: "slop",
+			ruleId: "slop/borderline",
+			severity: "error",
+		});
+		mockSlopResult = { findings: [noisy, borderline], cached: false };
+
+		const result = await runPipeline({
+			cwd: ROOT,
+			mainaDir,
+			files: ["src/app.ts"],
+		});
+
+		const slopFindings = result.findings.filter((f) => f.tool === "slop");
+		expect(slopFindings).toHaveLength(1);
+		expect(slopFindings[0]).toMatchObject({
+			ruleId: "slop/borderline",
+			severity: "warning",
+		});
+		expect(slopFindings[0]?.realProbability).toBeCloseTo(0.4, 10);
+		const report = result.tools.find((t) => t.tool === "slop");
+		expect(report?.findings).toEqual(slopFindings);
+		// The tool's own result is left as it was.
+		expect(borderline.severity).toBe("error");
 	});
 
 	it("should pass when AI review is skipped", async () => {

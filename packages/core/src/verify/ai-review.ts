@@ -2,8 +2,9 @@
  * AI Review — semantic code review using LLM.
  *
  * Two tiers:
- * - mechanical (always-on): diff + referenced functions, <3s, warnings only
- * - standard (--deep): adds spec/plan context, can emit errors
+ * - mechanical (default): diff + referenced functions, <3s, warnings only
+ * - standard (deep): adds spec/plan context, can emit errors. Runs on
+ *   `--deep` or when the verify triage says the diff needs it (#329)
  */
 
 import type { AIContext } from "../ai/index";
@@ -11,6 +12,9 @@ import { tryAIGenerate } from "../ai/try-generate";
 import { buildCacheKey, hashContent } from "../cache/keys";
 import { createCacheManager } from "../cache/manager";
 import type { Finding } from "./diff-filter";
+import { calledNames, type EntityWithBody } from "./review-entities";
+
+export type { EntityWithBody } from "./review-entities";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -20,19 +24,11 @@ export interface ReferencedFunction {
 	body: string;
 }
 
-export interface EntityWithBody {
-	name: string;
-	kind: string;
-	startLine: number;
-	endLine: number;
-	filePath: string;
-	body: string;
-}
-
 /** `root` + `env` decide the AI provider, key and host delegation. */
 export interface AIReviewOptions extends AIContext {
 	diff: string;
-	entities: EntityWithBody[];
+	/** Symbols the diff may call, from the code graph (`graphReviewEntities`). */
+	entities: readonly EntityWithBody[];
 	deep?: boolean;
 	specContext?: string;
 	planContext?: string;
@@ -51,61 +47,21 @@ const MAX_REFS_PER_FILE = 3;
 // ─── Referenced Function Resolution ───────────────────────────────────────
 
 /**
- * Extract function/method names called in added lines of a diff,
- * then match them against known entities to get their bodies.
- * Capped at MAX_REFS_PER_FILE (3) to bound token usage.
+ * Match the names called in the diff's added lines (`calledNames`)
+ * against known entities to get their bodies. Capped at MAX_REFS_PER_FILE
+ * (3) to bound token usage.
  */
 export function resolveReferencedFunctions(
 	diff: string,
-	entities: EntityWithBody[],
+	entities: readonly EntityWithBody[],
 ): ReferencedFunction[] {
-	// Extract added lines from diff
-	const addedLines = diff
-		.split("\n")
-		.filter((line) => line.startsWith("+") && !line.startsWith("+++"))
-		.join("\n");
+	const called = calledNames(diff);
+	if (called.size === 0) return [];
 
-	if (!addedLines.trim()) return [];
-
-	// Extract identifier-like tokens that could be function calls
-	// Match word( pattern — likely a function call
-	const callPattern = /\b([a-zA-Z_$][\w$]*)\s*\(/g;
-	const calledNames = new Set<string>();
-	for (const match of addedLines.matchAll(callPattern)) {
-		if (match[1]) calledNames.add(match[1]);
-	}
-
-	// Remove common keywords that match the pattern
-	const KEYWORDS = new Set([
-		"if",
-		"for",
-		"while",
-		"switch",
-		"catch",
-		"function",
-		"return",
-		"new",
-		"typeof",
-		"instanceof",
-		"await",
-		"async",
-		"import",
-		"export",
-		"const",
-		"let",
-		"var",
-		"class",
-		"throw",
-	]);
-	for (const kw of KEYWORDS) calledNames.delete(kw);
-
-	if (calledNames.size === 0) return [];
-
-	// Match against known entities
 	const matched: ReferencedFunction[] = [];
 	for (const entity of entities) {
 		if (matched.length >= MAX_REFS_PER_FILE) break;
-		if (calledNames.has(entity.name)) {
+		if (called.has(entity.name)) {
 			matched.push({
 				name: entity.name,
 				filePath: entity.filePath,
