@@ -242,7 +242,9 @@ function withoutPath(value: unknown, path: readonly PropertyKey[]): unknown {
 	const record = value as Readonly<Record<PropertyKey, unknown>>;
 	if (!Object.hasOwn(record, head)) return value;
 	if (rest.length > 0) {
-		return { ...record, [head]: withoutPath(record[head], rest) };
+		const child = withoutPath(record[head], rest);
+		// Unchanged child → same object, so the caller can detect no progress.
+		return child === record[head] ? value : { ...record, [head]: child };
 	}
 	return Object.fromEntries(
 		Object.entries(record).filter(([key]) => key !== String(head)),
@@ -253,7 +255,8 @@ function withoutPath(value: unknown, path: readonly PropertyKey[]): unknown {
  * Lenient counterpart of {@link parseConfigLayer} (#393): drops only the
  * fields that fail validation, keeps every valid one, and reports each
  * dropped field with its path. One unknown key never discards the rest of
- * the user's config; a non-object root yields an empty layer.
+ * the user's config. A non-object root, or invalid fields that cannot be
+ * removed, yield an empty layer plus a root (`""`) error saying so.
  */
 export function salvageConfigLayer(
 	raw: unknown,
@@ -267,9 +270,20 @@ export function salvageConfigLayer(
 		const { issues } = parsed.error;
 		errors.push(...issues.flatMap((issue) => toConfigErrors(issue, file)));
 		const paths = issues.flatMap(offendingPaths);
-		if (paths.some((path) => path.length === 0)) break;
-		candidate = paths.reduce(withoutPath, candidate);
+		// A root issue already says the whole layer is unusable.
+		if (paths.some((path) => path.length === 0)) return { layer: {}, errors };
+		const next = paths.reduce(withoutPath, candidate);
+		// No field could be removed (e.g. an inherited one): stop, don't repeat.
+		if (next === candidate) break;
+		candidate = next;
 	}
+	errors.push({
+		kind: "invalid",
+		file,
+		path: "",
+		message:
+			"Could not isolate the invalid fields; using the defaults for this file",
+	});
 	return { layer: {}, errors };
 }
 

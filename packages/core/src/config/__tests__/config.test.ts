@@ -243,6 +243,37 @@ describe("loadConfigModule", () => {
 		expect(errors[0]?.path).toBe("");
 	});
 
+	// Review of #397: a null default export is a non-object root, not a
+	// missing default (which would surface as an unknown `default` key).
+	test("reports a null default export as a root error, not an unknown `default` key", async () => {
+		writeModule("null");
+		const { config, errors } = await loadConfigModule(tmpDir);
+		expect(config).toEqual(getDefaultConfig());
+		expect(errors).toHaveLength(1);
+		expect(errors[0]?.path).toBe("");
+	});
+
+	// Review of #397: the "never throws" contract covers reading the export
+	// too, since the CLI calls this before every command.
+	test("reports an export whose fields throw when read instead of throwing", async () => {
+		const file = writeModule(`{ get provider() { throw new Error("boom"); } }`);
+		const { config, errors } = await loadConfigModule(tmpDir);
+		expect(config).toEqual(getDefaultConfig());
+		expect(errors).toHaveLength(1);
+		expect(errors[0]).toMatchObject({ kind: "parse", file, path: "" });
+		expect(errors[0]?.message).toContain("boom");
+	});
+
+	test("reads named exports when the module has no default export", async () => {
+		writeFileSync(
+			join(tmpDir, "maina.config.ts"),
+			`export const provider = "named-provider";`,
+		);
+		const { config, errors } = await loadConfigModule(tmpDir);
+		expect(errors).toEqual([]);
+		expect(config.provider).toBe("named-provider");
+	});
+
 	test("reports a module that fails to import instead of swallowing it", async () => {
 		const configPath = join(tmpDir, "maina.config.js");
 		writeFileSync(configPath, "module.exports = { provider: ;");

@@ -44,6 +44,23 @@ describe("formatConfigWarnings (#393)", () => {
 		expect(text).toContain("defaults");
 		expect(text).toContain("Unexpected token");
 	});
+
+	// Review of #397: a root-level `invalid` error (e.g. `export default 42`)
+	// means nothing was kept, so the warning must not claim the rest applies.
+	test("a root-level invalid error says the defaults are used, not that the rest applies", () => {
+		const text = formatConfigWarnings([
+			{
+				kind: "invalid",
+				file: FILE,
+				path: "",
+				message: "Invalid input: expected object, received number",
+			},
+		]);
+		expect(text).toContain("could not load");
+		expect(text).toContain("defaults");
+		expect(text).toContain("(root)");
+		expect(text).not.toContain("rest of the config still applies");
+	});
 });
 
 describe("warnOnConfigErrors (#393)", () => {

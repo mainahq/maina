@@ -15,11 +15,13 @@ function formatFileWarnings(
 	file: string,
 	errors: readonly ConfigError[],
 ): string {
-	const unloadable = errors.filter((e) => e.kind !== "invalid");
-	if (unloadable.length > 0) {
+	// A root-level error (unparseable module, non-object export, or a layer
+	// the salvage could not isolate) means nothing in this file was kept.
+	const unloadable = errors.some((e) => e.kind !== "invalid" || e.path === "");
+	if (unloadable) {
 		return [
 			`maina: could not load ${file}; using the defaults:`,
-			...unloadable.map(describeError),
+			...errors.map(describeError),
 		].join("\n");
 	}
 	const noun = errors.length === 1 ? "entry" : "entries";

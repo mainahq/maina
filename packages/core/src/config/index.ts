@@ -146,8 +146,8 @@ export type ConfigModuleLoad = Readonly<{
  * validates it and merges it over the defaults with the same defined merge
  * as {@link loadConfig}. Never throws and never silently resets (#393): an
  * invalid field is dropped on its own and reported in `errors` while every
- * valid field is kept; a module that cannot be imported yields the defaults
- * plus a `parse` error for that file.
+ * valid field is kept; a module that cannot be imported or read yields the
+ * defaults plus a `parse` error for that file.
  */
 export async function loadConfigModule(
 	startDir: string,
@@ -158,9 +158,16 @@ export async function loadConfigModule(
 		return { config: getDefaultConfig(), errors: [] };
 	}
 
-	let mod: { default?: unknown };
+	// Importing runs user code, and reading the export can too (getters), so
+	// both stay inside the guard.
 	try {
-		mod = (await import(configPath)) as { default?: unknown };
+		const mod = (await import(configPath)) as { default?: unknown };
+		const { layer, errors } = salvageConfigLayer(
+			// Presence, not nullishness: `export default null` is a (bad) root value.
+			fromLegacyModule(Object.hasOwn(mod, "default") ? mod.default : mod),
+			configPath,
+		);
+		return { config: mergeConfig(getDefaultConfig(), layer), errors };
 	} catch (error) {
 		const reason = error instanceof Error ? error.message : String(error);
 		return {
@@ -175,12 +182,6 @@ export async function loadConfigModule(
 			],
 		};
 	}
-
-	const { layer, errors } = salvageConfigLayer(
-		fromLegacyModule(mod.default ?? mod),
-		configPath,
-	);
-	return { config: mergeConfig(getDefaultConfig(), layer), errors };
 }
 
 /**

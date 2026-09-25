@@ -174,6 +174,20 @@ describe("salvageConfigLayer (#393)", () => {
 		expect(errors).toHaveLength(1);
 		expect(errors[0]?.path).toBe("");
 	});
+
+	// Review of #397: a field zod reads but the salvage cannot delete (here an
+	// inherited one) must not loop into duplicate errors and then reset
+	// silently; the reset is reported as a root error, once.
+	test("an invalid field it cannot remove is reported once, plus an explicit root reset", () => {
+		const models = Object.create({ standard: 42 }) as object;
+		const { layer, errors } = salvageConfigLayer(
+			{ provider: "anthropic", models },
+			FILE,
+		);
+		expect(layer).toEqual({});
+		expect(errors.map((e) => e.path)).toEqual(["models.standard", ""]);
+		expect(errors[1]?.message).toContain("defaults");
+	});
 });
 
 describe("maina.config JSON Schema", () => {
