@@ -42,7 +42,6 @@ Source files (`packages/core/src/verify/`):
 - `detect.ts`
 - `diff-filter.ts`
 - `fix.ts`
-- `lighthouse.ts`
 - `mutation.ts`
 - `pipeline.ts`
 - `proof.ts`
@@ -55,4 +54,3 @@ Source files (`packages/core/src/verify/`):
 - `typecheck.ts`
 - `types.ts`
 - `visual.ts`
-- `zap.ts`
