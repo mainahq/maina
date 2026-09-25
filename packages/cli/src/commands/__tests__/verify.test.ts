@@ -96,6 +96,8 @@ mock.module("@mainahq/core", () => ({
 		return mockFixResult;
 	},
 	getStagedFiles: async () => mockStagedFiles,
+	resolveBaseBranch: async (_cwd?: string, preferred?: string) =>
+		preferred ?? "main",
 	getTrackedFiles: async () => mockStagedFiles,
 	// Also export symbols needed by doctor.ts to avoid cross-file mock conflicts
 	detectTools: async () => [],

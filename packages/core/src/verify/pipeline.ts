@@ -14,7 +14,7 @@
 
 import { createCacheManager } from "../cache/manager";
 import { getNoisyRules } from "../feedback/preferences";
-import { getDiff, getStagedFiles } from "../git/index";
+import { getDiff, getStagedFiles, resolveBaseBranch } from "../git/index";
 import { detectLanguages } from "../language/detect";
 import type { LanguageId } from "../language/profile";
 import { getProfile } from "../language/profile";
@@ -63,7 +63,7 @@ export interface PipelineResult {
 
 export interface PipelineOptions {
 	files?: string[]; // specific files (default: staged files)
-	baseBranch?: string; // for diff filter (default: "main")
+	baseBranch?: string; // for diff filter (default: resolveBaseBranch)
 	diffOnly?: boolean; // default: true
 	deep?: boolean; // NEW — triggers standard-tier AI review
 	cwd?: string;
@@ -106,7 +106,7 @@ export async function runPipeline(
 	const start = performance.now();
 	const cwd = options?.cwd ?? process.cwd();
 	const diffOnly = options?.diffOnly !== false; // default: true
-	const baseBranch = options?.baseBranch ?? "main";
+	const baseBranch = await resolveBaseBranch(cwd, options?.baseBranch);
 
 	// ── Step 1: Get files to check ────────────────────────────────────────
 	const rawFiles = options?.files ?? (await getStagedFiles(cwd));

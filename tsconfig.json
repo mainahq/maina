@@ -13,6 +13,7 @@
     "sourceMap": true,
     "noUncheckedIndexedAccess": true,
     "noEmit": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "types": ["bun-types"]
   }
 }

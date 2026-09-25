@@ -6,7 +6,7 @@
  * they introduced. This eliminates noise from legacy code.
  */
 
-import { getDiff } from "../git/index";
+import { getDiff, getMergeBase, resolveBaseBranch } from "../git/index";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -158,7 +158,7 @@ export function filterByDiffWithMap(
  * (on unchanged lines, i.e. pre-existing issues).
  *
  * @param findings - All findings from verification tools
- * @param baseBranch - The branch to diff against (defaults to "main")
+ * @param baseBranch - Preferred base; resolved via resolveBaseBranch (origin/HEAD → master → main)
  * @param cwd - Working directory for git commands
  * @returns Partitioned findings with hidden count
  */
@@ -167,13 +167,18 @@ export async function filterByDiff(
 	baseBranch?: string,
 	cwd?: string,
 ): Promise<DiffFilterResult> {
-	const base = baseBranch ?? "main";
+	// Resolve the base instead of assuming "main"; an unresolvable ref must
+	// never make the filter fall open (#364).
+	const base = await resolveBaseBranch(cwd, baseBranch);
+	const mergeBase = await getMergeBase(base, cwd);
 
-	// Get the diff against the base branch
-	const diff = await getDiff(base, undefined, cwd);
+	// Working tree (staged + unstaged) vs the merge-base, then uncommitted only.
+	const diff =
+		(await getDiff(mergeBase, undefined, cwd)) ||
+		(await getDiff("HEAD", undefined, cwd));
 
-	// If no diff (e.g. on the base branch itself, or git error),
-	// show all findings as a safe fallback
+	// Clean tree on the base itself: nothing is "changed", keep legacy
+	// behaviour of surfacing everything.
 	if (!diff.trim()) {
 		return { shown: findings, hidden: 0 };
 	}

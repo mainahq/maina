@@ -219,6 +219,7 @@ export async function commitAction(
 	if (!options.skip && !options.noVerify) {
 		pipelineResult = await runPipeline({
 			files: stagedFiles,
+			baseBranch: process.env.MAINA_BASE,
 			cwd,
 			mainaDir,
 		});
@@ -257,7 +258,7 @@ export async function commitAction(
 		if (!pipelineResult.passed) {
 			if (!options.json) {
 				log.error(
-					`Verification failed: ${pipelineResult.findings.length} finding(s) with errors.`,
+					`Verification failed: ${pipelineResult.findings.filter((f) => f.severity === "error").length} finding(s) with errors.`,
 				);
 			}
 

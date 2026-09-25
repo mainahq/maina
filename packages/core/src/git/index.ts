@@ -98,6 +98,47 @@ export async function getDiff(
 	return output;
 }
 
+const refExists = async (ref: string, cwd?: string): Promise<boolean> =>
+	(await exec(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], cwd)) !==
+	"";
+
+/**
+ * Resolve the branch to diff against. Precedence: `preferred` (if it
+ * resolves) → origin/HEAD → master → main (local, then origin/) → "HEAD".
+ * Never assumes "main": master-based repos made `git diff main` fail and the
+ * diff filter fall open (#364).
+ */
+export async function resolveBaseBranch(
+	cwd?: string,
+	preferred?: string,
+): Promise<string> {
+	const originHead = (
+		await exec(
+			["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
+			cwd,
+		)
+	).replace(/^origin\//, "");
+	const names = [preferred, originHead, "master", "main"].filter(
+		(n): n is string => Boolean(n),
+	);
+	for (const name of names) {
+		for (const ref of name.startsWith("origin/")
+			? [name]
+			: [name, `origin/${name}`]) {
+			if (await refExists(ref, cwd)) return ref;
+		}
+	}
+	return "HEAD";
+}
+
+/** Merge-base of `base` and HEAD, or `base` itself when there is none. */
+export async function getMergeBase(
+	base: string,
+	cwd?: string,
+): Promise<string> {
+	return (await exec(["merge-base", base, "HEAD"], cwd)) || base;
+}
+
 export interface DiffStats {
 	additions: number;
 	deletions: number;

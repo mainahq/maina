@@ -21,6 +21,7 @@ import {
 	getWorkflowId,
 	loadAuthConfig,
 	recordFeedbackAsync,
+	resolveBaseBranch,
 	runPipeline,
 	runVisualVerification,
 } from "@mainahq/core";
@@ -174,7 +175,10 @@ export async function cloudVerifyAction(
 	},
 ): Promise<CloudVerifyResult> {
 	const cwd = options.cwd ?? process.cwd();
-	const baseBranch = options.base ?? "main";
+	const baseBranch = await resolveBaseBranch(
+		cwd,
+		options.base ?? process.env.MAINA_BASE,
+	);
 	const sleepFn = deps?.sleepFn ?? ((ms: number) => Bun.sleep(ms));
 	const startedAt = Date.now();
 
@@ -349,7 +353,10 @@ export async function verifyAction(
 ): Promise<VerifyActionResult> {
 	const cwd = options.cwd ?? process.cwd();
 	const mainaDir = join(cwd, ".maina");
-	const baseBranch = options.base ?? "main";
+	const baseBranch = await resolveBaseBranch(
+		cwd,
+		options.base ?? process.env.MAINA_BASE,
+	);
 	const startedAt = Date.now();
 
 	// Consent-gated — `captureUsage` is a no-op unless `telemetry: true` and
@@ -548,7 +555,10 @@ export function verifyCommand(): Command {
 		.option("--all", "Scan all files, not just changed")
 		.option("--fix", "Show AI fix suggestions")
 		.option("--json", "Output JSON for CI")
-		.option("--base <ref>", "Base branch for diff", "main")
+		.option(
+			"--base <ref>",
+			"Base branch for diff (default: $MAINA_BASE, origin/HEAD, master, main)",
+		)
 		.option("--deep", "Run standard-tier AI semantic review")
 		.option("--visual", "Run visual regression checks")
 		.option("--cloud", "Run verification on maina cloud")
