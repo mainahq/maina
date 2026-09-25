@@ -8,6 +8,25 @@ Maina — verification-first developer OS. CLI + MCP server + skills package tha
 
 Product spec and implementation plan live in the private `mainahq/maina-cloud` repo under `strategy/` (moved out on 2026-04-18 to keep roadmap private).
 
+## v1 rebuild (in progress, ships as 2.0.0)
+
+1.x is treated as a POC being refactored in place. Positioning: **guardrails for AI coding agents**; decides in milliseconds whether an agent action is allowed, asked or denied. Spec/plan: `maina-cloud:strategy/maina-v1/`. Tracking epic: mainahq/maina#365. Every task is one GitHub issue labelled `v1`; cite its FR IDs.
+
+- **Branching:** branch per issue off `v1/main` (`v1/<issue>-<slug>`), PR into `v1/main`. Never PR v1 work into `master`.
+- **Dogfood:** use `maina verify`, `maina commit` (never raw `git commit`, never `--skip`) and receipts. Friction → issue labelled `dogfood`; P0 (wrong allow, crash, no override path) blocks the next wave.
+- **Target layering:** `core` = pure functions over explicit inputs + injected ports · `runtime` = process concerns (root, config, IPC, MCP, model) · adapters = host event normalisation, no decisions · surfaces (plugins, docs) = generated packaging only.
+
+## Functional core rules (enforced by `packages/core/src/__tests__/purity.test.ts` ratchet)
+
+- No `process.cwd()`, `process.env`, `console.*`, `process.stdout` or `throw` in `packages/core`. Side effects go through `CorePorts` (`fs, git, db, clock, logger, model, env`); logs go to stderr via the logger port.
+- Return `Result<T, E>` for anything fallible; errors are typed discriminated unions, not strings, in new code.
+- No classes. Plain functions and data; `readonly` types; discriminated unions for variants; exhaustive `switch` with a `never` check.
+- Small pure functions composed together; I/O at the edges. No new FP framework (no Effect/fp-ts): KISS.
+- One source of truth: versions, tool lists, hook mappings, decision types and counts are defined once and generated elsewhere (docs included).
+- Never overwrite user files: merge managed keys/regions, back up before first write, support clean uninstall.
+- Fail closed: any gate path that errors resolves to `ask` (or `deny` where the host has no `ask`).
+- Every public capability has tests; performance budgets are bench tests in CI.
+
 ## Stack
 
 - **Runtime:** Bun (NOT Node.js)
