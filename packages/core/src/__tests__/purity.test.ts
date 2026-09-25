@@ -154,6 +154,19 @@ describe("purity scanner", () => {
 		]);
 	});
 
+	test("consumes a regex's closing `/` so a later regex cannot hide code between them", () => {
+		const source = [
+			"const r = /x/; process.env.SECRET; /y/;",
+			"const s = /x/g; console.log(1); const t = /y/i;",
+			"const u = /a\\/b[/]/; process.cwd(); /c/;",
+		].join("\n");
+		expect(scanSource(source)).toEqual([
+			{ rule: "process.env", line: 1 },
+			{ rule: "console", line: 2 },
+			{ rule: "process.cwd", line: 3 },
+		]);
+	});
+
 	test("flags Bun.env and Bun.stdout as their process equivalents", () => {
 		const source = [
 			"const k = Bun.env.KEY;",
