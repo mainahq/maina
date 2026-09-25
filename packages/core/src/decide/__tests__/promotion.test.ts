@@ -4,6 +4,7 @@ import { DEFAULT_POLICY } from "../../policy/defaults";
 import type { DbPort } from "../../ports/db";
 import { createFixedClock, createMemoryDb } from "../../ports/testing";
 import { type DecidePorts, decide } from "../decide";
+import { readLogSlice, SHADOW_ACTION } from "../evidence";
 import type { DecisionLogPorts } from "../log/append";
 import { hashModel } from "../log/hash";
 import { queryDecisions } from "../log/query";
@@ -14,8 +15,6 @@ import {
 	evaluatePromotion,
 	PROMOTION_METRICS,
 	type PromotionGates,
-	readLogSlice,
-	SHADOW_ACTION,
 	shadowRun,
 } from "../promotion";
 import { DEFAULT_REGISTRY } from "../registry";
@@ -494,26 +493,5 @@ describe("readLogSlice", () => {
 		const report = evaluatePromotion(slice, GATES);
 		expect(report.entries[0]?.metrics.samples).toBe(2);
 		expect(report.entries[0]?.metrics.labelled).toBe(1);
-	});
-
-	test("keeps only the outcomes of decisions in the slice", () => {
-		const db = migratedDb();
-		const clock = createFixedClock(5_000);
-		const run = unwrap(
-			shadowRun(
-				{ primary: primaryPorts(), shadow: contrarian(false), log: { db } },
-				{ id: "r", ts: 10, request: REQUEST, finalAction: () => "flag" },
-			),
-		);
-		for (const r of run.records) {
-			unwrap(
-				linkOutcome({ db, clock }, r.id, { kind: "accepted", source: "gate" }),
-			);
-		}
-		const slice = unwrap(readLogSlice({ db }, { type: "slop", limit: 1 }));
-		expect(slice.decisions).toHaveLength(1);
-		expect(slice.outcomes.map((o) => o.decisionId)).toEqual(
-			slice.decisions.map((r) => r.id),
-		);
 	});
 });

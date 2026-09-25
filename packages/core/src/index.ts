@@ -167,6 +167,11 @@ export {
 	type DriftThresholds,
 	driftThresholds,
 } from "./decide/drift";
+export {
+	type LogSlice,
+	readLogSlice,
+	SHADOW_ACTION,
+} from "./decide/evidence";
 // Decision log (append-only, FR-DEC-3/5)
 export {
 	appendDecision,
@@ -221,15 +226,12 @@ export {
 export {
 	evaluatePromotion,
 	type GateResult,
-	type LogSlice,
 	PROMOTION_METRICS,
 	type PromotionEntry,
 	type PromotionGate,
 	type PromotionGates,
 	type PromotionMetrics,
 	type PromotionReport,
-	readLogSlice,
-	SHADOW_ACTION,
 	type ShadowPorts,
 	type ShadowRunInput,
 	type ShadowRunResult,

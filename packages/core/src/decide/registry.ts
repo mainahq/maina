@@ -42,3 +42,18 @@ export function selectBackend(
 				error: { kind: "no_backend", type, backend: named ?? fallback },
 			};
 }
+
+/** `policy` with `type` served by `backend`; every other field unchanged. */
+export function withBackend(
+	policy: Policy,
+	type: DecisionType,
+	backend: DecisionBackend,
+): Policy {
+	return {
+		...policy,
+		decisions: {
+			...policy.decisions,
+			[type]: { ...policy.decisions[type], backend },
+		},
+	};
+}

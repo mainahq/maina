@@ -10,8 +10,6 @@
  */
 
 import type { Policy } from "../policy/schema";
-import { hashModel } from "./log/hash";
-import type { DecisionRecord } from "./log/schema";
 import {
 	confidenceOf,
 	type LogSlice,
@@ -19,8 +17,10 @@ import {
 	outcomesById,
 	SHADOW_ACTION,
 	verdictOf,
-	withBackend,
-} from "./promotion";
+} from "./evidence";
+import { hashModel } from "./log/hash";
+import type { DecisionRecord } from "./log/schema";
+import { withBackend } from "./registry";
 import type { DecisionBackend, DecisionType } from "./types";
 import { DECISION_CATALOG } from "./types-catalog";
 

@@ -7,9 +7,9 @@ import {
 	type DriftThresholds,
 	driftThresholds,
 } from "../drift";
+import { SHADOW_ACTION } from "../evidence";
 import type { DecisionRecord } from "../log/schema";
 import type { OutcomeRecord } from "../outcomes/types";
-import { SHADOW_ACTION } from "../promotion";
 import { createRegistry, DEFAULT_REGISTRY, selectBackend } from "../registry";
 import type { Backend } from "../types";
 import { boolRecord, HEURISTIC, outcome, SYSTEM1 } from "./slice-fixtures";
