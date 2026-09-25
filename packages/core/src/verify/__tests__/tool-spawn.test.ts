@@ -22,7 +22,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 const RESTRICTED_PATH = "/usr/bin:/bin";
 
@@ -251,6 +251,21 @@ describe("runners spawn the tool path resolved by detection (#389)", () => {
 			expect(result.findings).toHaveLength(1);
 			expect(result.findings[0]?.tool).toBe(c.tool);
 			expect(result.findings[0]?.message).toContain(c.message);
+		}, 20_000);
+
+		test(`${c.fn} runs a root-local ${c.bin} when the root is a relative path`, async () => {
+			// Detection probes relative to the process cwd, but the runner spawns
+			// with cwd = root: a relative resolved path would miss (ENOENT).
+			writeFakeTool(join(root, "node_modules", ".bin", c.bin), c.body);
+
+			const result = await runInChild(c, {
+				cwd: relative(tmpdir(), root),
+				baseBranch: "HEAD",
+			});
+
+			expect(result.notice).toBeUndefined();
+			expect(result.skipped).toBe(false);
+			expect(result.findings).toHaveLength(1);
 		}, 20_000);
 
 		test(`${c.fn} honours a pre-resolved command from the pipeline`, async () => {
