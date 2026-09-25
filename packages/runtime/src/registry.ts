@@ -151,50 +151,107 @@ const ageMs = (path: string, now: number): number => {
 
 type HoldCheck = (holder: Holder, now: number) => boolean;
 
+type HeldError = Readonly<{ kind: "held"; pid: number }>;
+type Claim = Result<null, HeldError | RegistryError>;
+
+const CLAIMED: Claim = { ok: true, value: null };
+const heldBy = (pid: number): Claim => ({
+	ok: false,
+	error: { kind: "held", pid },
+});
+
+/** Creates `path` only if it does not exist; false when it already does. */
+function writeClaim(path: string, pid: number, now: number): boolean {
+	try {
+		writeFileSync(path, JSON.stringify({ pid, at: now }), {
+			flag: "wx",
+			mode: 0o600,
+		});
+		return true;
+	} catch (err) {
+		if (errorCode(err) === "EEXIST") return false;
+		throw err;
+	}
+}
+
+type ClaimState =
+	| Readonly<{ state: "absent" }>
+	| Readonly<{ state: "held"; pid: number }>
+	| Readonly<{ state: "stale" }>;
+
+function inspectClaim(
+	path: string,
+	now: number,
+	isHeld: HoldCheck,
+): ClaimState {
+	const holder = readHolder(path);
+	if (holder !== null) {
+		return isHeld(holder, now)
+			? { state: "held", pid: holder.pid }
+			: { state: "stale" };
+	}
+	const age = ageMs(path, now);
+	if (age === Number.POSITIVE_INFINITY) return { state: "absent" };
+	return age < FRESH_UNREADABLE_MS
+		? { state: "held", pid: 0 }
+		: { state: "stale" };
+}
+
+/** A takeover marker older than this was left by a claimant that crashed. */
+const TAKEOVER_STALE_MS = 5000;
+
 /**
  * Creates `path` exclusively with `{ pid, at }`. When it already exists and
- * `isHeld` says the holder is still valid, returns the holder's pid; a stale
- * holder is removed and the create retried once.
+ * `isHeld` says the holder is still valid, returns the holder's pid.
+ *
+ * A stale claim is taken over under an exclusive marker directory
+ * (`<path>.takeover`), and only a marker holder ever removes a claim. Since
+ * `wx` never replaces an existing claim, the claim a marker holder re-reads
+ * as stale cannot change before it removes it, so two claimants can never
+ * both remove the old claim and both succeed.
  */
 function claimExclusive(
 	path: string,
 	pid: number,
 	now: number,
 	isHeld: HoldCheck,
-): Result<null, Readonly<{ kind: "held"; pid: number }> | RegistryError> {
-	for (let attempt = 0; attempt < 2; attempt++) {
-		try {
-			writeFileSync(path, JSON.stringify({ pid, at: now }), {
-				flag: "wx",
-				mode: 0o600,
-			});
-			return { ok: true, value: null };
-		} catch (err) {
-			if (errorCode(err) !== "EEXIST") {
-				return {
-					ok: false,
-					error: { kind: "io_error", message: message(err) },
-				};
-			}
-			const holder = readHolder(path);
-			const held =
-				holder === null
-					? ageMs(path, now) < FRESH_UNREADABLE_MS
-					: isHeld(holder, now);
-			if (held)
-				return { ok: false, error: { kind: "held", pid: holder?.pid ?? 0 } };
-			rmSync(path, { force: true });
+): Claim {
+	try {
+		if (writeClaim(path, pid, now)) return CLAIMED;
+		const seen = inspectClaim(path, now, isHeld);
+		if (seen.state === "held") return heldBy(seen.pid);
+		const marker = `${path}.takeover`;
+		if (ageMs(marker, now) >= TAKEOVER_STALE_MS) {
+			rmSync(marker, { recursive: true, force: true });
 		}
+		try {
+			mkdirSync(marker);
+		} catch (err) {
+			if (errorCode(err) === "EEXIST") return heldBy(0);
+			throw err;
+		}
+		try {
+			const current = inspectClaim(path, now, isHeld);
+			if (current.state === "held") return heldBy(current.pid);
+			if (current.state === "stale") rmSync(path, { force: true });
+			return writeClaim(path, pid, now)
+				? CLAIMED
+				: heldBy(readHolder(path)?.pid ?? 0);
+		} finally {
+			rmSync(marker, { recursive: true, force: true });
+		}
+	} catch (err) {
+		return { ok: false, error: { kind: "io_error", message: message(err) } };
 	}
-	return {
-		ok: false,
-		error: { kind: "io_error", message: `could not claim ${path}` },
-	};
 }
 
-/** Removes `path` if `pid` still holds it. */
+/** Removes `path` if `pid` still holds it. Best effort: never throws. */
 function releaseExclusive(path: string, pid: number): void {
-	if (readHolder(path)?.pid === pid) rmSync(path, { force: true });
+	try {
+		if (readHolder(path)?.pid === pid) rmSync(path, { force: true });
+	} catch {
+		// Left behind; the next claimant sees a dead holder and takes over.
+	}
 }
 
 export type ClaimError =

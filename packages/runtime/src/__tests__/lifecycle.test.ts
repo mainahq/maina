@@ -9,7 +9,13 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	utimesSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHookClient } from "../client/hook-client";
@@ -179,6 +185,41 @@ describe("runtime exclusivity", () => {
 		expect(JSON.parse(readFileSync(t.endpoint.pidFile, "utf8")).pid).toBe(
 			process.ppid,
 		);
+	});
+
+	test("a stale claim that another claimant is taking over is not taken twice", async () => {
+		const t = temp();
+		writeFileSync(
+			t.endpoint.pidFile,
+			JSON.stringify({ pid: await deadPid(), at: Date.now() }),
+		);
+		mkdirSync(`${t.endpoint.pidFile}.takeover`);
+		const started = startRuntime(
+			{ gate: fixedGate("allow") },
+			{ endpoint: t.endpoint, version: "1.0.0", idleTtlMs: 60_000 },
+		);
+		if (started.ok) runtimes.push(started.value);
+		expect(started.ok).toBe(false);
+		if (!started.ok) expect(started.error.kind).toBe("already_running");
+	});
+
+	test("a takeover marker abandoned by a crashed claimant is cleared", async () => {
+		const t = temp();
+		writeFileSync(
+			t.endpoint.pidFile,
+			JSON.stringify({ pid: await deadPid(), at: Date.now() }),
+		);
+		const marker = `${t.endpoint.pidFile}.takeover`;
+		mkdirSync(marker);
+		const old = new Date(Date.now() - 60_000);
+		utimesSync(marker, old, old);
+		const started = startRuntime(
+			{ gate: fixedGate("allow") },
+			{ endpoint: t.endpoint, version: "1.0.0", idleTtlMs: 60_000 },
+		);
+		expect(started.ok).toBe(true);
+		if (started.ok) runtimes.push(started.value);
+		expect(existsSync(marker)).toBe(false);
 	});
 
 	test("a pid file from before the last boot is stale even if the pid is reused", () => {

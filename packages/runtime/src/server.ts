@@ -99,6 +99,25 @@ async function runPort(run: () => unknown): Promise<Outcome> {
 	}
 }
 
+/** A handler can return a value JSON cannot encode (a BigInt, a cycle). */
+function encodeSafely(response: Response): string {
+	try {
+		return encodeMessage(response);
+	} catch (err) {
+		const { v, id, runtimeVersion } = response;
+		return encodeMessage({
+			v,
+			id,
+			runtimeVersion,
+			ok: false,
+			error: {
+				code: "handler_failed",
+				message: `result could not be serialised: ${errorMessage(err)}`,
+			},
+		});
+	}
+}
+
 async function evaluateHook(
 	gate: GateEvaluator,
 	params: unknown,
@@ -210,7 +229,7 @@ export function startRuntime(
 		const response: Response = outcome.ok
 			? { ...base, ok: true, result: outcome.value }
 			: { ...base, ok: false, error: outcome.error };
-		socket.data.writer.write(socket, encodeMessage(response));
+		socket.data.writer.write(socket, encodeSafely(response));
 	};
 
 	const handleLine = async (socket: Socket<Conn>, line: string) => {
@@ -272,7 +291,16 @@ export function startRuntime(
 		});
 		if (!isPipe) chmodSync(endpoint.address, 0o600);
 	} catch (err) {
+		// `chmodSync` can fail after the listener is up: take it down too.
 		idle.cancel();
+		listener?.stop(true);
+		if (!isPipe) {
+			try {
+				rmSync(endpoint.address, { force: true });
+			} catch {
+				// Nothing more to do; the next start removes it.
+			}
+		}
 		releasePidFile(endpoint, pid);
 		return {
 			ok: false,

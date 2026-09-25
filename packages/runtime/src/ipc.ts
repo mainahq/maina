@@ -271,8 +271,9 @@ export function sendRequest(
 					if (line === undefined) return;
 					const decoded = decodeResponse(line);
 					if (!decoded.ok) return fail("bad_response", decoded.error);
-					const { id } = decoded.value;
-					if (id !== request.id && id !== null) {
+					// Every request this client sends is readable, so a null id
+					// (the reply to an unreadable request) is never its answer.
+					if (decoded.value.id !== request.id) {
 						return fail("bad_response", "response id does not match");
 					}
 					finish(decoded);

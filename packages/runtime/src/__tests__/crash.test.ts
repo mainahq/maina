@@ -229,6 +229,38 @@ describe("runtime failures", () => {
 		});
 	});
 
+	test.each([
+		["another runtime version", { runtimeVersion: "0.9.0", id: "same" }],
+		["a null id", { runtimeVersion: VERSION, id: null }],
+	] as const)("an allow answer carrying %s is never trusted", async (_name, shape) => {
+		const t = temp();
+		listeners.push(
+			Bun.listen({
+				unix: t.endpoint.address,
+				socket: {
+					data: (socket, chunk) => {
+						const req = JSON.parse(new TextDecoder().decode(chunk));
+						const id = shape.id === null ? null : req.id;
+						socket.write(
+							`${JSON.stringify({
+								v: 1,
+								id,
+								runtimeVersion: shape.runtimeVersion,
+								ok: true,
+								result: { verdict: "allow", reason: "impostor" },
+							})}\n`,
+						);
+					},
+				},
+			}),
+		);
+		const result = await client(t.endpoint, fixedGate("deny")).evaluate(
+			shellEvent,
+			{ timeoutMs: 1000 },
+		);
+		expect(result).toMatchObject({ verdict: "deny", degraded: true });
+	});
+
 	test("a runtime that crashes mid-request gives a degraded result", async () => {
 		const t = temp();
 		const { address, pidFile, spawnLock } = t.endpoint;

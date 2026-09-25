@@ -28,7 +28,11 @@ type HookClientConfig = Readonly<{
 	/** This client's version; the runtime must match it. */
 	version: string;
 	spawn: SpawnRuntime;
-	/** Rules-only evaluation used when the runtime cannot answer. */
+	/**
+	 * Rules-only evaluation used when the runtime cannot answer. It runs in
+	 * this process, so it must be bounded: the time budget can cut off an
+	 * async fallback, but not a synchronous one that never returns.
+	 */
 	fallback: GateEvaluator;
 }>;
 
@@ -99,8 +103,12 @@ export function createHookClient(config: HookClientConfig): HookClient {
 				createRequest("hook.evaluate", event, version),
 				remaining,
 			);
+			const otherVersion =
+				sent.ok &&
+				(sent.value.runtimeVersion !== version ||
+					(!sent.value.ok && sent.value.error.code === "version_mismatch"));
 			const needsRuntime = sent.ok
-				? !sent.value.ok && sent.value.error.code === "version_mismatch"
+				? otherVersion
 				: sent.error.kind === "connect_failed";
 			if (needsRuntime && !recovered) {
 				recovered = true;
@@ -109,6 +117,7 @@ export function createHookClient(config: HookClientConfig): HookClient {
 				continue;
 			}
 			if (!sent.ok) return degrade(event, sent.error.kind, deadline);
+			if (otherVersion) return degrade(event, "version_mismatch", deadline);
 			const response = sent.value;
 			if (!response.ok) return degrade(event, response.error.code, deadline);
 			const decision = parseGateDecision(response.result);

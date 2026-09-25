@@ -179,6 +179,20 @@ describe("runtime requests over the socket", () => {
 		expect(sent.value.error.code).toBe("not_implemented");
 	});
 
+	test("a handler result that cannot be serialised answers handler_failed", async () => {
+		const rt = start({
+			gate: fixedGate("allow"),
+			handlers: { "graph.query": () => ({ big: 1n }) },
+		});
+		const sent = await sendRequest(
+			rt.address,
+			createRequest("graph.query", {}, VERSION),
+			1000,
+		);
+		if (!sent.ok || sent.value.ok) throw new Error("expected an rpc error");
+		expect(sent.value.error.code).toBe("handler_failed");
+	});
+
 	test("a plugged-in handler port serves its request", async () => {
 		const rt = start({
 			gate: fixedGate("allow"),
