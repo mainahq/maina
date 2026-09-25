@@ -68,6 +68,13 @@
         "zod": "^4.3.6",
       },
     },
+    "packages/runtime": {
+      "name": "@mainahq/runtime",
+      "version": "0.0.0",
+      "devDependencies": {
+        "ajv": "^8.18.0",
+      },
+    },
     "packages/skills": {
       "name": "@mainahq/skills",
       "version": "1.8.1",
@@ -375,6 +382,8 @@
     "@mainahq/docs": ["@mainahq/docs@workspace:packages/docs"],
 
     "@mainahq/mcp": ["@mainahq/mcp@workspace:packages/mcp"],
+
+    "@mainahq/runtime": ["@mainahq/runtime@workspace:packages/runtime"],
 
     "@mainahq/skills": ["@mainahq/skills@workspace:packages/skills"],
 

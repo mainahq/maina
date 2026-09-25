@@ -1,0 +1,5 @@
+{
+  "permission": "deny",
+  "user_message": "Blocked by maina policy",
+  "agent_message": "maina blocked this command: destructive operation outside policy."
+}

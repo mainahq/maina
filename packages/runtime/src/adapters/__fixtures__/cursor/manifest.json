@@ -1,0 +1,179 @@
+{
+  "host": "cursor",
+  "source": {
+    "url": "https://cursor.com/docs/hooks",
+    "retrieved": "2026-09-25",
+    "notes": "Cursor is not installed on the capture machine, so fixtures are built from the documented examples (IDs/paths normalised). Replace with captured payloads when available. Claude Code-style nested responses are also accepted by Cursor (https://cursor.com/docs/reference/third-party-hooks), but adapters should emit the native flat shape pinned here."
+  },
+  "fixtures": [
+    {
+      "file": "session-start.input.json",
+      "schema": "schemas/session-start.input.schema.json",
+      "event": "sessionStart",
+      "direction": "input",
+      "covers": "session-start",
+      "origin": "docs"
+    },
+    {
+      "file": "session-start.output.json",
+      "schema": "schemas/session-start.output.schema.json",
+      "event": "sessionStart",
+      "direction": "output",
+      "covers": "session-start",
+      "origin": "docs",
+      "notes": "sessionStart is fire-and-forget; Cursor does not enforce `continue`."
+    },
+    {
+      "file": "before-shell-execution.input.json",
+      "schema": "schemas/before-shell-execution.input.schema.json",
+      "event": "beforeShellExecution",
+      "direction": "input",
+      "covers": "pre-tool.shell",
+      "origin": "docs"
+    },
+    {
+      "file": "before-shell-execution.ask.output.json",
+      "schema": "schemas/before-shell-execution.output.schema.json",
+      "event": "beforeShellExecution",
+      "direction": "output",
+      "covers": "pre-tool",
+      "origin": "docs"
+    },
+    {
+      "file": "before-shell-execution.deny.output.json",
+      "schema": "schemas/before-shell-execution.output.schema.json",
+      "event": "beforeShellExecution",
+      "direction": "output",
+      "covers": "pre-tool",
+      "origin": "docs"
+    },
+    {
+      "file": "pre-tool-use.shell.input.json",
+      "schema": "schemas/pre-tool-use.input.schema.json",
+      "event": "preToolUse",
+      "direction": "input",
+      "covers": "pre-tool.shell",
+      "origin": "docs"
+    },
+    {
+      "file": "pre-tool-use.write.input.json",
+      "schema": "schemas/pre-tool-use.input.schema.json",
+      "event": "preToolUse",
+      "direction": "input",
+      "covers": "pre-tool.file-write",
+      "origin": "docs-partial",
+      "notes": "Cursor documents tool_name `Write` for preToolUse but not the Write tool_input fields, so tool_input is left empty rather than guessed. afterFileEdit (post-edit only) documents `file_path`. Replace with a captured payload."
+    },
+    {
+      "file": "pre-tool-use.allow.output.json",
+      "schema": "schemas/pre-tool-use.output.schema.json",
+      "event": "preToolUse",
+      "direction": "output",
+      "covers": "pre-tool",
+      "origin": "docs"
+    },
+    {
+      "file": "pre-tool-use.deny.output.json",
+      "schema": "schemas/pre-tool-use.output.schema.json",
+      "event": "preToolUse",
+      "direction": "output",
+      "covers": "pre-tool",
+      "origin": "docs",
+      "notes": "`ask` is accepted by the schema but not enforced for preToolUse today; gate `ask` via beforeShellExecution/beforeMCPExecution."
+    },
+    {
+      "file": "before-mcp-execution.stdio.input.json",
+      "schema": "schemas/before-mcp-execution.input.schema.json",
+      "event": "beforeMCPExecution",
+      "direction": "input",
+      "covers": "pre-tool.mcp",
+      "origin": "docs"
+    },
+    {
+      "file": "before-mcp-execution.http.input.json",
+      "schema": "schemas/before-mcp-execution.input.schema.json",
+      "event": "beforeMCPExecution",
+      "direction": "input",
+      "covers": "pre-tool.mcp",
+      "origin": "docs"
+    },
+    {
+      "file": "before-mcp-execution.deny.output.json",
+      "schema": "schemas/before-mcp-execution.output.schema.json",
+      "event": "beforeMCPExecution",
+      "direction": "output",
+      "covers": "pre-tool",
+      "origin": "docs"
+    },
+    {
+      "file": "post-tool-use.input.json",
+      "schema": "schemas/post-tool-use.input.schema.json",
+      "event": "postToolUse",
+      "direction": "input",
+      "covers": "post-tool",
+      "origin": "docs"
+    },
+    {
+      "file": "post-tool-use.output.json",
+      "schema": "schemas/post-tool-use.output.schema.json",
+      "event": "postToolUse",
+      "direction": "output",
+      "covers": "post-tool",
+      "origin": "docs"
+    },
+    {
+      "file": "stop.input.json",
+      "schema": "schemas/stop.input.schema.json",
+      "event": "stop",
+      "direction": "input",
+      "covers": "stop",
+      "origin": "docs"
+    },
+    {
+      "file": "stop.followup.output.json",
+      "schema": "schemas/stop.output.schema.json",
+      "event": "stop",
+      "direction": "output",
+      "covers": "stop",
+      "origin": "docs"
+    }
+  ],
+  "invalid": [
+    {
+      "file": "invalid/before-shell-execution.bad-permission.output.json",
+      "schema": "schemas/before-shell-execution.output.schema.json",
+      "why": "permission outside allow|deny|ask",
+      "error": {
+        "keyword": "enum",
+        "instancePath": "/permission"
+      }
+    },
+    {
+      "file": "invalid/pre-tool-use.missing-permission.output.json",
+      "schema": "schemas/pre-tool-use.output.schema.json",
+      "why": "permission is required",
+      "error": {
+        "keyword": "required",
+        "instancePath": ""
+      }
+    },
+    {
+      "file": "invalid/stop.bad-status.input.json",
+      "schema": "schemas/stop.input.schema.json",
+      "why": "status outside completed|aborted|error",
+      "error": {
+        "keyword": "enum",
+        "instancePath": "/status"
+      }
+    },
+    {
+      "file": "invalid/before-mcp-execution.no-transport.input.json",
+      "schema": "schemas/before-mcp-execution.input.schema.json",
+      "why": "needs mcp_server_url (HTTP/SSE) or command (stdio)",
+      "error": {
+        "keyword": "anyOf",
+        "instancePath": ""
+      }
+    }
+  ]
+}

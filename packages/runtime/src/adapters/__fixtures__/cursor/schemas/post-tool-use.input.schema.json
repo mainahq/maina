@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "cursor.post-tool-use.input",
+  "description": "Cursor postToolUse hook stdin payload (common fields + hook-specific fields). Unknown properties are allowed.",
+  "x-source": {
+    "url": "https://cursor.com/docs/hooks#posttooluse",
+    "retrieved": "2026-09-25"
+  },
+  "type": "object",
+  "required": [
+    "conversation_id",
+    "generation_id",
+    "model",
+    "hook_event_name",
+    "cursor_version",
+    "workspace_roots",
+    "user_email",
+    "transcript_path",
+    "tool_name",
+    "tool_input",
+    "tool_output",
+    "tool_use_id"
+  ],
+  "properties": {
+    "conversation_id": {
+      "type": "string"
+    },
+    "generation_id": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "model_id": {
+      "type": "string"
+    },
+    "model_params": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "value"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "cursor_version": {
+      "type": "string"
+    },
+    "workspace_roots": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "user_email": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "transcript_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hook_event_name": {
+      "const": "postToolUse"
+    },
+    "tool_name": {
+      "type": "string"
+    },
+    "tool_input": {
+      "type": "object"
+    },
+    "tool_output": {
+      "type": "string"
+    },
+    "tool_use_id": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "duration": {
+      "type": "number"
+    }
+  }
+}

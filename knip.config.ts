@@ -30,6 +30,10 @@ const config: KnipConfig = {
 			entry: ["src/index.ts!", TESTS],
 			project: ["src/**/*.ts!"],
 		},
+		"packages/runtime": {
+			entry: ["src/**/__tests__/**/*.test.ts"],
+			project: ["src/**/*.ts"],
+		},
 		"packages/mcp": {
 			entry: ["src/index.ts!", TESTS],
 			project: ["src/**/*.ts!"],

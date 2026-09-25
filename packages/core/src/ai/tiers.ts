@@ -1,6 +1,6 @@
 import type { MainaConfig } from "../config/index";
 
-type ModelTier = "mechanical" | "standard" | "architectural" | "local";
+export type ModelTier = "mechanical" | "standard" | "architectural" | "local";
 
 interface ModelResolution {
 	tier: ModelTier;

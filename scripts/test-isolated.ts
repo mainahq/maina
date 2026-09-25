@@ -17,10 +17,12 @@ import { Glob } from "bun";
 
 const rootDir = resolve(import.meta.dir, "..");
 
-// Discover all test files: package suites plus repo-level script guards.
+// Unit tests live under __tests__; golden decision replays under __golden__.
 const testGlobs = [
 	new Glob("packages/**/__tests__/**/*.test.ts"),
-	new Glob("scripts/__tests__/**/*.test.ts"),
+	new Glob("packages/**/__golden__/**/*.test.ts"),
+	// Repo scripts (receipts backfill, dogfood gate) have tests too.
+	new Glob("scripts/**/__tests__/**/*.test.ts"),
 ];
 const testFiles: string[] = [];
 
