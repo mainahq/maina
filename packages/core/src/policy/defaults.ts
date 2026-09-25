@@ -107,5 +107,6 @@ export const DEFAULT_POLICY: Policy = {
 	) as Record<DecisionType, DecisionPolicy>,
 	drift: { window: 200, max_error_rate: 0.1, max_confidence_drop: 0.15 },
 	telemetry: { crash_reports: false, usage: false, outcome_sharing: false },
+	log: { paths: "hashed" },
 	loosened: [],
 };

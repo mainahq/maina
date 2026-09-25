@@ -2,7 +2,8 @@
  * The decision log record (FR-DEC-3, FR-DEC-5) and its validation. A record
  * holds hashes, Maina's own labels and numbers: never raw code, diff text or
  * paths. Free-form option strings (file paths offered to `context.select`,
- * say) are hashed unless `DecisionLogPrivacy.rawOptions` is set.
+ * say) are hashed, keyed by the repo's salt, unless
+ * `DecisionLogPrivacy.rawOptions` is set (`policy.log.paths: plain`).
  */
 
 import type { Result } from "../../db/index";
@@ -36,10 +37,18 @@ export type DecisionRecord = Readonly<{
 	sessionId?: string;
 }>;
 
-/** How much the log may keep in the clear. Set from policy by the caller. */
+/**
+ * How much the log may keep in the clear, and the key for what it hashes.
+ * Build it with `logPrivacy(policy, salt)` (salt from `loadLogSalt`).
+ */
 export type DecisionLogPrivacy = Readonly<{
 	/** Store free-form option strings as-is instead of hashing them. */
 	rawOptions: boolean;
+	/**
+	 * Per-repo secret that keys the input, schema and option hashes, so they
+	 * cannot be matched against a list of the repo's paths. Never shared.
+	 */
+	salt?: string;
 }>;
 
 export const DEFAULT_LOG_PRIVACY: DecisionLogPrivacy = { rawOptions: false };

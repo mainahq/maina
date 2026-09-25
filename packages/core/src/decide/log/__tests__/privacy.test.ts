@@ -5,9 +5,11 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { DEFAULT_POLICY } from "../../../policy/defaults";
 import { createRegistry, DEFAULT_REGISTRY } from "../../registry";
 import type { Backend, DecideRequest } from "../../types";
 import { appendDecision } from "../append";
+import { hashValue } from "../hash";
 import { queryDecisions } from "../query";
 import type { DecisionRecord } from "../schema";
 import { decidePorts, migratedDb, recordFor, unwrap } from "./fixtures";
@@ -241,5 +243,75 @@ describe("no field contains raw file content (property)", () => {
 		expect(appendDecision({ db }, raw).ok).toBe(false);
 		unwrap(appendDecision({ db, privacy: { rawOptions: true } }, raw));
 		expect(unwrap(queryDecisions({ db }, {}))).toEqual([raw]);
+	});
+});
+
+describe("per-repo salt and the log.paths policy", () => {
+	const SALT_A = "a".repeat(64);
+	const SALT_B = "b".repeat(64);
+	const PATHS = ["src/a.ts", "src/b.ts"] as const;
+	const request: DecideRequest = {
+		type: "context.select",
+		state: { trusted: { nodes: [...PATHS] }, untrusted: {} },
+		questions: [{ kind: "choice", id: "pick", options: [...PATHS] }],
+	};
+	const ports = () =>
+		decidePorts({
+			backends: createRegistry([...DEFAULT_REGISTRY.values(), uniformBackend]),
+		});
+
+	test("a salted record's option hashes match no unsalted hash of a repo path", () => {
+		const record = recordFor(request, {
+			ports: ports(),
+			privacy: { rawOptions: false, salt: SALT_A },
+		});
+		const guesses = new Set(PATHS.map((p) => hashValue(p)));
+		const stored = [
+			...record.optionOrder,
+			record.answer,
+			...record.distribution.map((e) => e.answer),
+		];
+		expect(stored.every((o) => String(o).startsWith("sha256:"))).toBe(true);
+		expect(stored.filter((o) => guesses.has(String(o)))).toEqual([]);
+		expect(record.inputHash).not.toBe(
+			recordFor(request, { ports: ports() }).inputHash,
+		);
+	});
+
+	test("two repos (two salts) log the same decision with different hashes", () => {
+		const a = recordFor(request, {
+			ports: ports(),
+			privacy: { rawOptions: false, salt: SALT_A },
+		});
+		const b = recordFor(request, {
+			ports: ports(),
+			privacy: { rawOptions: false, salt: SALT_B },
+		});
+		expect(a.optionOrder).not.toEqual(b.optionOrder);
+		expect(a.inputHash).not.toBe(b.inputHash);
+		expect(a.schemaHash).not.toBe(b.schemaHash);
+		// Nothing path-free changes: replay by policy/model still lines up.
+		expect(a.policyHash).toBe(b.policyHash);
+		expect(a.modelHash).toBe(b.modelHash);
+	});
+
+	test("salted records validate and append like any other", () => {
+		const db = migratedDb();
+		const record = recordFor(request, {
+			ports: ports(),
+			privacy: { rawOptions: false, salt: SALT_A },
+		});
+		unwrap(appendDecision({ db }, record));
+		expect(unwrap(queryDecisions({ db }, {}))).toEqual([record]);
+	});
+
+	test("without explicit privacy, the record follows policy.log.paths", () => {
+		const plainPolicy = { ...DEFAULT_POLICY, log: { paths: "plain" as const } };
+		const plain = recordFor(request, {
+			ports: { ...ports(), policy: plainPolicy },
+		});
+		expect(plain.optionOrder).toEqual([...PATHS]);
+		const hashed = recordFor(request, { ports: ports() });
+		expect(hashed.optionOrder).not.toContain("src/a.ts");
 	});
 });

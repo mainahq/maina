@@ -28,6 +28,18 @@ describe("policy JSON Schema", () => {
 		);
 	});
 
+	test("describes log.paths as hashed | plain", () => {
+		const schema = policyJsonSchema() as {
+			properties: {
+				log?: { properties?: { paths?: { enum?: readonly string[] } } };
+			};
+		};
+		expect(schema.properties.log?.properties?.paths?.enum).toEqual([
+			"hashed",
+			"plain",
+		]);
+	});
+
 	test("the default policy, written out as a file, is a valid policy layer", () => {
 		const { loosened: _loosened, ...layer } = DEFAULT_POLICY;
 		expect(parsePolicyLayer({ version: 1, ...layer }).ok).toBe(true);

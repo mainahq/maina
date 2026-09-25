@@ -18,6 +18,7 @@ import {
 	hashSchema,
 	redactLabel,
 } from "./hash";
+import { logPrivacy } from "./salt";
 import {
 	DEFAULT_LOG_PRIVACY,
 	type DecisionLogError,
@@ -28,7 +29,10 @@ import {
 
 export type DecisionLogPorts = Readonly<{
 	db: DbPort;
-	/** Defaults to `DEFAULT_LOG_PRIVACY` (free-form options hashed). */
+	/**
+	 * Defaults to `DEFAULT_LOG_PRIVACY` (free-form options hashed) in
+	 * `appendDecision`; `shadowRun` defaults it from `policy.log.paths`.
+	 */
 	privacy?: DecisionLogPrivacy;
 }>;
 
@@ -63,11 +67,12 @@ function optionsOf(question: Question): readonly Answer[] {
 /**
  * The log record for one `Decision` of `request`. Free-form option strings
  * are hashed unless `privacy.rawOptions`; the state itself is only ever
- * hashed.
+ * hashed. Input, schema and option hashes are keyed by `privacy.salt`.
+ * Without `privacy`, `input.policy`'s `log.paths` decides (unsalted).
  */
 export function buildDecisionRecord(
 	input: DecisionRecordInput,
-	privacy: DecisionLogPrivacy = DEFAULT_LOG_PRIVACY,
+	privacy: DecisionLogPrivacy = logPrivacy(input.policy),
 ): Result<DecisionRecord, DecisionLogError> {
 	const { request, decision } = input;
 	const question = request.questions.find((q) => q.id === decision.id);
@@ -107,15 +112,20 @@ export function buildDecisionRecord(
 	const fixed = DECISION_CATALOG[request.type].options;
 	const redact = (value: Answer): Answer =>
 		typeof value === "string"
-			? redactLabel(value, fixed, privacy.rawOptions)
+			? redactLabel(value, fixed, privacy.rawOptions, privacy.salt)
 			: value;
 	return validateRecord(
 		{
 			id: input.id,
 			ts: input.ts,
 			type: request.type,
-			inputHash: hashInput(request.type, request.state, question.id),
-			schemaHash: hashSchema(request.type, question),
+			inputHash: hashInput(
+				request.type,
+				request.state,
+				question.id,
+				privacy.salt,
+			),
+			schemaHash: hashSchema(request.type, question, privacy.salt),
 			optionOrder: optionsOf(question).map(redact),
 			policyHash: hashPolicy(input.policy),
 			modelHash: hashModel(decision.backend),

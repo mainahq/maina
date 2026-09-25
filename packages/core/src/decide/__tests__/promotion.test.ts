@@ -82,6 +82,32 @@ function logPorts(db: DbPort): DecisionLogPorts {
 	return { db };
 }
 
+/** A backend that always picks `file` of `a.ts` / `b.ts`. */
+function pick(id: "heuristic" | "system1", file: string): Backend {
+	return {
+		id,
+		version: "1",
+		answer: () => ({
+			ok: true,
+			value: [
+				{
+					answer: file,
+					distribution: [
+						{ answer: "a.ts", p: file === "a.ts" ? 1 : 0 },
+						{ answer: "b.ts", p: file === "b.ts" ? 1 : 0 },
+					],
+				},
+			],
+		}),
+	};
+}
+
+const CHOICE_REQUEST: DecideRequest = {
+	type: "context.select",
+	state: { trusted: {}, untrusted: {} },
+	questions: [{ kind: "choice", id: "file", options: ["a.ts", "b.ts"] }],
+};
+
 describe("shadowRun", () => {
 	test("a shadow backend never affects actions", () => {
 		const db = migratedDb();
@@ -205,27 +231,6 @@ describe("shadowRun", () => {
 	});
 
 	test("both primary and shadow records follow the log's privacy setting", () => {
-		const pick = (id: "heuristic" | "system1", file: string): Backend => ({
-			id,
-			version: "1",
-			answer: () => ({
-				ok: true,
-				value: [
-					{
-						answer: file,
-						distribution: [
-							{ answer: "a.ts", p: file === "a.ts" ? 1 : 0 },
-							{ answer: "b.ts", p: file === "b.ts" ? 1 : 0 },
-						],
-					},
-				],
-			}),
-		});
-		const request: DecideRequest = {
-			type: "context.select",
-			state: { trusted: {}, untrusted: {} },
-			questions: [{ kind: "choice", id: "file", options: ["a.ts", "b.ts"] }],
-		};
 		const db = migratedDb();
 		const run = unwrap(
 			shadowRun(
@@ -237,13 +242,51 @@ describe("shadowRun", () => {
 					shadow: pick("system1", "b.ts"),
 					log: { db, privacy: { rawOptions: true } },
 				},
-				{ id: "p", ts: 10, request, finalAction: () => "select" },
+				{
+					id: "p",
+					ts: 10,
+					request: CHOICE_REQUEST,
+					finalAction: () => "select",
+				},
 			),
 		);
 		expect(run.shadowError).toBeUndefined();
 		expect(run.records.map((r) => [r.id, r.optionOrder, r.answer])).toEqual([
 			["p:0", ["a.ts", "b.ts"], "a.ts"],
 			["p:0:shadow", ["a.ts", "b.ts"], "b.ts"],
+		]);
+	});
+
+	test("without log.privacy, both records follow policy.log.paths and are stored", () => {
+		const db = migratedDb();
+		const policy = { ...DEFAULT_POLICY, log: { paths: "plain" as const } };
+		const run = unwrap(
+			shadowRun(
+				{
+					primary: {
+						...primaryPorts(),
+						policy,
+						backends: createRegistry([pick("heuristic", "a.ts")]),
+					},
+					shadow: pick("system1", "b.ts"),
+					log: { db },
+				},
+				{
+					id: "q",
+					ts: 10,
+					request: CHOICE_REQUEST,
+					finalAction: () => "select",
+				},
+			),
+		);
+		expect(run.shadowError).toBeUndefined();
+		expect(run.records.map((r) => [r.id, r.optionOrder, r.answer])).toEqual([
+			["q:0", ["a.ts", "b.ts"], "a.ts"],
+			["q:0:shadow", ["a.ts", "b.ts"], "b.ts"],
+		]);
+		expect(unwrap(queryDecisions({ db })).map((r) => r.id)).toEqual([
+			"q:0",
+			"q:0:shadow",
 		]);
 	});
 

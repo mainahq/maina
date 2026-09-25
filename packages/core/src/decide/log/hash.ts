@@ -3,9 +3,14 @@
  * `sha256:<64 hex>` over a canonical JSON encoding: object keys sorted,
  * no whitespace, and tagged forms for values plain JSON cannot represent,
  * so the same value hashes the same in every run and every process.
+ *
+ * Hashes of values that can carry repo paths (the decision input, the
+ * question's options, free-form option labels) take an optional per-repo
+ * salt (see `salt.ts`). With one they are HMAC-SHA256 keyed by the salt, so
+ * a list of the repo's files is no help in telling which path a hash is.
  */
 
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import type { Policy } from "../../policy/schema";
 import type {
 	DecisionBackend,
@@ -137,35 +142,53 @@ export function hashValue(value: unknown): string {
 	return `sha256:${digest}`;
 }
 
-/** What a decision was made over: its type, the state and the question id. */
+/**
+ * `hashValue(value)`, or with a `salt` the HMAC-SHA256 of the same canonical
+ * JSON keyed by it. Same `sha256:<hex>` form either way.
+ */
+function keyedHash(value: unknown, salt: string | undefined): string {
+	if (salt === undefined) return hashValue(value);
+	const digest = createHmac("sha256", salt)
+		.update(canonicalJson(value))
+		.digest("hex");
+	return `sha256:${digest}`;
+}
+
+/**
+ * What a decision was made over: its type, the state and the question id.
+ * Keyed by `salt` when given, since the state can name paths.
+ */
 export function hashInput(
 	type: DecisionType,
 	state: DecisionState,
 	questionId: string,
+	salt?: string,
 ): string {
-	return hashValue({
-		v: PREIMAGE_VERSION,
-		kind: "input",
-		type,
-		questionId,
-		state,
-	});
+	return keyedHash(
+		{ v: PREIMAGE_VERSION, kind: "input", type, questionId, state },
+		salt,
+	);
 }
 
-/** The shape of the question asked (its options in order), not its id. */
-export function hashSchema(type: DecisionType, question: Question): string {
+/**
+ * The shape of the question asked (its options in order), not its id.
+ * Keyed by `salt` when given, since free-form options can be paths.
+ */
+export function hashSchema(
+	type: DecisionType,
+	question: Question,
+	salt?: string,
+): string {
 	const shape =
 		question.kind === "choice"
 			? { kind: question.kind, options: question.options }
 			: question.kind === "score"
 				? { kind: question.kind, min: question.min, max: question.max }
 				: { kind: question.kind };
-	return hashValue({
-		v: PREIMAGE_VERSION,
-		kind: "schema",
-		type,
-		question: shape,
-	});
+	return keyedHash(
+		{ v: PREIMAGE_VERSION, kind: "schema", type, question: shape },
+		salt,
+	);
 }
 
 /** The whole effective policy the backend saw. */
@@ -188,14 +211,16 @@ export function hashModel(
 /**
  * A string that is safe to log as-is, or its hash. Only the decision type's
  * fixed catalog options (Maina's own labels) pass through unless `raw`;
- * anything else (a path, a code snippet) is hashed.
+ * anything else (a path, a code snippet) is hashed, keyed by `salt` when
+ * given.
  */
 export function redactLabel(
 	value: string,
 	fixedOptions: readonly string[] | undefined,
 	raw: boolean,
+	salt?: string,
 ): string {
 	return raw || isHash(value) || fixedOptions?.includes(value)
 		? value
-		: hashValue(value);
+		: keyedHash(value, salt);
 }

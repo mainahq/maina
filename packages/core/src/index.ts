@@ -193,6 +193,12 @@ export {
 } from "./decide/log/hash";
 export { type DecisionFilter, queryDecisions } from "./decide/log/query";
 export {
+	LOG_SALT_PATH,
+	type LogSaltError,
+	loadLogSalt,
+	logPrivacy,
+} from "./decide/log/salt";
+export {
 	DEFAULT_LOG_PRIVACY,
 	type DecisionLogError,
 	type DecisionLogPrivacy,

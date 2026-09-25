@@ -316,6 +316,43 @@ describe("telemetry opt-ins", () => {
 	});
 });
 
+describe("log privacy (policy.log.paths)", () => {
+	test("paths are hashed by default", () => {
+		expect(DEFAULT_POLICY.log).toEqual({ paths: "hashed" });
+	});
+
+	test("a layer can switch paths to plain, and the later layer wins", async () => {
+		const plain = await loadPolicy(
+			repoPolicy({ log: { paths: "plain" } }),
+			ROOT,
+			undefined,
+		);
+		expect(plain.ok).toBe(true);
+		if (!plain.ok) return;
+		expect(plain.value.log.paths).toBe("plain");
+
+		const hashed = await loadPolicy(
+			repoPolicy({ log: { paths: "hashed" } }),
+			ROOT,
+			{ log: { paths: "plain" } },
+		);
+		expect(hashed.ok).toBe(true);
+		if (!hashed.ok) return;
+		expect(hashed.value.log.paths).toBe("hashed");
+	});
+
+	test("rejects any other value with its path", async () => {
+		const result = await loadPolicy(
+			repoPolicy({ log: { paths: "clear" } }),
+			ROOT,
+			undefined,
+		);
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error.map((e) => e.path)).toEqual(["log.paths"]);
+	});
+});
+
 describe("validation", () => {
 	test("returns every error from every layer with its source and path", async () => {
 		const result = await loadPolicy(

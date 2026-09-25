@@ -169,6 +169,7 @@ function mergeLayer(acc: Merged, layer: Layer): Merged {
 		decisions: mergeDecisions(acc.policy.decisions, value.decisions),
 		drift: { ...acc.policy.drift, ...defined(value.drift) },
 		telemetry: { ...acc.policy.telemetry, ...defined(value.telemetry) },
+		log: { ...acc.policy.log, ...defined(value.log) },
 	};
 	return {
 		policy,
