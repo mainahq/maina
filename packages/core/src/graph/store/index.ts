@@ -12,6 +12,11 @@
  *    re-resolve the changed files plus every file that depended on them (see
  *    `resolve.ts`), and prune parses no file points at any more.
  *
+ * Phase 1 holds no lock, so syncs may overlap (the runtime's hooks and the
+ * context engine share one store). Phase 2 applies only if no other sync
+ * committed since phase 1 read the store; otherwise the sync plans again, so
+ * a stale plan never overwrites newer work.
+ *
  * The result is the same store a full rebuild into an empty database would
  * produce (the equivalence property test checks this), at the cost of
  * parsing only what changed.
@@ -73,28 +78,35 @@ export async function indexRepo(
 	root: string,
 	options: GraphStoreOptions = {},
 ): Promise<Result<GraphSyncReport, GraphStoreError>> {
-	const listed = await listIndexable(ports, root);
-	if (!listed.ok) {
-		return {
-			ok: false,
-			error: {
-				kind: "fs",
-				path: listed.error.path,
-				message: listed.error.message,
-			},
-		};
-	}
-	const listedSet = new Set(listed.value);
 	// A stored path the listing no longer covers (deleted, newly ignored, or
 	// added by `updateFiles` outside the indexed set) is dropped, so the store
-	// matches what a fresh index would build.
+	// matches what a fresh index would build. Each attempt lists the repo
+	// again: a retry after a concurrent commit must not drop a file that
+	// commit added after an earlier listing.
 	const synced = await sync(
 		ports,
 		root,
-		(stored) => ({
-			examine: listed.value,
-			drop: stored.filter((p) => !listedSet.has(p)).sort(),
-		}),
+		async (stored) => {
+			const listed = await listIndexable(ports, root);
+			if (!listed.ok) {
+				return {
+					ok: false,
+					error: {
+						kind: "fs",
+						path: listed.error.path,
+						message: listed.error.message,
+					},
+				};
+			}
+			const listedSet = new Set(listed.value);
+			return {
+				ok: true,
+				value: {
+					examine: listed.value,
+					drop: stored.filter((p) => !listedSet.has(p)).sort(),
+				},
+			};
+		},
 		options,
 	);
 	if (!synced.ok) return synced;
@@ -139,7 +151,10 @@ export async function updateFiles(
 	return sync(
 		ports,
 		root,
-		() => ({ examine: [...new Set(relative)].sort(), drop: [] }),
+		async () => ({
+			ok: true,
+			value: { examine: [...new Set(relative)].sort(), drop: [] },
+		}),
 		options,
 	);
 }

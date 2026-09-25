@@ -430,6 +430,40 @@ describe("runtime graph hooks", () => {
 		]);
 	}, 15_000);
 
+	test("two concurrent edits to one root never run updateFiles at once, and both land", async () => {
+		const root = tempRepo();
+		const real = systemGraphSyncPorts();
+		let running = 0;
+		let maxRunning = 0;
+		const syncs: (readonly string[])[] = [];
+		const sync = createGraphSync({
+			...real,
+			syncPaths: async (r, paths) => {
+				syncs.push([...paths]);
+				running++;
+				maxRunning = Math.max(maxRunning, running);
+				try {
+					return await real.syncPaths(r, paths);
+				} finally {
+					running--;
+				}
+			},
+		});
+
+		const edits = [
+			sync.observe(edit(join(root, "src"), "math.ts")),
+			sync.observe(edit(join(root, "src"), "use.ts")),
+		];
+		await Promise.all(edits);
+
+		expect(maxRunning).toBe(1);
+		expect(syncs.flat().sort()).toEqual([
+			join(root, "src", "math.ts"),
+			join(root, "src", "use.ts"),
+		]);
+		expect([...graphNames(root)].sort()).toEqual(["add", "math.ts", "use.ts"]);
+	}, 15_000);
+
 	test("a repository without .maina is never written to", async () => {
 		const root = tempRepo();
 		rmSync(join(root, ".maina"), { recursive: true, force: true });
