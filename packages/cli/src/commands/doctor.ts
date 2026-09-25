@@ -2,7 +2,12 @@ import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { platform } from "node:os";
 import { join } from "node:path";
 import { confirm, intro, log, outro, spinner } from "@clack/prompts";
-import type { CacheStats, DetectedTool, FsPort } from "@mainahq/core";
+import type {
+	CacheStats,
+	ConfigError,
+	DetectedTool,
+	FsPort,
+} from "@mainahq/core";
 import {
 	createCacheManager,
 	detectTools,
@@ -10,10 +15,12 @@ import {
 	getFeedbackDb,
 	getRepoRoot,
 	isHostMode,
+	loadConfigModule,
 	loadPolicy,
 	VERSION,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { formatConfigWarnings } from "../config-warnings";
 import { processEnv } from "../env";
 import {
 	type CheckStatus,
@@ -108,6 +115,8 @@ interface DoctorActionResult {
 	mcpHealth: McpHealth;
 	/** doctor v2: every configured entry launched under its host's env. */
 	hostHealth: HostHealth;
+	/** Fields dropped from `maina.config.{ts,js}`, each with its path (#393). */
+	configErrors: readonly ConfigError[];
 }
 
 // ── Formatting Helpers ───────────────────────────────────────────────────────
@@ -706,6 +715,17 @@ export async function doctorAction(
 		log.message(formatHostHealth(hostHealth));
 	}
 
+	// ── Step 8b: maina.config validation (#393) ─────────────────────────
+	const { errors: configErrors } = await loadConfigModule(cwd);
+	if (!jsonMode) {
+		log.step("Config:");
+		if (configErrors.length === 0) {
+			log.message("  maina.config  \u2713  valid (or not present)");
+		} else {
+			log.warning(formatConfigWarnings(configErrors).trimEnd());
+		}
+	}
+
 	// ── Step 9: --fix flow (optional) ────────────────────────────────
 	let finalMcpHealth = mcpHealth;
 	let finalHostHealth = hostHealth;
@@ -746,6 +766,7 @@ export async function doctorAction(
 		wikiHealth,
 		mcpHealth: finalMcpHealth,
 		hostHealth: finalHostHealth,
+		configErrors,
 	};
 }
 

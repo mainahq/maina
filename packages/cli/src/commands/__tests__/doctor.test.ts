@@ -761,3 +761,24 @@ describe("maina doctor v2 — host launch checks", () => {
 		expect(result.hostHealth.ok).toBe(true);
 	});
 });
+
+describe("maina doctor — maina.config validation (#393)", () => {
+	test("reports every dropped config field with its path", async () => {
+		writeFileSync(
+			join(tmpDir, "maina.config.js"),
+			`module.exports = { provider: "custom-provider", bogus: true, models: { standard: 42 } };`,
+		);
+
+		const result = await doctorAction({ cwd: tmpDir });
+
+		expect(result.configErrors.map((e) => e.path).sort()).toEqual([
+			"bogus",
+			"models.standard",
+		]);
+	});
+
+	test("reports no config errors when there is no config module", async () => {
+		const result = await doctorAction({ cwd: tmpDir });
+		expect(result.configErrors).toEqual([]);
+	});
+});

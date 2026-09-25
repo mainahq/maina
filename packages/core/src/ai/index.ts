@@ -110,7 +110,7 @@ export async function generate(
 	const { task, systemPrompt, userPrompt, files, mainaDir, root, env } =
 		options;
 
-	const config = await loadConfigModule(root);
+	const { config } = await loadConfigModule(root);
 	const resolved = resolveModel(task, config);
 	const provider = resolveProvider(config, env);
 	// In host mode with Anthropic, use a sensible model instead of OpenRouter model IDs

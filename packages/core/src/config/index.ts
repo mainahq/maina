@@ -9,6 +9,7 @@ import {
 	mergeConfig,
 	parseConfigLayer,
 	readJsonFile,
+	salvageConfigLayer,
 } from "./schema";
 
 export type { ConfigError } from "./schema";
@@ -106,23 +107,24 @@ export function findConfigFile(startDir: string): string | null {
 	}
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /**
  * Maps a 1.x `maina.config.ts` export onto the current file shape: the
  * unenforced `budget.daily/perTask/alertAt` become `dailyUsd/perTaskUsd`
  * and the never-read `apiKey` is dropped (keys come from the environment).
  */
 function fromLegacyModule(raw: unknown): unknown {
-	if (typeof raw !== "object" || raw === null) return raw;
-	const { apiKey: _apiKey, budget, ...rest } = raw as Record<string, unknown>;
-	if (typeof budget !== "object" || budget === null) {
+	// Anything but a plain record (arrays included) passes through untouched
+	// so validation reports it instead of the spread hiding it.
+	if (!isRecord(raw)) return raw;
+	const { apiKey: _apiKey, budget, ...rest } = raw;
+	if (!isRecord(budget)) {
 		return budget === undefined ? rest : { ...rest, budget };
 	}
-	const {
-		daily,
-		perTask,
-		alertAt: _alertAt,
-		...current
-	} = budget as Record<string, unknown>;
+	const { daily, perTask, alertAt: _alertAt, ...current } = budget;
 	return {
 		...rest,
 		budget: {
@@ -133,29 +135,53 @@ function fromLegacyModule(raw: unknown): unknown {
 	};
 }
 
+/** What {@link loadConfigModule} resolved, and every field it had to drop. */
+export type ConfigModuleLoad = Readonly<{
+	config: Config;
+	/** One entry per dropped field (with its path) or per unloadable file. */
+	errors: readonly ConfigError[];
+}>;
+
 /**
  * 1.x loader: finds and dynamically imports `maina.config.{ts,js}`, then
  * validates it and merges it over the defaults with the same defined merge
- * as {@link loadConfig}. Falls back to the defaults on any error.
+ * as {@link loadConfig}. Never throws and never silently resets (#393): an
+ * invalid field is dropped on its own and reported in `errors` while every
+ * valid field is kept; a module that cannot be imported or read yields the
+ * defaults plus a `parse` error for that file.
  */
-export async function loadConfigModule(startDir: string): Promise<Config> {
+export async function loadConfigModule(
+	startDir: string,
+): Promise<ConfigModuleLoad> {
 	const configPath = findConfigFile(startDir);
 
 	if (configPath === null) {
-		return getDefaultConfig();
+		return { config: getDefaultConfig(), errors: [] };
 	}
 
+	// Importing runs user code, and reading the export can too (getters), so
+	// both stay inside the guard.
 	try {
-		const mod = await import(configPath);
-		const layer = parseConfigLayer(
-			fromLegacyModule(mod.default ?? mod),
+		const mod = (await import(configPath)) as { default?: unknown };
+		const { layer, errors } = salvageConfigLayer(
+			// Presence, not nullishness: `export default null` is a (bad) root value.
+			fromLegacyModule(Object.hasOwn(mod, "default") ? mod.default : mod),
 			configPath,
 		);
-		return layer.ok
-			? mergeConfig(getDefaultConfig(), layer.value)
-			: getDefaultConfig();
-	} catch {
-		return getDefaultConfig();
+		return { config: mergeConfig(getDefaultConfig(), layer), errors };
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+		return {
+			config: getDefaultConfig(),
+			errors: [
+				{
+					kind: "parse",
+					file: configPath,
+					path: "",
+					message: `Could not load the config module: ${reason}`,
+				},
+			],
+		};
 	}
 }
 
