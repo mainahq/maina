@@ -237,6 +237,16 @@ describe("deny rules are final", () => {
 		}
 	});
 
+	test("a many-star command rule stays fast on a long command", () => {
+		const policy = withRules({ deny: [{ match: "echo * * * * * * * *x" }] });
+		const command = `echo ${"a ".repeat(20_000)}`;
+		const started = performance.now();
+		expect(evaluateRules(shellEvent(command), policy, ctx).kind).toBe(
+			"no_rule",
+		);
+		expect(performance.now() - started).toBeLessThan(1_000);
+	});
+
 	test("no later input converts a deny into an allow", async () => {
 		const loosened = await policyFrom({
 			explicitly_allow: ["package.publish"],

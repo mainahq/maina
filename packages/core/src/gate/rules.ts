@@ -244,16 +244,43 @@ function targetsOf(event: GateEvent): readonly string[] {
  * main`).
  */
 function commandMatches(pattern: string, command: string): boolean {
-	if (pattern.includes("*")) return globMatch(pattern, command, ".*");
+	if (pattern.includes("*")) return wildcardMatch(pattern, command);
 	return command === pattern || command.startsWith(`${pattern} `);
 }
 
 /**
- * A `*` / `**` glob anchored over the whole string: for paths `*` matches
- * within a segment and `**` across segments; `star` overrides what a single
- * `*` matches. Built by scanning so the two never interfere.
+ * Whole-string match where each `*` matches any run of characters. A
+ * two-pointer scan that backtracks only to the last `*`, so it is
+ * O(pattern × value) however many stars the pattern has: a long command can
+ * never stall the gate the way a backtracking regex (`^.* .* .*x$`) can.
  */
-function globMatch(pattern: string, value: string, star = "[^/]*"): boolean {
+function wildcardMatch(pattern: string, value: string): boolean {
+	let p = 0;
+	let v = 0;
+	let star = -1;
+	let resume = 0;
+	while (v < value.length) {
+		if (p < pattern.length && pattern[p] === "*") {
+			star = p++;
+			resume = v;
+		} else if (p < pattern.length && pattern[p] === value[v]) {
+			p++;
+			v++;
+		} else if (star >= 0) {
+			p = star + 1;
+			v = ++resume;
+		} else return false;
+	}
+	while (p < pattern.length && pattern[p] === "*") p++;
+	return p === pattern.length;
+}
+
+/**
+ * A `*` / `**` path glob anchored over the whole string: `*` matches within
+ * a segment and `**` across segments. Built by scanning so the two never
+ * interfere.
+ */
+function globMatch(pattern: string, value: string): boolean {
 	let regex = "";
 	for (let i = 0; i < pattern.length; i++) {
 		const c = pattern[i] as string;
@@ -261,7 +288,7 @@ function globMatch(pattern: string, value: string, star = "[^/]*"): boolean {
 			if (pattern[i + 1] === "*") {
 				regex += ".*";
 				i++;
-			} else regex += star;
+			} else regex += "[^/]*";
 		} else {
 			regex += c.replace(/[.+?^${}()|[\]\\]/, "\\$&");
 		}
