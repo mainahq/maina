@@ -13,7 +13,8 @@ import type { Finding } from "./diff-filter";
 
 interface SecretlintOptions {
 	files?: string[];
-	cwd?: string;
+	/** Repository root the tool runs in; required, core never reads the process cwd. */
+	cwd: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */
 	available?: boolean;
 }
@@ -131,19 +132,19 @@ export function parseSecretlintOutput(output: string): Finding[] {
  * If secretlint fails, returns `{ findings: [], skipped: false }`.
  */
 export async function runSecretlint(
-	options?: SecretlintOptions,
+	options: SecretlintOptions,
 ): Promise<SecretlintResult> {
 	const toolAvailable =
-		options?.available ?? (await isToolAvailable("secretlint"));
+		options.available ?? (await isToolAvailable("secretlint", options.cwd));
 	if (!toolAvailable) {
 		return { findings: [], skipped: true };
 	}
 
-	const cwd = options?.cwd ?? process.cwd();
+	const cwd = options.cwd;
 
 	const args = ["secretlint", "--format", "json"];
 
-	if (options?.files && options.files.length > 0) {
+	if (options.files && options.files.length > 0) {
 		args.push(...options.files);
 	} else {
 		args.push("**/*");

@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { detectTools, getToolsForLanguages, TOOL_REGISTRY } from "../detect";
 
+// Tests run from the repository; pass it as the explicit root (#290).
+const ROOT = process.cwd();
+
 // ─── TOOL_REGISTRY metadata ────────────────────────────────────────────────
 
 describe("TOOL_REGISTRY metadata", () => {
@@ -244,12 +247,12 @@ describe("getToolsForLanguages", () => {
 
 describe("detectTools with language filter", () => {
 	test("without languages parameter returns all tools (backward compatible)", async () => {
-		const results = await detectTools();
+		const results = await detectTools(ROOT);
 		expect(results.length).toBe(Object.keys(TOOL_REGISTRY).length);
 	});
 
 	test("with ['typescript'] only detects relevant tools", async () => {
-		const results = await detectTools(["typescript"]);
+		const results = await detectTools(ROOT, ["typescript"]);
 		const names = results.map((t) => t.name);
 
 		// Should include TS and universal tools
@@ -265,7 +268,7 @@ describe("detectTools with language filter", () => {
 	});
 
 	test("with ['python'] only detects relevant tools", async () => {
-		const results = await detectTools(["python"]);
+		const results = await detectTools(ROOT, ["python"]);
 		const names = results.map((t) => t.name);
 
 		expect(names).toContain("ruff");
@@ -275,12 +278,12 @@ describe("detectTools with language filter", () => {
 	});
 
 	test("with ['unknown'] detects all tools", async () => {
-		const results = await detectTools(["unknown"]);
+		const results = await detectTools(ROOT, ["unknown"]);
 		expect(results.length).toBe(Object.keys(TOOL_REGISTRY).length);
 	});
 
 	test("each filtered result has correct DetectedTool shape", async () => {
-		const results = await detectTools(["go"]);
+		const results = await detectTools(ROOT, ["go"]);
 		for (const tool of results) {
 			expect(typeof tool.name).toBe("string");
 			expect(typeof tool.command).toBe("string");

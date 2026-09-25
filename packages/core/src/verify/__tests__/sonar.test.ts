@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { parseSonarReport, runSonar } from "../sonar";
 
+// Tests run from the repository; pass it as the explicit root (#290).
+const ROOT = process.cwd();
+
 describe("SonarQube Integration", () => {
 	describe("parseSonarReport", () => {
 		it("should parse SonarQube JSON issues into findings", () => {
@@ -105,7 +108,7 @@ describe("SonarQube Integration", () => {
 
 	describe("runSonar", () => {
 		it("should skip when sonarqube is not available", async () => {
-			const result = await runSonar({ available: false });
+			const result = await runSonar({ cwd: ROOT, available: false });
 			expect(result.skipped).toBe(true);
 			expect(result.findings).toHaveLength(0);
 		});

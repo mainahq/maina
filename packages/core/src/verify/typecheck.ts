@@ -20,6 +20,12 @@ export interface TypecheckResult {
 	skipped: boolean;
 }
 
+/**
+ * Environment for spawned checkers, injected by the caller (for example the
+ * CLI passes its process environment). Core never reads `process.env`.
+ */
+export type SpawnEnv = Readonly<Record<string, string | undefined>>;
+
 interface TypecheckCommand {
 	tool: string;
 	command: string;
@@ -185,7 +191,7 @@ async function runTscProject(
 export async function runTypecheck(
 	files: string[],
 	cwd: string,
-	options?: { command?: string; language?: LanguageId },
+	options?: { command?: string; language?: LanguageId; env?: SpawnEnv },
 ): Promise<TypecheckResult> {
 	const language = options?.language ?? "typescript";
 	const cmd = TYPECHECK_COMMANDS[language];
@@ -224,11 +230,15 @@ export async function runTypecheck(
 		options?.command ?? (existsSync(localBin) ? localBin : cmd.command);
 
 	try {
+		// With an injected env, force NO_COLOR on top of it; without one the
+		// checker inherits the parent environment and relies on its no-colour
+		// flags (piped output is not a TTY either).
+		const env = options?.env ? { ...options.env, NO_COLOR: "1" } : undefined;
 		const proc = Bun.spawn([command, ...cmd.args], {
 			cwd,
 			stdout: "pipe",
 			stderr: "pipe",
-			env: { ...process.env, NO_COLOR: "1" },
+			...(env ? { env } : {}),
 		});
 
 		const stdout = await new Response(proc.stdout).text();

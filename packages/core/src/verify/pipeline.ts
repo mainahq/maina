@@ -12,6 +12,7 @@
  * 8. Return unified PipelineResult
  */
 
+import { join } from "node:path";
 import { createCacheManager } from "../cache/manager";
 import { getNoisyRules } from "../feedback/preferences";
 import { getDiff, getStagedFiles, resolveBaseBranch } from "../git/index";
@@ -37,7 +38,7 @@ import { syntaxGuard } from "./syntax-guard";
 import { detectDocClaims } from "./tools/doc-claims";
 import { runWikiLintTool } from "./tools/wiki-lint-runner";
 import { runTrivy } from "./trivy";
-import { runTypecheck } from "./typecheck";
+import { runTypecheck, type SpawnEnv } from "./typecheck";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -66,9 +67,12 @@ export interface PipelineOptions {
 	baseBranch?: string; // for diff filter (default: resolveBaseBranch)
 	diffOnly?: boolean; // default: true
 	deep?: boolean; // NEW — triggers standard-tier AI review
-	cwd?: string;
+	/** Repository root (explicit; core never reads the process cwd). */
+	cwd: string;
 	mainaDir?: string;
 	languages?: string[]; // override language detection
+	/** Environment for spawned checkers, injected by the caller. */
+	env?: SpawnEnv;
 }
 
 // ─── Tool Runner Helpers ──────────────────────────────────────────────────
@@ -101,15 +105,15 @@ async function runToolWithTiming(
  * -> diff-only filtering -> unified result.
  */
 export async function runPipeline(
-	options?: PipelineOptions,
+	options: PipelineOptions,
 ): Promise<PipelineResult> {
 	const start = performance.now();
-	const cwd = options?.cwd ?? process.cwd();
-	const diffOnly = options?.diffOnly !== false; // default: true
-	const baseBranch = await resolveBaseBranch(cwd, options?.baseBranch);
+	const cwd = options.cwd;
+	const diffOnly = options.diffOnly !== false; // default: true
+	const baseBranch = await resolveBaseBranch(cwd, options.baseBranch);
 
 	// ── Step 1: Get files to check ────────────────────────────────────────
-	const rawFiles = options?.files ?? (await getStagedFiles(cwd));
+	const rawFiles = options.files ?? (await getStagedFiles(cwd));
 
 	// Filter out bundled/minified artifacts (dist/, build/, *.min.js, etc.)
 	// before any tool sees them. Running pattern-based slop detection on a
@@ -135,7 +139,7 @@ export async function runPipeline(
 
 	// ── Step 2: Syntax guard (MUST run first) ─────────────────────────────
 	// Detect languages or use provided override
-	const languages = options?.languages ?? detectLanguages(cwd);
+	const languages = options.languages ?? detectLanguages(cwd);
 	const primaryLang = (languages[0] ?? "typescript") as LanguageId;
 	const profile = getProfile(primaryLang);
 	const syntaxResult = await syntaxGuard(files, cwd, profile);
@@ -156,7 +160,7 @@ export async function runPipeline(
 	}
 
 	// ── Step 3: Auto-detect tools ─────────────────────────────────────────
-	const detectedTools = await detectTools();
+	const detectedTools = await detectTools(cwd);
 
 	// ── Step 4: Run all available tools in PARALLEL ───────────────────────
 	// Build a lookup from detection results to avoid redundant subprocess spawns
@@ -168,7 +172,8 @@ export async function runPipeline(
 	const toolPromises: Promise<ToolReport>[] = [];
 
 	// Slop detector always runs (no external tool dependency), cache-aware
-	const mainaDir = options?.mainaDir ?? ".maina";
+	// Resolve against the explicit root, never the process cwd.
+	const mainaDir = options.mainaDir ?? join(cwd, ".maina");
 	const slopCache = createCacheManager(mainaDir);
 	toolPromises.push(
 		runToolWithTiming("slop", async () => {
@@ -250,7 +255,10 @@ export async function runPipeline(
 	// Built-in checks (always run, no external tool dependency)
 	toolPromises.push(
 		runToolWithTiming("typecheck", async () => {
-			const result = await runTypecheck(files, cwd, { language: primaryLang });
+			const result = await runTypecheck(files, cwd, {
+				language: primaryLang,
+				env: options.env,
+			});
 			return { findings: result.findings, skipped: result.skipped };
 		}),
 	);
@@ -351,7 +359,7 @@ export async function runPipeline(
 	}
 
 	// ── Step 7: AI review (mechanical always, standard if --deep) ────────
-	const deep = options?.deep ?? false;
+	const deep = options.deep ?? false;
 	let diffText = "";
 	try {
 		diffText = diffOnly ? await getDiff(baseBranch, undefined, cwd) : "";
@@ -363,7 +371,7 @@ export async function runPipeline(
 		diff: diffText,
 		entities: [], // Entities require tree-sitter + file body reads; wired when semantic index is hydrated
 		deep,
-		mainaDir: options?.mainaDir ?? ".maina",
+		mainaDir,
 	});
 
 	const aiReport: ToolReport = {

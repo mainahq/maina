@@ -12,7 +12,8 @@ import type { Finding } from "./diff-filter";
 // ─── Types ────────────────────────────────────────────────────────────────
 
 export interface MutationOptions {
-	cwd?: string;
+	/** Repository root the tool runs in; required, core never reads the process cwd. */
+	cwd: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */
 	available?: boolean;
 }
@@ -103,15 +104,15 @@ export function parseStrykerReport(json: string): Finding[] {
  * If stryker fails, returns `{ findings: [], skipped: false }`.
  */
 export async function runMutation(
-	options?: MutationOptions,
+	options: MutationOptions,
 ): Promise<MutationResult> {
 	const toolAvailable =
-		options?.available ?? (await isToolAvailable("stryker"));
+		options.available ?? (await isToolAvailable("stryker", options.cwd));
 	if (!toolAvailable) {
 		return { findings: [], skipped: true };
 	}
 
-	const cwd = options?.cwd ?? process.cwd();
+	const cwd = options.cwd;
 
 	const args = ["stryker", "run", "--reporters", "json"];
 

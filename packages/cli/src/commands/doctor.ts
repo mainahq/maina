@@ -516,7 +516,7 @@ export async function doctorAction(
 	}
 
 	// ── Step 2: Detect tools ─────────────────────────────────────────────
-	const tools = await detectTools();
+	const tools = await detectTools(cwd);
 	if (!jsonMode) {
 		log.step("Installed Tools:");
 		log.message(formatToolsTable(tools));

@@ -234,9 +234,9 @@ export interface FilterIgnoredResult {
  */
 export function filterIgnoredFiles(
 	files: readonly string[],
-	cwd?: string,
+	cwd: string,
 ): FilterIgnoredResult {
-	const extras = loadMainaIgnore(cwd ?? process.cwd());
+	const extras = loadMainaIgnore(cwd);
 	const kept: string[] = [];
 	const ignored: string[] = [];
 	for (const file of files) {

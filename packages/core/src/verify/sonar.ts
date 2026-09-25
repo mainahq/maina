@@ -11,7 +11,8 @@ import type { Finding } from "./diff-filter";
 // ─── Types ────────────────────────────────────────────────────────────────
 
 export interface SonarOptions {
-	cwd?: string;
+	/** Repository root the tool runs in; required, core never reads the process cwd. */
+	cwd: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */
 	available?: boolean;
 }
@@ -103,14 +104,14 @@ export function parseSonarReport(json: string): Finding[] {
  * If sonar-scanner is not installed, returns `{ findings: [], skipped: true }`.
  * If sonar-scanner fails, returns `{ findings: [], skipped: false }`.
  */
-export async function runSonar(options?: SonarOptions): Promise<SonarResult> {
+export async function runSonar(options: SonarOptions): Promise<SonarResult> {
 	const toolAvailable =
-		options?.available ?? (await isToolAvailable("sonarqube"));
+		options.available ?? (await isToolAvailable("sonarqube", options.cwd));
 	if (!toolAvailable) {
 		return { findings: [], skipped: true };
 	}
 
-	const cwd = options?.cwd ?? process.cwd();
+	const cwd = options.cwd;
 
 	const args = [
 		"sonar-scanner",

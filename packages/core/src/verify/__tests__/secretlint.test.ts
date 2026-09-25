@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { parseSecretlintOutput, runSecretlint } from "../secretlint";
 
+// Tests run from the repository; pass it as the explicit root (#290).
+const ROOT = process.cwd();
+
 // ─── parseSecretlintOutput ─────────────────────────────────────────────────
 
 describe("parseSecretlintOutput", () => {
@@ -161,7 +164,7 @@ describe("parseSecretlintOutput", () => {
 
 describe("runSecretlint", () => {
 	it("should skip when secretlint is not installed", async () => {
-		const result = await runSecretlint();
+		const result = await runSecretlint({ cwd: ROOT });
 		if (result.skipped) {
 			expect(result.findings).toEqual([]);
 			expect(result.skipped).toBe(true);
@@ -172,7 +175,7 @@ describe("runSecretlint", () => {
 	});
 
 	it("should return correct result shape", async () => {
-		const result = await runSecretlint();
+		const result = await runSecretlint({ cwd: ROOT });
 		expect(result).toHaveProperty("findings");
 		expect(result).toHaveProperty("skipped");
 		expect(Array.isArray(result.findings)).toBe(true);

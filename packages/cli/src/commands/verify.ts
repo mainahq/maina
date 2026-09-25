@@ -389,12 +389,14 @@ export async function verifyAction(
 		deep: boolean;
 		cwd: string;
 		mainaDir: string;
+		env: NodeJS.ProcessEnv;
 	} = {
 		baseBranch,
 		diffOnly: !options.all,
 		deep: options.deep ?? false,
 		cwd,
 		mainaDir,
+		env: process.env,
 	};
 
 	if (options.all) {

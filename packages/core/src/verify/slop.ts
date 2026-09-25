@@ -433,13 +433,14 @@ export function detectCommentedCode(
  */
 export async function detectSlop(
 	files: string[],
-	options?: {
+	options: {
 		cache?: CacheManager;
-		cwd?: string;
+		/** Repository root relative paths resolve against (explicit). */
+		cwd: string;
 	},
 ): Promise<SlopResult> {
-	const cwd = options?.cwd ?? process.cwd();
-	const cache = options?.cache;
+	const cwd = options.cwd;
+	const cache = options.cache;
 
 	const allFindings: Finding[] = [];
 	let allCached = files.length > 0;

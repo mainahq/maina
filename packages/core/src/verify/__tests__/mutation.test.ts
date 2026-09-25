@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { parseStrykerReport, runMutation } from "../mutation";
 
+// Tests run from the repository; pass it as the explicit root (#290).
+const ROOT = process.cwd();
+
 describe("Stryker Mutation Testing", () => {
 	describe("parseStrykerReport", () => {
 		it("should parse survived mutants into findings", () => {
@@ -133,7 +136,7 @@ describe("Stryker Mutation Testing", () => {
 
 	describe("runMutation", () => {
 		it("should skip when stryker is not available", async () => {
-			const result = await runMutation({ available: false });
+			const result = await runMutation({ cwd: ROOT, available: false });
 			expect(result.skipped).toBe(true);
 			expect(result.findings).toHaveLength(0);
 		});

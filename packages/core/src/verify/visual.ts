@@ -6,7 +6,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { isToolAvailable } from "./detect";
 import type { Finding } from "./diff-filter";
 
@@ -19,6 +19,8 @@ export interface VisualConfig {
 }
 
 export interface ScreenshotOptions {
+	/** Repository root used to resolve a local Playwright install (explicit). */
+	root: string;
 	viewport?: { width: number; height: number };
 	available?: boolean;
 }
@@ -160,15 +162,15 @@ export function loadVisualConfig(mainaDir: string): VisualConfig {
 export async function captureScreenshot(
 	url: string,
 	outputPath: string,
-	options?: ScreenshotOptions,
+	options: ScreenshotOptions,
 ): Promise<ScreenshotResult> {
 	const playwrightAvailable =
-		options?.available ?? (await isToolAvailable("playwright"));
+		options.available ?? (await isToolAvailable("playwright", options.root));
 	if (!playwrightAvailable) {
 		return { captured: false, skipped: true };
 	}
 
-	const viewport = options?.viewport ?? DEFAULT_CONFIG.viewport;
+	const viewport = options.viewport ?? DEFAULT_CONFIG.viewport;
 
 	try {
 		const dir = join(outputPath, "..");
@@ -265,6 +267,8 @@ export function compareImages(
  * 3. If diff exceeds threshold, emit a Finding
  *
  * Skips gracefully if Playwright is not installed or no baselines exist.
+ * `mainaDir` is `<root>/.maina`; its parent is the repository root used to
+ * resolve a local Playwright install.
  */
 export async function runVisualVerification(
 	mainaDir: string,
@@ -319,6 +323,7 @@ export async function runVisualVerification(
 
 		// Capture current screenshot
 		const result = await captureScreenshot(url, currentPath, {
+			root: dirname(mainaDir),
 			viewport: cfg.viewport,
 		});
 
@@ -420,7 +425,7 @@ export async function runVisualVerification(
 
 /**
  * Update visual baselines by capturing current screenshots.
- * Saves to .maina/visual-baselines/.
+ * Saves to .maina/visual-baselines/. `mainaDir` is `<root>/.maina`.
  */
 export async function updateBaselines(
 	mainaDir: string,
@@ -446,6 +451,7 @@ export async function updateBaselines(
 		const outputPath = join(baselineDir, filename);
 
 		const result = await captureScreenshot(url, outputPath, {
+			root: dirname(mainaDir),
 			viewport: cfg.viewport,
 		});
 

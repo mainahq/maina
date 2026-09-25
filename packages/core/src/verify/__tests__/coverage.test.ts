@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { parseDiffCoverJson, runCoverage } from "../coverage";
 
+// Tests run from the repository; pass it as the explicit root (#290).
+const ROOT = process.cwd();
+
 describe("diff-cover Coverage Integration", () => {
 	describe("parseDiffCoverJson", () => {
 		it("should parse diff-cover JSON into findings", () => {
@@ -75,7 +78,7 @@ describe("diff-cover Coverage Integration", () => {
 
 	describe("runCoverage", () => {
 		it("should skip when diff-cover is not available", async () => {
-			const result = await runCoverage({ available: false });
+			const result = await runCoverage({ cwd: ROOT, available: false });
 			expect(result.skipped).toBe(true);
 			expect(result.findings).toHaveLength(0);
 		});

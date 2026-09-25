@@ -15,7 +15,8 @@ import type { Finding } from "./diff-filter";
 export interface CoverageOptions {
 	coverageXml?: string;
 	baseBranch?: string;
-	cwd?: string;
+	/** Repository root the tool runs in; required, core never reads the process cwd. */
+	cwd: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */
 	available?: boolean;
 }
@@ -97,17 +98,17 @@ export function parseDiffCoverJson(json: string): Finding[] {
  * If diff-cover fails, returns `{ findings: [], skipped: false }`.
  */
 export async function runCoverage(
-	options?: CoverageOptions,
+	options: CoverageOptions,
 ): Promise<CoverageResult> {
 	const toolAvailable =
-		options?.available ?? (await isToolAvailable("diff-cover"));
+		options.available ?? (await isToolAvailable("diff-cover", options.cwd));
 	if (!toolAvailable) {
 		return { findings: [], skipped: true };
 	}
 
-	const cwd = options?.cwd ?? process.cwd();
-	const coverageXml = options?.coverageXml ?? "coverage/cobertura-coverage.xml";
-	const baseBranch = await resolveBaseBranch(cwd, options?.baseBranch);
+	const cwd = options.cwd;
+	const coverageXml = options.coverageXml ?? "coverage/cobertura-coverage.xml";
+	const baseBranch = await resolveBaseBranch(cwd, options.baseBranch);
 
 	const args = [
 		"diff-cover",

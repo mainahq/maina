@@ -6,6 +6,9 @@
  */
 
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import type { DetectedTool } from "../detect";
 import type { DiffFilterResult, Finding } from "../diff-filter";
@@ -36,6 +39,11 @@ let callOrder: string[] = [];
 // pipeline filtered ignored paths (#207) before any tool ran.
 let capturedSyntaxGuardFiles: string[] | null = null;
 
+// Capture the arguments tools receive so we can assert the pipeline threads
+// its explicit root and injected environment through (#290).
+let capturedDetectToolsArgs: unknown[] | null = null;
+let capturedTypecheckArgs: unknown[] | null = null;
+
 // Mock the modules
 // NOTE: These mocks are intentionally minimal — they only export what pipeline.ts
 // needs. Tests MUST be run via `bun run test` (scripts/test-isolated.ts) which
@@ -52,8 +60,9 @@ mock.module("../syntax-guard", () => ({
 }));
 
 mock.module("../detect", () => ({
-	detectTools: async () => {
+	detectTools: async (...args: unknown[]) => {
 		callOrder.push("detectTools");
+		capturedDetectToolsArgs = args;
 		return mockDetectedTools;
 	},
 }));
@@ -154,8 +163,9 @@ mock.module("../ai-review", () => ({
 }));
 
 mock.module("../typecheck", () => ({
-	runTypecheck: async (..._args: unknown[]) => {
+	runTypecheck: async (...args: unknown[]) => {
 		callOrder.push("runTypecheck");
+		capturedTypecheckArgs = args;
 		return { findings: [], duration: 0, tool: "tsc", skipped: true };
 	},
 }));
@@ -178,8 +188,13 @@ mock.module("../../language/profile", () => ({
 	}),
 }));
 
+// Explicit, throwaway repository root (#290): the pipeline resolves every
+// path, including its default `.maina` dir, against this instead of the cwd.
+const ROOT = mkdtempSync(join(tmpdir(), "maina-pipeline-"));
+
 afterAll(() => {
 	mock.restore();
+	rmSync(ROOT, { recursive: true, force: true });
 });
 
 // Import AFTER mocking
@@ -214,6 +229,8 @@ describe("VerifyPipeline", () => {
 		// Reset all mock state
 		callOrder = [];
 		capturedSyntaxGuardFiles = null;
+		capturedDetectToolsArgs = null;
+		capturedTypecheckArgs = null;
 		mockSyntaxGuardResult = { ok: true, value: undefined };
 		mockDetectedTools = [
 			makeDetectedTool("biome", true),
@@ -243,7 +260,7 @@ describe("VerifyPipeline", () => {
 			makeDetectedTool("secretlint", true),
 		];
 
-		const result = await runPipeline({ files: ["src/app.ts"] });
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 
 		expect(result.detectedTools).toHaveLength(4);
 		expect(
@@ -259,6 +276,7 @@ describe("VerifyPipeline", () => {
 		// Without filtering, slop runs on a 100KB ncc bundle and produces
 		// thousands of false positives — broke `maina verify` on first run.
 		await runPipeline({
+			cwd: ROOT,
 			files: [
 				"src/index.ts",
 				"dist/index.js",
@@ -276,6 +294,7 @@ describe("VerifyPipeline", () => {
 		// All inputs filtered → nothing left to verify. Should short-circuit
 		// to the empty-pipeline result rather than crash.
 		const result = await runPipeline({
+			cwd: ROOT,
 			files: ["dist/index.js", "node_modules/foo/index.js"],
 		});
 
@@ -305,7 +324,7 @@ describe("VerifyPipeline", () => {
 			hidden: 0,
 		};
 
-		const result = await runPipeline({ files: ["src/app.ts"] });
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 
 		// All tools should have run
 		expect(callOrder).toContain("detectSlop");
@@ -330,7 +349,7 @@ describe("VerifyPipeline", () => {
 		mockTrivyResult = { findings: [], skipped: true };
 		mockSecretlintResult = { findings: [], skipped: true };
 
-		const result = await runPipeline({ files: ["src/app.ts"] });
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 
 		// Semgrep, trivy, secretlint should be marked as skipped
 		const semgrepReport = result.tools.find((t) => t.tool === "semgrep");
@@ -364,7 +383,7 @@ describe("VerifyPipeline", () => {
 			hidden: 1,
 		};
 
-		const result = await runPipeline({ files: ["src/app.ts"] });
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 
 		expect(callOrder).toContain("filterByDiff");
 		expect(result.findings).toHaveLength(1);
@@ -383,7 +402,7 @@ describe("VerifyPipeline", () => {
 			hidden: 5,
 		};
 
-		const result = await runPipeline({ files: ["src/app.ts"] });
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 
 		expect(result.hiddenCount).toBe(5);
 		expect(result.findings).toHaveLength(1);
@@ -395,7 +414,7 @@ describe("VerifyPipeline", () => {
 		mockSlopResult = { findings: [warningFinding], cached: false };
 		mockDiffFilterResult = { shown: [warningFinding], hidden: 0 };
 
-		const passResult = await runPipeline({ files: ["src/app.ts"] });
+		const passResult = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 		expect(passResult.passed).toBe(true);
 
 		// Reset for second assertion
@@ -406,14 +425,14 @@ describe("VerifyPipeline", () => {
 		mockSlopResult = { findings: [errorFinding], cached: false };
 		mockDiffFilterResult = { shown: [errorFinding], hidden: 0 };
 
-		const failResult = await runPipeline({ files: ["src/app.ts"] });
+		const failResult = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 		expect(failResult.passed).toBe(false);
 	});
 
 	// ─── Additional orchestration tests ──────────────────────────────────────
 
 	it("should run syntax guard FIRST before any tools", async () => {
-		await runPipeline({ files: ["src/app.ts"] });
+		await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 
 		// syntaxGuard must be the first call
 		expect(callOrder[0]).toBe("syntaxGuard");
@@ -437,7 +456,7 @@ describe("VerifyPipeline", () => {
 
 		mockSyntaxGuardResult = { ok: false, error: syntaxErrors };
 
-		const result = await runPipeline({ files: ["src/app.ts"] });
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 
 		expect(result.passed).toBe(false);
 		expect(result.syntaxPassed).toBe(false);
@@ -453,7 +472,7 @@ describe("VerifyPipeline", () => {
 	it("should use staged files when no files provided", async () => {
 		mockStagedFiles = ["src/staged1.ts", "src/staged2.ts"];
 
-		const result = await runPipeline();
+		const result = await runPipeline({ cwd: ROOT });
 
 		expect(callOrder).toContain("getStagedFiles");
 		expect(result.syntaxPassed).toBe(true);
@@ -464,6 +483,7 @@ describe("VerifyPipeline", () => {
 		mockSlopResult = { findings: [finding], cached: false };
 
 		const result = await runPipeline({
+			cwd: ROOT,
 			files: ["src/app.ts"],
 			diffOnly: false,
 		});
@@ -475,14 +495,14 @@ describe("VerifyPipeline", () => {
 	});
 
 	it("should include duration in result", async () => {
-		const result = await runPipeline({ files: ["src/app.ts"] });
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 
 		expect(typeof result.duration).toBe("number");
 		expect(result.duration).toBeGreaterThanOrEqual(0);
 	});
 
 	it("should include per-tool durations", async () => {
-		const result = await runPipeline({ files: ["src/app.ts"] });
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 
 		for (const toolReport of result.tools) {
 			expect(typeof toolReport.duration).toBe("number");
@@ -493,7 +513,7 @@ describe("VerifyPipeline", () => {
 	it("should return empty result for empty file list", async () => {
 		mockStagedFiles = [];
 
-		const result = await runPipeline();
+		const result = await runPipeline({ cwd: ROOT });
 
 		expect(result.passed).toBe(true);
 		expect(result.syntaxPassed).toBe(true);
@@ -509,7 +529,7 @@ describe("VerifyPipeline", () => {
 		mockSlopResult = { findings: warnings, cached: false };
 		mockDiffFilterResult = { shown: warnings, hidden: 0 };
 
-		const result = await runPipeline({ files: ["src/app.ts"] });
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 
 		expect(result.passed).toBe(true);
 	});
@@ -527,6 +547,7 @@ describe("VerifyPipeline", () => {
 		mockSecretlintResult = { findings: [], skipped: true };
 
 		const result = await runPipeline({
+			cwd: ROOT,
 			files: ["src/app.ts"],
 			diffOnly: false,
 		});
@@ -552,6 +573,7 @@ describe("VerifyPipeline", () => {
 		mockSecretlintResult = { findings: [], skipped: true };
 
 		const result = await runPipeline({
+			cwd: ROOT,
 			files: ["src/app.ts"],
 			diffOnly: false,
 		});
@@ -575,7 +597,7 @@ describe("VerifyPipeline", () => {
 			duration: 100,
 		};
 
-		const result = await runPipeline({ files: ["src/app.ts"] });
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 
 		expect(callOrder).toContain("runAIReview");
 		expect(result.findings).toContainEqual(aiReviewFinding);
@@ -585,7 +607,7 @@ describe("VerifyPipeline", () => {
 	});
 
 	it("should pass deep flag to AI review when specified", async () => {
-		await runPipeline({ files: ["src/app.ts"], deep: true });
+		await runPipeline({ cwd: ROOT, files: ["src/app.ts"], deep: true });
 		expect(callOrder).toContain("runAIReview");
 	});
 
@@ -596,7 +618,7 @@ describe("VerifyPipeline", () => {
 			tier: "mechanical",
 			duration: 0,
 		};
-		const result = await runPipeline({ files: ["src/app.ts"] });
+		const result = await runPipeline({ cwd: ROOT, files: ["src/app.ts"] });
 		// Pipeline passes if no error-severity findings from non-wiki tools
 		const nonWikiErrors = result.findings.filter(
 			(f) => f.tool !== "wiki-lint" && f.severity === "error",
@@ -608,9 +630,25 @@ describe("VerifyPipeline", () => {
 
 	it("should accept languages option", async () => {
 		const result = await runPipeline({
+			cwd: ROOT,
 			files: ["src/app.ts"],
 			languages: ["typescript"],
 		});
 		expect(result.syntaxPassed).toBe(true);
+	});
+
+	it("threads the explicit root into tool detection (#290)", async () => {
+		await runPipeline({ files: ["src/app.ts"], cwd: "/repo/root" });
+		expect(capturedDetectToolsArgs?.[0]).toBe("/repo/root");
+	});
+
+	it("passes the injected environment to the type checker (#290)", async () => {
+		const env = { PATH: "/usr/bin", MAINA_MARKER: "1" };
+		await runPipeline({ files: ["src/app.ts"], cwd: "/repo/root", env });
+		expect(capturedTypecheckArgs?.[1]).toBe("/repo/root");
+		expect(capturedTypecheckArgs?.[2]).toEqual({
+			language: "typescript",
+			env,
+		});
 	});
 });

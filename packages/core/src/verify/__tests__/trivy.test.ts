@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { parseTrivyJson, runTrivy } from "../trivy";
 
+// Tests run from the repository; pass it as the explicit root (#290).
+const ROOT = process.cwd();
+
 // ─── parseTrivyJson ────────────────────────────────────────────────────────
 
 describe("parseTrivyJson", () => {
@@ -162,7 +165,7 @@ describe("parseTrivyJson", () => {
 
 describe("runTrivy", () => {
 	it("should skip when trivy is not installed", async () => {
-		const result = await runTrivy();
+		const result = await runTrivy({ cwd: ROOT });
 		if (result.skipped) {
 			expect(result.findings).toEqual([]);
 			expect(result.skipped).toBe(true);
@@ -173,7 +176,7 @@ describe("runTrivy", () => {
 	});
 
 	it("should return correct result shape", async () => {
-		const result = await runTrivy();
+		const result = await runTrivy({ cwd: ROOT });
 		expect(result).toHaveProperty("findings");
 		expect(result).toHaveProperty("skipped");
 		expect(Array.isArray(result.findings)).toBe(true);

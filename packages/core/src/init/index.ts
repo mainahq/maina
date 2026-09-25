@@ -1405,7 +1405,10 @@ export async function bootstrap(
 		const detectedStack = detectStack(repoRoot);
 
 		// Detect available verification tools on PATH (filtered by project languages)
-		const detectedToolsList = await detectTools(detectedStack.languages);
+		const detectedToolsList = await detectTools(
+			repoRoot,
+			detectedStack.languages,
+		);
 
 		// Scaffold the shared `.maina/` skeleton via the single-source-of-truth
 		// module. `init` and `setup` both call this, so re-running either
