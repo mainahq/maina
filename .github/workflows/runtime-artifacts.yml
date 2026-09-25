@@ -1,0 +1,149 @@
+name: Runtime artifacts
+
+# v1 task 2.3 (FR-INS-1, FR-INS-2, FR-INS-7; ADR 0045): the standalone
+# `maina` runtime, one `bun build --compile` executable per OS/arch, and the
+# launcher (packages/runtime/launcher) that host plugins run.
+#
+# - launcher: the launcher tests under a GUI-like PATH on every OS
+#   (launch.sh on macOS/Linux, launch.ps1 wherever PowerShell is installed).
+# - build: compiles each target on a runner that can run it where one
+#   exists, and smoke-tests the executable.
+# - release (manual or a `runtime-v*` tag): signs every artifact with the
+#   release key, writes manifest.json and publishes a GitHub release.
+#   Refuses to run without the MAINA_RUNTIME_SIGNING_KEY secret: launchers
+#   reject unsigned artifacts.
+
+on:
+  pull_request:
+    branches: [master, "v1/**"]
+    paths:
+      - "packages/runtime/**"
+      - "packages/cli/src/**"
+      - "packages/mcp/src/**"
+      - "packages/core/src/**"
+      - "bun.lock"
+      - ".github/workflows/runtime-artifacts.yml"
+  push:
+    branches: ["v1/main"]
+    tags: ["runtime-v*"]
+    paths:
+      - "packages/runtime/**"
+      - ".github/workflows/runtime-artifacts.yml"
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Sign and publish a runtime release for the CLI version"
+        type: boolean
+        default: false
+
+concurrency:
+  group: runtime-artifacts-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  launcher:
+    name: launcher / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun test packages/runtime/launcher packages/runtime/build
+
+  build:
+    name: build / ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x64, runner: ubuntu-latest, smoke: true }
+          - { target: linux-arm64, runner: ubuntu-24.04-arm, smoke: true }
+          - { target: linux-x64-musl, runner: ubuntu-latest, smoke: false }
+          - { target: linux-arm64-musl, runner: ubuntu-24.04-arm, smoke: false }
+          - { target: darwin-arm64, runner: macos-latest, smoke: true }
+          - { target: darwin-x64, runner: macos-latest, smoke: false }
+          - { target: windows-x64, runner: windows-latest, smoke: true }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Compile
+        run: bun packages/runtime/build/standalone.ts --out dist/runtime --targets ${{ matrix.target }}
+      - name: Smoke test
+        if: matrix.smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin=$(ls dist/runtime/maina-*-${{ matrix.target }}*)
+          "$bin" cli --version
+          out=$("$bin" hook PreToolUse </dev/null)
+          echo "$out"
+          case $out in *'"permissionDecision":"ask"'*) ;; *) echo "hook did not fail closed" >&2; exit 1 ;; esac
+          init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}'
+          # head exits after one line, so the server may die of SIGPIPE: ignore
+          # the pipeline status and check the reply instead.
+          reply=$( (echo "$init"; sleep 5) | "$bin" mcp | head -n 1 || true)
+          echo "$reply"
+          case $reply in *'"serverInfo"'*) ;; *) echo "mcp did not answer initialize" >&2; exit 1 ;; esac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-${{ matrix.target }}
+          path: dist/runtime/maina-*
+          if-no-files-found: error
+
+  release:
+    name: sign and publish
+    if: startsWith(github.ref, 'refs/tags/runtime-v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+    needs: [launcher, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: runtime-*
+          path: dist/runtime
+          merge-multiple: true
+      - name: Sign and write manifest
+        env:
+          MAINA_RUNTIME_SIGNING_KEY: ${{ secrets.MAINA_RUNTIME_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MAINA_RUNTIME_SIGNING_KEY}" ]; then
+            echo "MAINA_RUNTIME_SIGNING_KEY is not set: refusing to publish unsigned artifacts" >&2
+            exit 1
+          fi
+          key="$RUNNER_TEMP/release.key.pem"
+          umask 077
+          printf '%s\n' "$MAINA_RUNTIME_SIGNING_KEY" > "$key"
+          bun packages/runtime/build/standalone.ts --out dist/runtime --prebuilt --signing-key "$key"
+          rm -f "$key"
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(jq -r '.version' dist/runtime/manifest.json)
+          gh release create "runtime-v${version}" dist/runtime/* \
+            --title "maina runtime ${version}" \
+            --notes "Standalone maina runtime ${version}. Verify with the launcher's pinned key (ADR 0045)."

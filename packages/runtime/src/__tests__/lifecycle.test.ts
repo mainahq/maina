@@ -23,7 +23,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createHookClient } from "../client/hook-client";
 import { createRequest, sendRequest } from "../ipc";
-import { daemonSpawner, type SpawnRuntime } from "../lifecycle";
+import { daemonCommand, daemonSpawner, type SpawnRuntime } from "../lifecycle";
 import {
 	defaultRuntimeDir,
 	ensureEndpointDirs,
@@ -459,5 +459,59 @@ describe("idle TTL", () => {
 		).toBe(true);
 		expect(await waitFor(() => !isAlive(spawned.value.pid), 5000)).toBe(true);
 		expect(existsSync(t.endpoint.pidFile)).toBe(false);
+	}, 15_000);
+});
+
+describe("standalone runtime daemon (ADR 0045)", () => {
+	test("from source, the daemon is daemon.ts run by bun", () => {
+		expect(
+			daemonCommand(
+				"file:///repo/packages/runtime/src/lifecycle.ts",
+				"/usr/local/bin/bun",
+			),
+		).toEqual(["/usr/local/bin/bun", "/repo/packages/runtime/src/daemon.ts"]);
+	});
+
+	test("in a compiled runtime, the daemon is the executable itself", () => {
+		expect(daemonCommand("file:///$bunfs/root/maina", "/data/maina")).toEqual([
+			"/data/maina",
+			"runtime-daemon",
+		]);
+		expect(
+			daemonCommand("file:///B:/~BUN/root/maina.exe", "C:\\data\\maina.exe"),
+		).toEqual(["C:\\data\\maina.exe", "runtime-daemon"]);
+	});
+
+	test("the standalone entry's runtime-daemon mode serves the runtime", async () => {
+		const t = temp();
+		const ok = ensureEndpointDirs(t.endpoint, process.platform);
+		expect(ok.ok).toBe(true);
+		const main = join(import.meta.dir, "..", "standalone", "main.ts");
+		const proc = Bun.spawn(
+			[
+				process.execPath,
+				main,
+				"runtime-daemon",
+				"--address",
+				t.endpoint.address,
+				"--pid-file",
+				t.endpoint.pidFile,
+				"--spawn-lock",
+				t.endpoint.spawnLock,
+				"--version",
+				"1.0.0",
+				"--idle-ttl-ms",
+				"10000",
+			],
+			{ stdio: ["ignore", "ignore", "ignore"] },
+		);
+		daemons.push(proc.pid);
+		expect(
+			await waitFor(
+				async () => (await statusOf(t.endpoint.address, "1.0.0")) !== null,
+				5000,
+			),
+		).toBe(true);
+		expect((await statusOf(t.endpoint.address, "1.0.0"))?.pid).toBe(proc.pid);
 	}, 15_000);
 });

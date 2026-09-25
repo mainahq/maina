@@ -27,6 +27,7 @@ on:
       - "packages/core/src/mcp/**"
       - "packages/core/src/setup/**"
       - "packages/mcp/src/**"
+      - "packages/runtime/**"
       - "ci/e2e/real-config/**"
       - ".github/workflows/e2e-real-config.yml"
   push:
@@ -42,6 +43,7 @@ on:
       - "packages/core/src/mcp/**"
       - "packages/core/src/setup/**"
       - "packages/mcp/src/**"
+      - "packages/runtime/**"
       - "ci/e2e/real-config/**"
       - ".github/workflows/e2e-real-config.yml"
   schedule:
