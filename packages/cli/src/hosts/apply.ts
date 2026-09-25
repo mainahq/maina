@@ -52,7 +52,7 @@ export interface HostFs {
 /** The target's current bytes and backup. */
 export function snapshotTarget(
 	fs: HostFs,
-	target: TargetFile,
+	target: Pick<TargetFile, "path" | "backupPath">,
 ): Result<Snapshot> {
 	const text = fs.read(target.path);
 	if (!text.ok) return text;

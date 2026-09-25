@@ -48,12 +48,13 @@ export interface TargetFile {
 	readonly backupPath: string;
 }
 
-type Shape = Pick<
+/** Where maina's entry sits inside a config file, whatever the file. */
+export type EntryShape = Pick<
 	TargetFile,
 	"format" | "containerPath" | "container" | "entryKey"
 >;
 
-const MCP_SERVERS: Shape = {
+const MCP_SERVERS: EntryShape = {
 	format: "json",
 	containerPath: ["mcpServers"],
 	container: "object",
@@ -61,7 +62,7 @@ const MCP_SERVERS: Shape = {
 };
 
 interface HostLocations {
-	readonly shape: Shape;
+	readonly shape: EntryShape;
 	readonly global: (c: Required<PathContext>) => string;
 	/** Relative to the repo root; absent when the host has no project file. */
 	readonly project?: readonly string[];
@@ -211,7 +212,8 @@ export function targetsFor(
 /**
  * Files installers are known to have written `host`'s MCP entry into that
  * the host never reads (P1): Claude Code's `settings.json` files. Nothing
- * writes here; `maina doctor` reports an entry found in one as broken.
+ * adds an entry here; `maina doctor` reports one as broken and the 1.x
+ * migration (`../onboarding/migrate-1x.ts`) removes a stale one.
  */
 const IGNORED: Readonly<
 	Partial<
@@ -246,8 +248,10 @@ export function ignoredTargets(
 		scope,
 		path,
 		...MCP_SERVERS,
-		// Never written, so never backed up; kept for the `TargetFile` shape.
-		backupPath: path,
+		backupPath:
+			scope === "global"
+				? globalBackupPath(c.home, path)
+				: join(c.cwd, ".maina", "backups", relative(c.cwd, path)),
 	});
 	return [
 		...ignored.global.map((rel) => file("global", join(c.home, ...rel))),

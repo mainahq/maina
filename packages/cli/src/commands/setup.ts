@@ -35,10 +35,16 @@ import {
 } from "@mainahq/core";
 import { Command } from "commander";
 import { processEnv } from "../env";
+import { nodeHostFs } from "../hosts/apply";
 import { buildMainaEntry } from "../hosts/entry";
-import { runSetupHosts } from "../hosts/index";
+import { hostPathContext, runSetupHosts } from "../hosts/index";
 import { EXIT_CONFIG_ERROR, EXIT_PASSED } from "../json";
 import { applyOps, snapshotFiles } from "../onboarding/apply";
+import {
+	describeMigrationChange,
+	type MigrationReport,
+	migrate1x,
+} from "../onboarding/migrate-1x";
 import { nodeOnboardingFs } from "../onboarding/node-fs";
 import {
 	onboardingTargets,
@@ -118,6 +124,8 @@ interface SetupResult {
 	agentFilesWarnings: string[];
 	/** Global host config files maina was merged into (e.g. Codex). */
 	hostConfigsWritten: string[];
+	/** What the 1.x migration changed (stale MCP entries) and skipped. */
+	migration: MigrationReport;
 	verifyFinding: VerifyFinding | null;
 	verifyClean: boolean;
 	verifyRan: boolean;
@@ -155,7 +163,9 @@ export interface SetupActionOptions {
 	 * Register maina in the global config of installed hosts that setup
 	 * does not wire through a project file (Codex, Windsurf, Zed, …).
 	 * Off unless given: the CLI passes the real home, tests a fake one.
-	 * Ignored in plugin mode, which never writes outside `.maina/`.
+	 * Ignored in plugin mode, which never creates files outside `.maina/`.
+	 * Also where the 1.x migration looks for stale global entries, in
+	 * plugin mode too: it only ever edits or removes maina's own entry.
 	 */
 	globalHosts?: { readonly home: string };
 	ci?: boolean;
@@ -506,6 +516,7 @@ export async function setupAction(
 		agentFilesWritten: [],
 		agentFilesWarnings: [],
 		hostConfigsWritten: [],
+		migration: { changes: [], skipped: [] },
 		verifyFinding: null,
 		verifyClean: false,
 		verifyRan: false,
@@ -793,6 +804,21 @@ export async function setupAction(
 		return result;
 	}
 
+	// 1.x migration: stale `bunx`/`npx @mainahq/cli --mcp` entries get
+	// today's launcher, or go where no host reads them. Before the plan, so
+	// the plan sees the migrated files. Idempotent; plugin mode runs it too.
+	const mcpEntry = buildMainaEntry();
+	const home = options.globalHosts?.home;
+	result.migration = migrate1x({
+		ctx: hostPathContext(cwd, home),
+		scope: home === undefined ? "project" : "both",
+		launcher: mcpEntry,
+		fs: nodeHostFs(),
+	});
+	for (const change of result.migration.changes) {
+		deps.log.info(describeMigrationChange(change, cwd));
+	}
+
 	// Single onboarding flow: snapshot the targets, plan pure file ops,
 	// apply them through the fs port. Never overwrites: user files get a
 	// managed region or a managed JSON key, and an existing constitution is
@@ -807,7 +833,7 @@ export async function setupAction(
 		{
 			stack: result.stack,
 			constitution: constitutionText,
-			mcpEntry: buildMainaEntry(),
+			mcpEntry,
 			files: snapshotFiles(onboardingFs, onboardingTargets(planOptions)),
 		},
 		planOptions,
@@ -845,9 +871,10 @@ export async function setupAction(
 	result.agentFilesWritten = [...report.created, ...report.merged].filter(
 		(p) => p !== ".maina/constitution.md",
 	);
-	result.agentFilesWarnings = report.skipped.map(
-		(s) => `skip ${s.path}: ${s.reason}`,
-	);
+	result.agentFilesWarnings = [
+		...result.migration.skipped.map((s) => `skip ${s.path}: ${s.reason}`),
+		...report.skipped.map((s) => `skip ${s.path}: ${s.reason}`),
+	];
 	if (report.backups.length > 0) {
 		deps.log.info(`Backed up originals to ${report.backups.join(", ")}`);
 	}
@@ -893,6 +920,7 @@ export async function setupAction(
 			...result.agentFilesWritten,
 		],
 		warnings: result.agentFilesWarnings.length,
+		migrated: result.migration.changes.length,
 	});
 
 	// ── Phase 3.5: seed wiki ────────────────────────────────────────────────

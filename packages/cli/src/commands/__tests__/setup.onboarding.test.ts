@@ -217,6 +217,73 @@ describe("setupAction — single onboarding flow", () => {
 		expect(result.hostConfigsWritten).toEqual([]);
 	});
 
+	test("migrates a 1.x install: stale MCP entries go, the rest is kept (#301)", async () => {
+		const home = mkdtempSync(join(tmpdir(), "maina-setup-home-"));
+		const stale = { command: "bunx", args: ["@mainahq/cli", "--mcp"] };
+		const files: Record<string, string> = {
+			".mcp.json": JSON.stringify({ mcpServers: { maina: stale } }, null, 2),
+			".claude/settings.json": JSON.stringify(
+				{ mcpServers: { maina: stale } },
+				null,
+				2,
+			),
+			".maina/constitution.md": "# Ours\n\n- Kept.\n",
+			".maina/prompts/review.md": "# Our review prompt\n",
+			".maina/feedback.db": "SQLite format 3\u0000fake",
+		};
+		for (const [rel, content] of Object.entries(files)) {
+			mkdirSync(join(cwd, rel, ".."), { recursive: true });
+			writeFileSync(join(cwd, rel), content);
+		}
+		writeFileSync(
+			join(home, ".claude.json"),
+			JSON.stringify({ mcpServers: { maina: stale } }),
+		);
+		try {
+			const result = await run({ globalHosts: { home } });
+			expect(result.bailed).toBe(false);
+			expect(
+				result.migration.changes.map((c) => [c.path, c.action]).sort(),
+			).toEqual(
+				[
+					[join(cwd, ".mcp.json"), "rewritten"],
+					[join(cwd, ".claude/settings.json"), "deleted"],
+					[join(home, ".claude.json"), "rewritten"],
+				].sort(),
+			);
+			expect(existsSync(join(cwd, ".claude", "settings.json"))).toBe(false);
+			const mcp = JSON.parse(readFileSync(join(cwd, ".mcp.json"), "utf-8"));
+			expect(mcp.mcpServers.maina.args).not.toContain("@mainahq/cli");
+			for (const rel of [
+				".maina/constitution.md",
+				".maina/prompts/review.md",
+				".maina/feedback.db",
+			]) {
+				expect(readFileSync(join(cwd, rel), "utf-8")).toBe(files[rel] ?? "");
+			}
+
+			const second = await run({ globalHosts: { home } });
+			expect(second.migration.changes).toEqual([]);
+		} finally {
+			rmSync(home, { recursive: true, force: true });
+		}
+	});
+
+	test("plugin mode runs the 1.x migration too", async () => {
+		writeFileSync(
+			join(cwd, ".mcp.json"),
+			JSON.stringify({
+				mcpServers: {
+					maina: { command: "npx", args: ["@mainahq/cli", "--mcp"] },
+				},
+			}),
+		);
+		const result = await run({ plugin: true });
+		expect(result.migration.changes.map((c) => c.action)).toEqual([
+			"rewritten",
+		]);
+	});
+
 	test("setup exposes --legacy-agents and --plugin", () => {
 		const flags = setupCommand().options.map((o) => o.long);
 		expect(flags).toContain("--legacy-agents");
