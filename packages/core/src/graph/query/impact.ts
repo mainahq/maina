@@ -9,8 +9,8 @@
  *   range still counts when the node it exercises is in range, so every
  *   listed caller brings its own tests.
  * - Code in a test file that is not itself a test (a helper) is walked
- *   through, so tests reaching a target via a helper are found, but it is
- *   neither a caller nor a dependent.
+ *   through at no cost in hops, so a test reaching an in-range node via a
+ *   helper is found, but a helper is neither a caller nor a dependent.
  */
 
 import type { Result } from "../../db/index";
@@ -19,6 +19,7 @@ import type { GraphStoreError } from "../store/types";
 import {
 	byId,
 	type GraphIndex,
+	hopsOf,
 	isFileNode,
 	isTestish,
 	loadIndex,
@@ -96,7 +97,7 @@ function blastScore(
 
 /** Pure impact over an indexed graph. */
 function impactOf(index: GraphIndex, request: ImpactRequest): ImpactReport {
-	const depth = Math.max(0, Math.floor(request.depth ?? DEFAULT_DEPTH));
+	const depth = hopsOf(request.depth, DEFAULT_DEPTH);
 	const { named, seeds, unknown } = resolveTargets(index, request);
 	const seen = new Set(seeds.map((s) => s.id));
 	const seedPaths = new Set(seeds.map((s) => s.path));
@@ -104,23 +105,30 @@ function impactOf(index: GraphIndex, request: ImpactRequest): ImpactReport {
 	const tests: ImpactedNode[] = [];
 	const dependents = new Set<string>();
 
-	let frontier: readonly GraphNode[] = seeds;
+	let frontier: GraphNode[] = [...seeds];
 	for (let hop = 1; hop <= depth + 1 && frontier.length > 0; hop++) {
 		const next: GraphNode[] = [];
-		for (const node of frontier) {
+		// `frontier` grows while it is walked: a test helper found at this hop
+		// is walked at the same hop, so it never costs a hop of range.
+		for (let i = 0; i < frontier.length; i++) {
+			const node = frontier[i] as GraphNode;
 			for (const edge of index.incoming.get(node.id) ?? []) {
 				const src = index.byId.get(edge.src);
 				if (src === undefined || seen.has(src.id)) continue;
-				const testish = isTestish(index, src);
-				// Past the range only the tests of in-range nodes count.
-				if (hop > depth && !src.test) continue;
+				const helper = !src.test && isTestish(index, src);
+				// Past the range only the tests of in-range nodes (and the
+				// helpers leading to them) count.
+				if (hop > depth && !src.test && !helper) continue;
 				seen.add(src.id);
 				if (src.test) {
 					tests.push({ ...toRef(src), depth: hop });
 					continue;
 				}
+				if (helper) {
+					frontier.push(src);
+					continue;
+				}
 				next.push(src);
-				if (testish) continue;
 				if (!isFileNode(src)) callers.push({ ...toRef(src), depth: hop });
 				if (!seedPaths.has(src.path)) dependents.add(src.path);
 			}

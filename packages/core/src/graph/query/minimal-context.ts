@@ -24,6 +24,7 @@ import { hashOf } from "../store/sync";
 import type { GraphStoreError } from "../store/types";
 import {
 	type GraphIndex,
+	hopsOf,
 	isFileNode,
 	isTestish,
 	loadIndex,
@@ -60,13 +61,20 @@ type Targets = Readonly<{
 	targets: readonly GraphNode[];
 	/** What the neighbourhood grows from (targets plus their members). */
 	sources: readonly GraphNode[];
+	/** Requested paths the store does not know. */
+	unknown: readonly string[];
 }>;
 
 function fileTargets(index: GraphIndex, paths: readonly string[]): Targets {
 	const targets: GraphNode[] = [];
 	const sources: GraphNode[] = [];
+	const unknown: string[] = [];
 	for (const raw of paths) {
-		const nodes = index.byPath.get(normalizePath(raw)) ?? [];
+		const nodes = index.byPath.get(normalizePath(raw));
+		if (nodes === undefined) {
+			unknown.push(raw);
+			continue;
+		}
 		const topLevel = nodes.filter((n) => !isFileNode(n) && n.parent === null);
 		// A file of bare statements has nothing smaller to offer than itself.
 		targets.push(
@@ -74,7 +82,7 @@ function fileTargets(index: GraphIndex, paths: readonly string[]): Targets {
 		);
 		sources.push(...nodes);
 	}
-	return { targets, sources };
+	return { targets, sources, unknown };
 }
 
 /**
@@ -101,13 +109,14 @@ function queryTargets(index: GraphIndex, query: string): Targets {
 	return {
 		targets: nodes,
 		sources: nodes.flatMap((n) => withMembers(index, n)),
+		unknown: [],
 	};
 }
 
 function candidatesOf(
 	index: GraphIndex,
 	request: MinimalContextRequest,
-): readonly Candidate[] {
+): Readonly<{ candidates: readonly Candidate[]; unknown: readonly string[] }> {
 	const fromFiles = fileTargets(index, request.files ?? []);
 	const fromQuery =
 		request.query === undefined
@@ -123,7 +132,7 @@ function candidatesOf(
 	let frontier = [...fromFiles.sources, ...fromQuery.sources];
 	for (const n of frontier) seen.add(n.id);
 
-	const depth = Math.max(0, Math.floor(request.depth ?? DEFAULT_DEPTH));
+	const depth = hopsOf(request.depth, DEFAULT_DEPTH);
 	for (let hop = 1; hop <= depth && frontier.length > 0; hop++) {
 		const take = (id: string, into: GraphNode[]): void => {
 			const node = index.byId.get(id);
@@ -155,7 +164,7 @@ function candidatesOf(
 		frontier = [...callees, ...callers].flatMap((n) => withMembers(index, n));
 		for (const n of frontier) seen.add(n.id);
 	}
-	return out;
+	return { candidates: out, unknown: [...new Set(fromFiles.unknown)].sort() };
 }
 
 type Sources = Readonly<{
@@ -243,7 +252,7 @@ export async function minimalContext(
 ): Promise<Result<MinimalContext, GraphStoreError>> {
 	const index = loadIndex(ports.db);
 	if (!index.ok) return index;
-	const candidates = candidatesOf(index.value, request);
+	const { candidates, unknown } = candidatesOf(index.value, request);
 	const paths = [...new Set(candidates.map((c) => c.node.path))];
 	const sources = await readSources(ports, root, index.value, paths);
 	if (!sources.ok) return sources;
@@ -264,6 +273,7 @@ export async function minimalContext(
 			savedTokens: tokenSavings(naiveTokens, tokens),
 			omitted,
 			stale,
+			unknown,
 		},
 	};
 }

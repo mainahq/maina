@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createMemoryDb } from "../../../ports/testing";
 import { impact } from "../index";
-import { indexedRepo, unwrap } from "./fixture";
+import { FILES, indexedRepo, unwrap } from "./fixture";
 
 const ids = (items: readonly { id: string }[]): readonly string[] =>
 	items.map((i) => i.id);
@@ -117,6 +117,44 @@ export function make(): number {
 		);
 		expect(ids(report.callers)).toContain("src/use.ts#make");
 		expect(report.dependents).toEqual(["src/use.ts"]);
+	});
+
+	test("a test reaching an in-range caller through a test helper still covers it", async () => {
+		const repo = await indexedRepo({
+			"src/core.ts": FILES["src/core.ts"],
+			"src/mid.ts": FILES["src/mid.ts"],
+			"src/mid.test.ts": `import { describe, expect, test } from "bun:test";
+import { mid } from "./mid";
+
+function run(): number {
+	return mid(1);
+}
+
+describe("mid", () => {
+	test("doubles", () => {
+		expect(run()).toBe(4);
+	});
+});
+`,
+		});
+		const report = unwrap(
+			impact(repo.ports, { symbols: ["src/core.ts#base"], depth: 1 }),
+		);
+		expect(ids(report.callers)).toEqual(["src/mid.ts#mid"]);
+		// The helper is walked through for free, so `mid` brings its test along.
+		expect(ids(report.tests)).toEqual(["src/mid.test.ts#mid > doubles"]);
+	});
+
+	test("a non-numeric depth falls back to the default instead of finding nothing", async () => {
+		const repo = await indexedRepo();
+		const report = unwrap(
+			impact(repo.ports, { symbols: ["src/core.ts#base"], depth: Number.NaN }),
+		);
+		expect(ids(report.callers)).toEqual([
+			"src/mid.ts#mid",
+			"src/top.ts#top",
+			"src/app.ts#app",
+		]);
 	});
 
 	test("an empty store yields an empty report", () => {

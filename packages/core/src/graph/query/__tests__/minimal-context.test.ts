@@ -139,6 +139,42 @@ describe("minimalContext", () => {
 		expect(ctx.snippets.map((s) => s.id)).toEqual(["src/mid.ts#mid"]);
 	});
 
+	test("reports requested files the store does not know", async () => {
+		const repo = await indexedRepo();
+		const ctx = unwrap(
+			await minimalContext(repo.ports, ROOT, {
+				files: ["src/nope.ts", "src/mid.ts", "./src/nope.ts"],
+				budgetTokens: BIG,
+			}),
+		);
+		expect(ctx.unknown).toEqual(["./src/nope.ts", "src/nope.ts"]);
+		expect(ctx.snippets[0]?.id).toBe("src/mid.ts#mid");
+
+		const none = unwrap(
+			await minimalContext(repo.ports, ROOT, {
+				files: ["src/mid.ts"],
+				budgetTokens: BIG,
+			}),
+		);
+		expect(none.unknown).toEqual([]);
+	});
+
+	test("a non-numeric depth falls back to the default", async () => {
+		const repo = await indexedRepo();
+		const ctx = unwrap(
+			await minimalContext(repo.ports, ROOT, {
+				files: ["src/mid.ts"],
+				budgetTokens: BIG,
+				depth: Number.NaN,
+			}),
+		);
+		expect(ctx.snippets.map((s) => s.id)).toEqual([
+			"src/mid.ts#mid",
+			"src/core.ts#base",
+			"src/top.ts#top",
+		]);
+	});
+
 	test("a seed file with no symbols contributes the whole file", async () => {
 		const repo = await indexedRepo({
 			"src/script.ts": "const x = 1;\nconsole.info(x);\n",

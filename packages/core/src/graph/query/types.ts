@@ -95,4 +95,6 @@ export type MinimalContext = Readonly<{
 	omitted: readonly string[];
 	/** Files whose content no longer matches the store (edited or deleted since indexing); their snippets are left out. */
 	stale: readonly string[];
+	/** Requested files the store does not know (not indexed, or a typo), as given, sorted. */
+	unknown: readonly string[];
 }>;

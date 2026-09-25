@@ -75,6 +75,16 @@ export function toRef(n: GraphNode): NodeRef {
 	};
 }
 
+/**
+ * A requested hop count: floored and at least 0; `Infinity` walks until the
+ * graph runs out; `undefined` or `NaN` (a bad parse upstream) takes the
+ * default rather than silently walking nowhere.
+ */
+export function hopsOf(depth: number | undefined, fallback: number): number {
+	if (depth === undefined || Number.isNaN(depth)) return fallback;
+	return Math.max(0, Math.floor(depth));
+}
+
 /** `./src\\a.ts` -> `src/a.ts`. */
 export const normalizePath = (path: string): string =>
 	path.replaceAll("\\", "/").replace(/^(?:\.\/)+/, "");
