@@ -8,6 +8,7 @@
  *   (a looser verdict, or `irreversible: false`) is an error unless that
  *   layer lists the class in `explicitly_allow`. Allowed loosenings are
  *   recorded in `Policy.loosened`.
+ * - A class a layer introduces fails closed: no verdict means `ask`.
  * - Telemetry opt-ins can only be turned on by the user layer.
  */
 
@@ -39,7 +40,14 @@ type Layer = Readonly<{
 
 type Merged = Readonly<{ policy: Policy; errors: readonly PolicyError[] }>;
 
-const NEW_CLASS: ActionClassPolicy = { irreversible: false, verdict: "allow" };
+/**
+ * Baseline for a class a layer introduces. It fails closed (FR-GATE-3): a
+ * class without a verdict resolves to `ask`, and a new irreversible class
+ * starts at `ask`, so declaring it `allow` is a loosening like any other.
+ */
+function newClass(spec: Partial<ActionClassPolicy>): ActionClassPolicy {
+	return { irreversible: spec.irreversible ?? false, verdict: "ask" };
+}
 
 function strictness(verdict: Verdict): number {
 	return VERDICTS.indexOf(verdict);
@@ -54,7 +62,7 @@ function mergeActionClasses(base: Policy, layer: Layer): Merged {
 	const unlocked = new Set(layer.value.explicitly_allow ?? []);
 
 	for (const [id, spec] of Object.entries(layer.value.action_classes ?? {})) {
-		const prev = classes[id] ?? NEW_CLASS;
+		const prev = classes[id] ?? newClass(spec);
 		const next: ActionClassPolicy = { ...prev, ...defined(spec) };
 		const attempts = prev.irreversible
 			? [

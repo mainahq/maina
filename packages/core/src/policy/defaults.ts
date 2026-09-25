@@ -11,11 +11,15 @@ import {
 } from "./schema";
 
 /**
- * The FR-GATE-4 set: actions whose effects cannot be undone from the working
- * tree. They default to `ask`; a layer may tighten them to `deny`, but only a
- * layer that names them in `explicitly_allow` may loosen them.
+ * The FR-GATE-4 set (deleting outside the workspace, force-pushing,
+ * production data, deploys, credential access, package publishing) plus the
+ * other actions whose effects cannot be undone from the working tree. They
+ * default to `ask`; a layer may tighten them to `deny`, but only a layer that
+ * names them in `explicitly_allow` may loosen them.
  */
 export const IRREVERSIBLE_ACTION_CLASSES = [
+	/** Any delete that targets a path outside the workspace. */
+	"fs.delete.outside",
 	/** `rm -rf`, `find -delete` and friends. */
 	"fs.delete.recursive",
 	/** `git push --force` / `--force-with-lease`. */
@@ -24,10 +28,16 @@ export const IRREVERSIBLE_ACTION_CLASSES = [
 	"git.discard",
 	/** `DROP`, `TRUNCATE`, unbounded `DELETE`. */
 	"db.destructive",
+	/** Any write to a production database or data store. */
+	"db.production",
+	/** Deploys and releases to a live environment (`vercel --prod`, `kubectl apply`, `wrangler deploy`). */
+	"deploy",
 	/** `npm publish` and other registry releases. */
 	"package.publish",
 	/** Piping a download into a shell (`curl … | sh`). */
 	"remote.exec",
+	/** Reading credentials: `.env`, `~/.ssh`, `~/.aws`, keychains. */
+	"secrets.read",
 	/** Writes to credential stores such as `~/.ssh` or `~/.aws`. */
 	"secrets.write",
 ] as const;
@@ -39,7 +49,6 @@ const REVERSIBLE_ACTION_CLASSES: Readonly<Record<string, ActionClassPolicy>> = {
 	"shell.exec": allowed,
 	"fs.write": allowed,
 	"fs.read.outside": { irreversible: false, verdict: "ask" },
-	"secrets.read": { irreversible: false, verdict: "ask" },
 	"git.commit": allowed,
 	"git.push": allowed,
 	"deps.install": allowed,

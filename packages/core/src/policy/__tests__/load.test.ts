@@ -26,6 +26,26 @@ describe("default policy", () => {
 		}
 	});
 
+	test("covers every FR-GATE-4 category with an irreversible class", () => {
+		// Spec FR-GATE-4, verbatim categories → the classes that carry them.
+		const FR_GATE_4: Readonly<Record<string, readonly string[]>> = {
+			"deleting outside the workspace": ["fs.delete.outside"],
+			"force-pushing": ["git.push.force"],
+			"production data": ["db.production"],
+			deploys: ["deploy"],
+			"credential access": ["secrets.read", "secrets.write"],
+			"package publishing": ["package.publish"],
+		};
+		for (const ids of Object.values(FR_GATE_4)) {
+			for (const id of ids) {
+				expect(DEFAULT_POLICY.action_classes[id]).toEqual({
+					irreversible: true,
+					verdict: "ask",
+				});
+			}
+		}
+	});
+
 	test("opts into no telemetry by default", () => {
 		expect(Object.values(DEFAULT_POLICY.telemetry)).toEqual(
 			Object.values(DEFAULT_POLICY.telemetry).map(() => false),
@@ -204,6 +224,59 @@ describe("irreversible action classes", () => {
 			undefined,
 		);
 		expect(result.ok).toBe(false);
+	});
+
+	test("a class a layer introduces without a verdict fails closed to ask", async () => {
+		const result = await loadPolicy(
+			repoPolicy({
+				action_classes: {
+					"k8s.apply": { irreversible: true },
+					"lint.run": { irreversible: false },
+				},
+			}),
+			ROOT,
+			undefined,
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.action_classes["k8s.apply"]).toEqual({
+			irreversible: true,
+			verdict: "ask",
+		});
+		expect(result.value.action_classes["lint.run"]?.verdict).toBe("ask");
+	});
+
+	test("a new irreversible class cannot be introduced as allow without explicitly_allow", async () => {
+		const denied = await loadPolicy(
+			repoPolicy({
+				action_classes: {
+					"k8s.apply": { irreversible: true, verdict: "allow" },
+				},
+			}),
+			ROOT,
+			undefined,
+		);
+		expect(denied.ok).toBe(false);
+		if (denied.ok) return;
+		expect(denied.error.map((e) => e.path)).toEqual([
+			"action_classes.k8s.apply.verdict",
+		]);
+
+		const unlocked = await loadPolicy(
+			repoPolicy({
+				explicitly_allow: ["k8s.apply"],
+				action_classes: {
+					"k8s.apply": { irreversible: true, verdict: "allow" },
+				},
+			}),
+			ROOT,
+			undefined,
+		);
+		expect(unlocked.ok).toBe(true);
+		if (!unlocked.ok) return;
+		expect(unlocked.value.loosened).toEqual([
+			{ actionClass: "k8s.apply", source: "repo" },
+		]);
 	});
 
 	test("the user layer is held to the same rule", async () => {
