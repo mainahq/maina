@@ -46,7 +46,7 @@ const ARCHITECTURAL_TASKS = new Set(["design-review", "architecture", "learn"]);
 
 /**
  * state.trusted.task: the task name. `standard` for review, plan, design,
- * fix and anything unknown; `local` is never auto-assigned.
+ * fix and anything unknown.
  */
 export const taskTier: Heuristic = choiceHeuristic((state) => {
 	const task = asString(state.trusted.task);

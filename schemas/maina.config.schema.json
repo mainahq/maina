@@ -21,12 +21,7 @@
 				"architectural": {
 					"type": "string",
 					"minLength": 1,
-					"description": "Top tier: design review, architecture, prompt evolution."
-				},
-				"local": {
-					"type": "string",
-					"minLength": 1,
-					"description": "Offline tier."
+					"description": "Top tier: design review, architecture, prompt evolution, and any task routing is unsure about."
 				}
 			},
 			"additionalProperties": false

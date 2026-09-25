@@ -28,7 +28,6 @@ const DEFAULT_CONFIG: Config = {
 		mechanical: "anthropic/claude-haiku-4-5",
 		standard: "anthropic/claude-sonnet-4-6",
 		architectural: "anthropic/claude-opus-4-7",
-		local: "ollama/qwen3-coder-8b",
 	},
 	provider: "openrouter",
 	// Enforceable budget (#293, enforced by the router in #334): caps in USD
@@ -111,16 +110,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** A 1.x `models` block without the removed, never-implemented `local` tier. */
+function withoutLocalTier(models: unknown): unknown {
+	if (!isRecord(models)) return models;
+	const { local: _local, ...routed } = models;
+	return routed;
+}
+
 /**
  * Maps a 1.x `maina.config.ts` export onto the current file shape: the
- * unenforced `budget.daily/perTask/alertAt` become `dailyUsd/perTaskUsd`
- * and the never-read `apiKey` is dropped (keys come from the environment).
+ * unenforced `budget.daily/perTask/alertAt` become `dailyUsd/perTaskUsd`,
+ * the never-read `apiKey` is dropped (keys come from the environment) and
+ * so is the unimplemented `models.local` tier (#334).
  */
 function fromLegacyModule(raw: unknown): unknown {
 	// Anything but a plain record (arrays included) passes through untouched
 	// so validation reports it instead of the spread hiding it.
 	if (!isRecord(raw)) return raw;
-	const { apiKey: _apiKey, budget, ...rest } = raw;
+	const { apiKey: _apiKey, budget, models, ...others } = raw;
+	const rest =
+		models === undefined
+			? others
+			: { ...others, models: withoutLocalTier(models) };
 	if (!isRecord(budget)) {
 		return budget === undefined ? rest : { ...rest, budget };
 	}

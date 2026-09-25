@@ -117,7 +117,7 @@ describe("heuristic backend reproduces the goldens through decide", () => {
 					{
 						kind: "choice",
 						id: "tier",
-						options: ["mechanical", "standard", "architectural", "local"],
+						options: ["mechanical", "standard", "architectural"],
 					},
 				],
 			});

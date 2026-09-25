@@ -114,7 +114,7 @@ const TIER_ONLY: DecideRequest = {
 		{
 			kind: "choice",
 			id: "tier",
-			options: ["mechanical", "standard", "architectural", "local"],
+			options: ["mechanical", "standard", "architectural"],
 		},
 	],
 };
@@ -174,7 +174,7 @@ describe("no field contains raw file content (property)", () => {
 				{
 					kind: "choice",
 					id: "tier",
-					options: ["mechanical", "standard", "architectural", "local"],
+					options: ["mechanical", "standard", "architectural"],
 				},
 			],
 		});

@@ -23,7 +23,7 @@ export const TIER_REQUEST: DecideRequest = {
 		{
 			kind: "choice",
 			id: "tier",
-			options: ["mechanical", "standard", "architectural", "local"],
+			options: ["mechanical", "standard", "architectural"],
 		},
 	],
 };

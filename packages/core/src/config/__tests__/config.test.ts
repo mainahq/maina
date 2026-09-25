@@ -25,12 +25,13 @@ describe("getDefaultConfig", () => {
 		expect(config).toHaveProperty("budget");
 	});
 
-	test("models has all four required keys", () => {
+	test("models has exactly the three routed tiers", () => {
 		const { models } = getDefaultConfig();
-		expect(models).toHaveProperty("mechanical");
-		expect(models).toHaveProperty("standard");
-		expect(models).toHaveProperty("architectural");
-		expect(models).toHaveProperty("local");
+		expect(Object.keys(models).sort()).toEqual([
+			"architectural",
+			"mechanical",
+			"standard",
+		]);
 	});
 
 	test("budget has dailyUsd, perTaskUsd, and onBreach", () => {
@@ -185,6 +186,18 @@ describe("loadConfigModule", () => {
 			onBreach: "degrade",
 		});
 		expect("apiKey" in config).toBe(false);
+	});
+
+	// #334: the unimplemented `local` tier is gone; a 1.x config that still
+	// names it keeps loading without an error.
+	test("drops the removed 1.x local tier without reporting it", async () => {
+		writeModule(
+			`{ models: { standard: "x/custom", local: "ollama/qwen3-coder-8b" } }`,
+		);
+		const { config, errors } = await loadConfigModule(tmpDir);
+		expect(errors).toEqual([]);
+		expect(config.models.standard).toBe("x/custom");
+		expect("local" in config.models).toBe(false);
 	});
 
 	// #393: one bad key must never reset the whole user config.

@@ -43,7 +43,7 @@ describe("validateQuestions", () => {
 	const tier: Question = {
 		kind: "choice",
 		id: "tier",
-		options: ["mechanical", "standard", "architectural", "local"],
+		options: ["mechanical", "standard", "architectural"],
 	};
 
 	test("accepts well-formed choice, bool and score questions", () => {
