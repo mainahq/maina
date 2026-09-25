@@ -3,7 +3,6 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const TEMPLATES_DIR = join(import.meta.dir, "..", "templates");
-const AGENTS_DIR = join(import.meta.dir, "..", "agents");
 
 /**
  * Single source of truth for the rule-C2 banned-phrase set. Keep these in
@@ -84,40 +83,5 @@ describe("prompt templates", () => {
 		// since open questions live earlier in the pipeline.
 		if (file === "tasks-template.md") return;
 		expect(content).toMatch(/\[NEEDS CLARIFICATION:/);
-	});
-});
-
-describe("agent prompts", () => {
-	const files = listMd(AGENTS_DIR);
-
-	test("ships the locked v0 agent set", () => {
-		expect(files.sort()).toEqual(["debug.md", "review.md", "router.md"]);
-	});
-
-	test.each(files)("%s — has Input + Persona-or-Process structure", (file) => {
-		const content = readFileSync(join(AGENTS_DIR, file), "utf-8");
-		expect(content).toMatch(/## Input/);
-		// Every agent prompt must explain *who* the model is or *how* it
-		// answers. Persona, Process, or Output structure are the three
-		// patterns we ship; at least one must be present.
-		expect(content).toMatch(/## (?:Persona|Process|Output)/);
-	});
-
-	test.each(
-		files,
-	)("%s — no banned C2 phrases (outside teaching examples)", (file) => {
-		const raw = readFileSync(join(AGENTS_DIR, file), "utf-8");
-		const content = stripTeachingLines(raw);
-		for (const banned of BANNED_C2_PHRASES) {
-			expect(content).not.toMatch(banned);
-		}
-	});
-
-	test.each(files)("%s — uses verification framing", (file) => {
-		const content = readFileSync(join(AGENTS_DIR, file), "utf-8");
-		// The agent prompts must use Maina's verification language — the
-		// router classifies *into* verify agents, the review/debug prompts
-		// explain *why* a check holds or doesn't.
-		expect(content).toMatch(/\b(?:verify|verification|receipt|merge)\b/i);
 	});
 });

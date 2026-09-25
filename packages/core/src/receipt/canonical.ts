@@ -10,15 +10,7 @@
  * values before they reach canonicalization.
  */
 
-export type CanonicalJsonValue =
-	| null
-	| boolean
-	| number
-	| string
-	| CanonicalJsonValue[]
-	| { [key: string]: CanonicalJsonValue | undefined };
-
-export type CanonicalizeResult =
+type CanonicalizeResult =
 	| { ok: true; data: string }
 	| {
 			ok: false;

@@ -5,11 +5,11 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface StatusActionOptions {
+interface StatusActionOptions {
 	cwd?: string;
 }
 
-export interface StatusActionResult {
+interface StatusActionResult {
 	displayed: boolean;
 	branch?: string;
 	verificationPassed?: boolean;

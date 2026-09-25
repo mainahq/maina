@@ -43,7 +43,7 @@ export interface Launcher {
 
 const PINNED_PACKAGE = `@mainahq/cli@${PKG_VERSION}`;
 
-export interface DetectLauncherOptions {
+interface DetectLauncherOptions {
 	/**
 	 * Overrideable PATH lookup. Returns the resolved binary path or null.
 	 * Tests pass a fake; runtime uses `Bun.which` (always available since

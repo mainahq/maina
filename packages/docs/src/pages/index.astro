@@ -1,8 +1,5 @@
 ---
-// A/B scaffold. `HERO_VARIANT=v2` at build time swaps the hero for the
-// v2 stub which errors loudly — implement Hero.v2.astro before enabling.
-import HeroV1 from '../components/Hero.astro';
-import HeroV2 from '../components/Hero.v2.astro';
+import Hero from '../components/Hero.astro';
 import PainStrip from '../components/PainStrip.astro';
 import Terminal from '../components/Terminal.astro';
 import Engines from '../components/Engines.astro';
@@ -25,9 +22,6 @@ const cliVersion = (cliPackage as { version?: unknown }).version;
 if (typeof cliVersion !== 'string' || cliVersion.trim() === '') {
   throw new Error('packages/cli/package.json must declare a non-empty version');
 }
-
-const HERO_VARIANT = import.meta.env.HERO_VARIANT ?? 'v1';
-const Hero = HERO_VARIANT === 'v2' ? HeroV2 : HeroV1;
 
 const rawBase = import.meta.env.BASE_URL;
 const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;

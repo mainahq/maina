@@ -6,6 +6,8 @@ Date: 2026-04-17
 
 Accepted
 
+Implementation removed because nothing outside its own tests used it. See [ADR 0042](0042-delete-unwired-verify-runners-and-dead-modules.md).
+
 ## Context
 
 Custom regex parsers miss complex cross-file relationships. SCIP (Sourcegraph, Apache-2.0) is the successor to LSIF — 5-10x smaller, 3x faster. Running `scip-typescript` gives precise symbol data for free.

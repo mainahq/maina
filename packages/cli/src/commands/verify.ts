@@ -33,7 +33,7 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface VerifyActionOptions {
+interface VerifyActionOptions {
 	all?: boolean;
 	fix?: boolean;
 	json?: boolean;
@@ -44,7 +44,7 @@ export interface VerifyActionOptions {
 	cwd?: string;
 }
 
-export interface VerifyActionResult {
+interface VerifyActionResult {
 	passed: boolean;
 	findingsCount: number;
 	hiddenCount: number;
@@ -152,7 +152,7 @@ function formatCloudFindings(
 	return [header, separator, ...rows].join("\n");
 }
 
-export interface CloudVerifyResult {
+interface CloudVerifyResult {
 	passed: boolean;
 	findingsCount: number;
 	duration: number;

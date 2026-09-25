@@ -7,7 +7,7 @@ import { outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface ContextActionOptions {
+interface ContextActionOptions {
 	/** Override the repo root. Defaults to `process.cwd()`. */
 	cwd?: string;
 	/** Limit to a specific directory inside the repo. */
@@ -28,7 +28,7 @@ export interface ContextActionOptions {
 	force?: boolean;
 }
 
-export interface ContextActionResult {
+interface ContextActionResult {
 	mode: string;
 	tokens: number;
 	budget: { total: number };
@@ -89,7 +89,7 @@ function formatSummary(result: {
  *   4. Default when no legacy file and no `--output` is
  *      `<repoRoot>/.maina/CONTEXT.md`.
  */
-export function resolveContextOutputPath(
+function resolveContextOutputPath(
 	repoRoot: string,
 	options: Pick<ContextActionOptions, "output" | "force">,
 ): { path: string; legacyPreserved: boolean } {

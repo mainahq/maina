@@ -13,20 +13,20 @@ import { exitCodeFromResult, outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface ReviewActionOptions {
+interface ReviewActionOptions {
 	base?: string;
 	planPath?: string;
 	json?: boolean;
 	cwd?: string;
 }
 
-export interface ReviewActionResult {
+interface ReviewActionResult {
 	reviewed: boolean;
 	reason?: string;
 	result?: ComprehensiveReviewResult;
 }
 
-export interface ReviewDeps {
+interface ReviewDeps {
 	getDiff: (ref1?: string, ref2?: string, cwd?: string) => Promise<string>;
 	getChangedFiles: (since?: string, cwd?: string) => Promise<string[]>;
 	comprehensiveReview: typeof comprehensiveReview;
@@ -131,7 +131,7 @@ function displayReview(result: ComprehensiveReviewResult): void {
 
 // ── Core Action ─────────────────────────────────────────────────────────────
 
-export async function reviewAction(
+async function reviewAction(
 	options: ReviewActionOptions,
 	deps: ReviewDeps = defaultDeps,
 ): Promise<ReviewActionResult> {

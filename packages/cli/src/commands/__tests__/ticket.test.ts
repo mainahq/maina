@@ -9,6 +9,7 @@ import {
 } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import type { TicketDeps } from "../ticket";
 
 // ── Mock State ───────────────────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ afterAll(() => {
 // ── Import the module under test AFTER mocks ────────────────────────────────
 
 const { ticketAction } = await import("../ticket");
-type TicketDepsType = import("../ticket").TicketDeps;
+type TicketDepsType = TicketDeps;
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 

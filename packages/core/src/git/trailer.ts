@@ -21,11 +21,11 @@ const VERIFIED_BY_PATTERN =
 const LINE_VERIFIED_BY_PATTERN =
 	/^Verified-by:[ \t]*Maina@sha256:[0-9a-f]{64}[ \t]*$/;
 
-export type AppendTrailerResult =
+type AppendTrailerResult =
 	| { ok: true; data: string }
 	| { ok: false; code: "invalid-hash"; message: string };
 
-export type ProofHashResult =
+type ProofHashResult =
 	| { ok: true; data: string }
 	| { ok: false; code: "canonicalize-failed"; message: string };
 

@@ -20,14 +20,6 @@
 export const INSTALL_COMMAND =
 	"curl -fsSL https://api.mainahq.com/install | bash" as const;
 
-/** Alternate install lines shown under the Alternates disclosure. */
-export const INSTALL_ALTERNATES = [
-	"bun add -g @mainahq/cli",
-	"pnpm add -g @mainahq/cli",
-	"npm install -g @mainahq/cli",
-	"bunx @mainahq/cli@latest setup",
-] as const;
-
 /** Same string, prefixed with the shell prompt — what the terminal
  *  animation echoes as its first input line. */
 export const INSTALL_PROMPT = `$ ${INSTALL_COMMAND}` as const;

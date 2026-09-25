@@ -172,7 +172,7 @@ function numStr(n: number): string {
 	return escapeHtml(String(Math.trunc(n)));
 }
 
-export function escapeHtml(s: string): string {
+function escapeHtml(s: string): string {
 	return s
 		.replace(/&/g, "&amp;")
 		.replace(/</g, "&lt;")

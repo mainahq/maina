@@ -9,6 +9,7 @@ import {
 } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import type { PlanDeps } from "../plan";
 
 // ── Mock State ───────────────────────────────────────────────────────────────
 
@@ -128,7 +129,7 @@ afterAll(() => {
 // ── Import the module under test AFTER mocks ─────────────────────────────────
 
 const { planAction } = await import("../plan");
-type PlanDepsType = import("../plan").PlanDeps;
+type PlanDepsType = PlanDeps;
 
 // ── Default mock deps (git operations) ───────────────────────────────────────
 

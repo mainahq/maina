@@ -30,7 +30,7 @@ import { registerReviewTools } from "./tools/review";
 import { registerVerifyTools } from "./tools/verify";
 import { registerWikiTools } from "./tools/wiki";
 
-export interface McpServerOptions {
+interface McpServerOptions {
 	/** Register all tools at handshake instead of progressive disclosure */
 	allTools?: boolean;
 }
@@ -86,11 +86,7 @@ const ALL_TOOL_DESCRIPTIONS = [
 ];
 
 /** Names of the 3 tools registered at handshake by default. */
-export const DEFAULT_MCP_TOOLS = [
-	"verify",
-	"getContext",
-	"reviewCode",
-] as const;
+const DEFAULT_MCP_TOOLS = ["verify", "getContext", "reviewCode"] as const;
 
 function registerListToolsMeta(server: McpServer): void {
 	server.tool(

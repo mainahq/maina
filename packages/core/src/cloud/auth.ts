@@ -260,7 +260,7 @@ export const GITHUB_CLIENT_ID = "Iv23liUKmzMG4WYZITEk";
 const GITHUB_DEVICE_CODE_URL = "https://github.com/login/device/code";
 const GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token";
 
-export interface StartGitHubFlowOptions {
+interface StartGitHubFlowOptions {
 	/** Override the client id (for tests or alternate apps). */
 	clientId?: string;
 	/** Scopes to request. Defaults to "read:user". */
@@ -331,7 +331,7 @@ export async function startGitHubDeviceFlow(
 	}
 }
 
-export interface PollGitHubTokenOptions {
+interface PollGitHubTokenOptions {
 	/** Override the client id (for tests). */
 	clientId?: string;
 	/** Device code returned from `startGitHubDeviceFlow`. */

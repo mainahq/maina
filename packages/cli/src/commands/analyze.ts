@@ -7,14 +7,14 @@ import { EXIT_FINDINGS, EXIT_PASSED, outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface AnalyzeActionOptions {
+interface AnalyzeActionOptions {
 	featureDir?: string; // Explicit feature dir, or auto-detect from branch
 	all?: boolean; // Analyze all features
 	json?: boolean; // Output JSON for CI
 	cwd?: string;
 }
 
-export interface AnalyzeActionResult {
+interface AnalyzeActionResult {
 	analyzed: boolean;
 	reason?: string;
 	reports?: Array<{

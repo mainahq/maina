@@ -7,7 +7,7 @@
  * readable intent).
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Result } from "../../db/index";
 import type { Rule, RuleCategory, RuleSourceKind } from "../adopt";
@@ -396,59 +396,5 @@ function safeReadText(path: string): string | null {
 		return readFileSync(path, "utf-8");
 	} catch {
 		return null;
-	}
-}
-
-/**
- * List every lint/config file we would scan. Used by the orchestrator for
- * logging and by `scan/index.ts` to surface detected files back to the
- * wizard. Ordering is deterministic.
- */
-export function listLintConfigFiles(cwd: string): string[] {
-	const candidates = [
-		"biome.json",
-		"biome.jsonc",
-		".eslintrc",
-		".eslintrc.json",
-		".eslintrc.js",
-		".eslintrc.cjs",
-		".eslintrc.yml",
-		".eslintrc.yaml",
-		"eslint.config.js",
-		"eslint.config.mjs",
-		"eslint.config.cjs",
-		".prettierrc",
-		".prettierrc.json",
-		".prettierrc.js",
-		".prettierrc.yml",
-		".prettierrc.yaml",
-		"prettier.config.js",
-		"prettier.config.mjs",
-		"tsconfig.json",
-		"pyproject.toml",
-		// NOTE: `ruff.toml` intentionally omitted — we only emit a Ruff rule
-		// from `[tool.ruff]` inside `pyproject.toml` today. Including it here
-		// would falsely advertise coverage. Re-add once `scanRuffToml` exists.
-		"Cargo.toml",
-		"go.mod",
-	];
-	const found: string[] = [];
-	for (const c of candidates) {
-		if (existsSync(join(cwd, c))) found.push(c);
-	}
-	return found;
-}
-
-// Lightweight re-export for the orchestrator — avoids callers needing to
-// read the directory themselves.
-export function listGitHubWorkflows(cwd: string): string[] {
-	const dir = join(cwd, ".github", "workflows");
-	if (!existsSync(dir)) return [];
-	try {
-		return readdirSync(dir)
-			.filter((e) => e.endsWith(".yml") || e.endsWith(".yaml"))
-			.sort();
-	} catch {
-		return [];
 	}
 }

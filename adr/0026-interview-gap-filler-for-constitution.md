@@ -6,6 +6,8 @@ Date: 2026-04-17
 
 Accepted
 
+Implementation removed because nothing outside its own tests used it. See [ADR 0042](0042-delete-unwired-verify-runners-and-dead-modules.md).
+
 ## Context
 
 Config parsers, git analyzers, and pattern samplers detect ~70% of conventions. The remaining ~20% needs human input: files AI should never touch, deploy gotchas, common contributor mistakes. Rejected proposals should persist so `maina learn --update` doesn't re-ask.

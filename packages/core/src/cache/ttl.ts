@@ -1,4 +1,4 @@
-export type TaskType =
+type TaskType =
 	| "review"
 	| "tests"
 	| "fix"
@@ -8,7 +8,7 @@ export type TaskType =
 	| "design"
 	| "plan";
 
-export interface TtlRule {
+interface TtlRule {
 	task: TaskType;
 	ttl: number;
 	description: string;

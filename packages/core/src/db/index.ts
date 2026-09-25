@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import * as schema from "./schema.ts";
 
-export type DbHandle = {
+type DbHandle = {
 	db: Database;
 	drizzle: ReturnType<typeof drizzle<typeof schema>>;
 };

@@ -170,7 +170,7 @@ function writeAtomic(path: string, content: string): void {
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
-export interface RunOnClientOptions {
+interface RunOnClientOptions {
 	configPath: string;
 	scope: "global" | "project";
 	dryRun: boolean;

@@ -9,12 +9,12 @@ import {
 	outputJson,
 } from "../json";
 
-export interface VerifyReceiptOptions {
+interface VerifyReceiptOptions {
 	json?: boolean;
 	cwd?: string;
 }
 
-export interface VerifyReceiptResult {
+interface VerifyReceiptResult {
 	ok: boolean;
 	code?: string;
 	message?: string;

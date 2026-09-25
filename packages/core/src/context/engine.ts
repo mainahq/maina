@@ -13,7 +13,12 @@ import {
 	type LayerContent,
 	truncateToFit,
 } from "./budget";
-import { assembleEpisodicText, decayAllEntries, getEntries } from "./episodic";
+import {
+	assembleEpisodicText,
+	decayAllEntries,
+	type EpisodicEntry,
+	getEntries,
+} from "./episodic";
 import {
 	assembleRetrievalText,
 	type RetrievalOptions,
@@ -183,9 +188,9 @@ async function buildWorkingLayer(
  * Returns only the cloud entries not already present locally.
  */
 function deduplicateCloudEntries(
-	localEntries: import("./episodic").EpisodicEntry[],
+	localEntries: EpisodicEntry[],
 	cloudEntries: CloudEpisodicEntry[],
-): import("./episodic").EpisodicEntry[] {
+): EpisodicEntry[] {
 	const localHashes = new Set(
 		localEntries.map((e) => {
 			const key = `${e.summary}::${e.content}`;
@@ -226,7 +231,7 @@ async function buildEpisodicLayer(
 	try {
 		decayAllEntries(mainaDir);
 
-		let entries: import("./episodic").EpisodicEntry[];
+		let entries: EpisodicEntry[];
 		if (filter !== undefined && filter.length > 0) {
 			// When filter is a string[], fetch entries for each type and merge
 			const allEntries = filter.flatMap((type) => getEntries(mainaDir, type));

@@ -11,7 +11,7 @@ import type { Finding } from "./diff-filter";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
-export interface TrivyOptions {
+interface TrivyOptions {
 	scanType?: "fs" | "repo";
 	cwd?: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */

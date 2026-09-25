@@ -26,9 +26,7 @@ export type ToolName =
 	| "dotnet-format"
 	| "checkstyle"
 	| "spotbugs"
-	| "pmd"
-	| "zap"
-	| "lighthouse";
+	| "pmd";
 
 export interface DetectedTool {
 	name: string;
@@ -142,18 +140,6 @@ export const TOOL_REGISTRY: Record<ToolName, ToolRegistryEntry> = {
 		versionFlag: "--version",
 		languages: ["java"],
 		tier: "recommended",
-	},
-	zap: {
-		command: "docker",
-		versionFlag: "--version",
-		languages: ["*"],
-		tier: "optional",
-	},
-	lighthouse: {
-		command: "lighthouse",
-		versionFlag: "--version",
-		languages: ["typescript", "javascript"],
-		tier: "optional",
 	},
 };
 

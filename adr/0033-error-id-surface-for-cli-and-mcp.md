@@ -1,4 +1,4 @@
-# 0021. Error ID surface for CLI and MCP
+# 0033. Error ID surface for CLI and MCP
 
 Date: 2026-04-17
 

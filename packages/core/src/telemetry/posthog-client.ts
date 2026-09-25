@@ -282,8 +282,3 @@ export function flushTelemetry(
 ): Promise<void> {
 	return getSingleton().flush(budgetMs);
 }
-
-/** Reset the singleton — tests only. */
-export function __resetForTests(): void {
-	singleton = null;
-}

@@ -39,7 +39,6 @@ export type {
 	ExternalReviewFinding,
 	FindingCategory,
 	FindingState,
-	IngestOptions,
 	IngestStats,
 	InsertFindingInput,
 	QueryFindingsOptions,

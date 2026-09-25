@@ -17,14 +17,14 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface PrActionOptions {
+interface PrActionOptions {
 	title?: string;
 	base?: string; // base branch, default "main"
 	draft?: boolean;
 	cwd?: string;
 }
 
-export interface PrActionResult {
+interface PrActionResult {
 	created: boolean;
 	reason?: string;
 	url?: string;

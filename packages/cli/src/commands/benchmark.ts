@@ -4,14 +4,14 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface BenchmarkActionOptions {
+interface BenchmarkActionOptions {
 	story?: string;
 	list?: boolean;
 	pipeline?: "maina" | "speckit";
 	cwd?: string;
 }
 
-export interface BenchmarkActionResult {
+interface BenchmarkActionResult {
 	ran: boolean;
 	listed?: boolean;
 	reason?: string;

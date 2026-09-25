@@ -6,6 +6,8 @@ Date: 2026-04-05
 
 Accepted
 
+The Lighthouse and ZAP runners from Phase 4 were never wired into the pipeline and have been removed. See [ADR 0042](0042-delete-unwired-verify-runners-and-dead-modules.md).
+
 ## Context
 
 Maina CLI outputs human-readable text only. CI pipelines need machine-readable JSON, meaningful exit codes, and a GitHub Action for easy integration. The language profile system only detects a project's primary language, missing per-file analysis in polyglot repos. PHP (4th most popular backend language) has no support. DAST and performance auditing are gaps in the verification pipeline.

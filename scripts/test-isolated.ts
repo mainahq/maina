@@ -17,12 +17,17 @@ import { Glob } from "bun";
 
 const rootDir = resolve(import.meta.dir, "..");
 
-// Discover all test files
-const testGlob = new Glob("packages/**/__tests__/**/*.test.ts");
+// Discover all test files: package suites plus repo-level script guards.
+const testGlobs = [
+	new Glob("packages/**/__tests__/**/*.test.ts"),
+	new Glob("scripts/__tests__/**/*.test.ts"),
+];
 const testFiles: string[] = [];
 
-for await (const file of testGlob.scan({ cwd: rootDir, absolute: true })) {
-	testFiles.push(file);
+for (const testGlob of testGlobs) {
+	for await (const file of testGlob.scan({ cwd: rootDir, absolute: true })) {
+		testFiles.push(file);
+	}
 }
 
 testFiles.sort();

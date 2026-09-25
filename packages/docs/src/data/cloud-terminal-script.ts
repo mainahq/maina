@@ -18,10 +18,10 @@
  * redeclare the `Frame` shape here (mirroring `./terminal-script`) so
  * cloud-specific chapter ids don't leak into the OSS hero's typing.
  */
-export type FrameKind = "input" | "output" | "header" | "ok" | "warn" | "err";
-export type CloudChapter = "login" | "sync" | "verify" | "proof";
+type FrameKind = "input" | "output" | "header" | "ok" | "warn" | "err";
+type CloudChapter = "login" | "sync" | "verify" | "proof";
 
-export interface Frame {
+interface Frame {
 	t: number;
 	kind: FrameKind;
 	text: string;

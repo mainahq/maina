@@ -1,4 +1,4 @@
-export interface CacheKeyInput {
+interface CacheKeyInput {
 	task: string;
 	files?: string[];
 	promptHash?: string;

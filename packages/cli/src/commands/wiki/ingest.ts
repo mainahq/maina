@@ -13,14 +13,14 @@ import { EXIT_PASSED, EXIT_TOOL_FAILURE, outputJson } from "../../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface WikiIngestResult {
+interface WikiIngestResult {
 	ingested: boolean;
 	source: string;
 	destination: string;
 	error?: string;
 }
 
-export interface WikiIngestOptions {
+interface WikiIngestOptions {
 	json?: boolean;
 	cwd?: string;
 }

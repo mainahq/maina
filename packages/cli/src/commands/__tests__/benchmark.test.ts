@@ -9,6 +9,7 @@ import {
 } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import type { BenchmarkDeps } from "../benchmark";
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -32,7 +33,7 @@ afterAll(() => {
 // ── Import after mocks ──────────────────────────────────────────────────────
 
 const { benchmarkAction } = await import("../benchmark");
-type BenchmarkDepsType = import("../benchmark").BenchmarkDeps;
+type BenchmarkDepsType = BenchmarkDeps;
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

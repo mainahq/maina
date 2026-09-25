@@ -7,7 +7,7 @@ Current messaging treats the wiki as a separate product surface. But the wiki is
 ## Success Criteria
 
 - [x] Wiki docs page updated with Context engine framing
-- [x] `adr/0022-wiki-is-a-view.md` ADR written
+- [x] `adr/0034-wiki-is-a-view.md` ADR written
 - [x] Glossary: Context engine (core, 4 layers) → wiki (view of knowledge graph)
 
 ## Scope

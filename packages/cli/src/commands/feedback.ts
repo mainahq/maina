@@ -19,7 +19,7 @@ import {
 } from "@mainahq/core";
 import { Command } from "commander";
 
-export interface FeedbackIngestOptions {
+interface FeedbackIngestOptions {
 	repo?: string;
 	pr?: string[];
 	since?: string;
@@ -28,7 +28,7 @@ export interface FeedbackIngestOptions {
 	cwd?: string;
 }
 
-export interface FeedbackIngestResult {
+interface FeedbackIngestResult {
 	ok: boolean;
 	repo: string;
 	prNumbers: number[] | "auto";

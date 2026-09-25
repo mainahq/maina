@@ -11,7 +11,7 @@ import type { Finding } from "./diff-filter";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
-export interface SemgrepOptions {
+interface SemgrepOptions {
 	files?: string[];
 	rulesDir?: string;
 	config?: string;

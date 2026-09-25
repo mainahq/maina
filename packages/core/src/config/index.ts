@@ -173,22 +173,6 @@ export function isHostMode(): boolean {
 }
 
 /**
- * When running inside a host agent (Claude Code, Cursor), AI calls should
- * be delegated to the host rather than making direct API calls.
- *
- * Returns structured prompt data that the host agent can process.
- * The MCP server or skills package uses this to pass context to the host.
- *
- * NOTE: Currently unused — retained for MCP/skills host delegation (Sprint 10+).
- */
-export interface HostDelegation {
-	mode: "host";
-	systemPrompt: string;
-	userPrompt: string;
-	task: string;
-}
-
-/**
  * Check if AI should be delegated to host instead of direct API call.
  *
  * NOTE: In practice this currently returns true only when MAINA_HOST_MODE=true

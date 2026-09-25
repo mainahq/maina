@@ -1,4 +1,4 @@
-# 0024. Opt-in usage telemetry
+# 0035. PII and code-content scrubbing library
 
 Date: 2026-04-17
 

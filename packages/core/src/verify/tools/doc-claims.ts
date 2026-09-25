@@ -42,7 +42,7 @@ import type { Finding } from "../diff-filter";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
-export interface DocImport {
+interface DocImport {
 	/** Module specifier as written in the doc (`@workkit/memory`, `./foo`, `react`). */
 	module: string;
 	/**
@@ -57,7 +57,7 @@ export interface DocImport {
 	line: number;
 }
 
-export interface DocClaimsResult {
+interface DocClaimsResult {
 	findings: Finding[];
 }
 

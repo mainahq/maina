@@ -49,6 +49,7 @@ import type {
 	ExtractedWorkflowTrace,
 	WikiArticle,
 	WikiLink,
+	WikiState,
 } from "./types";
 import { renderGraphHtml } from "./visualize";
 
@@ -57,7 +58,7 @@ import { renderGraphHtml } from "./visualize";
 export interface CompilationResult {
 	articles: WikiArticle[];
 	graph: KnowledgeGraph;
-	state: import("./types").WikiState;
+	state: WikiState;
 	duration: number;
 	stats: {
 		modules: number;
@@ -858,8 +859,6 @@ function generateVerifyPipelineArticle(
 		"detect.ts": "Language and tool detection",
 		"proof.ts": "Verification proof generation for PR bodies",
 		"visual.ts": "Visual verification with Playwright",
-		"lighthouse.ts": "Lighthouse performance audits",
-		"zap.ts": "OWASP ZAP security scanning",
 	};
 
 	const lines: string[] = [];

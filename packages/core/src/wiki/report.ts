@@ -14,7 +14,7 @@ import type { ArticleType, WikiArticle } from "./types";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
-export interface GraphReportOptions {
+interface GraphReportOptions {
 	/** Wall-clock compile duration in ms. Defaults to 0 (useful in tests). */
 	durationMs?: number;
 	/** Override "generated at" timestamp for deterministic snapshots. */
@@ -23,7 +23,7 @@ export interface GraphReportOptions {
 	communities?: number;
 }
 
-export interface GraphReportData {
+interface GraphReportData {
 	/** ISO timestamp the report was generated. */
 	generatedAt: string;
 	durationMs: number;

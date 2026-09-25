@@ -12,7 +12,7 @@ import type { WikiArticle } from "./types";
 
 // ─── Options + types ───────────────────────────────────────────────────
 
-export interface RenderGraphHtmlOptions {
+interface RenderGraphHtmlOptions {
 	/** RNG seed for the layout. Defaults to 42. */
 	seed?: number;
 	/** Force simulation iterations. Defaults to 200 — enough for <500 nodes. */

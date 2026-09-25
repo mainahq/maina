@@ -8,8 +8,6 @@
  * `.claude/settings.json`); this is the cross-project counterpart.
  */
 
-import type { Result } from "../db/index";
-
 export type McpClientId =
 	| "claude"
 	| "cursor"
@@ -68,5 +66,3 @@ export interface RunOptions {
 	/** Override `os.homedir()` — primarily for tests. */
 	home?: string;
 }
-
-export type ApplyOutcome = Result<ApplyResult, string>;

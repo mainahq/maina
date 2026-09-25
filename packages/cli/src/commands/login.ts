@@ -24,14 +24,14 @@ const DEFAULT_CLOUD_URL =
 
 // ── Login Action ────────────────────────────────────────────────────────────
 
-export interface LoginActionResult {
+interface LoginActionResult {
 	loggedIn: boolean;
 	reason?: string;
 }
 
 // ── GitHub Login Action ─────────────────────────────────────────────────────
 
-export async function loginWithGitHubAction(): Promise<LoginActionResult> {
+async function loginWithGitHubAction(): Promise<LoginActionResult> {
 	const existing = loadAuthConfig();
 	if (existing.ok) {
 		log.info("Already logged in. Use `maina logout` to clear credentials.");
@@ -100,7 +100,7 @@ export async function loginWithGitHubAction(): Promise<LoginActionResult> {
 	return { loggedIn: true };
 }
 
-export async function loginAction(): Promise<LoginActionResult> {
+async function loginAction(): Promise<LoginActionResult> {
 	// Check if already logged in
 	const existing = loadAuthConfig();
 	if (existing.ok) {
@@ -228,12 +228,12 @@ export async function loginAction(): Promise<LoginActionResult> {
 
 // ── Logout Action ───────────────────────────────────────────────────────────
 
-export interface LogoutActionResult {
+interface LogoutActionResult {
 	loggedOut: boolean;
 	reason?: string;
 }
 
-export async function logoutAction(): Promise<LogoutActionResult> {
+async function logoutAction(): Promise<LogoutActionResult> {
 	const result = clearAuthConfig();
 	if (!result.ok) {
 		log.error(result.error);

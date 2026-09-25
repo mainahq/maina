@@ -18,7 +18,7 @@ export interface ConfigureActionOptions {
 	noInteractive?: boolean;
 }
 
-export interface ConfigureActionDeps {
+interface ConfigureActionDeps {
 	/** Write sink for the deprecation banner. Defaults to `process.stderr.write`. */
 	stderr?: (msg: string) => void;
 	/** Setup hook, injectable for tests. Defaults to the real `setupAction`. */

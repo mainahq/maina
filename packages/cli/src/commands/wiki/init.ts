@@ -19,9 +19,9 @@ import { EXIT_PASSED, outputJson } from "../../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type WikiInitDepth = "quick" | "full";
+type WikiInitDepth = "quick" | "full";
 
-export interface WikiInitResult {
+interface WikiInitResult {
 	articlesCreated: number;
 	modules: number;
 	entities: number;
@@ -33,7 +33,7 @@ export interface WikiInitResult {
 	backgrounded: boolean;
 }
 
-export interface WikiInitOptions {
+interface WikiInitOptions {
 	ai?: boolean;
 	json?: boolean;
 	cwd?: string;

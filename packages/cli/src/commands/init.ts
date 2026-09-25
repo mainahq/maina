@@ -18,7 +18,7 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface InitActionOptions {
+interface InitActionOptions {
 	cwd?: string;
 	force?: boolean;
 	install?: boolean;

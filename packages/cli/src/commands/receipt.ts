@@ -26,7 +26,7 @@ import {
 import { Command } from "commander";
 import { EXIT_FINDINGS, EXIT_PASSED, outputJson } from "../json";
 
-export interface ReceiptActionOptions {
+interface ReceiptActionOptions {
 	all?: boolean;
 	base?: string;
 	json?: boolean;

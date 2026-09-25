@@ -15,6 +15,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import type { SpecDeps } from "../spec";
 
 // ── Mock State ───────────────────────────────────────────────────────────────
 
@@ -80,7 +81,7 @@ afterAll(() => {
 
 const { specAction } = await import("../spec");
 const { generateTestStubs } = await import("@mainahq/core");
-type SpecDepsType = import("../spec").SpecDeps;
+type SpecDepsType = SpecDeps;
 
 // ── Test helpers ─────────────────────────────────────────────────────────────
 
