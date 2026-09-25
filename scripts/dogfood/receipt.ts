@@ -216,6 +216,10 @@ export async function produceReceipt(
 	opts: ReceiptOptions,
 	ports: ReceiptPorts,
 ): Promise<Result<ReceiptProduced, ReceiptError>> {
+	// Untracked files are deliberately ignored: they are not part of HEAD and
+	// the verify scope is `git diff <merge-base> HEAD`, so they can neither be
+	// verified nor change what the receipt attests. Refusing them would block
+	// every run on local artifacts (e.g. .maina/wiki/.signals.json).
 	const status = await ports.exec([
 		"git",
 		"status",
@@ -392,5 +396,13 @@ async function main(): Promise<number> {
 }
 
 if (import.meta.main) {
-	process.exitCode = await main();
+	try {
+		process.exitCode = await main();
+	} catch (e) {
+		// Spawn/IO/pipeline exceptions must honour --no-fail too: pre-push
+		// promises never to block a push.
+		const msg = e instanceof Error ? e.message : String(e);
+		process.stderr.write(`dogfood receipt [crash]: ${msg}\n`);
+		process.exitCode = process.argv.includes("--no-fail") ? 0 : 1;
+	}
 }

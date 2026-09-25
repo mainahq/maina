@@ -56,6 +56,12 @@ describe("evaluate: deny list", () => {
 		["rm -rf outside repo", bash("rm -rf /work/other-project")],
 		["rm -r ../ (parent)", bash("rm -r ../")],
 		["chained rm -rf /", bash("bun test && rm -rf /")],
+		// Absolute/relative executable paths must not bypass the rules.
+		["/bin/rm -rf /", bash("/bin/rm -rf /")],
+		["/usr/bin/sudo", bash("/usr/bin/sudo ls")],
+		["/usr/bin/git push master", bash("/usr/bin/git push origin master")],
+		["path-qualified npm publish", bash("/usr/local/bin/npm publish")],
+		["sh -c with absolute rm", bash('/bin/sh -c "/bin/rm -rf ~"')],
 		["sudo", bash("sudo rm file")],
 		["mkfs", bash("mkfs.ext4 /dev/sda1")],
 		["dd to device", bash("dd if=/dev/zero of=/dev/disk2")],

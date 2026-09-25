@@ -188,8 +188,9 @@ function stripPrefix(tokens: readonly string[]): readonly string[] {
 	let i = 0;
 	while (i < tokens.length) {
 		const t = tokens[i] ?? "";
-		if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(t) || WRAPPERS.has(t)) i++;
-		else if (t === "env" && i + 1 < tokens.length) i++;
+		const name = basename(t);
+		if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(t) || WRAPPERS.has(name)) i++;
+		else if (name === "env" && i + 1 < tokens.length) i++;
 		else break;
 	}
 	return tokens.slice(i);
@@ -283,7 +284,9 @@ function checkSegment(
 	ctx: HookContext,
 ): Decision | undefined {
 	const tokens = stripPrefix(tokens0);
-	const [cmd = "", ...args] = tokens;
+	const [exe = "", ...args] = tokens;
+	// `/bin/rm`, `./node_modules/.bin/npm` etc. dispatch like `rm`, `npm`.
+	const cmd = basename(exe);
 	const sub = args[0] ?? "";
 
 	// Nested shells: evaluate the inner script too.
