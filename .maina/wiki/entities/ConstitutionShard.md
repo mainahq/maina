@@ -7,5 +7,5 @@
 - **Kind:** interface
 - **File:** `packages/core/src/prompts/loader.ts`
 - **Line:** 174
-- **Exported:** yes
+- **Exported:** no
 - **PageRank:** 0.0011
