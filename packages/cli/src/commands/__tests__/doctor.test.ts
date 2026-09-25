@@ -331,12 +331,23 @@ describe("maina doctor", () => {
 				error: { kind: "query_failed", message: "no such table" },
 			}),
 		};
-		mockFeedbackDbResult = { ok: true, value: { db, close: () => {} } };
+		let closed = false;
+		mockFeedbackDbResult = {
+			ok: true,
+			value: {
+				db,
+				close: () => {
+					closed = true;
+				},
+			},
+		};
 
 		const result = await doctorAction({ cwd: tmpDir, home: tmpDir });
 
 		expect(result.aiStatus.feedbackTotal).toBe(0);
 		expect(result.aiStatus.feedbackAcceptRate).toBe(0);
+		// The store is released even when the query fails.
+		expect(closed).toBe(true);
 	});
 
 	test("reports zero feedback when db unavailable", async () => {
