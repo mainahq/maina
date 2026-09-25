@@ -5,7 +5,7 @@ exports[`tool schemas match the snapshot: verify 1`] = `
   "annotations": {
     "readOnlyHint": true,
   },
-  "description": "Run the verification pipeline (syntax guard, deterministic tools, diff-only filter) on explicit files. Returns pass/fail, findings on changed lines, and each tool's status with the reason any tool was skipped.",
+  "description": "Run the verification pipeline (syntax guard, deterministic tools, diff-only filter) on the working tree or explicit files. Returns passed/failed/skipped (never passed on an empty scope), the files checked, findings on changed lines, and each tool's status with the reason any tool was skipped.",
   "inputSchema": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "properties": {
@@ -14,7 +14,7 @@ exports[`tool schemas match the snapshot: verify 1`] = `
         "type": "string",
       },
       "files": {
-        "description": "Files to verify: repo-relative, or absolute inside the root. Omit to verify the staged files; an empty list verifies nothing.",
+        "description": "Files to verify: repo-relative, or absolute inside the root. Omit to verify the working tree (staged, unstaged and untracked changes vs the base); an empty list verifies nothing.",
         "items": {
           "type": "string",
         },
@@ -87,6 +87,39 @@ exports[`tool schemas match the snapshot: verify 1`] = `
               },
               "passed": {
                 "type": "boolean",
+              },
+              "scope": {
+                "additionalProperties": false,
+                "properties": {
+                  "files": {
+                    "items": {
+                      "type": "string",
+                    },
+                    "type": "array",
+                  },
+                  "kind": {
+                    "enum": [
+                      "working-tree",
+                      "staged",
+                      "range",
+                      "files",
+                    ],
+                    "type": "string",
+                  },
+                },
+                "required": [
+                  "kind",
+                  "files",
+                ],
+                "type": "object",
+              },
+              "status": {
+                "enum": [
+                  "passed",
+                  "failed",
+                  "skipped",
+                ],
+                "type": "string",
               },
               "syntaxErrors": {
                 "items": {
@@ -163,7 +196,9 @@ exports[`tool schemas match the snapshot: verify 1`] = `
               },
             },
             "required": [
+              "status",
               "passed",
+              "scope",
               "syntaxPassed",
               "findings",
               "hiddenCount",

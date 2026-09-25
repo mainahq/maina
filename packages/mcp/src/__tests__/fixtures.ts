@@ -16,7 +16,9 @@ export const DEFAULT_ROOT = "/fake/default-root";
 export type Call = Readonly<{ method: string; args: unknown }>;
 
 const PIPELINE: PipelineResult = {
+	status: "failed",
 	passed: false,
+	scope: { kind: "files", files: ["src/a.ts"] },
 	syntaxPassed: true,
 	tools: [
 		{ tool: "slop", findings: [], skipped: false, duration: 4 },

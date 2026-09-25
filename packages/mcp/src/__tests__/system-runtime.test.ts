@@ -71,12 +71,14 @@ describe("systemRuntime works from an explicit root, not the process cwd", () =>
 		expect(data.receipts[0]?.verified).toBe(false);
 	});
 
-	test("verify with an empty file list", async () => {
+	test("verify with an empty file list is skipped, never passed (#328)", async () => {
 		const client = await connect(runtime);
 		const result = await call(client, "verify", { root: repo, files: [] });
 		expectEnvelope(result, "verify", repo);
 		expect(result.structuredContent?.data).toMatchObject({
-			passed: true,
+			status: "skipped",
+			passed: false,
+			scope: { kind: "files", files: [] },
 			tools: [],
 		});
 	});

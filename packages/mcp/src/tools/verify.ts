@@ -112,8 +112,7 @@ function summarize(
 	result: PipelineResult,
 	tools: readonly ToolStatus[],
 ): string {
-	const verdict =
-		result.status === "failed" ? "FAILED" : result.status;
+	const verdict = result.status === "failed" ? "FAILED" : result.status;
 	const head = `verify: ${verdict} on ${plural(result.scope.files.length, "file")} with ${plural(result.findings.length, "finding")}${
 		result.hiddenCount > 0 ? ` (${result.hiddenCount} pre-existing hidden)` : ""
 	} in ${result.duration}ms`;
