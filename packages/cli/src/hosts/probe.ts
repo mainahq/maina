@@ -147,6 +147,27 @@ function spawnPiped(
 	}
 }
 
+/** Grace a server gets to exit on SIGTERM before it is SIGKILLed. */
+const KILL_GRACE_MS = 1_000;
+
+/**
+ * Stop the probed server: SIGTERM, then SIGKILL if it is still running
+ * after the grace period, so a server that traps SIGTERM cannot hang doctor.
+ */
+async function stop(proc: Piped): Promise<void> {
+	proc.kill();
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const graceOver = new Promise<"grace-over">((done) => {
+		timer = setTimeout(() => done("grace-over"), KILL_GRACE_MS);
+	});
+	const first = await Promise.race([proc.exited, graceOver]);
+	clearTimeout(timer);
+	if (first === "grace-over") {
+		proc.kill("SIGKILL");
+		await proc.exited;
+	}
+}
+
 function text(value: unknown): string {
 	return typeof value === "string" ? value : "";
 }
@@ -191,7 +212,8 @@ export const probeMcp: Probe = async (spec, env, cwd) => {
 				},
 			})}\n`,
 		);
-		proc.stdin.flush();
+		// `flush` can return a promise that rejects with EPIPE.
+		void Promise.resolve(proc.stdin.flush()).catch(() => {});
 	} catch {
 		// Child already gone (EPIPE); the `exited` race reports why.
 	}
@@ -207,8 +229,7 @@ export const probeMcp: Probe = async (spec, env, cwd) => {
 			: first;
 	clearTimeout(timer);
 	const handshakeMs = Math.round(performance.now() - t0);
-	proc.kill();
-	await proc.exited;
+	await stop(proc);
 
 	switch (wait.type) {
 		case "exit":
