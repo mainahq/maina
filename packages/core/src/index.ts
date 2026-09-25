@@ -317,6 +317,23 @@ export {
 	type SymbolKind,
 	type SyntaxIssue,
 } from "./graph/parse/index";
+// Graph — incremental content-hash store (FR-GRAPH-2)
+// (`GraphNode`/`GraphEdge` already name the wiki graph, hence the prefix.)
+export {
+	type EdgeKind as CodeGraphEdgeKind,
+	type GraphEdge as CodeGraphEdge,
+	type GraphFile as CodeGraphFile,
+	type GraphNode as CodeGraphNode,
+	type GraphSnapshot as CodeGraphSnapshot,
+	type GraphStoreError,
+	type GraphStoreOptions,
+	type GraphStorePorts,
+	type GraphSyncReport,
+	indexRepo,
+	type NodeKind as CodeGraphNodeKind,
+	readGraph as readCodeGraph,
+	updateFiles,
+} from "./graph/store/index";
 // Hooks
 export {
 	executeHook,
