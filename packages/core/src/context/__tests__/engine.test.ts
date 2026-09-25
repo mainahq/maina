@@ -359,3 +359,163 @@ describe("assembleContext", () => {
 		expect(smallResult.tokens).toBeLessThanOrEqual(30_000);
 	});
 });
+
+// #439: the episodic layer merged team entries from maina cloud with the
+// client's default 10s timeout and 3 retries, so a slow or unreachable cloud
+// held every `review` / `verify` context call for ~43s. The merge is now
+// bounded, cached under `mainaDir`, and skipped when not logged in.
+describe("assembleContext cloud episodic merge (#439)", () => {
+	type FakeCloud = Readonly<{
+		url: string;
+		connections: () => number;
+		stop: () => void;
+	}>;
+
+	/** A TCP port that accepts connections and never answers. */
+	const hangingCloud = (): FakeCloud => {
+		let connections = 0;
+		const listener = Bun.listen({
+			hostname: "127.0.0.1",
+			port: 0,
+			socket: {
+				open: () => {
+					connections++;
+				},
+				data: () => undefined,
+			},
+		});
+		return {
+			url: `http://127.0.0.1:${listener.port}`,
+			connections: () => connections,
+			stop: () => listener.stop(true),
+		};
+	};
+
+	/** A cloud that answers `/context/episodic` with one team entry. */
+	const answeringCloud = (): FakeCloud => {
+		let connections = 0;
+		const server = Bun.serve({
+			hostname: "127.0.0.1",
+			port: 0,
+			fetch: () => {
+				connections++;
+				return Response.json({
+					data: {
+						entries: [
+							{
+								id: "cloud-1",
+								repo: "acme/app",
+								entry_type: "review",
+								title: "Team review from the cloud",
+								summary: "cloud-only-episodic-marker",
+								relevance_score: 1,
+								decay_factor: 1,
+								created_at: "2026-09-01T00:00:00.000Z",
+								accessed_at: "2026-09-01T00:00:00.000Z",
+							},
+						],
+					},
+				});
+			},
+		});
+		return {
+			url: `http://127.0.0.1:${server.port}`,
+			connections: () => connections,
+			stop: () => server.stop(true),
+		};
+	};
+
+	const loggedInAuthDir = (): string => {
+		const dir = mkdtempSync(join(fixtureRoot, "auth-"));
+		writeFileSync(
+			join(dir, "auth.json"),
+			JSON.stringify({ accessToken: "test-token" }),
+		);
+		return dir;
+	};
+
+	const freshMainaDir = (): string => {
+		const dir = mkdtempSync(join(fixtureRoot, "maina-"));
+		mkdirSync(join(dir, "context"), { recursive: true });
+		return dir;
+	};
+
+	test("a hanging cloud bounds the review context to the cloud timeout", async () => {
+		const cloud = hangingCloud();
+		try {
+			const started = performance.now();
+			const result = await assembleContext("review", {
+				repoRoot,
+				env: createFakeEnv({ MAINA_CLOUD_URL: cloud.url }),
+				mainaDir: freshMainaDir(),
+				authDir: loggedInAuthDir(),
+			});
+			const elapsed = performance.now() - started;
+
+			expect(cloud.connections()).toBe(1);
+			expect(elapsed).toBeLessThan(4_000);
+			expect(result.layers.some((l) => l.name === "episodic")).toBe(true);
+		} finally {
+			cloud.stop();
+		}
+	});
+
+	test("a failed cloud fetch is cached, so the next call does not wait again", async () => {
+		const cloud = hangingCloud();
+		const mainaDir = freshMainaDir();
+		const authDir = loggedInAuthDir();
+		const env = createFakeEnv({ MAINA_CLOUD_URL: cloud.url });
+		try {
+			await assembleContext("verify", { repoRoot, env, mainaDir, authDir });
+			expect(cloud.connections()).toBe(1);
+
+			await assembleContext("verify", { repoRoot, env, mainaDir, authDir });
+			expect(cloud.connections()).toBe(1);
+		} finally {
+			cloud.stop();
+		}
+	});
+
+	test("team entries are merged and served from cache on the next call", async () => {
+		const cloud = answeringCloud();
+		const mainaDir = freshMainaDir();
+		const authDir = loggedInAuthDir();
+		const env = createFakeEnv({ MAINA_CLOUD_URL: cloud.url });
+		try {
+			const first = await assembleContext("review", {
+				repoRoot,
+				env,
+				mainaDir,
+				authDir,
+			});
+			expect(first.text).toContain("cloud-only-episodic-marker");
+			expect(cloud.connections()).toBe(1);
+
+			const second = await assembleContext("review", {
+				repoRoot,
+				env,
+				mainaDir,
+				authDir,
+			});
+			expect(second.text).toContain("cloud-only-episodic-marker");
+			expect(cloud.connections()).toBe(1);
+		} finally {
+			cloud.stop();
+		}
+	});
+
+	test("the cloud is never contacted when not logged in", async () => {
+		const cloud = hangingCloud();
+		try {
+			await assembleContext("review", {
+				repoRoot,
+				env: createFakeEnv({ MAINA_CLOUD_URL: cloud.url }),
+				mainaDir: freshMainaDir(),
+				authDir: mkdtempSync(join(fixtureRoot, "no-auth-")),
+			});
+			expect(cloud.connections()).toBe(0);
+		} finally {
+			cloud.stop();
+		}
+	});
+});
