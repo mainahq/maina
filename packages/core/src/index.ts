@@ -134,6 +134,11 @@ export {
 	DECISION_LOG_MIGRATION,
 	migrateDecisionLog,
 } from "./db/decision-log";
+// Decision outcome migration (append-only, FR-DEC-4)
+export {
+	DECISION_OUTCOMES_MIGRATION,
+	migrateDecisionOutcomes,
+} from "./db/decision-outcomes";
 // DB
 export type {
 	DbHandle,
@@ -176,6 +181,31 @@ export {
 	type DecisionRecordField,
 	validateRecord,
 } from "./decide/log/schema";
+// Decision outcomes (FR-DEC-4)
+export {
+	DEFAULT_HOTFIX_WINDOW,
+	type MinerOptions,
+	type MinerPorts,
+	type MineSummary,
+	mineGitOutcomes,
+} from "./decide/outcomes/git-miner";
+export {
+	decisionsForCommit,
+	linkDecisionCommit,
+	linkOutcome,
+	type OutcomeFilter,
+	queryOutcomes,
+} from "./decide/outcomes/link";
+export { linkTestFailure } from "./decide/outcomes/test-signal";
+export {
+	type CommitDecision,
+	OUTCOMES,
+	type Outcome,
+	type OutcomeError,
+	type OutcomeInput,
+	type OutcomePorts,
+	type OutcomeRecord,
+} from "./decide/outcomes/types";
 export {
 	type BackendRegistry,
 	createRegistry,

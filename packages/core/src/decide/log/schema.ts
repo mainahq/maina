@@ -57,12 +57,12 @@ export type DecisionLogError =
 	| Readonly<{ kind: "corrupt_row"; id: string; message: string }>;
 
 /** Log entry and session ids: short, no whitespace or slashes. */
-const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
+export const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 
 /** Labels chosen by Maina code: lower-case words. */
-const LABEL_PATTERN = /^[a-z][a-z0-9_.-]{0,63}$/;
+export const LABEL_PATTERN = /^[a-z][a-z0-9_.-]{0,63}$/;
 
-function isDecisionType(value: unknown): value is DecisionType {
+export function isDecisionType(value: unknown): value is DecisionType {
 	return (
 		typeof value === "string" &&
 		(DECISION_TYPES as readonly string[]).includes(value)
