@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { EnvPort } from "@mainahq/core";
 import type { StatusDeps } from "../status";
 import { statusAction } from "../status";
 
@@ -132,7 +133,7 @@ describe("statusAction", () => {
 		let capturedMailDir = "";
 		let capturedRepoRoot = "";
 		let capturedContextOptions:
-			| { repoRoot: string; mainaDir: string }
+			| { repoRoot: string; mainaDir: string; env: EnvPort }
 			| undefined;
 
 		const deps = createMockDeps({
@@ -148,7 +149,7 @@ describe("statusAction", () => {
 			},
 			assembleContext: async (
 				_command: string,
-				options: { repoRoot: string; mainaDir: string },
+				options: { repoRoot: string; mainaDir: string; env: EnvPort },
 			) => {
 				capturedContextOptions = options;
 				return {
@@ -164,6 +165,21 @@ describe("statusAction", () => {
 		expect(capturedRepoRoot).toBe("/my/project");
 		expect(capturedContextOptions?.repoRoot).toBe("/my/project");
 		expect(capturedContextOptions?.mainaDir).toBe("/my/project/.maina");
+	});
+
+	test("hands the live process env to context assembly (#291)", async () => {
+		let capturedEnv: EnvPort | undefined;
+		const deps = createMockDeps({
+			assembleContext: async (_command, options) => {
+				capturedEnv = options.env;
+				return { tokens: 0, layers: [] };
+			},
+		});
+
+		await statusAction({ cwd: "/my/project" }, deps);
+
+		expect(capturedEnv).toBeDefined();
+		expect(capturedEnv?.get("PATH")).toBe(process.env.PATH);
 	});
 
 	test("handles assembleContext failure gracefully", async () => {
