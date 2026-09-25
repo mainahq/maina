@@ -101,6 +101,19 @@ export async function deploySkills(
 }
 
 /**
+ * Sibling `skills` package locations relative to this module's directory.
+ * From source the module sits in `cli/src/onboarding/setup`; bundled by
+ * bunup it runs from `cli/dist` (monorepo build or an npm install next to
+ * `@mainahq/skills`), so both depths are probed.
+ */
+export function skillsRootCandidates(hereDir: string): readonly string[] {
+	return [
+		join(hereDir, "..", "..", "..", "..", "skills"),
+		join(hereDir, "..", "..", "skills"),
+	];
+}
+
+/**
  * Locate the `@mainahq/skills` source root. For maina devs working inside
  * the monorepo, the sibling `packages/skills` takes precedence; for
  * end-users who `bun add -g @mainahq/cli`, the monorepo guess misses and
@@ -111,10 +124,8 @@ function defaultSkillsRoot(): string | null {
 	// 1. Monorepo sibling — `fileURLToPath` handles paths with spaces or
 	// other percent-encoded characters that would break `.pathname`.
 	const hereDir = dirname(fileURLToPath(import.meta.url));
-	// cli/src/onboarding/setup -> packages/skills
-	const monorepoGuess = join(hereDir, "..", "..", "..", "..", "skills");
-	if (existsSync(monorepoGuess) && dirHasSkills(monorepoGuess)) {
-		return monorepoGuess;
+	for (const guess of skillsRootCandidates(hereDir)) {
+		if (existsSync(guess) && dirHasSkills(guess)) return guess;
 	}
 
 	// 2. Resolve via node module lookup. Bun's resolver throws when the

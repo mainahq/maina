@@ -15,7 +15,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deploySkills } from "../skills-deploy";
+import { deploySkills, skillsRootCandidates } from "../skills-deploy";
 
 const EXPECTED_SKILLS = [
 	"cloud-workflow",
@@ -158,5 +158,28 @@ describe("deploySkills", () => {
 		} finally {
 			rmSync(cwd, { recursive: true, force: true });
 		}
+	});
+});
+
+describe("skillsRootCandidates", () => {
+	// The CLI runs from source in tests and from a bunup bundle in `dist/`
+	// once built or installed, so `import.meta.url` sits at two different
+	// depths. Both must reach the `skills` package next to `cli`.
+	test("from source reaches packages/skills", () => {
+		expect(
+			skillsRootCandidates("/repo/packages/cli/src/onboarding/setup"),
+		).toContain("/repo/packages/skills");
+	});
+
+	test("from the built bundle in dist/ reaches packages/skills", () => {
+		expect(skillsRootCandidates("/repo/packages/cli/dist")).toContain(
+			"/repo/packages/skills",
+		);
+	});
+
+	test("from an installed bundle reaches the sibling @mainahq/skills", () => {
+		expect(skillsRootCandidates("/g/node_modules/@mainahq/cli/dist")).toContain(
+			"/g/node_modules/@mainahq/skills",
+		);
 	});
 });
