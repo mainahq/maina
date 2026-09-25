@@ -1,0 +1,59 @@
+# Spec Kit workflow overlay: gate the stock `speckit` workflow with Maina
+# (mainahq/maina#333, FR-SPEC-7).
+#
+#   specify workflow overlay add <path-to>/maina-gate-overlay.yml
+#
+# After `tasks`: `maina analyze` checks spec.md, plan.md and tasks.md; an
+# error fails the step and stops the run before implementation.
+#
+# Before `implement`: `maina decide` asks the policy whether the workflow may
+# implement (action class `speckit.implement`), and a switch routes on the
+# verdict. `allow` continues, `deny` fails the run, and `ask` (the default
+# for a class the policy does not name), or anything else, pauses at a human
+# review gate. A failed `maina decide` prints no verdict and fails its step,
+# so the run stops: the gate fails closed.
+#
+# Choose the verdict in `.maina/policy.json` (or `~/.maina/policy.json`):
+#
+#   { "action_classes": { "speckit.implement":
+#       { "irreversible": false, "verdict": "allow" } } }
+#
+# `output.data` is the shell step's stdout parsed as JSON; Maina prints a
+# `{ data, error, meta }` envelope, so the verdict is at `output.data.data`.
+id: "maina-gate"
+extends: "speckit"
+priority: 10
+edits:
+  - insert_after: tasks
+    step:
+      id: maina-analyze
+      type: shell
+      run: "maina analyze --json"
+
+  - insert_before: implement
+    step:
+      id: maina-verdict
+      type: shell
+      run: "maina decide --type action.risk --trusted actionClass=speckit.implement --json"
+      output_format: json
+
+  - insert_before: implement
+    step:
+      id: maina-route
+      type: switch
+      expression: "{{ steps.maina-verdict.output.data.data.verdict }}"
+      cases:
+        allow:
+          - id: maina-allowed
+            type: shell
+            run: "true"
+        deny:
+          - id: maina-denied
+            type: shell
+            run: "echo 'maina denied speckit.implement (see .maina/policy.json)' >&2; exit 1"
+      default:
+        - id: maina-review
+          type: gate
+          message: "Maina asks for review before implementation (verdict: {{ steps.maina-verdict.output.data.data.verdict }})."
+          options: [approve, reject]
+          on_reject: abort

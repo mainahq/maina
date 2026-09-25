@@ -1,0 +1,35 @@
+# The stock `speckit` workflow's step ids and order (Spec Kit v1.0.12
+# workflows/speckit/workflow.yml), with each AI command step replaced by a
+# shell step that appends its id to trail.txt, so the overlay can be composed
+# and run in CI without an agent. The review gates are left out: the fixture
+# answers no prompts.
+schema_version: "1.0"
+workflow:
+  id: "speckit"
+  name: "Full SDD Cycle (interop stub)"
+  version: "1.0.1"
+  author: "mainahq"
+  description: "specify -> plan -> tasks -> implement, as shell steps"
+
+inputs:
+  spec:
+    type: string
+    required: true
+    prompt: "Describe what you want to build"
+
+steps:
+  - id: specify
+    type: shell
+    run: "echo specify >> trail.txt"
+
+  - id: plan
+    type: shell
+    run: "echo plan >> trail.txt"
+
+  - id: tasks
+    type: shell
+    run: "echo tasks >> trail.txt"
+
+  - id: implement
+    type: shell
+    run: "echo implement >> trail.txt"

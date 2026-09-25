@@ -21,6 +21,7 @@ const config: KnipConfig = {
 				"scripts/dogfood/*.ts!",
 				"scripts/fixtures/*.ts!",
 				"scripts/**/__tests__/*.test.ts",
+				"integrations/**/__tests__/*.test.ts",
 			],
 			project: ["ci/e2e/*.ts!", "scripts/**/*.ts!"],
 		},

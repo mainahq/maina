@@ -9,6 +9,7 @@ import { cacheCommand } from "./commands/cache";
 import { commitCommand } from "./commands/commit";
 import { configureCommand } from "./commands/configure";
 import { contextCommand } from "./commands/context";
+import { decideCommand } from "./commands/decide";
 import { designCommand } from "./commands/design";
 import { doctorCommand } from "./commands/doctor";
 import { explainCommand } from "./commands/explain";
@@ -167,6 +168,7 @@ Setup & Config:
 
 	// ── Gate ────────────────────────────────────────────────────────────
 	program.addCommand(allowCommand());
+	program.addCommand(decideCommand());
 
 	// ── Internals ───────────────────────────────────────────────────────
 	//

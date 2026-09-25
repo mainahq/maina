@@ -1,0 +1,54 @@
+# Spec Kit extension: Maina guardrails (mainahq/maina#333, FR-SPEC-7).
+#
+#   specify extension add --dev <path-to>/integrations/spec-kit/extension
+#
+# - `pre_tool_use` (an agent runtime event) runs `speckit.maina.gate`, which
+#   hands every tool call to the Maina gate (`maina hook <event>`). Spec Kit
+#   writes it into the host's native hook config (Claude Code, Codex,
+#   Cursor, ...) for the integration the project was initialised with.
+# - `after_tasks` offers `speckit.maina.analyze`: Maina's cross-artifact
+#   check over the feature's spec.md, plan.md and tasks.md.
+schema_version: "1.0"
+
+extension:
+  id: maina
+  name: "Maina Guardrails"
+  version: "0.1.0"
+  description: "Maina gate on every agent tool call, and Maina analysis of spec, plan and tasks"
+  author: mainahq
+  repository: https://github.com/mainahq/maina
+  license: Apache-2.0
+  homepage: https://mainahq.com/
+
+requires:
+  speckit_version: ">=1.0.0"
+  tools:
+    - name: maina
+      required: true
+
+provides:
+  commands:
+    - name: speckit.maina.gate
+      file: commands/gate.md
+      description: "Check an agent tool call with the Maina gate (pre_tool_use handler)"
+    - name: speckit.maina.analyze
+      file: commands/analyze.md
+      description: "Check spec, plan and tasks consistency with maina analyze"
+
+events:
+  pre_tool_use:
+    command: speckit.maina.gate
+    matcher: "*"
+    timeout: 30
+
+hooks:
+  after_tasks:
+    command: speckit.maina.analyze
+    optional: true
+    prompt: "Check the spec, plan and tasks with Maina?"
+    description: "Maina cross-artifact analysis after task generation"
+
+tags:
+  - "guardrails"
+  - "verification"
+  - "security"

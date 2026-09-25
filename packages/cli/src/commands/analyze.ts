@@ -1,8 +1,16 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
-import { analyze, getCurrentBranch } from "@mainahq/core";
+import {
+	analyze,
+	type EnvPort,
+	getCurrentBranch,
+	listSpecKitFeatures,
+	resolveSpecKitFeature,
+	type SpecKitFacts,
+} from "@mainahq/core";
 import { Command } from "commander";
+import { processEnv } from "../env";
 import { EXIT_FINDINGS, EXIT_PASSED, outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -12,6 +20,8 @@ interface AnalyzeActionOptions {
 	all?: boolean; // Analyze all features
 	json?: boolean; // Output JSON for CI
 	cwd?: string;
+	/** Reads `SPECIFY_FEATURE` / `SPECIFY_FEATURE_DIRECTORY`; the process env by default. */
+	env?: EnvPort;
 }
 
 interface AnalyzeActionResult {
@@ -104,6 +114,38 @@ function scanAllFeatureDirs(cwd: string): string[] {
 	return dirs.sort();
 }
 
+// ── Spec Kit Feature Input (FR-SPEC-7) ──────────────────────────────────────
+
+function listDirs(dir: string): string[] {
+	try {
+		return readdirSync(dir, { withFileTypes: true })
+			.filter((entry) => entry.isDirectory())
+			.map((entry) => entry.name);
+	} catch {
+		return [];
+	}
+}
+
+function readOptional(path: string): string | undefined {
+	try {
+		return readFileSync(path, "utf-8");
+	} catch {
+		return undefined;
+	}
+}
+
+/** What `resolveSpecKitFeature` decides over, read from the repository at `cwd`. */
+function specKitFacts(cwd: string, branch: string, env: EnvPort): SpecKitFacts {
+	return {
+		root: cwd,
+		initialized: existsSync(join(cwd, ".specify")),
+		featureDirectoryEnv: env.get("SPECIFY_FEATURE_DIRECTORY"),
+		featureJson: readOptional(join(cwd, ".specify", "feature.json")),
+		branch: env.get("SPECIFY_FEATURE") || branch,
+		specsDirs: listDirs(join(cwd, "specs")),
+	};
+}
+
 // ── Severity Icons ───────────────────────────────────────────────────────────
 
 function severityIcon(severity: string): string {
@@ -130,42 +172,52 @@ export async function analyzeAction(
 	deps: AnalyzeDeps = defaultDeps,
 ): Promise<AnalyzeActionResult> {
 	const cwd = options.cwd ?? process.cwd();
+	const env = options.env ?? processEnv;
 
 	// ── Determine which feature dirs to analyze ─────────────────────────
 	let featureDirs: string[];
 
 	if (options.all) {
-		featureDirs = scanAllFeatureDirs(cwd);
+		featureDirs = [
+			...scanAllFeatureDirs(cwd),
+			...listSpecKitFeatures(specKitFacts(cwd, "", env)),
+		];
 
 		if (featureDirs.length === 0) {
 			return {
 				analyzed: false,
-				reason: "No feature directories found in .maina/features/",
+				reason: "No feature directories found in .maina/features/ or specs/",
 			};
 		}
 	} else if (options.featureDir) {
 		featureDirs = [options.featureDir];
 	} else {
-		// Auto-detect from branch
+		// Auto-detect from branch: a Maina feature first, then Spec Kit's.
 		const branch = await deps.getCurrentBranch(cwd);
 		const featureName = extractFeatureFromBranch(branch);
+		const detected = featureName ? findFeatureDir(cwd, featureName) : null;
 
-		if (!featureName) {
-			return {
-				analyzed: false,
-				reason: `Not on a feature branch (current: "${branch}"). Use --feature-dir to specify explicitly.`,
-			};
+		if (detected) {
+			featureDirs = [detected];
+		} else {
+			const specKit = resolveSpecKitFeature(specKitFacts(cwd, branch, env));
+			if (!specKit.ok) {
+				return { analyzed: false, reason: specKit.error.message };
+			}
+			if (specKit.value) {
+				featureDirs = [specKit.value.dir];
+			} else if (featureName) {
+				return {
+					analyzed: false,
+					reason: `Feature directory not found for "${featureName}" in .maina/features/`,
+				};
+			} else {
+				return {
+					analyzed: false,
+					reason: `Not on a feature branch (current: "${branch}"). Use --feature-dir to specify explicitly.`,
+				};
+			}
 		}
-
-		const detected = findFeatureDir(cwd, featureName);
-		if (!detected) {
-			return {
-				analyzed: false,
-				reason: `Feature directory not found for "${featureName}" in .maina/features/`,
-			};
-		}
-
-		featureDirs = [detected];
 	}
 
 	// ── Run analyze on each feature dir ─────────────────────────────────

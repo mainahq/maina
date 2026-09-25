@@ -34,8 +34,19 @@ jobs:
       - name: Docs manifest (Wave 4 G11 hand-typed count guard)
         run: bun run docs:check
 
+      # The Spec Kit interop tests (integrations/spec-kit, #333) run the
+      # extension and workflow overlay against a stock, pinned Spec Kit CLI.
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install Spec Kit (pinned)
+        run: |
+          uv tool install specify-cli --from "git+https://github.com/github/spec-kit.git@v1.0.12"
+          uv tool dir --bin >> "$GITHUB_PATH"
+
       - name: Test
         run: bun run test
+        env:
+          MAINA_REQUIRE_SPECKIT: "1"
 
   # Code-graph latency budgets (v1 task 5.5, FR-GRAPH-2/4): indexes a pinned
   # ~100k-LOC public repo and fails when a single-file update exceeds 500 ms

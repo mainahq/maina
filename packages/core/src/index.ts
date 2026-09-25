@@ -367,6 +367,14 @@ export {
 	scaffoldFeatureWithContext,
 } from "./features/numbering";
 export { type QualityScore, scoreSpec } from "./features/quality";
+// Spec Kit feature input (FR-SPEC-7)
+export {
+	listSpecKitFeatures,
+	resolveSpecKitFeature,
+	type SpecKitError,
+	type SpecKitFacts,
+	type SpecKitFeature,
+} from "./features/spec-kit";
 export { generateTestStubs } from "./features/test-stubs";
 export type {
 	TaskTrace,
