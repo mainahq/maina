@@ -206,6 +206,48 @@ import { z } from "zod";`;
 			expect(findings.map((f) => f.line)).toEqual([5]);
 		});
 
+		// #399 review — a quote, backtick or `/*` inside a regex literal must
+		// not flip the lexer into string/template/comment state and hide the
+		// real imports that follow (fail-open).
+		it("still flags imports after regex literals holding quotes or /*", () => {
+			const content = [
+				"const TRAIL = /\\/*$/;",
+				'const a = require("./missing-a");',
+				"const QUOTES = /[`'\"]/;",
+				'const b = require("./missing-b");',
+				'const c = (s) => /\'/.test(s) && require("./missing-c");',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "regex.ts"),
+				TMP_DIR,
+			);
+			expect(findings.map((f) => f.line)).toEqual([2, 4, 5]);
+		});
+
+		it("should not flag import-like text inside a regex literal", () => {
+			const content = 'const RE = /x|require("..[/]missing-a")/;';
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "regex-text.ts"),
+				TMP_DIR,
+			);
+			expect(findings).toHaveLength(0);
+		});
+
+		it("treats a slash after an operand as division, not a regex", () => {
+			const content = [
+				'const half = total / 2; const a = require("./missing-a");',
+				'const r = (a) / (b); const b = require("./missing-b");',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "divide.ts"),
+				TMP_DIR,
+			);
+			expect(findings.map((f) => f.line)).toEqual([1, 2]);
+		});
+
 		it("flags re-exports from missing modules", () => {
 			const content =
 				'export { a } from "./missing-a";\nexport * from "./missing-b";';

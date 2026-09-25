@@ -134,13 +134,47 @@ interface LexedLine {
 	state: LexState;
 }
 
+/** Keywords after which a `/` starts a regex literal, not a division. */
+const REGEX_AFTER_WORD =
+	/(?:^|[^\w$])(?:return|typeof|case|do|else|in|of|new|delete|void|throw|yield|await)$/;
+
 /**
- * Blank out comments (and, in `masked`, string contents) on one line so
- * import-like text in JSDoc, `//` notes or literals is not read as code
- * (#399). Block comments and template literals carry across lines; `'`/`"`
- * strings end at the line break. Backticks nested in `${…}` and quotes in
- * regex literals are not modelled; they are rare, and a misread line still
- * has to match a statement-position import form to be flagged.
+ * Whether a `/` that follows `before` (the line's code so far) opens a
+ * regex literal: at line start, after an operator or opening bracket, after
+ * `=>`, or after a keyword such as `return`. After an operand it divides.
+ */
+function slashStartsRegex(before: string): boolean {
+	const prev = before.trimEnd();
+	if (prev === "") return true;
+	if (prev.endsWith("=>")) return true;
+	if ("(,=:[!&|?{};".includes(prev[prev.length - 1] ?? "")) return true;
+	return REGEX_AFTER_WORD.test(prev);
+}
+
+/**
+ * The index just past the closing `/` of a regex literal whose opening `/`
+ * is at `start`, or -1 when the line ends first (then it is a division).
+ */
+function regexLiteralEnd(line: string, start: number): number {
+	let inClass = false;
+	for (let i = start + 1; i < line.length; i++) {
+		const ch = line[i];
+		if (ch === "\\") i++;
+		else if (ch === "[") inClass = true;
+		else if (ch === "]") inClass = false;
+		else if (ch === "/" && !inClass) return i + 1;
+	}
+	return -1;
+}
+
+/**
+ * Blank out comments (and, in `masked`, string and regex contents) on one
+ * line so import-like text in JSDoc, `//` notes or literals is not read as
+ * code (#399). Block comments and template literals carry across lines;
+ * `'`/`"` strings and regex literals end at the line break. Regex literals
+ * are skipped whole so a quote, backtick or `/*` inside one cannot flip the
+ * lexer into another state and hide the real imports after it. Backticks
+ * nested in `${…}` are not modelled; they are rare and balance out on a line.
  */
 function lexLine(line: string, start: LexState): LexedLine {
 	let code = "";
@@ -169,6 +203,16 @@ function lexLine(line: string, start: LexState): LexedLine {
 				code += "  ";
 				masked += "  ";
 				continue;
+			}
+			if (ch === "/" && slashStartsRegex(code)) {
+				const end = regexLiteralEnd(line, i);
+				if (end !== -1) {
+					const body = line.slice(i, end);
+					code += body;
+					masked += `/${" ".repeat(body.length - 2)}/`;
+					i = end - 1;
+					continue;
+				}
 			}
 			if (ch === "`") state = "template";
 			else if (ch === "'" || ch === '"') state = ch;
