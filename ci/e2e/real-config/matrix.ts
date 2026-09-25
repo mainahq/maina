@@ -12,8 +12,11 @@
  *
  * Install paths, as a user would run them:
  *   - plugin       host plugin/marketplace package (none exists yet)
- *   - cli-setup    `bunx @mainahq/cli@latest setup` (README quickstart;
- *                  no global `maina` on PATH while setup runs)
+ *   - cli-setup    `setup` from the CLI under test with no global `maina`
+ *                  on PATH, as when run through `bunx … setup`. It runs this
+ *                  checkout (running the published package would test 1.x,
+ *                  not the change), so the entry pins the checkout's
+ *                  version: any build not on the registry reproduces P3.
  *   - cli-mcp-add  `maina mcp add --client <host>` after `bun install -g`
  *   - install-sh   `curl … | bash`: global install, then install.sh's
  *                  own per-host config writer
@@ -167,8 +170,9 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
 	{ host: "codex", installPath: "install-sh", problems: ["P1"], issue: 299 },
 
 	// P3: setup runs without a global `maina`, so the entry pins
-	// `bunx @mainahq/cli@<local version>`; unpublished → unresolvable.
-	// Once that version is published the same case is a cold download (P4).
+	// `bunx @mainahq/cli@<version under test>`. Every unreleased build (each
+	// PR, canaries, local installs) writes a pin the registry cannot resolve;
+	// for a published version the same entry is a cold download (P4).
 	{
 		host: "cursor",
 		installPath: "cli-setup",
@@ -349,6 +353,35 @@ const REPO_ROOT = resolve(import.meta.dir, "..", "..", "..");
 const CLI_ENTRY = join(REPO_ROOT, "packages", "cli", "src", "index.ts");
 const INSTALL_SH = join(REPO_ROOT, "install.sh");
 
+/**
+ * The user's shell env is a *fresh* bun user's shell, not this runner's:
+ * session identity plus network/registry settings (they change how bunx
+ * resolves, and never point outside the sandbox). Deliberately dropped:
+ * anything locating config or state in the real home (`XDG_*`,
+ * `BUN_INSTALL`, `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, …), agent markers
+ * (`CLAUDE_CODE`, `CURSOR_*`) that flip maina's host detection, and API
+ * keys that would turn on real model calls. Inheriting those would let a
+ * case write to, or depend on, the machine running the matrix.
+ */
+const SHELL_PASSTHROUGH: readonly string[] = [
+	"USER",
+	"LOGNAME",
+	"SHELL",
+	"TMPDIR",
+	"LANG",
+	"LC_ALL",
+	"HTTP_PROXY",
+	"HTTPS_PROXY",
+	"NO_PROXY",
+	"http_proxy",
+	"https_proxy",
+	"no_proxy",
+	"NPM_CONFIG_REGISTRY",
+	"BUN_CONFIG_REGISTRY",
+	"SSL_CERT_FILE",
+	"NODE_EXTRA_CA_CERTS",
+];
+
 interface Workspace {
 	readonly root: string;
 	readonly home: string;
@@ -378,7 +411,7 @@ function createWorkspace(os: Os, globalMaina: boolean): Workspace {
 	}
 
 	const passthrough: Record<string, string> = {};
-	for (const key of ["USER", "LOGNAME", "SHELL", "TMPDIR", "LANG"]) {
+	for (const key of SHELL_PASSTHROUGH) {
 		const value = process.env[key];
 		if (value !== undefined) passthrough[key] = value;
 	}
@@ -524,11 +557,22 @@ function resolveCommand(command: string, env: EnvVars): string | null {
 	return Bun.which(command, { PATH: env.PATH ?? "" });
 }
 
-async function mcpSession(
+export interface ProbeOptions {
+	readonly coldStartBudgetMs?: number;
+}
+
+/**
+ * Spawn `launch` the way a host does, then `initialize` + one `verify`.
+ * `started` means `initialize` answered; missing the cold-start budget is
+ * reported as an error on an otherwise started server.
+ */
+export async function probeLaunch(
 	launch: LaunchSpec,
 	env: EnvVars,
 	cwd: string,
+	opts: ProbeOptions = {},
 ): Promise<CaseResult> {
+	const budgetMs = opts.coldStartBudgetMs ?? COLD_START_BUDGET_MS;
 	const executable = resolveCommand(launch.command, env);
 	if (executable === null) {
 		return {
@@ -659,19 +703,17 @@ async function mcpSession(
 		});
 	}
 	const handshakeMs = Math.round(performance.now() - t0);
-	if (handshakeMs > COLD_START_BUDGET_MS) {
-		return finish({
-			started: false,
-			handshakeMs,
-			toolCallOk: false,
-			error: {
-				kind: "cold-start-over-budget",
-				message: `initialize took ${handshakeMs}ms (budget ${COLD_START_BUDGET_MS}ms)`,
-				handshakeMs,
-				budgetMs: COLD_START_BUDGET_MS,
-			},
-		});
-	}
+	// Slow start is still a start: keep going so `toolCallOk` is truthful,
+	// and report the budget miss unless a harder failure follows.
+	const overBudget: CaseError | undefined =
+		handshakeMs > budgetMs
+			? {
+					kind: "cold-start-over-budget",
+					message: `initialize took ${handshakeMs}ms (budget ${budgetMs}ms)`,
+					handshakeMs,
+					budgetMs,
+				}
+			: undefined;
 
 	send({ method: "notifications/initialized" });
 	const call = await request(
@@ -697,18 +739,17 @@ async function mcpSession(
 	const isError =
 		call.msg.error !== undefined ||
 		(call.msg.result as { isError?: boolean } | undefined)?.isError === true;
+	const error: CaseError | undefined = isError
+		? {
+				kind: "tool-call-failed",
+				message: `verify failed: ${JSON.stringify(call.msg).slice(0, 1_000)}`,
+			}
+		: overBudget;
 	return finish({
 		started: true,
 		handshakeMs,
 		toolCallOk: !isError,
-		...(isError
-			? {
-					error: {
-						kind: "tool-call-failed" as const,
-						message: `verify failed: ${JSON.stringify(call.msg).slice(0, 1_000)}`,
-					},
-				}
-			: {}),
+		...(error ? { error } : {}),
 	});
 }
 
@@ -753,7 +794,7 @@ export async function runCase(spec: CaseSpec): Promise<CaseResult> {
 			home: w.home,
 			shellEnv: w.shellEnv,
 		});
-		return await mcpSession(launch.value, env, w.cwd);
+		return await probeLaunch(launch.value, env, w.cwd);
 	} finally {
 		if (process.env.MAINA_E2E_KEEP !== "1") {
 			rmSync(w.root, { recursive: true, force: true });

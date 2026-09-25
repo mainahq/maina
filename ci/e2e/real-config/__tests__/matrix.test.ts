@@ -19,6 +19,9 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { currentOs, GUI_PATH, hostEnv, minimalEnv } from "../env";
 import {
 	type CaseError,
@@ -28,6 +31,7 @@ import {
 	HOSTS,
 	INSTALL_PATHS,
 	KNOWN_FAILURES,
+	probeLaunch,
 	resolveLaunch,
 	runCase,
 } from "../matrix";
@@ -190,6 +194,69 @@ describe("resolveLaunch", () => {
 	});
 });
 
+// ── MCP probe ──────────────────────────────────────────────────────────────
+
+/** A fake MCP server: answers `initialize` after `delayMs`, then `verify`. */
+const FAKE_SERVER = `
+const delayMs = Number(process.argv[2]);
+let buf = "";
+const reply = (id, result) =>
+	process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\\n");
+process.stdin.on("data", (d) => {
+	buf += d;
+	let i = buf.indexOf("\\n");
+	while (i >= 0) {
+		const msg = JSON.parse(buf.slice(0, i));
+		buf = buf.slice(i + 1);
+		i = buf.indexOf("\\n");
+		if (msg.id === 1) setTimeout(() => reply(1, {}), delayMs);
+		if (msg.id === 2) reply(2, { content: [{ type: "text", text: "ok" }] });
+	}
+});
+`;
+
+describe("probeLaunch", () => {
+	const withServer = async (
+		delayMs: number,
+		budgetMs: number,
+	): Promise<Awaited<ReturnType<typeof probeLaunch>>> => {
+		const dir = mkdtempSync(join(tmpdir(), "maina-probe-"));
+		const script = join(dir, "server.js");
+		writeFileSync(script, FAKE_SERVER);
+		try {
+			return await probeLaunch(
+				{
+					command: process.execPath,
+					args: [script, String(delayMs)],
+					env: {},
+					source: "test",
+				},
+				{ PATH: process.env.PATH ?? "", HOME: dir },
+				dir,
+				{ coldStartBudgetMs: budgetMs },
+			);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	};
+
+	test("a fast server starts and answers verify", async () => {
+		const r = await withServer(0, 5_000);
+		expect(r.error).toBeUndefined();
+		expect(r.started).toBe(true);
+		expect(r.toolCallOk).toBe(true);
+	});
+
+	test("over budget still reports started=true (initialize did complete)", async () => {
+		const r = await withServer(300, 100);
+		expect(r.started).toBe(true);
+		expect(r.handshakeMs).toBeGreaterThanOrEqual(300);
+		expect(r.toolCallOk).toBe(true);
+		expect(r.error?.kind).toBe("cold-start-over-budget");
+		expect(r.error && classifyProblem(r.error)).toBe("P4");
+	});
+});
+
 // ── Problem classification ─────────────────────────────────────────────────
 
 describe("classifyProblem", () => {
@@ -299,9 +366,10 @@ describe.skipIf(!osResult.ok)("real-config matrix", () => {
 
 				test(label, async () => {
 					const r = await runCase({ host, os, installPath, env });
+					const passed = r.error === undefined && r.started && r.toolCallOk;
 					if (known) {
-						if (known.mayPass && r.started && r.toolCallOk) return;
-						expect(r.started && r.toolCallOk).toBe(false);
+						if (known.mayPass && passed) return;
+						expect(passed).toBe(false);
 						expect(r.error).toBeDefined();
 						const problem = r.error ? classifyProblem(r.error) : undefined;
 						// Diff shows the full error when the reason drifts.

@@ -68,6 +68,7 @@ export function hostEnv(mode: EnvMode, input: HostEnvInput): EnvVars {
 			return { ...session, ...minimalEnv(input.os), HOME: input.home };
 		}
 		case "full":
+			// Terminal launch: whatever the (sanitised) user shell carries.
 			return { ...input.shellEnv, HOME: input.home };
 		default: {
 			const never: never = mode;
