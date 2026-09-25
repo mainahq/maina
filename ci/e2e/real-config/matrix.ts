@@ -38,7 +38,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import {
 	type EnvMode,
 	type EnvVars,
@@ -380,7 +380,7 @@ const SHELL_PASSTHROUGH: readonly string[] = [
 	"NODE_EXTRA_CA_CERTS",
 ];
 
-interface Workspace {
+export interface Workspace {
 	readonly root: string;
 	readonly home: string;
 	readonly cwd: string;
@@ -388,7 +388,7 @@ interface Workspace {
 	readonly shellEnv: EnvVars;
 }
 
-function createWorkspace(os: Os, globalMaina: boolean): Workspace {
+export function createWorkspace(os: Os, globalMaina: boolean): Workspace {
 	const root = realpathSync(mkdtempSync(join(tmpdir(), "maina-real-config-")));
 	const home = join(root, "home");
 	const cwd = join(root, "project");
@@ -407,6 +407,16 @@ function createWorkspace(os: Os, globalMaina: boolean): Workspace {
 		);
 		chmodSync(shim, 0o755);
 	}
+
+	// Opt the sandbox user out of CLI crash reports. GUI/minimal launches
+	// carry no MAINA_TELEMETRY/DO_NOT_TRACK, so without this a server that
+	// crashes under test would report to production. The file flag keeps
+	// the launch env itself identical to what the host passes.
+	mkdirSync(join(home, ".maina"), { recursive: true });
+	writeFileSync(
+		join(home, ".maina", "telemetry.json"),
+		`${JSON.stringify({ optOut: true })}\n`,
+	);
 
 	const passthrough: Record<string, string> = {};
 	for (const key of SHELL_PASSTHROUGH) {
@@ -550,8 +560,20 @@ type Wait =
 	| { readonly type: "exit"; readonly code: number | null }
 	| { readonly type: "timeout" };
 
-function resolveCommand(command: string, env: EnvVars): string | null {
-	if (command.includes("/")) return existsSync(command) ? command : null;
+/**
+ * Resolve `command` the way a host's spawn does: a path (anything with a
+ * `/`) is taken relative to the spawn cwd, a bare name is looked up on the
+ * spawn env's PATH.
+ */
+function resolveCommand(
+	command: string,
+	env: EnvVars,
+	cwd: string,
+): string | null {
+	if (command.includes("/")) {
+		const path = isAbsolute(command) ? command : resolve(cwd, command);
+		return existsSync(path) ? path : null;
+	}
 	return Bun.which(command, { PATH: env.PATH ?? "" });
 }
 
@@ -571,7 +593,7 @@ export async function probeLaunch(
 	opts: ProbeOptions = {},
 ): Promise<CaseResult> {
 	const budgetMs = opts.coldStartBudgetMs ?? COLD_START_BUDGET_MS;
-	const executable = resolveCommand(launch.command, env);
+	const executable = resolveCommand(launch.command, env, cwd);
 	if (executable === null) {
 		return {
 			started: false,

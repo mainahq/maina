@@ -19,13 +19,20 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { currentOs, GUI_PATH, hostEnv, minimalEnv } from "../env";
 import {
 	type CaseError,
 	classifyProblem,
+	createWorkspace,
 	ENV_MODES,
 	expectedFailure,
 	HOSTS,
@@ -266,6 +273,32 @@ describe("probeLaunch", () => {
 		expect(r.error && classifyProblem(r.error)).toBe("P4");
 	});
 
+	test("a relative command resolves against the case cwd, as a host spawns it", async () => {
+		// The harness process runs from the repo root; the host spawns from
+		// the project dir. `./server` exists only in the latter.
+		const dir = mkdtempSync(join(tmpdir(), "maina-probe-rel-"));
+		writeFileSync(join(dir, "server.js"), FAKE_SERVER);
+		const launcher = join(dir, "server");
+		writeFileSync(
+			launcher,
+			`#!/bin/sh\nexec ${JSON.stringify(process.execPath)} "$(dirname "$0")/server.js" 0 accept\n`,
+		);
+		chmodSync(launcher, 0o755);
+		try {
+			const r = await probeLaunch(
+				{ command: "./server", args: [], env: {}, source: "test" },
+				{ PATH: process.env.PATH ?? "", HOME: dir },
+				dir,
+				{ coldStartBudgetMs: 5_000 },
+			);
+			expect(r.error).toBeUndefined();
+			expect(r.started).toBe(true);
+			expect(r.toolCallOk).toBe(true);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
 	test("an initialize answered with a JSON-RPC error is not a start", async () => {
 		const r = await withServer(0, 5_000, "reject");
 		expect(r.started).toBe(false);
@@ -273,6 +306,32 @@ describe("probeLaunch", () => {
 		expect(r.toolCallOk).toBe(false);
 		expect(r.error?.kind).toBe("handshake-rejected");
 		expect(r.error?.message).toContain("unsupported protocol");
+	});
+});
+
+// ── Workspace ──────────────────────────────────────────────────────────────
+
+describe("createWorkspace", () => {
+	test("sandbox HOME opts out of CLI crash reports without touching the launch env", () => {
+		// GUI/minimal launches carry no MAINA_TELEMETRY / DO_NOT_TRACK (that is
+		// the point), so the opt-out lives in the sandboxed HOME instead: a
+		// crashing server under test must not report to production.
+		const w = createWorkspace("linux", true);
+		try {
+			const raw = readFileSync(
+				join(w.home, ".maina", "telemetry.json"),
+				"utf-8",
+			);
+			expect(JSON.parse(raw)).toEqual({ optOut: true });
+			const env = hostEnv("minimal", {
+				os: "linux",
+				home: w.home,
+				shellEnv: w.shellEnv,
+			});
+			expect(env).toEqual({ PATH: GUI_PATH.linux, HOME: w.home });
+		} finally {
+			rmSync(w.root, { recursive: true, force: true });
+		}
 	});
 });
 
