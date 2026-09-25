@@ -38,6 +38,7 @@ import {
 import type { DbPort, DbRow } from "../ports/db";
 import type { FsError, FsPort } from "../ports/fs";
 import { analyzeAction } from "./classify";
+import { withPolicyBranches } from "./evaluate";
 import type { GateContext, GateEvent, GateEventKind } from "./events";
 import { evaluateRules, type RuleResult } from "./rules";
 
@@ -116,8 +117,10 @@ export function gateSubject(
 	policy: Policy,
 	ctx: GateContext,
 ): GateSubject {
-	const analysis = analyzeAction(event, ctx);
-	const rules = evaluateRules(event, policy, ctx);
+	// Classified as the gate saw it: the policy's protected branches count.
+	const seen = withPolicyBranches(ctx, policy);
+	const analysis = analyzeAction(event, seen);
+	const rules = evaluateRules(event, policy, seen);
 	return {
 		decisionId,
 		kind: event.kind,

@@ -113,6 +113,19 @@ describe("gateSubject", () => {
 		expect(s.rule).toBe("ask");
 	});
 
+	// #448: the subject is classified as the gate saw it, so a branch only
+	// the policy protects is still a protected push.
+	test("a push to a branch the policy protects is a protected push", () => {
+		const s = gateSubject(
+			"d-4",
+			shellEvent("git push origin release"),
+			{ ...DEFAULT_POLICY, protected_branches: ["release"] },
+			ctx,
+		);
+		expect(s.classes).toContain("git.push.protected");
+		expect(s.rule).toBe("ask");
+	});
+
 	test("non-shell subjects target the exact path, tool or URL", () => {
 		expect(
 			gateSubject("d", writeEvent(`${ROOT}/a.ts`), DEFAULT_POLICY, ctx).targets,
