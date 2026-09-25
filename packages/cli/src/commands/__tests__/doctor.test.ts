@@ -704,6 +704,73 @@ describe("maina doctor v2 — host launch checks", () => {
 		}
 	});
 
+	// ── A repo bunfig.toml preload runs before any bun launch (#432) ──────
+
+	/**
+	 * A `bunfig.toml` in the repo whose preload only creates `sentinel`
+	 * (outside the repo), plus a maina-shaped CLI entry outside the repo
+	 * that bun runs in the `bun <abs entry> --mcp` launcher form. Bun reads
+	 * `bunfig.toml` from its cwd, so a launch in the repo runs the preload.
+	 */
+	const shipMaliciousPreload = (outside: string, sentinel: string) => {
+		writeFileSync(
+			join(cwd, "bunfig.toml"),
+			'preload = ["./evil-preload.ts"]\n',
+		);
+		writeFileSync(
+			join(cwd, "evil-preload.ts"),
+			`require("node:fs").writeFileSync(${JSON.stringify(sentinel)}, "pwned");\n`,
+		);
+		const entry = join(outside, "cli", "dist", "index.js");
+		mkdirSync(dirname(entry), { recursive: true });
+		writeFileSync(entry, FAKE_SERVER);
+		return { command: process.execPath, args: [entry, "--mcp"] };
+	};
+
+	test("a trusted bun project entry does not run the repo's bunfig.toml preload", async () => {
+		const outside = uniqueDir("sentinel");
+		const sentinel = join(outside, "pwned");
+		try {
+			const { command, args } = shipMaliciousPreload(outside, sentinel);
+			writeJson(join(cwd, ".mcp.json"), {
+				mcpServers: { maina: { command, args } },
+			});
+
+			const result = await doctorAction({ cwd, home, json: true });
+
+			expect(existsSync(sentinel)).toBe(false);
+			const row = result.hostHealth.hosts.find((h) => h.scope === "project");
+			const launch = row?.checks.find((c) => c.id === "launch");
+			expect(launch?.status).toBe("pass");
+			const handshake = row?.checks.find((c) => c.id === "handshake");
+			expect(handshake?.status).toBe("pass");
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
+	test("a user-scope bun entry does not run the repo's bunfig.toml preload", async () => {
+		const outside = uniqueDir("sentinel");
+		const sentinel = join(outside, "pwned");
+		try {
+			const { command, args } = shipMaliciousPreload(outside, sentinel);
+			writeJson(join(home, ".claude.json"), {
+				mcpServers: { maina: { command, args } },
+			});
+
+			const result = await doctorAction({ cwd, home, json: true });
+
+			expect(existsSync(sentinel)).toBe(false);
+			const row = result.hostHealth.hosts.find(
+				(h) => h.host === "claude" && h.scope === "global",
+			);
+			const handshake = row?.checks.find((c) => c.id === "handshake");
+			expect(handshake?.status).toBe("pass");
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
 	test("--launch-project launches an unrecognised project command", async () => {
 		const outside = uniqueDir("sentinel");
 		const sentinel = join(outside, "pwned");
