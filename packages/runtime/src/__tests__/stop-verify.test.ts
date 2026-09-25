@@ -74,7 +74,7 @@ const FAILED: StopVerifyReport = { status: "failed", findings: 3, files: 2 };
 
 // ── Host stop contracts ─────────────────────────────────────────────────────
 
-const ajv = new Ajv({ strict: false, allErrors: true });
+const ajv = new Ajv({ strict: false });
 
 function stopSchema(host: StopHost) {
 	const path = join(FIXTURES, host, "schemas", "stop.output.schema.json");
