@@ -112,6 +112,20 @@ describe("merge order: defaults < user < repo", () => {
 		]);
 		expect(result.value.rules.allow.map((r) => r.match)).toEqual(["bun test"]);
 	});
+
+	test("an exact rule never swallows a broader rule with the same match", async () => {
+		const result = await loadPolicy(
+			repoPolicy({ rules: { deny: [{ match: "curl", kind: "shell" }] } }),
+			ROOT,
+			{ rules: { deny: [{ match: "curl", kind: "shell", exact: true }] } },
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.rules.deny).toEqual([
+			{ match: "curl", kind: "shell", exact: true },
+			{ match: "curl", kind: "shell" },
+		]);
+	});
 });
 
 describe("irreversible action classes", () => {

@@ -145,7 +145,10 @@ function summary(value: AllowValue): string {
 	const { remembered } = value;
 	if (remembered === undefined) return base;
 	const matches = remembered.rules
-		.map((r) => `${r.kind} ${JSON.stringify(r.match)}`)
+		.map(
+			(r) =>
+				`${r.kind} ${JSON.stringify(r.match)}${r.exact === true ? " (exact)" : ""}`,
+		)
 		.join(", ");
 	return remembered.added === 0
 		? `${base}; ${matches} was already allowed in ${remembered.file}`
@@ -187,7 +190,7 @@ export function allowCommand(): Command {
 		.argument("<decision-id>", "The id from the gate message")
 		.option(
 			"--always",
-			"Remember it: add a scoped allow rule to ~/.maina/policy.json (never the repo policy)",
+			"Remember it: add an exact allow rule to ~/.maina/policy.json (never the repo policy)",
 		)
 		.option("--json", "Print the result as JSON")
 		.action(

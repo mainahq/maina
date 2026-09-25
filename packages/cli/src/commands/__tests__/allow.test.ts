@@ -131,11 +131,14 @@ describe("maina allow", () => {
 			{
 				match: "git push origin main",
 				kind: "shell",
+				exact: true,
 				reason: "allowed with maina allow d-2 --always",
 			},
 		]);
 		expect(readFileSync(repoPolicy(), "utf8")).toBe(repoContent);
 		expect(text).toContain(userPolicy());
+		// The output says the rule covers this exact command only.
+		expect(text).toContain('shell "git push origin main" (exact)');
 	});
 
 	test("--always creates no repo policy when the repo has none", async () => {

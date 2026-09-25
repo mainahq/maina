@@ -141,11 +141,33 @@ describe("scopedAllowRules", () => {
 			{
 				match: "bun run build",
 				kind: "shell",
+				exact: true,
 				reason: "allowed with maina allow d-1 --always",
 			},
 			{
 				match: "bun test",
 				kind: "shell",
+				exact: true,
+				reason: "allowed with maina allow d-1 --always",
+			},
+		]);
+	});
+
+	test("path, tool and URL rules are exact too", () => {
+		const rules = unwrap(
+			scopedAllowRules(
+				subject({
+					kind: "network",
+					targets: ["https://api.example.com/v1"],
+					classes: ["network.fetch"],
+				}),
+			),
+		);
+		expect(rules).toEqual([
+			{
+				match: "https://api.example.com/v1",
+				kind: "network",
+				exact: true,
 				reason: "allowed with maina allow d-1 --always",
 			},
 		]);
@@ -249,6 +271,28 @@ describe("rememberOverride", () => {
 		const policy = unwrap(await loadPolicy({ fs }, ROOT, userLayer));
 		const after = evaluateGate(ports, event, policy);
 		expect(after.verdict).toBe("allow");
+	});
+
+	test("the remembered shell rule does not allow the command with extra arguments", async () => {
+		const fs = createMemoryFs({});
+		const ports = {
+			clock: { now: () => 0 },
+			backends: DEFAULT_REGISTRY,
+			ctx,
+			newId: () => "x",
+		};
+		const event = shellEvent("git push origin main");
+		// Still a reversible push to a protected branch, so only a rule allows it.
+		const widened = shellEvent("git push origin main release");
+		expect(evaluateGate(ports, widened, DEFAULT_POLICY).verdict).toBe("ask");
+		const s = gateSubject("d-1", event, DEFAULT_POLICY, ctx);
+		unwrap(await rememberOverride({ fs }, HOME, unwrap(scopedAllowRules(s))));
+		const userLayer = JSON.parse(
+			unwrap(await fs.readFile(userPolicyFile(HOME))),
+		);
+		const policy = unwrap(await loadPolicy({ fs }, ROOT, userLayer));
+		expect(evaluateGate(ports, event, policy).verdict).toBe("allow");
+		expect(evaluateGate(ports, widened, policy).verdict).toBe("ask");
 	});
 });
 

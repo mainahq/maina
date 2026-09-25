@@ -8,11 +8,10 @@
  * - `scopedAllowRules` turns a subject into allow rules, one per command
  *   (or the path, tool or URL), scoped to the event kind, and refuses what
  *   an allow rule cannot or should not cover: an irreversible class, a final
- *   deny, an opaque command, a wildcard. Path, tool and URL rules match
- *   exactly; a shell rule uses the policy's command grammar, so it also
- *   covers the same command with more arguments (`bun test` covers
- *   `bun test --watch`). Classes, deny rules and irreversible asks are still
- *   applied to the longer command.
+ *   deny, an opaque command, a wildcard. Every rule is `exact`: it matches
+ *   the remembered command, path, tool or URL and nothing else, so
+ *   `bun test` does not cover `bun test --watch`. A wider rule is a pattern
+ *   the user writes into the policy by hand.
  * - `rememberOverride` merges those rules into the user policy
  *   (`~/.maina/policy.json`). It never touches a repo policy: a remembered
  *   override is this user's choice, not the repository's.
@@ -34,6 +33,7 @@ import {
 	type PolicyLayer,
 	parsePolicyLayer,
 	type RulePolicy,
+	ruleKey,
 } from "../policy/schema";
 import type { DbPort, DbRow } from "../ports/db";
 import type { FsError, FsPort } from "../ports/fs";
@@ -234,9 +234,9 @@ function unscopable(subject: GateSubject): string | undefined {
 }
 
 /**
- * Allow rules for `subject`, one per target, scoped to its kind. A shell
- * rule is a plain command pattern, so it matches that command and any
- * longer argument list (see `commandMatches` in the rules engine).
+ * Allow rules for `subject`, one per target, scoped to its kind and marked
+ * `exact`, so a shell rule matches that command only, never the same
+ * command with extra arguments.
  */
 export function scopedAllowRules(
 	subject: GateSubject,
@@ -253,15 +253,13 @@ export function scopedAllowRules(
 		value: subject.targets.map((match) => ({
 			match,
 			kind: subject.kind,
+			exact: true,
 			reason: `allowed with maina allow ${subject.decisionId} --always`,
 		})),
 	};
 }
 
 // ── User policy ─────────────────────────────────────────────────────────────
-
-const ruleKey = (rule: RulePolicy): string =>
-	`${rule.kind ?? "*"}\u0000${rule.match}`;
 
 /**
  * `raw` (the user policy file's JSON, `undefined` when there is none) with

@@ -195,12 +195,12 @@ function matchesAllow(
 	const applicable = rules.filter((rule) => appliesTo(rule, event.kind));
 	if (event.kind !== "shell") {
 		return applicable.find((rule) =>
-			targetsOf(event).some((t) => globMatch(rule.match, t)),
+			targetsOf(event).some((t) => targetMatches(rule, t)),
 		);
 	}
 	if (commands.length === 0) return undefined;
 	return applicable.find((rule) =>
-		commands.every((command) => commandMatches(rule.match, command)),
+		commands.every((command) => commandMatches(rule, command)),
 	);
 }
 
@@ -210,9 +210,9 @@ function ruleMatchesAny(
 	commands: readonly string[],
 ): boolean {
 	if (event.kind === "shell") {
-		return commands.some((command) => commandMatches(rule.match, command));
+		return commands.some((command) => commandMatches(rule, command));
 	}
-	return targetsOf(event).some((t) => globMatch(rule.match, t));
+	return targetsOf(event).some((t) => targetMatches(rule, t));
 }
 
 /** The strings a non-shell rule can match against. */
@@ -237,15 +237,25 @@ function targetsOf(event: GateEvent): readonly string[] {
 }
 
 /**
- * Matches a rule pattern against one command string. A pattern with a `*`
- * is a whole-string glob in which `*` matches anything, paths and URLs
- * included (`curl *` covers `curl https://x/y`); a plain pattern matches the
- * command name and its argument prefix (`git push` covers `git push origin
- * main`).
+ * Matches a rule against one command string. An `exact` rule matches only
+ * the identical command (a `*` in it is literal). Otherwise a pattern with a
+ * `*` is a whole-string glob in which `*` matches anything, paths and URLs
+ * included (`curl *` covers `curl https://x/y`), and a plain pattern matches
+ * the command name and its argument prefix (`git push` covers `git push
+ * origin main`).
  */
-function commandMatches(pattern: string, command: string): boolean {
+function commandMatches(rule: RulePolicy, command: string): boolean {
+	const pattern = rule.match;
+	if (rule.exact === true) return command === pattern;
 	if (pattern.includes("*")) return wildcardMatch(pattern, command);
 	return command === pattern || command.startsWith(`${pattern} `);
+}
+
+/** Matches a rule against a path, tool or URL: literal when `exact`, else a glob. */
+function targetMatches(rule: RulePolicy, target: string): boolean {
+	return rule.exact === true
+		? target === rule.match
+		: globMatch(rule.match, target);
 }
 
 /**

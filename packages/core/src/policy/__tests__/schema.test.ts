@@ -28,6 +28,33 @@ describe("policy JSON Schema", () => {
 		);
 	});
 
+	test("a rule accepts an optional boolean `exact`", () => {
+		expect(
+			parsePolicyLayer(
+				{ rules: { allow: [{ match: "bun test", exact: true }] } },
+				"user",
+			).ok,
+		).toBe(true);
+		expect(
+			parsePolicyLayer(
+				{ rules: { allow: [{ match: "bun test", exact: "yes" }] } },
+				"user",
+			).ok,
+		).toBe(false);
+		const schema = policyJsonSchema() as {
+			properties: {
+				rules: {
+					properties: {
+						allow: { items: { properties: Record<string, { type?: string }> } };
+					};
+				};
+			};
+		};
+		expect(
+			schema.properties.rules.properties.allow.items.properties.exact?.type,
+		).toBe("boolean");
+	});
+
 	test("describes log.paths as hashed | plain", () => {
 		const schema = policyJsonSchema() as {
 			properties: {
