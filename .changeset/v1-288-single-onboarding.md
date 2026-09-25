@@ -1,0 +1,6 @@
+---
+"@mainahq/cli": major
+"@mainahq/skills": patch
+---
+
+One idempotent onboarding flow (FR-INS-4, FR-INS-5). `maina setup` now plans its writes with a pure `planOnboarding(facts, options)` that returns `create`, `merge-region` and `merge-json-key` operations (there is no overwrite), and `applyOps` carries them out through a filesystem port. Re-running setup changes nothing. User files are never overwritten: maina edits only its `<!-- maina-managed -->` region or its `mcpServers.maina` JSON key, backs up the original to `.maina/backups/` before the first edit, and skips (rather than replaces) malformed JSON or containers of the wrong type. An existing `.maina/constitution.md` is kept as-is; `--reset` backs up `.maina/` to regenerate it. Setup now also merges `mcpServers.maina` into `.mcp.json`. `maina init` is a deprecated alias of `maina setup`. The retired agent files (`.clinerules`, `.roo/*`, `.continue/*`, `.amazonq/mcp.json`, `.aider.conf.yml`, `.cursorrules`, `.windsurfrules`, `CONVENTIONS.md`, `GEMINI.md`) are written only with `--legacy-agents`. The CI workflow and `biome.json` that 1.x `init` wrote are no longer generated. New `--plugin` flag: non-interactive mode for host plugins that writes only `.maina/` and managed regions of files that already exist.

@@ -52,7 +52,7 @@ Commands that support `--json` for machine-readable output (JSON envelope with `
 
 | Command | Description |
 |---------|------------|
-| `maina setup` | Guided first-time setup — detects stack, derives constitution from your existing rule files, materialises skills, kicks off the wiki in background. `--yes` skips prompts; `--ci` emits one JSON object per phase; `--update` re-tailors; `--reset` backs up `.maina/` and starts fresh. |
+| `maina setup` | Guided first-time setup — detects stack, derives constitution from your existing rule files, materialises skills, kicks off the wiki in background. `--yes` skips prompts; `--ci` emits one JSON object per phase; `--update` refreshes managed regions; `--reset` backs up `.maina/` and starts fresh; `--legacy-agents` also writes retired agent files (`.clinerules`, `.roo/`, `.aider.conf.yml`, …); `--plugin` is the non-interactive host-plugin mode that writes only `.maina/` and managed regions of existing files. Idempotent: never overwrites your files, and backs up originals to `.maina/backups/` before the first edit. |
 | `maina doctor` | Health check across tools, engines, AI status, wiki coverage, and MCP integrations. Reads both project-local and user-global MCP configs (`~/.claude/settings.json`, `~/.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`, `~/.config/zed/settings.json`) and reports scope per client: `project`, `global`, `both`, or `missing`. |
 | `maina doctor --fix` | Iterate every `missing` MCP row and execute its printed `maina mcp add --client X --scope global` remediation. Confirms interactively; `--yes` skips (`--json` implies `--yes`). |
 | `maina doctor --json` | Emit `{tools, engines, aiStatus, wikiHealth, mcpHealth: { integrations: [{client, scope, fix?}] }, cacheStats}` for CI consumption. |
@@ -74,8 +74,7 @@ Set up your project and define architecture.
 
 | Command | Description | Context Needs |
 |---------|------------|---------------|
-| `maina init` | Bootstrap Maina in any repo. Creates `.maina/` directory, constitution, AGENTS.md, default prompts. | None |
-| `maina init --install` | Auto-install missing verification tools after bootstrapping. | None |
+| `maina init` | Deprecated alias of `maina setup` (same flags). Prints a deprecation notice. | None |
 | `maina configure` | Interactive project settings -- update constitution, conventions, visual URLs, tool preferences. | None |
 | `maina ticket` | Create a GitHub Issue with automatic module tagging. Use `--repo` for cross-repo issue creation with aliases from `.maina/config.json`. | Semantic (module structure) |
 | `maina context` | Generate focused codebase context. Loads all 4 layers in exploration mode (80% budget). Writes to `.maina/CONTEXT.md` by default; use `--output <path>` to override. An existing `CONTEXT.md` at repo root is preserved unless `--force`. | All 4 layers (exploration) |

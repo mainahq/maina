@@ -22,7 +22,6 @@ import {
 	renameSync,
 	rmSync,
 	statSync,
-	unlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -37,6 +36,13 @@ import { Command } from "commander";
 import { processEnv } from "../env";
 import { buildMainaEntry } from "../hosts/entry";
 import { EXIT_CONFIG_ERROR, EXIT_PASSED } from "../json";
+import { applyOps, snapshotFiles } from "../onboarding/apply";
+import { nodeOnboardingFs } from "../onboarding/node-fs";
+import {
+	onboardingTargets,
+	type PlanOptions,
+	planOnboarding,
+} from "../onboarding/plan";
 import {
 	type AgentKind,
 	ALL_AGENTS,
@@ -60,9 +66,6 @@ import {
 	type StackContext,
 	sendSetupTelemetry,
 	summarizeRepo,
-	writeAllAgentFiles,
-	writeClaudeSettings,
-	writeCursorMcp,
 } from "../onboarding/setup/index";
 import {
 	jsonEmitter,
@@ -137,6 +140,13 @@ export interface SetupActionOptions {
 	mode?: SetupMode;
 	yes?: boolean;
 	agents?: AgentKind[] | null;
+	/** Also write the retired 1.x agent files (`--legacy-agents`). */
+	legacyAgents?: boolean;
+	/**
+	 * Non-interactive mode for host plugins (`--plugin`): writes only
+	 * `.maina/` and managed regions/keys of files that already exist.
+	 */
+	plugin?: boolean;
 	ci?: boolean;
 	json?: boolean;
 	/**
@@ -196,8 +206,6 @@ export interface SetupActionDeps {
 	resolveAI?: typeof resolveSetupAI;
 	/** Override stack assembly. */
 	assembleStack?: typeof assembleStackContext;
-	/** Override agent file writer. */
-	writeAgentFiles?: typeof writeAllAgentFiles;
 	/** Override verify run. Returns null if verify is unavailable. */
 	runVerify?: (
 		cwd: string,
@@ -276,39 +284,6 @@ export function resolveCiMode(
  */
 export function userAgent(ci: boolean): string {
 	return `${ci ? "maina-ci" : "maina"}/${CLI_VERSION}`;
-}
-
-const TEMP_FILES = new Set<string>();
-let SIGINT_REGISTERED = false;
-
-function registerSigintCleanup(): void {
-	if (SIGINT_REGISTERED) return;
-	SIGINT_REGISTERED = true;
-	process.on("SIGINT", () => {
-		for (const f of TEMP_FILES) {
-			try {
-				unlinkSync(f);
-			} catch {}
-		}
-		TEMP_FILES.clear();
-		process.exit(130);
-	});
-}
-
-/**
- * Atomic write: write to temp + rename. Tracks the temp file in `TEMP_FILES`
- * so SIGINT cleanup can remove it if the wizard aborts mid-flight.
- */
-function atomicWrite(target: string, content: string): void {
-	mkdirSync(join(target, ".."), { recursive: true });
-	const tmp = `${target}.tmp.${process.pid}.${Math.random().toString(36).slice(2)}`;
-	TEMP_FILES.add(tmp);
-	try {
-		writeFileSync(tmp, content, "utf-8");
-		renameSync(tmp, target);
-	} finally {
-		TEMP_FILES.delete(tmp);
-	}
 }
 
 function defaultIsGitRepo(cwd: string): boolean {
@@ -392,22 +367,6 @@ async function defaultRunVerify(
 	}
 }
 
-/**
- * Pull the first ~10 non-empty lines of the constitution as a "quick ref"
- * to inject into agent files. Keeps agent files lightweight while still
- * carrying the project's headline rules.
- */
-function buildQuickRef(constitution: string): string {
-	const lines = constitution.split(/\r?\n/);
-	const out: string[] = [];
-	for (const line of lines) {
-		out.push(line);
-		const nonEmpty = out.filter((l) => l.trim().length > 0).length;
-		if (nonEmpty >= 10) break;
-	}
-	return out.join("\n").trim();
-}
-
 function detectMode(cwd: string, opts: SetupActionOptions): SetupMode {
 	if (opts.mode) return opts.mode;
 	if (opts.cwd === undefined && opts.mode === undefined) {
@@ -472,7 +431,8 @@ export async function setupAction(
 	const cwd = options.cwd ?? process.cwd();
 	const ci = resolveCiMode(options);
 	const ciOrJson = ci || options.json === true;
-	const interactive = !ciOrJson && options.yes !== true;
+	const interactive =
+		!ciOrJson && options.yes !== true && options.plugin !== true;
 	const baseEmitter: SetupEmitter =
 		options.emitter ?? (ciOrJson ? jsonEmitter() : noopEmitter());
 	// Capture every phase event for sub-task 8 telemetry while still passing
@@ -502,7 +462,6 @@ export async function setupAction(
 			| "isDirty"
 			| "resolveAI"
 			| "assembleStack"
-			| "writeAgentFiles"
 			| "runVerify"
 			| "confirm"
 			| "seedWiki"
@@ -517,13 +476,10 @@ export async function setupAction(
 		isDirty: baseDeps.isDirty ?? defaultIsDirty,
 		resolveAI: baseDeps.resolveAI ?? resolveSetupAI,
 		assembleStack: baseDeps.assembleStack ?? assembleStackContext,
-		writeAgentFiles: baseDeps.writeAgentFiles ?? writeAllAgentFiles,
 		runVerify: baseDeps.runVerify ?? defaultRunVerify,
 		confirm: baseDeps.confirm ?? defaultConfirm,
 		seedWiki: baseDeps.seedWiki ?? seedWiki,
 	};
-
-	registerSigintCleanup();
 
 	const result: SetupResult = {
 		mode: "fresh",
@@ -826,22 +782,37 @@ export async function setupAction(
 		return result;
 	}
 
-	try {
-		mkdirSync(join(cwd, ".maina"), { recursive: true });
-		atomicWrite(constitutionPath, constitutionText);
-		result.constitutionWritten = true;
-	} catch (e) {
+	// Single onboarding flow: snapshot the targets, plan pure file ops,
+	// apply them through the fs port. Never overwrites: user files get a
+	// managed region or a managed JSON key, and an existing constitution is
+	// kept as-is (`--reset` backs up `.maina/` to regenerate it).
+	const planOptions: PlanOptions = {
+		...(options.agents ? { agents: options.agents } : {}),
+		legacyAgents: options.legacyAgents === true,
+		managedOnly: options.plugin === true,
+	};
+	const onboardingFs = nodeOnboardingFs(cwd);
+	const ops = planOnboarding(
+		{
+			stack: result.stack,
+			constitution: constitutionText,
+			mcpEntry: buildMainaEntry(),
+			files: snapshotFiles(onboardingFs, onboardingTargets(planOptions)),
+		},
+		planOptions,
+	);
+	const applied = applyOps(ops, { fs: onboardingFs });
+	const constitutionPresent = existsSync(constitutionPath);
+	if (!applied.ok || !constitutionPresent) {
+		const reason = applied.ok
+			? (applied.value.skipped.find((s) => s.path === ".maina/constitution.md")
+					?.reason ?? "constitution missing after apply")
+			: `unsafe path: ${applied.error.path}`;
 		sp3.stop("Scaffold failed.");
-		deps.log.error(
-			`Could not write constitution: ${e instanceof Error ? e.message : String(e)}`,
-		);
+		deps.log.error(`Could not write constitution: ${reason}`);
 		result.bailed = true;
 		result.bailReason = "constitution_write_failed";
-		emitter.phase({
-			phase: "scaffold",
-			status: "error",
-			reason: e instanceof Error ? e.message : String(e),
-		});
+		emitter.phase({ phase: "scaffold", status: "error", reason });
 		finalizeEmit(emitter, result, startedAt, ci);
 		result.durationMs = Date.now() - startedAt;
 		await dispatchTelemetry(result, {
@@ -852,55 +823,18 @@ export async function setupAction(
 		});
 		return result;
 	}
-
-	const quickRef = buildQuickRef(constitutionText);
-	const agents = options.agents ?? undefined;
-	const agentResult = await deps.writeAgentFiles(
-		cwd,
-		result.stack,
-		quickRef,
-		agents,
+	const report = applied.value;
+	result.constitutionWritten = report.created.includes(
+		".maina/constitution.md",
 	);
-	if (agentResult.ok) {
-		result.agentFilesWritten = agentResult.value.written;
-		result.agentFilesWarnings = agentResult.value.warnings;
-	} else {
-		result.agentFilesWarnings.push(agentResult.error);
-	}
-
-	// ── IDE MCP wiring (G6, G12) ────────────────────────────────────────────
-	// Keyed JSON merge into .claude/settings.json and .cursor/mcp.json so
-	// user-authored MCP entries are preserved byte-for-byte. This replaces
-	// the old overwrite-with-.bak behaviour.
-	const mainaEntry = buildMainaEntry();
-	const claudeWrite = await writeClaudeSettings(cwd, {
-		mainaMcpEntry: mainaEntry,
-	});
-	if (claudeWrite.ok) {
-		result.agentFilesWritten.push(".claude/settings.json");
-		if (claudeWrite.value.action === "recovered") {
-			result.agentFilesWarnings.push(
-				`.claude/settings.json was malformed; original preserved as ${claudeWrite.value.backupPath ?? ".bak.<ts>"}`,
-			);
-		}
-	} else {
-		result.agentFilesWarnings.push(
-			`skip .claude/settings.json: ${claudeWrite.error}`,
-		);
-	}
-
-	const cursorWrite = await writeCursorMcp(cwd, { mainaMcpEntry: mainaEntry });
-	if (cursorWrite.ok) {
-		result.agentFilesWritten.push(".cursor/mcp.json");
-		if (cursorWrite.value.action === "recovered") {
-			result.agentFilesWarnings.push(
-				`.cursor/mcp.json was malformed; original preserved as ${cursorWrite.value.backupPath ?? ".bak.<ts>"}`,
-			);
-		}
-	} else {
-		result.agentFilesWarnings.push(
-			`skip .cursor/mcp.json: ${cursorWrite.error}`,
-		);
+	result.agentFilesWritten = [...report.created, ...report.merged].filter(
+		(p) => p !== ".maina/constitution.md",
+	);
+	result.agentFilesWarnings = report.skipped.map(
+		(s) => `skip ${s.path}: ${s.reason}`,
+	);
+	if (report.backups.length > 0) {
+		deps.log.info(`Backed up originals to ${report.backups.join(", ")}`);
 	}
 
 	// ── Skills materialisation ──────────────────────────────────────────────
@@ -922,7 +856,7 @@ export async function setupAction(
 	sp3.stop(`Wrote ${result.agentFilesWritten.length} file(s).`);
 	emitter.phase({
 		phase: "scaffold",
-		status: agentResult.ok ? "ok" : "degraded",
+		status: report.skipped.length === 0 ? "ok" : "degraded",
 		constitution: result.constitutionWritten,
 		files: [
 			...(result.constitutionWritten ? [".maina/constitution.md"] : []),
@@ -1407,12 +1341,25 @@ function parseAgentList(value: string): AgentKind[] {
 	return out;
 }
 
-export function setupCommand(): Command {
-	return new Command("setup")
-		.description("Magic UX wizard: detect → tailor → scaffold → verify")
+/** Raw flags parsed by Commander for `maina setup` (and `maina init`). */
+export interface SetupCommandOptions {
+	update?: boolean;
+	reset?: boolean;
+	ci?: boolean;
+	yes?: boolean;
+	agents?: string;
+	legacyAgents?: boolean;
+	plugin?: boolean;
+	telemetry?: boolean;
+	json?: boolean;
+}
+
+/** Register the `setup` flags. Shared with the deprecated `init` alias. */
+export function addSetupOptions(cmd: Command): Command {
+	return cmd
 		.option(
 			"--update",
-			"Re-tailor constitution + agent files for current stack",
+			"Refresh managed regions in agent files for the current stack",
 		)
 		.option("--reset", "Back up .maina/ and start fresh")
 		.option("--ci", "Non-interactive, JSON-per-phase output (sub-task 7)")
@@ -1421,75 +1368,99 @@ export function setupCommand(): Command {
 			"--agents <list>",
 			"Comma-separated: agents,claude,cursor,copilot,windsurf",
 		)
+		.option(
+			"--legacy-agents",
+			"Also write retired agent files (.clinerules, .roo/, .aider.conf.yml, …)",
+		)
+		.option(
+			"--plugin",
+			"Non-interactive plugin mode: write only .maina/ and managed regions",
+		)
 		.option("--no-telemetry", "Opt out of anonymous setup telemetry")
-		.option("--json", "Machine-readable JSON output")
-		.action(async (opts) => {
-			const ci = resolveCiMode({ ci: opts.ci === true });
-			const json = opts.json === true || ci;
-			let mode: SetupMode | undefined;
-			if (opts.reset === true) mode = "reset";
-			else if (opts.update === true) mode = "update";
+		.option("--json", "Machine-readable JSON output");
+}
 
-			const agents =
-				typeof opts.agents === "string" ? parseAgentList(opts.agents) : null;
+/** Run the setup wizard for parsed CLI flags and set the exit code. */
+export async function runSetupCommand(
+	opts: SetupCommandOptions,
+): Promise<void> {
+	const ci = resolveCiMode({ ci: opts.ci === true });
+	const json = opts.json === true || ci;
+	let mode: SetupMode | undefined;
+	if (opts.reset === true) mode = "reset";
+	else if (opts.update === true) mode = "update";
 
-			if (!json) intro("maina setup");
+	const agents =
+		typeof opts.agents === "string" ? parseAgentList(opts.agents) : null;
 
-			// G1: When launched through bunx/pnpx/npx, the CLI is cached in a tmp
-			// dir and vanishes after exit — AI agents that spawn subshells will not
-			// find `maina` on PATH. Surface a loud notice now so the user either
-			// installs globally or knows why subsequent AI calls cannot shell out.
-			if (!json && isRunningFromPackageRunnerCache()) {
-				log.warning(
-					"Running from a package-runner cache — `maina` will not be on PATH after this command exits.",
-				);
-				log.info(
-					"  Install globally with: `bun add -g @mainahq/cli` (or `npm install -g @mainahq/cli`).",
-				);
-			}
+	if (!json) intro("maina setup");
 
-			const actionOpts: SetupActionOptions = {
-				yes: opts.yes === true,
-				ci,
-				json,
-				telemetry: opts.telemetry !== false,
-			};
-			if (mode !== undefined) actionOpts.mode = mode;
-			if (agents !== null) actionOpts.agents = agents;
+	// G1: When launched through bunx/pnpx/npx, the CLI is cached in a tmp
+	// dir and vanishes after exit — AI agents that spawn subshells will not
+	// find `maina` on PATH. Surface a loud notice now so the user either
+	// installs globally or knows why subsequent AI calls cannot shell out.
+	if (!json && isRunningFromPackageRunnerCache()) {
+		log.warning(
+			"Running from a package-runner cache — `maina` will not be on PATH after this command exits.",
+		);
+		log.info(
+			"  Install globally with: `bun add -g @mainahq/cli` (or `npm install -g @mainahq/cli`).",
+		);
+	}
 
-			let result: SetupResult;
-			try {
-				result = await setupAction(actionOpts);
-			} catch (e) {
-				// CI mode: surface a structured error before crashing.
-				if (ci) {
-					const line = JSON.stringify({
-						phase: "done",
-						status: "error",
-						message: e instanceof Error ? e.message : String(e),
-					});
-					process.stdout.write(`${line}\n`);
-				}
-				process.exitCode = EXIT_CONFIG_ERROR;
-				return;
-			}
+	const actionOpts: SetupActionOptions = {
+		yes: opts.yes === true || opts.plugin === true,
+		ci,
+		json,
+		telemetry: opts.telemetry !== false,
+		legacyAgents: opts.legacyAgents === true,
+		plugin: opts.plugin === true,
+	};
+	if (mode !== undefined) actionOpts.mode = mode;
+	if (agents !== null) actionOpts.agents = agents;
 
-			// Exit-code matrix:
-			//   bailed=true  → 1 (hard failure: not-a-git-repo, AI throw, etc.)
-			//   degraded=true (but completed) → 0 (spec: degraded ≠ failure)
-			//   ok           → 0
-			if (json) {
-				// In CI/json mode, the per-phase emitter already wrote the `done`
-				// line. Just set the exit code; do NOT print again.
-				process.exitCode = result.bailed ? EXIT_CONFIG_ERROR : EXIT_PASSED;
-				return;
-			}
+	let result: SetupResult;
+	try {
+		result = await setupAction(actionOpts);
+	} catch (e) {
+		// CI mode: surface a structured error before crashing.
+		if (ci) {
+			const line = JSON.stringify({
+				phase: "done",
+				status: "error",
+				message: e instanceof Error ? e.message : String(e),
+			});
+			process.stdout.write(`${line}\n`);
+		}
+		process.exitCode = EXIT_CONFIG_ERROR;
+		return;
+	}
 
-			if (result.bailed) {
-				outro(`Setup did not complete: ${result.bailReason ?? "unknown"}`);
-				process.exitCode = EXIT_CONFIG_ERROR;
-				return;
-			}
-			outro(`Setup complete in ${(result.durationMs / 1000).toFixed(1)}s.`);
-		});
+	// Exit-code matrix:
+	//   bailed=true  → 1 (hard failure: not-a-git-repo, AI throw, etc.)
+	//   degraded=true (but completed) → 0 (spec: degraded ≠ failure)
+	//   ok           → 0
+	if (json) {
+		// In CI/json mode, the per-phase emitter already wrote the `done`
+		// line. Just set the exit code; do NOT print again.
+		process.exitCode = result.bailed ? EXIT_CONFIG_ERROR : EXIT_PASSED;
+		return;
+	}
+
+	if (result.bailed) {
+		outro(`Setup did not complete: ${result.bailReason ?? "unknown"}`);
+		process.exitCode = EXIT_CONFIG_ERROR;
+		return;
+	}
+	outro(`Setup complete in ${(result.durationMs / 1000).toFixed(1)}s.`);
+}
+
+export function setupCommand(): Command {
+	return addSetupOptions(
+		new Command("setup").description(
+			"Onboard maina: detect → tailor → scaffold → verify (idempotent)",
+		),
+	).action(async (opts: SetupCommandOptions) => {
+		await runSetupCommand(opts);
+	});
 }

@@ -137,19 +137,19 @@ Cross-platform skills work even without the CLI installed.
 | Tool | MCP | Instructions | Setup |
 |------|-----|-------------|-------|
 | Claude Code | Yes | CLAUDE.md | `maina setup` |
-| Cursor | Yes | .cursorrules | `maina setup` |
-| Windsurf | Yes | .windsurfrules | `maina setup` |
+| Cursor | Yes | .cursor/rules/maina.mdc | `maina setup` |
+| Windsurf | Yes | .windsurf/rules/maina.md | `maina setup` |
 | GitHub Copilot | Yes | copilot-instructions.md | `maina setup` |
-| Continue.dev | Yes | config.yaml | `maina setup` |
-| Cline | Yes | .clinerules | `maina setup` |
-| Roo Code | Yes | .roo/rules/ | `maina setup` |
-| Amazon Q | Yes | .amazonq/ | `maina setup` |
-| Gemini CLI | Yes | GEMINI.md | `maina setup` |
+| Continue.dev | Yes | config.yaml | `maina setup --legacy-agents` |
+| Cline | Yes | .clinerules | `maina setup --legacy-agents` |
+| Roo Code | Yes | .roo/rules/ | `maina setup --legacy-agents` |
+| Amazon Q | Yes | .amazonq/ | `maina setup --legacy-agents` |
+| Gemini CLI | Yes | GEMINI.md | `maina setup --legacy-agents` |
 | Zed | Yes | -- | `maina setup` |
 | Codex CLI | -- | AGENTS.md | `maina setup` |
-| Aider | -- | CONVENTIONS.md | `maina setup` |
+| Aider | -- | CONVENTIONS.md | `maina setup --legacy-agents` |
 
-Run `maina setup` to auto-configure MCP and write instruction files for every detected tool. See the [onboarding skill](packages/skills/onboarding/SKILL.md) for per-tool details.
+Run `maina setup` to auto-configure MCP and write instruction files. It is idempotent and never overwrites your files: maina only edits its own `<!-- maina-managed -->` region (or its `mcpServers.maina` key in JSON) and backs up the original to `.maina/backups/` before the first edit. The older per-tool files are opt-in with `--legacy-agents`. See the [onboarding skill](packages/skills/onboarding/SKILL.md) for per-tool details.
 
 ## The Workflow
 
@@ -216,10 +216,11 @@ maina learn                  # Evolve prompts from feedback
 Lower-level primitives for scripting and power users — see the [Full Setup docs](https://mainahq.com/full-setup/).
 
 ```bash
-maina setup --update         # Re-tailor after major stack changes
+maina setup --update         # Refresh managed regions after stack changes
 maina setup --reset          # Back up .maina/ and start fresh
 maina setup --ci             # Non-interactive; per-phase JSON output
-maina init --install         # Lower-level bootstrap (called by the wizard)
+maina setup --plugin         # Plugin mode: only .maina/ + existing managed regions
+maina setup --legacy-agents  # Also write retired agent files (.clinerules, .roo/, …)
 maina doctor                 # Check which tools are installed
 ```
 

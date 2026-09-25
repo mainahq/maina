@@ -359,7 +359,7 @@ configure_mcp_vscode() {
   local cmd="$1"
   # Copilot reads from .vscode/mcp.json at project level
   # Global: suggest user adds to settings
-  info "  Copilot uses project-level .vscode/mcp.json — run 'maina init' in your repo"
+  info "  Copilot uses project-level .vscode/mcp.json — run 'maina setup' in your repo"
 }
 
 configure_mcp_cline() {
@@ -382,11 +382,11 @@ configure_tool() {
     continue) configure_mcp_continue "$cmd" ;;
     vscode) configure_mcp_vscode "$cmd" ;;
     cline) configure_mcp_cline "$cmd" ;;
-    roo) info "  Roo Code uses project-level .roo/mcp.json — run 'maina init' in your repo" ;;
-    amazon-q) info "  Amazon Q uses project-level .amazonq/mcp.json — run 'maina init' in your repo" ;;
-    gemini) info "  Gemini CLI uses project-level .mcp.json — run 'maina init' in your repo" ;;
-    aider) info "  Aider doesn't support MCP — run 'maina init' for CONVENTIONS.md" ;;
-    codex) info "  Codex CLI uses AGENTS.md — run 'maina init' in your repo" ;;
+    roo) info "  Roo Code uses project-level .roo/mcp.json — run 'maina setup --legacy-agents' in your repo" ;;
+    amazon-q) info "  Amazon Q uses project-level .amazonq/mcp.json — run 'maina setup --legacy-agents' in your repo" ;;
+    gemini) info "  Gemini CLI uses project-level .mcp.json — run 'maina setup' in your repo" ;;
+    aider) info "  Aider doesn't support MCP — run 'maina setup --legacy-agents' for CONVENTIONS.md" ;;
+    codex) info "  Codex CLI uses AGENTS.md — run 'maina setup' in your repo" ;;
   esac
 }
 
@@ -580,9 +580,9 @@ main() {
 
     if prompt_yn "Initialize maina in this repo?" "y"; then
       if command -v maina &>/dev/null; then
-        maina init
+        maina setup
       else
-        $mcp_cmd @mainahq/cli init
+        $mcp_cmd @mainahq/cli setup
       fi
       success "maina initialized"
 
@@ -598,7 +598,7 @@ main() {
     fi
   else
     dim "Not in a git repo — skipping project setup"
-    info "Run 'maina init' inside your project to get started"
+    info "Run 'maina setup' inside your project to get started"
   fi
 
   # Step 6: Verify

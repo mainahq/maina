@@ -65,8 +65,8 @@ Wiki:
   wiki status   Wiki health and coverage
 
 Setup & Config:
-  init          Bootstrap maina in repo
-  setup         Guided first-time setup
+  setup         Onboard maina in this repo (idempotent)
+  init          Deprecated alias of setup
   doctor        Check tool and engine health
   login         Cloud authentication
   configure     Edit maina config

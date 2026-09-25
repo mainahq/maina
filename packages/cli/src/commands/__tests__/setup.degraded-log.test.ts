@@ -83,10 +83,6 @@ function makeDepsWithCapture(ai: SetupAIResult): {
 		isDirty: async () => false,
 		resolveAI: async () => ai,
 		assembleStack: async () => ({ ok: true, value: fakeStack() }),
-		writeAgentFiles: async () => ({
-			ok: true,
-			value: { written: ["AGENTS.md"], warnings: [] },
-		}),
 		runVerify: async () => ({ findings: [], clean: true }),
 		confirm: async () => true,
 		seedWiki: async () => ({
