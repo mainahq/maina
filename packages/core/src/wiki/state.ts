@@ -87,3 +87,35 @@ export function getChangedFiles(
 
 	return changed;
 }
+
+// ─── Pruning ─────────────────────────────────────────────────────────────
+
+/**
+ * Wiki-relative article paths the compiler may delete: `wiki/<...>.md`,
+ * no `..` segments, and never under the user-owned `wiki/raw/` notes dir.
+ */
+function isPrunableArticlePath(path: string): boolean {
+	return (
+		path.startsWith("wiki/") &&
+		path.endsWith(".md") &&
+		!path.startsWith("wiki/raw/") &&
+		!path.split("/").includes("..")
+	);
+}
+
+/**
+ * Articles a previous compile produced that the current compile did not.
+ * These belong to deleted or renamed sources and must be removed so the
+ * wiki stops serving them to search, query and context (#377).
+ */
+export function findStaleArticlePaths(
+	previousPaths: Iterable<string>,
+	currentPaths: Iterable<string>,
+): string[] {
+	const current = new Set(currentPaths);
+	const stale = new Set<string>();
+	for (const path of previousPaths) {
+		if (!current.has(path) && isPrunableArticlePath(path)) stale.add(path);
+	}
+	return [...stale].sort();
+}

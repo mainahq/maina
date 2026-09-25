@@ -10,7 +10,7 @@
  * 6. Generate wikilinks via linker
  * 7. Generate index.md via indexer
  * 8. Save state
- * 9. Write all articles to disk
+ * 9. Write all articles to disk, pruning articles the compile no longer produces
  */
 
 import {
@@ -18,6 +18,7 @@ import {
 	mkdirSync,
 	readdirSync,
 	readFileSync,
+	rmSync,
 	statSync,
 	writeFileSync,
 } from "node:fs";
@@ -37,6 +38,7 @@ import { generateLinks } from "./linker";
 import { generateGraphReport, generateGraphReportJson } from "./report";
 import {
 	createEmptyState,
+	findStaleArticlePaths,
 	hashContent,
 	hashFile,
 	loadState,
@@ -102,6 +104,55 @@ export interface CompileOptions {
 
 /** Hard cap for sample-mode source files. */
 const SAMPLE_FILE_LIMIT = 20;
+
+/** Wiki subdirectories whose articles are fully owned by the compiler. */
+const COMPILER_OWNED_DIRS = [
+	"modules",
+	"entities",
+	"features",
+	"decisions",
+	"architecture",
+] as const;
+
+/** List `.md` articles currently on disk in the compiler-owned subdirs. */
+function listCompilerOwnedArticles(wikiDir: string): string[] {
+	const paths: string[] = [];
+	for (const sub of COMPILER_OWNED_DIRS) {
+		const dir = join(wikiDir, sub);
+		if (!existsSync(dir)) continue;
+		for (const name of readdirSync(dir)) {
+			if (name.endsWith(".md")) paths.push(`wiki/${sub}/${name}`);
+		}
+	}
+	return paths;
+}
+
+/**
+ * Delete articles a previous compile wrote that this compile did not
+ * produce (#377). Candidates come from the previous state's article hashes
+ * plus whatever sits in the compiler-owned subdirs, so orphans are cleaned
+ * even when `.state.json` was lost.
+ */
+function pruneStaleArticles(
+	wikiDir: string,
+	previous: WikiState | null,
+	producedPaths: readonly string[],
+): void {
+	const stale = findStaleArticlePaths(
+		[
+			...Object.keys(previous?.articleHashes ?? {}),
+			...listCompilerOwnedArticles(wikiDir),
+		],
+		producedPaths,
+	);
+	for (const path of stale) {
+		try {
+			rmSync(join(wikiDir, path.replace(/^wiki\//, "")), { force: true });
+		} catch {
+			// Best effort — a file we cannot remove stays until the next compile.
+		}
+	}
+}
 
 // ─── AI Enhancement ─────────────────────────────────────────────────────
 
@@ -1385,6 +1436,20 @@ export async function compile(
 			}
 		}
 
+		// ── Step 9a: Prune articles for deleted sources (#377) ─────────
+		// A sampled compile only sees a slice of the repo, and a failed code
+		// extraction sees no entities at all — neither article set is
+		// authoritative, so skip pruning rather than delete real pages.
+		const previousState = loadState(wikiDir);
+		const canPrune = !sampleTruncated && entityResult.ok;
+		if (!dryRun && canPrune) {
+			pruneStaleArticles(
+				wikiDir,
+				previousState,
+				articles.map((a) => a.path),
+			);
+		}
+
 		// ── Step 9b: Build and save search index ───────────────────────
 		if (!dryRun) {
 			try {
@@ -1417,10 +1482,13 @@ export async function compile(
 		}
 
 		// ── Step 10: Save state ────────────────────────────────────────
-		const state = loadState(wikiDir) ?? createEmptyState();
+		const state = previousState ?? createEmptyState();
 		state.lastFullCompile = new Date().toISOString();
 		state.lastIncrementalCompile = new Date().toISOString();
 
+		// An authoritative compile replaces the article hashes outright so
+		// entries for pruned articles do not linger (#377).
+		if (canPrune) state.articleHashes = {};
 		for (const article of articles) {
 			state.articleHashes[article.path] = article.contentHash;
 		}

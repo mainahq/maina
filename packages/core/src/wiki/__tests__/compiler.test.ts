@@ -402,6 +402,108 @@ describe("Wiki Compiler", () => {
 		});
 	});
 
+	// ── Pruning deleted sources (#377) ───────────────────────────────────
+
+	describe("pruning articles for deleted source files", () => {
+		function readIndex(): string {
+			return readFileSync(join(wikiDir, "index.md"), "utf-8");
+		}
+		function readStateJson(): {
+			fileHashes: Record<string, string>;
+			articleHashes: Record<string, string>;
+		} {
+			return JSON.parse(readFileSync(join(wikiDir, ".state.json"), "utf-8"));
+		}
+
+		it("removes the entity page, index line and state hashes of a deleted source file", async () => {
+			const first = await compile(makeOptions());
+			expect(first.ok).toBe(true);
+			if (!first.ok) return;
+
+			// Pick an entity page the first compile produced and find the
+			// source file that defines it.
+			const entityArticle = first.value.articles.find(
+				(a) => a.type === "entity",
+			);
+			expect(entityArticle).toBeDefined();
+			if (!entityArticle) return;
+			const name = entityArticle.title;
+			const fileMatch = entityArticle.content.match(
+				/- \*\*File:\*\* `([^`]+)`/,
+			);
+			expect(fileMatch).not.toBeNull();
+			const sourceRel = fileMatch?.[1] ?? "";
+			const articleRel = entityArticle.path; // wiki/entities/<name>.md
+			const entityPath = join(wikiDir, articleRel.replace(/^wiki\//, ""));
+
+			expect(existsSync(entityPath)).toBe(true);
+			expect(readIndex()).toContain(`entities/${name}`);
+			expect(readStateJson().articleHashes[articleRel]).toBeDefined();
+			expect(readStateJson().fileHashes[sourceRel]).toBeDefined();
+
+			// Delete the defining source file, then recompile.
+			rmSync(join(repoRoot, sourceRel));
+
+			const second = await compile(makeOptions());
+			expect(second.ok).toBe(true);
+			if (!second.ok) return;
+
+			expect(existsSync(entityPath)).toBe(false);
+			expect(readIndex()).not.toContain(`entities/${name}`);
+			const state = readStateJson();
+			expect(state.articleHashes[articleRel]).toBeUndefined();
+			expect(state.fileHashes[sourceRel]).toBeUndefined();
+			// The returned state matches what was persisted.
+			expect(second.value.state.articleHashes[articleRel]).toBeUndefined();
+		});
+
+		it("removes orphan compiler-owned articles even when state is missing", async () => {
+			const orphan = join(wikiDir, "entities", "ghostEntity.md");
+			mkdirSync(join(wikiDir, "entities"), { recursive: true });
+			writeFileSync(orphan, "# Entity: ghostEntity\n");
+
+			const result = await compile(makeOptions());
+			expect(result.ok).toBe(true);
+			expect(existsSync(orphan)).toBe(false);
+		});
+
+		it("never deletes user-owned raw/ notes", async () => {
+			const rawNote = join(wikiDir, "raw", "query-1.md");
+			mkdirSync(join(wikiDir, "raw"), { recursive: true });
+			writeFileSync(rawNote, "# Query: keep me\n");
+
+			const result = await compile(makeOptions());
+			expect(result.ok).toBe(true);
+			expect(existsSync(rawNote)).toBe(true);
+		});
+
+		it("does not touch disk on a dry run", async () => {
+			const orphan = join(wikiDir, "entities", "ghostEntity.md");
+			mkdirSync(join(wikiDir, "entities"), { recursive: true });
+			writeFileSync(orphan, "# Entity: ghostEntity\n");
+
+			const result = await compile(makeOptions({ dryRun: true }));
+			expect(result.ok).toBe(true);
+			expect(existsSync(orphan)).toBe(true);
+		});
+
+		it("skips pruning when sample mode truncated the source set", async () => {
+			const keep = join(wikiDir, "entities", "fromFullCompile.md");
+			mkdirSync(join(wikiDir, "entities"), { recursive: true });
+			writeFileSync(keep, "# Entity: fromFullCompile\n");
+			for (let i = 0; i < 25; i++) {
+				writeFileSync(
+					join(repoRoot, "src", `f${i}.ts`),
+					`export function fn${i}(): number {\n  return ${i};\n}\n`,
+				);
+			}
+
+			const result = await compile(makeOptions({ sample: true }));
+			expect(result.ok).toBe(true);
+			expect(existsSync(keep)).toBe(true);
+		});
+	});
+
 	// ── Tiny single-file repo fallback (#207) ────────────────────────────
 
 	describe("tiny single-file repo (GitHub Action shape)", () => {
