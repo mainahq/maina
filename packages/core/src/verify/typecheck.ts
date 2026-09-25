@@ -20,7 +20,7 @@ export interface TypecheckResult {
 	skipped: boolean;
 }
 
-export interface TypecheckCommand {
+interface TypecheckCommand {
 	tool: string;
 	command: string;
 	args: string[];

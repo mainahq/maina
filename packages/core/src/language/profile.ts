@@ -136,7 +136,7 @@ export const JAVA_PROFILE: LanguageProfile = {
 	fileGlobs: ["*.java", "*.kt"],
 };
 
-export const PHP_PROFILE: LanguageProfile = {
+const PHP_PROFILE: LanguageProfile = {
 	id: "php",
 	displayName: "PHP",
 	extensions: [".php"],

@@ -8,7 +8,7 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface TicketActionOptions {
+interface TicketActionOptions {
 	title?: string;
 	body?: string;
 	label?: string[];
@@ -17,7 +17,7 @@ export interface TicketActionOptions {
 	repo?: string; // Cross-repo: "owner/name" or alias from constitution
 }
 
-export interface TicketActionResult {
+interface TicketActionResult {
 	created: boolean;
 	reason?: string;
 	url?: string;

@@ -11,7 +11,6 @@ import {
 	existsSync,
 	mkdirSync,
 	readdirSync,
-	readFileSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -19,9 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentKind, SetupAIResult, StackContext } from "@mainahq/core";
 import {
-	buildClaudeSettingsJson,
 	detectEnvironment,
-	ensureClaudeSettings,
 	resolveCiMode,
 	type SetupActionDeps,
 	type SetupActionOptions,
@@ -163,12 +160,9 @@ afterEach(() => {
 	else process.env.CI = originalCiEnv;
 });
 
-// ── Backward-compat helpers ─────────────────────────────────────────────────
-//
-// These were exported by the previous setup.ts. Keep coverage so any caller
-// still relying on them does not silently regress.
+// ── Environment detection ───────────────────────────────────────────────────
 
-describe("detectEnvironment (legacy helper)", () => {
+describe("detectEnvironment", () => {
 	test("returns claude-code when CLAUDE_CODE is set", () => {
 		const original = process.env.CLAUDE_CODE;
 		process.env.CLAUDE_CODE = "1";
@@ -178,22 +172,6 @@ describe("detectEnvironment (legacy helper)", () => {
 			if (original === undefined) delete process.env.CLAUDE_CODE;
 			else process.env.CLAUDE_CODE = original;
 		}
-	});
-});
-
-describe("ensureClaudeSettings (legacy helper)", () => {
-	test("creates .claude/settings.json when missing", () => {
-		makeGitRepo(tmpDir);
-		expect(ensureClaudeSettings(tmpDir)).toBe(true);
-		const content = JSON.parse(
-			readFileSync(join(tmpDir, ".claude", "settings.json"), "utf-8"),
-		);
-		expect(content.mcpServers.maina.command).toBe("npx");
-	});
-
-	test("buildClaudeSettingsJson produces valid JSON", () => {
-		const json = JSON.parse(buildClaudeSettingsJson());
-		expect(json.mcpServers.maina).toBeDefined();
 	});
 });
 

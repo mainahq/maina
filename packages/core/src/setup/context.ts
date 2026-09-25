@@ -10,7 +10,7 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { extname, join, relative } from "node:path";
+import { extname, join } from "node:path";
 import type { Result } from "../db/index";
 import { detectFileLanguage, detectLanguages } from "../language/detect";
 import { detectExistingRuleFiles as _detectExistingRuleFiles } from "./adopt";
@@ -666,14 +666,3 @@ export async function summarizeRepo(
 	}
 	return out;
 }
-
-// Re-export for convenience — callers can compute a path relative to cwd
-// without importing node:path separately.
-/**
- * Re-export from `adopt.ts` so existing callers importing from
- * `setup/context` can discover rule files without a second import.
- */
-export {
-	_detectExistingRuleFiles as detectExistingRuleFiles,
-	relative as relativePath,
-};

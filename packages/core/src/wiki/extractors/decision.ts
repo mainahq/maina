@@ -206,6 +206,8 @@ export function extractDecisions(adrDir: string): Result<ExtractedDecision[]> {
 
 	for (const entry of entries) {
 		if (!entry.endsWith(".md")) continue;
+		// `adr/README.md` is the index of decisions, not a decision.
+		if (entry.toLowerCase() === "readme.md") continue;
 
 		const result = extractSingleDecision(join(adrDir, entry));
 		if (result.ok) {

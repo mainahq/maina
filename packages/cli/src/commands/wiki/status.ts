@@ -16,7 +16,7 @@ import { EXIT_PASSED, outputJson } from "../../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface WikiProgress {
+interface WikiProgress {
 	startedAt: string;
 	percent: number;
 	etaSeconds: number;
@@ -29,7 +29,7 @@ export interface WikiProgress {
 	stale: boolean;
 }
 
-export interface WikiStatusResult {
+interface WikiStatusResult {
 	initialized: boolean;
 	articlesByType: Record<string, number>;
 	totalArticles: number;
@@ -39,7 +39,7 @@ export interface WikiStatusResult {
 	progress: WikiProgress | null;
 }
 
-export interface WikiStatusOptions {
+interface WikiStatusOptions {
 	json?: boolean;
 	cwd?: string;
 }

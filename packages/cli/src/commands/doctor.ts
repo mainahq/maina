@@ -21,9 +21,9 @@ import { EXIT_PASSED, outputJson } from "../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type DoctorExecFn = (cmd: string) => Promise<{ exitCode: number }>;
+type DoctorExecFn = (cmd: string) => Promise<{ exitCode: number }>;
 
-export interface DoctorActionOptions {
+interface DoctorActionOptions {
 	cwd?: string;
 	json?: boolean;
 	fix?: boolean;
@@ -34,13 +34,13 @@ export interface DoctorActionOptions {
 	home?: string;
 }
 
-export interface EngineHealth {
+interface EngineHealth {
 	context: string;
 	prompt: string;
 	verify: string;
 }
 
-export interface AIStatus {
+interface AIStatus {
 	apiKey: boolean;
 	hostMode: boolean;
 	feedbackTotal: number;
@@ -49,7 +49,7 @@ export interface AIStatus {
 	cacheHitRate: number;
 }
 
-export interface WikiHealth {
+interface WikiHealth {
 	initialized: boolean;
 	totalArticles: number;
 	staleCount: number;
@@ -57,9 +57,9 @@ export interface WikiHealth {
 	lastCompile: string;
 }
 
-export type McpScope = "project" | "global" | "both" | "missing";
+type McpScope = "project" | "global" | "both" | "missing";
 
-export interface McpIntegration {
+interface McpIntegration {
 	client: McpClientId;
 	label: string;
 	scope: McpScope;
@@ -69,7 +69,7 @@ export interface McpIntegration {
 	fix?: string;
 }
 
-export interface McpHealth {
+interface McpHealth {
 	mcpJson: boolean;
 	claudeSettings: boolean;
 	serverCommand: string;
@@ -77,7 +77,7 @@ export interface McpHealth {
 	integrations: McpIntegration[];
 }
 
-export interface DoctorActionResult {
+interface DoctorActionResult {
 	version: string;
 	tools: DetectedTool[];
 	engines: EngineHealth;

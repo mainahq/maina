@@ -20,7 +20,7 @@ export interface WikiSchema {
 	articleRules: Record<ArticleType, ArticleRule>;
 }
 
-export interface ValidationResult {
+interface ValidationResult {
 	valid: boolean;
 	issues: string[];
 }

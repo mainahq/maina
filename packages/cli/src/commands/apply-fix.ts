@@ -15,7 +15,7 @@ import {
 	outputJson,
 } from "../json";
 
-export interface ApplyFixActionOptions {
+interface ApplyFixActionOptions {
 	dryRun?: boolean;
 	cwd?: string;
 	json?: boolean;
@@ -23,7 +23,7 @@ export interface ApplyFixActionOptions {
 	receiptDir?: string;
 }
 
-export interface ApplyFixActionResult {
+interface ApplyFixActionResult {
 	ok: boolean;
 	commitMessage?: string;
 	touchedFiles?: string[];
@@ -34,7 +34,7 @@ const MAINA_DIR = ".maina";
 const RECEIPTS_SUBDIR = "receipts";
 const DEFAULT_BASE_BRANCH = "master";
 
-export async function applyFixAction(
+async function applyFixAction(
 	hash: string,
 	checkId: string,
 	options: ApplyFixActionOptions = {},

@@ -21,7 +21,6 @@ The verification pipeline runs a multi-stage process to prove AI-generated code 
 - **detect** — Language and tool detection
 - **diff-filter** — Diff-only filter — only report findings on changed lines
 - **fix** — AI-powered automatic fix suggestions
-- **lighthouse** — Lighthouse performance audits
 - **mutation** — Mutation testing via Stryker
 - **pipeline** — Verification pipeline orchestrator
 - **proof** — Verification proof generation for PR bodies
@@ -34,7 +33,6 @@ The verification pipeline runs a multi-stage process to prove AI-generated code 
 - **typecheck** — TypeScript type checking
 - **types** — `verify/types.ts`
 - **visual** — Visual verification with Playwright
-- **zap** — OWASP ZAP security scanning
 
 ## Language-Specific Linters
 

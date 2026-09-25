@@ -1,7 +1,7 @@
 /**
  * CLI crash reporter — fire-and-forget anonymous telemetry for CLI errors.
  *
- * Consent model is opt-OUT, mirroring the `cloud-reporter` posture.
+ * Consent model is opt-OUT.
  * User can opt out in three ways (any one suffices):
  *   - `~/.maina/telemetry.json` with `{ "optOut": true }`
  *   - `MAINA_TELEMETRY=0`

@@ -12,7 +12,7 @@ export type MainaCommand =
 	| "analyze"
 	| "pr";
 
-export interface ContextNeeds {
+interface ContextNeeds {
 	working: boolean;
 	episodic: boolean | string[];
 	semantic: boolean | string[];

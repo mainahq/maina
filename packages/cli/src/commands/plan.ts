@@ -29,7 +29,7 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface PlanActionOptions {
+interface PlanActionOptions {
 	name: string;
 	cwd?: string;
 	noVerify?: boolean;
@@ -38,7 +38,7 @@ export interface PlanActionOptions {
 	designChoices?: DesignChoices;
 }
 
-export interface PlanActionResult {
+interface PlanActionResult {
 	created: boolean;
 	reason?: string;
 	featureNumber?: string;
@@ -49,7 +49,7 @@ export interface PlanActionResult {
 
 // ── Git Helpers ──────────────────────────────────────────────────────────────
 
-export async function gitCheckout(
+async function gitCheckout(
 	branch: string,
 	cwd: string,
 ): Promise<{ exitCode: number; stderr: string }> {
@@ -65,7 +65,7 @@ export async function gitCheckout(
 	return { exitCode, stderr };
 }
 
-export async function gitAdd(
+async function gitAdd(
 	files: string[],
 	cwd: string,
 ): Promise<{ exitCode: number }> {
@@ -79,7 +79,7 @@ export async function gitAdd(
 	return { exitCode };
 }
 
-export async function gitCommit(
+async function gitCommit(
 	message: string,
 	cwd: string,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
@@ -153,7 +153,7 @@ const ARCHITECTURE_PATTERNS = [
  * Collect design choices interactively from the user.
  * Returns DesignChoices with all user decisions.
  */
-export async function collectDesignChoices(
+async function collectDesignChoices(
 	featureName: string,
 ): Promise<DesignChoices | null> {
 	// 1. Feature description

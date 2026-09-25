@@ -16,7 +16,7 @@ import type { Finding } from "../diff-filter";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
-export interface WikiLintOptions {
+interface WikiLintOptions {
 	wikiDir: string;
 	repoRoot: string;
 	featuresDir?: string;

@@ -7,5 +7,5 @@
 - **Kind:** variable
 - **File:** `packages/core/src/language/profile.ts`
 - **Line:** 139
-- **Exported:** yes
+- **Exported:** no
 - **PageRank:** 0.0011

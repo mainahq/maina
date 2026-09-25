@@ -11,13 +11,13 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface SlopActionOptions {
+interface SlopActionOptions {
 	all?: boolean;
 	json?: boolean;
 	cwd?: string;
 }
 
-export interface SlopActionResult {
+interface SlopActionResult {
 	findingsCount: number;
 	findings: Finding[];
 	json?: string;
@@ -40,7 +40,7 @@ function formatFindings(findings: Finding[]): string {
 
 // ── Core Action (testable) ──────────────────────────────────────────────────
 
-export async function slopAction(
+async function slopAction(
 	options: SlopActionOptions,
 ): Promise<SlopActionResult> {
 	const cwd = options.cwd ?? process.cwd();

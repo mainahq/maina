@@ -637,13 +637,6 @@ export {
 	isIgnored,
 	loadMainaIgnore,
 } from "./verify/ignore";
-// Verify — Lighthouse
-export {
-	type LighthouseOptions,
-	type LighthouseResult,
-	parseLighthouseJson,
-	runLighthouse,
-} from "./verify/lighthouse";
 // Verify — Mutation
 export {
 	type MutationOptions,
@@ -710,13 +703,6 @@ export {
 	type VisualDiffResult,
 	type VisualVerifyResult,
 } from "./verify/visual";
-// Verify — ZAP DAST
-export {
-	parseZapJson,
-	runZap,
-	type ZapOptions,
-	type ZapResult,
-} from "./verify/zap";
 // Wiki — Community detection (Leiden by default, Louvain opt-in via option)
 export {
 	type CommunitiesResult,

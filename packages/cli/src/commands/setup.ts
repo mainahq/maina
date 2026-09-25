@@ -75,11 +75,10 @@ const CLI_VERSION = (packageJson as { version?: string }).version ?? "0.0.0";
 // ── Types ────────────────────────────────────────────────────────────────────
 
 /**
- * Kept for backward compatibility with prior callers that depend on this
- * union — the new wizard does not branch on environment, but other modules
- * (and existing tests) import the type from this module.
+ * Host agent detected from the environment. Reported in `SetupResult`; the
+ * wizard itself does not branch on it.
  */
-export type AgentEnvironment =
+type AgentEnvironment =
 	| "claude-code"
 	| "cursor"
 	| "windsurf"
@@ -100,7 +99,7 @@ export interface VerifyFinding {
 	message: string;
 }
 
-export interface SetupResult {
+interface SetupResult {
 	mode: SetupMode;
 	environment: AgentEnvironment;
 	stack: StackContext;
@@ -226,20 +225,7 @@ const NOOP_LOGGER: SetupLogger = {
 
 const NOOP_SPINNER = (): SpinnerLike => ({ start: () => {}, stop: () => {} });
 
-// biome-ignore lint/correctness/noUnusedVariables: kept for public-API parity with previous setup wizard callers.
-const _defaultDeps: SetupActionDeps = {
-	intro,
-	outro,
-	log,
-	spinner,
-};
-
-// ── Backward-compat exports ──────────────────────────────────────────────────
-//
-// The previous setup.ts exported these helpers and earlier tests/imports
-// reference them. They are no longer part of the wizard pipeline (Claude
-// settings file lives elsewhere now / will be rebuilt by sub-task 9), but
-// keeping them avoids breaking unrelated callers in this PR.
+// ── Environment detection ────────────────────────────────────────────────────
 
 export function detectEnvironment(): AgentEnvironment {
 	const env = process.env;
@@ -251,49 +237,6 @@ export function detectEnvironment(): AgentEnvironment {
 	if (Object.keys(env).some((k) => k.startsWith("AWS_"))) return "amazon-q";
 	if (Object.keys(env).some((k) => k.startsWith("AIDER_"))) return "aider";
 	return "generic";
-}
-
-export function buildClaudeSettingsJson(): string {
-	return JSON.stringify(
-		{
-			mcpServers: {
-				maina: {
-					command: "npx",
-					args: ["@mainahq/cli", "--mcp"],
-				},
-			},
-		},
-		null,
-		2,
-	);
-}
-
-export function ensureClaudeSettings(cwd: string): boolean {
-	const claudeDir = join(cwd, ".claude");
-	const settingsPath = join(claudeDir, "settings.json");
-
-	if (existsSync(settingsPath)) {
-		try {
-			const existing = JSON.parse(readFileSync(settingsPath, "utf-8"));
-			if (existing?.mcpServers?.maina) {
-				return false;
-			}
-			existing.mcpServers = existing.mcpServers ?? {};
-			existing.mcpServers.maina = {
-				command: "npx",
-				args: ["@mainahq/cli", "--mcp"],
-			};
-			writeFileSync(settingsPath, JSON.stringify(existing, null, 2), "utf-8");
-			return true;
-		} catch {
-			writeFileSync(settingsPath, buildClaudeSettingsJson(), "utf-8");
-			return true;
-		}
-	}
-
-	mkdirSync(claudeDir, { recursive: true });
-	writeFileSync(settingsPath, buildClaudeSettingsJson(), "utf-8");
-	return true;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

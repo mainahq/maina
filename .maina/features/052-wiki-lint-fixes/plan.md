@@ -68,4 +68,4 @@ TDD: tests before impl.
 
 - 0019-no-fern-no-sdk — "requires biome" keyword — the rule this PR makes more accurate.
 - 0012-v050-cloud-client-maina-cloud — "requires result<" keyword — the rule this PR restricts to non-test files.
-- 0022-wiki-is-a-view — wiki is a view of the Context engine; coverage/staleness signals feed it.
+- 0034-wiki-is-a-view — wiki is a view of the Context engine; coverage/staleness signals feed it.

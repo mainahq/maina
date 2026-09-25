@@ -12,13 +12,13 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface BrainstormActionOptions {
+interface BrainstormActionOptions {
 	title?: string;
 	cwd?: string;
 	noInteractive?: boolean;
 }
 
-export interface BrainstormActionResult {
+interface BrainstormActionResult {
 	created: boolean;
 	issueUrl?: string;
 	title?: string;

@@ -1,10 +1,12 @@
-# 0026. Cloud error reporting with account linking
+# 0040. Cloud error reporting with account linking
 
 Date: 2026-04-17
 
 ## Status
 
 Accepted
+
+Implementation removed because nothing outside its own tests used it. See [ADR 0042](0042-delete-unwired-verify-runners-and-dead-modules.md).
 
 ## Context
 

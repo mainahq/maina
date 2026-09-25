@@ -5,7 +5,7 @@ import { calculateTokens, type LayerContent } from "./budget";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface WikiContextOptions {
+interface WikiContextOptions {
 	wikiDir: string;
 	workingFiles?: string[]; // from L1 — find their wiki articles
 	command?: string; // current command — determines which articles to load

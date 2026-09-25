@@ -9,6 +9,7 @@ import {
 } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { PrDeps } from "../pr";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -39,7 +40,7 @@ afterAll(() => {
 // ── Import the module under test AFTER mocks ────────────────────────────────
 
 const { prAction } = await import("../pr");
-type PrDepsType = import("../pr").PrDeps;
+type PrDepsType = PrDeps;
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

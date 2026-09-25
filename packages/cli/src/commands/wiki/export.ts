@@ -43,7 +43,7 @@ type ExportActionResult =
 	| { ok: true; outcome: WikiExportOutcome }
 	| { ok: false; error: string };
 
-export async function wikiExportAction(
+async function wikiExportAction(
 	format: string,
 	options: { out?: string; cwd?: string; json?: boolean } = {},
 ): Promise<ExportActionResult> {

@@ -5,13 +5,13 @@ import { loadWorkflowContext } from "../workflow/context";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface VerificationResult {
+interface VerificationResult {
 	passed: boolean;
 	checks: { name: string; passed: boolean; output?: string }[];
 	timestamp: string;
 }
 
-export interface WorkingContext {
+interface WorkingContext {
 	branch: string;
 	planContent: string | null;
 	workflowContext: string | null;

@@ -17,7 +17,7 @@ export interface CandidatePrompt {
 	status: "candidate" | "active" | "retired";
 }
 
-export interface AbTestResult {
+interface AbTestResult {
 	variant: "active" | "candidate";
 	hash?: string;
 }

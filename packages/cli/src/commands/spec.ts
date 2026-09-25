@@ -17,7 +17,7 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface SpecActionOptions {
+interface SpecActionOptions {
 	featureDir?: string; // Explicit feature dir, or auto-detect from branch
 	output?: string; // Output file path (default: feature dir / spec-tests.ts)
 	cwd?: string;
@@ -25,7 +25,7 @@ export interface SpecActionOptions {
 	noInteractive?: boolean; // Skip clarifying questions phase
 }
 
-export interface SpecActionResult {
+interface SpecActionResult {
 	generated: boolean;
 	reason?: string;
 	outputPath?: string;

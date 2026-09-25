@@ -16,12 +16,12 @@ import { detectLauncher, type Launcher } from "./launcher";
 
 export const MAINA_MCP_KEY = "maina";
 
-export interface MainaMcpEntry {
+interface MainaMcpEntry {
 	command: string;
 	args: string[];
 }
 
-export interface BuildEntryOptions {
+interface BuildEntryOptions {
 	launcher?: Launcher;
 }
 
@@ -31,15 +31,4 @@ export function buildMainaEntry(opts: BuildEntryOptions = {}): MainaMcpEntry {
 		command: l.command,
 		args: [...l.args],
 	};
-}
-
-/**
- * Same shape as `buildMainaEntry()` but typed for serialisers that want
- * a plain `Record<string, unknown>` (e.g. the TOML emitter for Codex).
- */
-export function buildMainaTomlSection(
-	opts: BuildEntryOptions = {},
-): Record<string, unknown> {
-	const entry = buildMainaEntry(opts);
-	return { command: entry.command, args: entry.args };
 }

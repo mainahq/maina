@@ -7,5 +7,5 @@
 - **Kind:** function
 - **File:** `packages/core/src/context/retrieval.ts`
 - **Line:** 219
-- **Exported:** yes
+- **Exported:** no
 - **PageRank:** 0.0013

@@ -1,4 +1,4 @@
-# 0023. Lint-config and manifest parsers for constitution
+# 0037. DeepWiki-compatible MCP server
 
 Date: 2026-04-17
 

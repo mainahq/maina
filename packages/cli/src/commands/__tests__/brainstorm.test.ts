@@ -9,6 +9,7 @@ import {
 } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import type { BrainstormDeps } from "../brainstorm";
 
 // ── Mock State ───────────────────────────────────────────────────────────────
 
@@ -66,7 +67,7 @@ afterAll(() => {
 
 const { brainstormAction, generateIssueBody, generateMinimalIssueBody } =
 	await import("../brainstorm");
-type BrainstormDepsType = import("../brainstorm").BrainstormDeps;
+type BrainstormDepsType = BrainstormDeps;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

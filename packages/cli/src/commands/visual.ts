@@ -8,16 +8,16 @@ import {
 } from "@mainahq/core";
 import { Command } from "commander";
 
-export interface VisualActionOptions {
+interface VisualActionOptions {
 	cwd?: string;
 }
 
-export interface VisualActionResult {
+interface VisualActionResult {
 	updated: string[];
 	errors: string[];
 }
 
-export async function visualUpdateAction(
+async function visualUpdateAction(
 	options: VisualActionOptions,
 ): Promise<VisualActionResult> {
 	const cwd = options.cwd ?? process.cwd();

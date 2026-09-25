@@ -153,6 +153,22 @@ describe("Decision Extractor", () => {
 			expect(result.value).toHaveLength(1);
 		});
 
+		it("should skip an adr/README.md index", () => {
+			writeFileSync(
+				join(tmpDir, "README.md"),
+				"# Architecture Decision Records\n\n| # | Decision |\n|---|---|\n| [0001](0001-real.md) | Real |\n",
+			);
+			writeFileSync(
+				join(tmpDir, "0001-real.md"),
+				"# ADR-0001: Real\n\n## Status\nAccepted\n\n## Decision\nX.",
+			);
+
+			const result = extractDecisions(tmpDir);
+			expect(result.ok).toBe(true);
+			if (!result.ok) return;
+			expect(result.value.map((d) => d.id)).toEqual(["0001-real"]);
+		});
+
 		it("should return empty array for empty directory", () => {
 			const result = extractDecisions(tmpDir);
 			expect(result.ok).toBe(true);

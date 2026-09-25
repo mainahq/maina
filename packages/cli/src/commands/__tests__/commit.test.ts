@@ -9,6 +9,7 @@ import {
 } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import type { CommitDeps } from "../commit";
 
 // ── Mock State ───────────────────────────────────────────────────────────────
 
@@ -153,7 +154,7 @@ afterAll(() => {
 // ── Import the module under test AFTER mocks ─────────────────────────────────
 
 const { commitAction } = await import("../commit");
-type CommitDepsType = import("../commit").CommitDeps;
+type CommitDepsType = CommitDeps;
 
 // Mock git commit dependency
 const mockGitCommitFn = async (_msg: string, _cwd: string) => ({

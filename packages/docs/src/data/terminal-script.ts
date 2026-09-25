@@ -21,9 +21,9 @@
 
 import { INSTALL_PROMPT } from "./landing";
 
-export type FrameKind = "input" | "output" | "header" | "ok" | "warn" | "err";
+type FrameKind = "input" | "output" | "header" | "ok" | "warn" | "err";
 
-export interface Frame {
+interface Frame {
 	/** Seconds from animation start. Strictly increasing per array. */
 	t: number;
 	kind: FrameKind;

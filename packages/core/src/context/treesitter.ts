@@ -1,22 +1,22 @@
-export interface ParsedEntity {
+interface ParsedEntity {
 	name: string;
 	kind: "function" | "class" | "interface" | "type" | "variable";
 	startLine: number;
 	endLine: number;
 }
 
-export interface ParsedImport {
+interface ParsedImport {
 	source: string;
 	specifiers: string[];
 	isDefault: boolean;
 }
 
-export interface ParsedExport {
+interface ParsedExport {
 	name: string;
 	kind: string;
 }
 
-export interface ParseResult {
+interface ParseResult {
 	imports: ParsedImport[];
 	exports: ParsedExport[];
 	entities: ParsedEntity[];

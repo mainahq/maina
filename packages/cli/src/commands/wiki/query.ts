@@ -14,13 +14,13 @@ import { EXIT_PASSED, outputJson } from "../../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface WikiQueryResult {
+interface WikiQueryResult {
 	answer: string;
 	sources: string[];
 	cached: boolean;
 }
 
-export interface WikiQueryOptions {
+interface WikiQueryOptions {
 	save?: boolean;
 	json?: boolean;
 	cwd?: string;

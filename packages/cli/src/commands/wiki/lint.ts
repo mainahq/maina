@@ -12,7 +12,7 @@ import { EXIT_FINDINGS, EXIT_PASSED, outputJson } from "../../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface WikiLintCommandResult {
+interface WikiLintCommandResult {
 	passed: boolean;
 	findings: Array<{
 		check: string;
@@ -24,14 +24,14 @@ export interface WikiLintCommandResult {
 	totalFindings: number;
 }
 
-export interface WikiLintCommandOptions {
+interface WikiLintCommandOptions {
 	json?: boolean;
 	cwd?: string;
 }
 
 // ── Core Action (testable) ──────────────────────────────────────────────────
 
-export async function wikiLintAction(
+async function wikiLintAction(
 	options: WikiLintCommandOptions = {},
 ): Promise<WikiLintCommandResult> {
 	const cwd = options.cwd ?? process.cwd();

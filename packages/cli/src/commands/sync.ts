@@ -50,13 +50,13 @@ function loadLocalPrompts(promptsDir: string): PromptRecord[] {
 
 // ── Push Action ─────────────────────────────────────────────────────────────
 
-export interface SyncActionResult {
+interface SyncActionResult {
 	synced: boolean;
 	count: number;
 	reason?: string;
 }
 
-export async function syncPushAction(cwd?: string): Promise<SyncActionResult> {
+async function syncPushAction(cwd?: string): Promise<SyncActionResult> {
 	const root = cwd ?? process.cwd();
 	const promptsDir = join(root, ".maina", "prompts");
 

@@ -1,13 +1,13 @@
 import type { Result } from "../db/index";
 import type { BenchmarkMetrics } from "./types";
 
-export interface TestResult {
+interface TestResult {
 	passed: number;
 	failed: number;
 	total: number;
 }
 
-export interface RunBenchmarkOptions {
+interface RunBenchmarkOptions {
 	pipeline: "maina" | "speckit";
 	storyName: string;
 	testFiles: string[];

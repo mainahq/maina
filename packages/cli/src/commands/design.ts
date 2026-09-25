@@ -24,7 +24,7 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface DesignActionOptions {
+interface DesignActionOptions {
 	title?: string;
 	list?: boolean;
 	cwd?: string;
@@ -32,7 +32,7 @@ export interface DesignActionOptions {
 	hld?: boolean;
 }
 
-export interface DesignActionResult {
+interface DesignActionResult {
 	created: boolean;
 	listed?: boolean;
 	reason?: string;

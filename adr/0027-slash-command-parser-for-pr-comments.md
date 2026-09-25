@@ -6,6 +6,8 @@ Date: 2026-04-17
 
 Accepted
 
+Implementation removed because nothing outside its own tests used it. See [ADR 0042](0042-delete-unwired-verify-runners-and-dead-modules.md).
+
 ## Context
 
 Users want to interact with Maina from PR comments (`/maina retry`, `/maina explain`, `/maina approve`). The parser needs to be a pure function in core — the webhook handler in maina-cloud delegates to it.

@@ -1,4 +1,4 @@
-# 0024. DeepWiki-compatible MCP server
+# 0038. Opt-in usage telemetry
 
 Date: 2026-04-17
 

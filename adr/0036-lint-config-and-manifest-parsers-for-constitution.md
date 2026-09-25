@@ -1,10 +1,12 @@
-# 0023. PII and code-content scrubbing library
+# 0036. Lint-config and manifest parsers for constitution
 
 Date: 2026-04-17
 
 ## Status
 
 Proposed
+
+Implementation removed because nothing outside its own tests used it. See [ADR 0042](0042-delete-unwired-verify-runners-and-dead-modules.md).
 
 ## Context
 

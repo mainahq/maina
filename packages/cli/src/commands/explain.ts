@@ -11,14 +11,14 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface ExplainActionOptions {
+interface ExplainActionOptions {
 	scope?: string;
 	output?: string;
 	save?: boolean;
 	cwd?: string;
 }
 
-export interface ExplainActionResult {
+interface ExplainActionResult {
 	displayed: boolean;
 	reason?: string;
 	diagram?: string;

@@ -115,8 +115,8 @@ TDD: every implementation task has a preceding test task.
 
 ### Related Decisions
 
-- 0023-lint-config-and-manifest-parsers-for-constitution [proposed] — directly applicable to the `scan/lint-config.ts` rule table.
-- 0025-tree-sitter-pattern-sampler-for-constitution [accepted] — this PR ships a regex-based stand-in; tree-sitter upgrade deferred.
+- 0036-lint-config-and-manifest-parsers-for-constitution [proposed] — directly applicable to the `scan/lint-config.ts` rule table.
+- 0039-tree-sitter-pattern-sampler-for-constitution [accepted] — this PR ships a regex-based stand-in; tree-sitter upgrade deferred.
 - 0021-glob-scoped-constitution-rules [proposed] — out of scope here.
 - 0026-interview-gap-filler-for-constitution [accepted] — compatible; this PR doesn't change the interview flow.
 

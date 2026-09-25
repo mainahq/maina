@@ -6,6 +6,8 @@ Date: 2026-04-17
 
 Accepted
 
+Implementation removed because nothing outside its own tests used it. See [ADR 0042](0042-delete-unwired-verify-runners-and-dead-modules.md).
+
 ## Context
 
 Maina's verify-action posts inline review comments on findings. But there's no GitHub Check Run — teams can't use "required status checks" to gate merges, and there's no pass/fail summary in the PR status box.

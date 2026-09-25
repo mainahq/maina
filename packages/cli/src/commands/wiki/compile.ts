@@ -19,7 +19,7 @@ import { EXIT_PASSED, outputJson } from "../../json";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface CompilationResult {
+interface CompilationResult {
 	articlesTotal: number;
 	modules: number;
 	entities: number;
@@ -31,7 +31,7 @@ export interface CompilationResult {
 	dryRun: boolean;
 }
 
-export interface WikiCompileOptions {
+interface WikiCompileOptions {
 	full?: boolean;
 	dryRun?: boolean;
 	ai?: boolean;

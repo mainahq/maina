@@ -1,4 +1,4 @@
-# 0022. Wiki is a view of the Context engine
+# 0034. Wiki is a view of the Context engine
 
 Date: 2026-04-17
 

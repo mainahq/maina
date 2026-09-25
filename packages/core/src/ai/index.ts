@@ -10,7 +10,7 @@ import {
 import { resolveModel } from "./tiers";
 import { validateAIOutput } from "./validate";
 
-export interface GenerateOptions {
+interface GenerateOptions {
 	task: string;
 	systemPrompt: string;
 	userPrompt: string;
@@ -18,7 +18,7 @@ export interface GenerateOptions {
 	mainaDir?: string; // for cache storage
 }
 
-export interface GenerateResult {
+interface GenerateResult {
 	text: string;
 	cached: boolean;
 	model: string;
@@ -36,7 +36,7 @@ interface StoredResult {
  * Performs the actual AI SDK call. Isolated here so tests never need to invoke it.
  * Returns null on any error so callers can handle gracefully.
  */
-export async function callModel(
+async function callModel(
 	modelId: string,
 	provider: string,
 	apiKey: string,

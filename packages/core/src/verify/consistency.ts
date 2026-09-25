@@ -18,7 +18,7 @@ import type { Finding } from "./diff-filter";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
-export interface ConsistencyRule {
+interface ConsistencyRule {
 	pattern: string;
 	source: "spec" | "heuristic";
 }

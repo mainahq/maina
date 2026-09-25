@@ -120,7 +120,7 @@ function emitListReport(entries: ListEntry[]): void {
 
 // ── Action interface (testable) ────────────────────────────────────────────
 
-export interface McpActionOptions {
+interface McpActionOptions {
 	command: "add" | "remove" | "list";
 	client?: string;
 	scope?: string;
@@ -131,7 +131,7 @@ export interface McpActionOptions {
 	home?: string;
 }
 
-export interface McpActionResult {
+interface McpActionResult {
 	command: "add" | "remove" | "list";
 	report?: RunReport;
 	list?: { entries: ListEntry[] };

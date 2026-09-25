@@ -148,7 +148,7 @@ export async function searchWithZoekt(
  * Search using ripgrep (rg). Uses --json format if available.
  * Respects .gitignore. Excludes node_modules, dist, .git.
  */
-export async function searchWithRipgrep(
+async function searchWithRipgrep(
 	query: string,
 	options: RetrievalOptions,
 ): Promise<SearchResult[]> {
@@ -216,7 +216,7 @@ export async function searchWithRipgrep(
  * Fallback search using grep.
  * Searches .ts, .js, .tsx, .jsx files. Excludes node_modules, dist, .git.
  */
-export async function searchWithGrep(
+async function searchWithGrep(
 	query: string,
 	options: RetrievalOptions,
 ): Promise<SearchResult[]> {

@@ -26,7 +26,7 @@ import { exitCodeFromResult, outputJson } from "../json.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface CommitActionOptions {
+interface CommitActionOptions {
 	message?: string;
 	skip?: boolean;
 	noVerify?: boolean;
@@ -35,7 +35,7 @@ export interface CommitActionOptions {
 	cwd?: string;
 }
 
-export interface CommitActionResult {
+interface CommitActionResult {
 	committed: boolean;
 	reason?: string;
 	sha?: string;
@@ -127,7 +127,7 @@ function findFeatureScopeFromBranch(
  * Execute `git commit -m <message>` via Bun.spawn.
  * Extracted for testability.
  */
-export async function gitCommit(
+async function gitCommit(
 	message: string,
 	cwd: string,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {

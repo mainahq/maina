@@ -18,7 +18,7 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface StatsActionOptions {
+interface StatsActionOptions {
 	json?: boolean;
 	last?: number;
 	compare?: boolean;
@@ -26,18 +26,18 @@ export interface StatsActionOptions {
 	cwd?: string;
 }
 
-export interface SpecScore {
+interface SpecScore {
 	feature: string;
 	score: QualityScore;
 }
 
-export interface SpecsResult {
+interface SpecsResult {
 	scores: SpecScore[];
 	average: number;
 	skipRate?: { total: number; skipped: number; rate: number };
 }
 
-export interface WikiMetrics {
+interface WikiMetrics {
 	totalArticles: number;
 	modules: number;
 	entities: number;
@@ -48,7 +48,7 @@ export interface WikiMetrics {
 	compilationTimeMs: number;
 }
 
-export interface StatsActionResult {
+interface StatsActionResult {
 	displayed: boolean;
 	reason?: string;
 	stats?: StatsReport;

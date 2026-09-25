@@ -10,7 +10,7 @@ import { join } from "node:path";
 import type { Finding } from "../diff-filter";
 import { runWikiLint, wikiLintToFindings } from "./wiki-lint";
 
-export interface WikiLintRunnerOptions {
+interface WikiLintRunnerOptions {
 	cwd: string;
 	mainaDir?: string;
 }

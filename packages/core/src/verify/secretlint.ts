@@ -11,7 +11,7 @@ import type { Finding } from "./diff-filter";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
-export interface SecretlintOptions {
+interface SecretlintOptions {
 	files?: string[];
 	cwd?: string;
 	/** Pre-resolved availability — skips redundant detection if provided. */

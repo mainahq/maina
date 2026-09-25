@@ -31,8 +31,6 @@ Parallel Deterministic Analysis
     |   AI Slop Detector
     |   typecheck (tsc --noEmit)
     |   consistency (AST cross-function check)
-    |   ZAP (DAST)
-    |   Lighthouse (perf/a11y/SEO)
     |
     v
 Diff-only Filter --------------- Only findings on changed lines
@@ -131,8 +129,6 @@ The same constitution surface controls every other verify tool, so the silencing
 | **typecheck** | `tsc --noEmit` type checking with zero extra installs | Built-in (TS projects) |
 | **consistency** | AST-based cross-function consistency check | Built-in |
 | **doc-claims** | Verifies `import` statements in changed `.md` / `.mdx` files reference symbols actually exported by the resolved package source | Built-in |
-| **ZAP** | Dynamic Application Security Testing (Docker-based) | Optional |
-| **Lighthouse** | Performance, accessibility, and SEO auditing | Optional |
 
 ## Commands
 

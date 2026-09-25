@@ -25,6 +25,9 @@ jobs:
       - name: Type check
         run: bun run typecheck
 
+      - name: Dead code (knip, zero findings)
+        run: bun run knip
+
       - name: Path hygiene (Wave 4 G13 regression guard)
         run: bun run check:paths
 

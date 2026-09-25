@@ -92,12 +92,6 @@ describe("TOOL_REGISTRY metadata", () => {
 		expect(TOOL_REGISTRY.playwright.tier).toBe("optional");
 	});
 
-	test("lighthouse is optional for typescript/javascript", () => {
-		expect(TOOL_REGISTRY.lighthouse.languages).toContain("typescript");
-		expect(TOOL_REGISTRY.lighthouse.languages).toContain("javascript");
-		expect(TOOL_REGISTRY.lighthouse.tier).toBe("optional");
-	});
-
 	test("sonarqube is universal and optional", () => {
 		expect(TOOL_REGISTRY.sonarqube.languages).toContain("*");
 		expect(TOOL_REGISTRY.sonarqube.tier).toBe("optional");
@@ -106,11 +100,6 @@ describe("TOOL_REGISTRY metadata", () => {
 	test("diff-cover is universal and optional", () => {
 		expect(TOOL_REGISTRY["diff-cover"].languages).toContain("*");
 		expect(TOOL_REGISTRY["diff-cover"].tier).toBe("optional");
-	});
-
-	test("zap is universal and optional", () => {
-		expect(TOOL_REGISTRY.zap.languages).toContain("*");
-		expect(TOOL_REGISTRY.zap.tier).toBe("optional");
 	});
 });
 
@@ -125,7 +114,6 @@ describe("getToolsForLanguages", () => {
 		expect(names).toContain("biome");
 		expect(names).toContain("stryker");
 		expect(names).toContain("playwright");
-		expect(names).toContain("lighthouse");
 
 		// Must include universal tools
 		expect(names).toContain("semgrep");
@@ -133,7 +121,6 @@ describe("getToolsForLanguages", () => {
 		expect(names).toContain("secretlint");
 		expect(names).toContain("sonarqube");
 		expect(names).toContain("diff-cover");
-		expect(names).toContain("zap");
 
 		// Must NOT include language-specific tools for other languages
 		expect(names).not.toContain("ruff");

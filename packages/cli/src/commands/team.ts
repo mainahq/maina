@@ -14,12 +14,12 @@ const DEFAULT_CLOUD_URL =
 
 // ── Team Info Action ────────────────────────────────────────────────────────
 
-export interface TeamActionResult {
+interface TeamActionResult {
 	displayed: boolean;
 	reason?: string;
 }
 
-export async function teamAction(): Promise<TeamActionResult> {
+async function teamAction(): Promise<TeamActionResult> {
 	const authResult = loadAuthConfig();
 	if (!authResult.ok) {
 		return { displayed: false, reason: authResult.error };
@@ -61,12 +61,12 @@ export async function teamAction(): Promise<TeamActionResult> {
 
 // ── Invite Action ───────────────────────────────────────────────────────────
 
-export interface InviteActionResult {
+interface InviteActionResult {
 	invited: boolean;
 	reason?: string;
 }
 
-export async function inviteAction(email: string): Promise<InviteActionResult> {
+async function inviteAction(email: string): Promise<InviteActionResult> {
 	const authResult = loadAuthConfig();
 	if (!authResult.ok) {
 		return { invited: false, reason: authResult.error };

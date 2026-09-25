@@ -14,12 +14,12 @@ import { Command } from "commander";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface ReviewDesignActionOptions {
+interface ReviewDesignActionOptions {
 	adr: string;
 	cwd?: string;
 }
 
-export interface ReviewDesignActionResult {
+interface ReviewDesignActionResult {
 	reviewed: boolean;
 	passed?: boolean;
 	reason?: string;
