@@ -6,6 +6,9 @@
  *   runtime, spawning one when none answers, and falls back to the
  *   rules-only gate in process, never allowing, when the runtime cannot
  *   answer in time.
+ * - The Stop hook asks the runtime to verify the session's changes, with a
+ *   budget long enough for a verify run; when verify cannot answer in time
+ *   the stop is let through with a notice saying so (#480).
  * - The session summary reads this session's gate and routing decisions
  *   from the repository's decision log (`.maina/decisions.db`), when there
  *   is one; a repository without one gets no summary.
@@ -26,6 +29,7 @@ import {
 	type ClaudeHookPorts,
 	type ClaudeHookRun,
 	runClaudeHook,
+	stopFromClient,
 } from "./claude-hook";
 import { createHookClient } from "./client/hook-client";
 import { runCursorHook } from "./cursor-hook";
@@ -37,12 +41,23 @@ import { gitProbe, resolveRoot } from "./root";
 /** How long one hook waits for the gate, runtime spawn included. */
 const HOOK_TIMEOUT_MS = 3_000;
 
+/**
+ * How long the Stop hook waits for verify on the session's changes, runtime
+ * spawn included. A verify run takes far longer than a gate decision; with
+ * the gate's budget a failed verify would be dropped (#480). The host's own
+ * timeout for the Stop hook must be longer than this.
+ */
+const STOP_TIMEOUT_MS = 120_000;
+
 /** A runtime with no request for this long exits. */
 const RUNTIME_IDLE_TTL_MS = 30 * 60_000;
 
 type HookSystemOptions = Readonly<{
 	env?: Readonly<Record<string, string | undefined>>;
+	/** The gate's budget per event; `HOOK_TIMEOUT_MS` by default. */
 	timeoutMs?: number;
+	/** Verify on stop's budget; `STOP_TIMEOUT_MS` by default. */
+	stopTimeoutMs?: number;
 }>;
 
 /** This session's summary line from the repository's decision log. */
@@ -85,9 +100,15 @@ export function systemClaudeHookPorts(
 		fallback: systemGates().fallback,
 	});
 	const timeoutMs = options.timeoutMs ?? HOOK_TIMEOUT_MS;
+	const stopTimeoutMs = options.stopTimeoutMs ?? STOP_TIMEOUT_MS;
 	return {
 		evaluate: (event) => client.evaluate(event, { timeoutMs }),
 		sessionSummary: async (event) => sessionSummary(event),
+		stopVerify: async (event) =>
+			stopFromClient(
+				await client.evaluate(event, { timeoutMs: stopTimeoutMs }),
+				stopTimeoutMs,
+			),
 	};
 }
 

@@ -8,7 +8,11 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type ClaudeHookPorts, runClaudeHook } from "../claude-hook";
+import {
+	type ClaudeHookPorts,
+	runClaudeHook,
+	stopFromClient,
+} from "../claude-hook";
 import type { GateDecision, GateEvent } from "../gate";
 import { systemGates } from "../gate-system";
 
@@ -210,11 +214,147 @@ describe("runClaudeHook", () => {
 		expect(run.output).toEqual({ exitCode: 0, stdout: "{}\n", stderr: "" });
 	});
 
+	// #480: the Stop hook runs verify on the session's changes (FR-VER-7).
+	test("Stop sends session.stop to verify and blocks on a failed verify", async () => {
+		const sent: GateEvent[] = [];
+		const run = await runClaudeHook(
+			raw("stop.input.json"),
+			ports({
+				stopVerify: async (event) => {
+					sent.push(event);
+					return {
+						verdict: "deny",
+						reason:
+							"maina verify failed on changed lines; fix before finishing.",
+						decisionIds: [],
+						degraded: false,
+					};
+				},
+				sessionSummary: async () =>
+					"maina session: 0 blocked, 0 asked, 3 allowed",
+			}),
+		);
+		expect(sent).toEqual([
+			{
+				kind: "session.stop",
+				input: {
+					host: "claude-code",
+					sessionId: "68888356-74b4-4638-9a07-3ca70c36e753",
+				},
+				cwd: "/home/user/project",
+			},
+		]);
+		expect(run.output.exitCode).toBe(0);
+		expect(parsed(run.output.stdout)).toEqual(
+			parsed(raw("stop.block.output.json")),
+		);
+	});
+
+	test("Stop shows verify's line and the session summary together", async () => {
+		const run = await runClaudeHook(
+			raw("stop.input.json"),
+			ports({
+				stopVerify: async () => ({
+					verdict: "allow",
+					reason: "maina verify: passed on 2 changed files",
+					decisionIds: [],
+					degraded: false,
+				}),
+				sessionSummary: async () =>
+					"maina session: 0 blocked, 1 asked, 4 allowed",
+			}),
+		);
+		expect(parsed(run.output.stdout)).toEqual({
+			systemMessage:
+				"maina verify: passed on 2 changed files\nmaina session: 0 blocked, 1 asked, 4 allowed",
+		});
+	});
+
+	test("a verify that cannot answer never holds up the stop, but says so", async () => {
+		const run = await runClaudeHook(
+			raw("stop.input.json"),
+			ports({
+				stopVerify: async () => {
+					throw new Error("socket closed");
+				},
+			}),
+		);
+		expect(run.output.exitCode).toBe(0);
+		expect(parsed(run.output.stdout)).toEqual({
+			systemMessage:
+				"maina verify could not run (socket closed), so this session's changes were not verified; run maina verify yourself.",
+		});
+	});
+
 	test("PostToolUse and ungated tools print {}", async () => {
 		const p = ports();
 		const run = await runClaudeHook(raw("post-tool-use.bash.input.json"), p);
 		expect(run.output.stdout).toBe("{}\n");
 		expect(p.seen).toHaveLength(0);
+	});
+});
+
+// #480: what the Stop hook makes of the hook client's answer to session.stop.
+describe("stopFromClient", () => {
+	const decision: GateDecision = {
+		verdict: "deny",
+		reason: "maina verify failed on changed lines; fix before finishing.",
+		decisionIds: [],
+		degraded: false,
+	};
+
+	test("the runtime's stop decision stands", () => {
+		expect(stopFromClient({ ...decision, source: "runtime" }, 120_000)).toEqual(
+			decision,
+		);
+	});
+
+	test("a verify that outlives the budget is a notice, never a silent {}", () => {
+		const stop = stopFromClient(
+			{
+				verdict: "ask",
+				reason:
+					"malformed session.stop event; asking (maina runtime unavailable: timeout)",
+				decisionIds: [],
+				degraded: true,
+				source: "fallback",
+				degradedCause: "timeout",
+			},
+			120_000,
+		);
+		expect(stop).toEqual({
+			verdict: "allow",
+			reason:
+				"maina verify did not finish within 120 s, so this session's changes were not verified; run maina verify yourself.",
+			decisionIds: [],
+			degraded: true,
+		});
+	});
+
+	test("a runtime that cannot answer is a notice naming why", () => {
+		const stop = stopFromClient(
+			{
+				verdict: "ask",
+				reason: "x",
+				decisionIds: [],
+				degraded: true,
+				source: "fallback",
+				degradedCause: "spawn_failed",
+			},
+			120_000,
+		);
+		expect(stop.verdict).toBe("allow");
+		expect(stop.reason).toBe(
+			"maina verify could not run (maina runtime unavailable: spawn_failed), so this session's changes were not verified; run maina verify yourself.",
+		);
+	});
+
+	test("a stop never asks: a runtime ask is let through with its reason", () => {
+		const stop = stopFromClient(
+			{ ...decision, verdict: "ask", reason: "odd", source: "runtime" },
+			120_000,
+		);
+		expect(stop).toMatchObject({ verdict: "allow", reason: "odd" });
 	});
 });
 

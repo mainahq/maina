@@ -287,7 +287,8 @@ type Evaluated = Readonly<{
 
 /**
  * Appends each `action.risk` decision behind `result` to the root's log,
- * keyed by the repo's salt, and, for an ask or a deny, records its subject
+ * keyed by the repo's salt, allows included (#480), with the action the
+ * host was told as `finalAction`, and, for an ask or a deny, records its subject
  * under `decisionIds[0]`: the id the gate message names, so `maina allow
  * <id> [--always]` finds both (#448). Never rejects and never changes the
  * verdict: a log that cannot be opened, or a salt that cannot be loaded,
@@ -307,6 +308,9 @@ async function logDecisions(
 		const { db, salt, now } = log.value;
 		const privacy = logPrivacy(decided.policy, salt);
 		const ts = now();
+		// What the host was told: the fallback's allow reaches it as an ask.
+		const finalAction =
+			tightens && result.verdict === "allow" ? "ask" : result.verdict;
 		for (const { request, decision } of decided.answers) {
 			const record = buildDecisionRecord(
 				{
@@ -315,7 +319,7 @@ async function logDecisions(
 					request,
 					decision,
 					policy: decided.policy,
-					finalAction: result.verdict,
+					finalAction,
 					host: event.host,
 					sessionId: event.sessionId === "" ? undefined : event.sessionId,
 				},

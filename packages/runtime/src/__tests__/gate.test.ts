@@ -615,6 +615,47 @@ describe("decision log", () => {
 		expect(subjectOf(db, second as string)).toBeUndefined();
 	});
 
+	// #480: every evaluation is appended, so the session summary, `maina
+	// allow`, the dogfood report and drift see what the gate did.
+	test("an allow rule's allow is logged with the session it came from", async () => {
+		const db = memoryDb();
+		const decision = await gateWithLog(db, {
+			policyFor: async () => ({
+				ok: true,
+				value: {
+					...DEFAULT_POLICY,
+					rules: { allow: [{ match: "git push" }], deny: [] },
+				},
+			}),
+		})({
+			kind: "shell",
+			input: {
+				command: "git push origin main",
+				host: "claude-code",
+				sessionId: "s-480",
+			},
+			cwd: ROOT,
+		});
+		expect(decision.verdict).toBe("allow");
+		expect(logged(db)).toMatchObject([
+			{
+				id: decision.decisionIds[0] as string,
+				answer: "allow",
+				finalAction: "allow",
+				host: "claude-code",
+				sessionId: "s-480",
+			},
+		]);
+		expect(subjectOf(db, decision.decisionIds[0] as string)).toBeUndefined();
+	});
+
+	test("the rules-only fallback logs an allow as the ask the client turns it into", async () => {
+		const db = memoryDb();
+		const decision = await gateWithLog(db, {}, "rules_only")(shell("ls -la"));
+		expect(decision.verdict).toBe("allow");
+		expect(logged(db)).toMatchObject([{ answer: "allow", finalAction: "ask" }]);
+	});
+
 	test("an allowed action records no subject", async () => {
 		const db = memoryDb();
 		const decision = await gateWithLog(db)(shell("ls -la"));

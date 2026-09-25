@@ -5,7 +5,8 @@
  *
  * Never rejects. A payload it cannot read, a gate that throws or answers
  * with the wrong shape: each asks. A summary that fails is left out, so a
- * session start is never held up by it; a stop does not read it at all.
+ * session start is never held up by it; a stop does not read it at all, but
+ * runs verify on the session's changes.
  */
 
 import {
@@ -19,7 +20,9 @@ import {
 	GUARDRAILS_ACTIVE,
 	parseHookInput,
 	safeDecision,
+	safeStopVerify,
 	safeSummary,
+	stopGateEvent,
 } from "./claude-hook";
 import type { GateDecision } from "./gate";
 
@@ -61,9 +64,23 @@ export async function runCursorHook(
 		}
 		case "session": {
 			// Cursor's stop output has no field for the summary, so only a
-			// session start reads the decision log.
+			// session start reads the decision log. A stop runs verify (#480):
+			// a failure is a follow-up for the agent; any other line (a notice
+			// that verify could not run) goes to stderr, Cursor's hook log.
 			if (event.hookEvent === "stop") {
-				return { event, output: toCursor({ hookEvent: event.hookEvent }) };
+				const verified = await safeStopVerify(
+					ports,
+					stopGateEvent(event.event, "cursor"),
+				);
+				const output = toCursor({
+					hookEvent: event.hookEvent,
+					decision: verified,
+				});
+				return verified === undefined ||
+					verified.verdict === "deny" ||
+					verified.reason === ""
+					? { event, output }
+					: { event, output: { ...output, stderr: `${verified.reason}\n` } };
 			}
 			const line = await safeSummary(ports, event.event);
 			const context = [GUARDRAILS_ACTIVE, line].filter(Boolean).join(" ");
