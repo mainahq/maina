@@ -17,9 +17,15 @@ import {
 	type PromotionGates,
 	shadowRun,
 } from "../promotion";
-import { DEFAULT_REGISTRY } from "../registry";
+import { createRegistry, DEFAULT_REGISTRY } from "../registry";
 import type { Backend, DecideRequest, Decision } from "../types";
-import { boolRecord, HEURISTIC, outcome, SYSTEM1 } from "./slice-fixtures";
+import {
+	boolRecord,
+	HEURISTIC,
+	outcome,
+	riskRecord,
+	SYSTEM1,
+} from "./slice-fixtures";
 
 function unwrap<T, E>(
 	result: { ok: true; value: T } | { ok: false; error: E },
@@ -198,6 +204,49 @@ describe("shadowRun", () => {
 		expect(run.decisions).toEqual(expected);
 	});
 
+	test("both primary and shadow records follow the log's privacy setting", () => {
+		const pick = (id: "heuristic" | "system1", file: string): Backend => ({
+			id,
+			version: "1",
+			answer: () => ({
+				ok: true,
+				value: [
+					{
+						answer: file,
+						distribution: [
+							{ answer: "a.ts", p: file === "a.ts" ? 1 : 0 },
+							{ answer: "b.ts", p: file === "b.ts" ? 1 : 0 },
+						],
+					},
+				],
+			}),
+		});
+		const request: DecideRequest = {
+			type: "context.select",
+			state: { trusted: {}, untrusted: {} },
+			questions: [{ kind: "choice", id: "file", options: ["a.ts", "b.ts"] }],
+		};
+		const db = migratedDb();
+		const run = unwrap(
+			shadowRun(
+				{
+					primary: {
+						...primaryPorts(),
+						backends: createRegistry([pick("heuristic", "a.ts")]),
+					},
+					shadow: pick("system1", "b.ts"),
+					log: { db, privacy: { rawOptions: true } },
+				},
+				{ id: "p", ts: 10, request, finalAction: () => "select" },
+			),
+		);
+		expect(run.shadowError).toBeUndefined();
+		expect(run.records.map((r) => [r.id, r.optionOrder, r.answer])).toEqual([
+			["p:0", ["a.ts", "b.ts"], "a.ts"],
+			["p:0:shadow", ["a.ts", "b.ts"], "b.ts"],
+		]);
+	});
+
 	test("a primary failure is returned and nothing is logged or shadowed", () => {
 		const db = migratedDb();
 		let shadowCalls = 0;
@@ -286,10 +335,18 @@ describe("evaluatePromotion", () => {
 
 		const fromLog = PROMOTION_METRICS.filter((m) => m.source === "log");
 		expect(fromLog.length).toBeGreaterThan(0);
+		// A yes/no type has no "ask" option and this slice repeats no input:
+		// those two metrics are covered by the action.risk test below.
+		const notApplicable = new Set<string>([
+			"incumbent.decided_without_asking",
+			"candidate.decided_without_asking",
+			"incumbent.reproducibility",
+			"candidate.reproducibility",
+		]);
 		for (const metric of fromLog) {
 			expect({ metric: metric.id, value: entry.metrics[metric.id] }).toEqual({
 				metric: metric.id,
-				value: expect.any(Number),
+				value: notApplicable.has(metric.id) ? null : expect.any(Number),
 			});
 		}
 		expect(Object.keys(entry.metrics).sort()).toEqual(
@@ -321,6 +378,108 @@ describe("evaluatePromotion", () => {
 		expect(m["incumbent.latency_p95_ms"]).toBe(2);
 		expect(m["candidate.latency_p50_ms"]).toBe(5);
 		expect(m["candidate.latency_p95_ms"]).toBe(10);
+		// Pair 9 let a revert through; the candidate also disagreed with the
+		// right primary of pair 8, an error of unknown kind, charged as the
+		// worse one.
+		expect(m["incumbent.false_allow_rate"]).toBeCloseTo(1 / 8);
+		expect(m["candidate.false_allow_rate"]).toBeCloseTo(2 / 8);
+	});
+
+	test("usefulness, safety and reproducibility come from the log for action.risk", () => {
+		// | pair | input | primary | shadow | outcome on primary |
+		// | 0    | x     | allow   | allow  | accepted           |
+		// | 1    | 1     | ask     | allow  | accepted           |
+		// | 2    | 2     | allow   | deny   | accepted           |
+		// | 3    | 3     | ask     | ask    | none               |
+		// | 4    | 4     | allow   | allow  | reverted           |
+		// | 5    | 5     | deny    | ask    | accepted           |
+		// | 6    | x     | allow   | deny   | none               |
+		const rows = [
+			["allow", "allow", "accepted", "x"],
+			["ask", "allow", "accepted"],
+			["allow", "deny", "accepted"],
+			["ask", "ask", undefined],
+			["allow", "allow", "reverted"],
+			["deny", "ask", "accepted"],
+			["allow", "deny", undefined, "x"],
+		] as const;
+		const decisions: DecisionRecord[] = [];
+		const outcomes: OutcomeRecord[] = [];
+		for (const [i, [primary, shadow, result, input]] of rows.entries()) {
+			const id = `r${i}`;
+			decisions.push(
+				riskRecord({ id, model: HEURISTIC, answer: primary, input }),
+				riskRecord({
+					id: `${id}:shadow`,
+					model: SYSTEM1,
+					answer: shadow,
+					input,
+					finalAction: SHADOW_ACTION,
+				}),
+			);
+			if (result !== undefined) outcomes.push(outcome(id, result));
+		}
+		const report = evaluatePromotion(
+			{ decisions, outcomes },
+			{
+				...GATES,
+				minDecidedWithoutAsking: 0.75,
+				maxFalseAllowRate: 0.005,
+				minReproducibility: 1,
+			},
+		);
+		const [entry] = report.entries;
+		if (entry === undefined) {
+			expect(entry).toBeDefined();
+			return;
+		}
+		const m = entry.metrics;
+		expect(m.labelled).toBe(5);
+		// Usefulness: answers other than "ask".
+		expect(m["incumbent.decided_without_asking"]).toBeCloseTo(5 / 7);
+		expect(m["candidate.decided_without_asking"]).toBeCloseTo(5 / 7);
+		// Safety: the incumbent let pair 4 through. The candidate allowed
+		// what a right primary asked about (1), agreed on pair 4, and on 5
+		// differed from a right deny without allowing (unknown kind).
+		expect(m["incumbent.false_allow_rate"]).toBeCloseTo(1 / 5);
+		expect(m["candidate.false_allow_rate"]).toBeCloseTo(3 / 5);
+		// Denying what a right primary allowed (2) is a false positive.
+		expect(m["candidate.error_rate"]).toBeCloseTo(4 / 5);
+		expect(m["candidate.expected_cost"]).toBeCloseTo((10 + 1 + 10 + 10) / 5);
+		// Reproducibility: input x was asked twice; the incumbent answered
+		// alike both times, the candidate did not.
+		expect(m["incumbent.reproducibility"]).toBe(1);
+		expect(m["candidate.reproducibility"]).toBe(0);
+
+		const failed = entry.gates.filter((g) => !g.pass).map((g) => g.gate);
+		expect(failed).toContain("min_decided_without_asking");
+		expect(failed).toContain("max_false_allow_rate");
+		expect(failed).toContain("min_reproducibility");
+		expect(entry.promote).toBe(false);
+	});
+
+	test("optional gates are checked only when set, and fail without evidence", () => {
+		const slice = pairedSlice();
+		const plain = evaluatePromotion(slice, GATES).entries[0];
+		const names = plain?.gates.map((g) => g.gate) ?? [];
+		expect(names).not.toContain("min_decided_without_asking");
+		expect(names).not.toContain("max_false_allow_rate");
+		expect(names).not.toContain("min_reproducibility");
+
+		// A yes/no type never asks and this slice repeats no input: set
+		// anyway, the gates fail closed.
+		const strict = evaluatePromotion(slice, {
+			...GATES,
+			minDecidedWithoutAsking: 0,
+			minReproducibility: 0,
+		}).entries[0];
+		expect(
+			strict?.gates.filter((g) => !g.pass).map((g) => [g.gate, g.value]),
+		).toEqual([
+			["min_decided_without_asking", null],
+			["min_reproducibility", null],
+		]);
+		expect(strict?.promote).toBe(false);
 	});
 
 	test("the candidate is promoted only when every gate passes", () => {

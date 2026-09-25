@@ -152,6 +152,29 @@ describe("checkDrift", () => {
 		expect(action.metrics.errorRate).toBe(0);
 	});
 
+	test("a breach demotes to the previous backend when it is known (FR-DEC-8)", () => {
+		// system1 serves `slop` after a promotion from rules (the catalog
+		// default for `slop` is heuristic).
+		const slice = window(10, { wrong: [0, 1, 2] });
+		const action = checkDrift(slice, { ...THRESHOLDS, previous: "rules" });
+		expect(action.kind).toBe("demote");
+		if (action.kind !== "demote") return;
+		expect(action.from).toBe("system1");
+		expect(action.to).toBe("rules");
+		expect(action.notice.message).toContain("from system1 to rules");
+		expect(applyDriftAction(PROMOTED, action).decisions.slop.backend).toBe(
+			"rules",
+		);
+
+		// Without a record of the previous backend, the catalog default.
+		const fallback = checkDrift(slice, THRESHOLDS);
+		expect(fallback.kind === "demote" && fallback.to).toBe("heuristic");
+
+		// Demoting to itself is no fallback: notify instead.
+		const self = checkDrift(slice, { ...THRESHOLDS, previous: "system1" });
+		expect(self.kind).toBe("notify");
+	});
+
 	test("a breach on the default backend notifies without demoting", () => {
 		const records = window(10, { wrong: [0, 1, 2] });
 		const heuristic: Slice = {

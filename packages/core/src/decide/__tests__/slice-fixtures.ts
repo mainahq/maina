@@ -49,6 +49,42 @@ export function boolRecord(options: RecordOptions): DecisionRecord {
 	};
 }
 
+type RiskOptions = Readonly<{
+	id: string;
+	model: ModelRef;
+	answer: "allow" | "ask" | "deny";
+	/** Probability of `answer`; the other two share the rest. */
+	p?: number;
+	/** Names the input; defaults to the id without `:shadow`. */
+	input?: string;
+	finalAction?: string;
+}>;
+
+/** A valid `action.risk` decision record. */
+export function riskRecord(options: RiskOptions): DecisionRecord {
+	const p = options.p ?? 0.8;
+	const verdicts = ["allow", "ask", "deny"] as const;
+	return {
+		id: options.id,
+		ts: 1_000,
+		type: "action.risk",
+		inputHash: hashValue(
+			`input:${options.input ?? options.id.replace(/:shadow$/, "")}`,
+		),
+		schemaHash: hashValue("schema:action.risk"),
+		optionOrder: [...verdicts],
+		policyHash: hashValue("policy"),
+		modelHash: hashModel(options.model),
+		distribution: verdicts.map((v) => ({
+			answer: v,
+			p: v === options.answer ? p : (1 - p) / 2,
+		})),
+		answer: options.answer,
+		finalAction: options.finalAction ?? options.answer,
+		latencyMs: 1,
+	};
+}
+
 export function outcome(decisionId: string, kind: Outcome): OutcomeRecord {
 	return {
 		id: hashValue({ decisionId, kind }),

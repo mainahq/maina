@@ -146,12 +146,33 @@ export function calibrationError(
 	);
 }
 
+/** The option that lets an action through, on types that offer one. */
+const ALLOW_ANSWER = "allow";
+
+/** The option that defers to the user, on types that offer one. */
+export const ASK_ANSWER = "ask";
+
+/**
+ * The kind of error a candidate made by disagreeing with a right primary:
+ * allowing what it did not allow is a false negative, not allowing what it
+ * allowed a false positive; anything else is unknown.
+ */
+function disagreementError(
+	primary: DecisionRecord,
+	shadow: DecisionRecord,
+): ErrorKind | "unknown" {
+	if (!primary.optionOrder.includes(ALLOW_ANSWER)) return "unknown";
+	if (shadow.answer === ALLOW_ANSWER) return "false_negative";
+	if (primary.answer === ALLOW_ANSWER) return "false_positive";
+	return "unknown";
+}
+
 /**
  * The candidate's verdict, inferred from its primary's: the same when both
- * answered alike; wrong (of unknown kind) when it disagreed with a right
- * primary on a question with options; right when it disagreed with a wrong
- * primary on a yes/no question; unlabelled otherwise (a different score is
- * not a wrong one).
+ * answered alike; wrong when it disagreed with a right primary on a
+ * question with options (of the kind `disagreementError` can tell, else
+ * unknown); right when it disagreed with a wrong primary on a yes/no
+ * question; unlabelled otherwise (a different score is not a wrong one).
  */
 export function candidateVerdict(
 	primary: DecisionRecord,
@@ -164,7 +185,7 @@ export function candidateVerdict(
 		case "right":
 			return options === 0
 				? { kind: "unlabelled" }
-				: { kind: "wrong", errors: ["unknown"] };
+				: { kind: "wrong", errors: [disagreementError(primary, shadow)] };
 		case "wrong":
 			return options === 2 ? { kind: "right" } : { kind: "unlabelled" };
 		case "unlabelled":

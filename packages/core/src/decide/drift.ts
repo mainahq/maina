@@ -3,8 +3,9 @@
  * the latest `window` decisions it served for a type, the error rate (from
  * linked outcomes) and the drop in mean confidence (against the window
  * before) must stay under the policy's limits. A breach demotes the type to
- * its catalog default backend and carries a notice for the user; a breach on
- * the default backend itself, which has nothing to fall back to, only
+ * the backend it was promoted from (its catalog default unless the caller
+ * says otherwise) and carries a notice for the user; a breach on
+ * that fallback backend itself, which has nothing to fall back to, only
  * notifies. `checkDrift` decides; `applyDriftAction` returns the policy with
  * the demotion applied. Both are pure.
  */
@@ -31,6 +32,11 @@ export type DriftThresholds = Readonly<{
 	type: DecisionType;
 	/** The backend serving `type`: the one the guard may demote. */
 	backend: Readonly<{ id: DecisionBackend; version: string }>;
+	/**
+	 * The backend `backend` was promoted from, which a breach demotes to
+	 * (FR-DEC-8). Defaults to the type's catalog default backend.
+	 */
+	previous?: DecisionBackend;
 	/** How many of its latest decisions are checked. */
 	window: number;
 	/** Error rate over the window's labelled decisions, at most. */
@@ -186,7 +192,7 @@ export function checkDrift(
 		.map((b) => describeBreach(b, metrics, thresholds))
 		.join("; ");
 	const from = thresholds.backend.id;
-	const to = DECISION_CATALOG[type].defaultBackend;
+	const to = thresholds.previous ?? DECISION_CATALOG[type].defaultBackend;
 	if (from === to) {
 		return {
 			kind: "notify",
@@ -195,7 +201,7 @@ export function checkDrift(
 			metrics,
 			notice: {
 				level: "warning",
-				message: `Maina's ${from} backend for ${type} is drifting: ${reasons}. It is already the default backend, so nothing was demoted.`,
+				message: `Maina's ${from} backend for ${type} is drifting: ${reasons}. There is no backend to fall back to, so nothing was demoted.`,
 			},
 		};
 	}

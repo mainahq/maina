@@ -16,6 +16,7 @@ import type { Result } from "../db/index";
 import type { Policy } from "../policy/schema";
 import { type DecidePorts, decide } from "./decide";
 import {
+	ASK_ANSWER,
 	calibrationError,
 	candidateVerdict,
 	confidenceOf,
@@ -78,22 +79,26 @@ export type ShadowRunResult = Readonly<{
 function buildRecords(
 	input: ShadowRunInput,
 	policy: Policy,
+	privacy: DecisionLogPorts["privacy"],
 	decisions: readonly Decision[],
 	idOf: (i: number) => string,
 	actionOf: (decision: Decision) => string,
 ): Result<readonly DecisionRecord[], DecisionLogError> {
 	const records: DecisionRecord[] = [];
 	for (const [i, decision] of decisions.entries()) {
-		const record = buildDecisionRecord({
-			id: idOf(i),
-			ts: input.ts,
-			request: input.request,
-			decision,
-			policy,
-			finalAction: actionOf(decision),
-			host: input.host,
-			sessionId: input.sessionId,
-		});
+		const record = buildDecisionRecord(
+			{
+				id: idOf(i),
+				ts: input.ts,
+				request: input.request,
+				decision,
+				policy,
+				finalAction: actionOf(decision),
+				host: input.host,
+				sessionId: input.sessionId,
+			},
+			privacy,
+		);
 		if (!record.ok) return record;
 		records.push(record.value);
 	}
@@ -131,6 +136,7 @@ export function shadowRun(
 	const built = buildRecords(
 		input,
 		primary.policy,
+		log.privacy,
 		decisions,
 		(i) => `${input.id}:${i}`,
 		input.finalAction,
@@ -158,6 +164,7 @@ export function shadowRun(
 	const shadowRecords = buildRecords(
 		input,
 		primary.policy,
+		log.privacy,
 		shadowed.value,
 		(i) => `${input.id}:${i}${SHADOW_SUFFIX}`,
 		() => SHADOW_ACTION,
@@ -199,11 +206,44 @@ export const PROMOTION_METRICS = [
 	{ id: "incumbent.latency_p95_ms", source: "log" },
 	{ id: "candidate.latency_p50_ms", source: "log" },
 	{ id: "candidate.latency_p95_ms", source: "log" },
+	// Usefulness: share of answers other than "ask", on types that can ask.
+	{ id: "incumbent.decided_without_asking", source: "log" },
+	{ id: "candidate.decided_without_asking", source: "log" },
+	// Safety: share of labelled decisions that let through what should have
+	// been stopped (an error of unknown kind counts, as the worse case).
+	{ id: "incumbent.false_allow_rate", source: "log" },
+	{ id: "candidate.false_allow_rate", source: "log" },
+	// Reproducibility: share of repeated inputs (same input, schema, policy
+	// and model hash) whose answers and distributions all match.
+	{ id: "incumbent.reproducibility", source: "log" },
+	{ id: "candidate.reproducibility", source: "log" },
 	{
-		id: "frozen_set",
+		id: "beats_heuristic",
 		source: "eval",
 		reason:
-			"measured by the eval harness on the frozen labelled set, not from the decision log",
+			"Brier score and accuracy against the heuristic backend are measured on the frozen human-labelled set",
+	},
+	{
+		id: "calibration_per_length_bucket",
+		source: "eval",
+		reason:
+			"the log keeps no input length, so ECE per length bucket is measured by the eval harness",
+	},
+	{
+		id: "false_allow_on_destructive",
+		source: "eval",
+		reason:
+			"the log keeps no action class, so false-allow on destructive actions at the operating threshold is measured by the eval harness",
+	},
+	{
+		id: "order_stability",
+		source: "eval",
+		reason: "flips under option reordering are measured on the eval set",
+	},
+	{
+		id: "injection_resistance",
+		source: "eval",
+		reason: "flips toward allow are measured on the injection set",
 	},
 ] as const satisfies readonly Readonly<{
 	id: string;
@@ -234,6 +274,14 @@ export type PromotionGates = Readonly<{
 	maxLatencyP95Ms: number;
 	/** The policy's `error_costs` for the type. */
 	errorCosts: Readonly<{ false_positive: number; false_negative: number }>;
+	// The gates below are checked only when set: a type that cannot ask has
+	// no usefulness to gate on. Once set, missing evidence fails them too.
+	/** Candidate share of answers other than "ask", at least. */
+	minDecidedWithoutAsking?: number;
+	/** Candidate false-allow rate, at most. */
+	maxFalseAllowRate?: number;
+	/** Candidate reproducibility over repeated inputs, at least. */
+	minReproducibility?: number;
 }>;
 
 export type PromotionGate =
@@ -243,7 +291,10 @@ export type PromotionGate =
 	| "max_error_rate_delta"
 	| "max_cost_delta"
 	| "max_calibration_error"
-	| "max_latency_p95_ms";
+	| "max_latency_p95_ms"
+	| "min_decided_without_asking"
+	| "max_false_allow_rate"
+	| "min_reproducibility";
 
 export type GateResult = Readonly<{
 	gate: PromotionGate;
@@ -282,6 +333,29 @@ function errorCost(
 	return Math.max(...errors.map((e) => (e === "unknown" ? worst : costs[e])));
 }
 
+/**
+ * FR-DEC-5 as seen in the log: of the inputs asked more than once under the
+ * same schema, policy and model, the share whose records all carry the same
+ * answer and distribution. `null` when no input repeats.
+ */
+function reproducibility(records: readonly DecisionRecord[]): number | null {
+	const byKey = new Map<string, string[]>();
+	for (const r of records) {
+		const key = [r.inputHash, r.schemaHash, r.policyHash, r.modelHash].join(
+			"\n",
+		);
+		const outputs = byKey.get(key) ?? [];
+		outputs.push(JSON.stringify([r.answer, r.distribution]));
+		byKey.set(key, outputs);
+	}
+	const repeated = [...byKey.values()].filter((outputs) => outputs.length > 1);
+	if (repeated.length === 0) return null;
+	const stable = repeated.filter((outputs) =>
+		outputs.every((o) => o === outputs[0]),
+	);
+	return stable.length / repeated.length;
+}
+
 function sideMetrics(
 	side: readonly Scored[],
 	costs: PromotionGates["errorCosts"],
@@ -291,7 +365,19 @@ function sideMetrics(
 		s.verdict.kind === "wrong" ? [s.verdict.errors] : [],
 	);
 	const latencies = side.map((s) => s.record.latencyMs);
+	const canAsk = side.filter((s) => s.record.optionOrder.includes(ASK_ANSWER));
+	const falseAllows = wrong.filter((e) =>
+		e.some((kind) => kind === "false_negative" || kind === "unknown"),
+	);
 	return {
+		decided_without_asking:
+			canAsk.length === 0
+				? null
+				: canAsk.filter((s) => s.record.answer !== ASK_ANSWER).length /
+					canAsk.length,
+		false_allow_rate:
+			labelled.length === 0 ? null : falseAllows.length / labelled.length,
+		reproducibility: reproducibility(side.map((s) => s.record)),
 		error_rate: labelled.length === 0 ? null : wrong.length / labelled.length,
 		expected_cost:
 			labelled.length === 0
@@ -352,6 +438,12 @@ function metricsOf(
 		"incumbent.latency_p95_ms": inc.latency_p95_ms,
 		"candidate.latency_p50_ms": cand.latency_p50_ms,
 		"candidate.latency_p95_ms": cand.latency_p95_ms,
+		"incumbent.decided_without_asking": inc.decided_without_asking,
+		"candidate.decided_without_asking": cand.decided_without_asking,
+		"incumbent.false_allow_rate": inc.false_allow_rate,
+		"candidate.false_allow_rate": cand.false_allow_rate,
+		"incumbent.reproducibility": inc.reproducibility,
+		"candidate.reproducibility": cand.reproducibility,
 	};
 }
 
@@ -373,7 +465,52 @@ function gate(
 	return { gate: name, value, threshold, pass };
 }
 
+function optionalGates(
+	m: PromotionMetrics,
+	gates: PromotionGates,
+): readonly GateResult[] {
+	const set: GateResult[] = [];
+	if (gates.minDecidedWithoutAsking !== undefined) {
+		set.push(
+			gate(
+				"min_decided_without_asking",
+				m["candidate.decided_without_asking"],
+				gates.minDecidedWithoutAsking,
+				"min",
+			),
+		);
+	}
+	if (gates.maxFalseAllowRate !== undefined) {
+		set.push(
+			gate(
+				"max_false_allow_rate",
+				m["candidate.false_allow_rate"],
+				gates.maxFalseAllowRate,
+				"max",
+			),
+		);
+	}
+	if (gates.minReproducibility !== undefined) {
+		set.push(
+			gate(
+				"min_reproducibility",
+				m["candidate.reproducibility"],
+				gates.minReproducibility,
+				"min",
+			),
+		);
+	}
+	return set;
+}
+
 function gatesOf(
+	m: PromotionMetrics,
+	gates: PromotionGates,
+): readonly GateResult[] {
+	return [...requiredGates(m, gates), ...optionalGates(m, gates)];
+}
+
+function requiredGates(
 	m: PromotionMetrics,
 	gates: PromotionGates,
 ): readonly GateResult[] {
