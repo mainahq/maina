@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "cursor.post-tool-use.output",
+  "description": "Cursor postToolUse hook stdout JSON. Limited to documented fields; for permission hooks Cursor blocks the action when the response does not match its schema.",
+  "x-source": {
+    "url": "https://cursor.com/docs/hooks#posttooluse",
+    "retrieved": "2026-09-25"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [],
+  "properties": {
+    "updated_mcp_tool_output": {
+      "type": "object"
+    },
+    "additional_context": {
+      "type": "string"
+    }
+  }
+}

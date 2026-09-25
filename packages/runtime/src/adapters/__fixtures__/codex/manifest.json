@@ -1,0 +1,155 @@
+{
+  "host": "codex",
+  "source": {
+    "url": "https://developers.openai.com/codex/hooks",
+    "retrieved": "2026-09-25",
+    "schemaCommit": "e444aa99d76beeb8b5b0610b793c0cdefe58da58",
+    "notes": "Docs URL redirects to https://learn.chatgpt.com/docs/hooks. Schemas are the upstream generated wire schemas (codex-rs/hooks/schema/generated); the docs page is the release-behaviour reference. Codex is not installed on the capture machine, so fixtures follow the documented examples."
+  },
+  "fixtures": [
+    {
+      "file": "session-start.startup.input.json",
+      "schema": "schemas/session-start.input.schema.json",
+      "event": "SessionStart",
+      "direction": "input",
+      "covers": "session-start",
+      "origin": "docs"
+    },
+    {
+      "file": "session-start.context.output.json",
+      "schema": "schemas/session-start.output.schema.json",
+      "event": "SessionStart",
+      "direction": "output",
+      "covers": "session-start",
+      "origin": "docs"
+    },
+    {
+      "file": "pre-tool-use.bash.input.json",
+      "schema": "schemas/pre-tool-use.input.schema.json",
+      "event": "PreToolUse",
+      "direction": "input",
+      "covers": "pre-tool.shell",
+      "origin": "docs"
+    },
+    {
+      "file": "pre-tool-use.apply-patch.input.json",
+      "schema": "schemas/pre-tool-use.input.schema.json",
+      "event": "PreToolUse",
+      "direction": "input",
+      "covers": "pre-tool.file-write",
+      "origin": "docs",
+      "notes": "File edits arrive as tool_name `apply_patch` with the patch text in tool_input.command."
+    },
+    {
+      "file": "pre-tool-use.mcp.input.json",
+      "schema": "schemas/pre-tool-use.input.schema.json",
+      "event": "PreToolUse",
+      "direction": "input",
+      "covers": "pre-tool.mcp",
+      "origin": "docs"
+    },
+    {
+      "file": "pre-tool-use.deny.output.json",
+      "schema": "schemas/pre-tool-use.output.schema.json",
+      "event": "PreToolUse",
+      "direction": "output",
+      "covers": "pre-tool",
+      "origin": "docs",
+      "notes": "The schema accepts permissionDecision `ask`, but Codex currently fails the hook run and continues the tool call on `ask`; adapters must map ask to PermissionRequest or deny."
+    },
+    {
+      "file": "pre-tool-use.rewrite.output.json",
+      "schema": "schemas/pre-tool-use.output.schema.json",
+      "event": "PreToolUse",
+      "direction": "output",
+      "covers": "pre-tool",
+      "origin": "docs"
+    },
+    {
+      "file": "permission-request.bash.input.json",
+      "schema": "schemas/permission-request.input.schema.json",
+      "event": "PermissionRequest",
+      "direction": "input",
+      "covers": "permission-request",
+      "origin": "docs"
+    },
+    {
+      "file": "permission-request.allow.output.json",
+      "schema": "schemas/permission-request.output.schema.json",
+      "event": "PermissionRequest",
+      "direction": "output",
+      "covers": "permission-request",
+      "origin": "docs"
+    },
+    {
+      "file": "permission-request.deny.output.json",
+      "schema": "schemas/permission-request.output.schema.json",
+      "event": "PermissionRequest",
+      "direction": "output",
+      "covers": "permission-request",
+      "origin": "docs",
+      "notes": "updatedInput, updatedPermissions and interrupt are reserved and fail closed today."
+    },
+    {
+      "file": "post-tool-use.bash.input.json",
+      "schema": "schemas/post-tool-use.input.schema.json",
+      "event": "PostToolUse",
+      "direction": "input",
+      "covers": "post-tool",
+      "origin": "docs"
+    },
+    {
+      "file": "post-tool-use.context.output.json",
+      "schema": "schemas/post-tool-use.output.schema.json",
+      "event": "PostToolUse",
+      "direction": "output",
+      "covers": "post-tool",
+      "origin": "docs"
+    },
+    {
+      "file": "stop.input.json",
+      "schema": "schemas/stop.input.schema.json",
+      "event": "Stop",
+      "direction": "input",
+      "covers": "stop",
+      "origin": "docs"
+    },
+    {
+      "file": "stop.continue.output.json",
+      "schema": "schemas/stop.output.schema.json",
+      "event": "Stop",
+      "direction": "output",
+      "covers": "stop",
+      "origin": "docs"
+    }
+  ],
+  "invalid": [
+    {
+      "file": "invalid/permission-request.ask.output.json",
+      "schema": "schemas/permission-request.output.schema.json",
+      "why": "PermissionRequest behavior is allow|deny only",
+      "error": {
+        "keyword": "enum",
+        "instancePath": "/hookSpecificOutput/decision/behavior"
+      }
+    },
+    {
+      "file": "invalid/pre-tool-use.missing-turn-id.input.json",
+      "schema": "schemas/pre-tool-use.input.schema.json",
+      "why": "turn_id is required",
+      "error": {
+        "keyword": "required",
+        "instancePath": ""
+      }
+    },
+    {
+      "file": "invalid/session-start.unknown-field.input.json",
+      "schema": "schemas/session-start.input.schema.json",
+      "why": "Codex input schemas reject unknown fields",
+      "error": {
+        "keyword": "additionalProperties",
+        "instancePath": ""
+      }
+    }
+  ]
+}

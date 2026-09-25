@@ -22,6 +22,8 @@ const rootDir = resolve(import.meta.dir, "..");
 const testGlobs = [
 	new Glob("packages/**/__tests__/**/*.test.ts"),
 	new Glob("packages/**/__golden__/**/*.test.ts"),
+	// Repo scripts (receipts backfill, dogfood gate) have tests too.
+	new Glob("scripts/**/__tests__/**/*.test.ts"),
 ];
 const testFiles: string[] = [];
 

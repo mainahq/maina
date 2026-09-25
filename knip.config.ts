@@ -17,6 +17,10 @@ const config: KnipConfig = {
 			project: ["src/**/*.ts"],
 			ignore: ["src/**/__tests__/**", "src/__golden__/**"],
 		},
+		"packages/runtime": {
+			entry: ["src/**/__tests__/**/*.test.ts"],
+			project: ["src/**/*.ts"],
+		},
 		"packages/mcp": {
 			entry: ["src/index.ts"],
 			project: ["src/**/*.ts"],

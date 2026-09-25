@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "x-source": {
+    "url": "https://github.com/openai/codex/blob/e444aa99d76beeb8b5b0610b793c0cdefe58da58/codex-rs/hooks/schema/generated/session-start.command.output.schema.json",
+    "retrieved": "2026-09-25",
+    "docs": "https://developers.openai.com/codex/hooks",
+    "note": "Vendored verbatim from the Codex repo's generated hook schemas at the pinned commit; only this x-source annotation was added."
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "SessionStartHookSpecificOutputWire": {
+      "additionalProperties": false,
+      "properties": {
+        "additionalContext": {
+          "default": null,
+          "type": "string"
+        },
+        "hookEventName": {
+          "const": "SessionStart",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hookEventName"
+      ],
+      "type": "object"
+    }
+  },
+  "properties": {
+    "continue": {
+      "default": true,
+      "type": "boolean"
+    },
+    "hookSpecificOutput": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/SessionStartHookSpecificOutputWire"
+        }
+      ],
+      "default": null
+    },
+    "stopReason": {
+      "default": null,
+      "type": "string"
+    },
+    "suppressOutput": {
+      "default": false,
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "default": null,
+      "type": "string"
+    }
+  },
+  "title": "session-start.command.output",
+  "type": "object"
+}

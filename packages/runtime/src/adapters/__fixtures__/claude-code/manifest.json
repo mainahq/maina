@@ -1,0 +1,186 @@
+{
+  "host": "claude-code",
+  "source": {
+    "url": "https://code.claude.com/docs/en/hooks",
+    "retrieved": "2026-09-25",
+    "hostVersion": "2.1.282",
+    "notes": "Inputs marked `captured` were recorded from Claude Code 2.1.282 (`claude -p`) with a stdin-dump hook, then sanitised (paths only). Outputs follow the documented decision-control shapes."
+  },
+  "fixtures": [
+    {
+      "file": "session-start.startup.input.json",
+      "schema": "schemas/session-start.input.schema.json",
+      "event": "SessionStart",
+      "direction": "input",
+      "covers": "session-start",
+      "origin": "captured"
+    },
+    {
+      "file": "session-start.context.output.json",
+      "schema": "schemas/session-start.output.schema.json",
+      "event": "SessionStart",
+      "direction": "output",
+      "covers": "session-start",
+      "origin": "docs"
+    },
+    {
+      "file": "pre-tool-use.bash.input.json",
+      "schema": "schemas/pre-tool-use.input.schema.json",
+      "event": "PreToolUse",
+      "direction": "input",
+      "covers": "pre-tool.shell",
+      "origin": "captured"
+    },
+    {
+      "file": "pre-tool-use.write.input.json",
+      "schema": "schemas/pre-tool-use.input.schema.json",
+      "event": "PreToolUse",
+      "direction": "input",
+      "covers": "pre-tool.file-write",
+      "origin": "captured"
+    },
+    {
+      "file": "pre-tool-use.mcp.input.json",
+      "schema": "schemas/pre-tool-use.input.schema.json",
+      "event": "PreToolUse",
+      "direction": "input",
+      "covers": "pre-tool.mcp",
+      "origin": "captured",
+      "notes": "Captured against a local stdio MCP server named `echo`; `mcp_server.source` was `dynamic` because it was passed via --mcp-config."
+    },
+    {
+      "file": "pre-tool-use.allow.output.json",
+      "schema": "schemas/pre-tool-use.output.schema.json",
+      "event": "PreToolUse",
+      "direction": "output",
+      "covers": "pre-tool",
+      "origin": "docs"
+    },
+    {
+      "file": "pre-tool-use.deny.output.json",
+      "schema": "schemas/pre-tool-use.output.schema.json",
+      "event": "PreToolUse",
+      "direction": "output",
+      "covers": "pre-tool",
+      "origin": "docs"
+    },
+    {
+      "file": "pre-tool-use.ask.output.json",
+      "schema": "schemas/pre-tool-use.output.schema.json",
+      "event": "PreToolUse",
+      "direction": "output",
+      "covers": "pre-tool",
+      "origin": "docs"
+    },
+    {
+      "file": "permission-request.bash.input.json",
+      "schema": "schemas/permission-request.input.schema.json",
+      "event": "PermissionRequest",
+      "direction": "input",
+      "covers": "permission-request",
+      "origin": "captured"
+    },
+    {
+      "file": "permission-request.deny.output.json",
+      "schema": "schemas/permission-request.output.schema.json",
+      "event": "PermissionRequest",
+      "direction": "output",
+      "covers": "permission-request",
+      "origin": "docs"
+    },
+    {
+      "file": "post-tool-use.bash.input.json",
+      "schema": "schemas/post-tool-use.input.schema.json",
+      "event": "PostToolUse",
+      "direction": "input",
+      "covers": "post-tool",
+      "origin": "captured"
+    },
+    {
+      "file": "post-tool-use.write.input.json",
+      "schema": "schemas/post-tool-use.input.schema.json",
+      "event": "PostToolUse",
+      "direction": "input",
+      "covers": "post-tool",
+      "origin": "captured"
+    },
+    {
+      "file": "post-tool-use.mcp.input.json",
+      "schema": "schemas/post-tool-use.input.schema.json",
+      "event": "PostToolUse",
+      "direction": "input",
+      "covers": "post-tool",
+      "origin": "captured"
+    },
+    {
+      "file": "post-tool-use.context.output.json",
+      "schema": "schemas/post-tool-use.output.schema.json",
+      "event": "PostToolUse",
+      "direction": "output",
+      "covers": "post-tool",
+      "origin": "docs"
+    },
+    {
+      "file": "stop.input.json",
+      "schema": "schemas/stop.input.schema.json",
+      "event": "Stop",
+      "direction": "input",
+      "covers": "stop",
+      "origin": "captured"
+    },
+    {
+      "file": "stop.allow.output.json",
+      "schema": "schemas/stop.output.schema.json",
+      "event": "Stop",
+      "direction": "output",
+      "covers": "stop",
+      "origin": "docs"
+    },
+    {
+      "file": "stop.block.output.json",
+      "schema": "schemas/stop.output.schema.json",
+      "event": "Stop",
+      "direction": "output",
+      "covers": "stop",
+      "origin": "docs"
+    }
+  ],
+  "invalid": [
+    {
+      "file": "invalid/pre-tool-use.bad-decision.output.json",
+      "schema": "schemas/pre-tool-use.output.schema.json",
+      "why": "permissionDecision outside allow|deny|ask|defer",
+      "error": {
+        "keyword": "enum",
+        "instancePath": "/hookSpecificOutput/permissionDecision"
+      }
+    },
+    {
+      "file": "invalid/pre-tool-use.wrong-event.output.json",
+      "schema": "schemas/pre-tool-use.output.schema.json",
+      "why": "hookEventName must match the event",
+      "error": {
+        "keyword": "const",
+        "instancePath": "/hookSpecificOutput/hookEventName"
+      }
+    },
+    {
+      "file": "invalid/stop.block-without-reason.output.json",
+      "schema": "schemas/stop.output.schema.json",
+      "why": "reason is required when decision is block",
+      "error": {
+        "keyword": "required",
+        "instancePath": ""
+      }
+    },
+    {
+      "file": "invalid/pre-tool-use.bash-without-command.input.json",
+      "schema": "schemas/pre-tool-use.input.schema.json",
+      "why": "Bash tool_input requires command",
+      "error": {
+        "keyword": "required",
+        "instancePath": "/tool_input"
+      }
+    }
+  ]
+}

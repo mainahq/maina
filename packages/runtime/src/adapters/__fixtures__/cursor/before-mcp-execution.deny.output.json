@@ -1,0 +1,5 @@
+{
+  "permission": "deny",
+  "user_message": "maina: unrecognised MCP server",
+  "agent_message": "maina blocked this MCP call: server is not on the allow list."
+}

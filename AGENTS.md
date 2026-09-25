@@ -19,7 +19,7 @@ Maina — verification-first developer OS. Three engines: Context (observes), Pr
 
 ## v1 rules (see CLAUDE.md for detail)
 
-- Functional core: no `process.*`, `console`, `throw` or classes in `packages/core`; inject ports; `Result` types; `readonly` data.
+- Functional core: no `process.*`, `console`, `throw` or classes in `packages/core`; inject ports; `Result` types; `readonly` data. `process.cwd/env/stdout`, `console.*` and `throw` are checked by the `packages/core/src/__tests__/purity.test.ts` ratchet (legacy offenders listed in `purity-allowlist.ts`, which may only shrink).
 - Branch off `v1/main`, PR into `v1/main`; one issue per PR; TDD; commit via `maina commit`.
 - Fail closed; never overwrite user config; one source of truth for versions, tools and counts.
 

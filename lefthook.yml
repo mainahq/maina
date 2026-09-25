@@ -6,6 +6,13 @@ pre-commit:
     typecheck:
       run: bun run --filter '*' typecheck
 
+pre-push:
+  commands:
+    maina-receipt:
+      # Dogfood (#286): run maina 1.x verify on HEAD and write a local receipt.
+      # Never blocks the push; `bun run dogfood:receipt` publishes it.
+      run: bun scripts/dogfood/receipt.ts --no-publish --no-fail
+
 commit-msg:
   commands:
     commitlint:

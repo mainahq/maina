@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "x-source": {
+    "url": "https://github.com/openai/codex/blob/e444aa99d76beeb8b5b0610b793c0cdefe58da58/codex-rs/hooks/schema/generated/stop.command.input.schema.json",
+    "retrieved": "2026-09-25",
+    "docs": "https://developers.openai.com/codex/hooks",
+    "note": "Vendored verbatim from the Codex repo's generated hook schemas at the pinned commit; only this x-source annotation was added."
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "properties": {
+    "cwd": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "Stop",
+      "type": "string"
+    },
+    "last_assistant_message": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "model": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "dontAsk",
+        "bypassPermissions"
+      ],
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "stop_hook_active": {
+      "type": "boolean"
+    },
+    "transcript_path": {
+      "$ref": "#/definitions/NullableString"
+    },
+    "turn_id": {
+      "description": "Codex extension: expose the active turn id to internal turn-scoped hooks.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "cwd",
+    "hook_event_name",
+    "last_assistant_message",
+    "model",
+    "permission_mode",
+    "session_id",
+    "stop_hook_active",
+    "transcript_path",
+    "turn_id"
+  ],
+  "title": "stop.command.input",
+  "type": "object"
+}
