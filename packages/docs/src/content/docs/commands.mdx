@@ -101,6 +101,7 @@ Prove correctness before merge.
 |---------|------------|---------------|
 | `maina verify` | Full verification pipeline (19+ tools). Diff-only by default. | Working + Semantic |
 | `maina verify --deep` | Force the standard-tier AI semantic review (spec compliance, architecture); large or sensitive diffs get it without the flag. | Working + Semantic |
+| `maina verify --tests` | Also run the tests the code graph says the change can break (the tests covering the change and its callers), plus changed test files. Bun projects only for now. | Working + Graph |
 | `maina verify --cloud` | Submit diff to Maina Cloud for hosted verification. No local tool installs required. | Working |
 | `maina verify --visual` | Add Playwright visual regression checks against baselines. | Working + Visual baselines |
 | `maina slop` | Standalone AI slop pattern detection. `--all` for all tracked files. | Working |

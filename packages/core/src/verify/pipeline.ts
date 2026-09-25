@@ -6,9 +6,13 @@
  *    working tree (default) / index (`scope: "staged"`) / branch range
  * 2. Run syntax guard FIRST — abort immediately if it fails
  * 3. Auto-detect available tools
+ * 3b. Read the change's blast radius from the code graph (FR-VER-5): the
+ *    type checker also runs on the dependents, and `tests` runs the tests
+ *    covering the change and its callers
  * 4. Run all available tools in PARALLEL (slop, builtin, semgrep, trivy, secretlint)
  * 5. Collect all findings
- * 6. Apply diff-only filter (unless diffOnly === false)
+ * 6. Apply diff-only filter (unless diffOnly === false); type errors in
+ *    the change's callers and failing affected tests survive it
  * 6b. Triage the findings through `decide`: noise suppressed at the
  *    policy's `finding.real` threshold, severity from `finding.severity`
  *    (#329)
@@ -35,6 +39,11 @@ import { envFromRecord } from "../ports/env";
 import type { CorePorts } from "../ports/index";
 import { systemProcess } from "../process/index";
 import { type AIReviewResult, runAIReview } from "./ai-review";
+import {
+	type BlastRadius,
+	computeBlastRadius,
+	typecheckScope,
+} from "./blast-radius";
 import { runBuiltinChecks } from "./builtin";
 import { checkConsistency } from "./consistency";
 import { runCoverage } from "./coverage";
@@ -52,6 +61,11 @@ import { runSonar } from "./sonar";
 import type { SyntaxDiagnostic } from "./syntax-guard";
 import { syntaxGuard } from "./syntax-guard";
 import { detectDocClaims } from "./tools/doc-claims";
+import {
+	AFFECTED_TESTS_TOOL,
+	runAffectedTests,
+	selectAffectedTests,
+} from "./tools/tests";
 import { runWikiLintTool } from "./tools/wiki-lint-runner";
 import {
 	runsDeepReview,
@@ -108,6 +122,11 @@ export interface PipelineResult {
 	 * as the AI review (#329). The receipt records it.
 	 */
 	triage?: Triage;
+	/**
+	 * What the change can break, from the code graph (FR-VER-5); absent
+	 * when there is no graph store.
+	 */
+	blastRadius?: BlastRadius;
 }
 
 export interface PipelineOptions {
@@ -147,11 +166,17 @@ export interface PipelineOptions {
 	 */
 	decide?: DecidePorts;
 	/**
-	 * Code-graph ports the AI review's entities are read from. When omitted
-	 * the store under `mainaDir` is opened if it exists; without one the
+	 * Code-graph ports the blast radius and the AI review's entities are
+	 * read from. When omitted the store under `mainaDir` is opened if it
+	 * exists; without one the checks stay on the changed files and the
 	 * review gets no entities.
 	 */
 	graph?: GraphContextPorts;
+	/**
+	 * Run the tests the graph selects for the change (its blast radius),
+	 * plus changed test files (FR-VER-5). Off by default.
+	 */
+	tests?: boolean;
 }
 
 // ─── Tool Runner Helpers ──────────────────────────────────────────────────
@@ -211,10 +236,31 @@ function withTriaged(
 }
 
 /**
- * The graph symbols `diff` calls, for the AI review: from `graph` when
- * given, else from the store under `mainaDir` when there is one. Any
- * failure means no entities, never a failed run.
+ * `read` over the code graph: `graph` when given, else the store under
+ * `mainaDir` when there is one. No store, or any failure, is `fallback`,
+ * never a failed run.
  */
+async function fromGraph<T>(
+	graph: GraphContextPorts | undefined,
+	mainaDir: string,
+	fallback: T,
+	read: (ports: GraphContextPorts) => Promise<T>,
+): Promise<T> {
+	if (graph) return read(graph);
+	// Opening the store creates it; verify never should.
+	if (!existsSync(codeGraphDbPath(mainaDir))) return fallback;
+	const opened = openCodeGraph(mainaDir);
+	if (!opened.ok) return fallback;
+	try {
+		return await read(opened.value.ports);
+	} catch {
+		return fallback;
+	} finally {
+		opened.value.close();
+	}
+}
+
+/** The graph symbols `diff` calls, for the AI review. */
 async function reviewEntities(
 	graph: GraphContextPorts | undefined,
 	mainaDir: string,
@@ -222,22 +268,27 @@ async function reviewEntities(
 	diff: string,
 ): Promise<readonly EntityWithBody[]> {
 	if (!diff.trim()) return [];
-	const read = async (ports: GraphContextPorts) => {
+	return fromGraph(graph, mainaDir, [], async (ports) => {
 		const result = await graphReviewEntities(ports, cwd, diff);
 		return result.ok ? result.value : [];
-	};
-	if (graph) return read(graph);
-	// Opening the store creates it; verify never should.
-	if (!existsSync(codeGraphDbPath(mainaDir))) return [];
-	const opened = openCodeGraph(mainaDir);
-	if (!opened.ok) return [];
-	try {
-		return await read(opened.value.ports);
-	} catch {
-		return [];
-	} finally {
-		opened.value.close();
-	}
+	});
+}
+
+/** What changing `files` can break, or undefined without a graph. */
+function blastRadius(
+	graph: GraphContextPorts | undefined,
+	mainaDir: string,
+	files: readonly string[],
+): Promise<BlastRadius | undefined> {
+	return fromGraph<BlastRadius | undefined>(
+		graph,
+		mainaDir,
+		undefined,
+		async (ports) => {
+			const result = computeBlastRadius(ports, files);
+			return result.ok ? result.value : undefined;
+		},
+	);
 }
 
 /** failed on any error finding; passed only with evidence; else skipped. */
@@ -332,6 +383,11 @@ export async function runPipeline(
 	// ── Step 3: Auto-detect tools ─────────────────────────────────────────
 	const detectedTools = await detectTools(cwd, undefined, processPort);
 
+	// ── Step 3b: Blast radius from the code graph (FR-VER-5) ─────────────
+	// Resolve against the explicit root, never the process cwd.
+	const mainaDir = options.mainaDir ?? join(cwd, ".maina");
+	const radius = await blastRadius(options.graph, mainaDir, files);
+
 	// ── Step 4: Run all available tools in PARALLEL ───────────────────────
 	// Build a lookup from detection results to avoid redundant subprocess
 	// spawns. Runners get the resolved command too: detection may have found
@@ -356,8 +412,6 @@ export async function runPipeline(
 	const toolPromises: Promise<ToolReport>[] = [];
 
 	// Slop detector always runs (no external tool dependency), cache-aware
-	// Resolve against the explicit root, never the process cwd.
-	const mainaDir = options.mainaDir ?? join(cwd, ".maina");
 	const slopCache = createCacheManager(mainaDir);
 	// Slop only reads source files that exist; with none it checked nothing.
 	const slopHasInput = files.some(
@@ -440,10 +494,12 @@ export async function runPipeline(
 		),
 	);
 
-	// Built-in checks (always run, no external tool dependency)
+	// Built-in checks (always run, no external tool dependency). The type
+	// checker sees the dependents too, so a caller broken by the change is
+	// checked even in another workspace project (FR-VER-5).
 	toolPromises.push(
 		runToolWithTiming("typecheck", async () => {
-			const result = await runTypecheck(files, cwd, {
+			const result = await runTypecheck(typecheckScope(files, radius), cwd, {
 				language: primaryLang,
 				env: options.env,
 				process: processPort,
@@ -485,6 +541,19 @@ export async function runPipeline(
 		),
 	);
 
+	// Affected tests — only on request: the graph's covering tests for the
+	// change and its callers, plus changed test files (FR-VER-5).
+	if (options.tests) {
+		toolPromises.push(
+			runToolWithTiming(AFFECTED_TESTS_TOOL, () =>
+				runAffectedTests(selectAffectedTests(files, radius), cwd, {
+					process: processPort,
+					...(options.env ? { env: options.env } : {}),
+				}),
+			),
+		);
+	}
+
 	const toolReports = await Promise.all(toolPromises);
 
 	// ── Step 4b: Warn if all external tools were skipped ─────────────────
@@ -495,6 +564,7 @@ export async function runPipeline(
 		"builtin",
 		"wiki-lint",
 		"doc-claims",
+		AFFECTED_TESTS_TOOL,
 	]);
 	const externalTools = toolReports.filter((r) => !builtInTools.has(r.tool));
 	const allExternalSkipped =
@@ -524,6 +594,7 @@ export async function runPipeline(
 	if (diffOnly) {
 		const filtered = await filterByDiff(allFindings, baseBranch, cwd, {
 			includeUntracked: scopeKind === "working-tree",
+			...(radius ? { blastRadius: radius } : {}),
 		});
 		shownFindings = filtered.shown;
 		hiddenCount = filtered.hidden;
@@ -600,5 +671,6 @@ export async function runPipeline(
 		cacheHits: cacheStats.l1Hits + cacheStats.l2Hits,
 		cacheMisses: cacheStats.misses,
 		...(triage ? { triage } : {}),
+		...(radius ? { blastRadius: radius } : {}),
 	};
 }

@@ -76,6 +76,11 @@ const TYPECHECK_COMMANDS: Record<LanguageId, TypecheckCommand> = {
 	},
 };
 
+/** The `tool` every type checker's findings carry (`tsc`, `mypy`, ...). */
+export const TYPECHECK_TOOLS: ReadonlySet<string> = new Set(
+	Object.values(TYPECHECK_COMMANDS).map((c) => c.tool),
+);
+
 export function getTypecheckCommand(language: LanguageId): TypecheckCommand {
 	return TYPECHECK_COMMANDS[language];
 }

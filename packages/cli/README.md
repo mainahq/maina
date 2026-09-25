@@ -26,6 +26,7 @@ bun add -g @maina/cli  # Install globally
 ### Verify
 - `maina verify` — Full verification pipeline (12 tools)
 - `maina verify --deep` — Add AI semantic review
+- `maina verify --tests` — Also run the tests covering the change and its callers (from the code graph)
 - `maina verify --visual` — Add Playwright visual regression
 - `maina slop` — Standalone AI slop pattern detection
 - `maina analyze` — Cross-artifact consistency check
