@@ -10,7 +10,7 @@
  * 6. Generate wikilinks via linker
  * 7. Generate index.md via indexer
  * 8. Save state
- * 9. Write all articles to disk, pruning articles the compile no longer produces
+ * 9. Prune articles the compile no longer produces, then write all articles
  */
 
 import {
@@ -1425,6 +1425,23 @@ export async function compile(
 			),
 		);
 
+		// ── Step 9a: Prune articles for deleted sources (#377) ─────────
+		// A sampled compile only sees a slice of the repo, and a failed code
+		// extraction sees no entities at all — neither article set is
+		// authoritative, so skip pruning rather than delete real pages.
+		// Prune BEFORE writing: on a case-insensitive filesystem a case-only
+		// rename writes the new page into the old directory entry, and a
+		// post-write prune would then delete the page it just wrote.
+		const previousState = loadState(wikiDir);
+		const canPrune = !sampleTruncated && entityResult.ok;
+		if (!dryRun && canPrune) {
+			pruneStaleArticles(
+				wikiDir,
+				previousState,
+				articles.map((a) => a.path),
+			);
+		}
+
 		// ── Step 9: Write to disk (unless dry run) ─────────────────────
 		if (!dryRun) {
 			mkdirSync(wikiDir, { recursive: true });
@@ -1434,20 +1451,6 @@ export async function compile(
 				mkdirSync(dirname(fullPath), { recursive: true });
 				writeFileSync(fullPath, article.content);
 			}
-		}
-
-		// ── Step 9a: Prune articles for deleted sources (#377) ─────────
-		// A sampled compile only sees a slice of the repo, and a failed code
-		// extraction sees no entities at all — neither article set is
-		// authoritative, so skip pruning rather than delete real pages.
-		const previousState = loadState(wikiDir);
-		const canPrune = !sampleTruncated && entityResult.ok;
-		if (!dryRun && canPrune) {
-			pruneStaleArticles(
-				wikiDir,
-				previousState,
-				articles.map((a) => a.path),
-			);
 		}
 
 		// ── Step 9b: Build and save search index ───────────────────────

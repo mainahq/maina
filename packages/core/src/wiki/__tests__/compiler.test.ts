@@ -467,6 +467,40 @@ describe("Wiki Compiler", () => {
 			expect(existsSync(orphan)).toBe(false);
 		});
 
+		it("keeps a produced page whose on-disk name differs only in case", async () => {
+			// On case-insensitive filesystems (macOS APFS, Windows NTFS) a
+			// case-only rename writes the new content into the old directory
+			// entry. Pruning must not then delete the page it just wrote.
+			const first = await compile(makeOptions());
+			expect(first.ok).toBe(true);
+			if (!first.ok) return;
+			const entityArticle = first.value.articles.find(
+				(a) => a.type === "entity",
+			);
+			expect(entityArticle).toBeDefined();
+			if (!entityArticle) return;
+			const producedPath = join(
+				wikiDir,
+				entityArticle.path.replace(/^wiki\//, ""),
+			);
+			const fileName = producedPath.split("/").pop() ?? "";
+			const lowered = join(
+				wikiDir,
+				"entities",
+				fileName.toLowerCase() === fileName
+					? fileName.toUpperCase()
+					: fileName.toLowerCase(),
+			);
+			// Simulate the stale directory entry left by a previous compile.
+			rmSync(producedPath, { force: true });
+			writeFileSync(lowered, "# stale casing\n");
+
+			const second = await compile(makeOptions());
+			expect(second.ok).toBe(true);
+			expect(existsSync(producedPath)).toBe(true);
+			expect(readFileSync(producedPath, "utf-8")).toBe(entityArticle.content);
+		});
+
 		it("never deletes user-owned raw/ notes", async () => {
 			const rawNote = join(wikiDir, "raw", "query-1.md");
 			mkdirSync(join(wikiDir, "raw"), { recursive: true });
