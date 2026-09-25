@@ -22,8 +22,10 @@ import {
 import { createHookClient } from "../client/hook-client";
 import {
 	createGateEvaluator,
+	type GateDecision,
 	type GateEvaluatorDeps,
 	type GateEvent,
+	parseGateDecision,
 	toCoreGateEvent,
 } from "../gate";
 import { systemGates } from "../gate-system";
@@ -74,6 +76,16 @@ const denyAll: Backend = {
 				{ answer: "deny", p: 1 },
 			],
 		})),
+	}),
+};
+
+/** A model stand-in that never answers, so core's gate degrades. */
+const unavailable: Backend = {
+	id: "system1",
+	version: "test",
+	answer: () => ({
+		ok: false,
+		error: { kind: "unsupported", questionId: undefined, message: "no model" },
 	}),
 };
 
@@ -293,9 +305,88 @@ describe("createGateEvaluator", () => {
 			shell("ls"),
 		],
 		["a malformed event", deps(), { kind: "shell", input: {}, cwd: ROOT }],
-	] as const)("%s asks", async (_label, d, event) => {
+	] as const)("%s asks, degraded and with no decision ids", async (_label, d, event) => {
 		const decision = await createGateEvaluator(d)(event);
-		expect(decision.verdict).toBe("ask");
+		expect(decision).toMatchObject({
+			verdict: "ask",
+			decisionIds: [],
+			degraded: true,
+		});
+	});
+
+	// #454: the wire decision carries core's `degraded` and `decisionIds`.
+	test("a rules-only verdict carries its decision ids, not degraded", async () => {
+		const decision = await createGateEvaluator(
+			deps(),
+			"rules_only",
+		)(shell("ls -la"));
+		expect(decision).toMatchObject({
+			verdict: "allow",
+			decisionIds: ["id-1"],
+			degraded: false,
+		});
+	});
+
+	test("a model verdict carries its decision ids, not degraded", async () => {
+		const gate = createGateEvaluator(
+			deps({
+				backends: createRegistry([...DEFAULT_REGISTRY.values(), denyAll]),
+				policyFor: async () => ({ ok: true, value: modelPolicy }),
+			}),
+		);
+		const decision = await gate(shell("ls -la"));
+		expect(decision.verdict).toBe("deny");
+		expect(decision.degraded).toBe(false);
+		expect(decision.decisionIds.length).toBeGreaterThan(0);
+	});
+
+	test("a model that cannot answer makes the decision degraded", async () => {
+		const gate = createGateEvaluator(
+			deps({
+				backends: createRegistry([...DEFAULT_REGISTRY.values(), unavailable]),
+				policyFor: async () => ({ ok: true, value: modelPolicy }),
+			}),
+		);
+		const decision = await gate(shell("ls -la"));
+		expect(decision.degraded).toBe(true);
+		expect(decision.verdict).not.toBe("allow");
+	});
+
+	test("no shell grammar makes a shell decision degraded", async () => {
+		const gate = createGateEvaluator(
+			deps({ context: async () => ({ shell: null, home: "/home/dev" }) }),
+		);
+		expect(await gate(shell("ls -la"))).toMatchObject({
+			verdict: "ask",
+			degraded: true,
+		});
+	});
+});
+
+describe("parseGateDecision", () => {
+	test("accepts a full decision", () => {
+		const decision: GateDecision = {
+			verdict: "ask",
+			reason: "r",
+			decisionIds: ["a"],
+			degraded: true,
+		};
+		expect(parseGateDecision(decision)).toEqual(decision);
+	});
+
+	test.each([
+		["no degraded flag", { verdict: "allow", reason: "r", decisionIds: [] }],
+		[
+			"a non-boolean degraded flag",
+			{ verdict: "allow", reason: "r", decisionIds: [], degraded: "no" },
+		],
+		["no decision ids", { verdict: "allow", reason: "r", degraded: false }],
+		[
+			"a non-string decision id",
+			{ verdict: "allow", reason: "r", decisionIds: [1], degraded: false },
+		],
+	] as const)("rejects %s", (_label, value) => {
+		expect(parseGateDecision(value)).toBeNull();
 	});
 });
 
@@ -326,7 +417,13 @@ describe("hook client rules-only fallback", () => {
 			});
 			expect(irreversible).toMatchObject({ verdict: "ask", degraded: true });
 			const harmless = await client.evaluate(shell("ls"), { timeoutMs: 200 });
-			expect(harmless).toMatchObject({ verdict: "ask", degraded: true });
+			// The fallback keeps the rules' decision ids for the log.
+			expect(harmless).toMatchObject({
+				verdict: "ask",
+				decisionIds: [expect.any(String)],
+				degraded: true,
+				source: "fallback",
+			});
 		} finally {
 			temp.cleanup();
 		}

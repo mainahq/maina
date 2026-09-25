@@ -293,6 +293,8 @@ describe("runtime observe port", () => {
 			expect(await hook(started.value.address, session("/repo"))).toEqual({
 				verdict: "deny",
 				reason: "fixed deny",
+				decisionIds: [],
+				degraded: false,
 			});
 		}
 		expect(calls).toBe(3);
@@ -409,6 +411,8 @@ describe("runtime graph hooks", () => {
 		expect(await hook(rt.address, session(root))).toEqual({
 			verdict: "allow",
 			reason: "fixed allow",
+			decisionIds: [],
+			degraded: false,
 		});
 		expect(await waitFor(() => graphNames(root).includes("add"), 5000)).toBe(
 			true,

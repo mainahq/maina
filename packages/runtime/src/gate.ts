@@ -42,8 +42,18 @@ export type GateEvent = Readonly<{
 	cwd?: string;
 }>;
 
-/** What an evaluator decides for one event. */
-export type GateDecision = Readonly<{ verdict: Verdict; reason: string }>;
+/** What an evaluator decides for one event. JSON-serialisable (the wire). */
+export type GateDecision = Readonly<{
+	verdict: Verdict;
+	reason: string;
+	/** Ids of the `action.risk` decisions behind the verdict, for the log. */
+	decisionIds: readonly string[];
+	/**
+	 * The gate could not run in full: core's `evaluateGate` fell back (no
+	 * model answer, no shell grammar) or the event could not be evaluated.
+	 */
+	degraded: boolean;
+}>;
 
 /** The gate port: evaluates one event. May be sync or async. */
 export type GateEvaluator = (
@@ -67,10 +77,14 @@ export type DegradedCause =
 	/** The socket's dir is not private to this user, so no answer is trusted. */
 	| "insecure_endpoint";
 
-/** What the hook client returns for one event. */
+/**
+ * What the hook client returns for one event. A runtime answer keeps the
+ * runtime's own `degraded` flag; the in-process fallback is always degraded.
+ * A degraded result is never `allow`.
+ */
 export type GateResult = GateDecision &
 	(
-		| Readonly<{ degraded: false; source: "runtime" }>
+		| Readonly<{ source: "runtime" }>
 		| Readonly<{
 				degraded: true;
 				source: "fallback";
@@ -93,12 +107,21 @@ export function parseGateEvent(value: unknown): GateEvent | null {
 	return cwd === undefined ? { kind, input } : { kind, input, cwd };
 }
 
-/** A gate decision from untrusted input, or null when it has the wrong shape. */
+const isStringArray = (value: unknown): value is readonly string[] =>
+	Array.isArray(value) && value.every((v) => typeof v === "string");
+
+/**
+ * A gate decision from untrusted input, or null when it has the wrong shape.
+ * A missing `degraded` flag is rejected rather than read as `false`.
+ */
 export function parseGateDecision(value: unknown): GateDecision | null {
 	if (!isRecord(value)) return null;
-	const { verdict, reason } = value;
+	const { verdict, reason, decisionIds, degraded } = value;
 	if (!isVerdict(verdict) || typeof reason !== "string") return null;
-	return { verdict, reason };
+	if (!isStringArray(decisionIds) || typeof degraded !== "boolean") {
+		return null;
+	}
+	return { verdict, reason, decisionIds: [...decisionIds], degraded };
 }
 
 /**
@@ -107,7 +130,7 @@ export function parseGateDecision(value: unknown): GateDecision | null {
  */
 export function failClosed(decision: GateDecision): GateDecision {
 	return decision.verdict === "allow"
-		? { verdict: "ask", reason: decision.reason }
+		? { ...decision, verdict: "ask" }
 		: decision;
 }
 
@@ -135,9 +158,12 @@ export type GateEvaluatorDeps = Readonly<{
  */
 type GateMode = "full" | "rules_only";
 
+/** An event the gate could not evaluate: it asks, degraded. */
 const asking = (why: string): GateDecision => ({
 	verdict: "ask",
 	reason: `${why}; asking`,
+	decisionIds: [],
+	degraded: true,
 });
 
 /** Runs core's `evaluateGate` on wire events. Never rejects; failures ask. */
@@ -169,7 +195,12 @@ export function createGateEvaluator(
 					? withBackend(policy.value, "action.risk", "rules")
 					: policy.value,
 			);
-			return { verdict: result.verdict, reason: result.reason };
+			return {
+				verdict: result.verdict,
+				reason: result.reason,
+				decisionIds: result.decisionIds,
+				degraded: result.degraded,
+			};
 		} catch (e) {
 			return asking(
 				`maina gate failed (${e instanceof Error ? e.message : String(e)})`,

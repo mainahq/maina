@@ -31,7 +31,14 @@ const endpoint = resolveEndpoint({
 });
 
 const started = startRuntime(
-	{ gate: () => ({ verdict: "allow", reason: "bench" }) },
+	{
+		gate: () => ({
+			verdict: "allow",
+			reason: "bench",
+			decisionIds: [],
+			degraded: false,
+		}),
+	},
 	{ endpoint, version, idleTtlMs: 60_000 },
 );
 if (!started.ok) {
@@ -48,7 +55,12 @@ const client = createHookClient({
 		ok: false,
 		error: { kind: "spawn_failed", message: "bench runs in process" },
 	}),
-	fallback: () => ({ verdict: "deny", reason: "fallback" }),
+	fallback: () => ({
+		verdict: "deny",
+		reason: "fallback",
+		decisionIds: [],
+		degraded: false,
+	}),
 });
 const event = { kind: "shell", input: { command: "ls" } };
 

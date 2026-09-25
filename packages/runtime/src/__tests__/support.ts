@@ -40,7 +40,12 @@ export const shellEvent: GateEvent = {
 
 export const fixedGate =
 	(verdict: "allow" | "ask" | "deny"): GateEvaluator =>
-	() => ({ verdict, reason: `fixed ${verdict}` });
+	() => ({
+		verdict,
+		reason: `fixed ${verdict}`,
+		decisionIds: [],
+		degraded: false,
+	});
 
 /** A spawner that never starts anything, so the client must degrade. */
 export const noSpawn: SpawnRuntime = () => ({
