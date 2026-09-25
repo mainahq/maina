@@ -10,6 +10,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AIContext } from "../ai/index";
+import { decideEach, defaultDecidePorts } from "../decide/decide";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -115,15 +116,13 @@ function extractKeywords(task: string): string[] {
 		.filter((w) => w.length > 1 && !NOISE_WORDS.has(w));
 }
 
-/**
- * Check if a file path matches any keywords from a task.
- */
-function fileMatchesTask(file: string, taskKeywords: string[]): boolean {
-	const fileLower = file.toLowerCase();
-	return taskKeywords.some(
-		(keyword) => keyword.length > 2 && fileLower.includes(keyword),
-	);
-}
+/** Tool pairs where an accepted ADR choosing the first rules out the second. */
+const ADR_TOOL_CONFLICTS: ReadonlyArray<readonly [string, string]> = [
+	["biome", "eslint"],
+	["biome", "prettier"],
+	["bun:test", "jest"],
+	["bun:test", "vitest"],
+];
 
 /**
  * Extract added lines from a unified diff (lines starting with `+`, excluding `+++` header).
@@ -203,21 +202,16 @@ export function reviewSpecCompliance(
 		};
 	}
 
-	// Check each task has matching file changes
-	const matchedFiles = new Set<string>();
-
-	for (const task of tasks) {
-		const keywords = extractKeywords(task);
-		let taskCovered = false;
-
-		for (const file of diffFiles) {
-			if (fileMatchesTask(file, keywords)) {
-				taskCovered = true;
-				matchedFiles.add(file);
-			}
-		}
-
-		if (!taskCovered) {
+	// Is each task covered by a changed file (`spec.coverage`)?
+	const taskKeywords = tasks.map(extractKeywords);
+	const covered = decideEach(defaultDecidePorts, {
+		type: "spec.coverage",
+		check: "task",
+		untrusted: taskKeywords.map((keywords) => ({ keywords })),
+		shared: { untrusted: { files: diffFiles } },
+	});
+	for (const [i, task] of tasks.entries()) {
+		if (covered[i] === false) {
 			findings.push({
 				stage: "spec-compliance",
 				severity: "warning",
@@ -226,9 +220,15 @@ export function reviewSpecCompliance(
 		}
 	}
 
-	// Check for files not matching any task (over-building)
-	for (const file of diffFiles) {
-		if (!matchedFiles.has(file)) {
+	// Is each changed file mapped to no task, i.e. over-building (`spec.orphan`)?
+	const orphaned = decideEach(defaultDecidePorts, {
+		type: "spec.orphan",
+		check: "file",
+		untrusted: diffFiles.map((file) => ({ file })),
+		shared: { untrusted: { taskKeywords } },
+	});
+	for (const [i, file] of diffFiles.entries()) {
+		if (orphaned[i]) {
 			findings.push({
 				stage: "spec-compliance",
 				severity: "info",
@@ -238,30 +238,34 @@ export function reviewSpecCompliance(
 		}
 	}
 
-	// Check if changes align with accepted ADRs
+	// Does the added code contradict an accepted ADR (`spec.contradiction`)?
 	if (decisionSummaries && decisionSummaries.length > 0) {
 		const addedLines = extractAddedLines(diff);
 		const addedText = addedLines.map((l) => l.text.toLowerCase()).join(" ");
-
-		for (const summary of decisionSummaries) {
-			// Extract tool/technology mentions from ADR summary
-			const summaryLower = summary.toLowerCase();
-			// Check for contradictions: if ADR mentions tool A but added code uses conflicting tool B
-			const knownConflicts: Array<[string, string]> = [
-				["biome", "eslint"],
-				["biome", "prettier"],
-				["bun:test", "jest"],
-				["bun:test", "vitest"],
-			];
-
-			for (const [preferred, rejected] of knownConflicts) {
-				if (summaryLower.includes(preferred) && addedText.includes(rejected)) {
-					findings.push({
-						stage: "spec-compliance",
-						severity: "warning",
-						message: `ADR requires ${preferred} but added code references ${rejected}: "${summary.slice(0, 80)}"`,
-					});
-				}
+		const pairs = decisionSummaries.flatMap((summary) =>
+			ADR_TOOL_CONFLICTS.map(([preferred, rejected]) => ({
+				summary,
+				preferred,
+				rejected,
+			})),
+		);
+		const contradicts = decideEach(defaultDecidePorts, {
+			type: "spec.contradiction",
+			check: "adr",
+			trusted: pairs.map(({ preferred, rejected }) => ({
+				preferred,
+				rejected,
+			})),
+			untrusted: pairs.map(({ summary }) => ({ summary })),
+			shared: { untrusted: { addedText } },
+		});
+		for (const [i, { summary, preferred, rejected }] of pairs.entries()) {
+			if (contradicts[i]) {
+				findings.push({
+					stage: "spec-compliance",
+					severity: "warning",
+					message: `ADR requires ${preferred} but added code references ${rejected}: "${summary.slice(0, 80)}"`,
+				});
 			}
 		}
 	}
@@ -279,6 +283,36 @@ export function reviewSpecCompliance(
 
 // ── Stage 2: Code Quality ───────────────────────────────────────────────────
 
+/** `slop` checks run on each added line, with the finding each one raises. */
+const DIFF_CHECKS: ReadonlyArray<
+	Readonly<{
+		id: string;
+		severity: ReviewFinding["severity"];
+		message: (text: string) => string;
+	}>
+> = [
+	{
+		id: "diff-console-log",
+		severity: "warning",
+		message: () => "console.log found in added code",
+	},
+	{
+		id: "diff-todo",
+		severity: "warning",
+		message: () => "TODO without ticket reference in added code",
+	},
+	{
+		id: "diff-empty-body",
+		severity: "warning",
+		message: () => "Empty function body in added code",
+	},
+	{
+		id: "diff-long-line",
+		severity: "info",
+		message: (text) => `Long line (${text.length} chars) in added code`,
+	},
+];
+
 /**
  * Review code quality by checking added lines for common issues.
  *
@@ -294,53 +328,24 @@ export function reviewCodeQuality(
 ): ReviewStageResult {
 	const findings: ReviewFinding[] = [];
 	const addedLines = extractAddedLines(diff);
+	const lines = addedLines.map(({ text }) => ({ text }));
 
-	for (const { text, file, lineNum } of addedLines) {
-		// Check for console.log
-		if (/console\.log\s*\(/.test(text)) {
+	// One `slop` decision per added line and check, in this order per line.
+	const flagged = DIFF_CHECKS.map((check) =>
+		decideEach(defaultDecidePorts, {
+			type: "slop",
+			check: check.id,
+			untrusted: lines,
+		}),
+	);
+
+	for (const [i, { text, file, lineNum }] of addedLines.entries()) {
+		for (const [c, check] of DIFF_CHECKS.entries()) {
+			if (!flagged[c]?.[i]) continue;
 			findings.push({
 				stage: "code-quality",
-				severity: "warning",
-				message: "console.log found in added code",
-				file,
-				line: lineNum,
-			});
-		}
-
-		// Bare TODO without ticket ref — case-sensitive to skip identifiers like handleCreateTodo. Allows TODO(#123), TODO(JIRA-456)
-		if (
-			/\bTODO\b/.test(text) &&
-			!/TODO\s*[(#]|TODO\s*\([A-Z]+-\d+\)/.test(text)
-		) {
-			findings.push({
-				stage: "code-quality",
-				severity: "warning",
-				message: "TODO without ticket reference in added code",
-				file,
-				line: lineNum,
-			});
-		}
-
-		// Check for empty function/method bodies
-		if (
-			/(?:function\s+\w+\s*\([^)]*\)|=>\s*)\s*\{\s*\}/.test(text) ||
-			/\)\s*\{\s*\}/.test(text)
-		) {
-			findings.push({
-				stage: "code-quality",
-				severity: "warning",
-				message: "Empty function body in added code",
-				file,
-				line: lineNum,
-			});
-		}
-
-		// Check for very long lines (>120 chars)
-		if (text.length > 120) {
-			findings.push({
-				stage: "code-quality",
-				severity: "info",
-				message: `Long line (${text.length} chars) in added code`,
+				severity: check.severity,
+				message: check.message(text),
 				file,
 				line: lineNum,
 			});

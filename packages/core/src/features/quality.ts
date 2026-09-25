@@ -10,6 +10,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import type { Result } from "../db/index";
+import { decide, defaultDecidePorts, scoreAnswers } from "../decide/decide";
 
 /**
  * Extract criteria from both "Acceptance Criteria" and "Success Criteria" sections.
@@ -124,18 +125,25 @@ const TESTABLE_PATTERNS = [
 	/\b(error|Error|ERROR)\s+(code|message|status)\b/i, // error references
 ];
 
-/**
- * Score measurability of acceptance criteria.
- * Returns 0 when there are no criteria (empty spec).
- */
-function scoreMeasurability(criteria: string[]): {
-	score: number;
-	details: string;
-} {
-	if (criteria.length === 0) {
-		return { score: 0, details: "Measurability: 0 — no acceptance criteria" };
-	}
+/** Counts the four dimensions are scored from. */
+interface SpecCounts {
+	criteria: number;
+	measurable: number;
+	vague: number;
+	testable: number;
+	weaselWords: number;
+	missingSections: string[];
+	clarificationMarkers: number;
+}
 
+/**
+ * Count criteria that use measurable verbs (and no vague ones), and those
+ * that are vague.
+ */
+function countMeasurable(criteria: string[]): {
+	measurable: number;
+	vague: number;
+} {
 	let measurable = 0;
 	let vague = 0;
 
@@ -157,117 +165,98 @@ function scoreMeasurability(criteria: string[]): {
 		}
 	}
 
-	const total = criteria.length;
-	const score = Math.round((measurable / total) * 100);
-
-	return {
-		score,
-		details: `Measurability: ${score} — ${measurable}/${total} criteria use measurable verbs (${vague} vague)`,
-	};
+	return { measurable, vague };
 }
 
 /**
- * Score testability of acceptance criteria.
- * Criteria with backtick identifiers, specific numbers, file paths, etc.
+ * Count criteria with backtick identifiers, specific numbers, file paths, etc.
  */
-function scoreTestability(criteria: string[]): {
-	score: number;
-	details: string;
-} {
-	if (criteria.length === 0) {
-		return { score: 0, details: "Testability: 0 — no acceptance criteria" };
-	}
-
-	let testable = 0;
-
-	for (const criterion of criteria) {
-		const hasTestablePattern = TESTABLE_PATTERNS.some((p) => p.test(criterion));
-		if (hasTestablePattern) {
-			testable++;
-		}
-	}
-
-	const total = criteria.length;
-	const score = Math.round((testable / total) * 100);
-
-	return {
-		score,
-		details: `Testability: ${score} — ${testable}/${total} criteria contain testable patterns`,
-	};
+function countTestable(criteria: string[]): number {
+	return criteria.filter((criterion) =>
+		TESTABLE_PATTERNS.some((p) => p.test(criterion)),
+	).length;
 }
 
-/**
- * Score ambiguity across entire spec content.
- * 100 = no weasel words, each weasel word deducts 10 points.
- */
-function scoreAmbiguity(content: string): { score: number; details: string } {
-	if (content.trim().length === 0) {
-		return { score: 0, details: "Ambiguity: 0 — empty spec" };
-	}
-
-	const words = content.toLowerCase().split(/\s+/);
+/** Count weasel words across the entire spec content. */
+function countWeaselWords(content: string): number {
 	let weaselCount = 0;
-
-	for (const word of words) {
+	for (const word of content.toLowerCase().split(/\s+/)) {
 		// Strip punctuation for matching
 		const clean = word.replace(/[^a-z]/g, "");
 		if (WEASEL_WORDS.has(clean)) {
 			weaselCount++;
 		}
 	}
+	return weaselCount;
+}
 
-	const score = Math.max(0, 100 - weaselCount * 10);
+/** Required sections that have no `##` heading in the spec. */
+function findMissingSections(content: string): string[] {
+	return REQUIRED_SECTIONS.filter((section) => {
+		// Check for heading containing the section name (case-insensitive)
+		const pattern = new RegExp(`^##\\s+${escapeRegex(section)}`, "im");
+		return !pattern.test(content);
+	});
+}
 
+function countSpec(content: string): SpecCounts {
+	const criteria = extractCriteria(content);
+	const { measurable, vague } = countMeasurable(criteria);
 	return {
-		score,
-		details: `Ambiguity: ${score} — ${weaselCount} weasel word(s) found`,
+		criteria: criteria.length,
+		measurable,
+		vague,
+		testable: countTestable(criteria),
+		weaselWords: countWeaselWords(content),
+		missingSections: findMissingSections(content),
+		clarificationMarkers:
+			content.match(/\[NEEDS CLARIFICATION\]/g)?.length ?? 0,
 	};
 }
 
-/**
- * Score completeness based on required sections and [NEEDS CLARIFICATION] markers.
- */
-function scoreCompleteness(content: string): {
-	score: number;
-	details: string;
-} {
-	if (content.trim().length === 0) {
-		return { score: 0, details: "Completeness: 0 — empty spec" };
-	}
+const DIMENSIONS = [
+	"measurability",
+	"testability",
+	"ambiguity",
+	"completeness",
+	"overall",
+] as const;
 
-	let present = 0;
-	const missing: string[] = [];
+type Dimension = (typeof DIMENSIONS)[number];
 
-	for (const section of REQUIRED_SECTIONS) {
-		// Check for heading containing the section name (case-insensitive)
-		const pattern = new RegExp(`^##\\s+${escapeRegex(section)}`, "im");
-		if (pattern.test(content)) {
-			present++;
-		} else {
-			missing.push(section);
-		}
-	}
-
-	let score = Math.round((present / REQUIRED_SECTIONS.length) * 100);
-
-	// Penalize [NEEDS CLARIFICATION] markers
-	const clarificationMatches = content.match(/\[NEEDS CLARIFICATION\]/g);
-	const markerCount = clarificationMatches?.length ?? 0;
-	if (markerCount > 0) {
-		score = Math.max(0, score - markerCount * 10);
-	}
-
+/** The per-dimension details lines, given the counts and the decided scores. */
+function describeScores(
+	counts: SpecCounts,
+	score: Readonly<Record<Dimension, number>>,
+): string[] {
+	const { criteria: total } = counts;
+	const measurability =
+		total === 0
+			? "Measurability: 0 — no acceptance criteria"
+			: `Measurability: ${score.measurability} — ${counts.measurable}/${total} criteria use measurable verbs (${counts.vague} vague)`;
+	const testability =
+		total === 0
+			? "Testability: 0 — no acceptance criteria"
+			: `Testability: ${score.testability} — ${counts.testable}/${total} criteria contain testable patterns`;
+	const ambiguity = `Ambiguity: ${score.ambiguity} — ${counts.weaselWords} weasel word(s) found`;
+	const present = REQUIRED_SECTIONS.length - counts.missingSections.length;
+	const markerCount = counts.clarificationMarkers;
 	const missingStr =
-		missing.length > 0 ? ` — missing: ${missing.join(", ")}` : "";
+		counts.missingSections.length > 0
+			? ` — missing: ${counts.missingSections.join(", ")}`
+			: "";
 	const markerStr =
 		markerCount > 0
 			? ` — ${markerCount} [NEEDS CLARIFICATION] marker(s) (-${markerCount * 10})`
 			: "";
-
-	return {
-		score,
-		details: `Completeness: ${score} — ${present}/${REQUIRED_SECTIONS.length} sections present${missingStr}${markerStr}`,
-	};
+	const completeness = `Completeness: ${score.completeness} — ${present}/${REQUIRED_SECTIONS.length} sections present${missingStr}${markerStr}`;
+	return [
+		measurability,
+		testability,
+		ambiguity,
+		completeness,
+		`Overall: ${score.overall} (weighted average)`,
+	];
 }
 
 /**
@@ -315,35 +304,46 @@ export function scoreSpec(specPath: string): Result<QualityScore> {
 		};
 	}
 
-	const criteria = extractCriteria(content);
-
-	const measurability = scoreMeasurability(criteria);
-	const testability = scoreTestability(criteria);
-	const ambiguity = scoreAmbiguity(content);
-	const completeness = scoreCompleteness(content);
-
-	const overall = Math.round(
-		measurability.score * 0.25 +
-			testability.score * 0.25 +
-			ambiguity.score * 0.25 +
-			completeness.score * 0.25,
-	);
+	const counts = countSpec(content);
+	const result = decide(defaultDecidePorts, {
+		type: "spec.quality",
+		state: {
+			trusted: {
+				criteria: counts.criteria,
+				measurable: counts.measurable,
+				testable: counts.testable,
+				weaselWords: counts.weaselWords,
+				sectionsPresent:
+					REQUIRED_SECTIONS.length - counts.missingSections.length,
+				sectionsRequired: REQUIRED_SECTIONS.length,
+				clarificationMarkers: counts.clarificationMarkers,
+			},
+			untrusted: { spec: content },
+		},
+		questions: DIMENSIONS.map((id) => ({
+			kind: "score",
+			id,
+			min: 0,
+			max: 100,
+		})),
+	});
+	if (!result.ok) {
+		return { ok: false, error: `Failed to score spec: ${result.error.kind}` };
+	}
+	const scores = scoreAnswers(result, DIMENSIONS.length, 0);
+	const score = Object.fromEntries(
+		DIMENSIONS.map((dimension, i) => [dimension, scores[i] ?? 0]),
+	) as Record<Dimension, number>;
 
 	return {
 		ok: true,
 		value: {
-			overall,
-			measurability: measurability.score,
-			testability: testability.score,
-			ambiguity: ambiguity.score,
-			completeness: completeness.score,
-			details: [
-				measurability.details,
-				testability.details,
-				ambiguity.details,
-				completeness.details,
-				`Overall: ${overall} (weighted average)`,
-			],
+			overall: score.overall,
+			measurability: score.measurability,
+			testability: score.testability,
+			ambiguity: score.ambiguity,
+			completeness: score.completeness,
+			details: describeScores(counts, score),
 		},
 	};
 }

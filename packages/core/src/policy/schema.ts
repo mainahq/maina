@@ -53,6 +53,7 @@ export type DecisionType = (typeof DECISION_TYPES)[number];
 
 /** Backends a decision type can be served by. */
 const DECISION_BACKENDS = ["rules", "heuristic", "system1"] as const;
+export type DecisionBackend = (typeof DECISION_BACKENDS)[number];
 
 export type PolicySource = "user" | "repo";
 

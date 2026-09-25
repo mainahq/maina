@@ -2,6 +2,7 @@
  * Built-in policy: the base layer every user and repo policy merges onto.
  */
 
+import { DECISION_CATALOG } from "../decide/types-catalog";
 import {
 	type ActionClassPolicy,
 	DECISION_TYPES,
@@ -63,14 +64,15 @@ const SAFETY_CRITICAL: ReadonlySet<DecisionType> = new Set([
 ]);
 
 function defaultDecision(type: DecisionType): DecisionPolicy {
+	const backend = DECISION_CATALOG[type].defaultBackend;
 	return SAFETY_CRITICAL.has(type)
 		? {
-				backend: type === "action.risk" ? "rules" : "heuristic",
+				backend,
 				thresholds: { confidence: 0.9 },
 				error_costs: { false_positive: 1, false_negative: 10 },
 			}
 		: {
-				backend: "heuristic",
+				backend,
 				thresholds: { confidence: 0.8 },
 				error_costs: { false_positive: 1, false_negative: 1 },
 			};

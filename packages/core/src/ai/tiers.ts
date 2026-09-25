@@ -1,4 +1,6 @@
 import type { Config } from "../config/schema";
+import { choiceAnswer, decide, defaultDecidePorts } from "../decide/decide";
+import { MODEL_TIERS } from "../decide/types-catalog";
 
 export type ModelTier = "mechanical" | "standard" | "architectural" | "local";
 
@@ -8,32 +10,20 @@ interface ModelResolution {
 	provider: string;
 }
 
-const MECHANICAL_TASKS = new Set([
-	"commit",
-	"tests",
-	"slop",
-	"compress",
-	"code-review",
-	"walkthrough",
-]);
-const ARCHITECTURAL_TASKS = new Set(["design-review", "architecture", "learn"]);
-
 /**
- * Maps a task name to its model tier.
+ * Maps a task name to its model tier via `decide` (`task.tier`).
  * - mechanical: commit, tests, slop, compress
  * - standard: review, plan, design, fix (and any unknown task)
  * - architectural: design-review, architecture, learn
  * - local: not auto-assigned; user must explicitly set
  */
 export function getTaskTier(task: string): ModelTier {
-	if (MECHANICAL_TASKS.has(task)) {
-		return "mechanical";
-	}
-	if (ARCHITECTURAL_TASKS.has(task)) {
-		return "architectural";
-	}
-	// standard is the default for known standard tasks and all unknowns
-	return "standard";
+	const result = decide(defaultDecidePorts, {
+		type: "task.tier",
+		state: { trusted: { task }, untrusted: {} },
+		questions: [{ kind: "choice", id: "tier", options: MODEL_TIERS }],
+	});
+	return choiceAnswer(result, MODEL_TIERS, "standard");
 }
 
 /**

@@ -10,6 +10,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import type { Result } from "../db/index";
+import { decideEach, defaultDecidePorts } from "../decide/decide";
 import { extractAcceptanceCriteria } from "../utils";
 
 export interface VerificationReport {
@@ -70,7 +71,8 @@ function checkSpecCoverage(
 	const tasks = extractTasks(planContent);
 	const allTasksText = tasks.join(" ").toLowerCase();
 
-	const details: string[] = [];
+	const counted: Array<{ criterion: string; matched: number; total: number }> =
+		[];
 
 	for (const criterion of criteria) {
 		const keywords = criterion
@@ -108,16 +110,20 @@ function checkSpecCoverage(
 
 		if (keywords.length === 0) continue;
 
-		const matchedCount = keywords.filter((kw) =>
-			allTasksText.includes(kw),
-		).length;
-		const coverage = matchedCount / keywords.length;
-
-		// Require at least 50% keyword coverage for a criterion to be considered covered
-		if (coverage < 0.5) {
-			details.push(`Criterion not covered in tasks: "${criterion}"`);
-		}
+		const matched = keywords.filter((kw) => allTasksText.includes(kw)).length;
+		counted.push({ criterion, matched, total: keywords.length });
 	}
+
+	// Whether each criterion is covered is a `spec.coverage` decision.
+	const covered = decideEach(defaultDecidePorts, {
+		type: "spec.coverage",
+		check: "criterion",
+		trusted: counted.map(({ matched, total }) => ({ matched, total })),
+		untrusted: counted.map(({ criterion }) => ({ text: criterion })),
+	});
+	const details = counted
+		.filter((_, i) => covered[i] === false)
+		.map(({ criterion }) => `Criterion not covered in tasks: "${criterion}"`);
 
 	return {
 		name: "spec-coverage",

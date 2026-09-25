@@ -8,6 +8,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { decideEach, defaultDecidePorts } from "../decide/decide";
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -67,6 +68,20 @@ const NOISE_WORDS = new Set([
 	"use",
 ]);
 
+/** Tool/pattern pairs where choosing one rules out the other. */
+const CONFLICT_PAIRS: ReadonlyArray<readonly [string, string]> = [
+	["biome", "eslint"],
+	["biome", "prettier"],
+	["jest", "bun:test"],
+	["vitest", "bun:test"],
+	["node", "bun"],
+	["npm", "bun"],
+	["yarn", "bun"],
+	["pnpm", "bun"],
+	["mongodb", "sqlite"],
+	["postgres", "sqlite"],
+];
+
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
 /**
@@ -81,21 +96,21 @@ function tokenize(text: string): string[] {
 }
 
 /**
- * Score content against query keywords. Returns 0-1 based on keyword overlap.
+ * Which articles are relevant to the query keywords: one `wiki.relevance`
+ * decision per article over its distinct tokens (keyword overlap).
  */
-function scoreByKeywords(content: string, keywords: string[]): number {
-	if (keywords.length === 0) return 0;
-	const contentTokens = new Set(tokenize(content));
-	let matches = 0;
-	for (const kw of keywords) {
-		for (const ct of contentTokens) {
-			if (ct.includes(kw) || kw.includes(ct)) {
-				matches++;
-				break;
-			}
-		}
-	}
-	return matches / keywords.length;
+function relevantArticles(
+	articles: ReadonlyArray<{ content: string }>,
+	keywords: readonly string[],
+): readonly boolean[] {
+	return decideEach(defaultDecidePorts, {
+		type: "wiki.relevance",
+		check: "article",
+		untrusted: articles.map((article) => ({
+			tokens: [...new Set(tokenize(article.content))],
+		})),
+		shared: { untrusted: { keywords } },
+	});
 }
 
 /**
@@ -203,9 +218,9 @@ export function consultWikiForPlan(
 
 	// Score modules
 	const modules = readArticles(wikiDir, "modules");
-	for (const mod of modules) {
-		const score = scoreByKeywords(mod.content, keywords);
-		if (score > 0.2) {
+	const relevantModules = relevantArticles(modules, keywords);
+	for (const [i, mod] of modules.entries()) {
+		if (relevantModules[i]) {
 			const name = mod.filename.replace(/\.md$/, "");
 			const entities = countEntities(mod.content);
 			result.relatedModules.push({
@@ -219,9 +234,9 @@ export function consultWikiForPlan(
 
 	// Score decisions
 	const decisions = readArticles(wikiDir, "decisions");
-	for (const dec of decisions) {
-		const score = scoreByKeywords(dec.content, keywords);
-		if (score > 0.2) {
+	const relevantDecisions = relevantArticles(decisions, keywords);
+	for (const [i, dec] of decisions.entries()) {
+		if (relevantDecisions[i]) {
 			const title = extractTitle(dec.content)
 				.replace(/^Decision:\s*/i, "")
 				.trim();
@@ -233,9 +248,9 @@ export function consultWikiForPlan(
 
 	// Score features
 	const features = readArticles(wikiDir, "features");
-	for (const feat of features) {
-		const score = scoreByKeywords(feat.content, keywords);
-		if (score > 0.2) {
+	const relevantFeatures = relevantArticles(features, keywords);
+	for (const [i, feat] of features.entries()) {
+		if (relevantFeatures[i]) {
 			const title = extractTitle(feat.content)
 				.replace(/^Feature:\s*/i, "")
 				.trim();
@@ -288,59 +303,47 @@ export function consultWikiForDesign(
 	const proposedKeywords = tokenize(proposedDecision);
 	if (proposedKeywords.length === 0) return result;
 
-	const decisions = readArticles(wikiDir, "decisions");
+	const decisions = readArticles(wikiDir, "decisions")
+		.map((dec) => ({ ...dec, status: extractStatus(dec.content) }))
+		.filter((dec) => dec.status === "accepted" || dec.status === "proposed");
 
-	// Known tool/pattern pairs that conflict
-	const CONFLICT_PAIRS: Array<[string, string]> = [
-		["biome", "eslint"],
-		["biome", "prettier"],
-		["jest", "bun:test"],
-		["vitest", "bun:test"],
-		["node", "bun"],
-		["npm", "bun"],
-		["yarn", "bun"],
-		["pnpm", "bun"],
-		["mongodb", "sqlite"],
-		["postgres", "sqlite"],
-	];
+	// Does the proposal pick the other side of a known conflict pair from an
+	// ADR (`spec.contradiction`, one question per ADR and pair)?
+	const assertionTexts = decisions.map((dec) =>
+		extractDecisionAssertions(dec.content).join(" "),
+	);
+	const pairs = assertionTexts.flatMap((adr, d) =>
+		CONFLICT_PAIRS.map(([toolA, toolB]) => ({ d, adr, toolA, toolB })),
+	);
+	const conflicting = decideEach(defaultDecidePorts, {
+		type: "spec.contradiction",
+		check: "adr-proposal",
+		trusted: pairs.map(({ toolA, toolB }) => ({ toolA, toolB })),
+		untrusted: pairs.map(({ adr }) => ({ adr })),
+		shared: { untrusted: { proposal: proposedLower } },
+	});
+	const aligned = relevantArticles(decisions, proposedKeywords);
 
-	for (const dec of decisions) {
-		const status = extractStatus(dec.content);
-		if (status !== "accepted" && status !== "proposed") continue;
-
+	for (const [d, dec] of decisions.entries()) {
 		const title = extractTitle(dec.content)
 			.replace(/^Decision:\s*/i, "")
 			.trim();
 		const id = dec.filename.replace(/\.md$/, "");
-		const assertions = extractDecisionAssertions(dec.content);
-		const assertionText = assertions.join(" ");
+		const assertionText = assertionTexts[d] ?? "";
 
-		// Check for keyword alignment
-		const score = scoreByKeywords(dec.content, proposedKeywords);
-
-		// Check for conflicts via known pairs
-		let conflictFound = false;
-		for (const [toolA, toolB] of CONFLICT_PAIRS) {
-			const adrHasA = assertionText.includes(toolA);
-			const adrHasB = assertionText.includes(toolB);
-			const proposedHasA = proposedLower.includes(toolA);
-			const proposedHasB = proposedLower.includes(toolB);
-
-			if ((adrHasA && proposedHasB) || (adrHasB && proposedHasA)) {
-				const adrTool = adrHasA ? toolA : toolB;
-				const proposedTool = proposedHasA ? toolA : toolB;
-				result.conflicts.push({
-					adr: id,
-					title,
-					reason: `ADR chose ${adrTool}, proposal uses ${proposedTool}`,
-				});
-				conflictFound = true;
-				break;
-			}
-		}
-
-		// If no conflict but keywords overlap, it's an alignment
-		if (!conflictFound && score > 0.2) {
+		// The first conflicting pair is reported.
+		const conflict = pairs.find((pair, i) => pair.d === d && conflicting[i]);
+		if (conflict) {
+			const { toolA, toolB } = conflict;
+			const adrTool = assertionText.includes(toolA) ? toolA : toolB;
+			const proposedTool = proposedLower.includes(toolA) ? toolA : toolB;
+			result.conflicts.push({
+				adr: id,
+				title,
+				reason: `ADR chose ${adrTool}, proposal uses ${proposedTool}`,
+			});
+		} else if (aligned[d]) {
+			// No conflict, but the ADR is relevant to the proposal
 			result.alignments.push({ adr: id, title });
 		}
 	}

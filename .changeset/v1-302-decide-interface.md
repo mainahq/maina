@@ -1,0 +1,5 @@
+---
+"@mainahq/core": minor
+---
+
+Typed `decide` interface with a heuristic backend (#302). `decide(ports, { type, state: { trusted, untrusted }, questions })` returns one `Decision` (`id, type, answer, distribution, confidence, backend, latencyMs`) per `choice` (2–255 options), `score` or `bool` question, or a typed `DecideError`. `DECISION_CATALOG` lists every decision type from the policy's `DECISION_TYPES` with its question kinds, fixed options and default backend; the default policy takes its per-type backend from it. The policy picks the backend per type, falling back to the catalog default when the named one is not registered. The rules backend answers `action.risk` from the policy's action classes and asks when it does not know the class. The heuristic backend wraps the 1.x heuristics. Checklist, analyzer, spec quality, both review stages, review-comment categories and reviewer kinds, noisy-rule detection, slop, AI output validation, wiki consult, context relevance and model tiers all reach their verdicts through `decide` now, and the golden outputs are byte-identical.

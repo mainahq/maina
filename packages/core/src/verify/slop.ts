@@ -12,6 +12,7 @@
 import { existsSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { CacheManager } from "../cache/manager";
+import { decideEach, defaultDecidePorts } from "../decide/decide";
 import type { LanguageProfile } from "../language/profile";
 import { isCodeFile, TYPESCRIPT_PROFILE } from "../language/profile";
 import type { Finding } from "./diff-filter";
@@ -45,6 +46,35 @@ function cacheKey(fileHash: string): string {
 	return `slop:v${SLOP_CACHE_VERSION}:${fileHash}`;
 }
 
+/**
+ * A line the scanner flagged for a rule. Whether it really is slop is a
+ * `slop` decision over the candidate's observations.
+ */
+interface Candidate {
+	/** What the heuristic reads: line text, resolution, block length... */
+	trusted?: Readonly<Record<string, unknown>>;
+	untrusted?: Readonly<Record<string, unknown>>;
+	/** The finding raised when the decision says slop. */
+	finding: Finding;
+}
+
+/**
+ * Ask `decide` (`slop`, question `<rule>:<i>`) about every candidate and
+ * return the findings of those it judges slop, in candidate order.
+ */
+function judgeCandidates(
+	rule: SlopRule,
+	candidates: readonly Candidate[],
+): Finding[] {
+	const slop = decideEach(defaultDecidePorts, {
+		type: "slop",
+		check: rule,
+		trusted: candidates.map((c) => c.trusted ?? {}),
+		untrusted: candidates.map((c) => c.untrusted ?? {}),
+	});
+	return candidates.filter((_, i) => slop[i]).map((c) => c.finding);
+}
+
 // ─── Individual Detectors ─────────────────────────────────────────────────
 
 /**
@@ -65,92 +95,32 @@ export function detectEmptyBodies(
 		return [];
 	}
 
-	const findings: Finding[] = [];
 	const lines = content.split("\n");
+	const candidates: Candidate[] = [];
 
-	// Strategy: find lines with `{}` or multiline open/close brace patterns
-	// that are part of function/method/arrow declarations.
-
+	// Candidates: empty braces on one line, or an opening brace whose next
+	// line is a lone closing brace. The heuristic decides which are function,
+	// method or arrow bodies rather than literals, types, strings or regexes.
 	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i] ?? "";
-		const trimmed = line.trim();
-
-		// Skip obvious non-function empty braces
-		if (
-			/(?:const|let|var|type|interface|enum)\s+\w+.*=\s*\{/.test(trimmed) &&
-			!trimmed.includes("=>")
-		) {
+		const trimmed = (lines[i] ?? "").trim();
+		const next = lines[i + 1]?.trim() ?? "";
+		if (!/\{\s*\}/.test(trimmed) && !(trimmed.endsWith("{") && next === "}")) {
 			continue;
 		}
-
-		// Check for single-line empty function body
-		const emptyBraces = /\{\s*\}/;
-		if (emptyBraces.test(trimmed)) {
-			// Skip lines where the empty braces are inside a regex literal or string
-			if (
-				/\/.*\{\\s\*\}.*\//.test(trimmed) ||
-				/['"`].*\{\s*\}.*['"`]/.test(trimmed)
-			) {
-				continue;
-			}
-
-			const fnDeclPattern =
-				/function\s+\w+\s*\([^)]*\)\s*(?::\s*[^{]+)?\{\s*\}/;
-			const arrowPattern = /=>\s*\{\s*\}/;
-			const methodPattern =
-				/^\s*(?:(?:public|private|protected|static|async|get|set|override)\s+)*\w+\s*\([^)]*\)\s*(?::\s*[^{]+)?\{\s*\}/;
-			const nonFnPattern =
-				/(?:const|let|var|type|interface|enum|import|export\s+(?:type|interface))\s/;
-
-			const isFunctionLike =
-				fnDeclPattern.test(trimmed) ||
-				arrowPattern.test(trimmed) ||
-				(methodPattern.test(trimmed) && !nonFnPattern.test(trimmed));
-
-			if (isFunctionLike) {
-				findings.push({
-					tool: "slop",
-					file,
-					line: i + 1,
-					message: "Empty function/method body detected",
-					severity: "warning",
-					ruleId: "slop/empty-body",
-				});
-			}
-			continue;
-		}
-
-		// Multi-line empty body: opening brace on one line, closing on next,
-		// with nothing in between
-		if (trimmed.endsWith("{")) {
-			const nextLine = lines[i + 1]?.trim() ?? "";
-			if (nextLine === "}") {
-				// Check if this line is a function/method declaration
-				const isFunctionLike =
-					/function\s+\w+\s*\(/.test(trimmed) ||
-					/=>\s*\{$/.test(trimmed) ||
-					(/^\s*(?:(?:public|private|protected|static|async|get|set|override)\s+)*\w+\s*\([^)]*\)\s*(?::\s*[^{]+)?\{$/.test(
-						trimmed,
-					) &&
-						!/(?:const|let|var|type|interface|enum|import|class|if|else|for|while|switch|try|catch)\s/.test(
-							trimmed,
-						));
-
-				if (isFunctionLike) {
-					findings.push({
-						tool: "slop",
-						file,
-						line: i + 1,
-						message: "Empty function/method body detected",
-						severity: "warning",
-						ruleId: "slop/empty-body",
-					});
-				}
-			}
-		}
+		candidates.push({
+			untrusted: { text: trimmed, next },
+			finding: {
+				tool: "slop",
+				file,
+				line: i + 1,
+				message: "Empty function/method body detected",
+				severity: "warning",
+				ruleId: "slop/empty-body",
+			},
+		});
 	}
 
-	return findings;
+	return judgeCandidates("empty-body", candidates);
 }
 
 /**
@@ -172,7 +142,7 @@ export function detectHallucinatedImports(
 		return [];
 	}
 
-	const findings: Finding[] = [];
+	const candidates: Candidate[] = [];
 	const lines = content.split("\n");
 
 	// Determine the directory of the file being checked
@@ -199,7 +169,7 @@ export function detectHallucinatedImports(
 		const resolvedBase = resolve(fileDir, importPath);
 
 		// Check common extensions and index files
-		const candidates = [
+		const paths = [
 			resolvedBase,
 			`${resolvedBase}.ts`,
 			`${resolvedBase}.tsx`,
@@ -212,21 +182,23 @@ export function detectHallucinatedImports(
 			join(resolvedBase, "index.jsx"),
 		];
 
-		const found = candidates.some((candidate) => existsSync(candidate));
+		const resolved = paths.some((path) => existsSync(path));
 
-		if (!found) {
-			findings.push({
+		candidates.push({
+			trusted: { resolved },
+			untrusted: { importPath },
+			finding: {
 				tool: "slop",
 				file,
 				line: i + 1,
 				message: `Import "${importPath}" does not resolve to an existing file`,
 				severity: "error",
 				ruleId: "slop/hallucinated-import",
-			});
-		}
+			},
+		});
 	}
 
-	return findings;
+	return judgeCandidates("hallucinated-import", candidates);
 }
 
 /**
@@ -248,19 +220,19 @@ export function detectConsoleLogs(
 		return [];
 	}
 
-	const findings: Finding[] = [];
+	const candidates: Candidate[] = [];
 	const lines = content.split("\n");
 
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i] ?? "";
-		// Respect lint-ignore directives on preceding line
-		const prevLine = i > 0 ? (lines[i - 1] ?? "") : "";
-		if (lang.lintIgnorePattern.test(prevLine)) {
-			continue;
-		}
 		const match = lang.printPattern.exec(line);
-		if (match) {
-			findings.push({
+		if (!match) continue;
+		// A lint-ignore directive on the preceding line excuses the statement
+		const prevLine = i > 0 ? (lines[i - 1] ?? "") : "";
+		candidates.push({
+			trusted: { lintIgnored: lang.lintIgnorePattern.test(prevLine) },
+			untrusted: { text: line },
+			finding: {
 				tool: "slop",
 				file,
 				line: i + 1,
@@ -268,11 +240,11 @@ export function detectConsoleLogs(
 				message: "Print/log statement found in production code",
 				severity: "warning",
 				ruleId: "slop/console-log",
-			});
-		}
+			},
+		});
 	}
 
-	return findings;
+	return judgeCandidates("console-log", candidates);
 }
 
 /**
@@ -291,29 +263,30 @@ export function detectTodosWithoutTickets(
 		return [];
 	}
 
-	const findings: Finding[] = [];
+	const candidates: Candidate[] = [];
 	const lines = content.split("\n");
 
-	// Match TODO or FIXME in comments (case-sensitive — these are always uppercase)
+	// Match TODO or FIXME in comments (case-sensitive — these are always
+	// uppercase). Whether the line carries a ticket reference is decided.
 	const todoPattern = /(?:\/\/|\/\*|\*)\s*(?:TODO|FIXME)\b/;
-	// Ticket reference patterns: #123, PROJ-123, [#123], (PROJ-123)
-	const ticketPattern = /#\d+|\b[A-Z][A-Z0-9]+-\d+/;
 
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i] ?? "";
-		if (todoPattern.test(line) && !ticketPattern.test(line)) {
-			findings.push({
+		if (!todoPattern.test(line)) continue;
+		candidates.push({
+			untrusted: { text: line },
+			finding: {
 				tool: "slop",
 				file,
 				line: i + 1,
 				message: "TODO/FIXME without ticket reference",
 				severity: "info",
 				ruleId: "slop/todo-without-ticket",
-			});
-		}
+			},
+		});
 	}
 
-	return findings;
+	return judgeCandidates("todo-without-ticket", candidates);
 }
 
 /**
@@ -335,7 +308,7 @@ export function detectCommentedCode(
 		return [];
 	}
 
-	const findings: Finding[] = [];
+	const candidates: Candidate[] = [];
 	const lines = content.split("\n");
 
 	// Code-like patterns in comments
@@ -358,6 +331,18 @@ export function detectCommentedCode(
 
 		return codePatterns.some((p) => p.test(stripped));
 	}
+
+	const block = (start: number, count: number): Candidate => ({
+		trusted: { blockLines: count },
+		finding: {
+			tool: "slop",
+			file,
+			line: start + 1,
+			message: `${count} consecutive lines of commented-out code`,
+			severity: "warning",
+			ruleId: "slop/commented-code",
+		},
+	});
 
 	let blockStart = -1;
 	let blockCount = 0;
@@ -392,34 +377,17 @@ export function detectCommentedCode(
 			}
 		} else {
 			// End of consecutive comment block
-			if (blockCount >= 3) {
-				findings.push({
-					tool: "slop",
-					file,
-					line: blockStart + 1,
-					message: `${blockCount} consecutive lines of commented-out code`,
-					severity: "warning",
-					ruleId: "slop/commented-code",
-				});
-			}
+			if (blockCount > 0) candidates.push(block(blockStart, blockCount));
 			blockStart = -1;
 			blockCount = 0;
 		}
 	}
 
-	// Check trailing block
-	if (blockCount >= 3) {
-		findings.push({
-			tool: "slop",
-			file,
-			line: blockStart + 1,
-			message: `${blockCount} consecutive lines of commented-out code`,
-			severity: "warning",
-			ruleId: "slop/commented-code",
-		});
-	}
+	// Trailing block
+	if (blockCount > 0) candidates.push(block(blockStart, blockCount));
 
-	return findings;
+	// How many consecutive lines make commented-out code is decided.
+	return judgeCandidates("commented-code", candidates);
 }
 
 // ─── Main Entry Point ─────────────────────────────────────────────────────
