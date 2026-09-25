@@ -211,7 +211,8 @@ describe("resolveLaunch", () => {
  */
 const FAKE_SERVER = `
 const delayMs = Number(process.argv[2]);
-const reject = process.argv[3] === "reject";
+const mode = process.argv[3];
+const reject = mode === "reject";
 let buf = "";
 const send = (msg) =>
 	process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...msg }) + "\\n");
@@ -225,8 +226,10 @@ process.stdin.on("data", (d) => {
 		i = buf.indexOf("\\n");
 		if (msg.id === 1 && reject) {
 			send({ id: 1, error: { code: -32602, message: "unsupported protocol" } });
-		} else if (msg.id === 1) setTimeout(() => reply(1, {}), delayMs);
-		if (msg.id === 2) reply(2, { content: [{ type: "text", text: "ok" }] });
+		} else if (msg.id === 1 && mode === "init-no-result") send({ id: 1 });
+		else if (msg.id === 1) setTimeout(() => reply(1, {}), delayMs);
+		if (msg.id === 2 && mode === "verify-no-result") send({ id: 2 });
+		else if (msg.id === 2) reply(2, { content: [{ type: "text", text: "ok" }] });
 	}
 });
 `;
@@ -235,7 +238,11 @@ describe("probeLaunch", () => {
 	const withServer = async (
 		delayMs: number,
 		budgetMs: number,
-		mode: "accept" | "reject" = "accept",
+		mode:
+			| "accept"
+			| "reject"
+			| "init-no-result"
+			| "verify-no-result" = "accept",
 	): Promise<Awaited<ReturnType<typeof probeLaunch>>> => {
 		const dir = mkdtempSync(join(tmpdir(), "maina-probe-"));
 		const script = join(dir, "server.js");
@@ -271,6 +278,52 @@ describe("probeLaunch", () => {
 		expect(r.toolCallOk).toBe(true);
 		expect(r.error?.kind).toBe("cold-start-over-budget");
 		expect(r.error && classifyProblem(r.error)).toBe("P4");
+	});
+
+	test("an initialize response with no result is not a start", async () => {
+		const r = await withServer(0, 5_000, "init-no-result");
+		expect(r.started).toBe(false);
+		expect(r.handshakeMs).toBeNull();
+		expect(r.toolCallOk).toBe(false);
+		expect(r.error?.kind).toBe("handshake-rejected");
+	});
+
+	test("a verify response with no result is not a successful tool call", async () => {
+		const r = await withServer(0, 5_000, "verify-no-result");
+		expect(r.started).toBe(true);
+		expect(r.toolCallOk).toBe(false);
+		expect(r.error?.kind).toBe("tool-call-failed");
+	});
+
+	test("a bare command resolves on the PATH the entry's own env sets", async () => {
+		// Hosts spawn with the entry env merged over theirs, and spawn looks
+		// the command up on that merged PATH.
+		const dir = mkdtempSync(join(tmpdir(), "maina-probe-path-"));
+		writeFileSync(join(dir, "server.js"), FAKE_SERVER);
+		const launcher = join(dir, "fake-maina-mcp");
+		writeFileSync(
+			launcher,
+			`#!/bin/sh\nexec ${JSON.stringify(process.execPath)} "$(dirname "$0")/server.js" 0 accept\n`,
+		);
+		chmodSync(launcher, 0o755);
+		try {
+			const r = await probeLaunch(
+				{
+					command: "fake-maina-mcp",
+					args: [],
+					env: { PATH: `${dir}:${GUI_PATH.linux}` },
+					source: "test",
+				},
+				{ PATH: GUI_PATH.linux, HOME: dir },
+				dir,
+				{ coldStartBudgetMs: 5_000 },
+			);
+			expect(r.error).toBeUndefined();
+			expect(r.started).toBe(true);
+			expect(r.toolCallOk).toBe(true);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	test("a relative command resolves against the case cwd, as a host spawns it", async () => {

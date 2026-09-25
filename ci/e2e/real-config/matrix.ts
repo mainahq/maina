@@ -593,7 +593,10 @@ export async function probeLaunch(
 	opts: ProbeOptions = {},
 ): Promise<CaseResult> {
 	const budgetMs = opts.coldStartBudgetMs ?? COLD_START_BUDGET_MS;
-	const executable = resolveCommand(launch.command, env, cwd);
+	// Hosts merge the entry's env over their own and spawn with that, so
+	// PATH lookup uses the merged PATH too.
+	const spawnEnv: EnvVars = { ...env, ...launch.env };
+	const executable = resolveCommand(launch.command, spawnEnv, cwd);
 	if (executable === null) {
 		return {
 			started: false,
@@ -602,7 +605,7 @@ export async function probeLaunch(
 			launch,
 			error: {
 				kind: "command-not-found",
-				message: `${launch.command} not found on PATH=${env.PATH ?? ""}`,
+				message: `${launch.command} not found on PATH=${spawnEnv.PATH ?? ""}`,
 				command: launch.command,
 			},
 		};
@@ -611,7 +614,7 @@ export async function probeLaunch(
 	const t0 = performance.now();
 	const proc = Bun.spawn([executable, ...launch.args], {
 		cwd,
-		env: { ...env, ...launch.env },
+		env: spawnEnv,
 		stdin: "pipe",
 		stdout: "pipe",
 		stderr: "pipe",
@@ -722,14 +725,17 @@ export async function probeLaunch(
 			},
 		});
 	}
-	if (init.msg.error !== undefined) {
+	if (init.msg.error !== undefined || !("result" in init.msg)) {
 		return finish({
 			started: false,
 			handshakeMs: null,
 			toolCallOk: false,
 			error: {
 				kind: "handshake-rejected",
-				message: `initialize returned a JSON-RPC error: ${JSON.stringify(init.msg.error).slice(0, 500)}`,
+				message:
+					init.msg.error !== undefined
+						? `initialize returned a JSON-RPC error: ${JSON.stringify(init.msg.error).slice(0, 500)}`
+						: `initialize response has no result: ${JSON.stringify(init.msg).slice(0, 500)}`,
 			},
 		});
 	}
@@ -767,8 +773,10 @@ export async function probeLaunch(
 						},
 		});
 	}
+	// JSON-RPC success needs a `result`; an id-only reply is malformed.
 	const isError =
 		call.msg.error !== undefined ||
+		!("result" in call.msg) ||
 		(call.msg.result as { isError?: boolean } | undefined)?.isError === true;
 	const error: CaseError | undefined = isError
 		? {
