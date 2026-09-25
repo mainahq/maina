@@ -87,3 +87,53 @@ export function getChangedFiles(
 
 	return changed;
 }
+
+// ─── Pruning ─────────────────────────────────────────────────────────────
+
+/** Wiki subdirectories whose articles are fully owned by the compiler. */
+export const COMPILER_OWNED_DIRS = [
+	"modules",
+	"entities",
+	"features",
+	"decisions",
+	"architecture",
+] as const;
+
+/**
+ * Canonical form of an article path the compiler may delete, or `null`.
+ * Prunable means a flat `wiki/<owned-dir>/<name>.md` page. Both `/` and `\\`
+ * count as separators (the result always uses `/`) and `..` is never a name,
+ * so a malformed `.state.json` key cannot reach outside the wiki, and user
+ * notes (`wiki/raw/`) or hand-written top-level pages are never candidates.
+ */
+function toPrunableArticlePath(path: string): string | null {
+	const segments = path.split(/[\\/]/);
+	if (segments.length !== 3) return null;
+	const [root, dir, name] = segments;
+	const ok =
+		root === "wiki" &&
+		(COMPILER_OWNED_DIRS as readonly string[]).includes(dir ?? "") &&
+		name?.endsWith(".md") === true &&
+		name !== ".md" &&
+		!name.startsWith("..");
+	return ok ? segments.join("/") : null;
+}
+
+/**
+ * Articles a previous compile produced that the current compile did not,
+ * in canonical forward-slash form. These belong to deleted or renamed
+ * sources and must be removed so the wiki stops serving them to search,
+ * query and context (#377).
+ */
+export function findStaleArticlePaths(
+	previousPaths: Iterable<string>,
+	currentPaths: Iterable<string>,
+): string[] {
+	const current = new Set(currentPaths);
+	const stale = new Set<string>();
+	for (const path of previousPaths) {
+		const canonical = toPrunableArticlePath(path);
+		if (canonical !== null && !current.has(canonical)) stale.add(canonical);
+	}
+	return [...stale].sort();
+}

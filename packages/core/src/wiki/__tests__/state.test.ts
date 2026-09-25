@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	createEmptyState,
+	findStaleArticlePaths,
 	getChangedFiles,
 	hashContent,
 	loadState,
@@ -163,6 +164,83 @@ describe("Wiki State", () => {
 		it("should handle empty previous state (first compilation)", () => {
 			const changed = getChangedFiles({}, { "a.ts": "h1", "b.ts": "h2" });
 			expect(changed).toHaveLength(2);
+		});
+	});
+
+	describe("findStaleArticlePaths", () => {
+		it("returns previously compiled paths the current compile did not produce", () => {
+			const stale = findStaleArticlePaths(
+				["wiki/entities/runZap.md", "wiki/entities/keep.md", "wiki/index.md"],
+				["wiki/entities/keep.md", "wiki/index.md"],
+			);
+			expect(stale).toEqual(["wiki/entities/runZap.md"]);
+		});
+
+		it("never reports user-owned raw/ notes as stale", () => {
+			const stale = findStaleArticlePaths(
+				["wiki/raw/query-1.md", "wiki/modules/gone.md"],
+				[],
+			);
+			expect(stale).toEqual(["wiki/modules/gone.md"]);
+		});
+
+		it("rejects traversal written with either path separator", () => {
+			const stale = findStaleArticlePaths(
+				[
+					"wiki/entities/../../victim.md",
+					"wiki/entities\\..\\..\\victim.md",
+					"wiki/entities/..\\..\\victim.md",
+				],
+				[],
+			);
+			expect(stale).toEqual([]);
+		});
+
+		it("only prunes flat pages in compiler-owned subdirectories", () => {
+			const stale = findStaleArticlePaths(
+				[
+					"wiki/notes.md",
+					"wiki/custom/page.md",
+					"wiki/entities/nested/page.md",
+					"wiki/decisions/0001-use-jwt.md",
+					"wiki/architecture/overview.md",
+				],
+				[],
+			);
+			expect(stale).toEqual([
+				"wiki/architecture/overview.md",
+				"wiki/decisions/0001-use-jwt.md",
+			]);
+		});
+
+		it("normalises backslash-separated keys to the forward-slash form", () => {
+			const stale = findStaleArticlePaths(
+				["wiki\\entities\\gone.md", "wiki/entities/gone.md"],
+				[],
+			);
+			expect(stale).toEqual(["wiki/entities/gone.md"]);
+		});
+
+		it("does not report a backslash key the current compile produced", () => {
+			const stale = findStaleArticlePaths(
+				["wiki\\entities\\keep.md"],
+				["wiki/entities/keep.md"],
+			);
+			expect(stale).toEqual([]);
+		});
+
+		it("dedupes and sorts the result", () => {
+			const stale = findStaleArticlePaths(
+				["wiki/modules/b.md", "wiki/entities/a.md", "wiki/modules/b.md"],
+				[],
+			);
+			expect(stale).toEqual(["wiki/entities/a.md", "wiki/modules/b.md"]);
+		});
+
+		it("returns empty when nothing was removed", () => {
+			expect(
+				findStaleArticlePaths(["wiki/index.md"], ["wiki/index.md"]),
+			).toEqual([]);
 		});
 	});
 });

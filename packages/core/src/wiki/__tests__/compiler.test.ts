@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	readFileSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { CompileOptions } from "../compiler";
 import { compile } from "../compiler";
 
@@ -399,6 +401,290 @@ describe("Wiki Compiler", () => {
 				a.content.includes("testHelper"),
 			);
 			expect(hasTestHelper).toBe(false);
+		});
+	});
+
+	// ── Pruning deleted sources (#377) ───────────────────────────────────
+
+	describe("pruning articles for deleted source files", () => {
+		function readIndex(): string {
+			return readFileSync(join(wikiDir, "index.md"), "utf-8");
+		}
+		function readStateJson(): {
+			fileHashes: Record<string, string>;
+			articleHashes: Record<string, string>;
+		} {
+			return JSON.parse(readFileSync(join(wikiDir, ".state.json"), "utf-8"));
+		}
+
+		it("removes the entity page, index line and state hashes of a deleted source file", async () => {
+			const first = await compile(makeOptions());
+			expect(first.ok).toBe(true);
+			if (!first.ok) return;
+
+			// Pick an entity page the first compile produced and find the
+			// source file that defines it.
+			const entityArticle = first.value.articles.find(
+				(a) => a.type === "entity",
+			);
+			expect(entityArticle).toBeDefined();
+			if (!entityArticle) return;
+			const name = entityArticle.title;
+			const fileMatch = entityArticle.content.match(
+				/- \*\*File:\*\* `([^`]+)`/,
+			);
+			expect(fileMatch).not.toBeNull();
+			const sourceRel = fileMatch?.[1] ?? "";
+			const articleRel = entityArticle.path; // wiki/entities/<name>.md
+			const entityPath = join(wikiDir, articleRel.replace(/^wiki\//, ""));
+
+			expect(existsSync(entityPath)).toBe(true);
+			expect(readIndex()).toContain(`entities/${name}`);
+			expect(readStateJson().articleHashes[articleRel]).toBeDefined();
+			expect(readStateJson().fileHashes[sourceRel]).toBeDefined();
+
+			// Delete the defining source file, then recompile.
+			rmSync(join(repoRoot, sourceRel));
+
+			const second = await compile(makeOptions());
+			expect(second.ok).toBe(true);
+			if (!second.ok) return;
+
+			expect(existsSync(entityPath)).toBe(false);
+			expect(readIndex()).not.toContain(`entities/${name}`);
+			const state = readStateJson();
+			expect(state.articleHashes[articleRel]).toBeUndefined();
+			expect(state.fileHashes[sourceRel]).toBeUndefined();
+			// The returned state matches what was persisted.
+			expect(second.value.state.articleHashes[articleRel]).toBeUndefined();
+		});
+
+		it("removes orphan compiler-owned articles even when state is missing", async () => {
+			const orphan = join(wikiDir, "entities", "ghostEntity.md");
+			mkdirSync(join(wikiDir, "entities"), { recursive: true });
+			writeFileSync(orphan, "# Entity: ghostEntity\n");
+
+			const result = await compile(makeOptions());
+			expect(result.ok).toBe(true);
+			expect(existsSync(orphan)).toBe(false);
+		});
+
+		it("keeps a produced page whose on-disk name differs only in case", async () => {
+			// On case-insensitive filesystems (macOS APFS, Windows NTFS) a
+			// case-only rename writes the new content into the old directory
+			// entry. Pruning must not then delete the page it just wrote.
+			const first = await compile(makeOptions());
+			expect(first.ok).toBe(true);
+			if (!first.ok) return;
+			const entityArticle = first.value.articles.find(
+				(a) => a.type === "entity",
+			);
+			expect(entityArticle).toBeDefined();
+			if (!entityArticle) return;
+			const producedPath = join(
+				wikiDir,
+				entityArticle.path.replace(/^wiki\//, ""),
+			);
+			const fileName = producedPath.split("/").pop() ?? "";
+			const lowered = join(
+				wikiDir,
+				"entities",
+				fileName.toLowerCase() === fileName
+					? fileName.toUpperCase()
+					: fileName.toLowerCase(),
+			);
+			// Simulate the stale directory entry left by a previous compile.
+			rmSync(producedPath, { force: true });
+			writeFileSync(lowered, "# stale casing\n");
+
+			const second = await compile(makeOptions());
+			expect(second.ok).toBe(true);
+			expect(existsSync(producedPath)).toBe(true);
+			expect(readFileSync(producedPath, "utf-8")).toBe(entityArticle.content);
+		});
+
+		// chmod cannot make a path unreadable for root, so these two
+		// fail-closed checks only run as a regular user.
+		const canChmod =
+			typeof process.getuid !== "function" || process.getuid() !== 0;
+
+		it.skipIf(!canChmod)(
+			"keeps decision pages when the ADR directory is unreadable",
+			async () => {
+				const first = await compile(makeOptions());
+				expect(first.ok).toBe(true);
+				if (!first.ok) return;
+				const decision = first.value.articles.find(
+					(a) => a.type === "decision",
+				);
+				expect(decision).toBeDefined();
+				if (!decision) return;
+				const decisionPath = join(
+					wikiDir,
+					decision.path.replace(/^wiki\//, ""),
+				);
+
+				const adrDir = join(repoRoot, "adr");
+				chmodSync(adrDir, 0o000);
+				try {
+					const second = await compile(makeOptions());
+					expect(second.ok).toBe(true);
+				} finally {
+					chmodSync(adrDir, 0o755);
+				}
+				expect(existsSync(decisionPath)).toBe(true);
+				expect(readStateJson().articleHashes[decision.path]).toBeDefined();
+			},
+		);
+
+		it.skipIf(!canChmod)(
+			"keeps decision pages when an ADR file is unreadable",
+			async () => {
+				const first = await compile(makeOptions());
+				expect(first.ok).toBe(true);
+				if (!first.ok) return;
+				const decision = first.value.articles.find(
+					(a) => a.type === "decision",
+				);
+				expect(decision).toBeDefined();
+				if (!decision) return;
+				const decisionPath = join(
+					wikiDir,
+					decision.path.replace(/^wiki\//, ""),
+				);
+
+				const adrFile = join(repoRoot, "adr", "0001-use-jwt.md");
+				chmodSync(adrFile, 0o000);
+				try {
+					const second = await compile(makeOptions());
+					expect(second.ok).toBe(true);
+				} finally {
+					chmodSync(adrFile, 0o644);
+				}
+				expect(existsSync(decisionPath)).toBe(true);
+				expect(readStateJson().articleHashes[decision.path]).toBeDefined();
+			},
+		);
+
+		it.skipIf(!canChmod)(
+			"keeps entity pages when a source file is unreadable",
+			async () => {
+				const first = await compile(makeOptions());
+				expect(first.ok).toBe(true);
+				if (!first.ok) return;
+				const entity = first.value.articles.find((a) => a.type === "entity");
+				expect(entity).toBeDefined();
+				if (!entity) return;
+				const sourceRel =
+					entity.content.match(/- \*\*File:\*\* `([^`]+)`/)?.[1] ?? "";
+				expect(sourceRel).not.toBe("");
+				const entityPath = join(wikiDir, entity.path.replace(/^wiki\//, ""));
+
+				const sourcePath = join(repoRoot, sourceRel);
+				chmodSync(sourcePath, 0o000);
+				try {
+					const second = await compile(makeOptions());
+					expect(second.ok).toBe(true);
+				} finally {
+					chmodSync(sourcePath, 0o644);
+				}
+				expect(existsSync(entityPath)).toBe(true);
+				expect(readStateJson().articleHashes[entity.path]).toBeDefined();
+			},
+		);
+
+		it.skipIf(!canChmod)(
+			"keeps entity pages when a source directory is unreadable",
+			async () => {
+				const first = await compile(makeOptions());
+				expect(first.ok).toBe(true);
+				if (!first.ok) return;
+				const entity = first.value.articles.find((a) => a.type === "entity");
+				expect(entity).toBeDefined();
+				if (!entity) return;
+				const sourceRel =
+					entity.content.match(/- \*\*File:\*\* `([^`]+)`/)?.[1] ?? "";
+				expect(sourceRel).not.toBe("");
+				const entityPath = join(wikiDir, entity.path.replace(/^wiki\//, ""));
+
+				const sourceDir = dirname(join(repoRoot, sourceRel));
+				chmodSync(sourceDir, 0o000);
+				try {
+					const second = await compile(makeOptions());
+					expect(second.ok).toBe(true);
+				} finally {
+					chmodSync(sourceDir, 0o755);
+				}
+				expect(existsSync(entityPath)).toBe(true);
+				expect(readStateJson().articleHashes[entity.path]).toBeDefined();
+			},
+		);
+
+		it("still prunes when the repo contains a dangling symlink", async () => {
+			symlinkSync(
+				join(repoRoot, "src", "does-not-exist.ts"),
+				join(repoRoot, "src", "dangling.ts"),
+			);
+			const orphan = join(wikiDir, "entities", "ghostEntity.md");
+			mkdirSync(join(wikiDir, "entities"), { recursive: true });
+			writeFileSync(orphan, "# Entity: ghostEntity\n");
+
+			const result = await compile(makeOptions());
+			expect(result.ok).toBe(true);
+			expect(existsSync(orphan)).toBe(false);
+		});
+
+		it("prunes a stale state key written with backslashes", async () => {
+			await compile(makeOptions());
+			const stale = join(wikiDir, "entities", "legacyGone.md");
+			writeFileSync(stale, "# Entity: legacyGone\n");
+			const statePath = join(wikiDir, ".state.json");
+			const state = JSON.parse(readFileSync(statePath, "utf-8"));
+			state.articleHashes["wiki\\entities\\legacyGone.md"] = "x";
+			writeFileSync(statePath, JSON.stringify(state));
+
+			const result = await compile(makeOptions());
+			expect(result.ok).toBe(true);
+			expect(existsSync(stale)).toBe(false);
+			expect(
+				readStateJson().articleHashes["wiki\\entities\\legacyGone.md"],
+			).toBeUndefined();
+		});
+
+		it("never deletes user-owned raw/ notes", async () => {
+			const rawNote = join(wikiDir, "raw", "query-1.md");
+			mkdirSync(join(wikiDir, "raw"), { recursive: true });
+			writeFileSync(rawNote, "# Query: keep me\n");
+
+			const result = await compile(makeOptions());
+			expect(result.ok).toBe(true);
+			expect(existsSync(rawNote)).toBe(true);
+		});
+
+		it("does not touch disk on a dry run", async () => {
+			const orphan = join(wikiDir, "entities", "ghostEntity.md");
+			mkdirSync(join(wikiDir, "entities"), { recursive: true });
+			writeFileSync(orphan, "# Entity: ghostEntity\n");
+
+			const result = await compile(makeOptions({ dryRun: true }));
+			expect(result.ok).toBe(true);
+			expect(existsSync(orphan)).toBe(true);
+		});
+
+		it("skips pruning when sample mode truncated the source set", async () => {
+			const keep = join(wikiDir, "entities", "fromFullCompile.md");
+			mkdirSync(join(wikiDir, "entities"), { recursive: true });
+			writeFileSync(keep, "# Entity: fromFullCompile\n");
+			for (let i = 0; i < 25; i++) {
+				writeFileSync(
+					join(repoRoot, "src", `f${i}.ts`),
+					`export function fn${i}(): number {\n  return ${i};\n}\n`,
+				);
+			}
+
+			const result = await compile(makeOptions({ sample: true }));
+			expect(result.ok).toBe(true);
+			expect(existsSync(keep)).toBe(true);
 		});
 	});
 

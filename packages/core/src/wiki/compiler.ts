@@ -10,7 +10,7 @@
  * 6. Generate wikilinks via linker
  * 7. Generate index.md via indexer
  * 8. Save state
- * 9. Write all articles to disk
+ * 9. Prune articles the compile no longer produces, then write all articles
  */
 
 import {
@@ -18,6 +18,7 @@ import {
 	mkdirSync,
 	readdirSync,
 	readFileSync,
+	rmSync,
 	statSync,
 	writeFileSync,
 } from "node:fs";
@@ -26,8 +27,8 @@ import type { TryAIResult } from "../ai/try-generate";
 import type { Result } from "../db/index";
 import { type CommunityAlgorithm, detectCommunities } from "./communities";
 import type { CodeEntity } from "./extractors/code";
-import { extractCodeEntities } from "./extractors/code";
-import { extractDecisions } from "./extractors/decision";
+import { scanCodeEntities } from "./extractors/code";
+import { scanDecisions } from "./extractors/decision";
 import { extractFeatures } from "./extractors/feature";
 import { extractWorkflowTrace } from "./extractors/workflow";
 import type { KnowledgeGraph } from "./graph";
@@ -36,7 +37,9 @@ import { generateIndex } from "./indexer";
 import { generateLinks } from "./linker";
 import { generateGraphReport, generateGraphReportJson } from "./report";
 import {
+	COMPILER_OWNED_DIRS,
 	createEmptyState,
+	findStaleArticlePaths,
 	hashContent,
 	hashFile,
 	loadState,
@@ -103,6 +106,46 @@ export interface CompileOptions {
 /** Hard cap for sample-mode source files. */
 const SAMPLE_FILE_LIMIT = 20;
 
+/** List `.md` articles currently on disk in the compiler-owned subdirs. */
+function listCompilerOwnedArticles(wikiDir: string): string[] {
+	const paths: string[] = [];
+	for (const sub of COMPILER_OWNED_DIRS) {
+		const dir = join(wikiDir, sub);
+		if (!existsSync(dir)) continue;
+		for (const name of readdirSync(dir)) {
+			if (name.endsWith(".md")) paths.push(`wiki/${sub}/${name}`);
+		}
+	}
+	return paths;
+}
+
+/**
+ * Delete articles a previous compile wrote that this compile did not
+ * produce (#377). Candidates come from the previous state's article hashes
+ * plus whatever sits in the compiler-owned subdirs, so orphans are cleaned
+ * even when `.state.json` was lost.
+ */
+function pruneStaleArticles(
+	wikiDir: string,
+	previous: WikiState | null,
+	producedPaths: readonly string[],
+): void {
+	const stale = findStaleArticlePaths(
+		[
+			...Object.keys(previous?.articleHashes ?? {}),
+			...listCompilerOwnedArticles(wikiDir),
+		],
+		producedPaths,
+	);
+	for (const path of stale) {
+		try {
+			rmSync(join(wikiDir, path.replace(/^wiki\//, "")), { force: true });
+		} catch {
+			// Best effort — a file we cannot remove stays until the next compile.
+		}
+	}
+}
+
 // ─── AI Enhancement ─────────────────────────────────────────────────────
 
 /**
@@ -143,11 +186,22 @@ async function enhanceWithAI(
 
 // ─── File Discovery ─────────────────────────────────────────────────────
 
+/** True when a filesystem error means "not there" rather than "can't look". */
+function isMissingPathError(e: unknown): boolean {
+	return (e as { code?: unknown } | null)?.code === "ENOENT";
+}
+
 /**
  * Recursively find all TypeScript files under the repo root.
- * Skips node_modules, dist, .git, and hidden directories.
+ * Skips node_modules, dist, .git, and hidden directories. Paths that exist
+ * but cannot be listed or stat-ed are appended to `unreadable`; missing
+ * paths (dangling symlinks, files removed mid-walk) are simply absent.
  */
-function findSourceFiles(dir: string, rootDir: string): string[] {
+function findSourceFiles(
+	dir: string,
+	rootDir: string,
+	unreadable: string[] = [],
+): string[] {
 	const files: string[] = [];
 	const skipDirs = new Set([
 		"node_modules",
@@ -160,7 +214,8 @@ function findSourceFiles(dir: string, rootDir: string): string[] {
 	let entries: string[];
 	try {
 		entries = readdirSync(dir);
-	} catch {
+	} catch (e) {
+		if (!isMissingPathError(e)) unreadable.push(relative(rootDir, dir) || ".");
 		return files;
 	}
 
@@ -171,12 +226,13 @@ function findSourceFiles(dir: string, rootDir: string): string[] {
 		let stat: ReturnType<typeof statSync> | null = null;
 		try {
 			stat = statSync(fullPath);
-		} catch {
+		} catch (e) {
+			if (!isMissingPathError(e)) unreadable.push(relative(rootDir, fullPath));
 			continue;
 		}
 
 		if (stat?.isDirectory()) {
-			files.push(...findSourceFiles(fullPath, rootDir));
+			files.push(...findSourceFiles(fullPath, rootDir, unreadable));
 		} else if (
 			entry.endsWith(".ts") &&
 			!entry.endsWith(".test.ts") &&
@@ -1116,7 +1172,10 @@ export async function compile(
 
 	try {
 		// ── Step 1: Run extractors ──────────────────────────────────────
-		let sourceFiles = findSourceFiles(repoRoot, repoRoot);
+		// Paths the walk could not list or stat: their subtree is unknown,
+		// not deleted, so they block pruning below (#377).
+		const undiscoverable: string[] = [];
+		let sourceFiles = findSourceFiles(repoRoot, repoRoot, undiscoverable);
 		let sampleTruncated = false;
 		if (options.sample === true && sourceFiles.length > SAMPLE_FILE_LIMIT) {
 			// Sort by mtime desc — most recently modified first — then cap.
@@ -1134,10 +1193,8 @@ export async function compile(
 			sampleTruncated = true;
 		}
 
-		const entityResult = extractCodeEntities(repoRoot, sourceFiles);
-		const codeEntities: CodeEntity[] = entityResult.ok
-			? entityResult.value
-			: [];
+		const entityScan = scanCodeEntities(repoRoot, sourceFiles);
+		const codeEntities: CodeEntity[] = [...entityScan.entities];
 
 		const featuresDir = join(mainaDir, "features");
 		const featuresResult = extractFeatures(featuresDir);
@@ -1146,9 +1203,9 @@ export async function compile(
 			: [];
 
 		const adrDir = join(repoRoot, "adr");
-		const decisionsResult = extractDecisions(adrDir);
+		const decisionsResult = scanDecisions(adrDir);
 		const decisions: ExtractedDecision[] = decisionsResult.ok
-			? decisionsResult.value
+			? [...decisionsResult.value.decisions]
 			: [];
 
 		const workflowResult = extractWorkflowTrace(mainaDir);
@@ -1374,6 +1431,33 @@ export async function compile(
 			),
 		);
 
+		// ── Step 9a: Prune articles for deleted sources (#377) ─────────
+		// Pruning treats "not produced" as "deleted", so it runs only when the
+		// article set is authoritative. It is not when a sampled compile saw
+		// only a slice of the repo, when a source directory or file could not
+		// be listed, stat-ed or read, or when an existing `adr/` directory or
+		// ADR file could not be read (an absent `adr/` is a genuinely empty
+		// decision set). Fail closed: keep the pages rather than delete real
+		// ones.
+		// Prune BEFORE writing: on a case-insensitive filesystem a case-only
+		// rename writes the new page into the old directory entry, and a
+		// post-write prune would then delete the page it just wrote.
+		const previousState = loadState(wikiDir);
+		const canPrune =
+			!sampleTruncated &&
+			undiscoverable.length === 0 &&
+			entityScan.unreadable.length === 0 &&
+			(decisionsResult.ok
+				? decisionsResult.value.unreadable.length === 0
+				: !existsSync(adrDir));
+		if (!dryRun && canPrune) {
+			pruneStaleArticles(
+				wikiDir,
+				previousState,
+				articles.map((a) => a.path),
+			);
+		}
+
 		// ── Step 9: Write to disk (unless dry run) ─────────────────────
 		if (!dryRun) {
 			mkdirSync(wikiDir, { recursive: true });
@@ -1417,10 +1501,13 @@ export async function compile(
 		}
 
 		// ── Step 10: Save state ────────────────────────────────────────
-		const state = loadState(wikiDir) ?? createEmptyState();
+		const state = previousState ?? createEmptyState();
 		state.lastFullCompile = new Date().toISOString();
 		state.lastIncrementalCompile = new Date().toISOString();
 
+		// An authoritative compile replaces the article hashes outright so
+		// entries for pruned articles do not linger (#377).
+		if (canPrune) state.articleHashes = {};
 		for (const article of articles) {
 			state.articleHashes[article.path] = article.contentHash;
 		}
