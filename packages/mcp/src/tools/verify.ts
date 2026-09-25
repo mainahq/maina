@@ -9,13 +9,12 @@ import { z } from "zod";
 export function registerVerifyTools(server: McpServer): void {
 	server.tool(
 		"verify",
-		"Run verification pipeline on staged or specified files",
+		"Run verification pipeline on the working tree (staged, unstaged and untracked changes vs the base) or on specified files",
 		{ files: z.array(z.string()).optional() },
 		async ({ files }) => {
 			try {
 				const {
 					runPipeline,
-					getStagedFiles,
 					captureResult,
 					getCurrentBranch,
 					getWorkflowId,
@@ -23,11 +22,11 @@ export function registerVerifyTools(server: McpServer): void {
 				} = await import("@mainahq/core");
 				const cwd = process.cwd();
 				const mainaDir = join(cwd, ".maina");
-				const targetFiles = files ?? (await getStagedFiles(cwd));
 
 				const start = Date.now();
+				// No files → the pipeline resolves the working-tree scope (#328).
 				const result = await runPipeline({
-					files: targetFiles,
+					...(files ? { files } : {}),
 					cwd,
 					mainaDir,
 					env: process.env,
@@ -40,7 +39,9 @@ export function registerVerifyTools(server: McpServer): void {
 
 				const resultJson = JSON.stringify(
 					{
+						status: result.status,
 						passed: result.passed,
+						scope: result.scope,
 						findings: result.findings,
 						...(!result.syntaxPassed && {
 							syntaxErrors: result.syntaxErrors,
@@ -61,7 +62,7 @@ export function registerVerifyTools(server: McpServer): void {
 
 				captureResult({
 					tool: "verify",
-					input: { files: targetFiles },
+					input: { files: [...result.scope.files] },
 					output: resultJson,
 					promptHash: result.passed ? "verify-pass" : "verify-fail",
 					durationMs,

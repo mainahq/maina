@@ -6,6 +6,8 @@ import type {
 	FixSuggestion,
 	PipelineResult,
 	VerifyResultResponse,
+	VerifyScope,
+	VerifyStatus,
 } from "@mainahq/core";
 import {
 	appendWorkflowStep,
@@ -16,7 +18,6 @@ import {
 	generateFixes,
 	getCurrentBranch,
 	getDiff,
-	getStagedFiles,
 	getTrackedFiles,
 	getWorkflowId,
 	loadAuthConfig,
@@ -38,6 +39,8 @@ import { Command } from "commander";
 
 interface VerifyActionOptions {
 	all?: boolean;
+	/** Check the index only (the pre-#328 default) instead of the working tree. */
+	staged?: boolean;
 	fix?: boolean;
 	json?: boolean;
 	base?: string;
@@ -48,7 +51,10 @@ interface VerifyActionOptions {
 }
 
 interface VerifyActionResult {
+	/** `skipped` when nothing in scope was checked: not a pass, not a failure. */
+	status: VerifyStatus;
 	passed: boolean;
+	scope: VerifyScope;
 	findingsCount: number;
 	hiddenCount: number;
 	duration: number;
@@ -102,6 +108,17 @@ function formatFixSuggestions(suggestions: FixSuggestion[]): string {
 			return `${header}\n${explanation}\n${diff}`;
 		})
 		.join("\n\n");
+}
+
+/** One line naming what was checked, so a result always states its scope. */
+function describeScope(scope: VerifyScope, baseBranch: string): string {
+	const label: Record<VerifyScope["kind"], string> = {
+		"working-tree": `working tree vs ${baseBranch} (staged, unstaged, untracked)`,
+		staged: "staged changes",
+		range: `commits since ${baseBranch}`,
+		files: "selected files",
+	};
+	return `Scope: ${label[scope.kind]}, ${scope.files.length} file(s).`;
 }
 
 // ── Cloud Verify ────────────────────────────────────────────────────────────
@@ -390,6 +407,7 @@ export async function verifyAction(
 	// ── Step 1: Determine files to check ──────────────────────────────────
 	const pipelineOpts: {
 		files?: string[];
+		scope?: "working-tree" | "staged";
 		baseBranch: string;
 		diffOnly: boolean;
 		deep: boolean;
@@ -412,8 +430,8 @@ export async function verifyAction(
 		const allFiles = await getTrackedFiles(cwd);
 		pipelineOpts.files = allFiles;
 	} else {
-		const stagedFiles = await getStagedFiles(cwd);
-		pipelineOpts.files = stagedFiles;
+		// Default: staged + unstaged + untracked vs the base (#328).
+		pipelineOpts.scope = options.staged ? "staged" : "working-tree";
 	}
 
 	// ── Step 2: Run pipeline ──────────────────────────────────────────────
@@ -421,7 +439,9 @@ export async function verifyAction(
 
 	// ── Step 3: Build result ──────────────────────────────────────────────
 	const result: VerifyActionResult = {
+		status: pipelineResult.status,
 		passed: pipelineResult.passed,
+		scope: pipelineResult.scope,
 		findingsCount: pipelineResult.findings.length,
 		hiddenCount: pipelineResult.hiddenCount,
 		duration: pipelineResult.duration,
@@ -492,6 +512,7 @@ export async function verifyAction(
 				(visualResult.findings as Finding[]).some((f) => f.severity === "error")
 			) {
 				result.passed = false;
+				result.status = "failed";
 			}
 		} else if (visualResult.skipped && !options.json) {
 			log.info(
@@ -503,7 +524,9 @@ export async function verifyAction(
 	// ── Step 5: JSON output ──────────────────────────────────────────────
 	if (options.json) {
 		const jsonOutput = {
-			passed: pipelineResult.passed,
+			status: result.status,
+			passed: result.passed,
+			scope: pipelineResult.scope,
 			syntaxPassed: pipelineResult.syntaxPassed,
 			syntaxErrors: pipelineResult.syntaxErrors,
 			findings: pipelineResult.findings,
@@ -523,9 +546,17 @@ export async function verifyAction(
 
 	// ── Step 6: Summary ──────────────────────────────────────────────────
 	if (!options.json) {
-		if (pipelineResult.passed) {
+		log.info(describeScope(pipelineResult.scope, baseBranch));
+		if (result.status === "passed") {
+			const ran = pipelineResult.tools.filter((t) => !t.skipped).length;
 			log.success(
-				`Verification passed in ${pipelineResult.duration}ms. ${pipelineResult.tools.length} tool(s) ran.`,
+				`Verification passed in ${pipelineResult.duration}ms. ${ran} tool(s) ran.`,
+			);
+		} else if (result.status === "skipped") {
+			log.warning(
+				pipelineResult.scope.files.length === 0
+					? "Verification skipped: no changed files in scope."
+					: "Verification skipped: no tool could check the files in scope.",
 			);
 		} else {
 			log.error(
@@ -538,7 +569,7 @@ export async function verifyAction(
 	appendWorkflowStep(
 		wfMainaDir,
 		"verify",
-		`Pipeline ${result.passed ? "passed" : "failed"}: ${result.findingsCount} findings, ${result.duration}ms.`,
+		`Pipeline ${result.status}: ${result.findingsCount} findings, ${result.duration}ms.`,
 	);
 
 	const branch = await getCurrentBranch(cwd);
@@ -581,6 +612,10 @@ export function verifyCommand(): Command {
 	return new Command("verify")
 		.description("Run full verification pipeline")
 		.option("--all", "Scan all files, not just changed")
+		.option(
+			"--staged",
+			"Check staged changes only (default: the whole working tree vs the base)",
+		)
 		.option("--fix", "Show AI fix suggestions")
 		.option("--json", "Output JSON for CI")
 		.option(
@@ -624,6 +659,7 @@ export function verifyCommand(): Command {
 
 			const result = await verifyAction({
 				all: options.all,
+				staged: options.staged,
 				fix: options.fix,
 				json: options.json,
 				base: options.base,
@@ -633,17 +669,30 @@ export function verifyCommand(): Command {
 
 			s?.stop("Pipeline complete.");
 
+			// Only a failure is a non-zero exit; a skip says so but does not
+			// claim a pass (status/passed stay honest in the JSON).
+			const failed = result.status === "failed";
+
 			if (isJson && result.json) {
-				const { exitCodeFromResult, outputJson } = await import("../json");
-				outputJson(JSON.parse(result.json), exitCodeFromResult(result));
+				const { EXIT_FINDINGS, EXIT_PASSED, outputJson } = await import(
+					"../json"
+				);
+				outputJson(
+					JSON.parse(result.json),
+					failed ? EXIT_FINDINGS : EXIT_PASSED,
+				);
 				return;
 			}
 
-			if (result.passed) {
-				outro("Verification passed.");
-			} else {
+			if (failed) {
 				process.exitCode = 1;
 				outro("Verification failed.");
+			} else {
+				outro(
+					result.status === "passed"
+						? "Verification passed."
+						: "Verification skipped: nothing was checked.",
+				);
 			}
 		});
 }

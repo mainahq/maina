@@ -6,7 +6,7 @@
  */
 
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -151,6 +151,17 @@ mock.module("../../git/index", () => ({
 	},
 }));
 
+// Scope resolution (#328): staged → the staged mock, working tree → its own.
+let mockWorkingTreeFiles: string[] = ["src/app.ts"];
+let capturedScopeKind: string | null = null;
+mock.module("../../git/scope", () => ({
+	resolveScopeFiles: async (kind: string) => {
+		capturedScopeKind = kind;
+		callOrder.push(kind === "staged" ? "getStagedFiles" : "getWorkingTree");
+		return kind === "staged" ? mockStagedFiles : mockWorkingTreeFiles;
+	},
+}));
+
 // Mock AI review
 let mockAIReviewResult: {
 	findings: Finding[];
@@ -202,6 +213,10 @@ mock.module("../../language/profile", () => ({
 // Explicit, throwaway repository root (#290): the pipeline resolves every
 // path, including its default `.maina` dir, against this instead of the cwd.
 const ROOT = mkdtempSync(join(tmpdir(), "maina-pipeline-"));
+// The file most cases name exists, so the in-process checks really run on it
+// and a pass is earned (#328).
+mkdirSync(join(ROOT, "src"), { recursive: true });
+writeFileSync(join(ROOT, "src", "app.ts"), "export const a = 1;\n");
 
 afterAll(() => {
 	mock.restore();
@@ -256,6 +271,8 @@ describe("VerifyPipeline", () => {
 		mockSecretlintResult = { findings: [], skipped: false };
 		mockDiffFilterResult = { shown: [], hidden: 0 };
 		mockStagedFiles = ["src/app.ts"];
+		mockWorkingTreeFiles = ["src/app.ts"];
+		capturedScopeKind = null;
 		mockAIReviewResult = {
 			findings: [],
 			skipped: true,
@@ -310,7 +327,9 @@ describe("VerifyPipeline", () => {
 			files: ["dist/index.js", "node_modules/foo/index.js"],
 		});
 
-		expect(result.passed).toBe(true);
+		// Nothing was verified, so nothing passed (#328).
+		expect(result.status).toBe("skipped");
+		expect(result.passed).toBe(false);
 		expect(result.findings).toEqual([]);
 		expect(result.tools).toEqual([]);
 		// syntaxGuard must not have been called — short-circuit before Step 2.
@@ -481,12 +500,27 @@ describe("VerifyPipeline", () => {
 		expect(result.tools).toHaveLength(0);
 	});
 
-	it("should use staged files when no files provided", async () => {
-		mockStagedFiles = ["src/staged1.ts", "src/staged2.ts"];
+	it("should use the working tree when no files provided (#328)", async () => {
+		mockWorkingTreeFiles = ["src/wip.ts", "src/new.ts"];
 
 		const result = await runPipeline({ cwd: ROOT });
 
+		expect(capturedScopeKind).toBe("working-tree");
+		expect(capturedSyntaxGuardFiles).toEqual(["src/wip.ts", "src/new.ts"]);
+		expect(result.scope).toEqual({
+			kind: "working-tree",
+			files: ["src/wip.ts", "src/new.ts"],
+		});
+		expect(result.syntaxPassed).toBe(true);
+	});
+
+	it("should use staged files when scope is staged", async () => {
+		mockStagedFiles = ["src/staged1.ts", "src/staged2.ts"];
+
+		const result = await runPipeline({ cwd: ROOT, scope: "staged" });
+
 		expect(callOrder).toContain("getStagedFiles");
+		expect(result.scope.kind).toBe("staged");
 		expect(result.syntaxPassed).toBe(true);
 	});
 
@@ -522,12 +556,13 @@ describe("VerifyPipeline", () => {
 		}
 	});
 
-	it("should return empty result for empty file list", async () => {
-		mockStagedFiles = [];
+	it("should skip, not pass, an empty file list", async () => {
+		mockWorkingTreeFiles = [];
 
 		const result = await runPipeline({ cwd: ROOT });
 
-		expect(result.passed).toBe(true);
+		expect(result.status).toBe("skipped");
+		expect(result.passed).toBe(false);
 		expect(result.syntaxPassed).toBe(true);
 		expect(result.findings).toHaveLength(0);
 		expect(result.tools).toHaveLength(0);

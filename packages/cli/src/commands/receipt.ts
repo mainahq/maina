@@ -15,7 +15,6 @@ import {
 	deriveChecksAndStatus,
 	generateWalkthrough,
 	getDiffStats,
-	getStagedFiles,
 	getTrackedFiles,
 	type PipelineResult,
 	type Receipt,
@@ -155,18 +154,31 @@ async function resolveDiffStats(
 	return getDiffStats({ cwd, staged: true });
 }
 
+/**
+ * What the receipt verifies: a pinned file list (backfill), every tracked
+ * file (`--all`), or else the index. The staged scope is explicit: leaving
+ * `files` unset would fall through to the pipeline's working-tree default
+ * (#328) and check files the staged diff stats never count.
+ */
+export function receiptSelection(
+	options: Pick<ReceiptActionOptions, "files" | "all">,
+	trackedFiles: readonly string[],
+): { readonly files: string[] } | { readonly scope: "staged" } {
+	if (options.files && options.files.length > 0) {
+		return { files: [...options.files] };
+	}
+	if (options.all && trackedFiles.length > 0) {
+		return { files: [...trackedFiles] };
+	}
+	return { scope: "staged" };
+}
+
 async function runVerifyPipeline(
 	cwd: string,
 	options: ReceiptActionOptions,
 ): Promise<PipelineResult> {
-	let files: string[];
-	if (options.files && options.files.length > 0) {
-		files = options.files;
-	} else if (options.all) {
-		files = await getTrackedFiles(cwd);
-	} else {
-		files = await getStagedFiles(cwd);
-	}
+	const pinned = options.files !== undefined && options.files.length > 0;
+	const tracked = !pinned && options.all ? await getTrackedFiles(cwd) : [];
 	return runPipeline({
 		cwd,
 		env: process.env,
@@ -176,8 +188,8 @@ async function runVerifyPipeline(
 		// PR's diff scope), keep the diff filter on so findings still
 		// scope to changed lines. Otherwise default to the legacy --all
 		// switch behaviour.
-		diffOnly: options.files && options.files.length > 0 ? true : !options.all,
-		...(files && files.length > 0 ? { files } : {}),
+		diffOnly: pinned ? true : !options.all,
+		...receiptSelection(options, tracked),
 	});
 }
 

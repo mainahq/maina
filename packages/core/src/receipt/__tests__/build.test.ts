@@ -7,7 +7,9 @@ import { verifyReceipt } from "../verify";
 
 function stubPipeline(overrides: Partial<PipelineResult> = {}): PipelineResult {
 	return {
+		status: "passed",
 		passed: true,
+		scope: { kind: "working-tree", files: ["src/foo.ts"] },
 		syntaxPassed: true,
 		tools: [
 			{

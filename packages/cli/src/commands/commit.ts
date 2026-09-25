@@ -272,8 +272,9 @@ export async function commitAction(
 			);
 		}
 
-		// Pipeline failure → abort
-		if (!pipelineResult.passed) {
+		// Pipeline failure → abort. A skip (nothing checkable staged, e.g.
+		// only ignored bundles) is not a failure, but is not shown as a pass.
+		if (pipelineResult.status === "failed") {
 			if (!options.json) {
 				log.error(
 					`Verification failed: ${pipelineResult.findings.filter((f) => f.severity === "error").length} finding(s) with errors.`,
@@ -293,9 +294,15 @@ export async function commitAction(
 		}
 
 		if (!options.json) {
-			log.success(
-				`Verification passed in ${pipelineResult.duration}ms. ${pipelineResult.tools.length} tool(s) ran.`,
-			);
+			if (pipelineResult.status === "skipped") {
+				log.warning(
+					"Verification skipped: no tool could check the staged files.",
+				);
+			} else {
+				log.success(
+					`Verification passed in ${pipelineResult.duration}ms. ${pipelineResult.tools.length} tool(s) ran.`,
+				);
+			}
 		}
 	} else if (options.skip) {
 		if (!options.json) {
@@ -420,7 +427,13 @@ export async function commitAction(
 	}
 
 	// ── Step 5b: Append Verified-by trailer when verification ran ─────────
-	if (!options.noTrailer && !options.noVerify && pipelineResult) {
+	// A skipped run checked nothing, so it must not claim "Verified-by" (#328).
+	if (
+		!options.noTrailer &&
+		!options.noVerify &&
+		pipelineResult &&
+		pipelineResult.status !== "skipped"
+	) {
 		const hash = computeProofHash({
 			passed: pipelineResult.passed,
 			toolsRun: pipelineResult.tools.length,

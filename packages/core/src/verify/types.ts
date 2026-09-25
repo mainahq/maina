@@ -10,8 +10,15 @@
 export type { DetectedTool, ToolName } from "./detect";
 // Finding + DiffFilterResult from diff-filter
 export type { DiffFilterResult, Finding } from "./diff-filter";
-// PipelineResult, PipelineOptions, ToolReport from pipeline
-export type { PipelineOptions, PipelineResult, ToolReport } from "./pipeline";
+// PipelineResult, PipelineOptions, ToolReport, status + scope from pipeline
+export type {
+	PipelineOptions,
+	PipelineResult,
+	ToolReport,
+	VerifyScope,
+	VerifyScopeKind,
+	VerifyStatus,
+} from "./pipeline";
 
 // SyntaxDiagnostic, SyntaxGuardResult from syntax-guard (used in PipelineResult)
 export type { SyntaxDiagnostic, SyntaxGuardResult } from "./syntax-guard";

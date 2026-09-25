@@ -15,6 +15,7 @@ import type { CommitDeps } from "../commit";
 
 let mockStagedFiles: string[] = ["src/index.ts"];
 let mockBranch = "main";
+let mockStatus: "passed" | "failed" | "skipped" | undefined;
 let mockPipelineResult = {
 	passed: true,
 	syntaxPassed: true,
@@ -60,6 +61,7 @@ let mockHookResult: { status: string; message?: string } = {
 let mockGitCommitExitCode = 0;
 let mockGitCommitStdout = "[main abc1234] feat: test commit\n 1 file changed";
 let mockGitCommitStderr = "";
+let trailerCalls = 0;
 let recordedOutcomes: Array<{
 	mainaDir: string;
 	promptHash: string;
@@ -78,7 +80,11 @@ mock.module("@mainahq/core", () => ({
 	getStagedFiles: async () => mockStagedFiles,
 	getCurrentBranch: async () => mockBranch,
 	getDiff: async () => "+ some diff content",
-	runPipeline: async () => mockPipelineResult,
+	// Core derives `status` (#328); most fixtures here only set `passed`.
+	runPipeline: async () => ({
+		status: mockStatus ?? (mockPipelineResult.passed ? "passed" : "failed"),
+		...mockPipelineResult,
+	}),
 	runHooks: async () => mockHookResult,
 	generateCommitMessage: async () => null, // no AI in tests by default
 	checkAIAvailability: () => ({ available: true, method: "host-delegation" }),
@@ -122,10 +128,13 @@ mock.module("@mainahq/core", () => ({
 	emitAcceptSignal: () => {},
 	emitRejectSignal: () => {},
 	trackToolUsage: () => ({ ok: true, value: undefined }),
-	appendVerifiedByTrailer: (message: string, _hash: string) => ({
-		ok: true,
-		data: message,
-	}),
+	appendVerifiedByTrailer: (message: string, hash: string) => {
+		trailerCalls++;
+		return {
+			ok: true,
+			data: `${message}\n\nVerified-by: Maina@sha256:${hash}`,
+		};
+	},
 	computeProofHash: () => ({ ok: true, data: "0".repeat(64) }),
 }));
 
@@ -188,6 +197,7 @@ beforeEach(() => {
 	// Reset mock state
 	mockStagedFiles = ["src/index.ts"];
 	mockBranch = "main";
+	mockStatus = undefined;
 	mockPipelineResult = {
 		passed: true,
 		syntaxPassed: true,
@@ -203,6 +213,7 @@ beforeEach(() => {
 	mockGitCommitStdout = "[main abc1234] feat: test commit\n 1 file changed";
 	mockGitCommitStderr = "";
 	recordedOutcomes = [];
+	trailerCalls = 0;
 	loggedErrors = [];
 	loggedWarnings = [];
 });
@@ -246,6 +257,56 @@ describe("commit message format warning", () => {
 });
 
 describe("CommitGate", () => {
+	test("a skipped pipeline (nothing checkable staged) warns, never blocks (#328)", async () => {
+		mockStatus = "skipped";
+		mockPipelineResult = { ...mockPipelineResult, passed: false };
+
+		const result = await commitAction(
+			{ message: "test", cwd: tmpDir },
+			mockDeps,
+		);
+
+		expect(result.committed).toBe(true);
+		expect(loggedWarnings).toContain(
+			"Verification skipped: no tool could check the staged files.",
+		);
+	});
+
+	test("a skipped pipeline gets no Verified-by trailer: nothing was verified (#328)", async () => {
+		mockStatus = "skipped";
+		mockPipelineResult = { ...mockPipelineResult, passed: false };
+		let committed = "";
+		const result = await commitAction(
+			{ message: "feat(cli): skipped", cwd: tmpDir },
+			{
+				gitCommit: async (msg, cwd) => {
+					committed = msg;
+					return mockGitCommitFn(msg, cwd);
+				},
+			},
+		);
+
+		expect(result.committed).toBe(true);
+		expect(trailerCalls).toBe(0);
+		expect(committed).not.toContain("Verified-by");
+	});
+
+	test("a passed pipeline still carries the Verified-by trailer", async () => {
+		let committed = "";
+		await commitAction(
+			{ message: "feat(cli): passed", cwd: tmpDir },
+			{
+				gitCommit: async (msg, cwd) => {
+					committed = msg;
+					return mockGitCommitFn(msg, cwd);
+				},
+			},
+		);
+
+		expect(trailerCalls).toBe(1);
+		expect(committed).toContain("Verified-by: Maina@sha256:");
+	});
+
 	test("failure message counts only error-severity findings", async () => {
 		const f = (severity: "error" | "warning" | "info") => ({
 			tool: "tsc",
