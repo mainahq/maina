@@ -4,9 +4,11 @@
  * It masks comments, string literals, template-literal text and regex
  * literals (keeping newlines so line numbers survive), then matches the
  * forbidden constructs on what is left. Besides direct member access it
- * catches Bun's aliases (`Bun.env`, `Bun.stdout`), destructuring
- * (`const { env } = process`, `const { log } = console`) and named imports
- * from `process` / `node:process`. It is a lexer, not a type checker:
+ * catches Bun's aliases (`Bun.env`, `Bun.stdout`), direct child-process
+ * spawns (`Bun.spawn`, `Bun.spawnSync`; #420), destructuring
+ * (`const { env } = process`, `const { log } = console`,
+ * `const { spawn } = Bun`) and named imports from `process` /
+ * `node:process` / `bun`. It is a lexer, not a type checker:
  * computed access such as `process["env"]` and aliasing through another
  * binding (`const p = process; p.env`) are out of scope.
  */
@@ -16,7 +18,8 @@ export type PurityRule =
 	| "process.env"
 	| "process.stdout"
 	| "console"
-	| "throw";
+	| "throw"
+	| "Bun.spawn";
 
 export type PurityViolation = Readonly<{ rule: PurityRule; line: number }>;
 
@@ -45,6 +48,10 @@ const RULES: ReadonlyArray<readonly [PurityRule, RegExp]> = [
 		/(?<![\w$])(?<!(?:^|[^.])\.)(?:globalThis\s*\??\.\s*)?console\s*\??\.\s*[\w$]/gm,
 	],
 	["throw", /(?<![\w$])(?<!(?:^|[^.])\.)throw\b/gm],
+	[
+		"Bun.spawn",
+		/(?<![\w$])(?<!(?:^|[^.])\.)(?:globalThis\s*\??\.\s*)?Bun\s*\??\.\s*spawn(?:Sync)?\b/gm,
+	],
 ];
 
 /** Keywords after which a `/` starts a regex literal rather than a division. */
@@ -260,8 +267,9 @@ function boundKeys(list: string): readonly string[] {
 }
 
 /**
- * Destructuring (`const { env } = process`, `{ log } = console`) and named
- * imports from `process` / `node:process`. `code` is the masked source (same
+ * Destructuring (`const { env } = process`, `{ log } = console`,
+ * `{ spawn } = Bun`) and named imports from `process` / `node:process` /
+ * `bun`. `code` is the masked source (same
  * indices as `source`), so matches inside comments or strings never count;
  * the module specifier is read from `source` because masking blanks it.
  */
@@ -275,14 +283,20 @@ function bindingViolations(
 			return rule === undefined ? [] : [{ rule, index }];
 		});
 
+	const fromBun = (keys: readonly string[], index: number) =>
+		keys
+			.filter((key) => key === "spawn" || key === "spawnSync")
+			.map((): IndexedViolation => ({ rule: "Bun.spawn", index }));
+
 	const destructured = [
 		...code.matchAll(
-			/\{([^{}]*)\}\s*=\s*(?:globalThis\s*\??\.\s*)?(process|console)\b(?!\s*\??\.)/g,
+			/\{([^{}]*)\}\s*=\s*(?:globalThis\s*\??\.\s*)?(process|console|Bun)\b(?!\s*\??\.)/g,
 		),
 	].flatMap((m): IndexedViolation[] => {
 		const index = m.index ?? 0;
 		if (m[2] === "console") return [{ rule: "console", index }];
-		return fromProcess(boundKeys(m[1] ?? ""), index);
+		const keys = boundKeys(m[1] ?? "");
+		return m[2] === "Bun" ? fromBun(keys, index) : fromProcess(keys, index);
 	});
 
 	const imported = [
@@ -290,9 +304,12 @@ function bindingViolations(
 	].flatMap((m) => {
 		const index = m.index ?? 0;
 		const quote = index + m[0].length - 1;
-		return /^["'](?:node:)?process["']/.test(source.slice(quote, quote + 16))
-			? fromProcess(boundKeys(m[1] ?? ""), index)
-			: [];
+		const specifier = source.slice(quote, quote + 16);
+		const keys = boundKeys(m[1] ?? "");
+		if (/^["'](?:node:)?process["']/.test(specifier)) {
+			return fromProcess(keys, index);
+		}
+		return /^["']bun["']/.test(specifier) ? fromBun(keys, index) : [];
 	});
 
 	return [...destructured, ...imported];

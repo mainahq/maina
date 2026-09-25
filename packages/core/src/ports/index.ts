@@ -5,6 +5,7 @@ import type { FsPort } from "./fs";
 import type { GitPort } from "./git";
 import type { LoggerPort } from "./logger";
 import type { ModelPort } from "./model";
+import type { ProcessPort } from "./process";
 
 export type { ClockPort } from "./clock";
 export type { DbError, DbPort, DbRow, DbValue } from "./db";
@@ -18,6 +19,13 @@ export type {
 	ModelRequest,
 	ModelResponse,
 } from "./model";
+export type {
+	ProcessEnv,
+	ProcessError,
+	ProcessOutput,
+	ProcessPort,
+	SpawnOptions,
+} from "./process";
 
 /**
  * Every side effect the functional core may perform. Public core functions
@@ -32,4 +40,5 @@ export type CorePorts = Readonly<{
 	logger: LoggerPort;
 	model: ModelPort;
 	env: EnvPort;
+	process: ProcessPort;
 }>;

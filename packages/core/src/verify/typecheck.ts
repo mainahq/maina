@@ -9,6 +9,8 @@
 import { existsSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import type { LanguageId } from "../language/profile";
+import type { ProcessEnv, ProcessPort } from "../ports/process";
+import { systemProcess } from "../process/index";
 import type { Finding } from "./diff-filter";
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -24,7 +26,7 @@ export interface TypecheckResult {
  * Environment for spawned checkers, injected by the caller (for example the
  * CLI passes its process environment). Core never reads `process.env`.
  */
-export type SpawnEnv = Readonly<Record<string, string | undefined>>;
+export type SpawnEnv = ProcessEnv;
 
 interface TypecheckCommand {
 	tool: string;
@@ -174,31 +176,21 @@ async function runTscProject(
 	projectDir: string,
 	root: string,
 	env: SpawnEnv | undefined,
+	processPort: ProcessPort,
 ): Promise<{ findings: Finding[]; ran: boolean }> {
 	const cwd = join(root, projectDir);
 	const command = resolveLocalBin("tsc", cwd, root);
 	const spawnEnv = withNoColor(env);
-	try {
-		const proc = Bun.spawn(
-			[command, "-p", ".", "--noEmit", "--pretty", "false"],
-			{
-				cwd,
-				stdout: "pipe",
-				stderr: "pipe",
-				...(spawnEnv ? { env: spawnEnv } : {}),
-			},
-		);
-		const output =
-			(await new Response(proc.stdout).text()) +
-			(await new Response(proc.stderr).text());
-		await proc.exited;
-		return {
-			findings: rebaseFindings(parseTscOutput(output), projectDir),
-			ran: true,
-		};
-	} catch {
-		return { findings: [], ran: false };
-	}
+	const result = await processPort.spawn(
+		[command, "-p", ".", "--noEmit", "--pretty", "false"],
+		{ cwd, ...(spawnEnv ? { env: spawnEnv } : {}) },
+	);
+	if (!result.ok) return { findings: [], ran: false };
+	const output = result.value.stdout + result.value.stderr;
+	return {
+		findings: rebaseFindings(parseTscOutput(output), projectDir),
+		ran: true,
+	};
 }
 
 // ─── Runner ──────────────────────────────────────────────────────────────
@@ -206,9 +198,16 @@ async function runTscProject(
 export async function runTypecheck(
 	files: string[],
 	cwd: string,
-	options?: { command?: string; language?: LanguageId; env?: SpawnEnv },
+	options?: {
+		command?: string;
+		language?: LanguageId;
+		env?: SpawnEnv;
+		/** Spawns the checker; the system adapter by default. */
+		process?: ProcessPort;
+	},
 ): Promise<TypecheckResult> {
 	const language = options?.language ?? "typescript";
+	const processPort = options?.process ?? systemProcess;
 	const cmd = TYPECHECK_COMMANDS[language];
 	const start = performance.now();
 
@@ -218,7 +217,9 @@ export async function runTypecheck(
 		const groups = groupFilesByProject(files, cwd, existsSync);
 		if (groups.size > 0) {
 			const runs = await Promise.all(
-				[...groups.keys()].map((dir) => runTscProject(dir, cwd, options?.env)),
+				[...groups.keys()].map((dir) =>
+					runTscProject(dir, cwd, options?.env, processPort),
+				),
 			);
 			return {
 				findings: runs.flatMap((r) => r.findings),
@@ -244,50 +245,15 @@ export async function runTypecheck(
 	const command =
 		options?.command ?? (existsSync(localBin) ? localBin : cmd.command);
 
-	try {
-		// With an injected env, force NO_COLOR on top of it; without one the
-		// checker inherits the parent environment and relies on its no-colour
-		// flags (piped output is not a TTY either).
-		const env = withNoColor(options?.env);
-		const proc = Bun.spawn([command, ...cmd.args], {
-			cwd,
-			stdout: "pipe",
-			stderr: "pipe",
-			...(env ? { env } : {}),
-		});
-
-		const stdout = await new Response(proc.stdout).text();
-		const stderr = await new Response(proc.stderr).text();
-		await proc.exited;
-
-		const output = stdout + stderr;
-		let findings: Finding[];
-
-		if (language === "typescript") {
-			findings = parseTscOutput(output);
-		} else {
-			// For other languages, treat any non-zero exit as a generic finding
-			findings =
-				proc.exitCode !== 0 && output.trim()
-					? [
-							{
-								tool: cmd.tool,
-								file: files[0] ?? "unknown",
-								line: 1,
-								message: output.trim().split("\n")[0] ?? "Type check failed",
-								severity: "error" as const,
-							},
-						]
-					: [];
-		}
-
-		return {
-			findings,
-			duration: performance.now() - start,
-			tool: cmd.tool,
-			skipped: false,
-		};
-	} catch {
+	// With an injected env, force NO_COLOR on top of it; without one the
+	// checker inherits the parent environment and relies on its no-colour
+	// flags (piped output is not a TTY either).
+	const env = withNoColor(options?.env);
+	const result = await processPort.spawn([command, ...cmd.args], {
+		cwd,
+		...(env ? { env } : {}),
+	});
+	if (!result.ok) {
 		// Command not found or other spawn error
 		return {
 			findings: [],
@@ -296,4 +262,29 @@ export async function runTypecheck(
 			skipped: true,
 		};
 	}
+
+	const { exitCode, stdout, stderr } = result.value;
+	const output = stdout + stderr;
+	// For other languages, treat any non-zero exit as a generic finding
+	const findings: Finding[] =
+		language === "typescript"
+			? parseTscOutput(output)
+			: exitCode !== 0 && output.trim()
+				? [
+						{
+							tool: cmd.tool,
+							file: files[0] ?? "unknown",
+							line: 1,
+							message: output.trim().split("\n")[0] ?? "Type check failed",
+							severity: "error" as const,
+						},
+					]
+				: [];
+
+	return {
+		findings,
+		duration: performance.now() - start,
+		tool: cmd.tool,
+		skipped: false,
+	};
 }

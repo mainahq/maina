@@ -6,6 +6,7 @@
  * Gracefully skips if stryker is not installed.
  */
 
+import type { ProcessPort } from "../ports/process";
 import type { Finding } from "./diff-filter";
 import {
 	exitFailureNotice,
@@ -24,6 +25,8 @@ export interface MutationOptions {
 	available?: boolean;
 	/** Pre-resolved command path from detection (may be root-local node_modules/.bin). */
 	command?: string;
+	/** Spawns the tool; the system process adapter by default. */
+	process?: ProcessPort;
 }
 
 export interface MutationResult {
@@ -131,7 +134,7 @@ export async function runMutation(
 		"json",
 	];
 
-	const run = await spawnTool(args, cwd);
+	const run = await spawnTool(args, cwd, options.process);
 	if (!run.ok) {
 		return {
 			findings: [],

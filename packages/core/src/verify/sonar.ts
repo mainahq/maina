@@ -5,6 +5,7 @@
  * Gracefully skips if sonar-scanner is not installed.
  */
 
+import type { ProcessPort } from "../ports/process";
 import type { Finding } from "./diff-filter";
 import {
 	exitFailureNotice,
@@ -23,6 +24,8 @@ export interface SonarOptions {
 	available?: boolean;
 	/** Pre-resolved command path from detection (may be root-local node_modules/.bin). */
 	command?: string;
+	/** Spawns the tool; the system process adapter by default. */
+	process?: ProcessPort;
 }
 
 export interface SonarResult {
@@ -129,7 +132,7 @@ export async function runSonar(options: SonarOptions): Promise<SonarResult> {
 		"-Dsonar.report.export.path=sonar-report.json",
 	];
 
-	const run = await spawnTool(args, cwd);
+	const run = await spawnTool(args, cwd, options.process);
 	if (!run.ok) {
 		return {
 			findings: [],

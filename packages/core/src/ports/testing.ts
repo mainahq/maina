@@ -1,6 +1,7 @@
 /**
  * In-memory fakes for every `CorePorts` member. They never touch the real
- * filesystem, network, git binary, clock or environment, and they report
+ * filesystem, network, git binary, child processes, clock or environment,
+ * and they report
  * failures as `Result` errors rather than throwing.
  */
 
@@ -15,6 +16,12 @@ import type { GitPort } from "./git";
 import type { CorePorts } from "./index";
 import type { LogFields, LoggerPort, LogLevel } from "./logger";
 import type { ModelPort, ModelRequest } from "./model";
+import type {
+	ProcessError,
+	ProcessOutput,
+	ProcessPort,
+	SpawnOptions,
+} from "./process";
 
 function ok<T>(value: T): Result<T, never> {
 	return { ok: true, value };
@@ -230,6 +237,61 @@ export function createFakeEnv(
 	};
 }
 
+// ── process ─────────────────────────────────────────────────────────────────
+
+/** @public test-fake API consumed by core refactors (wave A). */
+export type ProcessCall = Readonly<{
+	argv: readonly string[];
+	options: SpawnOptions;
+}>;
+
+/** @public test-fake API consumed by core refactors (wave A). */
+export type FakeProcess = ProcessPort &
+	Readonly<{ calls: () => readonly ProcessCall[] }>;
+
+/** @public test-fake API consumed by core refactors (wave A). */
+export type ScriptedOutput = Readonly<Partial<ProcessOutput>>;
+
+/** @public test-fake API consumed by core refactors (wave A). */
+export type ProcessResponder = (
+	argv: readonly string[],
+	options: SpawnOptions,
+) => Result<ProcessOutput, ProcessError>;
+
+/**
+ * Scripted child processes. Either a map keyed by the space-joined argv
+ * (missing fields default to exit 0 and empty streams) or a responder
+ * function. An unscripted argv fails with `spawn_failed`, like a binary
+ * that is not installed.
+ */
+export function createFakeProcess(
+	script: Readonly<Record<string, ScriptedOutput>> | ProcessResponder = {},
+): FakeProcess {
+	const calls: ProcessCall[] = [];
+	const fromMap = (
+		responses: Readonly<Record<string, ScriptedOutput>>,
+		argv: readonly string[],
+	): Result<ProcessOutput, ProcessError> => {
+		const key = argv.join(" ");
+		const scripted = Object.hasOwn(responses, key) ? responses[key] : undefined;
+		return scripted === undefined
+			? err({
+					kind: "spawn_failed",
+					message: `fake process: no response scripted for "${key}"`,
+				})
+			: ok({ exitCode: 0, stdout: "", stderr: "", ...scripted });
+	};
+	return {
+		spawn: async (argv, options) => {
+			calls.push({ argv: [...argv], options: { ...options } });
+			return typeof script === "function"
+				? script(argv, options)
+				: fromMap(script, argv);
+		},
+		calls: () => [...calls],
+	};
+}
+
 // ── bundle ──────────────────────────────────────────────────────────────────
 
 /** A complete in-memory `CorePorts`; pass overrides for the ports under test. */
@@ -242,6 +304,7 @@ export function createFakePorts(overrides: Partial<CorePorts> = {}): CorePorts {
 		logger: createMemoryLogger(),
 		model: createFakeModel(),
 		env: createFakeEnv(),
+		process: createFakeProcess(),
 		...overrides,
 	};
 }

@@ -475,6 +475,11 @@ export type {
 	ModelPort,
 	ModelRequest,
 	ModelResponse,
+	ProcessEnv,
+	ProcessError,
+	ProcessOutput,
+	ProcessPort,
+	SpawnOptions,
 } from "./ports/index";
 export { loadDefault, type PromptTask } from "./prompts/defaults/index";
 // Prompts

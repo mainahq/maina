@@ -1,4 +1,6 @@
 import type { GitPort } from "../ports/git";
+import type { ProcessPort } from "../ports/process";
+import { systemProcess } from "../process/index";
 
 export interface Commit {
 	hash: string;
@@ -8,40 +10,37 @@ export interface Commit {
 }
 
 /**
- * The real `GitPort`: the one place in core that spawns the git binary.
- * Every function below takes the repository root explicitly and an optional
- * `git` port (this adapter by default; tests pass the in-memory fake). The
- * child inherits the parent environment. Never rejects: spawn failures and
- * non-zero exits come back as a `GitError`.
+ * A `GitPort` that runs `git <args>` in the root through a `ProcessPort`.
+ * Never rejects: spawn failures (exit code -1) and non-zero exits come back
+ * as a `GitError`.
  */
-const systemGit: GitPort = {
-	run: async (root, args) => {
-		try {
-			const proc = Bun.spawn(["git", ...args], {
-				cwd: root,
-				stdout: "pipe",
-				stderr: "pipe",
-			});
-			const [stdout, stderr, exitCode] = await Promise.all([
-				new Response(proc.stdout).text(),
-				new Response(proc.stderr).text(),
-				proc.exited,
-			]);
+export function createProcessGit(processPort: ProcessPort): GitPort {
+	return {
+		run: async (root, args) => {
+			const result = await processPort.spawn(["git", ...args], { cwd: root });
+			if (!result.ok) {
+				const stderr =
+					result.error.kind === "timeout"
+						? `git timed out after ${result.error.timeoutMs}ms`
+						: result.error.message;
+				return { ok: false, error: { kind: "failed", exitCode: -1, stderr } };
+			}
+			const { exitCode, stdout, stderr } = result.value;
 			return exitCode === 0
 				? { ok: true, value: stdout }
 				: { ok: false, error: { kind: "failed", exitCode, stderr } };
-		} catch (e) {
-			return {
-				ok: false,
-				error: {
-					kind: "failed",
-					exitCode: -1,
-					stderr: e instanceof Error ? e.message : String(e),
-				},
-			};
-		}
-	},
-};
+		},
+	};
+}
+
+/**
+ * The real `GitPort`. Every function below takes the repository root
+ * explicitly and an optional `git` port (this adapter by default; tests pass
+ * the in-memory fake). The system process adapter drops the parent's
+ * repository-local `GIT_*` variables, so a leaked `GIT_DIR` (for example
+ * from a git hook) never redirects a read away from the explicit root.
+ */
+const systemGit: GitPort = createProcessGit(systemProcess);
 
 /** Trimmed stdout of `git <args>` run in `cwd`, or "" when git fails. */
 async function exec(
