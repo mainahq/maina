@@ -11,7 +11,7 @@
  */
 
 import { parseArgs } from "node:util";
-import { pendingGate } from "./gate";
+import { systemGates } from "./gate-system";
 import { startRuntime } from "./server";
 
 type Args = Readonly<{
@@ -54,7 +54,7 @@ export async function runDaemon(argv: readonly string[]): Promise<number> {
 		return 2;
 	}
 	const started = startRuntime(
-		{ gate: pendingGate },
+		{ gate: systemGates().runtime },
 		{
 			endpoint: {
 				address: args.address,

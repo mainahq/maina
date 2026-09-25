@@ -29,7 +29,8 @@ const config: KnipConfig = {
 			project: ["src/**/*.ts!"],
 		},
 		"packages/core": {
-			entry: [TESTS, "src/__golden__/**/*.test.ts"],
+			// Benches are run directly, so nothing imports them.
+			entry: [TESTS, "src/__golden__/**/*.test.ts", "bench/*.bench.ts"],
 			// Test-only helpers (scanner, allow-list, port fakes, golden
 			// fixtures) are reachable from tests, not from production entries.
 			project: [

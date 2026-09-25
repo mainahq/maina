@@ -210,7 +210,7 @@ describe("irreversible action classes", () => {
 			"allow",
 		);
 		expect(result.value.loosened).toEqual([
-			{ actionClass: "package.publish", source: "repo" },
+			{ actionClass: "package.publish", source: "repo", before: "ask" },
 		]);
 	});
 
@@ -275,7 +275,7 @@ describe("irreversible action classes", () => {
 		expect(unlocked.ok).toBe(true);
 		if (!unlocked.ok) return;
 		expect(unlocked.value.loosened).toEqual([
-			{ actionClass: "k8s.apply", source: "repo" },
+			{ actionClass: "k8s.apply", source: "repo", before: "ask" },
 		]);
 	});
 
