@@ -27,7 +27,7 @@ import type { TryAIResult } from "../ai/try-generate";
 import type { Result } from "../db/index";
 import { type CommunityAlgorithm, detectCommunities } from "./communities";
 import type { CodeEntity } from "./extractors/code";
-import { extractCodeEntities } from "./extractors/code";
+import { scanCodeEntities } from "./extractors/code";
 import { extractDecisions } from "./extractors/decision";
 import { extractFeatures } from "./extractors/feature";
 import { extractWorkflowTrace } from "./extractors/workflow";
@@ -37,6 +37,7 @@ import { generateIndex } from "./indexer";
 import { generateLinks } from "./linker";
 import { generateGraphReport, generateGraphReportJson } from "./report";
 import {
+	COMPILER_OWNED_DIRS,
 	createEmptyState,
 	findStaleArticlePaths,
 	hashContent,
@@ -104,15 +105,6 @@ export interface CompileOptions {
 
 /** Hard cap for sample-mode source files. */
 const SAMPLE_FILE_LIMIT = 20;
-
-/** Wiki subdirectories whose articles are fully owned by the compiler. */
-const COMPILER_OWNED_DIRS = [
-	"modules",
-	"entities",
-	"features",
-	"decisions",
-	"architecture",
-] as const;
 
 /** List `.md` articles currently on disk in the compiler-owned subdirs. */
 function listCompilerOwnedArticles(wikiDir: string): string[] {
@@ -1185,10 +1177,8 @@ export async function compile(
 			sampleTruncated = true;
 		}
 
-		const entityResult = extractCodeEntities(repoRoot, sourceFiles);
-		const codeEntities: CodeEntity[] = entityResult.ok
-			? entityResult.value
-			: [];
+		const entityScan = scanCodeEntities(repoRoot, sourceFiles);
+		const codeEntities: CodeEntity[] = [...entityScan.entities];
 
 		const featuresDir = join(mainaDir, "features");
 		const featuresResult = extractFeatures(featuresDir);
@@ -1426,14 +1416,20 @@ export async function compile(
 		);
 
 		// ── Step 9a: Prune articles for deleted sources (#377) ─────────
-		// A sampled compile only sees a slice of the repo, and a failed code
-		// extraction sees no entities at all — neither article set is
-		// authoritative, so skip pruning rather than delete real pages.
+		// Pruning treats "not produced" as "deleted", so it runs only when the
+		// article set is authoritative. It is not when a sampled compile saw
+		// only a slice of the repo, when a source file exists but could not be
+		// read, or when an existing `adr/` directory could not be read (an
+		// absent one is a genuinely empty decision set). Fail closed: keep
+		// the pages rather than delete real ones.
 		// Prune BEFORE writing: on a case-insensitive filesystem a case-only
 		// rename writes the new page into the old directory entry, and a
 		// post-write prune would then delete the page it just wrote.
 		const previousState = loadState(wikiDir);
-		const canPrune = !sampleTruncated && entityResult.ok;
+		const canPrune =
+			!sampleTruncated &&
+			entityScan.unreadable.length === 0 &&
+			(decisionsResult.ok || !existsSync(adrDir));
 		if (!dryRun && canPrune) {
 			pruneStaleArticles(
 				wikiDir,

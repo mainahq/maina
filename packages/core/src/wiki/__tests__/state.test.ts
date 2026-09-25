@@ -184,6 +184,35 @@ describe("Wiki State", () => {
 			expect(stale).toEqual(["wiki/modules/gone.md"]);
 		});
 
+		it("rejects traversal written with either path separator", () => {
+			const stale = findStaleArticlePaths(
+				[
+					"wiki/entities/../../victim.md",
+					"wiki/entities\\..\\..\\victim.md",
+					"wiki/entities/..\\..\\victim.md",
+				],
+				[],
+			);
+			expect(stale).toEqual([]);
+		});
+
+		it("only prunes flat pages in compiler-owned subdirectories", () => {
+			const stale = findStaleArticlePaths(
+				[
+					"wiki/notes.md",
+					"wiki/custom/page.md",
+					"wiki/entities/nested/page.md",
+					"wiki/decisions/0001-use-jwt.md",
+					"wiki/architecture/overview.md",
+				],
+				[],
+			);
+			expect(stale).toEqual([
+				"wiki/architecture/overview.md",
+				"wiki/decisions/0001-use-jwt.md",
+			]);
+		});
+
 		it("dedupes and sorts the result", () => {
 			const stale = findStaleArticlePaths(
 				["wiki/modules/b.md", "wiki/entities/a.md", "wiki/modules/b.md"],

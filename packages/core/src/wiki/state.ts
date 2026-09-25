@@ -90,16 +90,31 @@ export function getChangedFiles(
 
 // ─── Pruning ─────────────────────────────────────────────────────────────
 
+/** Wiki subdirectories whose articles are fully owned by the compiler. */
+export const COMPILER_OWNED_DIRS = [
+	"modules",
+	"entities",
+	"features",
+	"decisions",
+	"architecture",
+] as const;
+
 /**
- * Wiki-relative article paths the compiler may delete: `wiki/<...>.md`,
- * no `..` segments, and never under the user-owned `wiki/raw/` notes dir.
+ * Article paths the compiler may delete: a flat `wiki/<owned-dir>/<name>.md`
+ * page. Both `/` and `\\` count as separators and `..` is never a name, so
+ * a malformed `.state.json` key cannot reach outside the wiki, and user notes
+ * (`wiki/raw/`) or hand-written top-level pages are never candidates.
  */
 function isPrunableArticlePath(path: string): boolean {
+	const segments = path.split(/[\\/]/);
+	if (segments.length !== 3) return false;
+	const [root, dir, name] = segments;
 	return (
-		path.startsWith("wiki/") &&
-		path.endsWith(".md") &&
-		!path.startsWith("wiki/raw/") &&
-		!path.split("/").includes("..")
+		root === "wiki" &&
+		(COMPILER_OWNED_DIRS as readonly string[]).includes(dir ?? "") &&
+		name?.endsWith(".md") === true &&
+		name !== ".md" &&
+		!name.startsWith("..")
 	);
 }
 

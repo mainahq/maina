@@ -27,7 +27,11 @@ export interface CodeEntity {
  * Extract entities from a single TypeScript file using regex patterns.
  * Captures exported functions, classes, interfaces, types, variables, and enums.
  */
-function extractFromFile(repoRoot: string, relativePath: string): CodeEntity[] {
+/** `null` when the file exists but could not be read. */
+function extractFromFile(
+	repoRoot: string,
+	relativePath: string,
+): CodeEntity[] | null {
 	const fullPath = join(repoRoot, relativePath);
 	if (!existsSync(fullPath)) return [];
 
@@ -35,7 +39,7 @@ function extractFromFile(repoRoot: string, relativePath: string): CodeEntity[] {
 	try {
 		content = readFileSync(fullPath, "utf-8");
 	} catch {
-		return [];
+		return null;
 	}
 
 	const entities: CodeEntity[] = [];
@@ -75,16 +79,36 @@ function extractFromFile(repoRoot: string, relativePath: string): CodeEntity[] {
 
 // ─── Public API ──────────────────────────────────────────────────────────
 
+/** Entities plus the source files that exist but could not be read. */
+interface CodeEntityScan {
+	readonly entities: readonly CodeEntity[];
+	readonly unreadable: readonly string[];
+}
+
+/**
+ * Like {@link extractCodeEntities} but reports unreadable files, so callers
+ * that act on absence (wiki pruning, #377) can tell "no entities" apart from
+ * "could not look".
+ */
+export function scanCodeEntities(
+	repoRoot: string,
+	files: readonly string[],
+): CodeEntityScan {
+	const entities: CodeEntity[] = [];
+	const unreadable: string[] = [];
+
+	for (const file of files) {
+		const found = extractFromFile(repoRoot, file);
+		if (found === null) unreadable.push(file);
+		else entities.push(...found);
+	}
+
+	return { entities, unreadable };
+}
+
 export function extractCodeEntities(
 	repoRoot: string,
 	files: string[],
 ): Result<CodeEntity[]> {
-	const allEntities: CodeEntity[] = [];
-
-	for (const file of files) {
-		const entities = extractFromFile(repoRoot, file);
-		allEntities.push(...entities);
-	}
-
-	return { ok: true, value: allEntities };
+	return { ok: true, value: [...scanCodeEntities(repoRoot, files).entities] };
 }

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	readFileSync,
@@ -500,6 +501,67 @@ describe("Wiki Compiler", () => {
 			expect(existsSync(producedPath)).toBe(true);
 			expect(readFileSync(producedPath, "utf-8")).toBe(entityArticle.content);
 		});
+
+		// chmod cannot make a path unreadable for root, so these two
+		// fail-closed checks only run as a regular user.
+		const canChmod =
+			typeof process.getuid !== "function" || process.getuid() !== 0;
+
+		it.skipIf(!canChmod)(
+			"keeps decision pages when the ADR directory is unreadable",
+			async () => {
+				const first = await compile(makeOptions());
+				expect(first.ok).toBe(true);
+				if (!first.ok) return;
+				const decision = first.value.articles.find(
+					(a) => a.type === "decision",
+				);
+				expect(decision).toBeDefined();
+				if (!decision) return;
+				const decisionPath = join(
+					wikiDir,
+					decision.path.replace(/^wiki\//, ""),
+				);
+
+				const adrDir = join(repoRoot, "adr");
+				chmodSync(adrDir, 0o000);
+				try {
+					const second = await compile(makeOptions());
+					expect(second.ok).toBe(true);
+				} finally {
+					chmodSync(adrDir, 0o755);
+				}
+				expect(existsSync(decisionPath)).toBe(true);
+				expect(readStateJson().articleHashes[decision.path]).toBeDefined();
+			},
+		);
+
+		it.skipIf(!canChmod)(
+			"keeps entity pages when a source file is unreadable",
+			async () => {
+				const first = await compile(makeOptions());
+				expect(first.ok).toBe(true);
+				if (!first.ok) return;
+				const entity = first.value.articles.find((a) => a.type === "entity");
+				expect(entity).toBeDefined();
+				if (!entity) return;
+				const sourceRel =
+					entity.content.match(/- \*\*File:\*\* `([^`]+)`/)?.[1] ?? "";
+				expect(sourceRel).not.toBe("");
+				const entityPath = join(wikiDir, entity.path.replace(/^wiki\//, ""));
+
+				const sourcePath = join(repoRoot, sourceRel);
+				chmodSync(sourcePath, 0o000);
+				try {
+					const second = await compile(makeOptions());
+					expect(second.ok).toBe(true);
+				} finally {
+					chmodSync(sourcePath, 0o644);
+				}
+				expect(existsSync(entityPath)).toBe(true);
+				expect(readStateJson().articleHashes[entity.path]).toBeDefined();
+			},
+		);
 
 		it("never deletes user-owned raw/ notes", async () => {
 			const rawNote = join(wikiDir, "raw", "query-1.md");
