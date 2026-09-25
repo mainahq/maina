@@ -230,6 +230,40 @@ export const x = 1;`;
 			expect(findings[0]?.line).toBe(1);
 		});
 
+		// Review on #394: keywords are not prose words, so keyword-dense
+		// code without statement terminators is still caught.
+		it.each([
+			[
+				"control flow",
+				`// for (const item of items)
+//   if (item) return item
+//   else if (fallback) return other`,
+			],
+			[
+				"type casts",
+				`// const foo = bar as unknown as Baz
+// const qux = foo as unknown as Quux
+// return foo satisfies Baz as Q`,
+			],
+			[
+				"type-only imports",
+				`// import type Foo from "./foo"
+// import type Bar from "./bar"
+// import type Baz from "./baz"`,
+			],
+			[
+				"class declarations",
+				`// export default class Foo extends Bar
+// export class Qux extends Base implements Thing
+// export const y = z as unknown as Z`,
+			],
+		])("should still detect keyword-dense commented-out code (%s)", (_label, code) => {
+			const content = `${code}\nexport const x = 1;`;
+			const findings = detectCommentedCode(content, "src/app.ts");
+			expect(findings.length).toBe(1);
+			expect(findings[0]?.line).toBe(1);
+		});
+
 		// #394: prose explanations that happen to contain parentheses,
 		// backtick code spans or keywords are not commented-out code.
 		it.each([
