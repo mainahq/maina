@@ -733,14 +733,26 @@ function existingInputs(site: GoldenSite): unknown[] | null {
 	return (JSON.parse(text) as GoldenFixtureFile).cases.map((c) => c.input);
 }
 
+/** Drop repeated inputs (e.g. two features still holding the same scaffold). */
+function dedupe(inputs: readonly unknown[]): unknown[] {
+	const seen = new Set<string>();
+	return inputs.filter((input) => {
+		const key = JSON.stringify(input);
+		if (seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
+}
+
 async function main(): Promise<number> {
 	const resample = process.argv.includes("--resample");
 	mkdirSync(OUT_DIR, { recursive: true });
 	let failed = false;
 
 	for (const site of GOLDEN_SITES) {
-		const inputs =
-			(!resample && existingInputs(site)) || (await COLLECTORS[site]());
+		const inputs = dedupe(
+			(!resample && existingInputs(site)) || (await COLLECTORS[site]()),
+		);
 		const cases: GoldenCase[] = [];
 		for (const input of inputs) {
 			cases.push({ site, input, output: await runSite(site, input) });

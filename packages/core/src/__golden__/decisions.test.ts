@@ -2,8 +2,10 @@
  * Golden tests for every heuristic decision site (v1 plan task 0.2, FR-DEC-6).
  *
  * Replays each recorded `{ site, input, output }` fixture under
- * `__golden__/decisions/` and asserts current behaviour is byte-for-byte the
- * recorded output. Fixtures are (re)captured with `bun scripts/golden-capture.ts`;
+ * `__golden__/decisions/` and asserts current behaviour deep-equals the
+ * recorded output (`toStrictEqual` on the JSON values, so fixture whitespace
+ * and key order are not significant; every value, array order and field
+ * presence is). Fixtures are (re)captured with `bun scripts/golden-capture.ts`;
  * a diff in a fixture is a behaviour change and must be reviewed as one.
  */
 
