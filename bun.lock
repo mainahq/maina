@@ -21,13 +21,14 @@
       "name": "@mainahq/cli",
       "version": "1.8.1",
       "bin": {
-        "maina": "dist/index.js",
+        "maina": "./dist/index.js",
       },
       "dependencies": {
         "@clack/prompts": "^1.2.0",
         "@iarna/toml": "^2.2.5",
         "@mainahq/core": "1.8.1",
         "@mainahq/mcp": "1.8.1",
+        "@mainahq/skills": "1.8.1",
         "commander": "^14.0.3",
       },
     },

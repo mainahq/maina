@@ -176,22 +176,47 @@ describe("skillsRootCandidates", () => {
 		["source", "/repo/packages/cli/src/onboarding/setup"],
 		["bundle entry", "/repo/packages/cli/dist"],
 		["bundle chunk", "/repo/packages/cli/dist/shared"],
-	])("from the %s reaches packages/skills", (_layout, here) => {
-		expect(skillsRootCandidates(here, hasPackageJson)).toEqual([
+	])("from the %s reaches packages/skills first", (_layout, here) => {
+		expect(skillsRootCandidates(here, hasPackageJson)[0]).toBe(
 			"/repo/packages/skills",
-		]);
+		);
 	});
 
-	test("from an installed chunk reaches the sibling @mainahq/skills", () => {
+	test("from an installed chunk reaches the hoisted sibling, then the nested dependency (#384)", () => {
+		// Hoisted (bun/pnpm-style global dir) keeps `@mainahq/skills` next to
+		// `@mainahq/cli`; npm's global install nests the CLI's dependencies in
+		// its own node_modules. Both must be found.
 		expect(
 			skillsRootCandidates(
 				"/g/node_modules/@mainahq/cli/dist/shared",
 				hasPackageJson,
 			),
-		).toEqual(["/g/node_modules/@mainahq/skills"]);
+		).toEqual([
+			"/g/node_modules/@mainahq/skills",
+			"/g/node_modules/@mainahq/cli/node_modules/@mainahq/skills",
+		]);
 	});
 
 	test("with no enclosing package there is no candidate", () => {
 		expect(skillsRootCandidates("/tmp/a/b", hasPackageJson)).toEqual([]);
+	});
+});
+
+describe("@mainahq/cli ships its skills (#384)", () => {
+	// `maina setup` always deploys skills; a global install of the CLI alone
+	// must be able to resolve them, so the CLI depends on the skills package
+	// at the shared (fixed-group) version.
+	const pkgDir = (name: string) =>
+		join(import.meta.dir, "..", "..", "..", "..", "..", name);
+	const manifest = (name: string) =>
+		JSON.parse(readFileSync(join(pkgDir(name), "package.json"), "utf-8")) as {
+			version: string;
+			dependencies?: Record<string, string>;
+		};
+
+	test("@mainahq/skills is a runtime dependency of @mainahq/cli", () => {
+		const cli = manifest("cli");
+		const skills = manifest("skills");
+		expect(cli.dependencies?.["@mainahq/skills"]).toBe(skills.version);
 	});
 });

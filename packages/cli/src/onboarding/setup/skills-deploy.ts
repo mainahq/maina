@@ -16,6 +16,7 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Result } from "@mainahq/core";
@@ -29,8 +30,9 @@ interface DeploySkillsOptions {
 	 * copied.
 	 *
 	 * When omitted, the deployer tries:
-	 *   1. `node_modules/@mainahq/skills` (installed-from-npm case)
-	 *   2. the monorepo sibling `../../skills` relative to this file
+	 *   1. the sibling `skills` package (monorepo, or a hoisted install)
+	 *   2. the CLI's nested `node_modules/@mainahq/skills` (npm global)
+	 *   3. node resolution of `@mainahq/skills` from this module
 	 */
 	sourceRoot?: string;
 }
@@ -52,7 +54,7 @@ export async function deploySkills(
 		const source = opts.sourceRoot ?? defaultSkillsRoot();
 		if (source === null) {
 			warnings.push(
-				"skills source not found — install @mainahq/skills or set sourceRoot",
+				"skills source not found — reinstall @mainahq/cli (it ships @mainahq/skills) or set sourceRoot",
 			);
 			return { ok: true, value: { deployed, warnings } };
 		}
@@ -101,12 +103,13 @@ export async function deploySkills(
 }
 
 /**
- * Sibling `skills` package location for the CLI package enclosing
- * `hereDir`. From source this module sits in `cli/src/onboarding/setup`;
- * bundled by bunup it lands in a code-split chunk (`cli/dist/shared/…`),
- * in the monorepo or in an npm install next to `@mainahq/skills`. Anchoring
- * on the nearest `package.json` (the CLI package root) instead of a fixed
- * `..` count keeps every layout pointing at the same sibling.
+ * Where the `skills` package sits for the CLI package enclosing `hereDir`.
+ * From source this module sits in `cli/src/onboarding/setup`; bundled by
+ * bunup it lands in a code-split chunk (`cli/dist/shared/…`). Anchoring on
+ * the nearest `package.json` (the CLI package root) instead of a fixed `..`
+ * count keeps every layout pointing at the same places: the sibling
+ * (`packages/skills` in the monorepo, a hoisted `@mainahq/skills` in an
+ * install), then the CLI's own nested dependency (npm's global layout).
  */
 export function skillsRootCandidates(
 	hereDir: string,
@@ -115,7 +118,12 @@ export function skillsRootCandidates(
 ): readonly string[] {
 	let dir = hereDir;
 	for (;;) {
-		if (hasPackageJson(dir)) return [join(dir, "..", "skills")];
+		if (hasPackageJson(dir)) {
+			return [
+				join(dir, "..", "skills"),
+				join(dir, "node_modules", "@mainahq", "skills"),
+			];
+		}
 		const parent = dirname(dir);
 		if (parent === dir) return [];
 		dir = parent;
@@ -125,36 +133,26 @@ export function skillsRootCandidates(
 /**
  * Locate the `@mainahq/skills` source root. For maina devs working inside
  * the monorepo, the sibling `packages/skills` takes precedence; for
- * end-users who `bun add -g @mainahq/cli`, the monorepo guess misses and
- * we resolve the installed package via `Bun.resolveSync`. Returns `null`
- * when neither is available.
+ * end-users who install `@mainahq/cli` (which depends on the skills
+ * package), the candidates find it next to or inside the CLI, and node
+ * resolution from this module covers any other layout. Resolution starts
+ * here, not at the user's cwd, so a global install finds its own copy.
+ * Returns `null` when neither is available.
  */
 function defaultSkillsRoot(): string | null {
-	// 1. Monorepo sibling — `fileURLToPath` handles paths with spaces or
-	// other percent-encoded characters that would break `.pathname`.
-	const hereDir = dirname(fileURLToPath(import.meta.url));
-	for (const guess of skillsRootCandidates(hereDir)) {
+	// `fileURLToPath` handles paths with spaces or other percent-encoded
+	// characters that would break `.pathname`.
+	const here = fileURLToPath(import.meta.url);
+	for (const guess of skillsRootCandidates(dirname(here))) {
 		if (existsSync(guess) && dirHasSkills(guess)) return guess;
 	}
-
-	// 2. Resolve via node module lookup. Bun's resolver throws when the
-	// module isn't installed; we try a known sub-path so we get the
-	// directory back reliably.
 	try {
-		// biome-ignore lint/suspicious/noExplicitAny: accessing Bun resolver
-		const bun = (globalThis as any).Bun;
-		if (bun && typeof bun.resolveSync === "function") {
-			const pkgJson = bun.resolveSync(
-				"@mainahq/skills/package.json",
-				process.cwd(),
-			);
-			const root = dirname(pkgJson);
-			if (dirHasSkills(root)) return root;
-		}
+		const require = createRequire(here);
+		const root = dirname(require.resolve("@mainahq/skills/package.json"));
+		if (dirHasSkills(root)) return root;
 	} catch {
 		// Not installed — fall through.
 	}
-
 	return null;
 }
 
