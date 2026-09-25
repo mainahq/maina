@@ -71,7 +71,11 @@ export interface PipelineOptions {
 	cwd: string;
 	mainaDir?: string;
 	languages?: string[]; // override language detection
-	/** Environment for spawned checkers, injected by the caller. */
+	/**
+	 * Environment for the built-in type checker, injected by the caller (it
+	 * gets `NO_COLOR=1` on top). Other runners still inherit the parent
+	 * environment until they move onto a process port.
+	 */
 	env?: SpawnEnv;
 }
 

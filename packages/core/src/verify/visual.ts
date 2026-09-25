@@ -188,6 +188,9 @@ export async function captureScreenshot(
 				outputPath,
 			],
 			{
+				// Run from the root the tool was detected in, so `npx` resolves
+				// the same (root-local) Playwright install.
+				cwd: options.root,
 				stdout: "pipe",
 				stderr: "pipe",
 			},

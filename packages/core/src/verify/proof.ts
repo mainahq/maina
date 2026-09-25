@@ -42,7 +42,7 @@ export interface VerificationProof {
 export interface ProofOptions {
 	/** Repository root (explicit; core never reads the process cwd). */
 	cwd: string;
-	/** Environment for spawned checkers, injected by the caller. */
+	/** Environment for the pipeline's type checker (see `PipelineOptions.env`). */
 	env?: PipelineOptions["env"];
 	mainaDir?: string;
 	baseBranch?: string;

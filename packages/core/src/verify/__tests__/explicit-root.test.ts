@@ -11,6 +11,8 @@ import {
 	chmodSync,
 	mkdirSync,
 	mkdtempSync,
+	readFileSync,
+	realpathSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -75,39 +77,46 @@ describe("verify entry points require an explicit root", () => {
 	});
 });
 
-describe("tool detection resolves local binaries from the given root", () => {
-	let root: string;
+// Detection tries the global PATH first; only a root-local `pmd` can prove the
+// root is honoured, so skip where a global `pmd` would win.
+const pmdOnPath = Bun.which("pmd") !== null;
 
-	beforeEach(() => {
-		root = mkdtempSync(join(tmpdir(), "maina-explicit-root-"));
-		const bin = join(root, "node_modules", ".bin");
-		mkdirSync(bin, { recursive: true });
-		// `pmd` is not expected on PATH, so only the root-local copy can match.
-		writeScript(join(bin, "pmd"), 'echo "PMD 7.1.0"');
-	});
+describe.skipIf(pmdOnPath)(
+	"tool detection resolves local binaries from the given root",
+	() => {
+		let root: string;
 
-	afterEach(() => {
-		rmSync(root, { recursive: true, force: true });
-	});
+		beforeEach(() => {
+			root = mkdtempSync(join(tmpdir(), "maina-explicit-root-"));
+			const bin = join(root, "node_modules", ".bin");
+			mkdirSync(bin, { recursive: true });
+			// `pmd` is not expected on PATH, so only the root-local copy can match.
+			writeScript(join(bin, "pmd"), 'echo "PMD 7.1.0"');
+		});
 
-	test("detectTool finds <root>/node_modules/.bin", async () => {
-		const tool = await detectTool("pmd", root);
-		expect(tool.available).toBe(true);
-		expect(tool.command).toBe(join(root, "node_modules", ".bin", "pmd"));
-		expect(tool.version).toBe("7.1.0");
-	});
+		afterEach(() => {
+			rmSync(root, { recursive: true, force: true });
+		});
 
-	test("isToolAvailable honours the root", async () => {
-		expect(await isToolAvailable("pmd", root)).toBe(true);
-	});
+		test("detectTool finds <root>/node_modules/.bin", async () => {
+			const tool = await detectTool("pmd", root);
+			expect(tool.available).toBe(true);
+			expect(tool.command).toBe(join(root, "node_modules", ".bin", "pmd"));
+			expect(tool.version).toBe("7.1.0");
+		});
 
-	test("detectTools takes the root before the language filter", async () => {
-		const tools = await detectTools(root, ["java"]);
-		const pmd = tools.find((t) => t.name === "pmd");
-		expect(pmd?.available).toBe(true);
-		expect(tools.some((t) => t.name === "biome")).toBe(false);
-	});
-});
+		test("isToolAvailable honours the root", async () => {
+			expect(await isToolAvailable("pmd", root)).toBe(true);
+		});
+
+		test("detectTools takes the root before the language filter", async () => {
+			const tools = await detectTools(root, ["java"]);
+			const pmd = tools.find((t) => t.name === "pmd");
+			expect(pmd?.available).toBe(true);
+			expect(tools.some((t) => t.name === "biome")).toBe(false);
+		});
+	},
+);
 
 describe("runTypecheck uses the injected environment", () => {
 	let root: string;
@@ -154,5 +163,49 @@ describe("runTypecheck uses the injected environment", () => {
 
 		expect(result.skipped).toBe(false);
 		expect(result.findings[0]?.message).toContain("marker=injected color=1");
+	});
+});
+
+describe("captureScreenshot runs Playwright from the explicit root", () => {
+	let root: string;
+	let fakeBin: string;
+
+	beforeEach(() => {
+		root = mkdtempSync(join(tmpdir(), "maina-visual-root-"));
+		fakeBin = mkdtempSync(join(tmpdir(), "maina-fake-npx-"));
+		// Fake `npx` records its working directory into the output path
+		// (its last argument), standing in for `npx playwright screenshot`.
+		writeScript(
+			join(fakeBin, "npx"),
+			'for a in "$@"; do out="$a"; done\npwd -P > "$out"',
+		);
+	});
+
+	afterEach(() => {
+		rmSync(root, { recursive: true, force: true });
+		rmSync(fakeBin, { recursive: true, force: true });
+	});
+
+	test("spawns npx with cwd = root, not the process cwd", async () => {
+		const out = join(root, "shots", "home.png");
+		// Bun resolves spawn commands against the PATH it started with, so run
+		// the call in a child whose PATH puts the fake `npx` first and whose
+		// cwd is deliberately not the root.
+		const script = [
+			`import { captureScreenshot } from ${JSON.stringify(join(import.meta.dir, "..", "visual.ts"))};`,
+			`const r = await captureScreenshot("http://localhost", ${JSON.stringify(out)}, { root: ${JSON.stringify(root)}, available: true });`,
+			"process.stdout.write(JSON.stringify(r));",
+		].join("\n");
+		const proc = Bun.spawn([process.execPath, "-e", script], {
+			cwd: fakeBin,
+			stdout: "pipe",
+			stderr: "pipe",
+			env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH ?? ""}` },
+		});
+		const stdout = await new Response(proc.stdout).text();
+		await proc.exited;
+
+		expect(JSON.parse(stdout).captured).toBe(true);
+		expect(readFileSync(out, "utf8").trim()).toBe(realpathSync(root));
 	});
 });
