@@ -16,24 +16,30 @@ export type PurityRule =
 
 export type PurityViolation = Readonly<{ rule: PurityRule; line: number }>;
 
-/**
- * Not an identifier character and not a member-access dot (`a.process`),
- * while still allowing the spread operator (`...process.env`).
+/*
+ * Every pattern starts with the same two lookbehinds: not after an
+ * identifier character, and not after a member-access dot (`a.process`)
+ * while still allowing the spread operator (`...process.env`). An optional
+ * `globalThis.` prefix and `?.` optional chaining are accepted.
  */
-const START = String.raw`(?<![\w$])(?<!(?:^|[^.])\.)`;
-const GLOBAL = String.raw`(?:globalThis\s*\??\.\s*)?`;
-const MEMBER = String.raw`\s*\??\.\s*`;
-
-function rule(body: string): RegExp {
-	return new RegExp(START + body, "gm");
-}
-
 const RULES: ReadonlyArray<readonly [PurityRule, RegExp]> = [
-	["process.cwd", rule(String.raw`${GLOBAL}process${MEMBER}cwd\b`)],
-	["process.env", rule(String.raw`${GLOBAL}process${MEMBER}env\b`)],
-	["process.stdout", rule(String.raw`${GLOBAL}process${MEMBER}stdout\b`)],
-	["console", rule(String.raw`${GLOBAL}console${MEMBER}[\w$]`)],
-	["throw", rule(String.raw`throw\b`)],
+	[
+		"process.cwd",
+		/(?<![\w$])(?<!(?:^|[^.])\.)(?:globalThis\s*\??\.\s*)?process\s*\??\.\s*cwd\b/gm,
+	],
+	[
+		"process.env",
+		/(?<![\w$])(?<!(?:^|[^.])\.)(?:globalThis\s*\??\.\s*)?process\s*\??\.\s*env\b/gm,
+	],
+	[
+		"process.stdout",
+		/(?<![\w$])(?<!(?:^|[^.])\.)(?:globalThis\s*\??\.\s*)?process\s*\??\.\s*stdout\b/gm,
+	],
+	[
+		"console",
+		/(?<![\w$])(?<!(?:^|[^.])\.)(?:globalThis\s*\??\.\s*)?console\s*\??\.\s*[\w$]/gm,
+	],
+	["throw", /(?<![\w$])(?<!(?:^|[^.])\.)throw\b/gm],
 ];
 
 /** Keywords after which a `/` starts a regex literal rather than a division. */
