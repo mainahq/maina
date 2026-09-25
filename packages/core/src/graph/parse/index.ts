@@ -11,9 +11,9 @@
  * loaded once per process on first use, like any other module code.
  */
 
-import { createRequire } from "node:module";
 import type * as TreeSitter from "@vscode/tree-sitter-wasm";
 import type { Result } from "../../db/index";
+import { type LoadedGrammar, loadGrammar } from "../../tree-sitter";
 import { extract } from "./extract";
 import { detectLang, GRAMMAR_FILES } from "./languages";
 import type { Lang, ParsedFile, ParseError } from "./types";
@@ -21,63 +21,18 @@ import type { Lang, ParsedFile, ParseError } from "./types";
 export { detectLang, isTestPath } from "./languages";
 export type * from "./types";
 
-type Runtime = typeof TreeSitter;
-type Grammar = Readonly<{ runtime: Runtime; language: TreeSitter.Language }>;
-
 const message = (e: unknown): string =>
 	e instanceof Error ? e.message : String(e);
 
-// The package is a UMD bundle whose named exports Node's ESM loader cannot
-// see, so it is loaded with `require`, which behaves the same under Bun, Node
-// and the bundled build. Loading it lazily means a broken install fails
-// `parseFile` with an error value instead of failing every import of core.
-const requireHere = createRequire(import.meta.url);
-
-let runtime: Promise<Result<Runtime, string>> | null = null;
-const grammars = new Map<Lang, Promise<Result<Grammar, ParseError>>>();
-
-function initRuntime(): Promise<Result<Runtime, string>> {
-	runtime ??= (async (): Promise<Result<Runtime, string>> => {
-		try {
-			const loaded = requireHere("@vscode/tree-sitter-wasm") as Runtime;
-			await loaded.Parser.init();
-			return { ok: true, value: loaded };
-		} catch (e) {
-			return { ok: false, error: message(e) };
-		}
-	})();
-	return runtime;
-}
-
-async function loadGrammar(lang: Lang): Promise<Result<Grammar, ParseError>> {
-	const ts = await initRuntime();
-	if (!ts.ok) {
-		return {
-			ok: false,
-			error: { kind: "grammar_load_failed", lang, message: ts.error },
-		};
-	}
-	try {
-		const file = requireHere.resolve(
-			`@vscode/tree-sitter-wasm/wasm/${GRAMMAR_FILES[lang]}`,
-		);
-		const language = await ts.value.Language.load(file);
-		return { ok: true, value: { runtime: ts.value, language } };
-	} catch (e) {
-		return {
-			ok: false,
-			error: { kind: "grammar_load_failed", lang, message: message(e) },
-		};
-	}
-}
-
-function grammar(lang: Lang): Promise<Result<Grammar, ParseError>> {
-	let loaded = grammars.get(lang);
-	if (loaded === undefined) {
-		loaded = loadGrammar(lang);
-		grammars.set(lang, loaded);
-	}
-	return loaded;
+// The runtime and each grammar load once per process (see `tree-sitter.ts`).
+async function grammar(lang: Lang): Promise<Result<LoadedGrammar, ParseError>> {
+	const loaded = await loadGrammar(GRAMMAR_FILES[lang]);
+	return loaded.ok
+		? loaded
+		: {
+				ok: false,
+				error: { kind: "grammar_load_failed", lang, message: loaded.error },
+			};
 }
 
 /**

@@ -396,6 +396,32 @@ export {
 	type TraceResult,
 	type TraceStep,
 } from "./feedback/trace-analysis";
+// Gate (normalised events, classification, rules engine — FR-GATE-2/4)
+export type { ActionAnalysis } from "./gate/classify";
+export { analyzeAction, classifyAction } from "./gate/classify";
+export type {
+	FileReadAction,
+	FileWriteAction,
+	GateContext,
+	GateEvent,
+	GateEventKind,
+	McpAction,
+	NetworkAction,
+	PermissionMode,
+	ShellAction,
+} from "./gate/events";
+export { DEFAULT_PROTECTED_BRANCHES } from "./gate/events";
+export type {
+	ShellNode,
+	ShellParser,
+	ShellParserLoadError,
+	ShellScript,
+	ShellWord,
+} from "./gate/parsers/shell";
+export { loadShellParser } from "./gate/parsers/shell";
+export { analyzeSql, isDestructiveSql } from "./gate/parsers/sql";
+export type { RuleResult } from "./gate/rules";
+export { evaluateRules, settleVerdict } from "./gate/rules";
 // Git
 export {
 	type Commit,
@@ -502,6 +528,7 @@ export {
 	TYPESCRIPT_PROFILE,
 } from "./language/profile";
 // Policy (gate policy schema, FR-GATE-9)
+export type { ActionClass } from "./policy/defaults";
 export {
 	DEFAULT_POLICY,
 	IRREVERSIBLE_ACTION_CLASSES,

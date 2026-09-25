@@ -58,6 +58,7 @@ Each file records one decision: the context, what was decided, and what it costs
 | [0044](0044-resident-runtime-ipc-transport.md) | Resident runtime IPC transport | Accepted |
 | [0045](0045-standalone-runtime-packaging-and-launcher.md) | Standalone runtime packaging and launcher | Accepted |
 | [0046](0046-in-process-tree-sitter-wasm-parser-for-the-code-graph.md) | In-process tree-sitter (WASM) parser for the code graph | Accepted |
+| [0047](0047-ast-based-shell-parser-for-the-gate.md) | AST-based shell parsing for the gate | Accepted |
 
 ## Renumbering (mainahq/maina#295)
 
