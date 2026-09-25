@@ -137,6 +137,17 @@ export interface KnownFailure {
 	readonly mayPass?: true;
 }
 
+/**
+ * Only the plugin path still fails. History of the fixed entries:
+ * #288 made `maina setup` merge `mcpServers.maina` into the project
+ * `.mcp.json`, so claude-code with cli-setup passes. #294 made the CLI
+ * write its own runtime and entry by absolute path, which fixed P3 for
+ * cursor with cli-setup and P2 for cursor and codex with cli-mcp-add.
+ * #299 fixed the rest of P1, P2 and P8: every installer resolves host
+ * files through the CLI's targets, merges without rewriting, and
+ * install.sh only hands over to `maina setup`, so it no longer writes the
+ * bare `bunx` whose first-spawn download also caused P4 there.
+ */
 export const KNOWN_FAILURES: readonly KnownFailure[] = [
 	// Plugins: no host package yet (plan tasks 9.2–9.4).
 	{
@@ -150,17 +161,6 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
 		fixes: { "no-plugin": 342 },
 	},
 	{ host: "codex", installPath: "plugin", fixes: { "no-plugin": 343 } },
-
-	// (#288 fixed claude-code × cli-setup: `maina setup` merges
-	// `mcpServers.maina` into the project `.mcp.json`.)
-	// (#294 fixed P3 on cursor × cli-setup and P2 on cursor/codex ×
-	// cli-mcp-add: the CLI now writes its own runtime and entry by absolute
-	// path instead of a `bunx` pin or a `#!/usr/bin/env bun` script.)
-	// (#299 fixed the rest of P1, P2 and P8: every installer resolves host
-	// files through the CLI's targets — Claude Code `.mcp.json` /
-	// `~/.claude.json`, Codex `config.toml` — merges without rewriting, and
-	// install.sh only hands over to `maina setup`, so it no longer writes a
-	// bare `bunx` whose first-spawn download also caused P4 there.)
 ];
 
 export function problemsOf(k: KnownFailure): readonly KnownProblem[] {
