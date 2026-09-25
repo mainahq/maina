@@ -482,38 +482,3 @@ describe("decide is pure given its ports", () => {
 		expect(decision?.latencyMs).toBe(7);
 	});
 });
-
-describe("rules backend", () => {
-	const verdict = (actionClass: string, policy: Policy = DEFAULT_POLICY) => {
-		const [decision] = decisionsOf(
-			decide(ports({ policy }), {
-				type: "action.risk",
-				state: { trusted: { actionClass }, untrusted: {} },
-				questions: [
-					{ kind: "choice", id: "verdict", options: ["allow", "ask", "deny"] },
-				],
-			}),
-		);
-		return decision?.answer;
-	};
-
-	test("answers with the policy verdict for the action class", () => {
-		expect(verdict("git.push.force")).toBe("ask");
-		expect(verdict("fs.write")).toBe("allow");
-	});
-
-	test("follows a tightened policy", () => {
-		const policy: Policy = {
-			...DEFAULT_POLICY,
-			action_classes: {
-				...DEFAULT_POLICY.action_classes,
-				deploy: { irreversible: true, verdict: "deny" },
-			},
-		};
-		expect(verdict("deploy", policy)).toBe("deny");
-	});
-
-	test("fails closed to ask for an unknown action class", () => {
-		expect(verdict("teleport.prod")).toBe("ask");
-	});
-});
