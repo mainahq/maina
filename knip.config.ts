@@ -28,12 +28,13 @@ const config: KnipConfig = {
 			project: ["src/**/*.ts!"],
 		},
 		"packages/core": {
-			entry: [TESTS],
-			// Test-only helpers (scanner, allow-list, port fakes) are reachable
-			// from tests, not from production entries.
+			entry: [TESTS, "src/__golden__/**/*.test.ts"],
+			// Test-only helpers (scanner, allow-list, port fakes, golden
+			// fixtures) are reachable from tests, not from production entries.
 			project: [
 				"src/**/*.ts!",
 				"!src/**/__tests__/**!",
+				"!src/__golden__/**!",
 				"!src/ports/testing.ts!",
 			],
 		},
