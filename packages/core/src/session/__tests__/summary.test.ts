@@ -269,6 +269,29 @@ describe("formatSessionSummary", () => {
 		).toBeUndefined();
 	});
 
+	test("is silent for a summary that counts no event", () => {
+		const empty: SessionSummary = {
+			blocked: 0,
+			asked: 0,
+			allowed: 0,
+			routed: 0,
+			estimatedSavedUsd: 0,
+			addedLatencyP95: null,
+		};
+		expect(formatSessionSummary(empty)).toBeUndefined();
+		expect(
+			formatSessionSummary(empty, "https://receipts.example/r/1"),
+		).toBeUndefined();
+		// A latency or a saving without any counted event is still nothing.
+		expect(
+			formatSessionSummary({
+				...empty,
+				estimatedSavedUsd: 0.5,
+				addedLatencyP95: 12,
+			}),
+		).toBeUndefined();
+	});
+
 	test("shows the counts, savings, latency and receipt link on one line", () => {
 		expect(formatSessionSummary(base, "https://receipts.example/r/1")).toBe(
 			`${plain} | receipt: https://receipts.example/r/1`,

@@ -176,7 +176,9 @@ export function formatSessionSummary(
 	receiptUrl?: string,
 ): string | undefined {
 	if (summary === null) return undefined;
-	const { blocked, asked, allowed, addedLatencyP95 } = summary;
+	const { blocked, asked, allowed, routed, addedLatencyP95 } = summary;
+	// A summary built by hand can count nothing; stay silent then too.
+	if (!(blocked + asked + allowed + routed > 0)) return undefined;
 	const parts = [
 		blocked + asked + allowed > 0
 			? `${blocked} blocked, ${asked} asked, ${allowed} allowed`
