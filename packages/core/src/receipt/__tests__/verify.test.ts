@@ -96,6 +96,29 @@ describe("canonicalize", () => {
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.code).toBe("unsupported-type");
 	});
+
+	test("returns a structured error (never throws) for cyclic objects", () => {
+		const node: Record<string, unknown> = { a: 1 };
+		node.self = node;
+		const result = canonicalize({ root: node });
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.code).toBe("cyclic-reference");
+	});
+
+	test("returns a structured error for cycles through arrays", () => {
+		const list: unknown[] = [1];
+		list.push({ back: list });
+		const result = canonicalize(list);
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.code).toBe("cyclic-reference");
+	});
+
+	test("still canonicalizes shared (non-cyclic) references", () => {
+		const shared = { b: 2, a: 1 };
+		expect(unwrapCanonical({ x: shared, y: [shared] })).toBe(
+			'{"x":{"a":1,"b":2},"y":[{"a":1,"b":2}]}',
+		);
+	});
 });
 
 describe("computeHash", () => {
