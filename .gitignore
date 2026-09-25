@@ -26,6 +26,8 @@ packages/core/src/feedback/__tests__/tmp-capture-*
 .maina/stats.db-shm
 .maina/stats.db-wal
 .maina/decisions.db
+# Decision log salt (#422): per-repo secret, never shared
+.maina/private/
 .maina/benchmarks/*.json
 !.maina/benchmarks/stories/
 .maina/wiki/.search-index.json

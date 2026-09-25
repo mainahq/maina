@@ -8,6 +8,7 @@ import {
 	hashSchema,
 	hashValue,
 	isHash,
+	redactLabel,
 } from "../hash";
 import { recordFor, SLOP_REQUEST, TIER_REQUEST } from "./fixtures";
 
@@ -182,5 +183,64 @@ describe("isHash", () => {
 		expect(isHash(`sha256:${"a".repeat(63)}`)).toBe(false);
 		expect(isHash("a".repeat(64))).toBe(false);
 		expect(isHash(42)).toBe(false);
+	});
+});
+
+describe("salted hashes (per-repo key)", () => {
+	const SALT_A = "a".repeat(64);
+	const SALT_B = "b".repeat(64);
+	const PATHS = ["src/a.ts", "src/b.ts", "src/secret/keys.ts"] as const;
+	const state = { trusted: { file: "src/secret/keys.ts" }, untrusted: {} };
+	const question = {
+		kind: "choice" as const,
+		id: "pick",
+		options: [...PATHS],
+	};
+
+	test("a salted option hash cannot be found by hashing a list of repo paths", () => {
+		const unsalted = new Set(PATHS.map((p) => hashValue(p)));
+		for (const path of PATHS) {
+			const salted = redactLabel(path, undefined, false, SALT_A);
+			expect(isHash(salted)).toBe(true);
+			expect(unsalted.has(salted)).toBe(false);
+		}
+	});
+
+	test("input and schema hashes are keyed by the salt too", () => {
+		expect(hashInput("context.select", state, "pick", SALT_A)).not.toBe(
+			hashInput("context.select", state, "pick"),
+		);
+		expect(hashSchema("context.select", question, SALT_A)).not.toBe(
+			hashSchema("context.select", question),
+		);
+	});
+
+	test("the same salt gives the same hash; another salt a different one", () => {
+		expect(redactLabel("src/a.ts", undefined, false, SALT_A)).toBe(
+			redactLabel("src/a.ts", undefined, false, SALT_A),
+		);
+		expect(redactLabel("src/a.ts", undefined, false, SALT_A)).not.toBe(
+			redactLabel("src/a.ts", undefined, false, SALT_B),
+		);
+		expect(hashInput("context.select", state, "pick", SALT_A)).toBe(
+			hashInput("context.select", structuredClone(state), "pick", SALT_A),
+		);
+		expect(hashInput("context.select", state, "pick", SALT_A)).not.toBe(
+			hashInput("context.select", state, "pick", SALT_B),
+		);
+	});
+
+	test("salted hashes are pinned (HMAC-SHA256 keyed by the salt)", () => {
+		expect(redactLabel("src/a.ts", undefined, false, SALT_A)).toBe(
+			"sha256:cd8143e6f5f9a49589e0677311a8578b67dc31c1543bb744aa5d85d603f56eb8",
+		);
+	});
+
+	test("fixed catalog labels and existing hashes pass through unsalted", () => {
+		expect(redactLabel("standard", ["standard"], false, SALT_A)).toBe(
+			"standard",
+		);
+		const hash = hashValue("x");
+		expect(redactLabel(hash, undefined, false, SALT_A)).toBe(hash);
 	});
 });

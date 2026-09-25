@@ -127,6 +127,17 @@ const Telemetry = z.strictObject({
 	outcome_sharing: z.boolean(),
 });
 
+/** How the decision log stores free-form options such as file paths. */
+const LOG_PATH_MODES = ["hashed", "plain"] as const;
+
+const Log = z.strictObject({
+	paths: z
+		.enum(LOG_PATH_MODES)
+		.describe(
+			"hashed (default): the decision log stores paths and other free-form options only as hashes keyed by a per-repo salt. plain: stores them as-is.",
+		),
+});
+
 // ── Resolved policy ─────────────────────────────────────────────────────────
 
 const PolicyBody = z.strictObject({
@@ -135,6 +146,7 @@ const PolicyBody = z.strictObject({
 	decisions: z.record(z.enum(DECISION_TYPES), DecisionSpec),
 	drift: Drift,
 	telemetry: Telemetry,
+	log: Log,
 });
 
 /**
@@ -191,6 +203,9 @@ const PolicyLayerSchema = z
 		drift: Drift.partial().optional(),
 		telemetry: Telemetry.partial()
 			.describe("Opt-ins. Only the user policy can turn one on.")
+			.optional(),
+		log: Log.partial()
+			.describe("What the local decision log keeps in the clear.")
 			.optional(),
 	})
 	.meta({

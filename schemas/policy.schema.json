@@ -217,6 +217,21 @@
 			},
 			"additionalProperties": false,
 			"description": "Opt-ins. Only the user policy can turn one on."
+		},
+		"log": {
+			"type": "object",
+			"properties": {
+				"paths": {
+					"type": "string",
+					"enum": [
+						"hashed",
+						"plain"
+					],
+					"description": "hashed (default): the decision log stores paths and other free-form options only as hashes keyed by a per-repo salt. plain: stores them as-is."
+				}
+			},
+			"additionalProperties": false,
+			"description": "What the local decision log keeps in the clear."
 		}
 	},
 	"additionalProperties": false,
