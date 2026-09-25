@@ -93,6 +93,52 @@ describe("parseFile — Go", () => {
 		]);
 	});
 
+	test("generic type arguments are type refs; only interface embeds are inherit refs", async () => {
+		const file = await parseSource(
+			"generic.go",
+			[
+				"package p",
+				"type R interface { io.Reader; ~int | Num; Closer }",
+				"var l List[Item]",
+				"func f(p Pair[string, Bar]) *Box[int] { return nil }",
+			].join("\n"),
+		);
+		expect(refRows(file)).toEqual([
+			"inherit R io.Reader",
+			"type R Num",
+			"inherit R Closer",
+			"type - List",
+			"type - Item",
+			"type f Pair",
+			"type f Bar",
+			"type f Box",
+		]);
+	});
+
+	test("explicitly instantiated generic functions are calls", async () => {
+		const file = await parseSource(
+			"calls.go",
+			[
+				"package p",
+				"func f() {",
+				"\tNew[Item](x)",
+				"\tpkg.Map[int](nil)",
+				"\tMapKV[int, Val](xs, g)",
+				"\tF[int](a, b)",
+				"\tm.Do[T]()",
+				"}",
+			].join("\n"),
+		);
+		expect(callRows(file)).toEqual([
+			"f | New | call",
+			"f | pkg.Map | call",
+			"f | MapKV | call",
+			"f | F | call",
+			"f | m.Do | call",
+		]);
+		expect(refRows(file)).toEqual(["type f Item", "type f Val"]);
+	});
+
 	test("detects Test/Benchmark functions and the _test.go convention", async () => {
 		const plain = await parseFixture("shapes.go");
 		expect(plain.isTestFile).toBe(false);

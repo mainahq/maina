@@ -76,6 +76,33 @@ describe("parseFile — Java", () => {
 		]);
 	});
 
+	test("anonymous and local class members are never exported; record components are refs", async () => {
+		const file = await parseSource(
+			"Outer.java",
+			[
+				"public class Outer {",
+				"    public void m() {",
+				"        Runnable r = new Runnable() { public void run() {} };",
+				"        class Local { public void go() {} }",
+				"    }",
+				"    public record Point(Coord x, int y) {}",
+				"}",
+			].join("\n"),
+		);
+		expect(symbolRows(file)).toEqual([
+			"class Outer exported",
+			"method Outer.m exported",
+			"method Outer.m.run",
+			"class Outer.m.Local",
+			"method Outer.m.Local.go",
+			"class Outer.Point exported",
+		]);
+		expect(refRows(file)).toEqual([
+			"type Outer.m Runnable",
+			"type Outer.Point Coord",
+		]);
+	});
+
 	test("detects JUnit test methods and their class as a suite", async () => {
 		const file = await parseFixture("Shapes.java");
 		expect(testRows(file)).toEqual([

@@ -102,6 +102,14 @@ describe("parseFile — Rust", () => {
 		});
 	});
 
+	test("comments between a test attribute and its function do not hide the test", async () => {
+		const file = await parseSource(
+			"lib.rs",
+			"#[test]\n// explains the case\n/* and more */\nfn works() {}",
+		);
+		expect(testRows(file)).toEqual(["case works"]);
+	});
+
 	test("integration tests under tests/ are test files", async () => {
 		const file = await parseSource(
 			"crates/geo/tests/area.rs",

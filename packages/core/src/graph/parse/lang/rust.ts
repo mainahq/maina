@@ -51,11 +51,14 @@ const ITEM_KINDS: Readonly<Record<string, SymbolKind>> = {
 const isPub = (node: Node): boolean =>
 	namedKids(node).some((k) => k.type === "visibility_modifier");
 
-/** Outer attributes (`#[test]`) written directly before an item. */
+const isComment = (node: Node): boolean =>
+	node.type === "line_comment" || node.type === "block_comment";
+
+/** Outer attributes (`#[test]`) written before an item; comments between them are skipped. */
 function attributesOf(node: Node): readonly string[] {
 	const out: string[] = [];
 	let prev = node.previousNamedSibling;
-	while (prev?.type === "attribute_item") {
+	while (prev && (prev.type === "attribute_item" || isComment(prev))) {
 		const attr = namedKids(prev).find((k) => k.type === "attribute");
 		if (attr) out.push(attr.text.replace(/\s+/g, ""));
 		prev = prev.previousNamedSibling;

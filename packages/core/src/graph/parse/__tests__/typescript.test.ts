@@ -152,6 +152,27 @@ describe("parseFile — TypeScript", () => {
 		]);
 	});
 
+	test("class decorators are calls; class and interface type-parameter constraints are refs", async () => {
+		const file = await parseSource(
+			"widget.ts",
+			[
+				'@Component({ selector: make("x") })',
+				"export class Widget<T extends Base> {",
+				"\t@Input() name = 1;",
+				"}",
+				"@Tag() class Plain {}",
+				"interface Keyed<K extends Key> {}",
+			].join("\n"),
+		);
+		expect(callRows(file)).toEqual([
+			"- | Component | call",
+			"- | make | call",
+			"Widget | Input | call",
+			"- | Tag | call",
+		]);
+		expect(refRows(file)).toEqual(["type Widget Base", "type Keyed Key"]);
+	});
+
 	test("a plain module has no tests and is not a test file", async () => {
 		const file = await parseFixture("shapes.ts");
 		expect(file.tests).toEqual([]);

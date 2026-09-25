@@ -189,6 +189,8 @@ export function extractJava(root: Node, sink: Sink): void {
 			)
 				inherit(kid, inner);
 		}
+		// Record components: `record Point(Coord x, int y)`.
+		walkParts(node, inner, ["parameters"]);
 		const body = field(node, "body");
 		if (!body) return;
 		const from = sink.tests.length;
@@ -281,9 +283,12 @@ export function extractJava(root: Node, sink: Sink): void {
 				if (kid.type === "type_arguments") walk(kid, ctx);
 			}
 		}
-		// The created type is the call above, not also a type reference.
+		// The created type is the call above, not also a type reference. An
+		// anonymous class body's members are never visible outside it.
+		const anonymous: Ctx = { ...ctx, owner: { exported: false, iface: false } };
 		for (const kid of namedKids(node)) {
-			if (kid.id !== type?.id) walk(kid, ctx);
+			if (kid.id === type?.id) continue;
+			walk(kid, kid.type === "class_body" ? anonymous : ctx);
 		}
 	};
 

@@ -86,8 +86,10 @@ export function extractGo(root: Node, sink: Sink): void {
 				fieldDecl(node, ctx);
 				return;
 			case "type_elem":
-				// An embedded interface.
-				for (const kid of namedKids(node)) embedded(kid, ctx);
+				typeElem(node, ctx);
+				return;
+			case "type_conversion_expression":
+				conversion(node, ctx);
 				return;
 			case "method_elem":
 				methodElem(node, ctx);
@@ -208,8 +210,51 @@ export function extractGo(root: Node, sink: Sink): void {
 		else if (base) walk(base, ctx);
 	};
 
+	/**
+	 * A `type_elem` is an embedded interface only when it is a single type
+	 * directly inside an interface; a union (`~int | Num`) is a constraint, and
+	 * everywhere else it is a generic type argument (`List[Item]`).
+	 */
+	const typeElem = (node: Node, ctx: Ctx): void => {
+		const kids = namedKids(node);
+		const only = kids.length === 1 ? kids[0] : undefined;
+		if (node.parent?.type === "interface_type" && only) embedded(only, ctx);
+		else for (const kid of kids) walk(kid, ctx);
+	};
+
+	/**
+	 * `New[Item](x)` parses as a conversion to a generic type; with one
+	 * argument the grammar cannot tell it from an instantiated generic
+	 * function call, and a plain `T(x)` conversion is already a call.
+	 */
+	const conversion = (node: Node, ctx: Ctx): void => {
+		const type = field(node, "type");
+		const base = type?.type === "generic_type" ? field(type, "type") : null;
+		if (type && base) {
+			const pkg =
+				base.type === "qualified_type" ? field(base, "package") : null;
+			const name = base.type === "qualified_type" ? field(base, "name") : base;
+			if (name?.type === "type_identifier") {
+				addCall(sink, node, {
+					name: name.text,
+					receiver: pkg?.text ?? null,
+					member: pkg !== null,
+					kind: "call",
+					scope: ctx.scope,
+				});
+			}
+			walkParts(type, ctx, ["type_arguments"]);
+			walkParts(node, ctx, ["operand"]);
+			return;
+		}
+		for (const kid of namedKids(node)) walk(kid, ctx);
+	};
+
 	const call = (node: Node, ctx: Ctx): void => {
-		const fn = field(node, "function");
+		const callee = field(node, "function");
+		// `F[int](a, b)`: the grammar reads the instantiation as an index.
+		const fn =
+			callee?.type === "index_expression" ? field(callee, "operand") : callee;
 		if (fn?.type === "identifier") {
 			addCall(sink, node, {
 				name: fn.text,

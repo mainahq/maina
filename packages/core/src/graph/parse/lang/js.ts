@@ -109,6 +109,10 @@ function makeWalker(sink: Sink, localExports: ReadonlySet<string>) {
 				return;
 			case "export_statement":
 				if (!reexportStatement(sink, node)) {
+					// `@dec export class …` puts the decorator on the statement.
+					for (const dec of node.childrenForFieldName("decorator")) {
+						if (dec) walk(dec, ctx, false);
+					}
 					const decl = field(node, "declaration");
 					if (decl) walk(decl, ctx, true);
 					walkField(node, "value", ctx);
@@ -214,8 +218,11 @@ function makeWalker(sink: Sink, localExports: ReadonlySet<string>) {
 		});
 		const inner = enter(ctx, qn, node);
 		for (const kid of namedKids(node)) {
-			if (kid.type === "class_heritage") heritage(kid, inner);
+			// Class decorators run where the class is declared, not inside it.
+			if (kid.type === "decorator") walk(kid, ctx, false);
+			else if (kid.type === "class_heritage") heritage(kid, inner);
 		}
+		walkField(node, "type_parameters", inner);
 		const body = field(node, "body");
 		if (body) children(body, { ...inner, classExported: isExp });
 	}
@@ -279,6 +286,7 @@ function makeWalker(sink: Sink, localExports: ReadonlySet<string>) {
 				for (const type of namedKids(kid)) inheritType(type, inner);
 			}
 		}
+		walkField(node, "type_parameters", inner);
 		const body = field(node, "body");
 		if (body) children(body, { ...inner, classExported: isExp });
 	}
