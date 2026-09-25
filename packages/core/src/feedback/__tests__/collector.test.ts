@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { getContextDb, getFeedbackDb } from "../../db/index";
+import { envFromRecord } from "../../ports/env";
 import { recordOutcome } from "../../prompts/engine";
 import {
 	type FeedbackRecord,
@@ -9,6 +10,12 @@ import {
 	recordFeedback,
 	recordFeedbackWithCompression,
 } from "../collector";
+
+// No auth dir: feedback tests never sync to the cloud.
+const sync = {
+	env: envFromRecord({}),
+	authDir: join(import.meta.dir, "no-auth-292"),
+};
 
 let tmpDir: string;
 
@@ -114,17 +121,21 @@ describe("getFeedbackSummary", () => {
 
 describe("recordFeedbackWithCompression", () => {
 	test("accepted review with aiOutput triggers compression and episodic storage", () => {
-		recordFeedbackWithCompression(tmpDir, {
-			promptHash: "review-hash-1",
-			task: "review",
-			accepted: true,
-			timestamp: new Date().toISOString(),
-			aiOutput: "Overall: code looks good. Warning: missing null check.",
-			diff: `--- a/src/index.ts
+		recordFeedbackWithCompression(
+			tmpDir,
+			{
+				promptHash: "review-hash-1",
+				task: "review",
+				accepted: true,
+				timestamp: new Date().toISOString(),
+				aiOutput: "Overall: code looks good. Warning: missing null check.",
+				diff: `--- a/src/index.ts
 +++ b/src/index.ts
 @@ -1,3 +1,5 @@
 +import { bar } from './bar';`,
-		});
+			},
+			sync,
+		);
 
 		// Verify episodic entry was created in context DB
 		const dbResult = getContextDb(tmpDir);
@@ -149,14 +160,18 @@ describe("recordFeedbackWithCompression", () => {
 	});
 
 	test("rejected review does NOT trigger compression", () => {
-		recordFeedbackWithCompression(tmpDir, {
-			promptHash: "review-hash-2",
-			task: "review",
-			accepted: false,
-			timestamp: new Date().toISOString(),
-			aiOutput: "Some review output",
-			diff: "some diff",
-		});
+		recordFeedbackWithCompression(
+			tmpDir,
+			{
+				promptHash: "review-hash-2",
+				task: "review",
+				accepted: false,
+				timestamp: new Date().toISOString(),
+				aiOutput: "Some review output",
+				diff: "some diff",
+			},
+			sync,
+		);
 
 		// Verify no episodic entry was created
 		const dbResult = getContextDb(tmpDir);
@@ -172,14 +187,18 @@ describe("recordFeedbackWithCompression", () => {
 	});
 
 	test("accepted non-review task does NOT trigger compression", () => {
-		recordFeedbackWithCompression(tmpDir, {
-			promptHash: "commit-hash-1",
-			task: "commit",
-			accepted: true,
-			timestamp: new Date().toISOString(),
-			aiOutput: "Generated commit message",
-			diff: "some diff",
-		});
+		recordFeedbackWithCompression(
+			tmpDir,
+			{
+				promptHash: "commit-hash-1",
+				task: "commit",
+				accepted: true,
+				timestamp: new Date().toISOString(),
+				aiOutput: "Generated commit message",
+				diff: "some diff",
+			},
+			sync,
+		);
 
 		// Verify no episodic entry was created
 		const dbResult = getContextDb(tmpDir);
@@ -195,14 +214,18 @@ describe("recordFeedbackWithCompression", () => {
 	});
 
 	test("missing aiOutput on accepted review does NOT trigger compression", () => {
-		recordFeedbackWithCompression(tmpDir, {
-			promptHash: "review-hash-3",
-			task: "review",
-			accepted: true,
-			timestamp: new Date().toISOString(),
-			// No aiOutput provided
-			diff: "some diff",
-		});
+		recordFeedbackWithCompression(
+			tmpDir,
+			{
+				promptHash: "review-hash-3",
+				task: "review",
+				accepted: true,
+				timestamp: new Date().toISOString(),
+				// No aiOutput provided
+				diff: "some diff",
+			},
+			sync,
+		);
 
 		// Verify no episodic entry was created
 		const dbResult = getContextDb(tmpDir);

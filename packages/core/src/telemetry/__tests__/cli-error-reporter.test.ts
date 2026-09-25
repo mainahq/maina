@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { EnvPort } from "../../ports/env";
 import {
 	buildCliErrorPayload,
 	isCliTelemetryOptedOut,
@@ -20,6 +21,9 @@ const MANAGED_ENV_KEYS = [
 ] as const;
 const savedEnv: Record<string, string | undefined> = {};
 const originalFetch = globalThis.fetch;
+// The suite drives the env through the keys it manages above; hand core a
+// live view of them the way the CLI edge does.
+const env: EnvPort = { get: (name) => process.env[name] };
 
 function makeTempHome(): string {
 	const dir = join(
@@ -60,6 +64,7 @@ describe("buildCliErrorPayload", () => {
 			"Cannot read properties of undefined (reading 'toLowerCase')",
 		);
 		const payload = buildCliErrorPayload(err, {
+			env,
 			mainaVersion: "1.5.1",
 			command: "sync pull",
 		});
@@ -77,6 +82,7 @@ describe("buildCliErrorPayload", () => {
 
 	test("derives command from argv when not passed explicitly", () => {
 		const payload = buildCliErrorPayload(new Error("boom"), {
+			env,
 			mainaVersion: "1.5.1",
 			argv: ["bun", "/path/cli.js", "team", "info", "--verbose"],
 		});
@@ -87,6 +93,7 @@ describe("buildCliErrorPayload", () => {
 	test("ci flag reflects CI env var", () => {
 		process.env.CI = "true";
 		const payload = buildCliErrorPayload(new Error("x"), {
+			env,
 			mainaVersion: "1.5.1",
 			command: "verify",
 		});
@@ -99,6 +106,7 @@ describe("buildCliErrorPayload", () => {
 			"Error: boom\n    at parse (/Users/bikash/code/maina/packages/core/src/verify/typecheck.ts:42:10)";
 
 		const payload = buildCliErrorPayload(err, {
+			env,
 			mainaVersion: "1.5.1",
 			command: "verify",
 		});
@@ -110,6 +118,7 @@ describe("buildCliErrorPayload", () => {
 	test("scrubs /tmp/... paths down to basenames", () => {
 		const err = new Error("read /tmp/weird/secret.txt failed");
 		const payload = buildCliErrorPayload(err, {
+			env,
 			mainaVersion: "1.5.1",
 			command: "verify",
 		});
@@ -120,6 +129,7 @@ describe("buildCliErrorPayload", () => {
 	test("leaves fraction-looking tokens like 5/10 intact", () => {
 		const err = new Error("retry 5/10 timed out");
 		const payload = buildCliErrorPayload(err, {
+			env,
 			mainaVersion: "1.5.1",
 			command: "verify",
 		});
@@ -129,6 +139,7 @@ describe("buildCliErrorPayload", () => {
 	test("leaves API routes like /v1/cli/errors intact", () => {
 		const err = new Error("POST /v1/cli/errors returned 502");
 		const payload = buildCliErrorPayload(err, {
+			env,
 			mainaVersion: "1.5.1",
 			command: "verify",
 		});
@@ -137,6 +148,7 @@ describe("buildCliErrorPayload", () => {
 
 	test("stops command derivation at the first flag so option VALUES don't leak", () => {
 		const payload = buildCliErrorPayload(new Error("boom"), {
+			env,
 			mainaVersion: "1.5.1",
 			argv: ["bun", "/path/cli.js", "commit", "-m", "secret message"],
 		});
@@ -147,6 +159,7 @@ describe("buildCliErrorPayload", () => {
 
 	test("wraps non-Error throws", () => {
 		const payload = buildCliErrorPayload("raw string boom", {
+			env,
 			mainaVersion: "1.5.1",
 			command: "x",
 		});
@@ -156,10 +169,12 @@ describe("buildCliErrorPayload", () => {
 
 	test("errorId is unique across calls (pid + hrtime + uuid)", () => {
 		const a = buildCliErrorPayload(new Error("x"), {
+			env,
 			mainaVersion: "1.5.1",
 			command: "y",
 		});
 		const b = buildCliErrorPayload(new Error("x"), {
+			env,
 			mainaVersion: "1.5.1",
 			command: "y",
 		});
@@ -171,17 +186,17 @@ describe("buildCliErrorPayload", () => {
 
 describe("isCliTelemetryOptedOut", () => {
 	test("returns false by default", () => {
-		expect(isCliTelemetryOptedOut()).toBe(false);
+		expect(isCliTelemetryOptedOut(env)).toBe(false);
 	});
 
 	test("respects MAINA_TELEMETRY=0", () => {
 		process.env.MAINA_TELEMETRY = "0";
-		expect(isCliTelemetryOptedOut()).toBe(true);
+		expect(isCliTelemetryOptedOut(env)).toBe(true);
 	});
 
 	test("respects DO_NOT_TRACK=1", () => {
 		process.env.DO_NOT_TRACK = "1";
-		expect(isCliTelemetryOptedOut()).toBe(true);
+		expect(isCliTelemetryOptedOut(env)).toBe(true);
 	});
 
 	test("respects ~/.maina/telemetry.json { optOut: true }", () => {
@@ -192,7 +207,7 @@ describe("isCliTelemetryOptedOut", () => {
 			JSON.stringify({ optOut: true }),
 			"utf-8",
 		);
-		expect(isCliTelemetryOptedOut()).toBe(true);
+		expect(isCliTelemetryOptedOut(env)).toBe(true);
 	});
 
 	test("does not opt out for { optOut: false }", () => {
@@ -203,7 +218,7 @@ describe("isCliTelemetryOptedOut", () => {
 			JSON.stringify({ optOut: false }),
 			"utf-8",
 		);
-		expect(isCliTelemetryOptedOut()).toBe(false);
+		expect(isCliTelemetryOptedOut(env)).toBe(false);
 	});
 
 	test("handles malformed telemetry.json gracefully", () => {
@@ -214,7 +229,7 @@ describe("isCliTelemetryOptedOut", () => {
 			"{ not valid json",
 			"utf-8",
 		);
-		expect(isCliTelemetryOptedOut()).toBe(false);
+		expect(isCliTelemetryOptedOut(env)).toBe(false);
 	});
 });
 
@@ -231,6 +246,7 @@ describe("sendCliErrorReport", () => {
 		globalThis.fetch = mockFetch as unknown as typeof fetch;
 
 		await sendCliErrorReport(new Error("kaboom"), {
+			env,
 			mainaVersion: "1.5.1",
 			command: "sync pull",
 			baseUrl: "https://api.test.maina.dev",
@@ -249,6 +265,7 @@ describe("sendCliErrorReport", () => {
 		globalThis.fetch = mockFetch as unknown as typeof fetch;
 
 		await sendCliErrorReport(new Error("x"), {
+			env,
 			mainaVersion: "1.5.1",
 			command: "verify",
 			baseUrl: "https://api.test.maina.dev",
@@ -265,6 +282,7 @@ describe("sendCliErrorReport", () => {
 
 		await expect(
 			sendCliErrorReport(new Error("x"), {
+				env,
 				mainaVersion: "1.5.1",
 				command: "y",
 				baseUrl: "https://api.test.maina.dev",
@@ -283,6 +301,7 @@ describe("sendCliErrorReport", () => {
 
 		const start = Date.now();
 		await sendCliErrorReport(new Error("x"), {
+			env,
 			mainaVersion: "1.5.1",
 			command: "y",
 			baseUrl: "https://api.test.maina.dev",

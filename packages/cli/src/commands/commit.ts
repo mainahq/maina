@@ -544,14 +544,18 @@ export async function commitAction(
 	// Emit accept signal — commit success confirms prior review/verify results
 	emitAcceptSignal(mainaDir, workflowId);
 
-	recordFeedbackAsync(mainaDir, {
-		promptHash: "deterministic",
-		task: "commit",
-		accepted: true,
-		timestamp: new Date().toISOString(),
-		workflowStep: "commit",
-		workflowId,
-	});
+	recordFeedbackAsync(
+		mainaDir,
+		{
+			promptHash: "deterministic",
+			task: "commit",
+			accepted: true,
+			timestamp: new Date().toISOString(),
+			workflowStep: "commit",
+			workflowId,
+		},
+		{ env: processEnv },
+	);
 
 	return {
 		committed: true,

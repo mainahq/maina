@@ -11,6 +11,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { generateErrorId } from "../errors/error-id";
+import type { EnvPort } from "../ports/env";
 import { scrubErrorEvent } from "./scrubber";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -22,6 +23,8 @@ export interface ErrorEventContext {
 	version?: string;
 	/** Host agent (claude-code, cursor, copilot, windsurf, none) */
 	agent?: string;
+	/** Environment the host agent is detected from when `agent` is not given. */
+	env: EnvPort;
 }
 
 export interface ErrorEvent {
@@ -77,7 +80,7 @@ export function isErrorReportingEnabled(): boolean {
  */
 export function buildErrorEvent(
 	error: Error,
-	context: ErrorEventContext = {},
+	context: ErrorEventContext,
 ): ErrorEvent {
 	const scrubbed = scrubErrorEvent({
 		message: error.message,
@@ -94,7 +97,7 @@ export function buildErrorEvent(
 		runtime: typeof Bun !== "undefined" ? "bun" : "node",
 		version: context.version ?? "unknown",
 		command: context.command ?? "unknown",
-		agent: context.agent ?? detectAgent(),
+		agent: context.agent ?? detectAgent(context.env),
 		timestamp: new Date().toISOString(),
 	};
 }
@@ -105,7 +108,7 @@ export function buildErrorEvent(
  */
 export function reportError(
 	error: Error,
-	context: ErrorEventContext = {},
+	context: ErrorEventContext,
 ): ErrorEvent | null {
 	if (!isErrorReportingEnabled()) return null;
 	return buildErrorEvent(error, context);
@@ -113,12 +116,12 @@ export function reportError(
 
 // ── Agent Detection ────────────────────────────────────────────────────
 
-function detectAgent(): string {
-	if (process.env.CLAUDECODE === "1" || process.env.CLAUDE_CODE_ENTRYPOINT) {
+function detectAgent(env: EnvPort): string {
+	if (env.get("CLAUDECODE") === "1" || env.get("CLAUDE_CODE_ENTRYPOINT")) {
 		return "claude-code";
 	}
-	if (process.env.CURSOR === "1") return "cursor";
-	if (process.env.WINDSURF === "1") return "windsurf";
-	if (process.env.CODEX === "1") return "codex";
+	if (env.get("CURSOR") === "1") return "cursor";
+	if (env.get("WINDSURF") === "1") return "windsurf";
+	if (env.get("CODEX") === "1") return "codex";
 	return "none";
 }

@@ -1,10 +1,14 @@
 import { describe, expect, test } from "bun:test";
+import { envFromRecord } from "../../ports/env";
 import { buildErrorEvent, reportError } from "../reporter";
+
+const env = envFromRecord({});
 
 describe("buildErrorEvent", () => {
 	test("produces a properly structured event", () => {
 		const error = new Error("connection timeout");
 		const event = buildErrorEvent(error, {
+			env,
 			command: "verify",
 			version: "1.1.5",
 		});
@@ -23,7 +27,7 @@ describe("buildErrorEvent", () => {
 		const error = new Error(
 			"Failed for user@example.com at /Users/bikash/code/src/auth.ts",
 		);
-		const event = buildErrorEvent(error);
+		const event = buildErrorEvent(error, { env });
 
 		expect(event.message).not.toContain("user@example.com");
 		expect(event.message).not.toContain("/Users/bikash");
@@ -33,41 +37,39 @@ describe("buildErrorEvent", () => {
 		const error = new Error("fail");
 		error.stack =
 			"Error: fail\n    at fn (/Users/bikash/code/maina/src/index.ts:10:5)";
-		const event = buildErrorEvent(error);
+		const event = buildErrorEvent(error, { env });
 
 		expect(event.stack).not.toContain("/Users/bikash");
 	});
 
 	test("defaults to unknown for missing context", () => {
-		const event = buildErrorEvent(new Error("test"));
+		const event = buildErrorEvent(new Error("test"), { env });
 		expect(event.command).toBe("unknown");
 		expect(event.version).toBe("unknown");
 	});
 
 	test("detects agent from env", () => {
-		const original = process.env.CLAUDECODE;
-		process.env.CLAUDECODE = "1";
-		const event = buildErrorEvent(new Error("test"));
+		const event = buildErrorEvent(new Error("test"), {
+			env: envFromRecord({ CLAUDECODE: "1" }),
+		});
 		expect(event.agent).toBe("claude-code");
-		if (original === undefined) {
-			delete process.env.CLAUDECODE;
-		} else {
-			process.env.CLAUDECODE = original;
-		}
 	});
 });
 
 describe("reportError", () => {
 	test("returns null when reporting is disabled (no config)", () => {
 		// Default: no ~/.maina/config.yml with errors: true
-		const result = reportError(new Error("test"));
+		const result = reportError(new Error("test"), { env });
 		// May or may not be null depending on local config — test the function doesn't throw
 		expect(result === null || result.event === "maina.error").toBe(true);
 	});
 
 	test("produces event when called with buildErrorEvent directly", () => {
 		// buildErrorEvent always works regardless of consent
-		const event = buildErrorEvent(new Error("test"), { command: "commit" });
+		const event = buildErrorEvent(new Error("test"), {
+			env,
+			command: "commit",
+		});
 		expect(event.event).toBe("maina.error");
 		expect(event.command).toBe("commit");
 	});

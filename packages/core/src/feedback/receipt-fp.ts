@@ -198,13 +198,13 @@ export function queryReceiptFps(
 		// Tie-break on `id` so two FPs filed in the same millisecond keep a
 		// stable order — `created_at` alone isn't unique enough.
 		const rows = db
-			.query<FpRow, string[]>(
+			.query(
 				`SELECT id, receipt_hash, check_id, reason, constitution_hash, created_at
 				FROM receipt_feedback
 				${where}
 				ORDER BY created_at DESC, id DESC`,
 			)
-			.all(...params);
+			.all(...params) as FpRow[];
 		return {
 			ok: true,
 			data: rows.map(rowToRecord),
@@ -246,13 +246,13 @@ export function countReceiptFpsByCheck(
 		// Aggregate in SQL — avoids materializing every row in memory just to
 		// count it.
 		const rows = handle.value.db
-			.query<{ check_id: string; n: number }, string[]>(
+			.query(
 				`SELECT check_id, COUNT(*) AS n
 				FROM receipt_feedback
 				WHERE constitution_hash = ?
 				GROUP BY check_id`,
 			)
-			.all(trimmed);
+			.all(trimmed) as Array<{ check_id: string; n: number }>;
 		const counts = new Map<string, number>();
 		for (const r of rows) counts.set(r.check_id, Number(r.n));
 		return { ok: true, data: counts };

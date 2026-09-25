@@ -198,14 +198,18 @@ export async function designAction(
 
 	const branch = await getCurrentBranch(cwd);
 	const workflowId = getWorkflowId(branch);
-	recordFeedbackAsync(wfMainaDir, {
-		promptHash: "deterministic",
-		task: "design",
-		accepted: true,
-		timestamp: new Date().toISOString(),
-		workflowStep: "design",
-		workflowId,
-	});
+	recordFeedbackAsync(
+		wfMainaDir,
+		{
+			promptHash: "deterministic",
+			task: "design",
+			accepted: true,
+			timestamp: new Date().toISOString(),
+			workflowStep: "design",
+			workflowId,
+		},
+		{ env: processEnv },
+	);
 
 	// Step 3b: Generate HLD/LLD if --hld and spec exists
 	if (options.hld) {

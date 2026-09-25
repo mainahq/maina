@@ -16,6 +16,7 @@
  *   `maina commit` beyond the budget.
  */
 
+import type { EnvPort } from "../ports/env";
 import { type ErrorEvent, isErrorReportingEnabled } from "./reporter";
 import { isTelemetryEnabled, type UsageEvent } from "./usage";
 
@@ -38,9 +39,15 @@ export interface PosthogLike {
 	shutdown(): Promise<void>;
 }
 
-export type PosthogFactory = (apiKey: string) => PosthogLike;
+/** Builds the SDK for `apiKey`, sending to `host` (resolved from the env). */
+export type PosthogFactory = (apiKey: string, host: string) => PosthogLike;
 
 export interface PosthogClientOptions {
+	/**
+	 * Environment for the API key (`MAINA_POSTHOG_API_KEY`), host
+	 * (`MAINA_POSTHOG_HOST`) and device fingerprint (`MAINA_DEVICE_FINGERPRINT`).
+	 */
+	env: EnvPort;
 	/** DI seam for tests. Production default dynamic-imports `posthog-node`. */
 	createPosthog?: PosthogFactory;
 	/** Override the build-inlined key (tests). Empty string → disabled. */
@@ -56,14 +63,14 @@ export interface PosthogClient {
 }
 
 const DEFAULT_FLUSH_BUDGET_MS = 2_000;
+const DEFAULT_POSTHOG_HOST = "https://eu.i.posthog.com";
 
-function readApiKey(override?: string): string {
+function readApiKey(env: EnvPort, override?: string): string {
 	if (override !== undefined) return override;
-	// Build-time replacement by bunup `define:`. Runtime-reading for now; when
-	// the build lands we'll inline `process.env.MAINA_POSTHOG_API_KEY` to a
-	// string literal so the branch below goes dead in the prod bundle.
-	const raw = process.env.MAINA_POSTHOG_API_KEY;
-	return typeof raw === "string" ? raw : "";
+	// Runtime-reading through the injected env for now; when the build lands
+	// the edge can inline `MAINA_POSTHOG_API_KEY` so the key is a literal in
+	// the prod bundle.
+	return env.get("MAINA_POSTHOG_API_KEY") ?? "";
 }
 
 function readConsent(override?: PosthogClientOptions["consent"]): {
@@ -83,19 +90,19 @@ function readConsent(override?: PosthogClientOptions["consent"]): {
  * event shapes are already PII-scrubbed. A per-install random ID means two
  * developers on the same machine still register as separate users.
  */
-function distinctIdSeed(): string {
+function distinctIdSeed(env: EnvPort): string {
 	// Piggyback on whatever setup wrote — `~/.maina/config.yml` stores a
 	// device fingerprint if the user opted in. Until the fingerprint reader
 	// lands here we fall back to a hostname+pid hash equivalent. Kept
 	// deliberately dumb; a follow-up can tighten this.
-	const fp = process.env.MAINA_DEVICE_FINGERPRINT ?? "anon";
+	const fp = env.get("MAINA_DEVICE_FINGERPRINT") ?? "anon";
 	return `maina:${fp}`;
 }
 
-export function createPosthogClient(
-	opts: PosthogClientOptions = {},
-): PosthogClient {
-	const apiKey = readApiKey(opts.apiKeyOverride);
+export function createPosthogClient(opts: PosthogClientOptions): PosthogClient {
+	const { env } = opts;
+	const apiKey = readApiKey(env, opts.apiKeyOverride);
+	const host = env.get("MAINA_POSTHOG_HOST") ?? DEFAULT_POSTHOG_HOST;
 	const hasKey = apiKey.length > 0;
 	let sdk: PosthogLike | null = null;
 	let sdkAttempted = false;
@@ -106,7 +113,7 @@ export function createPosthogClient(
 		if (!hasKey) return null;
 		try {
 			const factory = opts.createPosthog ?? defaultFactory;
-			sdk = factory(apiKey);
+			sdk = factory(apiKey, host);
 		} catch {
 			sdk = null;
 		}
@@ -121,7 +128,7 @@ export function createPosthogClient(
 		if (!client) return;
 		try {
 			client.capture({
-				distinctId: distinctIdSeed(),
+				distinctId: distinctIdSeed(env),
 				event: event.event,
 				properties: {
 					...event.properties,
@@ -144,7 +151,7 @@ export function createPosthogClient(
 		if (!client) return;
 		try {
 			client.captureException({
-				distinctId: distinctIdSeed(),
+				distinctId: distinctIdSeed(env),
 				error: new Error(event.message),
 				additionalProperties: {
 					errorClass: event.errorClass,
@@ -190,7 +197,10 @@ export function createPosthogClient(
  * Dynamic `posthog-node` import. Kept out of the module top-level so the
  * SDK never loads when telemetry is off.
  */
-async function loadRealSdk(apiKey: string): Promise<PosthogLike | null> {
+async function loadRealSdk(
+	apiKey: string,
+	host: string,
+): Promise<PosthogLike | null> {
 	try {
 		// Module specifier behind a string literal so TS type-resolution doesn't
 		// force callers to declare `posthog-node` in their tsconfig. Runtime
@@ -208,7 +218,6 @@ async function loadRealSdk(apiKey: string): Promise<PosthogLike | null> {
 		};
 		const Ctor = mod.PostHog ?? mod.default;
 		if (!Ctor) return null;
-		const host = process.env.MAINA_POSTHOG_HOST ?? "https://eu.i.posthog.com";
 		return new Ctor(apiKey, { host, flushAt: 1 });
 	} catch {
 		return null;
@@ -227,8 +236,8 @@ async function loadRealSdk(apiKey: string): Promise<PosthogLike | null> {
  * (CodeRabbit 2026-04-22). We collect the queued-capture promises and await
  * them alongside the real SDK's shutdown.
  */
-function defaultFactory(apiKey: string): PosthogLike {
-	const pending: Promise<PosthogLike | null> = loadRealSdk(apiKey);
+function defaultFactory(apiKey: string, host: string): PosthogLike {
+	const pending: Promise<PosthogLike | null> = loadRealSdk(apiKey, host);
 	let real: PosthogLike | null = null;
 	const ready = pending.then((s) => {
 		real = s;
@@ -263,22 +272,27 @@ function defaultFactory(apiKey: string): PosthogLike {
 
 let singleton: PosthogClient | null = null;
 
-/** Lazy singleton; cached after first call. Tests should call `createPosthogClient` directly. */
-function getSingleton(): PosthogClient {
-	if (singleton === null) singleton = createPosthogClient();
+/**
+ * Lazy singleton, built from the env of the first capture and cached after
+ * that (the edge passes the same process env every time). Tests should call
+ * `createPosthogClient` directly.
+ */
+function getSingleton(env: EnvPort): PosthogClient {
+	if (singleton === null) singleton = createPosthogClient({ env });
 	return singleton;
 }
 
-export function captureUsage(event: UsageEvent): void {
-	getSingleton().captureUsage(event);
+export function captureUsage(event: UsageEvent, env: EnvPort): void {
+	getSingleton(env).captureUsage(event);
 }
 
-export function captureError(event: ErrorEvent): void {
-	getSingleton().captureError(event);
+export function captureError(event: ErrorEvent, env: EnvPort): void {
+	getSingleton(env).captureError(event);
 }
 
+/** Drain queued captures. A no-op when nothing was ever captured. */
 export function flushTelemetry(
 	budgetMs: number = DEFAULT_FLUSH_BUDGET_MS,
 ): Promise<void> {
-	return getSingleton().flush(budgetMs);
+	return singleton === null ? Promise.resolve() : singleton.flush(budgetMs);
 }
