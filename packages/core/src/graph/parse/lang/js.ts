@@ -17,11 +17,13 @@ import {
 	typeParamNames,
 	union,
 } from "../nodes";
+import type { CallKind } from "../types";
 import {
 	collectLocalExports,
 	importStatement,
 	namePath,
 	reexportStatement,
+	splitPath,
 	stringValue,
 	testKind,
 } from "./js-modules";
@@ -54,9 +56,7 @@ const FUNCTION_VALUES = new Set([
 ]);
 
 export function extractJs(root: Node, sink: Sink): void {
-	const localExports = collectLocalExports(root);
-	const walker = makeWalker(sink, localExports);
-	walker.children(root, TOP);
+	makeWalker(sink, collectLocalExports(root)).children(root, TOP);
 }
 
 function makeWalker(sink: Sink, localExports: ReadonlySet<string>) {
@@ -468,18 +468,16 @@ function makeWalker(sink: Sink, localExports: ReadonlySet<string>) {
 		}
 	}
 
+	/** A call whose callee is a dotted name path (`new a.B()`, `<a.B />`). */
+	function pathCall(node: Node, path: string, kind: CallKind, ctx: Ctx): void {
+		addCall(sink, node, { ...splitPath(path), kind, scope: ctx.scope });
+	}
+
 	function newExpr(node: Node, ctx: Ctx): void {
 		const ctor = field(node, "constructor");
 		const path = ctor ? namePath(ctor) : null;
 		if (path !== null) {
-			const dot = path.lastIndexOf(".");
-			addCall(sink, node, {
-				name: path.slice(dot + 1),
-				receiver: dot < 0 ? null : path.slice(0, dot),
-				member: dot >= 0,
-				kind: "new",
-				scope: ctx.scope,
-			});
+			pathCall(node, path, "new", ctx);
 		}
 		children(node, ctx);
 	}
@@ -489,14 +487,7 @@ function makeWalker(sink: Sink, localExports: ReadonlySet<string>) {
 		const path = name ? namePath(name) : null;
 		// Lower-case tags are intrinsic elements (`<div>`), not components.
 		if (path !== null && (path.includes(".") || /^[A-Z_$]/.test(path))) {
-			const dot = path.lastIndexOf(".");
-			addCall(sink, node, {
-				name: path.slice(dot + 1),
-				receiver: dot < 0 ? null : path.slice(0, dot),
-				member: dot >= 0,
-				kind: "jsx",
-				scope: ctx.scope,
-			});
+			pathCall(node, path, "jsx", ctx);
 		}
 		childrenExcept(node, ctx, SKIP_NAME);
 	}

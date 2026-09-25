@@ -73,6 +73,18 @@ export function namePath(node: Node): string | null {
 	}
 }
 
+/** `a.b.C` → name `C`, receiver `a.b`; a bare `C` has no receiver. */
+export function splitPath(
+	path: string,
+): Readonly<{ name: string; receiver: string | null; member: boolean }> {
+	const dot = path.lastIndexOf(".");
+	return {
+		name: path.slice(dot + 1),
+		receiver: dot < 0 ? null : path.slice(0, dot),
+		member: dot >= 0,
+	};
+}
+
 /** The value of a string literal, or of a template literal with no substitutions. */
 export function stringValue(node: Node | null | undefined): string | null {
 	if (!node) return null;
