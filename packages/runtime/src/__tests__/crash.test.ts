@@ -136,7 +136,8 @@ describe("no runtime and none can be spawned", () => {
 		).evaluate(shellEvent, { timeoutMs: 500 });
 		expect(result.degraded).toBe(true);
 		expect(result.verdict).toBe("ask");
-		if (result.degraded) expect(result.degradedCause).toBe("client_error");
+		if (result.source === "fallback")
+			expect(result.degradedCause).toBe("client_error");
 	});
 
 	test("a spawn that never comes up degrades within the time budget", async () => {
@@ -351,7 +352,7 @@ describe("runtime failures", () => {
 			fixedGate("deny"),
 			tracking,
 		).evaluate(shellEvent, { timeoutMs: 8000 });
-		expect(result).toMatchObject({ degraded: false, source: "runtime" });
+		expect(result.source).toBe("runtime");
 		expect(pids).toHaveLength(2);
 	}, 15_000);
 });

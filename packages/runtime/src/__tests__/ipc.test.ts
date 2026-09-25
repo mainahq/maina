@@ -9,6 +9,7 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { createHookClient } from "../client/hook-client";
+import type { GateEvaluator } from "../gate";
 import {
 	createLineSplitter,
 	createRequest,
@@ -273,9 +274,75 @@ describe("runtime requests over the socket", () => {
 		expect(result).toEqual({
 			verdict,
 			reason: `fixed ${verdict}`,
+			decisionIds: [],
 			degraded: false,
 			source: "runtime",
 		});
+	});
+
+	// #454: the daemon must not report `degraded: false` when core's
+	// `evaluateGate` fell back (no model answer, no shell grammar).
+	test("a degraded runtime decision reaches the wire with its decision ids", async () => {
+		const degradedGate: GateEvaluator = () => ({
+			verdict: "ask",
+			reason: "no model answer; asking",
+			decisionIds: ["d-1", "d-2"],
+			degraded: true,
+		});
+		const rt = start({ gate: degradedGate });
+		const sent = await sendRequest(
+			rt.address,
+			createRequest("hook.evaluate", shellEvent, VERSION),
+			1000,
+		);
+		if (!sent.ok || !sent.value.ok) throw new Error("expected a result");
+		expect(sent.value.result).toEqual({
+			verdict: "ask",
+			reason: "no model answer; asking",
+			decisionIds: ["d-1", "d-2"],
+			degraded: true,
+		});
+	});
+
+	test("the hook client reports a degraded runtime decision as degraded", async () => {
+		const rt = start({
+			gate: () => ({
+				verdict: "ask",
+				reason: "no model answer; asking",
+				decisionIds: ["d-1"],
+				degraded: true,
+			}),
+		});
+		const client = createHookClient({
+			endpoint: rt.endpoint,
+			version: VERSION,
+			spawn: noSpawn,
+			fallback: fixedGate("deny"),
+		});
+		const result = await client.evaluate(shellEvent, { timeoutMs: 1000 });
+		expect(result).toEqual({
+			verdict: "ask",
+			reason: "no model answer; asking",
+			decisionIds: ["d-1"],
+			degraded: true,
+			source: "runtime",
+		});
+	});
+
+	test("a gate answer without the degraded flag is a handler failure", async () => {
+		const rt = start({
+			gate: (() => ({
+				verdict: "allow",
+				reason: "legacy",
+			})) as unknown as GateEvaluator,
+		});
+		const sent = await sendRequest(
+			rt.address,
+			createRequest("hook.evaluate", shellEvent, VERSION),
+			1000,
+		);
+		if (!sent.ok || sent.value.ok) throw new Error("expected an rpc error");
+		expect(sent.value.error.code).toBe("handler_failed");
 	});
 });
 

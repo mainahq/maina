@@ -7,7 +7,8 @@
  * restarted the same way. Whenever the runtime still cannot answer (spawn
  * failed, timeout, crash, bad response, handler error) the client evaluates
  * the injected rules-only `fallback` in process and returns its decision
- * flagged `degraded`. A degraded result is never `allow`.
+ * flagged `degraded`; a fallback result is never `allow`. A runtime answer
+ * carries the runtime's own `degraded` flag and decision ids (#454).
  */
 
 import {
@@ -48,6 +49,8 @@ const FALLBACK_GRACE_MS = 50;
 const UNUSABLE: GateDecision = {
 	verdict: "ask",
 	reason: "rules-only evaluation failed",
+	decisionIds: [],
+	degraded: true,
 };
 
 /** Runs the fallback, bounded in time; any failure is `UNUSABLE`. */
@@ -84,6 +87,7 @@ export function createHookClient(config: HookClientConfig): HookClient {
 		return {
 			verdict: decision.verdict,
 			reason: `${decision.reason} (maina runtime unavailable: ${cause})`,
+			decisionIds: decision.decisionIds,
 			degraded: true,
 			source: "fallback",
 			degradedCause: cause,
@@ -122,7 +126,7 @@ export function createHookClient(config: HookClientConfig): HookClient {
 			if (!response.ok) return degrade(event, response.error.code, deadline);
 			const decision = parseGateDecision(response.result);
 			if (decision === null) return degrade(event, "bad_response", deadline);
-			return { ...decision, degraded: false, source: "runtime" };
+			return { ...decision, source: "runtime" };
 		}
 	};
 
