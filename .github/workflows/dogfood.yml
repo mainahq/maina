@@ -1,0 +1,45 @@
+name: Dogfood
+
+# Receipt-required check for PRs into v1/* (#286, FR-DOG-5).
+#
+# Passes only when the PR carries a maina receipt (a PR comment written by
+# `bun run dogfood:receipt`) whose commit is the PR head and whose status is
+# `passed`.
+#
+# REPORT-ONLY by default: a missing/stale/failing receipt is a warning and the
+# job stays green, so it cannot block the wave that introduces it. To enforce:
+#   1. set the repository variable DOGFOOD_RECEIPT_REQUIRED=true, and
+#   2. add "Dogfood / receipt" to the required status checks for v1/main.
+
+on:
+  pull_request:
+    branches: ["v1/**"]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: dogfood-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  receipt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Check maina receipt for the PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          ENFORCE: ${{ vars.DOGFOOD_RECEIPT_REQUIRED == 'true' && '--enforce' || '' }}
+        run: |
+          bun scripts/dogfood/receipt-check.ts \
+            --repo "$GITHUB_REPOSITORY" --pr "$PR_NUMBER" --head "$PR_HEAD" $ENFORCE
