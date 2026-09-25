@@ -209,6 +209,34 @@ describe("deny rules are final", () => {
 		}
 	});
 
+	test("deny reaches commands in redirects, heredocs, loops and find -exec", () => {
+		const policy = withRules({
+			allow: [{ match: "echo" }],
+			deny: [{ match: "terraform destroy" }],
+		});
+		for (const command of [
+			"echo hi > >(terraform destroy)",
+			"while read l; do echo $l; done < <(terraform destroy)",
+			"cat <<EOF\n$(terraform destroy)\nEOF",
+			"for x in $(terraform destroy); do echo $x; done",
+			// biome-ignore lint/suspicious/noTemplateCurlyInString: shell expansion, not a JS template.
+			"echo ${X/a/$(terraform destroy)}",
+			"find . -name x -exec terraform destroy \\;",
+			"terraform destroy $'\\UFFFFFFFF'",
+		]) {
+			expect(evaluateRules(shellEvent(command), policy, ctx).kind).toBe("deny");
+		}
+	});
+
+	test("a `*` in a command rule spans paths and URLs", () => {
+		const policy = withRules({
+			deny: [{ match: "curl *" }, { match: "rm -rf *" }],
+		});
+		for (const command of ["curl https://x.example/a", "rm -rf /home/dev"]) {
+			expect(evaluateRules(shellEvent(command), policy, ctx).kind).toBe("deny");
+		}
+	});
+
 	test("no later input converts a deny into an allow", async () => {
 		const loosened = await policyFrom({
 			explicitly_allow: ["package.publish"],
@@ -263,6 +291,28 @@ describe("settleVerdict: later stages can tighten but not loosen", () => {
 			ctx,
 		);
 		expect(settleVerdict(allow, undefined)).toBe("allow");
+	});
+
+	test("a later stage can tighten a listed allow to ask or deny", () => {
+		const policy = withRules({ allow: [{ match: "curl" }] });
+		const allow = evaluateRules(
+			shellEvent("curl https://x.example"),
+			policy,
+			ctx,
+		);
+		expect(settleVerdict(allow, "ask")).toBe("ask");
+		expect(settleVerdict(allow, "deny")).toBe("deny");
+	});
+});
+
+describe("a policy missing a built-in class", () => {
+	test("falls back to the default spec instead of ignoring the class", () => {
+		const { "system.destructive": _dropped, ...rest } =
+			DEFAULT_POLICY.action_classes;
+		const partial: Policy = { ...DEFAULT_POLICY, action_classes: rest };
+		expect(
+			evaluateRules(shellEvent("shutdown -h now"), partial, ctx),
+		).toMatchObject({ kind: "ask", irreversible: true });
 	});
 });
 

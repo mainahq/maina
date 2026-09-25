@@ -177,6 +177,8 @@ describe("redirects", () => {
 			kind: "heredoc",
 			body: "DROP TABLE x;\n",
 			expands: false,
+			substs: [],
+			backticks: [],
 		});
 		const herestring = onlyCommand("sh <<< 'rm -rf /'");
 		const r = herestring.redirects[0];
@@ -207,6 +209,7 @@ describe("errors are data", () => {
 			"'unterminated",
 			"$(",
 			"a".repeat(100_000),
+			"echo $'\\UFFFFFFFF' $'\\U110000'",
 		]) {
 			expect(parser.parse(source).ok).toBe(true);
 		}

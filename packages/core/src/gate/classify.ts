@@ -260,6 +260,10 @@ function walkNode(
 			return dir;
 		}
 		case "loop":
+			// The item list is expanded before the body runs (`for f in $(…)`).
+			for (const item of node.items ?? []) {
+				scanWordSubstitutions(item, scope, ctx);
+			}
 			walkNode(node.body, cwd, scope, ctx);
 			return cwd;
 		case "function":
@@ -693,9 +697,14 @@ function hasExecRemoval(literals: readonly string[]): boolean {
 		);
 }
 
+/** Stands in for a word the gate cannot resolve; no real argument spells it. */
+const UNKNOWN_WORD = "\u0000unknown";
+
 function gitClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 	// Skip `-C <dir>`, `-c k=v` and other global options to find the subcommand.
-	const literals = literalArgs(args);
+	// Unresolved words keep their position, so `git push $R main` still reads
+	// `main` as the refspec rather than the remote.
+	const literals = args.map((a) => a.text ?? UNKNOWN_WORD);
 	let i = 0;
 	while (i < literals.length) {
 		const a = literals[i] as string;
@@ -706,7 +715,8 @@ function gitClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 	}
 	const sub = literals[i];
 	const rest = literals.slice(i + 1);
-	if (sub === "push") gitPush(rest, ctx);
+	if (sub === UNKNOWN_WORD) ctx.out.add("shell.opaque");
+	else if (sub === "push") gitPush(rest, ctx);
 	else if (sub === "reset" && rest.includes("--hard"))
 		ctx.out.add("git.discard");
 	else if (
@@ -815,8 +825,10 @@ function gitPush(rest: readonly string[], ctx: ShellCtx): void {
 	}
 
 	const targets = refspecs.map((spec) => pushTarget(spec, ctx));
+	// A refspec the gate cannot read may name a protected branch.
 	const toProtected = targets.some(
-		(t) => t !== null && ctx.protectedBranches.includes(t),
+		(t) =>
+			t !== null && (t === UNKNOWN_WORD || ctx.protectedBranches.includes(t)),
 	);
 	const deleting = isDelete || refspecs.some((r) => r.startsWith(":"));
 
@@ -827,6 +839,7 @@ function gitPush(rest: readonly string[], ctx: ShellCtx): void {
 }
 
 function pushTarget(spec: string, ctx: ShellCtx): string | null {
+	if (spec === UNKNOWN_WORD) return UNKNOWN_WORD;
 	const clean = spec.replace(/^\+/, "");
 	const dstRaw = clean.includes(":")
 		? clean.slice(clean.indexOf(":") + 1)
@@ -1534,7 +1547,17 @@ function redirectClasses(
 					ctx.out.add("fs.write.outside");
 			}
 		} else if (r.kind === "herestring") {
-			// Body fed into the next command (handled by the command itself).
+			// A substitution in the word still runs; the text itself is fed to
+			// the command (handled by the command itself).
+			scanWordSubstitutions(r.word, scope, ctx);
+		} else if (r.kind === "heredoc") {
+			// An expanding body runs its substitutions (`cat <<EOF` … `$(…)`).
+			for (const inner of r.substs) {
+				walkScript(inner, ctx.event.root, new Map(scope), ctx);
+			}
+			for (const source of r.backticks) {
+				classifyShell(source, ctx.event.root, ctx.event, ctx.gate, ctx.out);
+			}
 		}
 	}
 }
@@ -1678,6 +1701,7 @@ const WRAPPERS: ReadonlySet<string> = new Set([
 	"nice",
 	"ionice",
 	"setsid",
+	"coproc",
 ]);
 
 /** env options that take a separate value. */
@@ -1935,6 +1959,10 @@ function scanWordSubstitutions(
 			walkScript(part.script, ctx.event.root, new Map(scope), ctx);
 		} else if (part.kind === "param" && part.fallback) {
 			scanWordSubstitutions(part.fallback, scope, ctx);
+		} else if (part.kind === "opaque") {
+			for (const inner of part.scripts) {
+				walkScript(inner, ctx.event.root, new Map(scope), ctx);
+			}
 		}
 	}
 }
@@ -2017,8 +2045,14 @@ function collectNode(
 			return;
 		case "sequence":
 			for (const inner of node.nodes) collectNode(inner, scope, ctx, out);
+			collectRedirects(node.redirects, scope, ctx, out);
 			return;
 		case "loop":
+			for (const item of node.items ?? []) {
+				collectWordSubsts(item, scope, ctx, out);
+			}
+			collectNode(node.body, scope, ctx, out);
+			return;
 		case "function":
 			collectNode(node.body, scope, ctx, out);
 			return;
@@ -2073,6 +2107,7 @@ function collectCommandNode(
 		scope.set(a.name, a.value === null ? null : resolveWord(a.value, scope));
 	}
 	for (const word of node.argv) collectWordSubsts(word, scope, ctx, out);
+	collectRedirects(node.redirects, scope, ctx, out);
 
 	const rest = stripWrappersPure(resolveArgv(node.argv, scope));
 	const exe = rest[0];
@@ -2084,6 +2119,7 @@ function collectCommandNode(
 	const cmd = baseCommand(exe.text);
 	const args = rest.slice(1);
 	out.push([cmd, ...args.map((a) => a.text ?? a.raw)].join(" "));
+	if (cmd === "find") out.push(...findExecCommands(args));
 
 	// Nested shells and eval carry commands of their own.
 	if (isShell(cmd)) {
@@ -2122,6 +2158,60 @@ function collectWordSubsts(
 			collectScript(part.script, new Map(scope), ctx, out);
 		} else if (part.kind === "param" && part.fallback) {
 			collectWordSubsts(part.fallback, scope, ctx, out);
+		} else if (part.kind === "opaque") {
+			for (const inner of part.scripts) {
+				collectScript(inner, new Map(scope), ctx, out);
+			}
 		}
 	}
+}
+
+/** Commands run by redirects: `> >(…)`, `< <(…)`, an expanding heredoc body. */
+function collectRedirects(
+	redirects: readonly Redirect[],
+	scope: Scope,
+	ctx: GateContext,
+	out: string[],
+): void {
+	for (const r of redirects) {
+		if (r.kind === "file") collectWordSubsts(r.target, scope, ctx, out);
+		else if (r.kind === "herestring")
+			collectWordSubsts(r.word, scope, ctx, out);
+		else if (r.kind === "heredoc") {
+			for (const inner of r.substs) {
+				collectScript(inner, new Map(scope), ctx, out);
+			}
+			for (const source of r.backticks) collectNested(source, scope, ctx, out);
+		}
+	}
+}
+
+/** The command a `find -exec`/`-execdir`/`-ok`/`-okdir` runs, up to `;` or `+`. */
+function findExecCommands(args: Argv): readonly string[] {
+	const found: string[] = [];
+	for (let i = 0; i < args.length; i++) {
+		const flag = args[i]?.text;
+		if (
+			flag !== "-exec" &&
+			flag !== "-execdir" &&
+			flag !== "-ok" &&
+			flag !== "-okdir"
+		) {
+			continue;
+		}
+		const words: Arg[] = [];
+		let j = i + 1;
+		for (; j < args.length; j++) {
+			const t = args[j]?.text;
+			if (t === ";" || t === "+") break;
+			words.push(args[j] as Arg);
+		}
+		const [exe, ...rest] = stripWrappersPure(words);
+		if (exe !== undefined) {
+			const name = exe.text === null ? exe.raw : baseCommand(exe.text);
+			found.push([name, ...rest.map((a) => a.text ?? a.raw)].join(" "));
+		}
+		i = j;
+	}
+	return found;
 }

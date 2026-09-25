@@ -38,8 +38,12 @@ export type WordPart =
 			script: ShellScript;
 			direction: "in" | "out";
 	  }>
-	/** Arithmetic, `${#X}`, `${X/a/b}` and other forms whose value is unknown. */
-	| Readonly<{ kind: "opaque"; raw: string }>;
+	/**
+	 * Arithmetic, `${#X}`, `${X/a/b}`, arrays and other forms whose value is
+	 * unknown. `scripts` are the substitutions nested inside it, which still
+	 * run (`${X/a/$(…)}`, `$(( $(…) ))`, `( $(…) )`).
+	 */
+	| Readonly<{ kind: "opaque"; raw: string; scripts: readonly ShellScript[] }>;
 
 export type ShellWord = Readonly<{ raw: string; parts: readonly WordPart[] }>;
 
@@ -50,8 +54,19 @@ export type Redirect =
 	| Readonly<{ kind: "file"; op: string; fd: number | null; target: ShellWord }>
 	/** Descriptor duplication (`2>&1`, `<&-`): no file is touched. */
 	| Readonly<{ kind: "dup"; op: string; fd: number | null; target: string }>
-	/** `<<EOF` / `<<-EOF`; `expands` is false for a quoted delimiter. */
-	| Readonly<{ kind: "heredoc"; body: string; expands: boolean }>
+	/**
+	 * `<<EOF` / `<<-EOF`; `expands` is false for a quoted delimiter. An
+	 * expanding body runs its substitutions: `substs` are the parsed `$(…)`
+	 * ones, `backticks` the source of each `` `…` `` (tree-sitter-bash leaves
+	 * those as text inside a heredoc, so the caller parses them).
+	 */
+	| Readonly<{
+			kind: "heredoc";
+			body: string;
+			expands: boolean;
+			substs: readonly ShellScript[];
+			backticks: readonly string[];
+	  }>
 	| Readonly<{ kind: "herestring"; word: ShellWord }>;
 
 export type ShellNode =
@@ -356,10 +371,13 @@ function redirect(node: Node): RedirectParts {
 			const stripTabs = all(node).some((c) => c.type === "<<-");
 			const raw = bodyNode?.text ?? "";
 			const body = stripTabs ? raw.replace(/^\t+/gm, "") : raw;
+			const expands = !/['"\\]/.test(start?.text ?? "");
 			const heredoc: Redirect = {
 				kind: "heredoc",
 				body,
-				expands: !/['"\\]/.test(start?.text ?? ""),
+				expands,
+				substs: expands && bodyNode ? nestedScripts(bodyNode) : [],
+				backticks: expands ? backtickSources(raw) : [],
 			};
 			const inner = named(node).filter(
 				(c) =>
@@ -508,8 +526,58 @@ function parts(node: Node, quoted: boolean): readonly WordPart[] {
 		default:
 			return node.namedChildCount === 0 && node.type !== "ERROR"
 				? [{ kind: "text", text: node.text, quoted }]
-				: [{ kind: "opaque", raw: node.text }];
+				: [opaque(node)];
 	}
+}
+
+function opaque(node: Node): WordPart {
+	return { kind: "opaque", raw: node.text, scripts: nestedScripts(node) };
+}
+
+const SUBSTITUTIONS: ReadonlySet<string> = new Set([
+	"command_substitution",
+	"process_substitution",
+]);
+
+/** Every outermost `$(…)`, backtick or `<(…)` below `node`, as a script. */
+function nestedScripts(node: Node): readonly ShellScript[] {
+	const found: ShellScript[] = [];
+	const stack: Node[] = [...named(node)].reverse();
+	while (stack.length > 0) {
+		const child = stack.pop() as Node;
+		if (SUBSTITUTIONS.has(child.type)) found.push(script(child));
+		else stack.push(...[...named(child)].reverse());
+	}
+	return found;
+}
+
+/**
+ * The source inside each unescaped `` `…` `` pair of a heredoc body, with the
+ * backslash escapes bash removes there (`` \` ``, `\\`, `\$`) undone. An
+ * unpaired backtick yields everything after it, so nothing is dropped.
+ */
+function backtickSources(body: string): readonly string[] {
+	const found: string[] = [];
+	let current: string | null = null;
+	for (let i = 0; i < body.length; i++) {
+		const c = body[i] as string;
+		if (c === "\\" && i + 1 < body.length) {
+			const next = body[i + 1] as string;
+			if (current !== null) {
+				current +=
+					next === "`" || next === "\\" || next === "$" ? next : c + next;
+			}
+			i++;
+		} else if (c === "`") {
+			if (current === null) current = "";
+			else {
+				found.push(current);
+				current = null;
+			}
+		} else if (current !== null) current += c;
+	}
+	if (current !== null) found.push(current);
+	return found;
 }
 
 /** Operators whose value is the variable or a literal fallback. */
@@ -522,11 +590,11 @@ function expansion(node: Node, quoted: boolean): WordPart {
 	);
 	const opAt = kids.findIndex((c, i) => i > 0 && !c.isNamed && c.type !== "}");
 	const name = kids[nameAt]?.text;
-	if (name === undefined) return { kind: "opaque", raw: node.text };
+	if (name === undefined) return opaque(node);
 	if (opAt < 0) return { kind: "param", name, quoted, fallback: null };
 	const op = kids[opAt]?.type ?? "";
 	if (!FALLBACK_OPS.has(op) || opAt < nameAt) {
-		return { kind: "opaque", raw: node.text };
+		return opaque(node);
 	}
 	const rest = kids.slice(opAt + 1).filter((c) => c.isNamed);
 	const fallback: ShellWord = {
@@ -573,7 +641,10 @@ function decodeAnsiC(body: string): string {
 		(_m, esc: string) => {
 			const head = esc[0] ?? "";
 			if (head === "x" || head === "u" || head === "U") {
-				return String.fromCodePoint(Number.parseInt(esc.slice(1), 16));
+				// A code point past Unicode cannot be encoded; bash drops it. It
+				// must not abort the parse and hide the rest of the command.
+				const code = Number.parseInt(esc.slice(1), 16);
+				return code <= 0x10ffff ? String.fromCodePoint(code) : "";
 			}
 			if (/^[0-7]/.test(esc)) {
 				return String.fromCharCode(Number.parseInt(esc, 8));

@@ -306,6 +306,52 @@ describe("benign commands are not flagged", () => {
 	});
 });
 
+describe("substitutions run wherever they hide", () => {
+	// Every one of these runs `rm -rf ~` in bash, and none may fall through to
+	// `no_rule` (the gate has no path that fails open).
+	for (const command of [
+		"for f in $(rm -rf ~); do :; done",
+		"select f in $(rm -rf ~); do :; done",
+		"cat <<EOF\n$(rm -rf ~)\nEOF",
+		"cat <<EOF\n`rm -rf ~`\nEOF",
+		// biome-ignore lint/suspicious/noTemplateCurlyInString: shell expansion, not a JS template.
+		"echo ${X/a/$(rm -rf ~)}",
+		"echo $(( $(rm -rf ~) + 1 ))",
+		"arr=( $(rm -rf ~) )",
+		"coproc rm -rf ~",
+	]) {
+		test(JSON.stringify(command), () => {
+			expect(classesOf(command)).toContain("fs.delete.outside");
+		});
+	}
+
+	test("a quoted heredoc delimiter keeps the body literal", () => {
+		expect(classesOf("cat <<'EOF'\n$(rm -rf ~)\nEOF")).not.toContain(
+			"fs.delete.recursive",
+		);
+	});
+
+	test("an escape the parser cannot decode does not hide the command", () => {
+		expect(classesOf("rm -rf / $'\\UFFFFFFFF'")).toContain("fs.delete.outside");
+	});
+});
+
+describe("pushes to a branch the gate cannot read", () => {
+	test("an unresolved refspec may be a protected branch", () => {
+		expect(classesOf('git push origin "$B"')).toContain("git.push.protected");
+		expect(classesOf("git push --force-with-lease origin $B")).toContain(
+			"git.push.force",
+		);
+	});
+
+	test("an unresolved remote does not shift the refspec into its place", () => {
+		expect(classesOf("git push $R main")).toContain("git.push.protected");
+		expect(classesOf("git push $R feature/x")).not.toContain(
+			"git.push.protected",
+		);
+	});
+});
+
 describe("what the gate cannot see is opaque", () => {
 	for (const command of [
 		'eval "$CMD"',

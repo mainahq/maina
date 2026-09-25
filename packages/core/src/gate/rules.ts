@@ -12,11 +12,12 @@
  *   7. nothing matched                 → no_rule
  *
  * A deny is final. `settleVerdict` lets a later stage (a model, the host)
- * tighten a `no_rule` or `ask`, but it can never loosen a deny or an
+ * decide a `no_rule` and tighten an `ask` or a listed allow, but it can never loosen a deny or an
  * irreversible ask into an allow: no allow rule, loosened class, permission
  * mode or untrusted input reaches this decision.
  */
 
+import { DEFAULT_POLICY } from "../policy/defaults";
 import type { Policy, RulePolicy, Verdict } from "../policy/schema";
 import { analyzeAction } from "./classify";
 import type { GateContext, GateEvent, GateEventKind } from "./events";
@@ -51,7 +52,12 @@ export function evaluateRules(
 ): RuleResult {
 	const analysis = analyzeAction(event, ctx);
 	const classes = analysis.classes;
-	const specs = classes.map((c) => ({ id: c, spec: policy.action_classes[c] }));
+	// A class the policy does not list keeps its built-in spec, so a partial
+	// policy can never make an irreversible class disappear (fail closed).
+	const specs = classes.map((c) => ({
+		id: c,
+		spec: policy.action_classes[c] ?? DEFAULT_POLICY.action_classes[c],
+	}));
 
 	// 1. A deny rule is final and beats everything.
 	const denyRule = firstMatch(policy.rules.deny, event, analysis.commands);
@@ -148,8 +154,8 @@ export function settleVerdict(
 		case "deny":
 			return "deny";
 		case "allow":
-			// A later stage may still tighten a listed allow.
-			return later === "deny" ? "deny" : "allow";
+			// A later stage may still tighten a listed allow, to ask or deny.
+			return later ?? "allow";
 		case "ask":
 			return later === "deny" ? "deny" : "ask";
 		case "no_rule":
@@ -232,19 +238,22 @@ function targetsOf(event: GateEvent): readonly string[] {
 
 /**
  * Matches a rule pattern against one command string. A pattern with a `*`
- * is a whole-string glob; a plain pattern matches the command name and its
- * argument prefix (`git push` covers `git push origin main`).
+ * is a whole-string glob in which `*` matches anything, paths and URLs
+ * included (`curl *` covers `curl https://x/y`); a plain pattern matches the
+ * command name and its argument prefix (`git push` covers `git push origin
+ * main`).
  */
 function commandMatches(pattern: string, command: string): boolean {
-	if (pattern.includes("*")) return globMatch(pattern, command);
+	if (pattern.includes("*")) return globMatch(pattern, command, ".*");
 	return command === pattern || command.startsWith(`${pattern} `);
 }
 
 /**
- * A `*` / `**` glob anchored over the whole string: `*` matches within a path
- * segment, `**` across segments. Built by scanning so the two never interfere.
+ * A `*` / `**` glob anchored over the whole string: for paths `*` matches
+ * within a segment and `**` across segments; `star` overrides what a single
+ * `*` matches. Built by scanning so the two never interfere.
  */
-function globMatch(pattern: string, value: string): boolean {
+function globMatch(pattern: string, value: string, star = "[^/]*"): boolean {
 	let regex = "";
 	for (let i = 0; i < pattern.length; i++) {
 		const c = pattern[i] as string;
@@ -252,7 +261,7 @@ function globMatch(pattern: string, value: string): boolean {
 			if (pattern[i + 1] === "*") {
 				regex += ".*";
 				i++;
-			} else regex += "[^/]*";
+			} else regex += star;
 		} else {
 			regex += c.replace(/[.+?^${}()|[\]\\]/, "\\$&");
 		}
