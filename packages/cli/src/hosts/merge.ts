@@ -81,8 +81,13 @@ function named(entryKey: string): (e: unknown) => boolean {
 /** The container at `path`: undefined when a hop is missing. */
 function jsonContainer(root: Obj, path: readonly string[]): Read {
 	let cursor: unknown = root;
-	for (const key of path) {
-		if (!isObj(cursor)) return { ok: false, reason: "not an object" };
+	for (const [i, key] of path.entries()) {
+		if (!isObj(cursor)) {
+			return {
+				ok: false,
+				reason: `"${path.slice(0, i).join(".")}" is not an object`,
+			};
+		}
 		cursor = cursor[key];
 		if (cursor === undefined) return { ok: true, value: undefined };
 	}
@@ -143,7 +148,19 @@ function editJsonArray(
 	};
 }
 
+/**
+ * Fail closed before any edit: a container of the other shape (an array
+ * where an object belongs, an object where a list belongs, or a scalar on
+ * the way) is reported, never replaced and never silently left as is.
+ */
+function guardJson(t: EntryShape, text: string): Edit | null {
+	const found = readJson(t, text);
+	return found.ok ? null : found;
+}
+
 function setJson(t: EntryShape, text: string, entry: unknown): Edit {
+	const invalid = guardJson(t, text);
+	if (invalid !== null) return invalid;
 	if (t.container === "array") {
 		const isMaina = named(t.entryKey);
 		return editJsonArray(t, text, (arr) =>
@@ -158,6 +175,8 @@ function setJson(t: EntryShape, text: string, entry: unknown): Edit {
 }
 
 function deleteJson(t: EntryShape, text: string): Edit {
+	const invalid = guardJson(t, text);
+	if (invalid !== null) return invalid;
 	if (t.container === "array") {
 		const isMaina = named(t.entryKey);
 		return editJsonArray(t, text, (arr) => arr.filter((e) => !isMaina(e)));

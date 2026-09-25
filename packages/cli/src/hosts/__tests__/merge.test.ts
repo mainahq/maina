@@ -8,8 +8,9 @@
 
 import { describe, expect, test } from "bun:test";
 import * as toml from "@iarna/toml";
-import { mergeEntry } from "../merge";
+import { deleteEntry, mergeEntry, setEntry } from "../merge";
 import { type TargetFile, targetsFor } from "../targets";
+import { removeEntry } from "../uninstall";
 
 const ctx = { home: "/h", cwd: "/p", platform: "linux" as const };
 const ENTRY = { command: "/usr/local/bin/maina", args: ["--mcp"] };
@@ -150,6 +151,61 @@ describe("mergeEntry — JSON array containers (Continue)", () => {
 			backup: text,
 		});
 		expect(again.action).toBe("unchanged");
+	});
+});
+
+describe("wrong-typed containers are reported and skipped (#384)", () => {
+	// A user's config may hold the container key with the other shape: an
+	// array where maina expects an object (`"mcpServers": []`), or an
+	// object where it expects a list (Continue's legacy shape). maina must
+	// neither clobber that value nor silently do nothing: every entry point
+	// reports the mismatch and leaves the bytes alone.
+	const entry = { name: "maina", transport: { type: "stdio", command: "m" } };
+	const LEGACY_CONTINUE = `${JSON.stringify(
+		{
+			experimental: {
+				modelContextProtocolServers: { other: { command: "o" } },
+			},
+		},
+		null,
+		2,
+	)}\n`;
+	const EXPERIMENTAL_LIST = `{"experimental": [1, 2]}\n`;
+	const SERVERS_LIST = `{"mcpServers": [{"name": "mine"}]}\n`;
+
+	const cases: ReadonlyArray<readonly [string, TargetFile, string, unknown]> = [
+		["object where a list is expected", continueGlobal, LEGACY_CONTINUE, entry],
+		["list on the path to a list", continueGlobal, EXPERIMENTAL_LIST, entry],
+		["list where an object is expected", claudeUser, SERVERS_LIST, ENTRY],
+	];
+
+	test.each(cases)("setEntry: %s", (_label, t, text, value) => {
+		const next = setEntry(t, text, value);
+		expect(next.ok).toBe(false);
+		if (next.ok) return;
+		expect(next.reason).toMatch(/not (a list|an object)/);
+	});
+
+	test.each(cases)("deleteEntry: %s", (_label, t, text) => {
+		const next = deleteEntry(t, text);
+		expect(next.ok).toBe(false);
+		if (next.ok) return;
+		expect(next.reason).toMatch(/not (a list|an object)/);
+	});
+
+	test.each(cases)("mergeEntry skips: %s", (_label, t, text, value) => {
+		const op = mergeEntry(t, value, { text, backup: null });
+		expect(op.action).toBe("skipped");
+		expect(op.content).toBeUndefined();
+		expect(op.backup).toBeUndefined();
+		expect(op.reason).toMatch(/not (a list|an object)/);
+	});
+
+	test.each(cases)("removeEntry skips: %s", (_label, t, text) => {
+		const op = removeEntry(t, { text, backup: null });
+		expect(op.action).toBe("skipped");
+		expect(op.content).toBeUndefined();
+		expect(op.reason).toMatch(/not (a list|an object)/);
 	});
 });
 

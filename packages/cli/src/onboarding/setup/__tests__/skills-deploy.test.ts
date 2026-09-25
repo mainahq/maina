@@ -177,21 +177,51 @@ describe("skillsRootCandidates", () => {
 		["bundle entry", "/repo/packages/cli/dist"],
 		["bundle chunk", "/repo/packages/cli/dist/shared"],
 	])("from the %s reaches packages/skills", (_layout, here) => {
+		// In the monorepo the nested path is the workspace link to
+		// packages/skills, so both candidates name the same package.
 		expect(skillsRootCandidates(here, hasPackageJson)).toEqual([
+			"/repo/packages/cli/node_modules/@mainahq/skills",
 			"/repo/packages/skills",
 		]);
 	});
 
-	test("from an installed chunk reaches the sibling @mainahq/skills", () => {
+	test("from an installed chunk reaches the nested dependency, then the hoisted sibling (#384)", () => {
+		// npm's global install nests the CLI's own (pinned) dependency in its
+		// node_modules; a hoisted layout (bun/pnpm) keeps it next to the CLI.
+		// The nested copy comes first: under npm the sibling is a separate
+		// global `@mainahq/skills` install (what the old warning told users
+		// to add), which may be stale and must not shadow the CLI's version.
 		expect(
 			skillsRootCandidates(
 				"/g/node_modules/@mainahq/cli/dist/shared",
 				hasPackageJson,
 			),
-		).toEqual(["/g/node_modules/@mainahq/skills"]);
+		).toEqual([
+			"/g/node_modules/@mainahq/cli/node_modules/@mainahq/skills",
+			"/g/node_modules/@mainahq/skills",
+		]);
 	});
 
 	test("with no enclosing package there is no candidate", () => {
 		expect(skillsRootCandidates("/tmp/a/b", hasPackageJson)).toEqual([]);
+	});
+});
+
+describe("@mainahq/cli ships its skills (#384)", () => {
+	// `maina setup` always deploys skills; a global install of the CLI alone
+	// must be able to resolve them, so the CLI depends on the skills package
+	// at the shared (fixed-group) version.
+	const pkgDir = (name: string) =>
+		join(import.meta.dir, "..", "..", "..", "..", "..", name);
+	const manifest = (name: string) =>
+		JSON.parse(readFileSync(join(pkgDir(name), "package.json"), "utf-8")) as {
+			version: string;
+			dependencies?: Record<string, string>;
+		};
+
+	test("@mainahq/skills is a runtime dependency of @mainahq/cli", () => {
+		const cli = manifest("cli");
+		const skills = manifest("skills");
+		expect(cli.dependencies?.["@mainahq/skills"]).toBe(skills.version);
 	});
 });

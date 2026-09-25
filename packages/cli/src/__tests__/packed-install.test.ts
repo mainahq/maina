@@ -27,7 +27,9 @@ import { dirname, join, resolve } from "node:path";
 import { VERSION } from "@mainahq/core";
 
 const ROOT = resolve(import.meta.dir, "..", "..", "..", "..");
-const PACKAGES = ["core", "mcp", "cli"] as const;
+// `@mainahq/skills` is data only (SKILL.md files, no entry point); the CLI
+// depends on it so a global install can deploy skills (#384).
+const PACKAGES = ["core", "mcp", "skills", "cli"] as const;
 type Pkg = (typeof PACKAGES)[number];
 
 interface PackEntry {
@@ -137,30 +139,33 @@ describe.skipIf(npm === null)("npm pack", () => {
 			expect(text.match(/declare const \w+: unknown;/g) ?? []).toEqual([]);
 		});
 
-		test(`@mainahq/${pkg} entry points are compiled files inside the tarball`, () => {
-			const files = new Set(packs.get(pkg)?.files.map((f) => f.path) ?? []);
-			const manifest = JSON.parse(
-				readFileSync(join(ROOT, "packages", pkg, "package.json"), "utf-8"),
-			) as {
-				main?: string;
-				types?: string;
-				bin?: Record<string, string>;
-			};
-			const targets = [
-				manifest.main,
-				manifest.types,
-				...Object.values(manifest.bin ?? {}),
-			].filter((t): t is string => t !== undefined);
-			expect(targets.length).toBeGreaterThan(0);
-			for (const t of targets) {
-				const path = t.replace(/^\.\//, "");
-				expect({ target: path, packed: files.has(path) }).toEqual({
-					target: path,
-					packed: true,
-				});
-				expect(path).toMatch(/\.(js|d\.ts)$/);
-			}
-		});
+		test.if(pkg !== "skills")(
+			`@mainahq/${pkg} entry points are compiled files inside the tarball`,
+			() => {
+				const files = new Set(packs.get(pkg)?.files.map((f) => f.path) ?? []);
+				const manifest = JSON.parse(
+					readFileSync(join(ROOT, "packages", pkg, "package.json"), "utf-8"),
+				) as {
+					main?: string;
+					types?: string;
+					bin?: Record<string, string>;
+				};
+				const targets = [
+					manifest.main,
+					manifest.types,
+					...Object.values(manifest.bin ?? {}),
+				].filter((t): t is string => t !== undefined);
+				expect(targets.length).toBeGreaterThan(0);
+				for (const t of targets) {
+					const path = t.replace(/^\.\//, "");
+					expect({ target: path, packed: files.has(path) }).toEqual({
+						target: path,
+						packed: true,
+					});
+					expect(path).toMatch(/\.(js|d\.ts)$/);
+				}
+			},
+		);
 	}
 });
 
@@ -237,6 +242,28 @@ describe.skipIf(npm === null || node === null)("packed CLI install", () => {
 		const core = join(prefix, "node_modules", "@mainahq", "core");
 		expect(realpathSync(core).startsWith(realpathSync(prefix))).toBe(true);
 		expect(existsSync(join(core, "src"))).toBe(false);
+	});
+
+	test("the installed CLI resolves @mainahq/skills from its own location (#384)", () => {
+		const cliDir = join(prefix, "node_modules", "@mainahq", "cli");
+		const r = run(
+			[
+				node as string,
+				"-e",
+				'const { createRequire } = require("node:module"); process.stdout.write(createRequire(process.argv[1]).resolve("@mainahq/skills/package.json"));',
+				join(cliDir, "dist", "index.js"),
+			],
+			// Resolution must not depend on the user's cwd.
+			work,
+			{ PATH: nodeOnlyPath },
+		);
+		expect({ exitCode: r.exitCode, stderr: r.stderr }).toEqual({
+			exitCode: 0,
+			stderr: "",
+		});
+		const skills = dirname(realpathSync(r.stdout));
+		expect(skills.startsWith(realpathSync(prefix))).toBe(true);
+		expect(existsSync(join(skills, "tdd", "SKILL.md"))).toBe(true);
 	});
 
 	// A host spawns the runtime by absolute path with a GUI PATH that has no
