@@ -400,6 +400,30 @@ function inTransaction<T>(
 	return result;
 }
 
+/** Whether two reads of `graph_files` hold the same rows. */
+function sameRows(
+	a: ReadonlyMap<string, StoredRow>,
+	b: ReadonlyMap<string, StoredRow>,
+): boolean {
+	if (a.size !== b.size) return false;
+	for (const [path, row] of a) {
+		const other = b.get(path);
+		if (other?.hash !== row.hash || other.lang !== row.lang) return false;
+	}
+	return true;
+}
+
+/** How many times a sync plans before yielding to a busier writer. */
+const MAX_ATTEMPTS = 3;
+
+const sorted = (xs: readonly string[]): readonly string[] => [...xs].sort();
+
+/**
+ * Plans outside any lock, then applies only if no other writer committed
+ * since the plan's snapshot (every commit changes `graph_files`); otherwise
+ * plans again from the newer store. Overlapping syncs, in this process or
+ * another, therefore end as if they had run one after the other.
+ */
 export async function sync(
 	ports: GraphStorePorts,
 	root: string,
@@ -409,34 +433,44 @@ export async function sync(
 ): Promise<Result<GraphSyncReport, GraphStoreError>> {
 	const migrated = migrateGraphStore(ports.db);
 	if (!migrated.ok) return { ok: false, error: dbError(migrated.error) };
-	const stored = loadStored(ports.db);
-	if (!stored.ok) return { ok: false, error: dbError(stored.error) };
 
-	const planned = await plan(
-		ports,
-		root,
-		scopeOf([...stored.value.keys()]),
-		stored.value,
-		options.parse ?? parseFile,
-	);
-	if (!planned.ok) return planned;
-	const change = planned.value;
+	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+		const stored = loadStored(ports.db);
+		if (!stored.ok) return { ok: false, error: dbError(stored.error) };
+		const planned = await plan(
+			ports,
+			root,
+			scopeOf([...stored.value.keys()]),
+			stored.value,
+			options.parse ?? parseFile,
+		);
+		if (!planned.ok) return planned;
+		const change = planned.value;
 
-	let resolved: readonly string[] = [];
-	if (change.upserts.length > 0 || change.removed.length > 0) {
-		const applied = inTransaction(ports.db, () => apply(ports.db, change));
-		if (!applied.ok) return { ok: false, error: dbError(applied.error) };
-		resolved = applied.value;
+		let resolved: readonly string[] = [];
+		if (change.upserts.length > 0 || change.removed.length > 0) {
+			// Null: another writer committed since `stored` was read.
+			const applied = inTransaction<readonly string[] | null>(ports.db, () => {
+				const current = loadStored(ports.db);
+				if (!current.ok) return current;
+				return sameRows(current.value, stored.value)
+					? apply(ports.db, change)
+					: { ok: true, value: null };
+			});
+			if (!applied.ok) return { ok: false, error: dbError(applied.error) };
+			if (applied.value === null) continue;
+			resolved = applied.value;
+		}
+		return {
+			ok: true,
+			value: {
+				parsed: sorted(change.parsed),
+				reused: sorted(change.reused),
+				unchanged: sorted(change.unchanged),
+				removed: sorted(change.removed),
+				resolved,
+			},
+		};
 	}
-	const sorted = (xs: readonly string[]): readonly string[] => [...xs].sort();
-	return {
-		ok: true,
-		value: {
-			parsed: sorted(change.parsed),
-			reused: sorted(change.reused),
-			unchanged: sorted(change.unchanged),
-			removed: sorted(change.removed),
-			resolved,
-		},
-	};
+	return { ok: false, error: { kind: "conflict", attempts: MAX_ATTEMPTS } };
 }

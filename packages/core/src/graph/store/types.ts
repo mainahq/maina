@@ -21,7 +21,9 @@ export type GraphStoreOptions = Readonly<{
 export type GraphStoreError =
 	| Readonly<{ kind: "db"; message: string }>
 	| Readonly<{ kind: "fs"; path: string; message: string }>
-	| Readonly<{ kind: "parse"; error: ParseError }>;
+	| Readonly<{ kind: "parse"; error: ParseError }>
+	/** Another writer committed under every attempt; a later sync catches up. */
+	| Readonly<{ kind: "conflict"; attempts: number }>;
 
 /** What a sync did, each list sorted by path. */
 export type GraphSyncReport = Readonly<{

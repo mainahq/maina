@@ -12,6 +12,11 @@
  *    re-resolve the changed files plus every file that depended on them (see
  *    `resolve.ts`), and prune parses no file points at any more.
  *
+ * Phase 1 holds no lock, so syncs may overlap (the runtime's hooks and the
+ * context engine share one store). Phase 2 applies only if no other sync
+ * committed since phase 1 read the store; otherwise the sync plans again, so
+ * a stale plan never overwrites newer work.
+ *
  * The result is the same store a full rebuild into an empty database would
  * produce (the equivalence property test checks this), at the cost of
  * parsing only what changed.
