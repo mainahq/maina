@@ -1035,6 +1035,7 @@ export async function setupAction(
 				},
 				CLI_VERSION,
 			),
+			processEnv,
 		);
 	}
 	return result;

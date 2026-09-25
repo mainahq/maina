@@ -14,8 +14,6 @@ import type { PurityRule } from "./purity-scanner";
 export const PURITY_ALLOWLIST: Readonly<
 	Record<string, Readonly<Partial<Record<PurityRule, number>>>>
 > = {
-	"benchmark/runner.ts": { "process.env": 1 },
-	"feedback/collector.ts": { "process.env": 1 },
 	"mcp/clients.ts": { "process.env": 6 },
 	"setup/confirm.ts": {
 		"process.cwd": 1,
@@ -24,7 +22,4 @@ export const PURITY_ALLOWLIST: Readonly<
 	},
 	"setup/resolve-ai.ts": { "process.env": 2 },
 	"setup/skills-deploy.ts": { "process.cwd": 1 },
-	"telemetry/cli-error-reporter.ts": { "process.env": 5 },
-	"telemetry/posthog-client.ts": { "process.env": 3 },
-	"telemetry/reporter.ts": { "process.env": 5 },
 };

@@ -193,6 +193,7 @@ export async function cloudVerifyAction(
 			{ cloud: true, deep: false, visual: false, all: false },
 			CLI_VERSION,
 		),
+		processEnv,
 	);
 
 	// ── Step 1: Auth ──────────────────────────────────────────────────────
@@ -333,6 +334,7 @@ export async function cloudVerifyAction(
 			},
 			CLI_VERSION,
 		),
+		processEnv,
 	);
 
 	return {
@@ -374,6 +376,7 @@ export async function verifyAction(
 			},
 			CLI_VERSION,
 		),
+		processEnv,
 	);
 
 	// ── AI availability check ────────────────────────────────────────────
@@ -524,14 +527,18 @@ export async function verifyAction(
 
 	const branch = await getCurrentBranch(cwd);
 	const workflowId = getWorkflowId(branch);
-	recordFeedbackAsync(wfMainaDir, {
-		promptHash: "deterministic",
-		task: "verify",
-		accepted: result.passed,
-		timestamp: new Date().toISOString(),
-		workflowStep: "verify",
-		workflowId,
-	});
+	recordFeedbackAsync(
+		wfMainaDir,
+		{
+			promptHash: "deterministic",
+			task: "verify",
+			accepted: result.passed,
+			timestamp: new Date().toISOString(),
+			workflowStep: "verify",
+			workflowId,
+		},
+		{ env: processEnv },
+	);
 
 	captureUsage(
 		buildUsageEvent(
@@ -546,6 +553,7 @@ export async function verifyAction(
 			},
 			CLI_VERSION,
 		),
+		processEnv,
 	);
 
 	return result;

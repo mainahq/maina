@@ -11,6 +11,7 @@ import {
 	recordFeedbackAsync,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { processEnv } from "../env";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -144,14 +145,18 @@ export async function reviewDesignAction(
 
 	const branch = await getCurrentBranch(cwd);
 	const workflowId = getWorkflowId(branch);
-	recordFeedbackAsync(mainaDir, {
-		promptHash: "deterministic",
-		task: "review-design",
-		accepted: passed,
-		timestamp: new Date().toISOString(),
-		workflowStep: "design-review",
-		workflowId,
-	});
+	recordFeedbackAsync(
+		mainaDir,
+		{
+			promptHash: "deterministic",
+			task: "review-design",
+			accepted: passed,
+			timestamp: new Date().toISOString(),
+			workflowStep: "design-review",
+			workflowId,
+		},
+		{ env: processEnv },
+	);
 
 	return {
 		reviewed: true,

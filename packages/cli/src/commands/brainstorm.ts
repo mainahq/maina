@@ -272,14 +272,18 @@ export async function brainstormAction(
 
 		const branch = await getCurrentBranch(cwd);
 		const workflowId = getWorkflowId(branch);
-		recordFeedbackAsync(mainaDir, {
-			promptHash: "deterministic",
-			task: "brainstorm",
-			accepted: true,
-			timestamp: new Date().toISOString(),
-			workflowStep: "brainstorm",
-			workflowId,
-		});
+		recordFeedbackAsync(
+			mainaDir,
+			{
+				promptHash: "deterministic",
+				task: "brainstorm",
+				accepted: true,
+				timestamp: new Date().toISOString(),
+				workflowStep: "brainstorm",
+				workflowId,
+			},
+			{ env: processEnv },
+		);
 	} catch {
 		// Workflow recording should never block the result
 	}

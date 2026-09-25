@@ -2,6 +2,7 @@
 
 import { sendCliErrorReport } from "@mainahq/core";
 import pkg from "../package.json" with { type: "json" };
+import { processEnv } from "./env";
 
 // ── Top-level error handling ────────────────────────────────────────────────
 
@@ -44,6 +45,7 @@ function printAndReport(err: unknown, origin: string): void {
 	// Fire-and-forget; never block the crash path on the network call.
 	// `sendCliErrorReport` already swallows its own errors and times out at 1s.
 	void sendCliErrorReport(e, {
+		env: processEnv,
 		mainaVersion: pkg.version,
 		argv: process.argv,
 	}).finally(() => {

@@ -4,10 +4,25 @@ import { loadAuthConfig } from "../cloud/auth";
 import { createCloudClient } from "../cloud/client";
 import { getFeedbackDb } from "../db/index";
 import { getRepoSlug } from "../git/index";
+import type { EnvPort } from "../ports/env";
 import { recordOutcome } from "../prompts/engine";
 import { compressReview, storeCompressedReview } from "./compress";
 
-const CLOUD_URL = process.env.MAINA_CLOUD_URL ?? "https://api.mainahq.com";
+const DEFAULT_CLOUD_URL = "https://api.mainahq.com";
+
+/**
+ * What the fire-and-forget cloud sync needs from its caller: the environment
+ * `MAINA_CLOUD_URL` is read from, and optionally where `auth.json` lives
+ * (defaults to `~/.maina`).
+ */
+export type FeedbackSyncContext = Readonly<{
+	env: EnvPort;
+	authDir?: string;
+}>;
+
+function cloudUrl(env: EnvPort): string {
+	return env.get("MAINA_CLOUD_URL") ?? DEFAULT_CLOUD_URL;
+}
 
 export interface FeedbackRecord {
 	promptHash: string;
@@ -80,6 +95,7 @@ export function getFeedbackSummary(
 export function recordFeedbackWithCompression(
 	mainaDir: string,
 	record: FeedbackRecord & { aiOutput?: string; diff?: string },
+	sync: FeedbackSyncContext,
 ): void {
 	// Record the feedback
 	recordFeedback(mainaDir, record);
@@ -98,10 +114,10 @@ export function recordFeedbackWithCompression(
 			// Auto-sync episodic entry to cloud (fire-and-forget)
 			queueMicrotask(async () => {
 				try {
-					const auth = loadAuthConfig();
+					const auth = loadAuthConfig(sync.authDir);
 					if (auth.ok && auth.value.accessToken) {
 						const client = createCloudClient({
-							baseUrl: CLOUD_URL,
+							baseUrl: cloudUrl(sync.env),
 							token: auth.value.accessToken,
 						});
 						// The repo owning this .maina dir (explicit root, not the cwd).
@@ -137,6 +153,7 @@ export function recordFeedbackAsync(
 		workflowStep?: string;
 		workflowId?: string;
 	},
+	sync: FeedbackSyncContext,
 ): void {
 	queueMicrotask(() => {
 		try {
@@ -161,10 +178,10 @@ export function recordFeedbackAsync(
 
 		// Auto-sync to cloud if logged in (fire-and-forget, never blocks)
 		try {
-			const auth = loadAuthConfig();
+			const auth = loadAuthConfig(sync.authDir);
 			if (auth.ok && auth.value.accessToken) {
 				const client = createCloudClient({
-					baseUrl: CLOUD_URL,
+					baseUrl: cloudUrl(sync.env),
 					token: auth.value.accessToken,
 				});
 				client.postFeedbackBatch([

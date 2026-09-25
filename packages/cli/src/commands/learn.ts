@@ -16,6 +16,7 @@ import {
 } from "@mainahq/core";
 import { Command } from "commander";
 import packageJson from "../../package.json" with { type: "json" };
+import { processEnv } from "../env";
 
 const CLI_VERSION = (packageJson as { version?: string }).version ?? "0.0.0";
 
@@ -53,6 +54,7 @@ export function learnCommand(): Command {
 			// when telemetry is off or the build-time key is absent.
 			captureUsage(
 				buildUsageEvent("maina.learn.ran", { cloud, interactive }, CLI_VERSION),
+				processEnv,
 			);
 
 			// ── Cloud mode ──────────────────────────────────────────────────

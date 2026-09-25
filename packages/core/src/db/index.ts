@@ -2,12 +2,47 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { drizzle } from "drizzle-orm/bun-sqlite";
+import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 import * as schema from "./schema.ts";
 
-type DbHandle = {
-	db: Database;
-	drizzle: ReturnType<typeof drizzle<typeof schema>>;
+/** A value SQLite can bind to a `?` or `$name` placeholder. */
+export type SqlBinding = string | number | bigint | boolean | null | Uint8Array;
+
+/** Positional values, or one object of named (`$name`) values. */
+export type SqlBindings = SqlBinding | Readonly<Record<string, SqlBinding>>;
+
+export type SqlChanges = Readonly<{
+	changes: number;
+	lastInsertRowid: number | bigint;
+}>;
+
+/**
+ * The prepared-statement surface core uses. Structural and driver-neutral so
+ * the published types never name a `bun:*` module (a Node consumer with
+ * `skipLibCheck: false` cannot resolve one); bun:sqlite's `Statement`
+ * satisfies it.
+ */
+export type SqliteStatement = {
+	/** Every result row; callers narrow the row shape at the call site. */
+	all(...params: SqlBindings[]): unknown[];
+	/** The first result row, or `null`. */
+	get(...params: SqlBindings[]): unknown;
+	run(...params: SqlBindings[]): SqlChanges;
 };
+
+/** The synchronous SQLite connection surface core uses (see `SqliteStatement`). */
+export type SqliteDatabase = {
+	exec(sql: string, ...bindings: SqlBindings[][]): SqlChanges;
+	run(sql: string, ...bindings: SqlBindings[][]): SqlChanges;
+	query(sql: string): SqliteStatement;
+	prepare(sql: string): SqliteStatement;
+	close(throwOnError?: boolean): void;
+};
+
+export type DbHandle = Readonly<{
+	db: SqliteDatabase;
+	drizzle: BaseSQLiteDatabase<"sync", void, typeof schema>;
+}>;
 
 export type Result<T, E = string> =
 	| { ok: true; value: T }
@@ -24,7 +59,7 @@ function err<E>(error: E): Result<never, E> {
 /**
  * Create context tables: episodic_entries, semantic_entities, dependency_edges.
  */
-function createContextTables(db: Database): void {
+function createContextTables(db: SqliteDatabase): void {
 	db.exec(`
 		CREATE TABLE IF NOT EXISTS episodic_entries (
 			id TEXT PRIMARY KEY,
@@ -60,7 +95,7 @@ function createContextTables(db: Database): void {
 /**
  * Create cache tables: cache_entries.
  */
-function createCacheTables(db: Database): void {
+function createCacheTables(db: SqliteDatabase): void {
 	db.exec(`
 		CREATE TABLE IF NOT EXISTS cache_entries (
 			id TEXT PRIMARY KEY,
@@ -78,7 +113,7 @@ function createCacheTables(db: Database): void {
 /**
  * Create feedback tables: feedback, prompt_versions, external_review_findings.
  */
-function createFeedbackTables(db: Database): void {
+function createFeedbackTables(db: SqliteDatabase): void {
 	db.exec(`
 		CREATE TABLE IF NOT EXISTS feedback (
 			id TEXT PRIMARY KEY,
@@ -157,7 +192,7 @@ function createFeedbackTables(db: Database): void {
 /**
  * Create stats tables: commit_snapshots.
  */
-function createStatsTables(db: Database): void {
+function createStatsTables(db: SqliteDatabase): void {
 	db.exec(`
 		CREATE TABLE IF NOT EXISTS commit_snapshots (
 			id TEXT PRIMARY KEY,
@@ -211,7 +246,7 @@ function createStatsTables(db: Database): void {
  */
 export function initDatabase(
 	dbPath: string,
-	tableCreator?: (db: Database) => void,
+	tableCreator?: (db: SqliteDatabase) => void,
 ): Result<DbHandle> {
 	try {
 		mkdirSync(dirname(dbPath), { recursive: true });

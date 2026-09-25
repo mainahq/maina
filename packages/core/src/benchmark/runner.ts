@@ -20,6 +20,11 @@ interface RunBenchmarkOptions {
 	attemptsToPass?: number;
 	bugsIntroduced?: number;
 	toolsUsed?: string[];
+	/**
+	 * Environment for the `bun test` child (it also gets `MITT_IMPL_PATH`).
+	 * The edge passes its process environment; core never reads it.
+	 */
+	env: Readonly<Record<string, string | undefined>>;
 }
 
 /**
@@ -50,7 +55,7 @@ export async function runBenchmark(
 			stdout: "pipe",
 			stderr: "pipe",
 			env: {
-				...process.env,
+				...options.env,
 				MITT_IMPL_PATH: options.implDir,
 			},
 		});

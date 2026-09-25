@@ -20,6 +20,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, win32 as winPath } from "node:path";
+import type { EnvPort } from "../ports/env";
 import { scrubPii, scrubStackTrace } from "./scrubber";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -43,26 +44,28 @@ export interface SendOptions {
 	argv?: string[];
 	baseUrl?: string;
 	timeoutMs?: number;
+	/** Environment for opt-out flags, `HOME`, `CI` and `MAINA_CLOUD_URL`. */
+	env: EnvPort;
 }
 
 // ── Consent ─────────────────────────────────────────────────────────────────
 
-function telemetryConfigPath(): string {
+function telemetryConfigPath(env: EnvPort): string {
 	// Honour $HOME first so tests (and container users overriding $HOME) work;
 	// fall back to the OS-reported home directory.
-	return join(process.env.HOME ?? homedir(), ".maina", "telemetry.json");
+	return join(env.get("HOME") ?? homedir(), ".maina", "telemetry.json");
 }
 
 /**
  * Returns true when the user has opted out of CLI telemetry.
  * Any one of env var, DO_NOT_TRACK, or file flag is sufficient.
  */
-export function isCliTelemetryOptedOut(): boolean {
-	if (process.env.MAINA_TELEMETRY === "0") return true;
-	if (process.env.DO_NOT_TRACK === "1") return true;
+export function isCliTelemetryOptedOut(env: EnvPort): boolean {
+	if (env.get("MAINA_TELEMETRY") === "0") return true;
+	if (env.get("DO_NOT_TRACK") === "1") return true;
 
 	try {
-		const path = telemetryConfigPath();
+		const path = telemetryConfigPath(env);
 		if (!existsSync(path)) return false;
 		const raw = readFileSync(path, "utf-8");
 		const parsed = JSON.parse(raw) as { optOut?: boolean };
@@ -159,7 +162,7 @@ export function buildCliErrorPayload(
 		nodeVersion: process.version,
 		platform: process.platform,
 		arch: process.arch,
-		ci: !!process.env.CI,
+		ci: !!opts.env.get("CI"),
 	};
 }
 
@@ -173,10 +176,12 @@ export async function sendCliErrorReport(
 	error: unknown,
 	opts: SendOptions,
 ): Promise<void> {
-	if (isCliTelemetryOptedOut()) return;
+	if (isCliTelemetryOptedOut(opts.env)) return;
 
 	const baseUrl =
-		opts.baseUrl ?? process.env.MAINA_CLOUD_URL ?? "https://api.mainahq.com";
+		opts.baseUrl ??
+		opts.env.get("MAINA_CLOUD_URL") ??
+		"https://api.mainahq.com";
 	const timeoutMs = opts.timeoutMs ?? 1000;
 
 	let payload: CliErrorPayload;
