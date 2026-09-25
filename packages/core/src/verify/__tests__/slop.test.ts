@@ -309,6 +309,74 @@ function double(n: number): number {
 		});
 	});
 
+	// ─── Non-code data files (#372) ─────────────────────────────────────────
+
+	describe("non-code data files", () => {
+		// A golden-style fixture: JSON whose string values hold a recorded diff
+		// with relative imports, console.log and TODOs. None of it is code.
+		const jsonFixture = `${JSON.stringify(
+			{
+				site: "review/index.ts#code-quality",
+				input: {
+					diff: [
+						"+import { CLOUD_FAQ } from '../data/cloud-landing';",
+						"+import helper from './missing-helper';",
+						"+const x = require('./not-here');",
+						"+console.log('debug');",
+						"+// TODO: wire this up",
+						"+function noop() {}",
+					].join("\n"),
+				},
+			},
+			null,
+			"\t",
+		)}\n`;
+
+		it("detectHallucinatedImports skips .json files with import-like strings", () => {
+			const findings = detectHallucinatedImports(
+				jsonFixture,
+				"packages/core/src/__golden__/decisions/review.json",
+				TMP_DIR,
+			);
+			expect(findings).toHaveLength(0);
+		});
+
+		it("detectHallucinatedImports skips .jsonl, .yml, .yaml and .md files", () => {
+			const content = 'import x from "./missing";\n';
+			for (const file of ["data.jsonl", "ci.yml", "ci.yaml", "notes.md"]) {
+				expect(detectHallucinatedImports(content, file, TMP_DIR)).toHaveLength(
+					0,
+				);
+			}
+		});
+
+		it("detectHallucinatedImports still flags code files (.ts, .mjs, .cjs)", () => {
+			const content = 'import x from "./missing";\n';
+			for (const file of ["mod.ts", "mod.mjs", "mod.cjs"]) {
+				expect(detectHallucinatedImports(content, file, TMP_DIR)).toHaveLength(
+					1,
+				);
+			}
+		});
+
+		it("detectSlop returns no findings for a JSON fixture", async () => {
+			const filePath = writeFixture("golden-fixture.json", jsonFixture);
+			const result = await detectSlop([filePath], { cwd: TMP_DIR });
+			expect(result.findings).toEqual([]);
+		});
+
+		it("detectSlop still reports code files passed alongside data files", async () => {
+			const jsonPath = writeFixture("mixed-fixture.json", jsonFixture);
+			const codePath = writeFixture(
+				"mixed-code.ts",
+				'import x from "./missing";\nexport const y = x;\n',
+			);
+			const result = await detectSlop([jsonPath, codePath], { cwd: TMP_DIR });
+			expect(result.findings.map((f) => f.file)).toEqual([codePath]);
+			expect(result.findings[0]?.ruleId).toBe("slop/hallucinated-import");
+		});
+	});
+
 	// ─── Language-aware slop detection ──────────────────────────────────────
 
 	describe("language-aware slop detection", () => {

@@ -320,3 +320,55 @@ describe("runBuiltinChecks", () => {
 		expect(findings).toHaveLength(0);
 	});
 });
+
+// ─── Non-code data files (#372) ─────────────────────────────────────────
+
+describe("runBuiltinChecks on non-code data files", () => {
+	const recordedDiff = [
+		"+import { unused } from '../data/cloud-landing';",
+		"+console.log('debug');",
+		"+// TODO: fix later",
+		"+const x: any = 1;",
+		"+try { f(); } catch (e) {}",
+	].join("\n");
+	// Padded past the 500-line file-size threshold as well
+	const jsonFixture = `${JSON.stringify({ input: { diff: recordedDiff } }, null, "\t")}${"\n".repeat(600)}`;
+
+	it("skips code-smell checks for .json, .jsonl, .yml, .yaml and .md files", () => {
+		for (const file of [
+			"packages/core/src/__golden__/decisions/review.json",
+			"scripts/golden-corpus/cases.jsonl",
+			".github/workflows/ci.yml",
+			"config.yaml",
+			"docs/guide.md",
+		]) {
+			expect(runBuiltinChecks(file, jsonFixture)).toEqual([]);
+		}
+	});
+
+	it("skips code-smell checks even when a data file holds raw code lines", () => {
+		const raw = [
+			'import { unused } from "./mod";',
+			'console.log("bad");',
+			"// TODO: fix later",
+		].join("\n");
+		expect(runBuiltinChecks("fixtures/snippet.json", raw)).toEqual([]);
+	});
+
+	it("still scans data files for hardcoded secrets", () => {
+		const findings = runBuiltinChecks(
+			"config/settings.yml",
+			'api_key: "sk_live_abcdef1234567890"',
+		);
+		expect(findings.map((f) => f.ruleId)).toEqual(["hardcoded-secret"]);
+	});
+
+	it("still runs code checks on .mjs and .cjs files", () => {
+		for (const file of ["src/app.mjs", "src/app.cjs"]) {
+			const ids = runBuiltinChecks(file, 'console.log("bad");').map(
+				(f) => f.ruleId,
+			);
+			expect(ids).toContain("no-console-log");
+		}
+	});
+});

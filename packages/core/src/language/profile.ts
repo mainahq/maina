@@ -173,3 +173,31 @@ export function getProfile(id: LanguageId): LanguageProfile {
 export function getSupportedLanguages(): LanguageId[] {
 	return Object.keys(PROFILES) as LanguageId[];
 }
+
+/**
+ * Extensions treated as source code: every language-profile extension plus
+ * the JS/TS module variants and component formats that hold script code.
+ */
+const CODE_EXTENSIONS: ReadonlySet<string> = new Set([
+	...Object.values(PROFILES).flatMap((p) => p.extensions),
+	".mjs",
+	".cjs",
+	".mts",
+	".cts",
+	".vue",
+	".svelte",
+	".astro",
+]);
+
+/**
+ * True when `filePath` is a source-code file. Data and docs files (`.json`,
+ * `.jsonl`, `.yml`, `.md`, fixtures, …) return false, so code-pattern checks
+ * don't misread code snippets stored in their string values (#372).
+ */
+export function isCodeFile(filePath: string): boolean {
+	const sep = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
+	const name = filePath.slice(sep + 1);
+	const dot = name.lastIndexOf(".");
+	if (dot <= 0) return false;
+	return CODE_EXTENSIONS.has(name.slice(dot).toLowerCase());
+}
