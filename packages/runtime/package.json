@@ -11,6 +11,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@mainahq/core": "workspace:*"
+  },
   "devDependencies": {
     "ajv": "^8.18.0"
   }

@@ -72,6 +72,9 @@
     "packages/runtime": {
       "name": "@mainahq/runtime",
       "version": "0.0.0",
+      "dependencies": {
+        "@mainahq/core": "workspace:*",
+      },
       "devDependencies": {
         "ajv": "^8.18.0",
       },
