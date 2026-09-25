@@ -13,6 +13,9 @@ on:
     - cron: "15 4 * * *" # 04:15 UTC daily
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: harness-agents-nightly
   cancel-in-progress: true
@@ -66,10 +69,11 @@ jobs:
         run: ${{ matrix.install }}
       - name: Smoke
         if: steps.creds.outputs.skip != 'true'
+        # Each agent gets only its own credential, not every vendor's key.
         env:
           MAINA_AGENT_SMOKE: ${{ matrix.agent }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ matrix.credential == 'ANTHROPIC_API_KEY' && secrets.ANTHROPIC_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ matrix.credential == 'OPENAI_API_KEY' && secrets.OPENAI_API_KEY || '' }}
+          CURSOR_API_KEY: ${{ matrix.credential == 'CURSOR_API_KEY' && secrets.CURSOR_API_KEY || '' }}
+          GEMINI_API_KEY: ${{ matrix.credential == 'GEMINI_API_KEY' && secrets.GEMINI_API_KEY || '' }}
         run: bun test packages/harness/src/workers/__tests__/agents.e2e.test.ts

@@ -15,14 +15,14 @@ import type { WorkerName } from "./spec";
 
 export const MIN_ADAPTER_VERSIONS: Readonly<Record<WorkerName, string | null>> =
 	{
-		/** @agentclientprotocol/claude-agent-acp: first on ACP SDK 1.0. */
-		claude: "0.53.0",
-		/** @agentclientprotocol/codex-acp: first on ACP SDK 1.x. */
-		codex: "1.1.0",
+		/** @agentclientprotocol/claude-agent-acp: first on ACP SDK 1.0 (0.51.0 was on 0.29). */
+		claude: "0.52.0",
+		/** @agentclientprotocol/codex-acp: first on ACP SDK 1.x (1.0.0 was on 0.28). */
+		codex: "1.0.1",
 		/** Cursor `agent`: date-versioned, not pinned (see above). */
 		cursor: null,
-		/** @google/gemini-cli: first with `--acp` (was `--experimental-acp`). */
-		gemini: "0.35.0",
+		/** @google/gemini-cli: first with `--acp` (0.32.0 had only `--experimental-acp`). */
+		gemini: "0.33.0",
 		/** opencode-ai: first stable major, `opencode acp` included. */
 		opencode: "1.0.0",
 	};

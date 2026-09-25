@@ -110,6 +110,20 @@ describe("resolveWorker: missing, outdated, unknown", () => {
 		expect(resolved("gemini", probe({ gemini: min })).version).toBe(min);
 	});
 
+	// The first release that meets each pin's stated reason, checked against
+	// the published packages: claude-agent-acp 0.52.0 and codex-acp 1.0.1
+	// are the first on `@agentclientprotocol/sdk` 1.x, gemini-cli 0.33.0 the
+	// first with `--acp`. A working install must not be called outdated.
+	test.each([
+		["claude", "claude-agent-acp", "0.52.0", "0.51.0"],
+		["codex", "codex-acp", "1.0.1", "1.0.0"],
+		["gemini", "gemini", "0.33.0", "0.32.0"],
+	] as const)("%s: %s %s is accepted, %s is not", (name, binary, first, before) => {
+		expect(resolved(name, probe({ [binary]: first })).version).toBe(first);
+		const old = resolveWorker(name, probe({ [binary]: before }));
+		expect(old.ok ? "resolved" : old.error.code).toBe("outdated");
+	});
+
 	test("an unknown worker names the supported ones", () => {
 		const result = resolveWorker("aider", ALL_ACP);
 		expect(result.ok).toBe(false);
