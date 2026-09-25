@@ -75,7 +75,10 @@ function run(
 function mustRun(argv: readonly string[], cwd: string): string {
 	const r = run(argv, cwd);
 	if (r.exitCode !== 0) {
-		throw new Error(`${argv.join(" ")} (in ${cwd}) failed:\n${r.stderr}`);
+		// bunup reports build errors on stdout, so show both streams.
+		throw new Error(
+			`${argv.join(" ")} (in ${cwd}) failed:\n${r.stdout}\n${r.stderr}`,
+		);
 	}
 	return r.stdout;
 }
