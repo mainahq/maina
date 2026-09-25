@@ -1,0 +1,11 @@
+{
+  "session_id": "thr_123",
+  "transcript_path": "/workspace/.codex/rollout.jsonl",
+  "cwd": "/workspace",
+  "hook_event_name": "Stop",
+  "model": "gpt-5-codex",
+  "permission_mode": "default",
+  "turn_id": "turn_1",
+  "stop_hook_active": false,
+  "last_assistant_message": "Done. All tests pass."
+}

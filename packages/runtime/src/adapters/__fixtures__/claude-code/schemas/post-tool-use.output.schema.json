@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "claude-code.post-tool-use.output",
+  "description": "Claude Code PostToolUse hook stdout JSON. Limited to documented, non-deprecated fields so adapters cannot emit keys the host ignores.",
+  "x-source": {
+    "url": "https://code.claude.com/docs/en/hooks#posttooluse-decision-control",
+    "retrieved": "2026-09-25"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "continue": {
+      "type": "boolean"
+    },
+    "stopReason": {
+      "type": "string"
+    },
+    "suppressOutput": {
+      "type": "boolean"
+    },
+    "systemMessage": {
+      "type": "string"
+    },
+    "terminalSequence": {
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "block"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    },
+    "hookSpecificOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hookEventName"
+      ],
+      "properties": {
+        "hookEventName": {
+          "const": "PostToolUse"
+        },
+        "additionalContext": {
+          "type": "string"
+        },
+        "classifierContext": {
+          "type": "string"
+        },
+        "updatedToolOutput": true,
+        "updatedMCPToolOutput": true
+      }
+    }
+  }
+}

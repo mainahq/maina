@@ -1,0 +1,204 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "claude-code.pre-tool-use.input",
+  "description": "Claude Code PreToolUse hook stdin payload. Hosts add fields over time, so unknown properties are allowed.",
+  "x-source": {
+    "url": "https://code.claude.com/docs/en/hooks#pretooluse-input",
+    "retrieved": "2026-09-25"
+  },
+  "type": "object",
+  "required": [
+    "session_id",
+    "transcript_path",
+    "cwd",
+    "hook_event_name",
+    "permission_mode",
+    "tool_name",
+    "tool_input",
+    "tool_use_id"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string"
+    },
+    "prompt_id": {
+      "type": "string"
+    },
+    "transcript_path": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "scratchpad_dir": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": [
+        "default",
+        "plan",
+        "acceptEdits",
+        "auto",
+        "dontAsk",
+        "bypassPermissions"
+      ]
+    },
+    "effort": {
+      "type": "object",
+      "required": [
+        "level"
+      ],
+      "properties": {
+        "level": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      }
+    },
+    "agent_id": {
+      "type": "string"
+    },
+    "agent_type": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "PreToolUse"
+    },
+    "tool_name": {
+      "type": "string"
+    },
+    "tool_input": {
+      "type": "object"
+    },
+    "tool_use_id": {
+      "type": "string"
+    },
+    "mcp_server": {
+      "type": "object",
+      "required": [
+        "name",
+        "source"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "tool_name"
+        ],
+        "properties": {
+          "tool_name": {
+            "const": "Bash"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tool_input": {
+            "type": "object",
+            "required": [
+              "command"
+            ],
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "timeout": {
+                "type": "number"
+              },
+              "run_in_background": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "tool_name"
+        ],
+        "properties": {
+          "tool_name": {
+            "const": "Write"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tool_input": {
+            "type": "object",
+            "required": [
+              "file_path",
+              "content"
+            ],
+            "properties": {
+              "file_path": {
+                "type": "string"
+              },
+              "content": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "tool_name"
+        ],
+        "properties": {
+          "tool_name": {
+            "const": "Edit"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tool_input": {
+            "type": "object",
+            "required": [
+              "file_path",
+              "old_string",
+              "new_string"
+            ],
+            "properties": {
+              "file_path": {
+                "type": "string"
+              },
+              "old_string": {
+                "type": "string"
+              },
+              "new_string": {
+                "type": "string"
+              },
+              "replace_all": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

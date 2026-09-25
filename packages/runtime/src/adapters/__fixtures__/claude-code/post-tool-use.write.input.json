@@ -1,0 +1,23 @@
+{
+  "session_id": "68888356-74b4-4638-9a07-3ca70c36e753",
+  "transcript_path": "/home/user/.claude/projects/-home-user-project/68888356-74b4-4638-9a07-3ca70c36e753.jsonl",
+  "cwd": "/home/user/project",
+  "prompt_id": "cf149fb7-1892-4a58-ba53-4ae02fda7bcb",
+  "permission_mode": "acceptEdits",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "/home/user/project/notes.txt",
+    "content": "hi"
+  },
+  "tool_response": {
+    "type": "create",
+    "filePath": "/home/user/project/notes.txt",
+    "content": "hi",
+    "structuredPatch": [],
+    "originalFile": null,
+    "userModified": false
+  },
+  "tool_use_id": "toolu_01VfGj5pPj9JW5hDXugwU4Yb",
+  "duration_ms": 2
+}

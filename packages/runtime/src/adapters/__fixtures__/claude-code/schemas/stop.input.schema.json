@@ -1,0 +1,143 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "claude-code.stop.input",
+  "description": "Claude Code Stop hook stdin payload. Hosts add fields over time, so unknown properties are allowed.",
+  "x-source": {
+    "url": "https://code.claude.com/docs/en/hooks#stop-input",
+    "retrieved": "2026-09-25"
+  },
+  "type": "object",
+  "required": [
+    "session_id",
+    "transcript_path",
+    "cwd",
+    "hook_event_name",
+    "stop_hook_active",
+    "last_assistant_message"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string"
+    },
+    "prompt_id": {
+      "type": "string"
+    },
+    "transcript_path": {
+      "type": "string"
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "scratchpad_dir": {
+      "type": "string"
+    },
+    "permission_mode": {
+      "enum": [
+        "default",
+        "plan",
+        "acceptEdits",
+        "auto",
+        "dontAsk",
+        "bypassPermissions"
+      ]
+    },
+    "effort": {
+      "type": "object",
+      "required": [
+        "level"
+      ],
+      "properties": {
+        "level": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      }
+    },
+    "agent_id": {
+      "type": "string"
+    },
+    "agent_type": {
+      "type": "string"
+    },
+    "hook_event_name": {
+      "const": "Stop"
+    },
+    "stop_hook_active": {
+      "type": "boolean"
+    },
+    "last_assistant_message": {
+      "type": "string"
+    },
+    "background_tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "agent_type": {
+            "type": "string"
+          },
+          "server": {
+            "type": "string"
+          },
+          "tool": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "session_crons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "schedule",
+          "recurring",
+          "prompt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "schedule": {
+            "type": "string"
+          },
+          "recurring": {
+            "type": "boolean"
+          },
+          "prompt": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
