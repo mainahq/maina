@@ -103,7 +103,8 @@ type GraphSyncOptions = Readonly<{
 	onError?: (root: string, error: unknown) => void;
 	/**
 	 * How many times in a row a root's conflicted sync is queued again
-	 * before the conflict is reported and the work dropped. Default 3.
+	 * before the conflict is reported and the work dropped. Default 3; a
+	 * value that is not a whole number >= 0 (so never unbounded) gets it.
 	 */
 	conflictRetries?: number;
 }>;
@@ -141,7 +142,11 @@ export function createGraphSync(
 ): GraphSync {
 	const lanes = new Map<string, Lane>();
 
-	const conflictRetries = options.conflictRetries ?? DEFAULT_CONFLICT_RETRIES;
+	const requested = options.conflictRetries;
+	const conflictRetries =
+		requested !== undefined && Number.isInteger(requested) && requested >= 0
+			? requested
+			: DEFAULT_CONFLICT_RETRIES;
 
 	/** Hands an error to `onError`; a reporter that throws never wedges a root. */
 	const report = (root: string, error: unknown): void => {

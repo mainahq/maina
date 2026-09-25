@@ -382,6 +382,26 @@ describe("createGraphSync conflict retries", () => {
 		]);
 	});
 
+	test("a conflictRetries that is not a whole number >= 0 falls back to the default bound", async () => {
+		for (const conflictRetries of [
+			Number.POSITIVE_INFINITY,
+			Number.NaN,
+			-1,
+			1.5,
+		]) {
+			const errors: unknown[] = [];
+			const scripted = scriptedPorts(Array(10).fill(conflict));
+			const sync = createGraphSync(scripted.ports, {
+				conflictRetries,
+				onError: (_root, error) => errors.push(error),
+			});
+			await sync.observe(edit("/repo", "a.ts"));
+			// One attempt plus the default three retries, then reported.
+			expect(scripted.calls).toHaveLength(4);
+			expect(errors).toHaveLength(1);
+		}
+	});
+
 	test("errors other than a conflict are not retried", async () => {
 		const errors: unknown[] = [];
 		const failure: GraphSyncResult = {
