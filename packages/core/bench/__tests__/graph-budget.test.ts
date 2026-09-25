@@ -50,7 +50,7 @@ const passing: BenchReport = {
 };
 
 describe("checkBudgets", () => {
-	test("the v1 budgets: update <= 500 ms, warm query <= 200 ms p95", () => {
+	test("the v1 budgets: every update <= 500 ms, warm query <= 200 ms p95", () => {
 		expect(GRAPH_BUDGETS).toEqual({ updateMs: 500, queryP95Ms: 200 });
 	});
 
@@ -64,13 +64,23 @@ describe("checkBudgets", () => {
 		);
 	});
 
-	test("a single-file update over budget at p95 is a breach", () => {
+	test("a single-file update over budget is a breach", () => {
 		const breaches = checkBudgets({
 			...passing,
 			update: summarize([100, 200, 501]),
 		});
 		expect(breaches).toEqual([
-			{ metric: "update p95", actualMs: 501, budgetMs: 500 },
+			{ metric: "update max", actualMs: 501, budgetMs: 500 },
+		]);
+	});
+
+	test("the update budget is a ceiling on every sample, not a p95", () => {
+		// 24 samples: nearest-rank p95 is the second slowest, so a p95 check
+		// would let the one slow update through.
+		const samples = [...Array.from({ length: 23 }, () => 100), 501];
+		expect(summarize(samples).p95).toBeLessThanOrEqual(500);
+		expect(checkBudgets({ ...passing, update: summarize(samples) })).toEqual([
+			{ metric: "update max", actualMs: 501, budgetMs: 500 },
 		]);
 	});
 

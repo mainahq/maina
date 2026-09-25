@@ -10,7 +10,7 @@
  *   then the edit undone, each brought up to date with `updateFiles`. The
  *   edited files are the ones most of the tree depends on (the worst case:
  *   every dependent is re-resolved) plus files spread across the tree.
- *   Budget: <= 500 ms at p95;
+ *   Budget: every sample <= 500 ms;
  * - warm queries: `search`, `impact` and `minimalContext`, each timed on its
  *   own after a warm-up. Budget: <= 200 ms p95 per query kind.
  *
@@ -67,6 +67,13 @@ const SEARCH_QUERIES = [
 	"toJSONSchema",
 ];
 
+/** The temporary store directory, removed however the bench exits. */
+let mainaDir: string | undefined;
+process.on("exit", () => {
+	if (mainaDir !== undefined)
+		rmSync(mainaDir, { recursive: true, force: true });
+});
+
 function fail(message: string): never {
 	process.stderr.write(`graph bench: ${message}\n`);
 	process.exit(1);
@@ -93,7 +100,7 @@ const time = async (run: () => unknown): Promise<number> => {
 };
 
 const root = resolveRepo();
-const mainaDir = mkdtempSync(join(tmpdir(), "maina-graph-bench-"));
+mainaDir = mkdtempSync(join(tmpdir(), "maina-graph-bench-"));
 const opened = openCodeGraph(mainaDir);
 if (!opened.ok) fail(`cannot open the store: ${opened.error.message}`);
 const { ports: basePorts, close } = opened.value;
@@ -170,7 +177,20 @@ for (const [i, path] of edited.entries()) {
 		fail(`edit of ${path} was not applied: ${JSON.stringify(result)}`);
 	}
 	overlay.delete(absolute);
-	updateSamples.push(await time(() => updateFiles(ports, root, [path])));
+	let reverted: Awaited<ReturnType<typeof updateFiles>> | undefined;
+	updateSamples.push(
+		await time(async () => {
+			reverted = await updateFiles(ports, root, [path]);
+		}),
+	);
+	// The revert's parse comes from the content-hash cache, so it is reported
+	// as reused; anything else (an error, a no-op) would be a bogus sample.
+	if (
+		!reverted?.ok ||
+		reverted.value.parsed.length + reverted.value.reused.length !== 1
+	) {
+		fail(`revert of ${path} was not applied: ${JSON.stringify(reverted)}`);
+	}
 }
 
 const readPorts = { db: ports.db };
@@ -214,7 +234,6 @@ for (const kind of Object.keys(QUERIES) as QueryKind[]) {
 }
 
 close();
-rmSync(mainaDir, { recursive: true, force: true });
 
 const report: BenchReport = {
 	repo: `${PINNED_REPO.name}@${PINNED_REPO.commit.slice(0, 7)}`,
@@ -228,15 +247,21 @@ const report: BenchReport = {
 };
 
 const ms = (n: number): string => `${n.toFixed(1)} ms`;
-const line = (label: string, s: Summary, budget: number): string =>
-	`  ${label.padEnd(22)} p50 ${ms(s.p50).padStart(10)}  p95 ${ms(s.p95).padStart(10)}  max ${ms(s.max).padStart(10)}  (budget p95 ${budget} ms, n=${s.count})\n`;
+const line = (label: string, s: Summary, budget: string): string =>
+	`  ${label.padEnd(22)} p50 ${ms(s.p50).padStart(10)}  p95 ${ms(s.p95).padStart(10)}  max ${ms(s.max).padStart(10)}  (budget ${budget}, n=${s.count})\n`;
 
 process.stdout.write(
 	`graph bench on ${report.repo}: ${report.files} files, ${report.loc} lines, ${report.nodes} nodes, ${report.edges} edges\n` +
 		`  initial index          ${ms(report.initialIndexMs)} (recorded, no budget)\n` +
-		line("single-file update", report.update, GRAPH_BUDGETS.updateMs) +
+		line(
+			"single-file update",
+			report.update,
+			`max ${GRAPH_BUDGETS.updateMs} ms`,
+		) +
 		(Object.keys(queries) as QueryKind[])
-			.map((k) => line(`query ${k}`, queries[k], GRAPH_BUDGETS.queryP95Ms))
+			.map((k) =>
+				line(`query ${k}`, queries[k], `p95 ${GRAPH_BUDGETS.queryP95Ms} ms`),
+			)
 			.join("") +
 		`  edited: ${edited.join(", ")}\n`,
 );

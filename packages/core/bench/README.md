@@ -6,7 +6,7 @@
 | Measurement | Budget |
 | --- | --- |
 | Initial index | recorded, no budget |
-| Single-file update (`updateFiles`, dependents re-resolved) | <= 500 ms at p95 |
+| Single-file update (`updateFiles`, dependents re-resolved) | <= 500 ms, every sample |
 | Warm query (`search`, `impact`, `minimalContext`, each on its own) | <= 200 ms at p95 |
 
 The budgets live in `graph-budget.ts`.
@@ -42,10 +42,10 @@ artifact.
 Recorded on an Apple M-series laptop, zod@2bf7b06 (523 files, 103,471 lines,
 7,137 nodes, 9,015 edges):
 
-| Measurement | p50 | p95 |
-| --- | --- | --- |
-| Initial index | 1.5-1.7 s | |
-| Single-file update | 11 ms | 84 ms |
-| Query `search` | 11 ms | 13 ms |
-| Query `impact` | 10 ms | 12 ms |
-| Query `minimalContext` | 14 ms | 21 ms |
+| Measurement | p50 | p95 | max |
+| --- | --- | --- | --- |
+| Initial index | 1.5-1.7 s | | |
+| Single-file update | 11 ms | 84 ms | 86 ms |
+| Query `search` | 11 ms | 13 ms | 16 ms |
+| Query `impact` | 10 ms | 12 ms | 13 ms |
+| Query `minimalContext` | 14 ms | 21 ms | 24 ms |

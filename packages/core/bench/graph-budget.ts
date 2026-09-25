@@ -5,7 +5,11 @@
  */
 
 export const GRAPH_BUDGETS = {
-	/** One edited file brought up to date, dependents included. */
+	/**
+	 * One edited file brought up to date, dependents included. A ceiling on
+	 * every sample (the issue sets no percentile for it), unlike the query
+	 * budget.
+	 */
 	updateMs: 500,
 	/** Any one query kind, against a warm store, at p95. */
 	queryP95Ms: 200,
@@ -58,12 +62,17 @@ export function summarize(samples: readonly number[]): Summary {
 	};
 }
 
-function judge(metric: string, summary: Summary, budgetMs: number): Breach[] {
+function judge(
+	metric: string,
+	summary: Summary,
+	budgetMs: number,
+	stat: "p95" | "max",
+): Breach[] {
 	if (summary.count === 0) {
 		return [{ metric: `${metric} samples`, actualMs: 0, budgetMs }];
 	}
-	return summary.p95 > budgetMs
-		? [{ metric: `${metric} p95`, actualMs: summary.p95, budgetMs }]
+	return summary[stat] > budgetMs
+		? [{ metric: `${metric} ${stat}`, actualMs: summary[stat], budgetMs }]
 		: [];
 }
 
@@ -76,9 +85,14 @@ const QUERY_ORDER: readonly QueryKind[] = [
 /** Every budget the report breaks; empty when the run is within budget. */
 export function checkBudgets(report: BenchReport): readonly Breach[] {
 	return [
-		...judge("update", report.update, GRAPH_BUDGETS.updateMs),
+		...judge("update", report.update, GRAPH_BUDGETS.updateMs, "max"),
 		...QUERY_ORDER.flatMap((kind) =>
-			judge(`query ${kind}`, report.queries[kind], GRAPH_BUDGETS.queryP95Ms),
+			judge(
+				`query ${kind}`,
+				report.queries[kind],
+				GRAPH_BUDGETS.queryP95Ms,
+				"p95",
+			),
 		),
 	];
 }
