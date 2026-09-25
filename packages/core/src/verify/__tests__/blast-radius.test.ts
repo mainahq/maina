@@ -236,4 +236,62 @@ describe("tests: affected tests are selected from the graph", () => {
 		);
 		expect(shown).toEqual([failure]);
 	});
+
+	test("Bun's end-of-run recap neither repeats a failure nor moves it to the last file", async () => {
+		// Outside an agent shell Bun reprints every failure after the last
+		// file's header; those lines are not new failures in that file.
+		const fake = createFakeProcess(() => ({
+			ok: true,
+			value: {
+				exitCode: 1,
+				stdout: "",
+				stderr: [
+					"src/mid.test.ts:",
+					"(fail) mid > doubles [0.21ms]",
+					"",
+					"src/core.test.ts:",
+					"(pass) base > adds one [0.10ms]",
+					"",
+					"1 tests failed:",
+					"(fail) mid > doubles [0.21ms]",
+					"",
+					" 1 pass",
+					" 1 fail",
+				].join("\n"),
+			},
+		}));
+		const result = await runAffectedTests(
+			["src/core.test.ts", "src/mid.test.ts"],
+			"/repo",
+			{ process: fake, runner: ["bun", "test"] },
+		);
+		expect(result.findings).toEqual([
+			{
+				tool: "tests",
+				file: "src/mid.test.ts",
+				line: 1,
+				message: "Affected test failed: mid > doubles",
+				severity: "error",
+			},
+		]);
+	});
+
+	test("a failing changed test file survives the diff filter, graph or not", async () => {
+		// The file changed (so it was selected) but not on line 1, and the
+		// graph does not list it as covering anything.
+		const failure: Finding = {
+			tool: "tests",
+			file: "src/new-case.test.ts",
+			line: 1,
+			message: "Affected test failed: new case",
+			severity: "error",
+		};
+		const changed = new Map([["src/new-case.test.ts", new Set([12])]]);
+		const radius = await radiusOf(["src/new-case.test.ts"]);
+
+		expect(filterByDiffWithMap([failure], changed).shown).toEqual([failure]);
+		expect(
+			filterByDiffWithMap([failure], changed, new Set(), radius).shown,
+		).toEqual([failure]);
+	});
 });

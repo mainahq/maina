@@ -14,6 +14,7 @@ import {
 } from "../git/index";
 import { getUntrackedFiles } from "../git/scope";
 import { type BlastRadius, inBlastRadius } from "./blast-radius";
+import { AFFECTED_TESTS_TOOL } from "./tools/tests";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -138,8 +139,9 @@ export function parseChangedLines(diff: string): Map<string, Set<number>> {
  * Filter findings against a pre-computed changed-lines map.
  * Findings on changed lines are shown; all others are hidden. Every line of
  * a file in `newFiles` (untracked, so absent from any diff) counts as
- * changed. With a `radius`, a type error in a caller of the change and a
- * failing affected test are shown too, off the changed lines (FR-VER-5).
+ * changed. A failing affected test is always shown: only the tests selected
+ * for the change ran. With a `radius`, a type error in a caller of the
+ * change is shown too, off the changed lines (FR-VER-5).
  *
  * Exported for testing without needing to invoke git.
  */
@@ -157,6 +159,9 @@ export function filterByDiffWithMap(
 		if (
 			newFiles.has(finding.file) ||
 			fileChanges?.has(finding.line) ||
+			// Only the tests selected for this change ran, so every failure
+			// is the change's; a changed test file fails at line 1 (#330).
+			finding.tool === AFFECTED_TESTS_TOOL ||
 			(radius !== undefined && inBlastRadius(finding, radius))
 		) {
 			shown.push(finding);

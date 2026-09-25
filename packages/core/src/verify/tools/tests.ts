@@ -61,6 +61,9 @@ function detectRunner(cwd: string): readonly string[] | null {
 const testName = (raw: string): string =>
 	raw.replace(/\s+\[[\d.]+\s*m?s\]\s*$/, "").trim();
 
+/** Bun's `N tests failed:` line, which opens the recap of the failures. */
+const BUN_RECAP = /^\d+ tests? failed:$/;
+
 /**
  * Bun runner output as findings: one error per `(fail)` line, filed against
  * the test file whose `path:` header precedes it (the first selected test
@@ -72,6 +75,9 @@ function parseBunFailures(output: string, tests: readonly string[]): Finding[] {
 	let current = fallback;
 	const findings: Finding[] = [];
 	for (const line of output.split("\n")) {
+		// Bun's end-of-run recap reprints every failure after the last
+		// file's header; they are already counted.
+		if (BUN_RECAP.test(line)) break;
 		const header = line.match(/^(\S.*):$/);
 		if (header?.[1] !== undefined && selected.has(header[1])) {
 			current = header[1];

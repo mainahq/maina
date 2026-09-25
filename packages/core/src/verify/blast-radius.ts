@@ -21,7 +21,6 @@ import { impact } from "../graph/query/impact";
 import type { GraphReadPorts, ImpactReport } from "../graph/query/types";
 import type { GraphStoreError } from "../graph/store/types";
 import type { Finding } from "./diff-filter";
-import { AFFECTED_TESTS_TOOL } from "./tools/tests";
 import { TYPECHECK_TOOLS } from "./typecheck";
 
 export type CallerSpan = Readonly<{
@@ -80,14 +79,12 @@ export function computeBlastRadius(
 }
 
 /**
- * Whether a finding off the changed lines is still the change's doing: a
- * type error inside a caller (or on a dependent's import of a changed
- * file), or a failing affected test. Every other tool stays diff-only.
+ * Whether a type error off the changed lines is still the change's doing:
+ * it sits inside a caller, or on a dependent's import of a changed file.
+ * Every other tool stays diff-only (a failing affected test is always in
+ * scope, radius or not; the diff filter shows it).
  */
 export function inBlastRadius(finding: Finding, radius: BlastRadius): boolean {
-	if (finding.tool === AFFECTED_TESTS_TOOL) {
-		return radius.tests.includes(finding.file);
-	}
 	if (!TYPECHECK_TOOLS.has(finding.tool)) return false;
 	const inCaller = radius.callers.some(
 		(c) =>
