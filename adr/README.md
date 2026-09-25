@@ -55,6 +55,7 @@ Each file records one decision: the context, what was decided, and what it costs
 | [0041](0041-symbol-page-templates-for-wiki.md) | Symbol page templates for wiki | Accepted (implementation removed) |
 | [0042](0042-delete-unwired-verify-runners-and-dead-modules.md) | Delete unwired verify runners (Lighthouse, ZAP) and other dead modules | Accepted |
 | [0043](0043-zod-for-config-and-policy-validation.md) | Zod for config and policy validation | Accepted |
+| [0044](0044-resident-runtime-ipc-transport.md) | Resident runtime IPC transport | Accepted |
 
 ## Renumbering (mainahq/maina#295)
 

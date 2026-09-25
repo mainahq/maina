@@ -337,6 +337,8 @@ export {
 	type PolicyLayer,
 	parsePolicyLayer,
 	policyJsonSchema,
+	VERDICTS,
+	type Verdict,
 } from "./policy/schema";
 // Ports (functional core side-effect boundary)
 export type {

@@ -9,7 +9,8 @@
     "bun": ">=1.0.0"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "bench": "bun bench/gate-roundtrip.bench.ts"
   },
   "dependencies": {
     "@mainahq/core": "workspace:*"

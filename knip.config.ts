@@ -40,8 +40,15 @@ const config: KnipConfig = {
 			],
 		},
 		"packages/runtime": {
-			entry: ["src/**/__tests__/**/*.test.ts"],
-			project: ["src/**/*.ts"],
+			// The daemon and the crash fixture are spawned by path, and the
+			// bench is run directly, so none of them is reached by an import.
+			entry: [
+				"src/**/__tests__/**/*.test.ts",
+				"src/**/__tests__/fixtures/*.ts",
+				"src/daemon.ts",
+				"bench/*.bench.ts",
+			],
+			project: ["src/**/*.ts", "bench/**/*.ts"],
 		},
 		"packages/mcp": {
 			entry: ["src/index.ts!", TESTS],
