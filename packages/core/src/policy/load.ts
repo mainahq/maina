@@ -28,6 +28,7 @@ import {
 	type PolicySource,
 	parsePolicyLayer,
 	type RulePolicy,
+	ruleKey,
 	VERDICTS,
 	type Verdict,
 } from "./schema";
@@ -110,13 +111,12 @@ function unionRules(
 	base: readonly RulePolicy[],
 	added: readonly RulePolicy[] | undefined,
 ): readonly RulePolicy[] {
-	const key = (rule: RulePolicy) => `${rule.kind ?? "*"}\u0000${rule.match}`;
-	const seen = new Set(base.map(key));
+	const seen = new Set(base.map(ruleKey));
 	return [
 		...base,
 		...(added ?? []).filter((rule) => {
-			if (seen.has(key(rule))) return false;
-			seen.add(key(rule));
+			if (seen.has(ruleKey(rule))) return false;
+			seen.add(ruleKey(rule));
 			return true;
 		}),
 	];

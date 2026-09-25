@@ -67,6 +67,10 @@
 								],
 								"description": "Event kind the rule applies to; every kind when omitted."
 							},
+							"exact": {
+								"type": "boolean",
+								"description": "Match the whole command, path, URL or server/tool name literally: no `*` globbing, no basename, host or bare tool name match and, for a shell rule, no extra arguments. `maina allow --always` writes exact rules."
+							},
 							"reason": {
 								"type": "string",
 								"minLength": 1
@@ -98,6 +102,10 @@
 									"network"
 								],
 								"description": "Event kind the rule applies to; every kind when omitted."
+							},
+							"exact": {
+								"type": "boolean",
+								"description": "Match the whole command, path, URL or server/tool name literally: no `*` globbing, no basename, host or bare tool name match and, for a shell rule, no extra arguments. `maina allow --always` writes exact rules."
 							},
 							"reason": {
 								"type": "string",

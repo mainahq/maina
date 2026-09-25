@@ -83,6 +83,12 @@ const Rule = z.strictObject({
 		.enum(GATE_EVENT_KINDS)
 		.describe("Event kind the rule applies to; every kind when omitted.")
 		.optional(),
+	exact: z
+		.boolean()
+		.describe(
+			"Match the whole command, path, URL or server/tool name literally: no `*` globbing, no basename, host or bare tool name match and, for a shell rule, no extra arguments. `maina allow --always` writes exact rules.",
+		)
+		.optional(),
 	reason: z.string().min(1).optional(),
 });
 
@@ -167,6 +173,14 @@ export type Policy = DeepReadonly<z.infer<typeof PolicyBody>> &
 export type ActionClassPolicy = Policy["action_classes"][string];
 export type RulePolicy = Policy["rules"]["allow"][number];
 export type DecisionPolicy = Policy["decisions"][DecisionType];
+
+/**
+ * What makes two rules the same rule: kind, match and exactness. An exact
+ * rule and a pattern with the same `match` cover different actions, so
+ * neither may stand in for the other when rule lists are merged.
+ */
+export const ruleKey = (rule: RulePolicy): string =>
+	`${rule.kind ?? "*"}\u0000${rule.exact === true ? "=" : "~"}\u0000${rule.match}`;
 
 // ── One layer (a policy file) ───────────────────────────────────────────────
 
