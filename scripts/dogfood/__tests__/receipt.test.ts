@@ -219,6 +219,34 @@ describe("produceReceipt", () => {
 		expect(f.verifyCalls).toHaveLength(0);
 	});
 
+	test("waits briefly for GitHub to catch up with a just-pushed head", async () => {
+		let views = 0;
+		const f = fake();
+		const exec = f.ports.exec;
+		const ports: ReceiptPorts = {
+			...f.ports,
+			exec: async (cmd) => {
+				if (cmd.join(" ").startsWith("gh pr view")) {
+					views++;
+					return {
+						code: 0,
+						stdout: JSON.stringify({
+							number: 42,
+							headRefOid: views < 3 ? "e".repeat(40) : HEAD,
+							baseRefName: "v1/main",
+							title: "x",
+						}),
+						stderr: "",
+					};
+				}
+				return exec(cmd);
+			},
+		};
+		const r = await produceReceipt({ publish: true }, ports);
+		expect(r.ok).toBe(true);
+		expect(views).toBe(3);
+	});
+
 	test("waits for an in-progress Dogfood run before re-running it", async () => {
 		let polls = 0;
 		const f = fake();

@@ -91,6 +91,8 @@ interface PrInfo {
 const DOGFOOD_WORKFLOW = "Dogfood";
 const RUN_POLL_MS = 5_000;
 const RUN_POLL_ATTEMPTS = 24;
+const HEAD_POLL_MS = 3_000;
+const HEAD_POLL_ATTEMPTS = 6;
 
 const fail = (
 	code: ReceiptError["code"],
@@ -237,7 +239,19 @@ export async function produceReceipt(
 	if (rev.code !== 0) return fail("git", rev.stderr.trim());
 	const head = rev.stdout.trim().toLowerCase();
 
-	const pr = await currentPr(ports);
+	let pr = await currentPr(ports);
+	// GitHub updates the PR head a few seconds after `git push`; give it time.
+	for (
+		let attempt = 1;
+		opts.publish &&
+		pr &&
+		pr.headRefOid.toLowerCase() !== head &&
+		attempt < HEAD_POLL_ATTEMPTS;
+		attempt++
+	) {
+		await ports.sleep(HEAD_POLL_MS);
+		pr = await currentPr(ports);
+	}
 	if (opts.publish && !pr) {
 		return fail(
 			"no-pr",
