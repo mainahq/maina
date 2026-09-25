@@ -21,6 +21,7 @@ import {
 	isDirectBinary,
 	resetLauncherCache,
 	runningCli,
+	stableRuntimePath,
 } from "../launcher";
 
 const PKG_VERSION = VERSION;
@@ -254,5 +255,47 @@ describe("runningCli", () => {
 				argv1: `${npxRoot}/dist/index.js`,
 			}),
 		).toBeNull();
+	});
+});
+
+describe("stableRuntimePath", () => {
+	// Homebrew's `process.execPath` is the versioned Cellar path, which
+	// `brew upgrade` deletes; an MCP entry that pinned it would stop starting.
+	const CELLAR_BUN = "/opt/homebrew/Cellar/bun/1.1.34/bin/bun";
+	const BREW_BUN = "/opt/homebrew/bin/bun";
+	const realpath = (p: string): string | null =>
+		p === BREW_BUN ? CELLAR_BUN : p;
+
+	test("prefers the PATH alias that resolves to the running runtime", () => {
+		expect(
+			stableRuntimePath(
+				CELLAR_BUN,
+				(cmd) => (cmd === "bun" ? BREW_BUN : null),
+				realpath,
+			),
+		).toBe(BREW_BUN);
+	});
+
+	test("keeps execPath when PATH has a different runtime of that name", () => {
+		expect(
+			stableRuntimePath(
+				CELLAR_BUN,
+				(cmd) => (cmd === "bun" ? "/Users/x/.bun/bin/bun" : null),
+				realpath,
+			),
+		).toBe(CELLAR_BUN);
+	});
+
+	test("keeps execPath when the runtime is not on PATH or the alias is relative", () => {
+		expect(stableRuntimePath(CELLAR_BUN, () => null, realpath)).toBe(
+			CELLAR_BUN,
+		);
+		expect(
+			stableRuntimePath(
+				CELLAR_BUN,
+				() => "bin/bun",
+				() => CELLAR_BUN,
+			),
+		).toBe(CELLAR_BUN);
 	});
 });

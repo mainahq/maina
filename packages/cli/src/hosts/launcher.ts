@@ -40,7 +40,7 @@
 
 import { accessSync, constants, existsSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, dirname, join, sep } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { VERSION } from "@mainahq/core";
 
@@ -77,8 +77,8 @@ let cached: Launcher | null = null;
 export function detectLauncher(opts: DetectLauncherOptions = {}): Launcher {
 	if (cached !== null && opts.noCache !== true) return cached;
 
-	const self = opts.self !== undefined ? opts.self : currentCli();
 	const which = opts.which ?? defaultWhich;
+	const self = opts.self !== undefined ? opts.self : currentCli(which);
 
 	let result: Launcher;
 	if (self !== null) {
@@ -170,14 +170,41 @@ export function runningCli(input: RunningCliInput): RunningCli | null {
 const PACKAGE_RUNNER_CACHE =
 	/[/\\](bunx-[^/\\]*|_npx|dlx-[^/\\]*)[/\\]|[/\\]\.bun[/\\]install[/\\]cache[/\\]|[/\\]pnpm[/\\]dlx[/\\]/i;
 
-function currentCli(): RunningCli | null {
-	return runningCli({
+/**
+ * The runtime path to write into an MCP entry. `process.execPath` is fully
+ * resolved, so under Homebrew it is a versioned Cellar path
+ * (`/opt/homebrew/Cellar/bun/1.1.34/bin/bun`) that `brew upgrade` deletes.
+ * When PATH has an alias of the same name that resolves to this very
+ * runtime (`/opt/homebrew/bin/bun`), that alias survives upgrades: use it.
+ */
+export function stableRuntimePath(
+	execPath: string,
+	which: (cmd: string) => string | null,
+	realpath: (path: string) => string | null,
+): string {
+	const alias = which(basename(execPath));
+	if (alias === null || alias === execPath || !isAbsolute(alias)) {
+		return execPath;
+	}
+	const target = realpath(alias);
+	return target !== null && target === (realpath(execPath) ?? execPath)
+		? alias
+		: execPath;
+}
+
+function currentCli(which: (cmd: string) => string | null): RunningCli | null {
+	const cli = runningCli({
 		execPath: process.execPath,
 		argv1: process.argv[1],
 		cliRoot: packageRoot(dirname(fileURLToPath(import.meta.url))),
 		tmpDir: tmpdir(),
 		realpath: safeRealpath,
 	});
+	if (cli === null) return null;
+	return {
+		...cli,
+		execPath: stableRuntimePath(cli.execPath, which, safeRealpath),
+	};
 }
 
 /** Nearest ancestor holding a package.json: the cli package, in src or dist. */
