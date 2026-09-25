@@ -22,7 +22,7 @@ export const VERDICTS = ["allow", "ask", "deny"] as const;
 export type Verdict = (typeof VERDICTS)[number];
 
 /** Normalised gate event kinds a rule can be scoped to (spec §6.2). */
-const GATE_EVENT_KINDS = [
+export const GATE_EVENT_KINDS = [
 	"shell",
 	"file.write",
 	"file.read.outside",

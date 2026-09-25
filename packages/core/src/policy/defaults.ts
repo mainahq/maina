@@ -41,21 +41,37 @@ export const IRREVERSIBLE_ACTION_CLASSES = [
 	"secrets.read",
 	/** Writes to credential stores such as `~/.ssh` or `~/.aws`. */
 	"secrets.write",
+	/** Writes outside the workspace and temp dirs (`~/.zshrc`, `/etc/hosts`). */
+	"fs.write.outside",
+	/** Wiping disks and machines: `mkfs`, `dd` to a device, fork bombs, `shutdown`. */
+	"system.destructive",
+	/** Running as another user: `sudo`, `doas`, `su`, `pkexec`. */
+	"privilege.escalate",
 ] as const;
 
 const irreversible: ActionClassPolicy = { irreversible: true, verdict: "ask" };
 const allowed: ActionClassPolicy = { irreversible: false, verdict: "allow" };
+const asked: ActionClassPolicy = { irreversible: false, verdict: "ask" };
 
-const REVERSIBLE_ACTION_CLASSES: Readonly<Record<string, ActionClassPolicy>> = {
+const REVERSIBLE_ACTION_CLASSES = {
 	"shell.exec": allowed,
+	/** A command the gate cannot see through (`eval "$X"`, `$CMD`, a syntax error). */
+	"shell.opaque": asked,
 	"fs.write": allowed,
-	"fs.read.outside": { irreversible: false, verdict: "ask" },
+	"fs.read.outside": asked,
 	"git.commit": allowed,
 	"git.push": allowed,
+	/** A plain push to a protected branch (`main`, `master`). */
+	"git.push.protected": asked,
 	"deps.install": allowed,
 	"network.fetch": allowed,
 	"mcp.call": allowed,
-};
+} as const satisfies Readonly<Record<string, ActionClassPolicy>>;
+
+/** Every built-in action class; the gate classifier only produces these. */
+export type ActionClass =
+	| (typeof IRREVERSIBLE_ACTION_CLASSES)[number]
+	| keyof typeof REVERSIBLE_ACTION_CLASSES;
 
 /** Missing a risky action costs more than asking about a safe one. */
 const SAFETY_CRITICAL: ReadonlySet<DecisionType> = new Set([
