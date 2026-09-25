@@ -15,7 +15,11 @@
 import type { Result } from "@mainahq/core";
 import { mergeJsonKey } from "./json-key";
 import type { FileOp } from "./plan";
-import { mergeManaged, wrapManaged } from "./setup/agent-files/region";
+import {
+	hasUnbalancedManagedMarkers,
+	mergeManaged,
+	wrapManaged,
+} from "./setup/agent-files/region";
 
 // ── Ports and results ────────────────────────────────────────────────────────
 
@@ -99,6 +103,12 @@ function nextContent(
 				? { ok: true, text: op.content }
 				: { ok: false, reason: "already exists; not overwritten" };
 		case "merge-region":
+			if (current !== null && hasUnbalancedManagedMarkers(current)) {
+				return {
+					ok: false,
+					reason: "unbalanced maina-managed markers; left untouched",
+				};
+			}
 			return {
 				ok: true,
 				text:

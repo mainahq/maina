@@ -267,6 +267,14 @@ describe("planOnboarding — preserves user content", () => {
 		);
 	});
 
+	test("an unmatched start marker never lets a later run eat user content", () => {
+		const text = `# mine\n${MAINA_REGION_START}\nuser text after a stray marker\n`;
+		const { fs, files } = memoryFs({ "CLAUDE.md": text });
+		runOnce(fs, { agents: ["claude"] });
+		runOnce(fs, { agents: ["claude"] });
+		expect(files.get("CLAUDE.md")).toBe(text);
+	});
+
 	test("first merge into an existing file asks for a backup; creates do not", () => {
 		const { fs } = memoryFs({
 			"CLAUDE.md": USER_CLAUDE_MD,

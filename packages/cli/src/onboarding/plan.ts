@@ -207,6 +207,8 @@ function planTarget(
 		case "markdown": {
 			const body = spec.render(ctx);
 			if (mergeManaged(existing, body) === existing) return null;
+			// Unbalanced markers still get an op so `applyOps` reports why
+			// the file was skipped; it will not be modified.
 			return {
 				kind: "merge-region",
 				path: spec.path,

@@ -20,6 +20,22 @@ export function wrapManaged(content: string): string {
 }
 
 /**
+ * True when `content` has managed markers that do not form exactly one
+ * start-then-end pair (a stray start, a lone end, two regions, or the end
+ * before the start). Merging into such a file could pair markers wrongly and
+ * replace user text on a later run, so callers must leave it untouched.
+ */
+export function hasUnbalancedManagedMarkers(content: string): boolean {
+	const starts = content.split(MAINA_REGION_START).length - 1;
+	const ends = content.split(MAINA_REGION_END).length - 1;
+	if (starts === 0 && ends === 0) return false;
+	if (starts !== 1 || ends !== 1) return true;
+	return (
+		content.indexOf(MAINA_REGION_END) < content.indexOf(MAINA_REGION_START)
+	);
+}
+
+/**
  * Merge maina-managed content into an existing file.
  * - If the file already contains a maina-managed region, replace it in place.
  * - Otherwise, append the wrapped region to the end with a blank line separator.

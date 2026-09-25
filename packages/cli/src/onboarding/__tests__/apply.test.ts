@@ -178,6 +178,32 @@ describe("applyOps — never overwrites", () => {
 		}
 	});
 
+	test("unbalanced managed markers are skipped and left byte-identical", () => {
+		for (const text of [
+			`# mine\n${MAINA_REGION_START}\nhalf a region\nuser suffix\n`,
+			`# mine\n${MAINA_REGION_END}\nuser suffix\n`,
+			`${MAINA_REGION_END}\nx\n${MAINA_REGION_START}\n`,
+			`${MAINA_REGION_START}\na\n${MAINA_REGION_END}\n${MAINA_REGION_START}\nb\n${MAINA_REGION_END}\n`,
+		]) {
+			const { fs, files } = memoryFs({ "CLAUDE.md": text });
+			const result = applyOps(
+				[
+					{
+						kind: "merge-region",
+						path: "CLAUDE.md",
+						content: "new",
+						backup: true,
+					},
+				],
+				{ fs },
+			);
+			expect(result.ok && result.value.skipped.map((s) => s.path)).toEqual([
+				"CLAUDE.md",
+			]);
+			expect(files.get("CLAUDE.md")).toBe(text);
+		}
+	});
+
 	test("malformed JSON is skipped and left byte-identical (fail closed)", () => {
 		const broken = '{ "mcpServers": { "memory": ';
 		const { fs, files } = memoryFs({ ".claude/settings.json": broken });

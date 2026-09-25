@@ -65,6 +65,35 @@ describe("nodeOnboardingFs", () => {
 		expect(lstatSync(join(root, "CLAUDE.md")).isSymbolicLink()).toBe(true);
 	});
 
+	test("read refuses a symlink instead of following it", () => {
+		const outside = mkdtempSync(join(tmpdir(), "maina-node-fs-out-"));
+		try {
+			writeFileSync(join(outside, "CLAUDE.md"), "external\n");
+			symlinkSync(join(outside, "CLAUDE.md"), join(root, "CLAUDE.md"));
+			expect(nodeOnboardingFs(root).read("CLAUDE.md").ok).toBe(false);
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
+	test("a symlinked parent directory is never read, written or created through", () => {
+		const outside = mkdtempSync(join(tmpdir(), "maina-node-fs-out-"));
+		try {
+			writeFileSync(join(outside, "mcp.json"), '{ "mcpServers": {} }\n');
+			symlinkSync(outside, join(root, ".cursor"));
+			const fs = nodeOnboardingFs(root);
+			expect(fs.read(".cursor/mcp.json").ok).toBe(false);
+			expect(fs.write(".cursor/mcp.json", "{}").ok).toBe(false);
+			expect(fs.create(".cursor/rules/maina.mdc", "x").ok).toBe(false);
+			expect(readFileSync(join(outside, "mcp.json"), "utf-8")).toBe(
+				'{ "mcpServers": {} }\n',
+			);
+			expect(readdirSync(outside)).toEqual(["mcp.json"]);
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
 	test("write refuses to replace a symlink with a regular file", () => {
 		writeFileSync(join(root, "AGENTS.md"), "# Agents\n");
 		symlinkSync("AGENTS.md", join(root, "CLAUDE.md"));

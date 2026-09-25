@@ -5,10 +5,14 @@
  * unique temp file that is renamed into place, so an interrupted run never
  * leaves a half-written file behind.
  *
- * A symlinked target (for example `CLAUDE.md -> AGENTS.md`) is never
- * written: renaming over it would replace the user's link with a regular
- * file, and writing through it would let two targets fight over one file.
- * The write fails, so `applyOps` reports the file as skipped.
+ * Symlinks are never followed below `root`. A symlinked target (for
+ * example `CLAUDE.md -> AGENTS.md`) is neither read nor written: renaming
+ * over it would replace the user's link with a regular file, writing through
+ * it would let two targets fight over one file, and reading it would back up
+ * and quote a file maina does not own. A symlinked parent directory (such as
+ * `.cursor -> /elsewhere`) is refused too, so nothing is read or written
+ * outside the repository. These calls fail, and `applyOps` reports the file
+ * as skipped.
  */
 
 import {
@@ -33,6 +37,31 @@ function errorCode(e: unknown): string | undefined {
 	return typeof e === "object" && e !== null && "code" in e
 		? String((e as { code: unknown }).code)
 		: undefined;
+}
+
+/**
+ * The first symlink among the components of `path` below `root`, checking
+ * the final component too unless `ancestorsOnly`. Missing components end
+ * the walk: nothing below them can be a link yet.
+ */
+function symlinkOnPath(
+	root: string,
+	path: string,
+	ancestorsOnly: boolean,
+): string | null {
+	const parts = path.split("/");
+	const count = ancestorsOnly ? parts.length - 1 : parts.length;
+	for (let i = 1; i <= count; i++) {
+		const prefix = parts.slice(0, i).join("/");
+		const st = lstatSync(join(root, prefix), { throwIfNoEntry: false });
+		if (st === undefined) return null;
+		if (st.isSymbolicLink()) return prefix;
+	}
+	return null;
+}
+
+function symlinkError(link: string): string {
+	return `${link} is a symbolic link; not followed`;
 }
 
 function tempPath(full: string): string {
@@ -85,6 +114,8 @@ export function nodeOnboardingFs(root: string): OnboardingFs {
 		read: (path) => {
 			const full = join(root, path);
 			try {
+				const link = symlinkOnPath(root, path, false);
+				if (link !== null) return { ok: false, error: symlinkError(link) };
 				if (!existsSync(full)) return { ok: true, value: null };
 				if (!statSync(full).isFile()) {
 					return { ok: false, error: "not a regular file" };
@@ -98,9 +129,8 @@ export function nodeOnboardingFs(root: string): OnboardingFs {
 			const full = join(root, path);
 			const tmp = tempPath(full);
 			try {
-				if (lstatSync(full, { throwIfNoEntry: false })?.isSymbolicLink()) {
-					return { ok: false, error: "is a symbolic link; not replaced" };
-				}
+				const link = symlinkOnPath(root, path, false);
+				if (link !== null) return { ok: false, error: symlinkError(link) };
 			} catch (e) {
 				return { ok: false, error: message(e) };
 			}
@@ -116,6 +146,9 @@ export function nodeOnboardingFs(root: string): OnboardingFs {
 		},
 		create: (path, content) => {
 			try {
+				// A symlink at the final component makes link(2) report EEXIST.
+				const link = symlinkOnPath(root, path, true);
+				if (link !== null) return { ok: false, error: symlinkError(link) };
 				return { ok: true, value: createNoClobber(join(root, path), content) };
 			} catch (e) {
 				return { ok: false, error: message(e) };
