@@ -620,6 +620,77 @@ describe("gate.self_override: an agent changing its own gate (#447)", () => {
 		}
 	});
 
+	test("a runner's --package names the package, not the program (review of #447)", () => {
+		for (const command of [
+			"npx -p @mainahq/cli maina allow d-1",
+			"npx --package @mainahq/cli maina allow d-1",
+			"bunx -p @mainahq/cli maina allow d-1",
+			"npm exec -p @mainahq/cli -- maina allow d-1",
+			"pnpm dlx --package @mainahq/cli maina allow d-1",
+			// `-c`/`--call` runs a shell string.
+			"npx -c 'maina allow d-1'",
+			"npm exec -c 'maina allow d-1'",
+			"npx --call='maina allow d-1'",
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+	});
+
+	test("a package manager running maina's bin by name (review of #447)", () => {
+		for (const command of ["pnpm maina allow d-1", "yarn maina allow d-1"]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+		expect(classesOf("pnpm maina verify")).not.toContain(SELF);
+	});
+
+	test("a copy, move or link into a control directory (review of #447)", () => {
+		for (const command of [
+			// The file keeps its name, so it lands on a control file.
+			"cp /tmp/settings.json .claude/",
+			"cp /tmp/settings.json .claude",
+			"cp /tmp/policy.json .maina/",
+			"cp -t .maina /tmp/policy.json",
+			"mv /tmp/policy.json .maina",
+			"ln -s /tmp/policy.json .maina/",
+			"install /tmp/hooks.json ~/.cursor",
+			"rsync /tmp/policy.json .maina/policy.json",
+			"rsync /tmp/settings.local.json .claude/",
+			// A tree's contents into a control dir, or a control dir as a tree.
+			"cp -r /tmp/evil/. .maina",
+			"cp -R /tmp/evil/ .claude",
+			"cp -r /tmp/evil/.maina .",
+			"rsync -a /tmp/evil/ .maina/",
+			"mv /tmp/evil/.claude .",
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+	});
+
+	test("a tree moved or copied into a control directory asks", () => {
+		for (const command of [
+			"mv /tmp/evil .claude",
+			"cp -r /tmp/evil .codex",
+			"ln -s /tmp/evil .claude",
+		]) {
+			const classes = classesOf(command);
+			expect(classes, command).toContain("shell.opaque");
+			expect(classes, command).not.toContain(SELF);
+		}
+	});
+
+	test("copying a plain file into a control directory is not", () => {
+		for (const command of [
+			"cp notes.md .maina/",
+			"cp review.md .claude/commands/",
+			"cp -r docs/commands .claude/commands",
+			"rsync -a dist/ build/",
+		]) {
+			const classes = classesOf(command);
+			expect(classes, command).not.toContain(SELF);
+			expect(classes, command).not.toContain("shell.opaque");
+		}
+	});
+
 	test("reading those files, or touching their neighbours, is not", () => {
 		for (const command of [
 			"cat .maina/policy.json",
