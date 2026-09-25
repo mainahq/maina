@@ -174,7 +174,8 @@ export function startRuntime(
 		idle.cancel();
 		listener?.stop(false);
 		// A runtime displaced from its claim must not unlink the socket path,
-		// which now belongs to the runtime that holds the pid file.
+		// which now belongs to the runtime that holds the pid file. (On Linux,
+		// Bun unlinks the path itself when the listener stops.)
 		if (!isPipe && holdsPidFile(endpoint, pid)) {
 			rmSync(endpoint.address, { force: true });
 		}
