@@ -36,6 +36,7 @@
 			"!packages/docs/.astro",
 			"!packages/docs/dist",
 			"!.claude/worktrees",
+			"!.cache",
 			"!examples/**/.cursor",
 			"!prototypes/**"
 		]

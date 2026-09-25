@@ -36,3 +36,40 @@ jobs:
 
       - name: Test
         run: bun run test
+
+  # Code-graph latency budgets (v1 task 5.5, FR-GRAPH-2/4): indexes a pinned
+  # ~100k-LOC public repo and fails when a single-file update exceeds 500 ms
+  # or a warm query exceeds 200 ms at p95. It runs beside the main job rather
+  # than inside it; the checkout is cached under the fetch script's hash,
+  # which carries the pinned commit. See packages/core/bench/README.md.
+  graph-bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Cache pinned bench repo
+        uses: actions/cache@v4
+        with:
+          path: .cache/bench-repos
+          key: graph-bench-repo-${{ hashFiles('scripts/fixtures/fetch-100k-repo.ts') }}
+
+      - name: Fetch pinned bench repo
+        run: bun scripts/fixtures/fetch-100k-repo.ts
+
+      - name: Graph bench (fails on budget breach)
+        run: bun run bench:graph --json graph-bench.json
+
+      - name: Upload bench report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: graph-bench-report
+          path: graph-bench.json
+          if-no-files-found: ignore

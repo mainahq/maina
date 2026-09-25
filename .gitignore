@@ -61,3 +61,6 @@ IMPLEMENTATION_PLAN.md
 MAINA_WIKI_*.md
 maina-pitchdeck.pptx
 *.pptx
+
+# Bench fixtures (pinned third-party checkouts, see scripts/fixtures/)
+.cache/
