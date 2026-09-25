@@ -196,6 +196,50 @@ describe("allow rules", () => {
 		);
 	});
 
+	test("an exact file rule matches the whole path, never just its basename", () => {
+		const policy = withRules({
+			allow: [{ match: "hosts", kind: "file.read.outside", exact: true }],
+		});
+		expect(evaluateRules(readEvent("/etc/hosts"), policy, ctx).kind).not.toBe(
+			"allow",
+		);
+	});
+
+	test("an exact network rule matches the whole URL, never just its host", () => {
+		const policy = withRules({
+			allow: [
+				{ match: "api.example.com", kind: "network", exact: true },
+				{ match: "https://ok.example/v1", kind: "network", exact: true },
+			],
+		});
+		expect(
+			evaluateRules(networkEvent("https://api.example.com/upload"), policy, ctx)
+				.kind,
+		).not.toBe("allow");
+		expect(
+			evaluateRules(networkEvent("https://ok.example/v1"), policy, ctx).kind,
+		).toBe("allow");
+	});
+
+	test("an exact mcp rule matches the qualified tool, never a bare tool name", () => {
+		const policy = withRules({
+			allow: [
+				{ match: "srv/tool", kind: "mcp", exact: true },
+				{ match: "mcp__gh__get_issue", kind: "mcp", exact: true },
+			],
+		});
+		// A tool literally named `srv/tool` on another server is not `srv/tool`.
+		expect(
+			evaluateRules(mcpEvent("other", "srv/tool"), policy, ctx).kind,
+		).not.toBe("allow");
+		expect(evaluateRules(mcpEvent("srv", "tool"), policy, ctx).kind).toBe(
+			"allow",
+		);
+		expect(evaluateRules(mcpEvent("gh", "get_issue"), policy, ctx).kind).toBe(
+			"allow",
+		);
+	});
+
 	test("a plain rule without `exact` keeps argument-prefix semantics", () => {
 		const policy = withRules({ allow: [{ match: "curl", exact: false }] });
 		expect(

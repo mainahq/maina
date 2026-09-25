@@ -86,7 +86,7 @@ const Rule = z.strictObject({
 	exact: z
 		.boolean()
 		.describe(
-			"Match the whole string literally: no `*` globbing and, for a shell rule, no extra arguments. `maina allow --always` writes exact rules.",
+			"Match the whole command, path, URL or server/tool name literally: no `*` globbing, no basename, host or bare tool name match and, for a shell rule, no extra arguments. `maina allow --always` writes exact rules.",
 		)
 		.optional(),
 	reason: z.string().min(1).optional(),

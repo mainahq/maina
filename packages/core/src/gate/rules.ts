@@ -195,7 +195,7 @@ function matchesAllow(
 	const applicable = rules.filter((rule) => appliesTo(rule, event.kind));
 	if (event.kind !== "shell") {
 		return applicable.find((rule) =>
-			targetsOf(event).some((t) => targetMatches(rule, t)),
+			targetsFor(rule, event).some((t) => targetMatches(rule, t)),
 		);
 	}
 	if (commands.length === 0) return undefined;
@@ -212,10 +212,37 @@ function ruleMatchesAny(
 	if (event.kind === "shell") {
 		return commands.some((command) => commandMatches(rule, command));
 	}
-	return targetsOf(event).some((t) => targetMatches(rule, t));
+	return targetsFor(rule, event).some((t) => targetMatches(rule, t));
 }
 
-/** The strings a non-shell rule can match against. */
+/**
+ * The strings `rule` can match for a non-shell event. An `exact` rule names
+ * the whole path, URL or qualified tool, so it never matches a basename, a
+ * host or a bare tool name the way a pattern can.
+ */
+function targetsFor(rule: RulePolicy, event: GateEvent): readonly string[] {
+	if (rule.exact !== true) return targetsOf(event);
+	switch (event.kind) {
+		case "file.write":
+		case "file.read.outside":
+			return [event.action.path];
+		case "mcp":
+			return [
+				`${event.action.server}/${event.action.tool}`,
+				`mcp__${event.action.server}__${event.action.tool}`,
+			];
+		case "network":
+			return [event.action.url];
+		case "shell":
+			return [];
+		default: {
+			const unreachable: never = event;
+			return unreachable;
+		}
+	}
+}
+
+/** The strings a non-shell pattern rule can match against. */
 function targetsOf(event: GateEvent): readonly string[] {
 	switch (event.kind) {
 		case "file.write":
