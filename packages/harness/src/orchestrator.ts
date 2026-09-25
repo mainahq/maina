@@ -194,10 +194,8 @@ export function startRun(options: RunOptions, deps: RunDeps = {}): Run {
 			wallClock = setTimeout(() => stop("wall_clock"), budgets.wallClockMs);
 		}
 		const toolCalls = new Set<string>();
-		const emit = (event: HarnessEvent): void => {
-			events.push(event);
-			if (event.type !== "tool") return;
-			toolCalls.add(event.call.toolCallId);
+		const count = (toolCallId: string): void => {
+			toolCalls.add(toolCallId);
 			if (
 				budgets.maxToolCalls !== undefined &&
 				toolCalls.size > budgets.maxToolCalls
@@ -205,13 +203,24 @@ export function startRun(options: RunOptions, deps: RunDeps = {}): Run {
 				stop("tool_calls");
 			}
 		};
+		const emit = (event: HarnessEvent): void => {
+			events.push(event);
+			if (event.type === "tool") count(event.call.toolCallId);
+		};
+		// A permission request counts its call too, before it is judged: an
+		// agent that asks about a call before reporting it must not get a
+		// call past the budget allowed (the aborted session answers cancelled).
+		const policy: PermissionPolicy = (request) => {
+			count(request.toolCallId);
+			return controller.signal.aborted ? "deny" : options.policy(request);
+		};
 
 		let outcome: Result<StopReason, HarnessError> | undefined;
 		const session = runSession(child, {
 			agent: options.agent.name,
 			task: options.task,
 			root: options.root,
-			policy: options.policy,
+			policy,
 			emit,
 			signal: controller.signal,
 		}).then(
@@ -223,6 +232,9 @@ export function startRun(options: RunOptions, deps: RunDeps = {}): Run {
 		);
 
 		await Promise.race([session, aborted(controller.signal)]);
+		// The turn is over (or already stopped): a cancel or budget that lands
+		// during teardown must not relabel how it ended.
+		finished = true;
 		// Cancelled: give the agent a moment to answer `session/cancel`.
 		if (controller.signal.aborted) {
 			await within(session, cancelGraceMs);

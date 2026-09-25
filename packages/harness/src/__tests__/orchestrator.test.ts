@@ -327,6 +327,43 @@ describe("startRun: cancellation", () => {
 		expect(isAlive(pids[0] as number)).toBe(false);
 	});
 
+	test("a cancel that lands while a finished turn is being torn down does not relabel it", async () => {
+		let entered: () => void = () => undefined;
+		const stopping = new Promise<void>((resolve) => {
+			entered = resolve;
+		});
+		let release: () => void = () => undefined;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const spawn: SpawnAgent = (agent, root) => {
+			const child = spawnAgent(agent, root);
+			if (!child.ok) return child;
+			const real = child.value;
+			return {
+				ok: true,
+				value: {
+					...real,
+					stop: async (graceMs) => {
+						entered();
+						await gate;
+						await real.stop(graceMs);
+					},
+				},
+			};
+		};
+		const run = startRun(options({}), { spawn });
+		await stopping;
+		const cancelling = run.cancel();
+		release();
+		await cancelling;
+		expect(await run.done).toEqual({
+			type: "end",
+			state: "completed",
+			stopReason: "end_turn",
+		});
+	});
+
 	test("cancel() after the run ended is a no-op", async () => {
 		const run = startRun(options({}));
 		await collect(run);
@@ -355,6 +392,53 @@ describe("startRun: budgets", () => {
 				),
 			),
 		);
+		expect(events.at(-1)).toMatchObject({
+			type: "end",
+			state: "budget_exceeded",
+			budget: "tool_calls",
+		});
+	});
+
+	test("a permission request for a call past the tool-call budget is never allowed", async () => {
+		const events = await collect(
+			startRun(
+				options(
+					{
+						steps: [
+							{
+								update: {
+									sessionUpdate: "tool_call",
+									toolCallId: "a",
+									title: "a",
+									kind: "read",
+								},
+							},
+							{
+								// A second call the agent asks about before reporting it.
+								permission: {
+									toolCall: {
+										toolCallId: "b",
+										kind: "execute",
+										rawInput: { command: "rm -rf build" },
+									},
+									options: [
+										{ optionId: "yes", name: "Allow", kind: "allow_once" },
+										{ optionId: "no", name: "Reject", kind: "reject_once" },
+									],
+								},
+							},
+							{ hang: true },
+						],
+					},
+					{ budgets: { maxToolCalls: 1 } },
+				),
+			),
+		);
+		expect(events).toContainEqual({
+			type: "message",
+			role: "agent",
+			text: "permission:cancelled",
+		});
 		expect(events.at(-1)).toMatchObject({
 			type: "end",
 			state: "budget_exceeded",

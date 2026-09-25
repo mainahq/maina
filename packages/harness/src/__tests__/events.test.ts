@@ -376,13 +376,19 @@ describe("chooseOption", () => {
 		expect(chooseOption(OPTIONS, "ask")).toBe("no");
 	});
 
-	test("falls back to the standing option of the same polarity", () => {
+	test("an allow never falls back to a standing allow: it would outlive the verdict", () => {
 		expect(
 			chooseOption(
-				[{ optionId: "a", name: "A", kind: "allow_always" }],
+				[
+					{ optionId: "a", name: "A", kind: "allow_always" },
+					{ optionId: "no", name: "No", kind: "reject_once" },
+				],
 				"allow",
 			),
-		).toBe("a");
+		).toBeUndefined();
+	});
+
+	test("a reject falls back to the standing reject: stricter is still closed", () => {
 		expect(
 			chooseOption(
 				[{ optionId: "r", name: "R", kind: "reject_always" }],

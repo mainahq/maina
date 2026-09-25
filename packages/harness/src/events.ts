@@ -420,8 +420,9 @@ export function normalisePermission(
 }
 
 const PREFERENCE: Readonly<Record<Verdict, readonly PermissionOptionKind[]>> = {
-	// A one-off allow: a standing one would outlive this verdict.
-	allow: ["allow_once", "allow_always"],
+	// Only a one-off allow: a standing one would outlive this verdict and let
+	// the agent skip the policy for later calls, so none offered → cancelled.
+	allow: ["allow_once"],
 	// Headless: nobody is there to ask, so `ask` rejects (fail closed).
 	ask: ["reject_once", "reject_always"],
 	deny: ["reject_once", "reject_always"],
@@ -429,7 +430,8 @@ const PREFERENCE: Readonly<Record<Verdict, readonly PermissionOptionKind[]>> = {
 
 /**
  * The option that answers a verdict, or undefined (answer `cancelled`) when
- * the agent offers none of the right polarity. Never an allow for a deny.
+ * the agent offers none that fits. Never an allow for a deny, and never a
+ * standing allow; a reject may fall back to a standing reject.
  */
 export function chooseOption(
 	options: readonly PermissionOption[],
