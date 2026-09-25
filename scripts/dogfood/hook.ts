@@ -13,7 +13,8 @@
  * Tighten only: an `allow` prints nothing, so Claude Code's own permission
  * flow stands, as it did under the bootstrap. The gate does not yet know
  * this repo's protected branches (`v1/main`) or the current branch, so
- * letting its allows skip Claude Code's prompts would loosen the guard.
+ * letting its allows skip Claude Code's prompts would loosen the guard
+ * (mainahq/maina#459).
  * `ask` and `deny` are passed on; a deny also exits 2 with the reason on
  * stderr. The settings.json command falls back to `ask` if this script
  * cannot start at all.
