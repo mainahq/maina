@@ -143,6 +143,15 @@ export function createGraphSync(
 
 	const conflictRetries = options.conflictRetries ?? DEFAULT_CONFLICT_RETRIES;
 
+	/** Hands an error to `onError`; a reporter that throws never wedges a root. */
+	const report = (root: string, error: unknown): void => {
+		try {
+			options.onError?.(root, error);
+		} catch {
+			// Nothing left to report to.
+		}
+	};
+
 	/** Runs one job: the sync's error, or null once it is done or reported. */
 	const runJob = async (
 		root: string,
@@ -154,7 +163,7 @@ export function createGraphSync(
 				: await ports.syncPaths(root, [...job.paths].sort());
 			return synced.ok ? null : synced.error;
 		} catch (error) {
-			options.onError?.(root, error);
+			report(root, error);
 			return null;
 		}
 	};
@@ -182,7 +191,7 @@ export function createGraphSync(
 				continue;
 			}
 			conflicts = 0;
-			if (error !== null) options.onError?.(root, error);
+			if (error !== null) report(root, error);
 			job.resolve();
 		}
 		lane.running = false;
@@ -205,7 +214,7 @@ export function createGraphSync(
 		try {
 			root = await ports.rootOf(trigger.dir);
 		} catch (error) {
-			options.onError?.(trigger.dir, error);
+			report(trigger.dir, error);
 			return;
 		}
 		if (root !== null) await enqueue(root, trigger);

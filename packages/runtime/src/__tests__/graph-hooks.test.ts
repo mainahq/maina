@@ -366,6 +366,22 @@ describe("createGraphSync conflict retries", () => {
 		expect(errors).toHaveLength(1);
 	});
 
+	test("an onError that throws does not wedge the root", async () => {
+		const scripted = scriptedPorts([conflict]);
+		const sync = createGraphSync(scripted.ports, {
+			conflictRetries: 0,
+			onError: () => {
+				throw new Error("reporter crashed");
+			},
+		});
+		await sync.observe(edit("/repo", "a.ts"));
+		await sync.observe(edit("/repo", "b.ts"));
+		expect(scripted.calls).toEqual([
+			{ root: "/repo", op: ["/repo/a.ts"] },
+			{ root: "/repo", op: ["/repo/b.ts"] },
+		]);
+	});
+
 	test("errors other than a conflict are not retried", async () => {
 		const errors: unknown[] = [];
 		const failure: GraphSyncResult = {
