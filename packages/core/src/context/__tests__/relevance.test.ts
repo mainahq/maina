@@ -1,323 +1,153 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { beforeAll, describe, expect, test } from "bun:test";
+import {
+	createRepo,
+	ROOT,
+	snapshot,
+	unwrap,
+} from "../../graph/store/__tests__/helpers";
+import { indexRepo } from "../../graph/store/index";
+import type { GraphSnapshot } from "../../graph/store/types";
 import {
 	buildGraph,
+	type DependencyGraph,
 	pageRank,
 	scoreRelevance,
 	type TaskContext,
 } from "../relevance";
 
-const TEST_DIR = join(tmpdir(), `maina-relevance-test-${Date.now()}`);
+// FR-GRAPH-5: the PageRank input is the code graph's file-level projection,
+// not a regex scan of import lines. fileA imports and calls fileB and fileC,
+// fileB calls fileC, typeUser only uses a type from typeDef, and external
+// imports a package the store cannot resolve.
+const FILES: Readonly<Record<string, string>> = {
+	"src/fileA.ts":
+		'import { foo } from "./fileB";\nimport { bar } from "./fileC";\n\nexport function doA(): void {\n\tfoo();\n\tbar();\n}\n',
+	"src/fileB.ts":
+		'import { bar } from "./fileC";\n\nexport function foo(): void {\n\tbar();\n}\n',
+	"src/fileC.ts": "export function bar(): void {}\n",
+	"src/typeDef.ts": "export type Shape = { sides: number };\n",
+	"src/typeUser.ts":
+		'import type { Shape } from "./typeDef";\n\nexport const square: Shape = { sides: 4 };\n',
+	"src/external.ts":
+		'import { something } from "some-package";\n\nexport const x = something;\n',
+};
 
-beforeAll(() => {
-	mkdirSync(TEST_DIR, { recursive: true });
+const A = "src/fileA.ts";
+const B = "src/fileB.ts";
+const C = "src/fileC.ts";
 
-	// Create a simple dependency graph of TS files for testing
-	// fileA imports fileB and fileC
-	// fileB imports fileC
-	// fileC has no imports
-	writeFileSync(
-		join(TEST_DIR, "fileA.ts"),
-		`import { foo } from "./fileB";\nimport { bar } from "./fileC";\nexport function doA() {}\n`,
-	);
-	writeFileSync(
-		join(TEST_DIR, "fileB.ts"),
-		`import { bar } from "./fileC";\nexport function foo() {}\n`,
-	);
-	writeFileSync(join(TEST_DIR, "fileC.ts"), `export function bar() {}\n`);
+let graphSnapshot: GraphSnapshot;
+let graph: DependencyGraph;
+
+beforeAll(async () => {
+	const repo = createRepo(FILES);
+	unwrap(await indexRepo(repo.ports, ROOT));
+	graphSnapshot = snapshot(repo.db);
+	graph = buildGraph(graphSnapshot);
 });
 
-afterAll(() => {
-	rmSync(TEST_DIR, { recursive: true, force: true });
-});
-
-describe("buildGraph", () => {
-	test("creates nodes for each file", async () => {
-		const files = [
-			join(TEST_DIR, "fileA.ts"),
-			join(TEST_DIR, "fileB.ts"),
-			join(TEST_DIR, "fileC.ts"),
-		];
-		const graph = await buildGraph(files);
-
-		expect(graph.nodes.has(join(TEST_DIR, "fileA.ts"))).toBe(true);
-		expect(graph.nodes.has(join(TEST_DIR, "fileB.ts"))).toBe(true);
-		expect(graph.nodes.has(join(TEST_DIR, "fileC.ts"))).toBe(true);
-		expect(graph.nodes.size).toBe(3);
-	});
-
-	test("creates edges between files with imports", async () => {
-		const files = [
-			join(TEST_DIR, "fileA.ts"),
-			join(TEST_DIR, "fileB.ts"),
-			join(TEST_DIR, "fileC.ts"),
-		];
-		const graph = await buildGraph(files);
-
-		// fileA imports fileB and fileC
-		const aEdges = graph.edges.get(join(TEST_DIR, "fileA.ts"));
-		expect(aEdges).toBeDefined();
-		expect(aEdges?.has(join(TEST_DIR, "fileB.ts"))).toBe(true);
-		expect(aEdges?.has(join(TEST_DIR, "fileC.ts"))).toBe(true);
-
-		// fileB imports fileC
-		const bEdges = graph.edges.get(join(TEST_DIR, "fileB.ts"));
-		expect(bEdges?.has(join(TEST_DIR, "fileC.ts"))).toBe(true);
-	});
-
-	test("assigns weight 1.0 for normal imports", async () => {
-		const files = [
-			join(TEST_DIR, "fileA.ts"),
-			join(TEST_DIR, "fileB.ts"),
-			join(TEST_DIR, "fileC.ts"),
-		];
-		const graph = await buildGraph(files);
-
-		const aEdges = graph.edges.get(join(TEST_DIR, "fileA.ts"));
-		const weightToB = aEdges?.get(join(TEST_DIR, "fileB.ts"));
-		expect(weightToB).toBeCloseTo(1.0);
-	});
-
-	test("assigns weight 0.5 for type-only imports", async () => {
-		const typeFile = join(TEST_DIR, "typeImporter.ts");
-		const typeTarget = join(TEST_DIR, "typeTarget.ts");
-		writeFileSync(
-			typeFile,
-			`import type { SomeType } from "./typeTarget";\nexport const x = 1;\n`,
+describe("buildGraph (from the code graph)", () => {
+	test("has one node per stored file, repo-relative", () => {
+		expect([...graph.nodes].sort()).toEqual(
+			graphSnapshot.files.map((f) => f.path).sort(),
 		);
-		writeFileSync(typeTarget, `export type SomeType = string;\n`);
-
-		const graph = await buildGraph([typeFile, typeTarget]);
-
-		const edges = graph.edges.get(typeFile);
-		const weight = edges?.get(typeTarget);
-		expect(weight).toBeCloseTo(0.5);
+		expect(graph.nodes.has(A)).toBe(true);
+		expect(graph.nodes.size).toBe(Object.keys(FILES).length);
 	});
 
-	test("assigns weight 0.1 for private name imports (starting with _)", async () => {
-		const privateFile = join(TEST_DIR, "privateImporter.ts");
-		const privateTarget = join(TEST_DIR, "privateTarget.ts");
-		writeFileSync(
-			privateFile,
-			`import { _helper } from "./privateTarget";\nexport const x = 1;\n`,
-		);
-		writeFileSync(privateTarget, `export function _helper() {}\n`);
-
-		const graph = await buildGraph([privateFile, privateTarget]);
-
-		const edges = graph.edges.get(privateFile);
-		const weight = edges?.get(privateTarget);
-		expect(weight).toBeCloseTo(0.1);
+	test("projects symbol edges onto file edges", () => {
+		expect(graph.edges.get(A)?.has(B)).toBe(true);
+		expect(graph.edges.get(A)?.has(C)).toBe(true);
+		expect(graph.edges.get(B)?.has(C)).toBe(true);
+		expect(graph.edges.get(C)).toBeUndefined();
 	});
 
-	test("ignores non-relative imports (node_modules)", async () => {
-		const extFile = join(TEST_DIR, "externalImporter.ts");
-		writeFileSync(
-			extFile,
-			`import { something } from "some-package";\nexport const x = 1;\n`,
-		);
-
-		const graph = await buildGraph([extFile]);
-
-		// The external package should not be added as a node or edge
-		const edges = graph.edges.get(extFile);
-		// No edges to external packages
-		expect(edges?.size ?? 0).toBe(0);
+	test("weighs code that calls into a file at 1.0", () => {
+		expect(graph.edges.get(A)?.get(B)).toBeCloseTo(1.0);
 	});
 
-	test("returns empty graph for empty file list", async () => {
-		const graph = await buildGraph([]);
-		expect(graph.nodes.size).toBe(0);
-		expect(graph.edges.size).toBe(0);
+	test("weighs import-only and type-only dependencies at 0.5", () => {
+		expect(graph.edges.get("src/typeUser.ts")?.get("src/typeDef.ts")).toBe(0.5);
+	});
+
+	test("never adds unresolved packages or self edges", () => {
+		expect(graph.edges.get("src/external.ts")?.size ?? 0).toBe(0);
+		for (const [src, targets] of graph.edges) {
+			expect(targets.has(src)).toBe(false);
+			for (const dst of targets.keys()) expect(graph.nodes.has(dst)).toBe(true);
+		}
+	});
+
+	test("an empty store gives an empty graph", () => {
+		const empty = buildGraph({ files: [], nodes: [], edges: [] });
+		expect(empty.nodes.size).toBe(0);
+		expect(empty.edges.size).toBe(0);
 	});
 });
 
 describe("pageRank", () => {
-	test("returns scores for all nodes", async () => {
-		const files = [
-			join(TEST_DIR, "fileA.ts"),
-			join(TEST_DIR, "fileB.ts"),
-			join(TEST_DIR, "fileC.ts"),
-		];
-		const graph = await buildGraph(files);
+	test("returns scores for all nodes, summing to about 1", () => {
 		const scores = pageRank(graph);
-
-		expect(scores.has(join(TEST_DIR, "fileA.ts"))).toBe(true);
-		expect(scores.has(join(TEST_DIR, "fileB.ts"))).toBe(true);
-		expect(scores.has(join(TEST_DIR, "fileC.ts"))).toBe(true);
-	});
-
-	test("returns scores that sum approximately to 1", async () => {
-		const files = [
-			join(TEST_DIR, "fileA.ts"),
-			join(TEST_DIR, "fileB.ts"),
-			join(TEST_DIR, "fileC.ts"),
-		];
-		const graph = await buildGraph(files);
-		const scores = pageRank(graph);
-
-		const total = Array.from(scores.values()).reduce((a, b) => a + b, 0);
+		for (const node of graph.nodes) expect(scores.has(node)).toBe(true);
+		const total = [...scores.values()].reduce((a, b) => a + b, 0);
 		expect(total).toBeCloseTo(1.0, 1);
 	});
 
-	test("pageRank with personalization biases scores toward personalized nodes", async () => {
-		const files = [
-			join(TEST_DIR, "fileA.ts"),
-			join(TEST_DIR, "fileB.ts"),
-			join(TEST_DIR, "fileC.ts"),
-		];
-		const graph = await buildGraph(files);
-
-		// Personalize heavily toward fileA
+	test("personalization biases scores toward personalized nodes", () => {
 		const personalization = new Map<string, number>([
-			[join(TEST_DIR, "fileA.ts"), 100],
-			[join(TEST_DIR, "fileB.ts"), 1],
-			[join(TEST_DIR, "fileC.ts"), 1],
+			[A, 100],
+			[B, 1],
+			[C, 1],
 		]);
-
-		const scoresPersonalized = pageRank(graph, { personalization });
-		const scoresUniform = pageRank(graph);
-
-		const aScorePersonalized =
-			scoresPersonalized.get(join(TEST_DIR, "fileA.ts")) ?? 0;
-		const aScoreUniform = scoresUniform.get(join(TEST_DIR, "fileA.ts")) ?? 0;
-
-		// fileA should have higher score when personalized toward it
-		expect(aScorePersonalized).toBeGreaterThan(aScoreUniform);
-	});
-
-	test("pageRank without personalization distributes scores more evenly", async () => {
-		const files = [
-			join(TEST_DIR, "fileA.ts"),
-			join(TEST_DIR, "fileB.ts"),
-			join(TEST_DIR, "fileC.ts"),
-		];
-		const graph = await buildGraph(files);
-
-		// No personalization — uniform distribution baseline
-		const scoresUniform = pageRank(graph);
-
-		// With extreme personalization toward fileC (heavily-linked target),
-		// fileC should dominate more than in the uniform case.
-		const personalization = new Map<string, number>([
-			[join(TEST_DIR, "fileA.ts"), 1],
-			[join(TEST_DIR, "fileB.ts"), 1],
-			[join(TEST_DIR, "fileC.ts"), 1000],
-		]);
-		const scoresPersonalized = pageRank(graph, { personalization });
-
-		// fileC score should be higher when personalized toward it
-		const cUniform = scoresUniform.get(join(TEST_DIR, "fileC.ts")) ?? 0;
-		const cPersonalized =
-			scoresPersonalized.get(join(TEST_DIR, "fileC.ts")) ?? 0;
-		expect(cPersonalized).toBeGreaterThan(cUniform);
-
-		// fileA score (not personalized heavily) should be lower in personalized run
-		const aUniform = scoresUniform.get(join(TEST_DIR, "fileA.ts")) ?? 0;
-		const aPersonalized =
-			scoresPersonalized.get(join(TEST_DIR, "fileA.ts")) ?? 0;
-		expect(aPersonalized).toBeLessThan(aUniform);
+		const personalized = pageRank(graph, { personalization });
+		const uniform = pageRank(graph);
+		expect(personalized.get(A) ?? 0).toBeGreaterThan(uniform.get(A) ?? 0);
 	});
 
 	test("returns empty map for empty graph", () => {
-		const graph = {
-			nodes: new Set<string>(),
-			edges: new Map<string, Map<string, number>>(),
-		};
-		const scores = pageRank(graph);
+		const scores = pageRank({ nodes: new Set(), edges: new Map() });
 		expect(scores.size).toBe(0);
 	});
 
-	test("respects custom dampingFactor and iterations options", async () => {
-		const files = [
-			join(TEST_DIR, "fileA.ts"),
-			join(TEST_DIR, "fileB.ts"),
-			join(TEST_DIR, "fileC.ts"),
-		];
-		const graph = await buildGraph(files);
-
-		// Should not throw with custom options
+	test("respects custom dampingFactor and iterations options", () => {
 		const scores = pageRank(graph, { dampingFactor: 0.5, iterations: 5 });
-		const total = Array.from(scores.values()).reduce((a, b) => a + b, 0);
+		const total = [...scores.values()].reduce((a, b) => a + b, 0);
 		expect(total).toBeCloseTo(1.0, 1);
 	});
 });
 
 describe("scoreRelevance", () => {
-	test("ranks touched files higher", async () => {
-		const files = [
-			join(TEST_DIR, "fileA.ts"),
-			join(TEST_DIR, "fileB.ts"),
-			join(TEST_DIR, "fileC.ts"),
-		];
-		const graph = await buildGraph(files);
-
-		const taskContext: TaskContext = {
-			touchedFiles: [join(TEST_DIR, "fileC.ts")],
+	test("ranks touched files higher", () => {
+		const task: TaskContext = {
+			touchedFiles: [C],
 			mentionedFiles: [],
 			currentTicketTerms: [],
 		};
-
-		const scores = scoreRelevance(graph, taskContext);
-
-		// fileC is touched, should rank higher than without personalization
-		const cScore = scores.get(join(TEST_DIR, "fileC.ts")) ?? 0;
-		const uniformScores = pageRank(graph);
-		const cUniformScore = uniformScores.get(join(TEST_DIR, "fileC.ts")) ?? 0;
-
-		expect(cScore).toBeGreaterThan(cUniformScore);
+		const scores = scoreRelevance(graph, task);
+		expect(scores.get(C) ?? 0).toBeGreaterThan(pageRank(graph).get(C) ?? 0);
 	});
 
-	test("mentioned files get boosted scores (though less than touched)", async () => {
-		const files = [
-			join(TEST_DIR, "fileA.ts"),
-			join(TEST_DIR, "fileB.ts"),
-			join(TEST_DIR, "fileC.ts"),
-		];
-		const graph = await buildGraph(files);
-
-		// Task1: fileA is touched (weight 50), fileB/fileC are mentioned (weight 10 each)
-		const taskWithTouched: TaskContext = {
-			touchedFiles: [join(TEST_DIR, "fileA.ts")],
-			mentionedFiles: [join(TEST_DIR, "fileB.ts"), join(TEST_DIR, "fileC.ts")],
+	test("mentioned files get boosted scores (though less than touched)", () => {
+		const touchedA = scoreRelevance(graph, {
+			touchedFiles: [A],
+			mentionedFiles: [B, C],
 			currentTicketTerms: [],
-		};
-
-		// Task2: fileA is mentioned (weight 10), fileB/fileC are touched (weight 50 each)
-		const taskWithMentioned: TaskContext = {
-			touchedFiles: [join(TEST_DIR, "fileB.ts"), join(TEST_DIR, "fileC.ts")],
-			mentionedFiles: [join(TEST_DIR, "fileA.ts")],
+		});
+		const mentionedA = scoreRelevance(graph, {
+			touchedFiles: [B, C],
+			mentionedFiles: [A],
 			currentTicketTerms: [],
-		};
-
-		const scoresTouched = scoreRelevance(graph, taskWithTouched);
-		const scoresMentioned = scoreRelevance(graph, taskWithMentioned);
-
-		const aTouched = scoresTouched.get(join(TEST_DIR, "fileA.ts")) ?? 0;
-		const aMentioned = scoresMentioned.get(join(TEST_DIR, "fileA.ts")) ?? 0;
-
-		// When fileA is touched (weight 50), it should score higher than when only mentioned (weight 10)
-		expect(aTouched).toBeGreaterThan(aMentioned);
+		});
+		expect(touchedA.get(A) ?? 0).toBeGreaterThan(mentionedA.get(A) ?? 0);
 	});
 
-	test("returns scores summing to approximately 1", async () => {
-		const files = [
-			join(TEST_DIR, "fileA.ts"),
-			join(TEST_DIR, "fileB.ts"),
-			join(TEST_DIR, "fileC.ts"),
-		];
-		const graph = await buildGraph(files);
-
-		const taskContext: TaskContext = {
-			touchedFiles: [join(TEST_DIR, "fileA.ts")],
-			mentionedFiles: [join(TEST_DIR, "fileB.ts")],
+	test("returns scores summing to approximately 1", () => {
+		const scores = scoreRelevance(graph, {
+			touchedFiles: [A],
+			mentionedFiles: [B],
 			currentTicketTerms: ["doA", "foo"],
-		};
-
-		const scores = scoreRelevance(graph, taskContext);
-		const total = Array.from(scores.values()).reduce((a, b) => a + b, 0);
+		});
+		const total = [...scores.values()].reduce((a, b) => a + b, 0);
 		expect(total).toBeCloseTo(1.0, 1);
 	});
 });

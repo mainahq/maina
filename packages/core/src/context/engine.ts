@@ -4,7 +4,14 @@ import { join, resolve } from "node:path";
 import { loadAuthConfig } from "../cloud/auth";
 import { createCloudClient } from "../cloud/client";
 import type { CloudEpisodicEntry } from "../cloud/types";
+import type { Result } from "../db/index";
 import { getChangedFiles, getRepoSlug, getStagedFiles } from "../git/index";
+import type { GraphStorePorts } from "../graph/store/types";
+import {
+	type OpenedGraph,
+	type OpenGraphError,
+	openCodeGraph,
+} from "../graph/system";
 import type { EnvPort } from "../ports/env";
 import {
 	assembleBudget,
@@ -27,6 +34,13 @@ import {
 } from "./retrieval";
 import type { MainaCommand } from "./selector";
 import { getBudgetMode, getContextNeeds, needsLayer } from "./selector";
+import {
+	assembleSemanticText,
+	buildSemanticContext,
+	loadConstitution,
+	loadCustomContext,
+	persistSemanticContext,
+} from "./semantic";
 import { loadWikiContext } from "./wiki";
 import { assembleWorkingText, loadWorkingContext } from "./working";
 
@@ -55,6 +69,8 @@ export interface ContextOptions {
 	scope?: string; // limit to specific directory (relative to repoRoot)
 	modeOverride?: BudgetMode; // override the command-derived budget mode
 	modelContextWindow?: number; // override default 200K token context window
+	/** Code-graph store ports; defaults to the store under `mainaDir`. */
+	graph?: GraphStorePorts;
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -104,50 +120,77 @@ function fallbackSemanticText(mainaDir: string): string {
 	return parts.join("\n");
 }
 
+/** Semantic filters that need the code graph; no filter needs everything. */
+const GRAPH_SECTIONS: ReadonlySet<string> = new Set(["graph", "entities"]);
+
+const needsCodeGraph = (filter?: readonly string[]): boolean =>
+	filter === undefined || filter.some((f) => GRAPH_SECTIONS.has(f));
+
+type SemanticLayerRequest = Readonly<{
+	repoRoot: string;
+	mainaDir: string;
+	filter?: string[];
+	/** Ceiling on the graph's code snippets. */
+	codeBudgetTokens: number;
+	/** Graph store ports; the store under `mainaDir` when absent. */
+	graph?: GraphStorePorts;
+}>;
+
 /**
- * Attempt to load and assemble the semantic layer.
- * Uses dynamic import so the engine works even if semantic.ts is not yet built.
+ * The semantic layer (FR-GRAPH-5): constitution and custom context, plus,
+ * when the command's filter asks for it, the code graph's view of the
+ * touched files. The graph is read from its store and synced for the
+ * touched paths only; the repository is listed once, when the store is
+ * still empty.
  */
 async function loadSemanticLayer(
-	repoRoot: string,
-	mainaDir: string,
-	filter?: string[],
+	request: SemanticLayerRequest,
 ): Promise<string> {
-	try {
-		const {
-			buildSemanticContext,
-			assembleSemanticText,
-			persistSemanticContext,
-		} = await import("./semantic");
+	const { repoRoot, mainaDir, filter } = request;
+	if (!needsCodeGraph(filter)) {
+		const [constitution, customContext] = await Promise.all([
+			loadConstitution(mainaDir),
+			loadCustomContext(mainaDir),
+		]);
+		return assembleSemanticText(
+			{
+				entities: [],
+				graph: { nodes: new Set(), edges: new Map() },
+				scores: new Map(),
+				constitution,
+				customContext,
+				code: null,
+			},
+			filter,
+		);
+	}
 
-		// Populate task context from git for PageRank personalization
+	// Caller-supplied ports stay open: the caller owns their lifetime.
+	const opened: Result<OpenedGraph, OpenGraphError> = request.graph
+		? { ok: true, value: { ports: request.graph, close: () => undefined } }
+		: openCodeGraph(mainaDir);
+	if (!opened.ok) return fallbackSemanticText(mainaDir);
+	try {
 		const [staged, changed] = await Promise.all([
 			getStagedFiles(repoRoot),
 			getChangedFiles("HEAD~5", repoRoot),
 		]);
-		const touchedRelative = [...new Set([...staged, ...changed])];
-		// Graph uses absolute paths, so convert for personalization lookup
-		const touchedAbsolute = touchedRelative.map((f) => join(repoRoot, f));
-
-		const taskContext = {
-			touchedFiles: touchedAbsolute,
-			mentionedFiles: [],
-			currentTicketTerms: filter ?? [],
-		};
-
-		const semanticContext = await buildSemanticContext(
-			repoRoot,
+		const built = await buildSemanticContext(opened.value.ports, {
+			root: repoRoot,
 			mainaDir,
-			taskContext,
-		);
-
-		// Persist entities + dependency graph to DB for cross-session recall
-		persistSemanticContext(mainaDir, semanticContext, repoRoot);
-
-		return assembleSemanticText(semanticContext, filter);
+			touchedFiles: [...new Set([...staged, ...changed])],
+			codeBudgetTokens: request.codeBudgetTokens,
+		});
+		if (!built.ok) return fallbackSemanticText(mainaDir);
+		// `explain`, `ticket` and `stats` still read the legacy tables.
+		persistSemanticContext(mainaDir, built.value);
+		return assembleSemanticText(built.value, filter);
 	} catch {
-		// semantic module not available or failed — use minimal fallback
+		// An unexpected failure (a grammar that will not load) degrades to the
+		// constitution and conventions, as a failed graph read does.
 		return fallbackSemanticText(mainaDir);
+	} finally {
+		opened.value.close();
 	}
 }
 
@@ -289,12 +332,10 @@ async function buildEpisodicLayer(
  * Build the semantic layer content. Never throws.
  */
 async function buildSemanticLayer(
-	repoRoot: string,
-	mainaDir: string,
-	filter?: string[],
+	request: SemanticLayerRequest,
 ): Promise<LayerContent> {
 	try {
-		const text = await loadSemanticLayer(repoRoot, mainaDir, filter);
+		const text = await loadSemanticLayer(request);
 		return {
 			name: "semantic",
 			text,
@@ -363,7 +404,16 @@ export async function assembleContext(
 		const semanticFilter = Array.isArray(needs.semantic)
 			? needs.semantic
 			: undefined;
-		layerPromises.push(buildSemanticLayer(repoRoot, mainaDir, semanticFilter));
+		layerPromises.push(
+			buildSemanticLayer({
+				repoRoot,
+				mainaDir,
+				filter: semanticFilter,
+				// Half the layer for code; the rest for constitution and overview.
+				codeBudgetTokens: Math.floor(budget.semantic / 2),
+				graph: options.graph,
+			}),
+		);
 	}
 
 	// Episodic layer — filter may be a string[]

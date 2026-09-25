@@ -16,7 +16,9 @@
  * and callers write nothing when resolution fails.
  *
  * `resolveRoot` is pure over the injected `GitProbe`; `gitProbe` is the real
- * probe, backed by `git rev-parse --show-toplevel`.
+ * probe, backed by `git rev-parse --show-toplevel`. `resolveRootAsync` and
+ * `asyncGitProbe` are the same over an async probe, for the daemon, where a
+ * blocking spawn would stall every connection.
  */
 
 import { isAbsolute, resolve } from "node:path";
@@ -113,6 +115,27 @@ export function resolveRoot(
 	return { ok: false, error: { kind: "no_repo", source, tried } };
 }
 
+/** An async `GitProbe`, for callers that must not block the event loop. */
+type AsyncGitProbe = Readonly<{
+	toplevel: (dir: string) => Promise<string | null>;
+}>;
+
+/** `resolveRoot` over an async probe: the same precedence and refusals. */
+export async function resolveRootAsync(
+	inputs: RootInputs,
+	git: AsyncGitProbe,
+): Promise<Result<Root, NoRepo>> {
+	const { source, values } = pickCandidates(inputs);
+	const tried: string[] = [];
+	for (const value of values) {
+		const dir = toDir(value, inputs.cwd);
+		const path = dir === null ? null : await git.toplevel(dir);
+		if (path !== null) return { ok: true, value: { path, source } };
+		tried.push(dir ?? value);
+	}
+	return { ok: false, error: { kind: "no_repo", source, tried } };
+}
+
 /**
  * Variables that point git at a specific repository regardless of the
  * directory it runs in (set, for example, inside git hooks). The probe drops
@@ -135,20 +158,46 @@ const probeEnv = (): Record<string, string | undefined> => {
 	return env;
 };
 
+const TOPLEVEL = ["git", "rev-parse", "--show-toplevel"];
+
+const probeOptions = (dir: string) =>
+	({
+		cwd: dir,
+		env: probeEnv(),
+		stdin: "ignore",
+		stdout: "pipe",
+		stderr: "ignore",
+	}) as const;
+
+const toplevelOf = (exitCode: number | null, stdout: string): string | null => {
+	if (exitCode !== 0) return null;
+	const top = stdout.trim();
+	return top === "" ? null : top;
+};
+
 /** Real probe: `git rev-parse --show-toplevel` run in `dir`. Never writes. */
 export const gitProbe: GitProbe = {
 	toplevel: (dir) => {
 		try {
-			const proc = Bun.spawnSync(["git", "rev-parse", "--show-toplevel"], {
-				cwd: dir,
-				env: probeEnv(),
-				stdin: "ignore",
-				stdout: "pipe",
-				stderr: "ignore",
-			});
-			if (proc.exitCode !== 0) return null;
-			const top = proc.stdout.toString().trim();
-			return top === "" ? null : top;
+			const proc = Bun.spawnSync(TOPLEVEL, probeOptions(dir));
+			return toplevelOf(proc.exitCode, proc.stdout.toString());
+		} catch {
+			// Missing or unreadable dir: not inside a repository.
+			return null;
+		}
+	},
+};
+
+/** `gitProbe` without blocking: the same command, awaited. Never rejects. */
+export const asyncGitProbe: AsyncGitProbe = {
+	toplevel: async (dir) => {
+		try {
+			const proc = Bun.spawn(TOPLEVEL, probeOptions(dir));
+			const [stdout, exitCode] = await Promise.all([
+				new Response(proc.stdout).text(),
+				proc.exited,
+			]);
+			return toplevelOf(exitCode, stdout);
 		} catch {
 			// Missing or unreadable dir: not inside a repository.
 			return null;

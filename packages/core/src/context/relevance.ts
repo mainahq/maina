@@ -1,6 +1,6 @@
-import { dirname, extname, resolve } from "node:path";
 import { decide, defaultDecidePorts, scoreAnswers } from "../decide/decide";
-import { parseFile } from "./treesitter";
+import type { EdgeKind } from "../graph/store/schema";
+import type { GraphSnapshot } from "../graph/store/types";
 
 export { pageRank } from "../decide/backends/heuristics/retrieval";
 
@@ -9,165 +9,43 @@ export interface DependencyGraph {
 	edges: Map<string, Map<string, number>>; // source -> target -> weight
 }
 
-export interface TaskContext {
-	touchedFiles: string[];
-	mentionedFiles: string[];
-	currentTicketTerms: string[];
-}
+export type TaskContext = Readonly<{
+	touchedFiles: readonly string[];
+	mentionedFiles: readonly string[];
+	currentTicketTerms: readonly string[];
+}>;
 
 /**
- * Resolves a relative import source to an absolute file path,
- * trying common extensions if needed.
+ * How strongly an edge ties its source file to its target's file. Using the
+ * target's code (a call, extending a type) is a hard dependency; an import
+ * alone (a re-export, a type-only import) or a type reference is a soft one.
  */
-function resolveImportPath(
-	importSource: string,
-	sourceFile: string,
-	knownFiles: Set<string>,
-): string | null {
-	// Only handle relative imports
-	if (!importSource.startsWith(".")) {
-		return null;
-	}
-
-	const sourceDir = dirname(sourceFile);
-	const base = resolve(sourceDir, importSource);
-
-	// Try exact path first, then with extensions
-	const candidates = [
-		base,
-		// TypeScript/JavaScript
-		`${base}.ts`,
-		`${base}.tsx`,
-		`${base}.js`,
-		`${base}.jsx`,
-		`${base}/index.ts`,
-		`${base}/index.js`,
-		// Python
-		`${base}.py`,
-		`${base}/__init__.py`,
-		// Go
-		`${base}.go`,
-		// Rust
-		`${base}.rs`,
-		`${base}/mod.rs`,
-		// C#
-		`${base}.cs`,
-		// Java
-		`${base}.java`,
-		`${base}.kt`,
-	];
-
-	for (const candidate of candidates) {
-		if (knownFiles.has(candidate)) {
-			return candidate;
-		}
-	}
-
-	return null;
-}
+const EDGE_WEIGHT: Readonly<Record<EdgeKind, number>> = {
+	calls: 1,
+	inherits: 1,
+	imports: 0.5,
+	references: 0.5,
+};
 
 /**
- * Determines if an import is type-only based on the import text in the file.
- * Since parseFile doesn't directly expose type-only info, we check specifiers.
- * A heuristic: all specifiers start with uppercase AND source is not a runtime dep.
- * More accurately, we need to re-read to detect "import type".
+ * The code graph's file-level projection, the PageRank input (FR-GRAPH-5):
+ * one node per stored file and an edge from each file to every other file
+ * its symbols import, call, reference or extend, weighted by the strongest
+ * such tie (see `EDGE_WEIGHT`). Paths are repo-relative, as stored. Pure.
  */
-async function getImportTypeInfo(
-	filePath: string,
-): Promise<{ typeOnlySources: Set<string>; privateSources: Set<string> }> {
-	try {
-		const content = await Bun.file(filePath).text();
-		const typeOnlySources = new Set<string>();
-		const privateSources = new Set<string>();
-
-		// Detect "import type { ... } from '...'"
-		const typeImportRe =
-			/^import\s+type\s+\{[^}]+\}\s+from\s+["']([^"']+)["']/gm;
-		for (const match of content.matchAll(typeImportRe)) {
-			const source = match[1];
-			if (source) typeOnlySources.add(source);
-		}
-
-		// Detect imports of private names (specifiers starting with _)
-		const namedImportRe =
-			/^import\s+(?:type\s+)?\{\s*([^}]+)\}\s+from\s+["']([^"']+)["']/gm;
-		for (const match of content.matchAll(namedImportRe)) {
-			const specifiers = match[1];
-			const source = match[2];
-			if (specifiers && source) {
-				const names = specifiers.split(",").map((s) => s.trim());
-				const allPrivate = names.every((n) => n.startsWith("_") || n === "");
-				const hasPrivate = names.some((n) => n.startsWith("_"));
-				if (allPrivate && hasPrivate) {
-					privateSources.add(source);
-				}
-			}
-		}
-
-		// Default imports of private names
-		const defaultImportRe = /^import\s+(_\w+)\s+from\s+["']([^"']+)["']/gm;
-		for (const match of content.matchAll(defaultImportRe)) {
-			const source = match[2];
-			if (source) privateSources.add(source);
-		}
-
-		return { typeOnlySources, privateSources };
-	} catch {
-		return { typeOnlySources: new Set(), privateSources: new Set() };
-	}
-}
-
-/**
- * Builds a dependency graph from a list of .ts/.js files.
- * Creates directed edges from source -> target based on imports.
- * Weights: 1.0 normal, 0.5 type-only, 0.1 private names (starting with _).
- */
-export async function buildGraph(files: string[]): Promise<DependencyGraph> {
-	const nodes = new Set<string>(files);
+export function buildGraph(snapshot: GraphSnapshot): DependencyGraph {
+	const nodes = new Set(snapshot.files.map((f) => f.path));
+	const pathOf = new Map(snapshot.nodes.map((n) => [n.id, n.path]));
 	const edges = new Map<string, Map<string, number>>();
-
-	for (const file of files) {
-		const ext = extname(file);
-		if (ext !== ".ts" && ext !== ".js") continue;
-
-		let parsed: Awaited<ReturnType<typeof parseFile>> | undefined;
-		try {
-			parsed = await parseFile(file);
-		} catch {
-			continue;
-		}
-
-		const { typeOnlySources, privateSources } = await getImportTypeInfo(file);
-
-		for (const imp of parsed.imports) {
-			const target = resolveImportPath(imp.source, file, nodes);
-			if (!target) continue;
-
-			// Determine weight
-			let weight = 1.0;
-			if (typeOnlySources.has(imp.source)) {
-				weight = 0.5;
-			} else if (privateSources.has(imp.source)) {
-				weight = 0.1;
-			} else {
-				// Check if all specifiers are private
-				const allPrivate =
-					imp.specifiers.length > 0 &&
-					imp.specifiers.every((s) => s.startsWith("_"));
-				if (allPrivate) {
-					weight = 0.1;
-				}
-			}
-
-			if (!edges.has(file)) {
-				edges.set(file, new Map());
-			}
-			// Use max weight if there are multiple imports from same source
-			const existing = edges.get(file)?.get(target) ?? 0;
-			edges.get(file)?.set(target, Math.max(existing, weight));
-		}
+	for (const edge of snapshot.edges) {
+		const target = pathOf.get(edge.dst);
+		if (target === undefined || target === edge.path) continue;
+		if (!nodes.has(edge.path) || !nodes.has(target)) continue;
+		const targets = edges.get(edge.path) ?? new Map<string, number>();
+		const weight = Math.max(targets.get(target) ?? 0, EDGE_WEIGHT[edge.kind]);
+		targets.set(target, weight);
+		edges.set(edge.path, targets);
 	}
-
 	return { nodes, edges };
 }
 

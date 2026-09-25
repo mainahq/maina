@@ -25,6 +25,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Result } from "@mainahq/core";
 import {
+	asyncGitProbe,
 	type GitProbe,
 	gitProbe,
 	type NoRepo,
@@ -32,6 +33,7 @@ import {
 	type RootInputs,
 	type RootSource,
 	resolveRoot,
+	resolveRootAsync,
 } from "../root";
 
 type Resolved = Result<Root, NoRepo>;
@@ -150,6 +152,15 @@ describe("resolveRoot precedence", () => {
 	for (const [name, inputs, expected] of cases) {
 		test(name, () => {
 			expect(resolveRoot(inputs, git)).toEqual(expected);
+		});
+	}
+
+	// The async resolver, for callers that must not block the event loop,
+	// applies exactly the same precedence.
+	const asyncGit = { toplevel: async (dir: string) => git.toplevel(dir) };
+	for (const [name, inputs, expected] of cases) {
+		test(`async: ${name}`, async () => {
+			expect(await resolveRootAsync(inputs, asyncGit)).toEqual(expected);
 		});
 	}
 });
@@ -338,6 +349,34 @@ describe("resolveRoot with real repositories", () => {
 		} finally {
 			if (saved === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
 			else process.env.GIT_CEILING_DIRECTORIES = saved;
+		}
+	});
+
+	test("the async probe resolves like the sync probe without blocking", async () => {
+		const pending = asyncGitProbe.toplevel(join(outer, "src", "deep"));
+		expect(pending).toBeInstanceOf(Promise);
+		expect(await pending).toBe(outer);
+		expect(await asyncGitProbe.toplevel(join(inner, "lib"))).toBe(inner);
+		expect(await asyncGitProbe.toplevel(home)).toBeNull();
+		expect(
+			await asyncGitProbe.toplevel(join(base, "does-not-exist")),
+		).toBeNull();
+		expect(
+			await resolveRootAsync({ cwd: join(worktree, "src") }, asyncGitProbe),
+		).toEqual(found(worktree, "cwd"));
+		expect(await resolveRootAsync({ cwd: home }, asyncGitProbe)).toEqual(
+			refused("cwd", [home]),
+		);
+	});
+
+	test("the async probe ignores an inherited GIT_DIR", async () => {
+		const saved = process.env.GIT_DIR;
+		process.env.GIT_DIR = join(outer, ".git");
+		try {
+			expect(await asyncGitProbe.toplevel(home)).toBeNull();
+		} finally {
+			if (saved === undefined) delete process.env.GIT_DIR;
+			else process.env.GIT_DIR = saved;
 		}
 	});
 

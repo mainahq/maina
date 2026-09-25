@@ -34,7 +34,8 @@ describe("getContextNeeds", () => {
 		const needs = getContextNeeds("review");
 		expect(needs.working).toBe(true);
 		expect(needs.episodic).toEqual(["past-reviews"]);
-		expect(needs.semantic).toEqual(["adrs"]);
+		// FR-GRAPH-5: review reads the changed code's graph neighbourhood.
+		expect(needs.semantic).toEqual(["adrs", "graph"]);
 		expect(needs.retrieval).toBe(false);
 		expect(needs.wiki).toBe(true);
 	});
