@@ -39,7 +39,7 @@ function hashContent(content: string): string {
 }
 
 // Bump this when detection logic changes to invalidate stale cache entries
-const SLOP_CACHE_VERSION = 2;
+const SLOP_CACHE_VERSION = 3; // v3: data/docs files skipped (#372)
 
 function cacheKey(fileHash: string): string {
 	return `slop:v${SLOP_CACHE_VERSION}:${fileHash}`;

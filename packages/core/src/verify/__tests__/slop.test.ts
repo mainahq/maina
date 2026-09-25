@@ -282,6 +282,49 @@ function double(n: number): number {
 			expect(result2.cached).toBe(true);
 			expect(result2.findings.length).toBe(result1.findings.length);
 		});
+
+		it("ignores v2 cache entries written before data files were skipped (#372)", async () => {
+			const codePath = writeFixture("stale-cache.ts", "export const ok = 1;\n");
+			// A pre-#372 entry for identical content scanned as a .json file
+			const stale = JSON.stringify([
+				{
+					tool: "slop",
+					file: "fixtures/data.json",
+					line: 1,
+					message: "Import './missing' does not resolve",
+					severity: "error",
+					ruleId: "slop/hallucinated-import",
+				},
+			]);
+			const staleCache = {
+				get(key: string) {
+					if (!key.startsWith("slop:v2:")) return null;
+					return { key, value: stale, createdAt: Date.now(), ttl: 0 };
+				},
+				set() {},
+				has(key: string) {
+					return key.startsWith("slop:v2:");
+				},
+				invalidate() {},
+				clear() {},
+				stats() {
+					return {
+						l1Hits: 0,
+						l2Hits: 0,
+						misses: 0,
+						totalQueries: 0,
+						entriesL1: 0,
+						entriesL2: 0,
+					};
+				},
+			};
+			const result = await detectSlop([codePath], {
+				cache: staleCache,
+				cwd: TMP_DIR,
+			});
+			expect(result.findings).toEqual([]);
+			expect(result.cached).toBe(false);
+		});
 	});
 
 	// ─── Integration: detectSlop ─────────────────────────────────────────────
