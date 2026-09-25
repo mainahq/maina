@@ -369,9 +369,22 @@ const out = (value: unknown, exitCode = 0, stderr = ""): CursorOutput => ({
 	stderr: stderr === "" ? "" : `${stderr}\n`,
 });
 
-/** The gate's reason without core's trailing "; asking": maina blocks here. */
-const withoutAsking = (reason: string): string =>
-	reason.replace(/; asking$/, "");
+/**
+ * How the hooks end an ask they raise without the gate (unreadable input, a
+ * gate that threw): the gate never ran, so no policy rule can allow a retry.
+ */
+const UNCHECKED = /;\s*confirm it yourself\.?$/;
+
+/**
+ * The reason as a clause for the block message: without core's trailing
+ * "; asking", the hooks' "; confirm it yourself." (maina blocks here) or a
+ * final full stop, which the message adds.
+ */
+const blockReason = (reason: string): string =>
+	reason
+		.replace(/; asking$/, "")
+		.replace(UNCHECKED, "")
+		.replace(/[.\s]+$/, "");
 
 /**
  * A decision id safe to paste into a terminal. Ids arrive over the wire, so
@@ -385,21 +398,26 @@ const PLAIN_ID = /^[A-Za-z0-9_-]+$/;
  * none, so it says what is left.
  */
 function askAsDeny(decision: GateDecision): CursorOutput {
-	const reason = withoutAsking(decision.reason);
+	const reason = blockReason(decision.reason);
 	const [id] = decision.decisionIds;
 	const blocked = `maina: ${reason}. Cursor cannot ask for confirmation before this tool runs, so maina blocked it.`;
 	const command =
 		id !== undefined && PLAIN_ID.test(id)
 			? `maina allow ${id} --always`
 			: undefined;
+	const unchecked = command === undefined && UNCHECKED.test(decision.reason);
 	const user_message =
-		command === undefined
-			? `${blocked} maina logged no decision to override: add an allow rule to your maina policy, or make this change yourself.`
-			: `${blocked} To allow it, run \`${command}\` in a terminal, then retry.`;
+		command !== undefined
+			? `${blocked} To allow it, run \`${command}\` in a terminal, then retry.`
+			: unchecked
+				? `${blocked} maina could not check this action, so there is nothing to allow: make this change yourself.`
+				: `${blocked} maina logged no decision to override: add an allow rule to your maina policy, or make this change yourself.`;
 	const next =
-		command === undefined
-			? "Ask the user to allow it in their maina policy or make the change themselves"
-			: `Ask the user to run \`${command}\` in a terminal, then retry`;
+		command !== undefined
+			? `Ask the user to run \`${command}\` in a terminal, then retry`
+			: unchecked
+				? "Ask the user to make the change themselves"
+				: "Ask the user to allow it in their maina policy or make the change themselves";
 	return out(
 		{
 			permission: "deny",

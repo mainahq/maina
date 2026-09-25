@@ -493,6 +493,62 @@ describe("toCursor", () => {
 			}
 		});
 
+		test("an ask the hook raised without the gate offers no allow rule and reads as one sentence", () => {
+			// The hooks end their own asks (unreadable input, a gate that threw)
+			// with "; confirm it yourself.": the gate never ran, so no policy
+			// rule can let the retry through.
+			for (const reason of [
+				"maina could not read this hook input (Write without a path); confirm it yourself.",
+				"maina gate failed (boom); confirm it yourself.",
+			]) {
+				const out = toCursor({
+					hookEvent: "preToolUse",
+					decision: {
+						verdict: "ask",
+						reason,
+						decisionIds: [],
+						degraded: true,
+					},
+				});
+				expect(out.exitCode, reason).toBe(2);
+				const body = JSON.parse(out.stdout) as Record<string, string>;
+				expect(body.permission, reason).toBe("deny");
+				for (const text of [body.user_message, body.agent_message]) {
+					expect(text, reason).not.toContain("confirm it yourself");
+					expect(text, reason).not.toContain("..");
+					expect(text, reason).not.toContain("policy");
+				}
+			}
+			const out = toCursor({
+				hookEvent: "preToolUse",
+				decision: {
+					verdict: "ask",
+					reason:
+						"maina could not read this hook input (Write without a path); confirm it yourself.",
+					decisionIds: [],
+					degraded: true,
+				},
+			});
+			const body = JSON.parse(out.stdout) as Record<string, string>;
+			expect(body.user_message).toBe(
+				"maina: maina could not read this hook input (Write without a path). Cursor cannot ask for confirmation before this tool runs, so maina blocked it. maina could not check this action, so there is nothing to allow: make this change yourself.",
+			);
+			expect(body.agent_message).toBe(
+				"maina blocked this action because it needs the user's confirmation (maina could not read this hook input (Write without a path)) and Cursor cannot ask from preToolUse. Ask the user to make the change themselves; do not try another way.",
+			);
+		});
+
+		test("a reason that ends in a full stop is not doubled", () => {
+			const out = toCursor({
+				hookEvent: "preToolUse",
+				decision: { ...LOGGED, reason: "file.write outside the workspace." },
+			});
+			const body = JSON.parse(out.stdout) as Record<string, string>;
+			expect(body.user_message).toStartWith(
+				"maina: file.write outside the workspace. Cursor cannot ask",
+			);
+		});
+
 		test("a preToolUse deny and allow are unchanged", () => {
 			expect(rendered({ hookEvent: "preToolUse", decision: DENY })).toEqual({
 				permission: "deny",

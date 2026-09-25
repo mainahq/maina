@@ -132,6 +132,11 @@ describe("runCursorHook", () => {
 		expect(run.decision?.verdict).toBe("ask");
 		expect(run.output.exitCode).toBe(2);
 		expect(parsed(run.output.stdout)).toMatchObject({ permission: "deny" });
+		// The gate never ran, so no policy rule can let a retry through.
+		const body = parsed(run.output.stdout) as Record<string, string>;
+		expect(body.user_message).not.toContain("policy");
+		expect(body.user_message).not.toContain("confirm it yourself");
+		expect(body.user_message).toContain("make this change yourself");
 		const empty = await runCursorHook("", p, "preToolUse");
 		expect(empty.output.exitCode).toBe(2);
 		expect(parsed(empty.output.stdout)).toMatchObject({ permission: "deny" });
