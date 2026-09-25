@@ -113,6 +113,34 @@ describe("canonicalize", () => {
 		if (!result.ok) expect(result.code).toBe("cyclic-reference");
 	});
 
+	test("returns a structured error when a getter throws", () => {
+		const hostile = {
+			get boom(): unknown {
+				throw new Error("getter exploded");
+			},
+		};
+		const result = canonicalize({ nested: hostile });
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.code).toBe("unreadable-value");
+			expect(result.message).toContain("getter exploded");
+		}
+	});
+
+	test("returns a structured error when a proxy trap throws", () => {
+		const trap = new Proxy(
+			{},
+			{
+				ownKeys: () => {
+					throw new Error("trap exploded");
+				},
+			},
+		);
+		const result = canonicalize([trap]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.code).toBe("unreadable-value");
+	});
+
 	test("still canonicalizes shared (non-cyclic) references", () => {
 		const shared = { b: 2, a: 1 };
 		expect(unwrapCanonical({ x: shared, y: [shared] })).toBe(
