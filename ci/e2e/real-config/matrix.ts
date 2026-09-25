@@ -13,21 +13,22 @@
  * Install paths, as a user would run them:
  *   - plugin       host plugin/marketplace package (none exists yet)
  *   - cli-setup    `setup` from the CLI under test with no global `maina`
- *                  on PATH, as when run through `bunx … setup`. It runs this
- *                  checkout (running the published package would test 1.x,
- *                  not the change), so the entry pins the checkout's
- *                  version: any build not on the registry reproduces P3.
+ *                  on PATH. It runs this checkout (running the published
+ *                  package would test 1.x, not the change). A stable CLI
+ *                  writes its own runtime + entry by absolute path (#294);
+ *                  before that the entry pinned the checkout's version, and
+ *                  any build not on the registry reproduced P3.
  *   - cli-mcp-add  `maina mcp add --client <host>` after `bun install -g`
  *   - install-sh   `curl … | bash`: global install, then install.sh's
  *                  own per-host config writer
  *
  * The global install is simulated with the layout bun's installer gives
- * every user: `~/.bun/bin/{bun,bunx}` plus a `maina` bin whose shebang is
- * `#!/usr/bin/env bun`, running this checkout's CLI source.
+ * every user: `~/.bun/bin/{bun,bunx}` plus a `maina` bin that is a symlink
+ * to the package's bin entry, here this checkout's CLI source (its sh/JS
+ * header picks bun, else node, from PATH).
  */
 
 import {
-	chmodSync,
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
@@ -165,29 +166,10 @@ export const KNOWN_FAILURES: readonly KnownFailure[] = [
 	{ host: "codex", installPath: "cli-setup", fixes: { P1: 299 } },
 	{ host: "codex", installPath: "install-sh", fixes: { P1: 299 } },
 
-	// P3: setup runs without a global `maina`, so the entry pins
-	// `bunx @mainahq/cli@<version under test>`. Every unreleased build (each
-	// PR, canaries, local installs) writes a pin the registry cannot resolve;
-	// for a published version the same entry is a cold download (P4).
-	{
-		host: "cursor",
-		installPath: "cli-setup",
-		fixes: { P3: 294, P4: 298 },
-	},
+	// (#294 fixed P3 on cursor × cli-setup and P2 on cursor/codex ×
+	// cli-mcp-add: the CLI now writes its own runtime and entry by absolute
+	// path instead of a `bunx` pin or a `#!/usr/bin/env bun` script.)
 
-	// P2: absolute path to a `#!/usr/bin/env bun` script; GUI PATH has no bun.
-	{
-		host: "cursor",
-		installPath: "cli-mcp-add",
-		envs: GUI_LAUNCH,
-		fixes: { P2: 294 },
-	},
-	{
-		host: "codex",
-		installPath: "cli-mcp-add",
-		envs: GUI_LAUNCH,
-		fixes: { P2: 294 },
-	},
 	// P2: install.sh writes a bare `bunx`, which a GUI PATH cannot resolve…
 	{
 		host: "cursor",
@@ -399,14 +381,8 @@ export function createWorkspace(os: Os, globalMaina: boolean): Workspace {
 	// bun's installer layout: bunx is a symlink to the bun binary.
 	symlinkSync(process.execPath, join(bin, "bun"));
 	symlinkSync(process.execPath, join(bin, "bunx"));
-	if (globalMaina) {
-		const shim = join(bin, "maina");
-		writeFileSync(
-			shim,
-			`#!/usr/bin/env bun\nimport ${JSON.stringify(CLI_ENTRY)};\n`,
-		);
-		chmodSync(shim, 0o755);
-	}
+	// …and a global package's bin is a symlink to its (executable) bin file.
+	if (globalMaina) symlinkSync(CLI_ENTRY, join(bin, "maina"));
 
 	// Opt the sandbox user out of CLI crash reports. GUI/minimal launches
 	// carry no MAINA_TELEMETRY/DO_NOT_TRACK, so without this a server that

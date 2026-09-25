@@ -5,10 +5,10 @@
     { "repo": "mainahq/maina" }
   ],
   "commit": false,
-  "fixed": [],
-  "linked": [
+  "fixed": [
     ["@mainahq/cli", "@mainahq/core", "@mainahq/mcp", "@mainahq/skills"]
   ],
+  "linked": [],
   "access": "public",
   "baseBranch": "master",
   "updateInternalDependencies": "patch",

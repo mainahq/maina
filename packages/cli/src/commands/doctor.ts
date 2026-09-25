@@ -8,9 +8,9 @@ import {
 	getApiKey,
 	getFeedbackDb,
 	isHostMode,
+	VERSION,
 } from "@mainahq/core";
 import { Command } from "commander";
-import pkg from "../../package.json";
 import { processEnv } from "../env";
 import type { McpClientId, McpClientInfo } from "../hosts/index";
 import { buildClientRegistry } from "../hosts/index";
@@ -507,7 +507,7 @@ export async function doctorAction(
 	const jsonMode = options.json ?? false;
 
 	// ── Step 1: Version ──────────────────────────────────────────────────
-	const version = pkg.version;
+	const version = VERSION;
 	if (!jsonMode) {
 		log.info(`Maina v${version}`);
 	}

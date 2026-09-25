@@ -1,7 +1,13 @@
-#!/usr/bin/env bun
+#!/bin/sh
+//bin/sh -c :; command -v bun >/dev/null 2>&1 && exec bun "$0" "$@"; exec node "$0" "$@"
 
-import { sendCliErrorReport } from "@mainahq/core";
-import pkg from "../package.json" with { type: "json" };
+// The two lines above are both shell and JavaScript (#294). As a shell
+// script (`//bin/sh` is `/bin/sh`, a no-op) they run this file with Bun when
+// it is on PATH, else Node >= 20; to JavaScript line 2 is a comment. MCP host
+// entries skip them: they spawn the runtime by absolute path (hosts/launcher.ts).
+// The bundler drops comments, so bunup.config.ts re-adds line 2 as a banner.
+
+import { sendCliErrorReport, VERSION } from "@mainahq/core";
 import { processEnv } from "./env";
 
 // ── Top-level error handling ────────────────────────────────────────────────
@@ -46,7 +52,7 @@ function printAndReport(err: unknown, origin: string): void {
 	// `sendCliErrorReport` already swallows its own errors and times out at 1s.
 	void sendCliErrorReport(e, {
 		env: processEnv,
-		mainaVersion: pkg.version,
+		mainaVersion: VERSION,
 		argv: process.argv,
 	}).finally(() => {
 		process.exit(exitCode);

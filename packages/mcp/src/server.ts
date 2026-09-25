@@ -20,6 +20,7 @@
  * layer and are only registered in `allTools` mode today.
  */
 
+import { VERSION } from "@mainahq/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerContextTools } from "./tools/context";
@@ -178,7 +179,7 @@ function registerAllTools(server: McpServer): void {
 
 export function createMcpServer(options?: McpServerOptions): McpServer {
 	const server = new McpServer(
-		{ name: "maina", version: "0.1.0" },
+		{ name: "maina", version: VERSION },
 		{ capabilities: { tools: {} } },
 	);
 

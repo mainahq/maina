@@ -24,7 +24,8 @@ const config: KnipConfig = {
 			project: ["ci/e2e/*.ts!", "scripts/**/*.ts!"],
 		},
 		"packages/cli": {
-			entry: [TESTS],
+			// The bin entry: package.json points at the compiled dist/ (#294).
+			entry: ["src/index.ts!", TESTS],
 			project: ["src/**/*.ts!"],
 		},
 		"packages/core": {
@@ -43,7 +44,7 @@ const config: KnipConfig = {
 			project: ["src/**/*.ts"],
 		},
 		"packages/mcp": {
-			entry: [TESTS],
+			entry: ["src/index.ts!", TESTS],
 			project: ["src/**/*.ts!"],
 		},
 		"packages/skills": {

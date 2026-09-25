@@ -1,6 +1,5 @@
-import { flushTelemetry } from "@mainahq/core";
+import { flushTelemetry, VERSION } from "@mainahq/core";
 import { Command } from "commander";
-import pkg from "../package.json";
 import { analyzeCommand } from "./commands/analyze";
 import { applyFixCommand } from "./commands/apply-fix";
 import { benchmarkCommand } from "./commands/benchmark";
@@ -75,7 +74,7 @@ Setup & Config:
   mcp remove    Uninstall maina MCP server from clients
   mcp list      Show maina MCP install status per client`,
 		)
-		.version(pkg.version)
+		.version(VERSION)
 		.option(
 			"--debug",
 			"print full stack traces and error codes on failure (also MAINA_DEBUG=1 or DEBUG=1)",

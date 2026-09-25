@@ -15,14 +15,16 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import pkg from "../../../package.json";
+import { VERSION } from "@mainahq/core";
 import {
 	detectLauncher,
 	isDirectBinary,
 	resetLauncherCache,
+	runningCli,
+	stableRuntimePath,
 } from "../launcher";
 
-const PKG_VERSION = pkg.version;
+const PKG_VERSION = VERSION;
 
 afterEach(() => {
 	resetLauncherCache();
@@ -135,5 +137,165 @@ describe("isDirectBinary helper", () => {
 				args: ["@mainahq/cli@1.0.0", "--mcp"],
 			}),
 		).toBe(false);
+	});
+});
+
+// ── Self-launch (#294, P2/P3) ─────────────────────────────────────────────
+
+const BUN = "/Users/x/.bun/bin/bun";
+const GLOBAL_ENTRY =
+	"/Users/x/.bun/install/global/node_modules/@mainahq/cli/dist/index.js";
+
+describe("detectLauncher — the running CLI launches itself", () => {
+	test("a stable install is spawned through the absolute runtime, not a shebang (P2)", () => {
+		// `~/.bun/bin/maina` starts with a shebang that needs bun or node on
+		// PATH, which a GUI-launched host does not have. The runtime this CLI
+		// runs under, by absolute path, needs no PATH at all.
+		const l = detectLauncher({
+			self: { execPath: BUN, script: GLOBAL_ENTRY },
+			which: (cmd) => (cmd === "maina" ? "/Users/x/.bun/bin/maina" : null),
+			noCache: true,
+		});
+		expect(l).toEqual({ command: BUN, args: [GLOBAL_ENTRY, "--mcp"] });
+		expect(isDirectBinary(l)).toBe(true);
+	});
+
+	test("beats a registry pin, so an unreleased build still starts (P3)", () => {
+		const l = detectLauncher({
+			self: { execPath: BUN, script: "/repo/packages/cli/src/index.ts" },
+			which: (cmd) => (cmd === "bunx" ? "/Users/x/.bun/bin/bunx" : null),
+			noCache: true,
+		});
+		expect(l.command).toBe(BUN);
+		expect(l.args).not.toContain(`@mainahq/cli@${PKG_VERSION}`);
+	});
+
+	test("without a stable running CLI the PATH chain is unchanged", () => {
+		const l = detectLauncher({
+			self: null,
+			which: (cmd) => (cmd === "bunx" ? "/Users/x/.bun/bin/bunx" : null),
+			noCache: true,
+		});
+		expect(l.args).toEqual([`@mainahq/cli@${PKG_VERSION}`, "--mcp"]);
+	});
+});
+
+describe("runningCli", () => {
+	const cliRoot = "/Users/x/.bun/install/global/node_modules/@mainahq/cli";
+	const base = {
+		execPath: BUN,
+		cliRoot,
+		tmpDir: "/var/folders/ab/T",
+		realpath: (p: string): string | null => p,
+	};
+
+	test("recognises the compiled entry of this package", () => {
+		expect(runningCli({ ...base, argv1: `${cliRoot}/dist/index.js` })).toEqual({
+			execPath: BUN,
+			script: `${cliRoot}/dist/index.js`,
+		});
+	});
+
+	test("recognises the source entry in a checkout", () => {
+		const r = runningCli({
+			...base,
+			cliRoot: "/repo/packages/cli",
+			argv1: "/repo/packages/cli/src/index.ts",
+		});
+		expect(r?.script).toBe("/repo/packages/cli/src/index.ts");
+	});
+
+	test("follows the bin symlink to the real entry", () => {
+		const r = runningCli({
+			...base,
+			argv1: "/Users/x/.bun/bin/maina",
+			realpath: (p) =>
+				p === "/Users/x/.bun/bin/maina" ? `${cliRoot}/dist/index.js` : p,
+		});
+		expect(r?.script).toBe(`${cliRoot}/dist/index.js`);
+	});
+
+	test("ignores a process that is not the maina CLI (test runners, other tools)", () => {
+		expect(
+			runningCli({ ...base, argv1: "/repo/src/__tests__/a.test.ts" }),
+		).toBeNull();
+		expect(runningCli({ ...base, argv1: undefined })).toBeNull();
+		expect(
+			runningCli({ ...base, argv1: "/x", realpath: () => null }),
+		).toBeNull();
+		expect(
+			runningCli({ ...base, cliRoot: null, argv1: GLOBAL_ENTRY }),
+		).toBeNull();
+	});
+
+	test("ignores throwaway package-runner copies (bunx, npx)", () => {
+		const bunxRoot =
+			"/var/folders/ab/T/bunx-501-@mainahq/cli@1.8.1/node_modules/@mainahq/cli";
+		expect(
+			runningCli({
+				...base,
+				cliRoot: bunxRoot,
+				argv1: `${bunxRoot}/dist/index.js`,
+			}),
+		).toBeNull();
+		const cacheRoot =
+			"/Users/x/.bun/install/cache/@mainahq/cli@1.8.1@@@1/node_modules/@mainahq/cli";
+		expect(
+			runningCli({
+				...base,
+				cliRoot: cacheRoot,
+				argv1: `${cacheRoot}/dist/index.js`,
+			}),
+		).toBeNull();
+		const npxRoot = "/Users/x/.npm/_npx/0f3a/node_modules/@mainahq/cli";
+		expect(
+			runningCli({
+				...base,
+				cliRoot: npxRoot,
+				argv1: `${npxRoot}/dist/index.js`,
+			}),
+		).toBeNull();
+	});
+});
+
+describe("stableRuntimePath", () => {
+	// Homebrew's `process.execPath` is the versioned Cellar path, which
+	// `brew upgrade` deletes; an MCP entry that pinned it would stop starting.
+	const CELLAR_BUN = "/opt/homebrew/Cellar/bun/1.1.34/bin/bun";
+	const BREW_BUN = "/opt/homebrew/bin/bun";
+	const realpath = (p: string): string | null =>
+		p === BREW_BUN ? CELLAR_BUN : p;
+
+	test("prefers the PATH alias that resolves to the running runtime", () => {
+		expect(
+			stableRuntimePath(
+				CELLAR_BUN,
+				(cmd) => (cmd === "bun" ? BREW_BUN : null),
+				realpath,
+			),
+		).toBe(BREW_BUN);
+	});
+
+	test("keeps execPath when PATH has a different runtime of that name", () => {
+		expect(
+			stableRuntimePath(
+				CELLAR_BUN,
+				(cmd) => (cmd === "bun" ? "/Users/x/.bun/bin/bun" : null),
+				realpath,
+			),
+		).toBe(CELLAR_BUN);
+	});
+
+	test("keeps execPath when the runtime is not on PATH or the alias is relative", () => {
+		expect(stableRuntimePath(CELLAR_BUN, () => null, realpath)).toBe(
+			CELLAR_BUN,
+		);
+		expect(
+			stableRuntimePath(
+				CELLAR_BUN,
+				() => "bin/bun",
+				() => CELLAR_BUN,
+			),
+		).toBe(CELLAR_BUN);
 	});
 });

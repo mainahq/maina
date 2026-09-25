@@ -11,11 +11,12 @@
     "directory": "packages/mcp"
   },
   "engines": {
+    "node": ">=20",
     "bun": ">=1.0.0"
   },
   "files": [
-    "src",
-    "package.json",
+    "dist",
+    "!dist/**/*.map",
     "README.md"
   ],
   "keywords": [
@@ -25,12 +26,21 @@
     "verification",
     "ai-code-review"
   ],
-  "main": "src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
+    "build": "bunup",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mainahq/core": "^1.8.1",
+    "@mainahq/core": "1.8.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^4.3.6"
   },
