@@ -7,7 +7,7 @@ import {
 	getApiKey,
 	getDefaultConfig,
 	isHostMode,
-	loadConfig,
+	loadConfigModule,
 	resolveProvider,
 } from "../index";
 
@@ -29,16 +29,16 @@ describe("getDefaultConfig", () => {
 		expect(models).toHaveProperty("local");
 	});
 
-	test("budget has daily, perTask, and alertAt", () => {
+	test("budget has dailyUsd, perTaskUsd, and onBreach", () => {
 		const { budget } = getDefaultConfig();
-		expect(budget).toHaveProperty("daily");
-		expect(budget).toHaveProperty("perTask");
-		expect(budget).toHaveProperty("alertAt");
+		expect(budget).toHaveProperty("dailyUsd");
+		expect(budget).toHaveProperty("perTaskUsd");
+		expect(budget).toHaveProperty("onBreach");
 	});
 
 	test("returns a copy — mutations do not affect subsequent calls", () => {
 		const first = getDefaultConfig();
-		first.provider = "mutated";
+		(first as { provider: string }).provider = "mutated";
 		const second = getDefaultConfig();
 		expect(second.provider).toBe("openrouter");
 	});
@@ -63,7 +63,7 @@ describe("getDefaultConfig", () => {
 	});
 
 	test("default daily budget is 5.0", () => {
-		expect(getDefaultConfig().budget.daily).toBe(5.0);
+		expect(getDefaultConfig().budget.dailyUsd).toBe(5.0);
 	});
 });
 
@@ -124,7 +124,7 @@ describe("findConfigFile", () => {
 
 // ─── loadConfig ──────────────────────────────────────────────────────────────
 
-describe("loadConfig", () => {
+describe("loadConfigModule", () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
@@ -140,10 +140,10 @@ describe("loadConfig", () => {
 	});
 
 	test("returns defaults when no config file is found", async () => {
-		const config = await loadConfig(tmpDir);
+		const config = await loadConfigModule(tmpDir);
 		const defaults = getDefaultConfig();
 		expect(config.provider).toBe(defaults.provider);
-		expect(config.budget.daily).toBe(defaults.budget.daily);
+		expect(config.budget.dailyUsd).toBe(defaults.budget.dailyUsd);
 		expect(config.models.standard).toBe(defaults.models.standard);
 	});
 
@@ -154,18 +154,50 @@ describe("loadConfig", () => {
 			configPath,
 			`module.exports = { provider: "custom-provider" };`,
 		);
-		const config = await loadConfig(tmpDir);
+		const config = await loadConfigModule(tmpDir);
 		expect(config.provider).toBe("custom-provider");
 		// Defaults are preserved for unspecified fields
-		expect(config.budget.daily).toBe(5.0);
+		expect(config.budget.dailyUsd).toBe(5.0);
 		expect(config.models.standard).toBe("anthropic/claude-sonnet-4-6");
+	});
+
+	test("merges nested objects instead of replacing them", async () => {
+		writeFileSync(
+			join(tmpDir, "maina.config.js"),
+			`module.exports = { models: { standard: "x/custom" } };`,
+		);
+		const config = await loadConfigModule(tmpDir);
+		expect(config.models.standard).toBe("x/custom");
+		expect(config.models.mechanical).toBe("anthropic/claude-haiku-4-5");
+	});
+
+	test("maps the 1.x budget keys onto the enforceable budget", async () => {
+		writeFileSync(
+			join(tmpDir, "maina.config.js"),
+			`module.exports = { apiKey: "sk-x", budget: { daily: 9, perTask: 1, alertAt: 0.5 } };`,
+		);
+		const config = await loadConfigModule(tmpDir);
+		expect(config.budget).toEqual({
+			dailyUsd: 9,
+			perTaskUsd: 1,
+			onBreach: "degrade",
+		});
+		expect("apiKey" in config).toBe(false);
+	});
+
+	test("falls back to the defaults when the module fails validation", async () => {
+		writeFileSync(
+			join(tmpDir, "maina.config.js"),
+			`module.exports = { provider: 42 };`,
+		);
+		expect(await loadConfigModule(tmpDir)).toEqual(getDefaultConfig());
 	});
 
 	test("never throws — returns defaults on any import error", async () => {
 		// Point at an empty temp dir where no config exists
 		const emptyDir = join(tmpDir, "empty");
 		mkdirSync(emptyDir, { recursive: true });
-		const config = await loadConfig(emptyDir);
+		const config = await loadConfigModule(emptyDir);
 		expect(config).toBeDefined();
 		expect(config.provider).toBe("openrouter");
 	});

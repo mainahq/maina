@@ -3,7 +3,7 @@ import { createCacheManager } from "../cache/manager";
 import { getTtl } from "../cache/ttl";
 import {
 	getApiKey,
-	loadConfig,
+	loadConfigModule,
 	resolveProvider,
 	shouldDelegateToHost,
 } from "../config/index";
@@ -97,7 +97,7 @@ export async function generate(
 ): Promise<GenerateResult> {
 	const { task, systemPrompt, userPrompt, files, mainaDir } = options;
 
-	const config = await loadConfig();
+	const config = await loadConfigModule();
 	const resolved = resolveModel(task, config);
 	const provider = resolveProvider(config);
 	// In host mode with Anthropic, use a sensible model instead of OpenRouter model IDs

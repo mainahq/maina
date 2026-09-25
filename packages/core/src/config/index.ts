@@ -1,23 +1,18 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
+import type { Result } from "../db/index";
+import type { CorePorts } from "../ports/index";
+import {
+	type Config,
+	type ConfigError,
+	mergeConfig,
+	parseConfigLayer,
+	readJsonFile,
+} from "./schema";
 
-export interface MainaConfig {
-	models: {
-		mechanical: string;
-		standard: string;
-		architectural: string;
-		local: string;
-	};
-	provider: string;
-	budget: {
-		daily: number;
-		perTask: number;
-		alertAt: number;
-	};
-	apiKey?: string;
-}
+export type { ConfigError } from "./schema";
 
-const DEFAULT_CONFIG: MainaConfig = {
+const DEFAULT_CONFIG: Config = {
 	// Defaults lock to the current-generation Claude 4.X family (April 2026):
 	// - mechanical → Haiku 4.5 (cheap + fast, same-provider as the other tiers
 	//   so one key covers every call; replaces Gemini 2.5 Flash as the cheap
@@ -34,23 +29,53 @@ const DEFAULT_CONFIG: MainaConfig = {
 		local: "ollama/qwen3-coder-8b",
 	},
 	provider: "openrouter",
+	// Enforceable budget (#293, enforced by the router in #334): caps in USD
+	// plus what to do on a breach. Replaces the 1.x `daily/perTask/alertAt`
+	// shape, which nothing ever read.
 	budget: {
-		daily: 5.0,
-		perTask: 0.5,
-		alertAt: 0.8,
+		dailyUsd: 5.0,
+		perTaskUsd: 0.5,
+		onBreach: "degrade",
 	},
+	repoAliases: {},
 };
 
 /**
  * Returns a deep copy of the default config so callers cannot mutate the
  * internal defaults.
  */
-export function getDefaultConfig(): MainaConfig {
+export function getDefaultConfig(): Config {
 	return {
 		...DEFAULT_CONFIG,
 		models: { ...DEFAULT_CONFIG.models },
 		budget: { ...DEFAULT_CONFIG.budget },
+		repoAliases: { ...DEFAULT_CONFIG.repoAliases },
 	};
+}
+
+/**
+ * Loads `<root>/.maina/config.json` through the fs port, validates it and
+ * merges it over the defaults. A missing file yields the defaults; an
+ * invalid one yields every violation with its path.
+ */
+export async function loadConfig(
+	ports: Pick<CorePorts, "fs">,
+	root: string,
+): Promise<Result<Config, readonly ConfigError[]>> {
+	const file = join(root, ".maina", "config.json");
+	const raw = await readJsonFile(ports.fs, file);
+	if (!raw.ok) {
+		return {
+			ok: false,
+			error: [
+				{ kind: raw.error.kind, file, path: "", message: raw.error.message },
+			],
+		};
+	}
+	if (raw.value === undefined) return { ok: true, value: getDefaultConfig() };
+	const layer = parseConfigLayer(raw.value, file);
+	if (!layer.ok) return layer;
+	return { ok: true, value: mergeConfig(getDefaultConfig(), layer.value) };
 }
 
 /**
@@ -80,10 +105,38 @@ export function findConfigFile(startDir?: string): string | null {
 }
 
 /**
- * Finds and dynamically imports the maina config file, then deep-merges it
- * with the defaults.  Falls back to defaults silently on any error.
+ * Maps a 1.x `maina.config.ts` export onto the current file shape: the
+ * unenforced `budget.daily/perTask/alertAt` become `dailyUsd/perTaskUsd`
+ * and the never-read `apiKey` is dropped (keys come from the environment).
  */
-export async function loadConfig(startDir?: string): Promise<MainaConfig> {
+function fromLegacyModule(raw: unknown): unknown {
+	if (typeof raw !== "object" || raw === null) return raw;
+	const { apiKey: _apiKey, budget, ...rest } = raw as Record<string, unknown>;
+	if (typeof budget !== "object" || budget === null) {
+		return budget === undefined ? rest : { ...rest, budget };
+	}
+	const {
+		daily,
+		perTask,
+		alertAt: _alertAt,
+		...current
+	} = budget as Record<string, unknown>;
+	return {
+		...rest,
+		budget: {
+			...(daily === undefined ? {} : { dailyUsd: daily }),
+			...(perTask === undefined ? {} : { perTaskUsd: perTask }),
+			...current,
+		},
+	};
+}
+
+/**
+ * 1.x loader: finds and dynamically imports `maina.config.{ts,js}`, then
+ * validates it and merges it over the defaults with the same defined merge
+ * as {@link loadConfig}. Falls back to the defaults on any error.
+ */
+export async function loadConfigModule(startDir?: string): Promise<Config> {
 	const configPath = findConfigFile(startDir);
 
 	if (configPath === null) {
@@ -92,8 +145,13 @@ export async function loadConfig(startDir?: string): Promise<MainaConfig> {
 
 	try {
 		const mod = await import(configPath);
-		const userConfig: Partial<MainaConfig> = mod.default ?? mod;
-		return { ...DEFAULT_CONFIG, ...userConfig };
+		const layer = parseConfigLayer(
+			fromLegacyModule(mod.default ?? mod),
+			configPath,
+		);
+		return layer.ok
+			? mergeConfig(getDefaultConfig(), layer.value)
+			: getDefaultConfig();
 	} catch {
 		return getDefaultConfig();
 	}
@@ -123,7 +181,7 @@ export function getApiKey(): string | null {
  * - ANTHROPIC_API_KEY → "anthropic"
  * - Otherwise → config default
  */
-export function resolveProvider(config: MainaConfig): string {
+export function resolveProvider(config: Pick<Config, "provider">): string {
 	// Explicit override always wins
 	if (process.env.MAINA_PROVIDER) {
 		return process.env.MAINA_PROVIDER;

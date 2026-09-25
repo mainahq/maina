@@ -99,7 +99,19 @@ export type {
 	VerifyStatusResponse,
 } from "./cloud/types";
 // Config
-export { getApiKey, isHostMode, shouldDelegateToHost } from "./config/index";
+export {
+	type ConfigError,
+	getApiKey,
+	isHostMode,
+	loadConfig,
+	shouldDelegateToHost,
+} from "./config/index";
+export {
+	type Config,
+	type ConfigLayer,
+	configJsonSchema,
+	parseConfigLayer,
+} from "./config/schema";
 export { calculateTokens } from "./context/budget";
 export {
 	type AssembledContext,
@@ -333,6 +345,19 @@ export {
 	type Launcher,
 	resetLauncherCache,
 } from "./mcp/launcher";
+// Policy (gate policy schema, FR-GATE-9)
+export {
+	DEFAULT_POLICY,
+	IRREVERSIBLE_ACTION_CLASSES,
+} from "./policy/defaults";
+export { loadPolicy } from "./policy/load";
+export {
+	type Policy,
+	type PolicyError,
+	type PolicyLayer,
+	parsePolicyLayer,
+	policyJsonSchema,
+} from "./policy/schema";
 // Ports (functional core side-effect boundary)
 export type {
 	ClockPort,

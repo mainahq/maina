@@ -21,12 +21,14 @@ export default defineConfig({
   },
   provider: 'openrouter',
   budget: {
-    daily: 5.00,
-    perTask: 0.50,
-    alertAt: 0.80,
+    dailyUsd: 5.00,     // null disables the cap
+    perTaskUsd: 0.50,
+    onBreach: 'degrade', // or 'stop'
   },
 });
 ```
+
+The same keys can live in `.maina/config.json`. It is validated against [`schemas/maina.config.schema.json`](https://github.com/mainahq/maina/blob/master/schemas/maina.config.schema.json), and every error is reported with its path. Nested objects merge key by key over the defaults, so you only write the keys you change.
 
 ## Model Tiers
 

@@ -1,4 +1,4 @@
-import type { MainaConfig } from "../config/index";
+import type { Config } from "../config/schema";
 
 export type ModelTier = "mechanical" | "standard" | "architectural" | "local";
 
@@ -41,7 +41,7 @@ export function getTaskTier(task: string): ModelTier {
  */
 export function resolveModel(
 	task: string,
-	config: MainaConfig,
+	config: Pick<Config, "models" | "provider">,
 ): ModelResolution {
 	const tier = getTaskTier(task);
 	const modelId = config.models[tier];

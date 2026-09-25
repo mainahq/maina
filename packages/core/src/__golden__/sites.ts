@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { resolveModel } from "../ai/tiers";
 import { validateAIOutput } from "../ai/validate";
-import type { MainaConfig } from "../config/index";
+import type { Config } from "../config/schema";
 import { buildGraph, scoreRelevance } from "../context/relevance";
 import { analyze } from "../features/analyzer";
 import { verifyPlan } from "../features/checklist";
@@ -149,7 +149,7 @@ export interface TiersInput {
 	readonly task: string;
 	readonly config: {
 		readonly provider: string;
-		readonly models: MainaConfig["models"];
+		readonly models: Config["models"];
 	};
 }
 
@@ -321,12 +321,10 @@ async function runRelevance(input: RelevanceInput): Promise<unknown> {
 }
 
 function runTiers(input: TiersInput): unknown {
-	const config = {
+	return resolveModel(input.task, {
 		provider: input.config.provider,
 		models: input.config.models,
-		budget: { daily: 0, perTask: 0, alertAt: 0 },
-	} as MainaConfig;
-	return resolveModel(input.task, config);
+	});
 }
 
 /**
