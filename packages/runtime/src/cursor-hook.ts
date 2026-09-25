@@ -4,9 +4,10 @@
  * (`hook-system.ts` builds the real ones), and so are the guarantees:
  *
  * Never rejects. A payload it cannot read, a gate that throws or answers
- * with the wrong shape: each asks. A summary that fails is left out, so a
- * session start is never held up by it; a stop does not read it at all, but
- * runs verify on the session's changes.
+ * with the wrong shape: each asks, which `toCursor` renders as a deny on
+ * preToolUse, where Cursor does not enforce `ask` (#469). A summary that
+ * fails is left out, so a session start is never held up by it; a stop
+ * does not read it at all, but runs verify on the session's changes.
  */
 
 import {

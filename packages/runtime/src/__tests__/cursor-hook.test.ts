@@ -89,10 +89,52 @@ describe("runCursorHook", () => {
 
 	test("input that is not JSON asks without calling the gate", async () => {
 		const p = ports();
-		const run = await runCursorHook("", p, "preToolUse");
+		const run = await runCursorHook("", p, "beforeShellExecution");
 		expect(p.seen).toHaveLength(0);
 		expect(run.decision?.verdict).toBe("ask");
 		expect(parsed(run.output.stdout)).toMatchObject({ permission: "ask" });
+	});
+
+	test("a preToolUse ask blocks (exit 2), since Cursor would run the tool anyway (#469)", async () => {
+		const p = ports({
+			evaluate: async (event) => {
+				p.seen.push(event);
+				return {
+					verdict: "ask",
+					reason: "file.write outside the workspace; asking",
+					decisionIds: ["d-3"],
+					degraded: false,
+				};
+			},
+		});
+		const write = JSON.stringify({
+			...(parsed(raw("pre-tool-use.write.input.json")) as object),
+			tool_input: { file_path: "/etc/hosts", content: "x" },
+		});
+		const run = await runCursorHook(write, p, "preToolUse");
+		expect(p.seen[0]?.kind).toBe("file.write");
+		// The gate's verdict is kept as it was; only the rendering changes.
+		expect(run.decision?.verdict).toBe("ask");
+		expect(run.output.exitCode).toBe(2);
+		const body = parsed(run.output.stdout) as Record<string, string>;
+		expect(body.permission).toBe("deny");
+		expect(body.user_message).toContain("maina allow d-3 --always");
+	});
+
+	test("an unreadable preToolUse payload blocks without calling the gate", async () => {
+		const p = ports();
+		const run = await runCursorHook(
+			raw("pre-tool-use.write.input.json"),
+			p,
+			"preToolUse",
+		);
+		expect(p.seen).toHaveLength(0);
+		expect(run.decision?.verdict).toBe("ask");
+		expect(run.output.exitCode).toBe(2);
+		expect(parsed(run.output.stdout)).toMatchObject({ permission: "deny" });
+		const empty = await runCursorHook("", p, "preToolUse");
+		expect(empty.output.exitCode).toBe(2);
+		expect(parsed(empty.output.stdout)).toMatchObject({ permission: "deny" });
 	});
 
 	test("a gate that throws or answers the wrong shape never allows", async () => {

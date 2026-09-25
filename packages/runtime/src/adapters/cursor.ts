@@ -9,8 +9,7 @@
  *   preToolUse             a gate event for the file tools (`Write`,
  *                          `Delete`, `Read`, `Grep`). Shell and MCP tools are
  *                          left to the two hooks above, where Cursor enforces
- *                          `ask` (it does not for preToolUse), so each action
- *                          is gated once
+ *                          `ask`, so each action is gated once
  *   afterFileEdit          an `action.post` edit event, for the code graph
  *   sessionStart, stop     a session event, keyed by the conversation id
  *   postToolUse, others    ignored
@@ -24,6 +23,11 @@
  *                      stdout. An event maina ignores answers `allow`:
  *                      Cursor's own approval flow still applies, and `{}`
  *                      would fail the host's schema
+ *   preToolUse ask     a deny (#469). Cursor accepts `ask` from preToolUse
+ *                      but runs the tool anyway, so maina blocks it and the
+ *                      user message names the `maina allow <id> --always`
+ *                      command that allows it (CLAUDE.md: `deny` where the
+ *                      host has no `ask`). Shell and MCP asks stay `ask`
  *   sessionStart       additional_context
  *   postToolUse        additional_context
  *   stop               a deny asks the agent to carry on (followup_message)
@@ -45,9 +49,9 @@ import { type SessionEvent, searchTarget } from "./claude-code";
 export const CURSOR_ALLOW_LIST_WARNING =
 	"maina: Cursor's allow-list overrides a hook's ask, so a command or MCP tool on it runs without this confirmation. Keep risky commands off the allow-list; a maina deny still blocks.";
 
-/** Written to the hook log on every `ask` from preToolUse. */
+/** Shown to whoever installs the hooks: why a file-tool ask is a block (#469). */
 export const CURSOR_PRE_TOOL_ASK_WARNING =
-	"maina: Cursor does not enforce ask for preToolUse yet, so this action may run without confirmation; a maina deny still blocks.";
+	"maina: Cursor does not enforce ask for preToolUse, so maina blocks a Write, Delete, Read or Grep it would ask about; the block message names the `maina allow <decision-id> --always` command that allows it. Shell and MCP asks still prompt.";
 
 type GateHookEvent =
 	| "preToolUse"
@@ -365,6 +369,48 @@ const out = (value: unknown, exitCode = 0, stderr = ""): CursorOutput => ({
 	stderr: stderr === "" ? "" : `${stderr}\n`,
 });
 
+/** The gate's reason without core's trailing "; asking": maina blocks here. */
+const withoutAsking = (reason: string): string =>
+	reason.replace(/; asking$/, "");
+
+/**
+ * A decision id safe to paste into a terminal. Ids arrive over the wire, so
+ * one with shell metacharacters is never offered as a command.
+ */
+const PLAIN_ID = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * A preToolUse `ask` as a deny (#469): Cursor would run the tool unasked.
+ * The user message names the override; with no logged decision there is
+ * none, so it says what is left.
+ */
+function askAsDeny(decision: GateDecision): CursorOutput {
+	const reason = withoutAsking(decision.reason);
+	const [id] = decision.decisionIds;
+	const blocked = `maina: ${reason}. Cursor cannot ask for confirmation before this tool runs, so maina blocked it.`;
+	const command =
+		id !== undefined && PLAIN_ID.test(id)
+			? `maina allow ${id} --always`
+			: undefined;
+	const user_message =
+		command === undefined
+			? `${blocked} maina logged no decision to override: add an allow rule to your maina policy, or make this change yourself.`
+			: `${blocked} To allow it, run \`${command}\` in a terminal, then retry.`;
+	const next =
+		command === undefined
+			? "Ask the user to allow it in their maina policy or make the change themselves"
+			: `Ask the user to run \`${command}\` in a terminal, then retry`;
+	return out(
+		{
+			permission: "deny",
+			user_message,
+			agent_message: `maina blocked this action because it needs the user's confirmation (${reason}) and Cursor cannot ask from preToolUse. ${next}; do not try another way.`,
+		},
+		2,
+		user_message,
+	);
+}
+
 function permission(
 	hookEvent: string,
 	decision: GateDecision | undefined,
@@ -384,6 +430,7 @@ function permission(
 			reason,
 		);
 	}
+	if (hookEvent === "preToolUse") return askAsDeny(decision);
 	return out(
 		{
 			permission: "ask",
@@ -391,9 +438,7 @@ function permission(
 			agent_message: `maina asked the user to confirm this action: ${reason}`,
 		},
 		0,
-		hookEvent === "preToolUse"
-			? CURSOR_PRE_TOOL_ASK_WARNING
-			: CURSOR_ALLOW_LIST_WARNING,
+		CURSOR_ALLOW_LIST_WARNING,
 	);
 }
 

@@ -318,13 +318,15 @@ describe("toCursor", () => {
 	const GATES = ["preToolUse", "beforeShellExecution", "beforeMCPExecution"];
 
 	test("emits { permission, user_message, agent_message } on every gate event", () => {
-		for (const hookEvent of GATES) {
+		for (const hookEvent of ["beforeShellExecution", "beforeMCPExecution"]) {
 			expect(rendered({ hookEvent, decision: ASK }), hookEvent).toEqual({
 				permission: "ask",
 				user_message: "maina: recursive delete needs confirmation",
 				agent_message:
 					"maina asked the user to confirm this action: recursive delete needs confirmation",
 			});
+		}
+		for (const hookEvent of GATES) {
 			expect(rendered({ hookEvent, decision: DENY }), hookEvent).toEqual({
 				permission: "deny",
 				user_message: "maina: destructive operation outside policy",
@@ -417,12 +419,91 @@ describe("toCursor", () => {
 			expect(out.stderr, hookEvent).toBe(`${CURSOR_ALLOW_LIST_WARNING}\n`);
 		}
 		expect(CURSOR_ALLOW_LIST_WARNING).toContain("allow-list");
-		expect(toCursor({ hookEvent: "preToolUse", decision: ASK }).stderr).toBe(
-			`${CURSOR_PRE_TOOL_ASK_WARNING}\n`,
-		);
+		expect(
+			toCursor({ hookEvent: "preToolUse", decision: ASK }).stderr,
+		).not.toContain(CURSOR_ALLOW_LIST_WARNING);
 		expect(
 			toCursor({ hookEvent: "beforeShellExecution", decision: DENY }).stderr,
 		).not.toContain(CURSOR_ALLOW_LIST_WARNING);
+	});
+
+	describe("known issue (#469): Cursor does not enforce ask for preToolUse", () => {
+		// cursor.com/docs/hooks: preToolUse accepts `permission: "ask"` but runs
+		// the tool anyway, so an ask there is an allow. maina renders it as a
+		// deny (CLAUDE.md: `deny` where the host has no `ask`) whose message
+		// names the terminal command that allows the action.
+		const LOGGED: GateDecision = {
+			verdict: "ask",
+			reason: "file.write outside the workspace; asking",
+			decisionIds: ["d-7", "d-8"],
+			degraded: false,
+		};
+
+		test("an ask is a deny that exits 2, so the tool never runs unconfirmed", () => {
+			const out = toCursor({ hookEvent: "preToolUse", decision: LOGGED });
+			expect(out.exitCode).toBe(2);
+			const body = JSON.parse(out.stdout) as Record<string, string>;
+			expect(body.permission).toBe("deny");
+			expect(Object.keys(body).sort()).toEqual(
+				["agent_message", "permission", "user_message"].sort(),
+			);
+		});
+
+		test("the user message names the exact maina allow command for the decision", () => {
+			const out = toCursor({ hookEvent: "preToolUse", decision: LOGGED });
+			const body = JSON.parse(out.stdout) as Record<string, string>;
+			expect(body.user_message).toBe(
+				"maina: file.write outside the workspace. Cursor cannot ask for confirmation before this tool runs, so maina blocked it. To allow it, run `maina allow d-7 --always` in a terminal, then retry.",
+			);
+			expect(body.agent_message).toBe(
+				"maina blocked this action because it needs the user's confirmation (file.write outside the workspace) and Cursor cannot ask from preToolUse. Ask the user to run `maina allow d-7 --always` in a terminal, then retry; do not try another way.",
+			);
+			// The hook log carries the same line the user sees.
+			expect(out.stderr).toBe(`${body.user_message}\n`);
+		});
+
+		test("an ask with no logged decision says there is nothing to override", () => {
+			const out = toCursor({ hookEvent: "preToolUse", decision: ASK });
+			expect(out.exitCode).toBe(2);
+			const body = JSON.parse(out.stdout) as Record<string, string>;
+			expect(body.permission).toBe("deny");
+			expect(body.user_message).not.toContain("maina allow");
+			expect(body.user_message).toBe(
+				"maina: recursive delete needs confirmation. Cursor cannot ask for confirmation before this tool runs, so maina blocked it. maina logged no decision to override: add an allow rule to your maina policy, or make this change yourself.",
+			);
+			expect(body.agent_message).toContain("do not try another way");
+		});
+
+		test("a decision id that is not a plain token is never offered as a terminal command", () => {
+			const out = toCursor({
+				hookEvent: "preToolUse",
+				decision: { ...LOGGED, decisionIds: ["d-1; rm -rf ~"] },
+			});
+			expect(out.exitCode).toBe(2);
+			const body = JSON.parse(out.stdout) as Record<string, string>;
+			expect(body.user_message).not.toContain("maina allow");
+			expect(body.user_message).not.toContain("rm -rf");
+		});
+
+		test("shell and MCP keep Cursor's native ask, which Cursor enforces", () => {
+			for (const hookEvent of ["beforeShellExecution", "beforeMCPExecution"]) {
+				const out = toCursor({ hookEvent, decision: LOGGED });
+				expect(out.exitCode, hookEvent).toBe(0);
+				expect(JSON.parse(out.stdout).permission, hookEvent).toBe("ask");
+			}
+		});
+
+		test("a preToolUse deny and allow are unchanged", () => {
+			expect(rendered({ hookEvent: "preToolUse", decision: DENY })).toEqual({
+				permission: "deny",
+				user_message: "maina: destructive operation outside policy",
+				agent_message:
+					"maina blocked this action: destructive operation outside policy",
+			});
+			expect(rendered({ hookEvent: "preToolUse", decision: ALLOW })).toEqual({
+				permission: "allow",
+			});
+		});
 	});
 });
 
@@ -466,5 +547,12 @@ describe("cursorHooksConfig", () => {
 
 	test("warns about the known allow-list override", () => {
 		expect(warnings).toContain(CURSOR_ALLOW_LIST_WARNING);
+	});
+
+	test("warns that a preToolUse ask is a deny, with the command that allows it", () => {
+		expect(warnings).toContain(CURSOR_PRE_TOOL_ASK_WARNING);
+		expect(CURSOR_PRE_TOOL_ASK_WARNING).toBe(
+			"maina: Cursor does not enforce ask for preToolUse, so maina blocks a Write, Delete, Read or Grep it would ask about; the block message names the `maina allow <decision-id> --always` command that allows it. Shell and MCP asks still prompt.",
+		);
 	});
 });
