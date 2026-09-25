@@ -1,157 +1,218 @@
 /**
  * `maina mcp` — install, remove, and list the maina MCP server across
- * supported AI clients.
+ * supported AI clients; plus the global registration `maina setup` does.
  *
- * Public entry points: `runAdd`, `runRemove`, `runList`. Each takes a
- * RunOptions describing the requested clients, scope, dry-run mode, and
- * cwd. Each returns a per-client list of ApplyResult / status records.
+ * Every entry point resolves files through `targetsFor` (./targets.ts),
+ * plans pure `FileOp`s (./merge.ts, ./uninstall.ts) and carries them out
+ * through the `HostFs` port (./apply.ts). Dry runs plan without applying.
  */
 
-import { addOnClient, inspectClient, removeFromClient } from "./apply";
+import { homedir, platform } from "node:os";
+import { applyFileOp, type HostFs, nodeHostFs, snapshotTarget } from "./apply";
 import { buildClientRegistry, listClientIds } from "./clients";
-import type { ApplyResult, McpClientId, RunOptions } from "./types";
+import { type FileOp, mergeEntry, readEntry, type Snapshot } from "./merge";
+import {
+	type PathContext,
+	type TargetFile,
+	targetsFor,
+	wiredPerProject,
+} from "./targets";
+import type {
+	ApplyResult,
+	McpClientId,
+	McpClientInfo,
+	RunOptions,
+} from "./types";
+import { removeEntry } from "./uninstall";
 
 export { buildClientRegistry, listClientIds } from "./clients";
 export type {
 	ApplyResult,
 	McpClientId,
-	McpClientInfo,
 	McpScope,
 	RunOptions,
 } from "./types";
 
-interface ResolvedClient {
-	id: McpClientId;
-	configPath: string;
-	scope: "global" | "project";
+/**
+ * Paths for this machine. Env overrides (`$CODEX_HOME`, `%APPDATA%`) only
+ * apply to the real home: a test's fake home must never reach real files.
+ */
+export function hostPathContext(cwd: string, home?: string): PathContext {
+	const real = home === undefined;
+	const { CODEX_HOME, APPDATA } = process.env;
+	return {
+		home: home ?? homedir(),
+		cwd,
+		platform: platform(),
+		...(real && CODEX_HOME ? { codexHome: CODEX_HOME } : {}),
+		...(real && APPDATA ? { appData: APPDATA } : {}),
+	};
 }
 
-async function selectClients(
-	opts: RunOptions,
-): Promise<{ targets: ResolvedClient[]; skipped: McpClientId[] }> {
-	const registry = buildClientRegistry(opts.home);
-	const requested = opts.clients ?? listClientIds();
-	const targets: ResolvedClient[] = [];
-	const skipped: McpClientId[] = [];
+export interface RunReport {
+	readonly results: readonly ApplyResult[];
+	readonly skipped: readonly McpClientId[];
+}
 
-	for (const id of requested) {
+interface Selected {
+	readonly info: McpClientInfo;
+	readonly target: TargetFile;
+}
+
+async function selectTargets(
+	opts: RunOptions,
+	ctx: PathContext,
+): Promise<{ targets: Selected[]; skipped: McpClientId[] }> {
+	const registry = buildClientRegistry(ctx);
+	const explicit = opts.clients !== undefined;
+	const targets: Selected[] = [];
+	const skipped: McpClientId[] = [];
+	for (const id of opts.clients ?? listClientIds()) {
 		const info = registry[id];
-		// When the user explicitly named clients, respect the choice and
-		// skip detection. Auto-mode (no --client list) only writes to
+		// Named clients are respected as-is; auto mode only writes to
 		// clients we believe are present.
-		const explicit = opts.clients !== undefined;
-		if (!explicit) {
-			const installed = await info.detect();
-			if (!installed) {
-				skipped.push(id);
-				continue;
-			}
+		if (!explicit && !(await info.detect())) {
+			skipped.push(id);
+			continue;
 		}
-		if (opts.scope === "global" || opts.scope === "both") {
-			targets.push({
-				id,
-				configPath: info.globalConfigPath(),
-				scope: "global",
-			});
-		}
-		if (
-			(opts.scope === "project" || opts.scope === "both") &&
-			info.projectConfigPath
-		) {
-			targets.push({
-				id,
-				configPath: info.projectConfigPath(opts.cwd),
-				scope: "project",
-			});
+		for (const target of targetsFor(id, opts.scope, ctx)) {
+			targets.push({ info, target });
 		}
 	}
 	return { targets, skipped };
 }
 
-export interface RunReport {
-	results: ApplyResult[];
-	skipped: McpClientId[];
+/** Plan with `plan`, apply unless dry-running, report per target. */
+function execute(
+	selected: Selected,
+	fs: HostFs,
+	dryRun: boolean,
+	plan: (target: TargetFile, snapshot: Snapshot) => FileOp,
+): ApplyResult {
+	const { info, target } = selected;
+	const base = {
+		clientId: info.id,
+		configPath: target.path,
+		scope: target.scope,
+		dryRun,
+	};
+	const snap = snapshotTarget(fs, target);
+	if (!snap.ok) return { ...base, action: "skipped", error: snap.error };
+	const op = plan(target, snap.value);
+	if (op.action === "skipped") {
+		return { ...base, action: "skipped", error: op.reason ?? "skipped" };
+	}
+	if (!dryRun) {
+		const applied = applyFileOp(op, fs);
+		if (!applied.ok) {
+			return { ...base, action: "skipped", error: applied.error };
+		}
+	}
+	return { ...base, action: op.action };
 }
 
-export async function runAdd(opts: RunOptions): Promise<RunReport> {
-	const registry = buildClientRegistry(opts.home);
-	const { targets, skipped } = await selectClients(opts);
-	const results: ApplyResult[] = [];
-	for (const t of targets) {
-		const info = registry[t.id];
-		results.push(
-			await addOnClient(info, {
-				configPath: t.configPath,
-				scope: t.scope,
-				dryRun: opts.dryRun,
-			}),
-		);
-	}
+export async function runAdd(
+	opts: RunOptions,
+	fs: HostFs = nodeHostFs(),
+): Promise<RunReport> {
+	const ctx = hostPathContext(opts.cwd, opts.home);
+	const { targets, skipped } = await selectTargets(opts, ctx);
+	const results = targets.map((s) =>
+		execute(s, fs, opts.dryRun, (t, snap) =>
+			mergeEntry(t, s.info.buildEntry(), snap),
+		),
+	);
 	return { results, skipped };
 }
 
-export async function runRemove(opts: RunOptions): Promise<RunReport> {
-	const registry = buildClientRegistry(opts.home);
-	const { targets, skipped } = await selectClients(opts);
-	const results: ApplyResult[] = [];
-	for (const t of targets) {
-		const info = registry[t.id];
-		results.push(
-			await removeFromClient(info, {
-				configPath: t.configPath,
-				scope: t.scope,
-				dryRun: opts.dryRun,
-			}),
-		);
-	}
+export async function runRemove(
+	opts: RunOptions,
+	fs: HostFs = nodeHostFs(),
+): Promise<RunReport> {
+	const ctx = hostPathContext(opts.cwd, opts.home);
+	const { targets, skipped } = await selectTargets(opts, ctx);
+	const results = targets.map((s) => execute(s, fs, opts.dryRun, removeEntry));
 	return { results, skipped };
+}
+
+interface SetupHostsOptions {
+	readonly home: string;
+	readonly cwd: string;
+}
+
+/**
+ * The global registration `maina setup` performs: every installed host
+ * that setup does not already wire through a project file (Claude Code
+ * and Cursor get `.mcp.json` / `.cursor/mcp.json`) gets maina merged into
+ * its global config — Codex's `config.toml`, Windsurf, Zed, …
+ */
+export async function runSetupHosts(
+	opts: SetupHostsOptions,
+	fs: HostFs = nodeHostFs(),
+): Promise<RunReport> {
+	const clients = listClientIds().filter((id) => !wiredPerProject(id));
+	const ctx = hostPathContext(opts.cwd, opts.home);
+	const registry = buildClientRegistry(ctx);
+	const detected: McpClientId[] = [];
+	for (const id of clients) {
+		if (await registry[id].detect()) detected.push(id);
+	}
+	return runAdd(
+		{
+			clients: detected,
+			scope: "global",
+			dryRun: false,
+			cwd: opts.cwd,
+			home: opts.home,
+		},
+		fs,
+	);
 }
 
 export interface ListEntry {
-	clientId: McpClientId;
-	label: string;
-	scope: "global" | "project";
-	configPath: string;
-	detected: boolean;
-	installed: boolean;
-	error?: string;
+	readonly clientId: McpClientId;
+	readonly label: string;
+	readonly scope: "global" | "project";
+	readonly configPath: string;
+	readonly detected: boolean;
+	readonly installed: boolean;
+	readonly error?: string;
 }
 
 export async function runList(
 	opts: RunOptions,
+	fs: HostFs = nodeHostFs(),
 ): Promise<{ entries: ListEntry[] }> {
-	const registry = buildClientRegistry(opts.home);
-	const requested = opts.clients ?? listClientIds();
+	const ctx = hostPathContext(opts.cwd, opts.home);
+	const registry = buildClientRegistry(ctx);
 	const entries: ListEntry[] = [];
-	for (const id of requested) {
+	for (const id of opts.clients ?? listClientIds()) {
 		const info = registry[id];
 		const detected = await info.detect();
-		const scopes: Array<"global" | "project"> =
-			opts.scope === "both"
-				? ["global", "project"]
-				: opts.scope === "project"
-					? ["project"]
-					: ["global"];
-		for (const scope of scopes) {
-			// If a client doesn't define a project-scope config path, skip
-			// the project entry entirely rather than silently reporting the
-			// global path with `scope: "project"` (which would mislead users
-			// who explicitly asked for `--scope project`).
-			if (scope === "project" && !info.projectConfigPath) continue;
-			const path =
-				scope === "project" && info.projectConfigPath
-					? info.projectConfigPath(opts.cwd)
-					: info.globalConfigPath();
-			const status = await inspectClient(info, path);
-			entries.push({
+		// A host without a project file has no project row, rather than
+		// its global path mislabelled `project`.
+		for (const t of targetsFor(id, opts.scope, ctx)) {
+			const base = {
 				clientId: id,
 				label: info.label,
-				scope,
-				configPath: path,
+				scope: t.scope,
+				configPath: t.path,
 				detected,
-				installed: status.installed,
-				...(status.error ? { error: status.error } : {}),
-			});
+			};
+			const text = fs.read(t.path);
+			if (!text.ok) {
+				entries.push({ ...base, installed: false, error: text.error });
+				continue;
+			}
+			const found =
+				text.value === null
+					? { ok: true as const, value: undefined }
+					: readEntry(t, text.value);
+			entries.push(
+				found.ok
+					? { ...base, installed: found.value !== undefined }
+					: { ...base, installed: false, error: found.reason },
+			);
 		}
 	}
 	return { entries };

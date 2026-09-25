@@ -1,10 +1,11 @@
 /**
  * End-to-end fixture for Wave 3 acceptance:
  *
- * - Throwaway repo with a pre-existing `.claude/settings.json` that has an
- *   unrelated MCP entry.
- * - After `setupAction` runs, the file must contain BOTH the user's entry
- *   and the maina entry — byte-for-byte preservation (modulo formatter).
+ * - Throwaway repo with a pre-existing `.mcp.json` that has an unrelated
+ *   MCP entry, and a `.claude/settings.json` holding hooks/permissions.
+ * - After `setupAction` runs, `.mcp.json` must contain BOTH the user's entry
+ *   and the maina entry, and `settings.json` must be byte-for-byte
+ *   untouched: Claude Code never reads MCP servers from it (P1).
  *
  * The wizard has many moving parts (AI resolution, verify, wiki). We stub
  * every heavy dependency so the test is fast and deterministic, exercising
@@ -47,15 +48,25 @@ function initGitRepo(cwd: string): void {
 }
 
 describe("setupAction IDE-wiring e2e fixture", () => {
-	test("preserves existing .claude/settings.json MCP entries while adding maina", async () => {
+	test("merges maina into .mcp.json, keeps its entries, never touches settings.json", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "maina-setup-e2e-"));
 		try {
 			initGitRepo(cwd);
 
-			// Seed a `.claude/settings.json` with an unrelated MCP entry. We
-			// also stash an unrelated top-level key to confirm it's preserved.
-			const settingsPath = join(cwd, ".claude", "settings.json");
+			// Seed `.mcp.json` with an unrelated MCP entry and an unrelated
+			// top-level key, and settings.json with hooks + permissions.
+			const settingsPath = join(cwd, ".mcp.json");
 			mkdirSync(join(cwd, ".claude"), { recursive: true });
+			const claudeSettings = join(cwd, ".claude", "settings.json");
+			const claudeSettingsText = `${JSON.stringify(
+				{
+					hooks: { Stop: [{ hooks: [{ type: "command", command: "x" }] }] },
+					permissions: { allow: ["Bash(ls:*)"] },
+				},
+				null,
+				2,
+			)}\n`;
+			writeFileSync(claudeSettings, claudeSettingsText);
 			const userEntry = {
 				command: "bunx",
 				args: ["@modelcontextprotocol/server-memory"],
@@ -137,6 +148,7 @@ describe("setupAction IDE-wiring e2e fixture", () => {
 			expect(result.constitutionWritten).toBe(true);
 
 			// Verify merge outcome.
+			expect(readFileSync(claudeSettings, "utf-8")).toBe(claudeSettingsText);
 			const parsed = JSON.parse(readFileSync(settingsPath, "utf-8")) as {
 				theme?: string;
 				mcpServers: Record<string, { command: string; args: string[] }>;

@@ -1,73 +1,23 @@
 /**
  * Registry of MCP clients we know how to install the maina server into.
  *
- * Each client describes:
- *   - where its global config lives (per-platform)
- *   - what serialisation format it uses (JSON vs TOML)
- *   - where in the parsed object the MCP server map lives
- *   - how to detect whether the user has the client installed
- *
- * We intentionally support only "global" install scope here — the per-
- * project shape is already handled by the setup wizard via `.mcp.json`
- * and `.claude/settings.json`. `maina mcp add` is the cross-project
- * counterpart so a single install reaches every repo.
+ * Each client describes how to detect whether the user has it installed
+ * and the shape of the maina entry it expects. Which files it reads, and
+ * where the entry sits in them, is `./targets.ts`.
  *
  * Inspired by PostHog's wizard MCPClient pattern, simplified for our
  * narrower use case (we always register the same maina entry).
  */
 
 import { existsSync, readdirSync } from "node:fs";
-import { homedir, platform } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { detectLauncher } from "./launcher";
+import { type PathContext, targetsFor } from "./targets";
 import type { McpClientId, McpClientInfo } from "./types";
-
-// ── Path helpers ────────────────────────────────────────────────────────────
-
-interface PathContext {
-	home: string;
-	platform: NodeJS.Platform;
-}
-
-function ctx(home?: string): PathContext {
-	return { home: home ?? homedir(), platform: platform() };
-}
-
-function vsCodeGlobalStorage(c: PathContext): string {
-	if (c.platform === "darwin") {
-		return join(
-			c.home,
-			"Library",
-			"Application Support",
-			"Code",
-			"User",
-			"globalStorage",
-		);
-	}
-	if (c.platform === "win32") {
-		return join(
-			process.env.APPDATA ?? join(c.home, "AppData", "Roaming"),
-			"Code",
-			"User",
-			"globalStorage",
-		);
-	}
-	return join(c.home, ".config", "Code", "User", "globalStorage");
-}
-
-function zedConfigDir(c: PathContext): string {
-	if (c.platform === "win32") {
-		return join(
-			process.env.APPDATA ?? join(c.home, "AppData", "Roaming"),
-			"Zed",
-		);
-	}
-	return join(c.home, ".config", "zed");
-}
 
 // ── Detection helpers ──────────────────────────────────────────────────────
 
-async function dirExists(p: string): Promise<boolean> {
+function exists(p: string): boolean {
 	try {
 		return existsSync(p);
 	} catch {
@@ -75,182 +25,107 @@ async function dirExists(p: string): Promise<boolean> {
 	}
 }
 
-async function vsCodeExtensionInstalled(extPrefix: string): Promise<boolean> {
-	const dirs = [
-		join(homedir(), ".vscode", "extensions"),
-		join(homedir(), ".vscode-server", "extensions"),
-	];
-	for (const dir of dirs) {
-		if (!existsSync(dir)) continue;
+function envHasPrefix(prefix: string): boolean {
+	return Object.keys(process.env).some((k) => k.startsWith(prefix));
+}
+
+function vsCodeExtensionInstalled(home: string, extPrefix: string): boolean {
+	for (const dir of [
+		join(home, ".vscode", "extensions"),
+		join(home, ".vscode-server", "extensions"),
+	]) {
+		if (!exists(dir)) continue;
 		try {
 			if (readdirSync(dir).some((e) => e.startsWith(extPrefix))) return true;
 		} catch {
-			// fall through
+			// unreadable: try the next one
 		}
 	}
 	return false;
 }
 
+/** Directory holding `host`'s global config file. */
+function globalConfigDir(host: McpClientId, ctx: PathContext): string {
+	const [global] = targetsFor(host, "global", ctx);
+	return global === undefined ? ctx.home : dirname(global.path);
+}
+
+// ── Entries ────────────────────────────────────────────────────────────────
+
+function stdioEntry(): { command: string; args: string[] } {
+	const l = detectLauncher();
+	return { command: l.command, args: [...l.args] };
+}
+
 // ── Client definitions ─────────────────────────────────────────────────────
 
 export function buildClientRegistry(
-	home?: string,
+	ctx: PathContext,
 ): Record<McpClientId, McpClientInfo> {
-	const c = ctx(home);
-
-	const claude: McpClientInfo = {
-		id: "claude",
-		label: "Claude Code",
-		configFormat: "json",
-		globalConfigPath: () => join(c.home, ".claude", "settings.json"),
-		projectConfigPath: (cwd) => join(cwd, ".claude", "settings.json"),
-		detect: async () =>
-			dirExists(join(c.home, ".claude")) ||
-			Boolean(process.env.CLAUDE_CODE) ||
-			Boolean(process.env.CLAUDE_PROJECT_DIR),
-		shape: { path: ["mcpServers"], container: "object", entryKey: "maina" },
-		buildEntry: () => {
-			const l = detectLauncher();
-			return { command: l.command, args: [...l.args] };
-		},
-	};
-
-	const cursor: McpClientInfo = {
-		id: "cursor",
-		label: "Cursor",
-		configFormat: "json",
-		globalConfigPath: () => join(c.home, ".cursor", "mcp.json"),
-		projectConfigPath: (cwd) => join(cwd, ".cursor", "mcp.json"),
-		detect: async () =>
-			dirExists(join(c.home, ".cursor")) ||
-			Object.keys(process.env).some((k) => k.startsWith("CURSOR_")),
-		shape: { path: ["mcpServers"], container: "object", entryKey: "maina" },
-		buildEntry: () => {
-			const l = detectLauncher();
-			return { command: l.command, args: [...l.args] };
-		},
-	};
-
-	const windsurf: McpClientInfo = {
-		id: "windsurf",
-		label: "Windsurf",
-		configFormat: "json",
-		globalConfigPath: () =>
-			join(c.home, ".codeium", "windsurf", "mcp_config.json"),
-		detect: async () =>
-			dirExists(join(c.home, ".codeium")) ||
-			Object.keys(process.env).some((k) => k.startsWith("CODEIUM_")),
-		shape: { path: ["mcpServers"], container: "object", entryKey: "maina" },
-		buildEntry: () => {
-			const l = detectLauncher();
-			return { command: l.command, args: [...l.args] };
-		},
-	};
-
-	const cline: McpClientInfo = {
-		id: "cline",
-		label: "Cline (VS Code)",
-		configFormat: "json",
-		globalConfigPath: () =>
-			join(
-				vsCodeGlobalStorage(c),
-				"saoudrizwan.claude-dev",
-				"settings",
-				"cline_mcp_settings.json",
-			),
-		detect: () => vsCodeExtensionInstalled("saoudrizwan.claude-dev"),
-		shape: { path: ["mcpServers"], container: "object", entryKey: "maina" },
-		buildEntry: () => {
-			const l = detectLauncher();
-			return { command: l.command, args: [...l.args] };
-		},
-	};
-
-	const codex: McpClientInfo = {
-		id: "codex",
-		label: "OpenAI Codex CLI",
-		configFormat: "toml",
-		globalConfigPath: () => join(c.home, ".codex", "config.toml"),
-		detect: async () => dirExists(join(c.home, ".codex")),
-		shape: { path: ["mcp_servers"], container: "object", entryKey: "maina" },
-		buildEntry: () => {
-			const l = detectLauncher();
-			return { command: l.command, args: [...l.args] };
-		},
-	};
-
-	const continueClient: McpClientInfo = {
-		id: "continue",
-		label: "Continue.dev",
-		configFormat: "json",
-		// Continue's newer YAML format is `~/.continue/.continue/mcpServers/<name>.yaml`,
-		// but the legacy `config.json` `experimental` block is still respected and
-		// is JSON, so we target it here to keep the dep surface small. Users on
-		// the new YAML setup can run `maina mcp add --client continue` once we
-		// add YAML support — tracked as a follow-up.
-		globalConfigPath: () => join(c.home, ".continue", "config.json"),
-		projectConfigPath: (cwd) => join(cwd, ".continue", "config.json"),
-		detect: async () => dirExists(join(c.home, ".continue")),
-		shape: {
-			path: ["experimental", "modelContextProtocolServers"],
-			container: "array",
-			entryKey: "maina",
-		},
-		buildEntry: () => {
-			const l = detectLauncher();
-			return {
-				name: "maina",
-				transport: {
-					type: "stdio",
-					command: l.command,
-					args: [...l.args],
-				},
-			};
-		},
-	};
-
-	const gemini: McpClientInfo = {
-		id: "gemini",
-		label: "Gemini CLI",
-		configFormat: "json",
-		globalConfigPath: () => join(c.home, ".gemini", "settings.json"),
-		detect: async () => dirExists(join(c.home, ".gemini")),
-		shape: { path: ["mcpServers"], container: "object", entryKey: "maina" },
-		buildEntry: () => {
-			const l = detectLauncher();
-			return { command: l.command, args: [...l.args] };
-		},
-	};
-
-	const zed: McpClientInfo = {
-		id: "zed",
-		label: "Zed",
-		configFormat: "json",
-		globalConfigPath: () => join(zedConfigDir(c), "settings.json"),
-		detect: async () => dirExists(zedConfigDir(c)),
-		shape: {
-			path: ["context_servers"],
-			container: "object",
-			entryKey: "maina",
-		},
-		buildEntry: () => {
-			const l = detectLauncher();
-			return {
-				source: "custom",
-				command: { path: l.command, args: [...l.args] },
-			};
-		},
-	};
+	const { home } = ctx;
+	const client = (
+		id: McpClientId,
+		label: string,
+		detect: () => boolean,
+		buildEntry: () => unknown = stdioEntry,
+	): McpClientInfo => ({
+		id,
+		label,
+		detect: async () => detect(),
+		buildEntry,
+	});
 
 	return {
-		claude,
-		cursor,
-		windsurf,
-		cline,
-		codex,
-		continue: continueClient,
-		gemini,
-		zed,
+		claude: client(
+			"claude",
+			"Claude Code",
+			() =>
+				exists(join(home, ".claude")) ||
+				exists(join(home, ".claude.json")) ||
+				Boolean(process.env.CLAUDE_CODE) ||
+				Boolean(process.env.CLAUDE_PROJECT_DIR),
+		),
+		cursor: client(
+			"cursor",
+			"Cursor",
+			() => exists(join(home, ".cursor")) || envHasPrefix("CURSOR_"),
+		),
+		windsurf: client(
+			"windsurf",
+			"Windsurf",
+			() => exists(join(home, ".codeium")) || envHasPrefix("CODEIUM_"),
+		),
+		cline: client("cline", "Cline (VS Code)", () =>
+			vsCodeExtensionInstalled(home, "saoudrizwan.claude-dev"),
+		),
+		codex: client("codex", "OpenAI Codex CLI", () =>
+			exists(globalConfigDir("codex", ctx)),
+		),
+		continue: client(
+			"continue",
+			"Continue.dev",
+			() => exists(join(home, ".continue")),
+			() => {
+				const l = detectLauncher();
+				return {
+					name: "maina",
+					transport: { type: "stdio", command: l.command, args: [...l.args] },
+				};
+			},
+		),
+		gemini: client("gemini", "Gemini CLI", () => exists(join(home, ".gemini"))),
+		zed: client(
+			"zed",
+			"Zed",
+			() => exists(globalConfigDir("zed", ctx)),
+			() => {
+				const l = detectLauncher();
+				return {
+					source: "custom",
+					command: { path: l.command, args: [...l.args] },
+				};
+			},
+		),
 	};
 }
 

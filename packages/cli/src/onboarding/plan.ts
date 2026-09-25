@@ -18,6 +18,7 @@
  *   files that already exist.
  */
 
+import { projectMcpServersFiles } from "../hosts/targets";
 import { createJsonKeyText, mergeJsonKey } from "./json-key";
 import { LEGACY_TARGETS } from "./legacy";
 import {
@@ -107,11 +108,12 @@ export type TargetSpec =
 
 const CONSTITUTION_PATH = ".maina/constitution.md";
 const MCP_KEY = ["mcpServers", "maina"] as const;
-const MCP_CONFIG_PATHS = [
-	".mcp.json",
-	".claude/settings.json",
-	".cursor/mcp.json",
-];
+/**
+ * Project MCP files, from the host targets: Claude Code's `.mcp.json` and
+ * Cursor's `.cursor/mcp.json`. Never `.claude/settings.json`, which Claude
+ * Code does not read MCP servers from (P1).
+ */
+const MCP_CONFIG_PATHS = projectMcpServersFiles();
 
 function targetSpecs(options: PlanOptions): readonly TargetSpec[] {
 	const agents = new Set<AgentKind>(options.agents ?? ALL_AGENTS);

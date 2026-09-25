@@ -49,7 +49,7 @@ brainstorm -> ticket -> plan -> design -> spec -> implement
 ## Per-Tool Setup
 
 ### Claude Code
-MCP auto-configured via `.mcp.json` and `.claude/settings.json`. Run `maina setup` and it is ready.
+MCP auto-configured via `.mcp.json` (Claude Code never reads MCP servers from `settings.json`). Run `maina setup` and it is ready.
 
 ### Cursor
 MCP via `.cursor/mcp.json` or project-level `.mcp.json`. Rules loaded from `.cursor/rules/maina.mdc`. Run `maina setup`.

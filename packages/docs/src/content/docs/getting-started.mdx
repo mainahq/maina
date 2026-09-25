@@ -48,7 +48,7 @@ bunx @mainahq/cli@latest setup
 
    Project-level MCP configs use **keyed JSON merge** — every existing `mcpServers.*` entry is preserved semantically (keys, values, array order), although JSON re-serialisation may normalise whitespace. Only the `maina` key is added:
 
-   - `.claude/settings.json` (Claude Code)
+   - `.mcp.json` (Claude Code)
    - `.cursor/mcp.json` (Cursor)
 
    The eight cross-platform skills are materialised into your project so any agent can read them directly:

@@ -1,0 +1,6 @@
+---
+"@mainahq/cli": major
+"@mainahq/skills": patch
+---
+
+Host config merging with correct targets (FR-INS-4, FR-INS-6; fixes P1, P8). Every host config location now comes from one table, `targetsFor(host, scope)`: Claude Code is `<repo>/.mcp.json` (project) and `~/.claude.json` (global), never `settings.json`; Codex honours `$CODEX_HOME`. `maina mcp add` merges maina's entry with a pure `mergeEntry` that keeps every other key (hooks, permissions, other servers) in the file's own layout, edits Codex's TOML as text so comments survive, fails closed on files it cannot parse, and backs the original up once under `.maina/backups/`. `maina mcp remove` plans `uninstall(host, scope)`: it restores the pre-maina bytes exactly when nothing else changed, deletes a file maina created, and otherwise removes only maina's entry. Symlinked configs are written through, not replaced. `maina setup` no longer writes `.claude/settings.json`, and registers maina in the global config of installed hosts that have no project file (Codex, Windsurf, Zed, …). `maina doctor` checks the same targets. `install.sh` is now a thin wrapper: it installs the package and runs `maina setup` (or `maina mcp add` outside a repo), and writes no config itself.

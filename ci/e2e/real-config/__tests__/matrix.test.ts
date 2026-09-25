@@ -31,6 +31,7 @@ import { join } from "node:path";
 import { currentOs, GUI_PATH, hostEnv, minimalEnv } from "../env";
 import {
 	type CaseError,
+	checkSeeds,
 	classifyProblem,
 	createWorkspace,
 	ENV_MODES,
@@ -42,6 +43,7 @@ import {
 	problemsOf,
 	resolveLaunch,
 	runCase,
+	seedsFor,
 } from "../matrix";
 
 // ── minimalEnv ─────────────────────────────────────────────────────────────
@@ -496,15 +498,79 @@ describe("KNOWN_FAILURES", () => {
 		}
 	});
 
-	test("the open problems (P1, P2, P4) are each reproduced by at least one case", () => {
+	test("no install path waits on #299 (host config merge)", () => {
+		// Every installer goes through the CLI's host targets: Claude Code
+		// gets `.mcp.json` / `~/.claude.json` (P1), Codex gets its
+		// config.toml (P1), install.sh no longer writes a bare `bunx` (P2)
+		// and nothing rewrites a user's config wholesale (P8).
+		for (const k of KNOWN_FAILURES) {
+			expect(Object.values(k.fixes)).not.toContain(299);
+		}
+		for (const host of HOSTS) {
+			for (const installPath of [
+				"cli-setup",
+				"cli-mcp-add",
+				"install-sh",
+			] as const) {
+				for (const env of ENV_MODES) {
+					expect(expectedFailure({ host, installPath, env })).toBeUndefined();
+				}
+			}
+		}
+	});
+
+	test("P1, P2, P3 and P8 are no longer reproduced by any case", () => {
 		// P3 (unresolvable version pin) was fixed by #294: a stable CLI launches
 		// itself, and the registry fallback pins VERSION, which the release
-		// publishes (launcher.test.ts covers the fallback).
+		// publishes (launcher.test.ts covers the fallback). P1, P2 and P8
+		// were fixed by #299.
 		const covered = new Set(KNOWN_FAILURES.flatMap((k) => problemsOf(k)));
-		for (const p of ["P1", "P2", "P4"] as const) {
-			expect(covered.has(p)).toBe(true);
+		for (const p of ["P1", "P2", "P3", "P8"] as const) {
+			expect(covered.has(p)).toBe(false);
 		}
-		expect(covered.has("P3")).toBe(false);
+	});
+});
+
+// ── Seeded host configs (P8) ───────────────────────────────────────────────
+
+describe("checkSeeds", () => {
+	const seeded = (host: (typeof HOSTS)[number]) =>
+		new Map(seedsFor(host, ctx).map((s) => [s.path, s.content]));
+
+	test("every host seeds its global config with keys that are not maina's", () => {
+		for (const host of HOSTS) {
+			const seeds = seedsFor(host, ctx);
+			expect(seeds.length).toBeGreaterThan(0);
+			for (const s of seeds) {
+				expect(s.path.startsWith("/h/")).toBe(true);
+				expect(s.content).not.toContain("maina");
+			}
+		}
+	});
+
+	test("seeded configs that still hold their own keys pass", () => {
+		for (const host of HOSTS) {
+			const map = seeded(host);
+			expect(checkSeeds(host, ctx, (p) => map.get(p) ?? null)).toEqual({
+				ok: true,
+				value: undefined,
+			});
+		}
+	});
+
+	test("a seeded config rewritten without its own keys is P8", () => {
+		const clobbered = entry("/bin/maina");
+		const r = checkSeeds("cursor", ctx, () => clobbered);
+		expect(r.ok).toBe(false);
+		if (r.ok) return;
+		expect(r.error.kind).toBe("config-clobbered");
+		expect(classifyProblem(r.error)).toBe("P8");
+	});
+
+	test("a seeded config that was deleted is P8 too", () => {
+		const r = checkSeeds("codex", ctx, () => null);
+		expect(r.ok).toBe(false);
+		if (!r.ok) expect(classifyProblem(r.error)).toBe("P8");
 	});
 });
 

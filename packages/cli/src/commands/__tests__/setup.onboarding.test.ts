@@ -182,6 +182,41 @@ describe("setupAction — single onboarding flow", () => {
 		expect(result.bailReason).toBe("constitution_write_failed");
 	});
 
+	test("no Claude MCP entry lands in .claude/settings.json (P1)", async () => {
+		await run();
+		expect(existsSync(join(cwd, ".claude", "settings.json"))).toBe(false);
+		const mcp = JSON.parse(readFileSync(join(cwd, ".mcp.json"), "utf-8"));
+		expect(mcp.mcpServers.maina).toBeDefined();
+	});
+
+	test("registers maina with installed global-only hosts (Codex) when given a home", async () => {
+		const home = mkdtempSync(join(tmpdir(), "maina-setup-home-"));
+		mkdirSync(join(home, ".codex"), { recursive: true });
+		const before = 'model = "o3"\n';
+		writeFileSync(join(home, ".codex", "config.toml"), before);
+		try {
+			const result = await run({ globalHosts: { home } });
+			expect(result.bailed).toBe(false);
+			const out = readFileSync(join(home, ".codex", "config.toml"), "utf-8");
+			expect(out.startsWith(before)).toBe(true);
+			expect(out).toContain("[mcp_servers.maina]");
+			expect(result.hostConfigsWritten).toContain(
+				join(home, ".codex", "config.toml"),
+			);
+			// Plugin mode never writes outside the repo's .maina/.
+			rmSync(join(home, ".codex", "config.toml"));
+			await run({ globalHosts: { home }, plugin: true });
+			expect(existsSync(join(home, ".codex", "config.toml"))).toBe(false);
+		} finally {
+			rmSync(home, { recursive: true, force: true });
+		}
+	});
+
+	test("without a home, setup leaves global host configs alone", async () => {
+		const result = await run();
+		expect(result.hostConfigsWritten).toEqual([]);
+	});
+
 	test("setup exposes --legacy-agents and --plugin", () => {
 		const flags = setupCommand().options.map((o) => o.long);
 		expect(flags).toContain("--legacy-agents");

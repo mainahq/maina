@@ -11,9 +11,9 @@ Claude Code can use Maina's MCP tools to verify its own work before committing.
 
 1. **Ensure MCP is configured**
 
-   `maina setup` adds the `mcpServers.maina` key to `.mcp.json` and `.claude/settings.json` automatically. Or add manually:
+   `maina setup` adds the `mcpServers.maina` key to `.mcp.json` automatically (Claude Code does not read MCP servers from `settings.json`). Or add manually:
 
-   ```json title=".claude/settings.json"
+   ```json title=".mcp.json"
    {
      "mcpServers": {
        "maina": { "command": "maina", "args": ["--mcp"] }
