@@ -175,6 +175,32 @@ describe("a cache hit costs nothing", () => {
 		const routed = logger.entries().filter((e) => e.message === "model routed");
 		expect(routed).toHaveLength(1);
 	});
+
+	test("an answer cached on the degraded tier is served again without a new call or charge", async () => {
+		const root = repoWithBudget(
+			"{ dailyUsd: 0.1, perTaskUsd: null, onBreach: 'degrade' }",
+		);
+		const { run, calls, ledger, logger } = harness(root);
+
+		await run("design-review", "first");
+		// $0.07 spent: this one degrades to mechanical and is cached there.
+		const degraded = await run("design-review", "repeat");
+		expect(degraded.model).toBe("m-cheap");
+		const before = ledger.spend("any");
+		const routedBefore = logger
+			.entries()
+			.filter((e) => e.message === "model routed").length;
+
+		const again = await run("design-review", "repeat");
+		expect(again.cached).toBe(true);
+		expect(again.text).toBe("answer to repeat");
+		expect(calls.map((c) => c.modelId)).toEqual(["m-top", "m-cheap"]);
+		expect(ledger.spend("any")).toEqual(before);
+		const routedAfter = logger
+			.entries()
+			.filter((e) => e.message === "model routed").length;
+		expect(routedAfter).toBe(routedBefore);
+	});
 });
 
 describe("a failed model call", () => {

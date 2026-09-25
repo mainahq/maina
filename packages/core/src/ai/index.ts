@@ -15,7 +15,7 @@ import { toDbPort } from "../db/port";
 import { defaultDecidePorts } from "../decide/decide";
 import type { ClockPort } from "../ports/clock";
 import type { EnvPort } from "../ports/env";
-import type { LoggerPort } from "../ports/logger";
+import type { LogFields, LoggerPort, LogLevel } from "../ports/logger";
 import { createDbLogger } from "./model-log";
 import { routeTask } from "./routing";
 import {
@@ -136,6 +136,33 @@ function openSpendPorts(
 		ledger: ledger ?? (ownLedger?.ok ? ownLedger.value : undefined),
 		logger: logger ?? (ownLogger?.ok ? ownLogger.value : SILENT_LOGGER),
 		close: () => opened.value.db.close(),
+	};
+}
+
+/**
+ * A logger that holds its entries until `flush` passes them to `target`,
+ * so a routing decision that ends in a cache hit is never logged.
+ */
+function deferredLogger(target: LoggerPort): Readonly<{
+	logger: LoggerPort;
+	flush: () => void;
+}> {
+	const pending: Array<() => void> = [];
+	const at =
+		(level: LogLevel) =>
+		(message: string, fields?: LogFields): void => {
+			pending.push(() => target[level](message, fields));
+		};
+	return {
+		logger: {
+			debug: at("debug"),
+			info: at("info"),
+			warn: at("warn"),
+			error: at("error"),
+		},
+		flush: () => {
+			for (const entry of pending.splice(0)) entry();
+		},
 	};
 }
 
@@ -269,8 +296,9 @@ export async function generate(
 				error: spent.error.message,
 			});
 		}
+		const routing = deferredLogger(logger);
 		const routed = routeTask(
-			{ decide: defaultDecidePorts, logger },
+			{ decide: defaultDecidePorts, logger: routing.logger },
 			{
 				task,
 				budget: config.budget,
@@ -278,12 +306,20 @@ export async function generate(
 			},
 		);
 		if (!routed.ok) {
+			routing.flush();
 			const message = routed.error.message;
 			return { text: message, cached: false, model: "", budgetStop: message };
 		}
 		const { tier, estimatedCostUsd } = routed.value;
 		const modelId = modelIdFor(config, tier, provider);
 		const cacheKey = await cacheKeyFor(modelId);
+		// A degrade moved the task off its preferred tier: an answer cached on
+		// the routed tier is free too, so it is served unrouted and uncharged.
+		if (tier !== preferredTier) {
+			const degradedHit = readCached(cache, cacheKey);
+			if (degradedHit !== undefined) return degradedHit;
+		}
+		routing.flush();
 		const ttl = getTtl(task as Parameters<typeof getTtl>[0]);
 
 		// Host delegation: when running inside Claude Code/Cursor without own API key,
