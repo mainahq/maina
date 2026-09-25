@@ -62,6 +62,30 @@ describe("resolveBaseBranch", () => {
 	});
 });
 
+describe("resolveBaseBranch with a remote", () => {
+	test("prefers origin/<default> over a stale local branch", async () => {
+		const upstream = makeRepo("master");
+		const clone = mkdtempSync(join(tmpdir(), "maina-clone-"));
+		dirs.push(clone);
+		git(clone, "clone", "-q", upstream, ".");
+		writeFileSync(join(upstream, "later.ts"), "export const b = 2;\n");
+		git(upstream, "add", ".");
+		git(upstream, "commit", "-q", "-m", "later");
+		git(clone, "fetch", "-q", "origin");
+
+		expect(await resolveBaseBranch(clone)).toBe("origin/master");
+	});
+
+	test("an explicit preferred local branch still wins", async () => {
+		const upstream = makeRepo("master");
+		const clone = mkdtempSync(join(tmpdir(), "maina-clone-"));
+		dirs.push(clone);
+		git(clone, "clone", "-q", upstream, ".");
+
+		expect(await resolveBaseBranch(clone, "master")).toBe("master");
+	});
+});
+
 describe("filterByDiff without an explicit base", () => {
 	test("hides findings on untouched files in a master-based repo", async () => {
 		const dir = makeRepo("master");

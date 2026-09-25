@@ -103,8 +103,9 @@ const refExists = async (ref: string, cwd?: string): Promise<boolean> =>
 	"";
 
 /**
- * Resolve the branch to diff against. Precedence: `preferred` (if it
- * resolves) → origin/HEAD → master → main (local, then origin/) → "HEAD".
+ * Resolve the branch to diff against. Precedence: `preferred` exactly as
+ * given (local first) → origin/HEAD → master → main, where defaults prefer
+ * `origin/<name>` over a possibly stale local branch → "HEAD".
  * Never assumes "main": master-based repos made `git diff main` fail and the
  * diff filter fall open (#364).
  */
@@ -112,21 +113,24 @@ export async function resolveBaseBranch(
 	cwd?: string,
 	preferred?: string,
 ): Promise<string> {
+	const withRemote = (name: string, localFirst: boolean): string[] => {
+		if (name.startsWith("origin/")) return [name];
+		return localFirst ? [name, `origin/${name}`] : [`origin/${name}`, name];
+	};
 	const originHead = (
 		await exec(
 			["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"],
 			cwd,
 		)
 	).replace(/^origin\//, "");
-	const names = [preferred, originHead, "master", "main"].filter(
-		(n): n is string => Boolean(n),
-	);
-	for (const name of names) {
-		for (const ref of name.startsWith("origin/")
-			? [name]
-			: [name, `origin/${name}`]) {
-			if (await refExists(ref, cwd)) return ref;
-		}
+	const candidates = [
+		...(preferred ? withRemote(preferred, true) : []),
+		...[originHead, "master", "main"]
+			.filter((n) => n.length > 0)
+			.flatMap((n) => withRemote(n, false)),
+	];
+	for (const ref of candidates) {
+		if (await refExists(ref, cwd)) return ref;
 	}
 	return "HEAD";
 }
