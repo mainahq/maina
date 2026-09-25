@@ -62,12 +62,22 @@ function regexLiteralEnd(line: string, start: number): number {
  * line break. Regex literals are skipped whole so a quote, backtick or `/*`
  * inside one cannot flip the lexer into another state. Backticks nested in
  * `${…}` are not modelled; they are rare and balance out on a line.
+ *
+ * A `'`/`"` string cannot span a line break, so a quote left open at the end
+ * of the line (JSX text such as `<p>Don't</p>`, or a regex read as a
+ * division) did not open a string. The line is lexed again with that quote
+ * in `plainQuotes` treated as code, so the text after it is not masked.
  */
-function lexLine(line: string, start: LexState): LexedLine {
+function lexLine(
+	line: string,
+	start: LexState,
+	plainQuotes: ReadonlySet<number> = new Set(),
+): LexedLine {
 	let code = "";
 	let masked = "";
 	let comments = "";
 	let state: LexState | "'" | '"' = start;
+	let quoteAt = -1;
 	for (let i = 0; i < line.length; i++) {
 		const ch = line[i] ?? "";
 		const next = line[i + 1] ?? "";
@@ -110,7 +120,10 @@ function lexLine(line: string, start: LexState): LexedLine {
 				}
 			}
 			if (ch === "`") state = "template";
-			else if (ch === "'" || ch === '"') state = ch;
+			else if ((ch === "'" || ch === '"') && !plainQuotes.has(i)) {
+				state = ch;
+				quoteAt = i;
+			}
 			code += ch;
 			masked += ch;
 			comments += " ";
@@ -133,6 +146,9 @@ function lexLine(line: string, start: LexState): LexedLine {
 			masked += " ";
 			comments += " ";
 		}
+	}
+	if ((state === "'" || state === '"') && !line.endsWith("\\")) {
+		return lexLine(line, start, new Set([...plainQuotes, quoteAt]));
 	}
 	const carried: LexState =
 		state === "block" || state === "template" ? state : "code";

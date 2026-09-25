@@ -143,6 +143,15 @@ describe("checkTodoComments", () => {
 		expect(findings.map((f) => f.line)).toEqual([1, 3, 5, 6]);
 	});
 
+	it("still flags a comment after an unclosed quote such as JSX text (#400)", () => {
+		const content = [
+			"const el = <p>Don't</p>; // TODO: copy",
+			"if (ok) /re'/.test(s); // FIXME: division read",
+		].join("\n");
+		const findings = checkTodoComments("src/app.tsx", content);
+		expect(findings.map((f) => f.line)).toEqual([1, 2]);
+	});
+
 	it("keeps line-based detection for non-JS languages (#400)", () => {
 		const content = `x = 1\n# TODO: fix this\n`;
 		const findings = checkTodoComments("src/app.py", content);
@@ -438,6 +447,16 @@ describe("checkAnyType", () => {
 	it("does not flag 'any' inside multi-line block comments (#400)", () => {
 		const content = ["/*", "  example: const x: any = 1;", "*/"].join("\n");
 		expect(checkAnyType("src/app.ts", content)).toEqual([]);
+	});
+
+	it("still flags 'any' after an unclosed quote such as JSX text (#400)", () => {
+		const content = [
+			"const el = <p>Don't</p>; const y: any = 1;",
+			"if (ok) /re'/.test(s); const z: any = 2;",
+			'const s = "ok"; const w = <b>Say "hi</b> as any;',
+		].join("\n");
+		const findings = checkAnyType("src/app.tsx", content);
+		expect(findings.map((f) => f.line)).toEqual([1, 2, 3]);
 	});
 
 	it("still flags 'any' in code next to a literal (#400)", () => {
