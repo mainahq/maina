@@ -1,0 +1,97 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"$schema": {
+			"type": "string"
+		},
+		"models": {
+			"type": "object",
+			"properties": {
+				"mechanical": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Cheap, fast tier: commit messages, tests, slop detection, compression."
+				},
+				"standard": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Mid tier: reviews, plans, design docs."
+				},
+				"architectural": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Top tier: design review, architecture, prompt evolution."
+				},
+				"local": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Offline tier."
+				}
+			},
+			"additionalProperties": false
+		},
+		"provider": {
+			"type": "string",
+			"minLength": 1,
+			"description": "AI provider: openrouter, anthropic, ..."
+		},
+		"budget": {
+			"type": "object",
+			"properties": {
+				"dailyUsd": {
+					"anyOf": [
+						{
+							"type": "number",
+							"minimum": 0
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Spend cap per UTC day in US dollars. null disables the cap."
+				},
+				"perTaskUsd": {
+					"anyOf": [
+						{
+							"type": "number",
+							"minimum": 0
+						},
+						{
+							"type": "null"
+						}
+					],
+					"description": "Spend cap for a single command in US dollars. null disables the cap."
+				},
+				"onBreach": {
+					"type": "string",
+					"enum": [
+						"degrade",
+						"stop"
+					],
+					"description": "What happens when a cap is reached: degrade to the lower tier, or stop with a message."
+				}
+			},
+			"additionalProperties": false
+		},
+		"repoAliases": {
+			"type": "object",
+			"propertyNames": {
+				"type": "string",
+				"minLength": 1
+			},
+			"additionalProperties": {
+				"type": "string",
+				"pattern": "^[^/\\s]+\\/[^/\\s]+$"
+			},
+			"description": "Short names for GitHub repositories, used by `maina ticket`."
+		},
+		"telemetry": {
+			"type": "boolean",
+			"description": "1.x setup telemetry opt-out (false opts out). Superseded by policy.telemetry."
+		}
+	},
+	"additionalProperties": false,
+	"title": "Maina config",
+	"description": "Project configuration read from .maina/config.json."
+}

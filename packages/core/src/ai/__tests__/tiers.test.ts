@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { MainaConfig } from "../../config/index";
+import type { Config } from "../../config/schema";
 import { getTaskTier, resolveModel } from "../tiers";
 
-const TEST_CONFIG: MainaConfig = {
+const TEST_CONFIG: Config = {
 	models: {
 		mechanical: "google/gemini-2.5-flash",
 		standard: "anthropic/claude-sonnet-4",
@@ -11,10 +11,11 @@ const TEST_CONFIG: MainaConfig = {
 	},
 	provider: "openrouter",
 	budget: {
-		daily: 5.0,
-		perTask: 0.5,
-		alertAt: 0.8,
+		dailyUsd: 5.0,
+		perTaskUsd: 0.5,
+		onBreach: "degrade",
 	},
+	repoAliases: {},
 };
 
 describe("getTaskTier", () => {
@@ -94,7 +95,7 @@ describe("resolveModel", () => {
 	});
 
 	test("provider comes from config", () => {
-		const customConfig: MainaConfig = {
+		const customConfig: Config = {
 			...TEST_CONFIG,
 			provider: "custom-provider",
 		};

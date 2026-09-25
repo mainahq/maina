@@ -1,0 +1,225 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"$schema": {
+			"type": "string"
+		},
+		"version": {
+			"type": "number",
+			"const": 1
+		},
+		"explicitly_allow": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+			},
+			"description": "Irreversible action classes this layer is allowed to loosen. Anything else it tries to loosen is an error."
+		},
+		"action_classes": {
+			"type": "object",
+			"propertyNames": {
+				"type": "string",
+				"pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+			},
+			"additionalProperties": {
+				"type": "object",
+				"properties": {
+					"irreversible": {
+						"type": "boolean",
+						"description": "Irreversible classes can be tightened by any layer but loosened only when the layer lists them in explicitly_allow."
+					},
+					"verdict": {
+						"type": "string",
+						"enum": [
+							"allow",
+							"ask",
+							"deny"
+						],
+						"description": "Gate outcome when an action falls in this class."
+					}
+				},
+				"additionalProperties": false
+			}
+		},
+		"rules": {
+			"type": "object",
+			"properties": {
+				"allow": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"match": {
+								"type": "string",
+								"minLength": 1,
+								"description": "Command, path glob or tool name."
+							},
+							"kind": {
+								"type": "string",
+								"enum": [
+									"shell",
+									"file.write",
+									"file.read.outside",
+									"mcp",
+									"network"
+								],
+								"description": "Event kind the rule applies to; every kind when omitted."
+							},
+							"reason": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"required": [
+							"match"
+						],
+						"additionalProperties": false
+					}
+				},
+				"deny": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"match": {
+								"type": "string",
+								"minLength": 1,
+								"description": "Command, path glob or tool name."
+							},
+							"kind": {
+								"type": "string",
+								"enum": [
+									"shell",
+									"file.write",
+									"file.read.outside",
+									"mcp",
+									"network"
+								],
+								"description": "Event kind the rule applies to; every kind when omitted."
+							},
+							"reason": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"required": [
+							"match"
+						],
+						"additionalProperties": false
+					}
+				}
+			},
+			"additionalProperties": false,
+			"description": "Rule lists accumulate across layers; none can be removed."
+		},
+		"decisions": {
+			"type": "object",
+			"propertyNames": {
+				"type": "string",
+				"enum": [
+					"action.risk",
+					"diff.sensitive",
+					"diff.needs_review",
+					"task.tier",
+					"finding.real",
+					"finding.severity",
+					"spec.coverage",
+					"spec.orphan",
+					"spec.contradiction",
+					"spec.impl_leak",
+					"spec.quality",
+					"review.category",
+					"review.reviewer_kind",
+					"slop",
+					"wiki.relevance",
+					"context.select"
+				]
+			},
+			"additionalProperties": {
+				"type": "object",
+				"properties": {
+					"backend": {
+						"type": "string",
+						"enum": [
+							"rules",
+							"heuristic",
+							"system1"
+						]
+					},
+					"thresholds": {
+						"type": "object",
+						"properties": {
+							"confidence": {
+								"type": "number",
+								"minimum": 0,
+								"maximum": 1,
+								"description": "Minimum confidence at which the backend's answer is acted on."
+							}
+						},
+						"additionalProperties": false
+					},
+					"error_costs": {
+						"type": "object",
+						"properties": {
+							"false_positive": {
+								"type": "number",
+								"minimum": 0
+							},
+							"false_negative": {
+								"type": "number",
+								"minimum": 0
+							}
+						},
+						"additionalProperties": false
+					}
+				},
+				"additionalProperties": false
+			}
+		},
+		"drift": {
+			"type": "object",
+			"properties": {
+				"window": {
+					"type": "integer",
+					"exclusiveMinimum": 0,
+					"maximum": 9007199254740991,
+					"description": "Number of recent decisions the drift guard looks at."
+				},
+				"max_error_rate": {
+					"type": "number",
+					"minimum": 0,
+					"maximum": 1,
+					"description": "Error rate above which a decision type is demoted."
+				},
+				"max_confidence_drop": {
+					"type": "number",
+					"minimum": 0,
+					"maximum": 1,
+					"description": "Drop in mean confidence above which a decision type is demoted."
+				}
+			},
+			"additionalProperties": false
+		},
+		"telemetry": {
+			"type": "object",
+			"properties": {
+				"crash_reports": {
+					"type": "boolean"
+				},
+				"usage": {
+					"type": "boolean"
+				},
+				"outcome_sharing": {
+					"type": "boolean"
+				}
+			},
+			"additionalProperties": false,
+			"description": "Opt-ins. Only the user policy can turn one on."
+		}
+	},
+	"additionalProperties": false,
+	"title": "Maina policy",
+	"description": "Gate policy read from .maina/policy.json (repo) and the user default. Merge order: defaults < user < repo."
+}
