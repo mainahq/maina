@@ -1,0 +1,2333 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`tool schemas match the snapshot: verify 1`] = `
+{
+  "annotations": {
+    "readOnlyHint": true,
+  },
+  "description": "Run the verification pipeline (syntax guard, deterministic tools, diff-only filter) on explicit files. Returns pass/fail, findings on changed lines, and each tool's status with the reason any tool was skipped.",
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "base": {
+        "description": "Base ref for the diff-only filter. Defaults to the repo's base branch.",
+        "type": "string",
+      },
+      "files": {
+        "description": "Files to verify: repo-relative, or absolute inside the root. Omit to verify the staged files; an empty list verifies nothing.",
+        "items": {
+          "type": "string",
+        },
+        "type": "array",
+      },
+      "root": {
+        "description": "Absolute path of the repository to act on. Defaults to the root the server resolves for itself, normally the repository it was started in.",
+        "type": "string",
+      },
+    },
+    "type": "object",
+  },
+  "name": "verify",
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "data": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "durationMs": {
+                "type": "number",
+              },
+              "findings": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "column": {
+                      "type": "number",
+                    },
+                    "file": {
+                      "type": "string",
+                    },
+                    "line": {
+                      "type": "number",
+                    },
+                    "message": {
+                      "type": "string",
+                    },
+                    "ruleId": {
+                      "type": "string",
+                    },
+                    "severity": {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                      ],
+                      "type": "string",
+                    },
+                    "tool": {
+                      "type": "string",
+                    },
+                  },
+                  "required": [
+                    "tool",
+                    "file",
+                    "line",
+                    "message",
+                    "severity",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+              "hiddenCount": {
+                "type": "number",
+              },
+              "passed": {
+                "type": "boolean",
+              },
+              "syntaxErrors": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "column": {
+                      "type": "number",
+                    },
+                    "file": {
+                      "type": "string",
+                    },
+                    "line": {
+                      "type": "number",
+                    },
+                    "message": {
+                      "type": "string",
+                    },
+                    "severity": {
+                      "enum": [
+                        "error",
+                        "warning",
+                      ],
+                      "type": "string",
+                    },
+                  },
+                  "required": [
+                    "file",
+                    "line",
+                    "column",
+                    "message",
+                    "severity",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+              "syntaxPassed": {
+                "type": "boolean",
+              },
+              "tools": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "durationMs": {
+                      "type": "number",
+                    },
+                    "findings": {
+                      "type": "number",
+                    },
+                    "reason": {
+                      "type": "string",
+                    },
+                    "status": {
+                      "enum": [
+                        "passed",
+                        "failed",
+                        "skipped",
+                      ],
+                      "type": "string",
+                    },
+                    "tool": {
+                      "type": "string",
+                    },
+                  },
+                  "required": [
+                    "tool",
+                    "status",
+                    "findings",
+                    "durationMs",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+            },
+            "required": [
+              "passed",
+              "syntaxPassed",
+              "findings",
+              "hiddenCount",
+              "tools",
+              "durationMs",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "error": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "no_root",
+                  "invalid_input",
+                  "not_found",
+                  "failed",
+                ],
+                "type": "string",
+              },
+              "message": {
+                "type": "string",
+              },
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "kind",
+              "message",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "meta": {
+        "additionalProperties": false,
+        "properties": {
+          "durationMs": {
+            "type": "number",
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "tool": {
+            "type": "string",
+          },
+          "version": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "tool",
+          "root",
+          "version",
+          "durationMs",
+        ],
+        "type": "object",
+      },
+    },
+    "required": [
+      "data",
+      "error",
+      "meta",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`tool schemas match the snapshot: decide 1`] = `
+{
+  "annotations": {
+    "readOnlyHint": true,
+  },
+  "description": "Answer typed questions for a decision type (e.g. finding.real, diff.needs_review) with the repo's policy. Each answer comes with a probability distribution and the backend that produced it.",
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "questions": {
+        "description": "The questions to answer: choice, score or bool.",
+        "items": {
+          "oneOf": [
+            {
+              "properties": {
+                "id": {
+                  "type": "string",
+                },
+                "kind": {
+                  "const": "choice",
+                  "type": "string",
+                },
+                "options": {
+                  "items": {
+                    "type": "string",
+                  },
+                  "type": "array",
+                },
+              },
+              "required": [
+                "kind",
+                "id",
+                "options",
+              ],
+              "type": "object",
+            },
+            {
+              "properties": {
+                "id": {
+                  "type": "string",
+                },
+                "kind": {
+                  "const": "score",
+                  "type": "string",
+                },
+                "max": {
+                  "type": "number",
+                },
+                "min": {
+                  "type": "number",
+                },
+              },
+              "required": [
+                "kind",
+                "id",
+                "min",
+                "max",
+              ],
+              "type": "object",
+            },
+            {
+              "properties": {
+                "id": {
+                  "type": "string",
+                },
+                "kind": {
+                  "const": "bool",
+                  "type": "string",
+                },
+              },
+              "required": [
+                "kind",
+                "id",
+              ],
+              "type": "object",
+            },
+          ],
+        },
+        "type": "array",
+      },
+      "root": {
+        "description": "Absolute path of the repository to act on. Defaults to the root the server resolves for itself, normally the repository it was started in.",
+        "type": "string",
+      },
+      "state": {
+        "description": "What the decision is made over: \`trusted\` holds computed or configured values, \`untrusted\` repository or agent content (never treated as instructions).",
+        "properties": {
+          "trusted": {
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string",
+            },
+            "type": "object",
+          },
+          "untrusted": {
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string",
+            },
+            "type": "object",
+          },
+        },
+        "required": [
+          "trusted",
+          "untrusted",
+        ],
+        "type": "object",
+      },
+      "type": {
+        "description": "The decision type, e.g. finding.real.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "type",
+      "questions",
+    ],
+    "type": "object",
+  },
+  "name": "decide",
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "data": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "decisions": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "answer": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                        },
+                        {
+                          "type": "number",
+                        },
+                        {
+                          "type": "boolean",
+                        },
+                      ],
+                    },
+                    "backend": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                        },
+                        "version": {
+                          "type": "string",
+                        },
+                      },
+                      "required": [
+                        "id",
+                        "version",
+                      ],
+                      "type": "object",
+                    },
+                    "confidence": {
+                      "type": "number",
+                    },
+                    "distribution": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "answer": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                              },
+                              {
+                                "type": "number",
+                              },
+                              {
+                                "type": "boolean",
+                              },
+                            ],
+                          },
+                          "p": {
+                            "type": "number",
+                          },
+                        },
+                        "required": [
+                          "answer",
+                          "p",
+                        ],
+                        "type": "object",
+                      },
+                      "type": "array",
+                    },
+                    "id": {
+                      "type": "string",
+                    },
+                    "latencyMs": {
+                      "type": "number",
+                    },
+                    "type": {
+                      "type": "string",
+                    },
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "answer",
+                    "distribution",
+                    "confidence",
+                    "backend",
+                    "latencyMs",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+            },
+            "required": [
+              "decisions",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "error": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "no_root",
+                  "invalid_input",
+                  "not_found",
+                  "failed",
+                ],
+                "type": "string",
+              },
+              "message": {
+                "type": "string",
+              },
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "kind",
+              "message",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "meta": {
+        "additionalProperties": false,
+        "properties": {
+          "durationMs": {
+            "type": "number",
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "tool": {
+            "type": "string",
+          },
+          "version": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "tool",
+          "root",
+          "version",
+          "durationMs",
+        ],
+        "type": "object",
+      },
+    },
+    "required": [
+      "data",
+      "error",
+      "meta",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`tool schemas match the snapshot: impact 1`] = `
+{
+  "annotations": {
+    "readOnlyHint": true,
+  },
+  "description": "What changing explicit files or symbols can affect: transitive callers, dependent files, tests that cover them, and a blast score (share of the repo's files touched).",
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "depth": {
+        "description": "Call hops to follow back from the targets. Defaults to 3.",
+        "maximum": 10,
+        "minimum": 1,
+        "type": "integer",
+      },
+      "files": {
+        "description": "Files whose symbols are the targets: repo-relative, or absolute inside the root.",
+        "items": {
+          "type": "string",
+        },
+        "type": "array",
+      },
+      "root": {
+        "description": "Absolute path of the repository to act on. Defaults to the root the server resolves for itself, normally the repository it was started in.",
+        "type": "string",
+      },
+      "symbols": {
+        "description": "Node ids (path#qualifiedName) or qualified names (Circle.area).",
+        "items": {
+          "type": "string",
+        },
+        "type": "array",
+      },
+    },
+    "type": "object",
+  },
+  "name": "impact",
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "data": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "blastScore": {
+                "type": "number",
+              },
+              "callers": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "depth": {
+                      "type": "number",
+                    },
+                    "endLine": {
+                      "type": "number",
+                    },
+                    "id": {
+                      "type": "string",
+                    },
+                    "kind": {
+                      "type": "string",
+                    },
+                    "name": {
+                      "type": "string",
+                    },
+                    "path": {
+                      "type": "string",
+                    },
+                    "qualifiedName": {
+                      "type": "string",
+                    },
+                    "startLine": {
+                      "type": "number",
+                    },
+                  },
+                  "required": [
+                    "id",
+                    "path",
+                    "name",
+                    "qualifiedName",
+                    "kind",
+                    "startLine",
+                    "endLine",
+                    "depth",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+              "dependents": {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+              "targets": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "endLine": {
+                      "type": "number",
+                    },
+                    "id": {
+                      "type": "string",
+                    },
+                    "kind": {
+                      "type": "string",
+                    },
+                    "name": {
+                      "type": "string",
+                    },
+                    "path": {
+                      "type": "string",
+                    },
+                    "qualifiedName": {
+                      "type": "string",
+                    },
+                    "startLine": {
+                      "type": "number",
+                    },
+                  },
+                  "required": [
+                    "id",
+                    "path",
+                    "name",
+                    "qualifiedName",
+                    "kind",
+                    "startLine",
+                    "endLine",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+              "tests": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "depth": {
+                      "type": "number",
+                    },
+                    "endLine": {
+                      "type": "number",
+                    },
+                    "id": {
+                      "type": "string",
+                    },
+                    "kind": {
+                      "type": "string",
+                    },
+                    "name": {
+                      "type": "string",
+                    },
+                    "path": {
+                      "type": "string",
+                    },
+                    "qualifiedName": {
+                      "type": "string",
+                    },
+                    "startLine": {
+                      "type": "number",
+                    },
+                  },
+                  "required": [
+                    "id",
+                    "path",
+                    "name",
+                    "qualifiedName",
+                    "kind",
+                    "startLine",
+                    "endLine",
+                    "depth",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+              "unknown": {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+            },
+            "required": [
+              "targets",
+              "unknown",
+              "callers",
+              "dependents",
+              "tests",
+              "blastScore",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "error": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "no_root",
+                  "invalid_input",
+                  "not_found",
+                  "failed",
+                ],
+                "type": "string",
+              },
+              "message": {
+                "type": "string",
+              },
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "kind",
+              "message",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "meta": {
+        "additionalProperties": false,
+        "properties": {
+          "durationMs": {
+            "type": "number",
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "tool": {
+            "type": "string",
+          },
+          "version": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "tool",
+          "root",
+          "version",
+          "durationMs",
+        ],
+        "type": "object",
+      },
+    },
+    "required": [
+      "data",
+      "error",
+      "meta",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`tool schemas match the snapshot: context 1`] = `
+{
+  "annotations": {
+    "readOnlyHint": true,
+  },
+  "description": "Source snippets for explicit files or a free-text query plus their call-graph neighbourhood, within a token budget. Cheaper than reading whole files; reports the tokens saved.",
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "budgetTokens": {
+        "description": "Token ceiling for the snippets. Defaults to 8000.",
+        "maximum": 30000,
+        "minimum": 1,
+        "type": "integer",
+      },
+      "depth": {
+        "description": "Hops of callees and callers to consider. Defaults to 1.",
+        "maximum": 5,
+        "minimum": 0,
+        "type": "integer",
+      },
+      "files": {
+        "description": "Files whose symbols are the targets: repo-relative, or absolute inside the root.",
+        "items": {
+          "type": "string",
+        },
+        "type": "array",
+      },
+      "query": {
+        "description": "Free text: the best-matching symbols become the targets.",
+        "type": "string",
+      },
+      "root": {
+        "description": "Absolute path of the repository to act on. Defaults to the root the server resolves for itself, normally the repository it was started in.",
+        "type": "string",
+      },
+    },
+    "type": "object",
+  },
+  "name": "context",
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "data": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "naiveTokens": {
+                "type": "number",
+              },
+              "omitted": {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+              "savedTokens": {
+                "type": "number",
+              },
+              "snippets": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "depth": {
+                      "type": "number",
+                    },
+                    "endLine": {
+                      "type": "number",
+                    },
+                    "id": {
+                      "type": "string",
+                    },
+                    "kind": {
+                      "type": "string",
+                    },
+                    "name": {
+                      "type": "string",
+                    },
+                    "path": {
+                      "type": "string",
+                    },
+                    "qualifiedName": {
+                      "type": "string",
+                    },
+                    "reason": {
+                      "enum": [
+                        "target",
+                        "callee",
+                        "caller",
+                      ],
+                      "type": "string",
+                    },
+                    "startLine": {
+                      "type": "number",
+                    },
+                    "text": {
+                      "type": "string",
+                    },
+                    "tokens": {
+                      "type": "number",
+                    },
+                  },
+                  "required": [
+                    "id",
+                    "path",
+                    "name",
+                    "qualifiedName",
+                    "kind",
+                    "startLine",
+                    "endLine",
+                    "reason",
+                    "depth",
+                    "text",
+                    "tokens",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+              "stale": {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+              "tokens": {
+                "type": "number",
+              },
+              "unknown": {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+            },
+            "required": [
+              "snippets",
+              "tokens",
+              "naiveTokens",
+              "savedTokens",
+              "omitted",
+              "stale",
+              "unknown",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "error": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "no_root",
+                  "invalid_input",
+                  "not_found",
+                  "failed",
+                ],
+                "type": "string",
+              },
+              "message": {
+                "type": "string",
+              },
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "kind",
+              "message",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "meta": {
+        "additionalProperties": false,
+        "properties": {
+          "durationMs": {
+            "type": "number",
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "tool": {
+            "type": "string",
+          },
+          "version": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "tool",
+          "root",
+          "version",
+          "durationMs",
+        ],
+        "type": "object",
+      },
+    },
+    "required": [
+      "data",
+      "error",
+      "meta",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`tool schemas match the snapshot: review_triage 1`] = `
+{
+  "annotations": {
+    "readOnlyHint": true,
+  },
+  "description": "Two-stage review (spec compliance, then code quality) of an explicit diff or of explicit files against a base ref, triaged into blocking, advisory and info findings.",
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "base": {
+        "description": "Ref to diff \`files\` against when no \`diff\` is given. Defaults to HEAD.",
+        "type": "string",
+      },
+      "diff": {
+        "description": "A unified diff to review. Omit to diff \`files\` against \`base\`.",
+        "type": "string",
+      },
+      "files": {
+        "description": "Files to review: without \`diff\` they are diffed against \`base\`; with it they narrow the triage to findings in these files.",
+        "items": {
+          "type": "string",
+        },
+        "type": "array",
+      },
+      "planContent": {
+        "description": "The feature's plan.md, for the spec-compliance stage.",
+        "type": "string",
+      },
+      "root": {
+        "description": "Absolute path of the repository to act on. Defaults to the root the server resolves for itself, normally the repository it was started in.",
+        "type": "string",
+      },
+    },
+    "type": "object",
+  },
+  "name": "review_triage",
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "data": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "advisory": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "file": {
+                      "type": "string",
+                    },
+                    "line": {
+                      "type": "number",
+                    },
+                    "message": {
+                      "type": "string",
+                    },
+                    "severity": {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                      ],
+                      "type": "string",
+                    },
+                    "stage": {
+                      "enum": [
+                        "spec-compliance",
+                        "code-quality",
+                      ],
+                      "type": "string",
+                    },
+                  },
+                  "required": [
+                    "stage",
+                    "severity",
+                    "message",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+              "blocking": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "file": {
+                      "type": "string",
+                    },
+                    "line": {
+                      "type": "number",
+                    },
+                    "message": {
+                      "type": "string",
+                    },
+                    "severity": {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                      ],
+                      "type": "string",
+                    },
+                    "stage": {
+                      "enum": [
+                        "spec-compliance",
+                        "code-quality",
+                      ],
+                      "type": "string",
+                    },
+                  },
+                  "required": [
+                    "stage",
+                    "severity",
+                    "message",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+              "counts": {
+                "additionalProperties": false,
+                "properties": {
+                  "advisory": {
+                    "type": "number",
+                  },
+                  "blocking": {
+                    "type": "number",
+                  },
+                  "info": {
+                    "type": "number",
+                  },
+                },
+                "required": [
+                  "blocking",
+                  "advisory",
+                  "info",
+                ],
+                "type": "object",
+              },
+              "delegated": {
+                "type": "boolean",
+              },
+              "info": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "file": {
+                      "type": "string",
+                    },
+                    "line": {
+                      "type": "number",
+                    },
+                    "message": {
+                      "type": "string",
+                    },
+                    "severity": {
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info",
+                      ],
+                      "type": "string",
+                    },
+                    "stage": {
+                      "enum": [
+                        "spec-compliance",
+                        "code-quality",
+                      ],
+                      "type": "string",
+                    },
+                  },
+                  "required": [
+                    "stage",
+                    "severity",
+                    "message",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+              "passed": {
+                "type": "boolean",
+              },
+              "stages": {
+                "additionalProperties": false,
+                "properties": {
+                  "codeQuality": {
+                    "anyOf": [
+                      {
+                        "type": "boolean",
+                      },
+                      {
+                        "type": "null",
+                      },
+                    ],
+                  },
+                  "specCompliance": {
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "specCompliance",
+                  "codeQuality",
+                ],
+                "type": "object",
+              },
+            },
+            "required": [
+              "passed",
+              "delegated",
+              "stages",
+              "counts",
+              "blocking",
+              "advisory",
+              "info",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "error": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "no_root",
+                  "invalid_input",
+                  "not_found",
+                  "failed",
+                ],
+                "type": "string",
+              },
+              "message": {
+                "type": "string",
+              },
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "kind",
+              "message",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "meta": {
+        "additionalProperties": false,
+        "properties": {
+          "durationMs": {
+            "type": "number",
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "tool": {
+            "type": "string",
+          },
+          "version": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "tool",
+          "root",
+          "version",
+          "durationMs",
+        ],
+        "type": "object",
+      },
+    },
+    "required": [
+      "data",
+      "error",
+      "meta",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`tool schemas match the snapshot: spec_check 1`] = `
+{
+  "annotations": {
+    "readOnlyHint": true,
+  },
+  "description": "Check explicit feature directories (spec.md, plan.md, tasks.md) for consistency: missing files, acceptance criteria without tasks, orphaned tasks, WHAT/HOW separation leaks and contradictions.",
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "paths": {
+        "description": "Feature directories, e.g. .maina/features/001-login: repo-relative, or absolute inside the root.",
+        "items": {
+          "type": "string",
+        },
+        "minItems": 1,
+        "type": "array",
+      },
+      "root": {
+        "description": "Absolute path of the repository to act on. Defaults to the root the server resolves for itself, normally the repository it was started in.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "paths",
+    ],
+    "type": "object",
+  },
+  "name": "spec_check",
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "data": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "passed": {
+                "type": "boolean",
+              },
+              "reports": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "findings": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "category": {
+                            "type": "string",
+                          },
+                          "file": {
+                            "type": "string",
+                          },
+                          "line": {
+                            "type": "number",
+                          },
+                          "message": {
+                            "type": "string",
+                          },
+                          "severity": {
+                            "enum": [
+                              "error",
+                              "warning",
+                              "info",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "severity",
+                          "category",
+                          "message",
+                        ],
+                        "type": "object",
+                      },
+                      "type": "array",
+                    },
+                    "path": {
+                      "type": "string",
+                    },
+                    "summary": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "errors": {
+                          "type": "number",
+                        },
+                        "info": {
+                          "type": "number",
+                        },
+                        "warnings": {
+                          "type": "number",
+                        },
+                      },
+                      "required": [
+                        "errors",
+                        "warnings",
+                        "info",
+                      ],
+                      "type": "object",
+                    },
+                  },
+                  "required": [
+                    "path",
+                    "findings",
+                    "summary",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+              "summary": {
+                "additionalProperties": false,
+                "properties": {
+                  "errors": {
+                    "type": "number",
+                  },
+                  "info": {
+                    "type": "number",
+                  },
+                  "warnings": {
+                    "type": "number",
+                  },
+                },
+                "required": [
+                  "errors",
+                  "warnings",
+                  "info",
+                ],
+                "type": "object",
+              },
+            },
+            "required": [
+              "passed",
+              "summary",
+              "reports",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "error": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "no_root",
+                  "invalid_input",
+                  "not_found",
+                  "failed",
+                ],
+                "type": "string",
+              },
+              "message": {
+                "type": "string",
+              },
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "kind",
+              "message",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "meta": {
+        "additionalProperties": false,
+        "properties": {
+          "durationMs": {
+            "type": "number",
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "tool": {
+            "type": "string",
+          },
+          "version": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "tool",
+          "root",
+          "version",
+          "durationMs",
+        ],
+        "type": "object",
+      },
+    },
+    "required": [
+      "data",
+      "error",
+      "meta",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`tool schemas match the snapshot: receipt 1`] = `
+{
+  "annotations": {
+    "readOnlyHint": true,
+  },
+  "description": "Verify explicit maina receipt JSON files against the v1 schema and their canonical hash. Reports each receipt's status and how many of its checks passed.",
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "paths": {
+        "description": "Receipt JSON files: repo-relative, or absolute inside the root.",
+        "items": {
+          "type": "string",
+        },
+        "minItems": 1,
+        "type": "array",
+      },
+      "root": {
+        "description": "Absolute path of the repository to act on. Defaults to the root the server resolves for itself, normally the repository it was started in.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "paths",
+    ],
+    "type": "object",
+  },
+  "name": "receipt",
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "data": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "failed": {
+                "type": "number",
+              },
+              "receipts": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                    },
+                    "hash": {
+                      "type": "string",
+                    },
+                    "message": {
+                      "type": "string",
+                    },
+                    "passed": {
+                      "type": "number",
+                    },
+                    "path": {
+                      "type": "string",
+                    },
+                    "status": {
+                      "type": "string",
+                    },
+                    "total": {
+                      "type": "number",
+                    },
+                    "verified": {
+                      "type": "boolean",
+                    },
+                  },
+                  "required": [
+                    "path",
+                    "verified",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+              "verified": {
+                "type": "number",
+              },
+            },
+            "required": [
+              "verified",
+              "failed",
+              "receipts",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "error": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "no_root",
+                  "invalid_input",
+                  "not_found",
+                  "failed",
+                ],
+                "type": "string",
+              },
+              "message": {
+                "type": "string",
+              },
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "kind",
+              "message",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "meta": {
+        "additionalProperties": false,
+        "properties": {
+          "durationMs": {
+            "type": "number",
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "tool": {
+            "type": "string",
+          },
+          "version": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "tool",
+          "root",
+          "version",
+          "durationMs",
+        ],
+        "type": "object",
+      },
+    },
+    "required": [
+      "data",
+      "error",
+      "meta",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`tool schemas match the snapshot: status 1`] = `
+{
+  "annotations": {
+    "readOnlyHint": true,
+  },
+  "description": "Server and repository status: maina version, the enabled and available tools, and whether the code graph, wiki and policy are ready at the root.",
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "root": {
+        "description": "Absolute path of the repository to act on. Defaults to the root the server resolves for itself, normally the repository it was started in.",
+        "type": "string",
+      },
+    },
+    "type": "object",
+  },
+  "name": "status",
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "data": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "graph": {
+                "additionalProperties": false,
+                "properties": {
+                  "indexed": {
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "indexed",
+                ],
+                "type": "object",
+              },
+              "policy": {
+                "additionalProperties": false,
+                "properties": {
+                  "errors": {
+                    "items": {
+                      "type": "string",
+                    },
+                    "type": "array",
+                  },
+                  "valid": {
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "valid",
+                  "errors",
+                ],
+                "type": "object",
+              },
+              "root": {
+                "type": "string",
+              },
+              "tools": {
+                "additionalProperties": false,
+                "properties": {
+                  "available": {
+                    "items": {
+                      "type": "string",
+                    },
+                    "type": "array",
+                  },
+                  "enabled": {
+                    "items": {
+                      "type": "string",
+                    },
+                    "type": "array",
+                  },
+                },
+                "required": [
+                  "enabled",
+                  "available",
+                ],
+                "type": "object",
+              },
+              "version": {
+                "type": "string",
+              },
+              "wiki": {
+                "additionalProperties": false,
+                "properties": {
+                  "initialized": {
+                    "type": "boolean",
+                  },
+                },
+                "required": [
+                  "initialized",
+                ],
+                "type": "object",
+              },
+            },
+            "required": [
+              "version",
+              "root",
+              "tools",
+              "graph",
+              "wiki",
+              "policy",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "error": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "no_root",
+                  "invalid_input",
+                  "not_found",
+                  "failed",
+                ],
+                "type": "string",
+              },
+              "message": {
+                "type": "string",
+              },
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "kind",
+              "message",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "meta": {
+        "additionalProperties": false,
+        "properties": {
+          "durationMs": {
+            "type": "number",
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "tool": {
+            "type": "string",
+          },
+          "version": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "tool",
+          "root",
+          "version",
+          "durationMs",
+        ],
+        "type": "object",
+      },
+    },
+    "required": [
+      "data",
+      "error",
+      "meta",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`tool schemas match the snapshot: ask_question 1`] = `
+{
+  "annotations": {
+    "readOnlyHint": true,
+  },
+  "description": "Ask a question about the codebase. Answers from the maina wiki with source articles (DeepWiki-compatible).",
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "question": {
+        "description": "The question to answer.",
+        "minLength": 1,
+        "type": "string",
+      },
+      "repo": {
+        "description": "DeepWiki compatibility; maina answers for the repository at \`root\`.",
+        "type": "string",
+      },
+      "root": {
+        "description": "Absolute path of the repository to act on. Defaults to the root the server resolves for itself, normally the repository it was started in.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "question",
+    ],
+    "type": "object",
+  },
+  "name": "ask_question",
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "data": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "answer": {
+                "type": "string",
+              },
+              "sources": {
+                "items": {
+                  "type": "string",
+                },
+                "type": "array",
+              },
+            },
+            "required": [
+              "answer",
+              "sources",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "error": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "no_root",
+                  "invalid_input",
+                  "not_found",
+                  "failed",
+                ],
+                "type": "string",
+              },
+              "message": {
+                "type": "string",
+              },
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "kind",
+              "message",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "meta": {
+        "additionalProperties": false,
+        "properties": {
+          "durationMs": {
+            "type": "number",
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "tool": {
+            "type": "string",
+          },
+          "version": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "tool",
+          "root",
+          "version",
+          "durationMs",
+        ],
+        "type": "object",
+      },
+    },
+    "required": [
+      "data",
+      "error",
+      "meta",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`tool schemas match the snapshot: read_wiki_structure 1`] = `
+{
+  "annotations": {
+    "readOnlyHint": true,
+  },
+  "description": "List the maina wiki's articles with their paths, types and titles (DeepWiki-compatible).",
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "repo": {
+        "description": "DeepWiki compatibility; maina answers for the repository at \`root\`.",
+        "type": "string",
+      },
+      "root": {
+        "description": "Absolute path of the repository to act on. Defaults to the root the server resolves for itself, normally the repository it was started in.",
+        "type": "string",
+      },
+    },
+    "type": "object",
+  },
+  "name": "read_wiki_structure",
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "data": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "articles": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                    },
+                    "title": {
+                      "type": "string",
+                    },
+                    "type": {
+                      "type": "string",
+                    },
+                  },
+                  "required": [
+                    "path",
+                    "type",
+                    "title",
+                  ],
+                  "type": "object",
+                },
+                "type": "array",
+              },
+              "total": {
+                "type": "number",
+              },
+            },
+            "required": [
+              "articles",
+              "total",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "error": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "no_root",
+                  "invalid_input",
+                  "not_found",
+                  "failed",
+                ],
+                "type": "string",
+              },
+              "message": {
+                "type": "string",
+              },
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "kind",
+              "message",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "meta": {
+        "additionalProperties": false,
+        "properties": {
+          "durationMs": {
+            "type": "number",
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "tool": {
+            "type": "string",
+          },
+          "version": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "tool",
+          "root",
+          "version",
+          "durationMs",
+        ],
+        "type": "object",
+      },
+    },
+    "required": [
+      "data",
+      "error",
+      "meta",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`tool schemas match the snapshot: read_wiki_contents 1`] = `
+{
+  "annotations": {
+    "readOnlyHint": true,
+  },
+  "description": "Read one maina wiki article by its path from read_wiki_structure (DeepWiki-compatible).",
+  "inputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "properties": {
+      "page": {
+        "description": "Article path inside the wiki, e.g. modules/auth.md.",
+        "minLength": 1,
+        "type": "string",
+      },
+      "repo": {
+        "description": "DeepWiki compatibility; maina answers for the repository at \`root\`.",
+        "type": "string",
+      },
+      "root": {
+        "description": "Absolute path of the repository to act on. Defaults to the root the server resolves for itself, normally the repository it was started in.",
+        "type": "string",
+      },
+    },
+    "required": [
+      "page",
+    ],
+    "type": "object",
+  },
+  "name": "read_wiki_contents",
+  "outputSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "additionalProperties": false,
+    "properties": {
+      "data": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "content": {
+                "type": "string",
+              },
+              "page": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "page",
+              "content",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "error": {
+        "anyOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "no_root",
+                  "invalid_input",
+                  "not_found",
+                  "failed",
+                ],
+                "type": "string",
+              },
+              "message": {
+                "type": "string",
+              },
+              "path": {
+                "type": "string",
+              },
+            },
+            "required": [
+              "kind",
+              "message",
+            ],
+            "type": "object",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "meta": {
+        "additionalProperties": false,
+        "properties": {
+          "durationMs": {
+            "type": "number",
+          },
+          "root": {
+            "anyOf": [
+              {
+                "type": "string",
+              },
+              {
+                "type": "null",
+              },
+            ],
+          },
+          "tool": {
+            "type": "string",
+          },
+          "version": {
+            "type": "string",
+          },
+        },
+        "required": [
+          "tool",
+          "root",
+          "version",
+          "durationMs",
+        ],
+        "type": "object",
+      },
+    },
+    "required": [
+      "data",
+      "error",
+      "meta",
+    ],
+    "type": "object",
+  },
+}
+`;

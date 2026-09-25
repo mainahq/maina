@@ -231,7 +231,17 @@ process.stdin.on("data", (d) => {
 		} else if (msg.id === 1 && mode === "init-no-result") send({ id: 1 });
 		else if (msg.id === 1) setTimeout(() => reply(1, {}), delayMs);
 		if (msg.id === 2 && mode === "verify-no-result") send({ id: 2 });
-		else if (msg.id === 2) reply(2, { content: [{ type: "text", text: "ok" }] });
+		else if (msg.id === 2 && mode === "verify-unstructured")
+			reply(2, { content: [{ type: "text", text: "ok" }] });
+		else if (msg.id === 2)
+			reply(2, {
+				content: [{ type: "text", text: "verify: passed" }],
+				structuredContent: {
+					data: { passed: true, tools: [] },
+					error: null,
+					meta: { tool: "verify" },
+				},
+			});
 	}
 });
 `;
@@ -244,7 +254,8 @@ describe("probeLaunch", () => {
 			| "accept"
 			| "reject"
 			| "init-no-result"
-			| "verify-no-result" = "accept",
+			| "verify-no-result"
+			| "verify-unstructured" = "accept",
 	): Promise<Awaited<ReturnType<typeof probeLaunch>>> => {
 		const dir = mkdtempSync(join(tmpdir(), "maina-probe-"));
 		const script = join(dir, "server.js");
@@ -295,6 +306,14 @@ describe("probeLaunch", () => {
 		expect(r.started).toBe(true);
 		expect(r.toolCallOk).toBe(false);
 		expect(r.error?.kind).toBe("tool-call-failed");
+	});
+
+	test("a verify answer without per-tool status is not a successful tool call (#335, #421)", async () => {
+		const r = await withServer(0, 5_000, "verify-unstructured");
+		expect(r.started).toBe(true);
+		expect(r.toolCallOk).toBe(false);
+		expect(r.error?.kind).toBe("tool-call-failed");
+		expect(r.error?.message).toContain("per-tool status");
 	});
 
 	test("a bare command resolves on the PATH the entry's own env sets", async () => {

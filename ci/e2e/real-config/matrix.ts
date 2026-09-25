@@ -770,16 +770,29 @@ export async function probeLaunch(
 		call.msg.error !== undefined ||
 		!("result" in call.msg) ||
 		(call.msg.result as { isError?: boolean } | undefined)?.isError === true;
+	// MCP v2 (#335, #421): verify answers with structured content that
+	// carries every tool's status, so a client sees skipped tools too.
+	const structured = (
+		call.msg.result as
+			| { structuredContent?: { data?: { tools?: unknown } } }
+			| undefined
+	)?.structuredContent;
+	const unstructured = !isError && !Array.isArray(structured?.data?.tools);
 	const error: CaseError | undefined = isError
 		? {
 				kind: "tool-call-failed",
 				message: `verify failed: ${JSON.stringify(call.msg).slice(0, 1_000)}`,
 			}
-		: overBudget;
+		: unstructured
+			? {
+					kind: "tool-call-failed",
+					message: `verify answered without per-tool status (structuredContent.data.tools): ${JSON.stringify(call.msg).slice(0, 1_000)}`,
+				}
+			: overBudget;
 	return finish({
 		started: true,
 		handshakeMs,
-		toolCallOk: !isError,
+		toolCallOk: !isError && !unstructured,
 		...(error ? { error } : {}),
 	});
 }

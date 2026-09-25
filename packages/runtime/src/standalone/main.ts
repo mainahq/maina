@@ -13,6 +13,7 @@
  * the CLI and a hook does not pay for the MCP server.
  */
 
+import { homedir } from "node:os";
 // Cursor's events (camelCase) come from its adapter, which is pure and cheap.
 import { CURSOR_HOOK_EVENTS } from "../adapters/cursor";
 import { failClosedHookOutput } from "./hook-fallback";
@@ -35,8 +36,22 @@ const [mode, ...rest] = process.argv.slice(2);
 
 switch (mode) {
 	case "mcp": {
-		const { startServer } = await import("@mainahq/mcp");
-		await startServer();
+		const [{ startServer }, { mcpRootResolver }] = await Promise.all([
+			import("@mainahq/mcp"),
+			import("../mcp-root"),
+		]);
+		const cwd = process.cwd();
+		await startServer({
+			argv: process.argv,
+			env: process.env,
+			cwd,
+			home: homedir(),
+			resolveRoot: mcpRootResolver({
+				cwd,
+				home: homedir(),
+				hostProjectDir: process.env.CLAUDE_PROJECT_DIR,
+			}),
+		});
 		break;
 	}
 	case "hook": {

@@ -7,6 +7,7 @@
 // entries skip them: they spawn the runtime by absolute path (hosts/launcher.ts).
 // The bundler drops comments, so bunup.config.ts re-adds line 2 as a banner.
 
+import { homedir } from "node:os";
 import { sendCliErrorReport, VERSION } from "@mainahq/core";
 import { processEnv } from "./env";
 import { fetchNetwork, nodeFs, safeCwd } from "./ports";
@@ -83,7 +84,12 @@ process.on("unhandledRejection", (reason) =>
 // MCP server mode: `maina --mcp` starts the MCP server instead of the CLI
 if (process.argv.includes("--mcp")) {
 	const { startServer } = await import("@mainahq/mcp");
-	await startServer();
+	await startServer({
+		argv: process.argv,
+		env: process.env,
+		cwd: process.cwd(),
+		home: homedir(),
+	});
 } else {
 	const { createProgram } = await import("./program");
 	const program = createProgram();

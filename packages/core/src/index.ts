@@ -581,6 +581,7 @@ export {
 	type GraphStoreOptions,
 	type GraphStorePorts,
 	type GraphSyncReport,
+	hasFullIndex as hasFullCodeGraphIndex,
 	indexRepo,
 	type NodeKind as CodeGraphNodeKind,
 	readGraph as readCodeGraph,
@@ -591,6 +592,7 @@ export {
 	type OpenedGraph as OpenedCodeGraph,
 	type OpenGraphError as OpenCodeGraphError,
 	openCodeGraph,
+	systemFs,
 } from "./graph/system";
 // Hooks
 export {
