@@ -133,7 +133,7 @@ describe("gateSubject", () => {
 });
 
 describe("scopedAllowRules", () => {
-	test("one exact rule per target, scoped to the event kind", () => {
+	test("one rule per target, scoped to the event kind", () => {
 		const rules = unwrap(
 			scopedAllowRules(subject({ targets: ["bun run build", "bun test"] })),
 		);
@@ -193,6 +193,12 @@ describe("withUserRules", () => {
 
 	test("an invalid user policy is reported, never overwritten", () => {
 		const result = withUserRules({ rules: { allow: "nope" } }, [rule]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.kind).toBe("policy");
+	});
+
+	test("a user policy file holding `null` is invalid, not an empty layer to overwrite", () => {
+		const result = withUserRules(null, [rule]);
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.error.kind).toBe("policy");
 	});

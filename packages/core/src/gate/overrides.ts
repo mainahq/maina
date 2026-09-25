@@ -5,10 +5,14 @@
  *   the user overrode, so the decision's error rate can learn from it.
  * - `gateSubject` / `recordGateSubject` keep, per decision, what the action
  *   was, and `findGateSubject` reads it back for `maina allow`.
- * - `scopedAllowRules` turns a subject into exact allow rules, one per
- *   command (or the path, tool or URL), scoped to the event kind, and refuses
- *   what an allow rule cannot or should not cover: an irreversible class, a
- *   final deny, an opaque command, a wildcard.
+ * - `scopedAllowRules` turns a subject into allow rules, one per command
+ *   (or the path, tool or URL), scoped to the event kind, and refuses what
+ *   an allow rule cannot or should not cover: an irreversible class, a final
+ *   deny, an opaque command, a wildcard. Path, tool and URL rules match
+ *   exactly; a shell rule uses the policy's command grammar, so it also
+ *   covers the same command with more arguments (`bun test` covers
+ *   `bun test --watch`). Classes, deny rules and irreversible asks are still
+ *   applied to the longer command.
  * - `rememberOverride` merges those rules into the user policy
  *   (`~/.maina/policy.json`). It never touches a repo policy: a remembered
  *   override is this user's choice, not the repository's.
@@ -229,7 +233,11 @@ function unscopable(subject: GateSubject): string | undefined {
 	return undefined;
 }
 
-/** Exact allow rules for `subject`, one per target, scoped to its kind. */
+/**
+ * Allow rules for `subject`, one per target, scoped to its kind. A shell
+ * rule is a plain command pattern, so it matches that command and any
+ * longer argument list (see `commandMatches` in the rules engine).
+ */
 export function scopedAllowRules(
 	subject: GateSubject,
 ): Result<readonly RulePolicy[], OverrideError> {
@@ -264,7 +272,9 @@ export function withUserRules(
 	raw: unknown,
 	rules: readonly RulePolicy[],
 ): Result<Readonly<{ layer: PolicyLayer; added: number }>, OverrideError> {
-	const parsed = parsePolicyLayer(raw ?? {}, "user");
+	// Only a missing file starts an empty layer; a file holding `null` is
+	// invalid like any other non-object, so it is reported, not overwritten.
+	const parsed = parsePolicyLayer(raw === undefined ? {} : raw, "user");
 	if (!parsed.ok) {
 		return { ok: false, error: { kind: "policy", errors: parsed.error } };
 	}

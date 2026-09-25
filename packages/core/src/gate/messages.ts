@@ -39,15 +39,27 @@ export function confidenceBand(result: MessageInput): ConfidenceBand {
 	return "low";
 }
 
-/** The reason on one line: control characters folded, runs of space collapsed, cut. */
-function oneLine(reason: string): string {
+/**
+ * C0 and C1 controls (NEL, CSI), line and paragraph separators, and the
+ * zero-width and bidi format characters that could hide or reorder text in
+ * the line a user reads before overriding.
+ */
+const HIDDEN =
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping them is the point
-	const flat = reason.replace(/[\u0000-\u001f\u007f]+/g, " ");
-	const text = flat
+	/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]+/g;
+
+/** The reason on one line: hidden characters folded, runs of space collapsed, cut. */
+function oneLine(reason: string): string {
+	const text = reason
+		.replace(HIDDEN, " ")
 		.replace(/\s+/g, " ")
 		.trim()
 		.replace(/; asking$/, "");
-	return text.length > MAX_REASON ? `${text.slice(0, MAX_REASON - 1)}…` : text;
+	// Cut by code point, so a surrogate pair is never split.
+	const chars = [...text];
+	return chars.length > MAX_REASON
+		? `${chars.slice(0, MAX_REASON - 1).join("")}…`
+		: text;
 }
 
 /** How to get past an `ask` or `deny`; `undefined` for an `allow`. */

@@ -56,6 +56,30 @@ describe("formatGateMessage", () => {
 		expect(message).toContain("first line second third");
 	});
 
+	test("C1 controls and bidi or zero-width format characters are folded too", () => {
+		const message = formatGateMessage(
+			result({
+				reason: "a\u0085b\u009bc\u2028d\u202ee\u2066f\u200bg\ufeffh",
+			}),
+		);
+		const hidden = [...message].filter((c) =>
+			/[\u0080-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/.test(c),
+		);
+		expect(hidden).toEqual([]);
+		expect(message).toContain("a b c d e f g h");
+	});
+
+	test("cutting a long reason never splits a surrogate pair", () => {
+		const message = formatGateMessage(
+			result({ reason: `${"x".repeat(238)}\u{1F600}\u{1F600}tail` }),
+		);
+		const lone = [...message].filter((c) => {
+			const code = c.charCodeAt(0);
+			return c.length === 1 && code >= 0xd800 && code <= 0xdfff;
+		});
+		expect(lone).toEqual([]);
+	});
+
 	test("a very long reason is cut, keeping the band and the hint", () => {
 		const message = formatGateMessage(result({ reason: "x".repeat(5_000) }));
 		expect(message.length).toBeLessThan(400);
