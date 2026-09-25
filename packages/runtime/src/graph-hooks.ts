@@ -12,8 +12,9 @@
  *
  * Syncs are single flight per root: while one runs, later events for that
  * root are coalesced into the next sync (a pending full sync covers pending
- * edits). Different roots sync independently. A sync never rejects and
- * never delays the gate's answer; failures go to `onError`.
+ * edits). Different roots sync independently. The root is looked up off the
+ * caller's turn (an async git probe), so an event never delays the gate's
+ * answer. A sync never rejects; failures go to `onError`.
  *
  * Event shape (spec §6.2): the event's `root` (in `input.root`) or else its
  * `cwd` names the directory, and a post-action carries
@@ -23,9 +24,18 @@
 
 import { existsSync, realpathSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
-import { indexRepo, openCodeGraph, updateFiles } from "@mainahq/core";
+import {
+	type GraphStoreError,
+	type GraphStorePorts,
+	type GraphSyncReport,
+	indexRepo,
+	type OpenCodeGraphError,
+	openCodeGraph,
+	type Result,
+	updateFiles,
+} from "@mainahq/core";
 import type { GateEvent } from "./gate";
-import { gitProbe, resolveRoot } from "./root";
+import { asyncGitProbe, resolveRootAsync } from "./root";
 
 type GraphTrigger =
 	| Readonly<{ kind: "session"; dir: string }>
@@ -65,24 +75,34 @@ export function graphTrigger(event: GateEvent): GraphTrigger | null {
 	return paths.length > 0 ? { kind: "edit", dir, paths } : null;
 }
 
+/** Why a root's graph could not be brought up to date. */
+export type GraphSyncError = OpenCodeGraphError | GraphStoreError;
+
+export type GraphSyncResult = Result<void, GraphSyncError>;
+
 export type GraphSyncPorts = Readonly<{
 	/** The repository root containing `dir`, or null outside one. */
-	rootOf: (dir: string) => string | null;
+	rootOf: (dir: string) => Promise<string | null>;
 	/** Brings the root's whole graph up to date. */
-	syncAll: (root: string) => Promise<void>;
+	syncAll: (root: string) => Promise<GraphSyncResult>;
 	/** Brings only these absolute paths (and their dependents) up to date. */
-	syncPaths: (root: string, paths: readonly string[]) => Promise<void>;
+	syncPaths: (
+		root: string,
+		paths: readonly string[],
+	) => Promise<GraphSyncResult>;
 }>;
 
 type GraphSyncOptions = Readonly<{
+	/** A failed sync (`GraphSyncError`) or a port that threw or rejected. */
 	onError?: (root: string, error: unknown) => void;
 }>;
 
 type GraphSync = Readonly<{
 	/**
 	 * Starts the sync an event asks for, or joins the one queued for its
-	 * root. Resolves once that sync has finished; never rejects. Null when
-	 * the event asks for nothing or names no repository.
+	 * root. Returns at once and resolves once that sync has finished (or at
+	 * once when the event names no repository); never rejects. Null when the
+	 * event asks for nothing.
 	 */
 	observe: (event: GateEvent) => Promise<void> | null;
 }>;
@@ -110,8 +130,10 @@ export function createGraphSync(
 
 	const runJob = async (root: string, job: Pending): Promise<void> => {
 		try {
-			if (job.full) await ports.syncAll(root);
-			else await ports.syncPaths(root, [...job.paths].sort());
+			const synced = job.full
+				? await ports.syncAll(root)
+				: await ports.syncPaths(root, [...job.paths].sort());
+			if (!synced.ok) options.onError?.(root, synced.error);
 		} catch (error) {
 			options.onError?.(root, error);
 		}
@@ -140,18 +162,21 @@ export function createGraphSync(
 		return job.done;
 	};
 
+	const start = async (trigger: GraphTrigger): Promise<void> => {
+		let root: string | null;
+		try {
+			root = await ports.rootOf(trigger.dir);
+		} catch (error) {
+			options.onError?.(trigger.dir, error);
+			return;
+		}
+		if (root !== null) await enqueue(root, trigger);
+	};
+
 	return {
 		observe: (event) => {
 			const trigger = graphTrigger(event);
-			if (trigger === null) return null;
-			let root: string | null;
-			try {
-				root = ports.rootOf(trigger.dir);
-			} catch (error) {
-				options.onError?.(trigger.dir, error);
-				return null;
-			}
-			return root === null ? null : enqueue(root, trigger);
+			return trigger === null ? null : start(trigger);
 		},
 	};
 }
@@ -170,31 +195,32 @@ function realPath(path: string): string {
 }
 
 /**
- * Real ports: roots come from git (FR-INS-3), and the store is the one
- * under the root's `.maina/graph/`. A repository maina was never set up in
- * (no `.maina/`) is left alone, so a hook never creates `.maina/` itself.
+ * Real ports: roots come from git (FR-INS-3) through the async probe, and
+ * the store is the one under the root's `.maina/graph/`. A repository maina
+ * was never set up in (no `.maina/`) is left alone, so a hook never creates
+ * `.maina/` itself.
  */
 export function systemGraphSyncPorts(): GraphSyncPorts {
 	const withStore = async (
 		root: string,
 		run: (
-			ports: Parameters<typeof indexRepo>[0],
-		) => ReturnType<typeof indexRepo>,
-	): Promise<void> => {
+			ports: GraphStorePorts,
+		) => Promise<Result<GraphSyncReport, GraphStoreError>>,
+	): Promise<GraphSyncResult> => {
 		const mainaDir = join(root, ".maina");
-		if (!existsSync(mainaDir)) return;
+		if (!existsSync(mainaDir)) return { ok: true, value: undefined };
 		const opened = openCodeGraph(mainaDir);
-		if (!opened.ok) throw new Error(opened.error.message);
+		if (!opened.ok) return opened;
 		try {
 			const synced = await run(opened.value.ports);
-			if (!synced.ok) throw new Error(JSON.stringify(synced.error));
+			return synced.ok ? { ok: true, value: undefined } : synced;
 		} finally {
 			opened.value.close();
 		}
 	};
 	return {
-		rootOf: (dir) => {
-			const root = resolveRoot({ cwd: dir }, gitProbe);
+		rootOf: async (dir) => {
+			const root = await resolveRootAsync({ cwd: dir }, asyncGitProbe);
 			return root.ok ? root.value.path : null;
 		},
 		syncAll: (root) => withStore(root, (ports) => indexRepo(ports, root)),

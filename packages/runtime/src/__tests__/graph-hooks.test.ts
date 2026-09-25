@@ -15,6 +15,7 @@ import type { GateEvent } from "../gate";
 import {
 	createGraphSync,
 	type GraphSyncPorts,
+	type GraphSyncResult,
 	graphTrigger,
 	systemGraphSyncPorts,
 } from "../graph-hooks";
@@ -97,8 +98,15 @@ describe("graphTrigger", () => {
 
 type Call = Readonly<{ root: string; op: "all" | readonly string[] }>;
 
+const synced: GraphSyncResult = { ok: true, value: undefined };
+
+/** Lets resolved root lookups reach the queue. */
+const flush = () => Bun.sleep(0);
+
 /** Ports whose syncs finish only when the test releases them. */
-function gatedPorts(rootOf: (dir: string) => string | null = (d) => d) {
+function gatedPorts(
+	rootOf: (dir: string) => Promise<string | null> = async (d) => d,
+) {
 	const calls: Call[] = [];
 	const releases: (() => void)[] = [];
 	let running = 0;
@@ -107,10 +115,10 @@ function gatedPorts(rootOf: (dir: string) => string | null = (d) => d) {
 		calls.push(call);
 		running++;
 		maxRunning = Math.max(maxRunning, running);
-		return new Promise<void>((resolve) => {
+		return new Promise<GraphSyncResult>((resolve) => {
 			releases.push(() => {
 				running--;
-				resolve();
+				resolve(synced);
 			});
 		});
 	};
@@ -126,7 +134,7 @@ function gatedPorts(rootOf: (dir: string) => string | null = (d) => d) {
 		/** Finishes the oldest running sync and lets queued work start. */
 		releaseNext: async () => {
 			releases.shift()?.();
-			await Bun.sleep(0);
+			await flush();
 		},
 	};
 }
@@ -137,8 +145,10 @@ describe("createGraphSync", () => {
 		const sync = createGraphSync(gated.ports);
 
 		const first = sync.observe(edit("/repo", "a.ts"));
+		await flush();
 		const second = sync.observe(edit("/repo", "b.ts"));
 		const third = sync.observe(edit("/repo", "c.ts"));
+		await flush();
 		expect(gated.calls).toEqual([{ root: "/repo", op: ["/repo/a.ts"] }]);
 
 		await gated.releaseNext();
@@ -157,8 +167,10 @@ describe("createGraphSync", () => {
 		const sync = createGraphSync(gated.ports);
 
 		void sync.observe(edit("/repo", "a.ts"));
+		await flush();
 		const queuedEdit = sync.observe(edit("/repo", "b.ts"));
 		const queuedSession = sync.observe(session("/repo"));
+		await flush();
 		await gated.releaseNext();
 		expect(gated.calls.at(-1)).toEqual({ root: "/repo", op: "all" });
 		await gated.releaseNext();
@@ -172,16 +184,34 @@ describe("createGraphSync", () => {
 
 		void sync.observe(edit("/one", "a.ts"));
 		void sync.observe(edit("/two", "a.ts"));
+		await flush();
 		expect(gated.calls.map((c) => c.root)).toEqual(["/one", "/two"]);
 		expect(gated.maxRunning()).toBe(2);
 		await gated.releaseNext();
 		await gated.releaseNext();
 	});
 
-	test("events outside a repository, or that move nothing, start nothing", () => {
-		const gated = gatedPorts(() => null);
+	test("the root is looked up off the caller's turn, so observe returns at once", async () => {
+		const lookup = Promise.withResolvers<string | null>();
+		const gated = gatedPorts(() => lookup.promise);
 		const sync = createGraphSync(gated.ports);
-		expect(sync.observe(session("/tmp/nowhere"))).toBeNull();
+
+		const work = sync.observe(edit("/repo", "a.ts"));
+		expect(work).toBeInstanceOf(Promise);
+		await flush();
+		expect(gated.calls).toEqual([]);
+
+		lookup.resolve("/repo");
+		await flush();
+		expect(gated.calls).toEqual([{ root: "/repo", op: ["/repo/a.ts"] }]);
+		await gated.releaseNext();
+		await work;
+	});
+
+	test("events outside a repository, or that move nothing, start nothing", async () => {
+		const gated = gatedPorts(async () => null);
+		const sync = createGraphSync(gated.ports);
+		await sync.observe(session("/tmp/nowhere"));
 		expect(
 			createGraphSync(gatedPorts().ports).observe({
 				kind: "shell",
@@ -192,18 +222,23 @@ describe("createGraphSync", () => {
 		expect(gated.calls).toEqual([]);
 	});
 
-	test("a failing sync never rejects and does not wedge the root", async () => {
+	test("a failed sync is reported, never rejects and does not wedge the root", async () => {
 		const seen: string[] = [];
 		const errors: unknown[] = [];
+		const failure: GraphSyncResult = {
+			ok: false,
+			error: { kind: "open_failed", path: "/repo/.maina", message: "full" },
+		};
 		const sync = createGraphSync(
 			{
-				rootOf: (d) => d,
+				rootOf: async (d) => d,
 				syncAll: async () => {
 					seen.push("all");
-					throw new Error("disk on fire");
+					return failure;
 				},
 				syncPaths: async (_root, paths) => {
 					seen.push(...paths);
+					return synced;
 				},
 			},
 			{ onError: (_root, error) => errors.push(error) },
@@ -211,7 +246,78 @@ describe("createGraphSync", () => {
 		await sync.observe(session("/repo"));
 		await sync.observe(edit("/repo", "a.ts"));
 		expect(seen).toEqual(["all", "/repo/a.ts"]);
-		expect(errors).toHaveLength(1);
+		expect(errors).toEqual([failure.ok ? null : failure.error]);
+	});
+
+	test("a port that throws or rejects is reported and never rejects", async () => {
+		const errors: unknown[] = [];
+		const sync = createGraphSync(
+			{
+				rootOf: (d) => {
+					if (d === "/bad-root") throw new Error("probe crashed");
+					return Promise.resolve(d);
+				},
+				syncAll: () => Promise.reject(new Error("disk on fire")),
+				syncPaths: async () => synced,
+			},
+			{ onError: (_root, error) => errors.push(error) },
+		);
+		await sync.observe(session("/bad-root"));
+		await sync.observe(session("/repo"));
+		await sync.observe(edit("/repo", "a.ts"));
+		expect(errors).toHaveLength(2);
+	});
+});
+
+describe("runtime observe port", () => {
+	test("an observer that throws, rejects or never settles leaves the gate's answer alone", async () => {
+		const t = tempEndpoint();
+		cleanups.push(t.cleanup);
+		let calls = 0;
+		const started = startRuntime(
+			{
+				gate: fixedGate("deny"),
+				observe: () => {
+					calls++;
+					if (calls === 1) throw new Error("observer crashed");
+					if (calls === 2) return Promise.reject(new Error("rejected"));
+					return new Promise<void>(() => undefined);
+				},
+			},
+			{ endpoint: t.endpoint, version: "1.0.0", idleTtlMs: 60_000 },
+		);
+		if (!started.ok) throw new Error(JSON.stringify(started.error));
+		cleanups.unshift(() => started.value.stop());
+
+		for (let i = 0; i < 3; i++) {
+			expect(await hook(started.value.address, session("/repo"))).toEqual({
+				verdict: "deny",
+				reason: "fixed deny",
+			});
+		}
+		expect(calls).toBe(3);
+	});
+
+	test("pending observer work keeps the runtime from going idle until it settles", async () => {
+		const t = tempEndpoint();
+		cleanups.push(t.cleanup);
+		const work = Promise.withResolvers<void>();
+		const started = startRuntime(
+			{ gate: fixedGate("allow"), observe: () => work.promise },
+			{ endpoint: t.endpoint, version: "1.0.0", idleTtlMs: 100 },
+		);
+		if (!started.ok) throw new Error(JSON.stringify(started.error));
+		cleanups.unshift(() => started.value.stop());
+
+		await hook(started.value.address, session("/repo"));
+		const early = await Promise.race([
+			started.value.closed,
+			Bun.sleep(300).then(() => "running" as const),
+		]);
+		expect(early).toBe("running");
+
+		work.resolve();
+		expect(await started.value.closed).toBe("idle");
 	});
 });
 
@@ -317,7 +423,7 @@ describe("runtime graph hooks", () => {
 			true,
 		);
 
-		const realRoot = real.rootOf(root);
+		const realRoot = await real.rootOf(root);
 		expect(calls).toEqual([
 			{ root: realRoot ?? "", op: "all" },
 			{ root: realRoot ?? "", op: [join(root, "src", "math.ts")] },

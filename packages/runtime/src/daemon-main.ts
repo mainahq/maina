@@ -56,7 +56,9 @@ export async function runDaemon(argv: readonly string[]): Promise<number> {
 	}
 	const graph = createGraphSync(systemGraphSyncPorts(), {
 		onError: (root, error) => {
-			const message = error instanceof Error ? error.message : String(error);
+			// A typed `GraphSyncError`, or whatever a misbehaving port threw.
+			const message =
+				error instanceof Error ? error.message : JSON.stringify(error);
 			process.stderr.write(
 				`maina runtime: graph sync failed for ${root}: ${message}\n`,
 			);
