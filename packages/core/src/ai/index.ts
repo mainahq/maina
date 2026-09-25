@@ -43,6 +43,12 @@ interface GenerateResult {
 	model: string;
 	tokens?: { input: number; output: number };
 	slopWarnings?: string[];
+	/**
+	 * Set when the budget stopped the call before any model ran: the
+	 * user-facing message (also in `text` for older callers). Never treat
+	 * `text` as model output when this is set.
+	 */
+	budgetStop?: string;
 }
 
 interface StoredResult {
@@ -135,7 +141,8 @@ export async function generate(
 		{ task, budget: config.budget, spend: options.spend },
 	);
 	if (!routed.ok) {
-		return { text: routed.error.message, cached: false, model: "" };
+		const message = routed.error.message;
+		return { text: message, cached: false, model: "", budgetStop: message };
 	}
 	const configuredModel = config.models[routed.value.tier];
 	const provider = resolveProvider(config, env);

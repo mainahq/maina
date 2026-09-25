@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EnvPort } from "@mainahq/core";
@@ -357,6 +357,31 @@ describe("resolveSetupAI — byok tier", () => {
 			if (result.source !== "byok") return;
 			expect(result.text).toContain("BYOK");
 			expect(result.metadata.attemptedSources).toEqual(["cloud", "byok"]);
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+		}
+	});
+
+	// #334 review: a budget stop from generate() must not become the constitution.
+	test("byok budget stop → falls through to degraded, never used as text", async () => {
+		process.env.MAINA_API_KEY = "sk-test-key";
+		const cwd = makeTmpDir();
+		writeFileSync(
+			join(cwd, "maina.config.js"),
+			"module.exports = { budget: { perTaskUsd: 0.001, onBreach: 'stop' } };",
+		);
+		try {
+			const result = await resolveSetupAI({
+				env: liveEnv,
+				cwd,
+				stack: STACK,
+				repoSummary: SUMMARY,
+				fingerprint: "abcd1234abcd1234",
+				fetchImpl: (async () =>
+					new Response("{}", { status: 500 })) as unknown as typeof fetch,
+			});
+			expect(result.source).toBe("degraded");
+			expect(result.text ?? "").not.toContain("Budget stop");
 		} finally {
 			rmSync(cwd, { recursive: true, force: true });
 		}

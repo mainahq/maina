@@ -415,6 +415,26 @@ describe("generateFixes", () => {
 		expect(result.cached).toBe(false);
 	});
 
+	// #334 review: a budget stop is not a model answer; caching it (TTL 0 =
+	// forever) would keep the fix step empty after the budget is raised.
+	it("should not cache or parse a budget stop", async () => {
+		const stop = "Budget stop: the per-task cap budget.perTaskUsd is $0.00.";
+		mockGenerate.mockImplementation(() =>
+			Promise.resolve({
+				text: stop,
+				cached: false,
+				model: "",
+				budgetStop: stop,
+			} as unknown as Awaited<ReturnType<typeof mockGenerate>>),
+		);
+
+		const result = await generateFixes([sampleFinding], defaultOptions);
+
+		expect(result.suggestions).toEqual([]);
+		expect(result.budgetStop).toBe(stop);
+		expect(mockCacheSet).not.toHaveBeenCalled();
+	});
+
 	it("should use contextText in the prompt when provided", async () => {
 		await generateFixes([sampleFinding], {
 			...defaultOptions,

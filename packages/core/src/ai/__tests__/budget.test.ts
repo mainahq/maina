@@ -1,9 +1,14 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { findBudgetBreach } from "../../config/budget";
 import type { Config } from "../../config/schema";
 import { defaultDecidePorts } from "../../decide/decide";
-import { createMemoryLogger } from "../../ports/testing";
+import { createFakeEnv, createMemoryLogger } from "../../ports/testing";
+import { generate } from "../index";
 import { type RouteInput, routeTask, type TierCosts } from "../routing";
+import { tryAIGenerate } from "../try-generate";
 
 const COSTS: TierCosts = {
 	mechanical: 0.01,
@@ -139,5 +144,49 @@ describe("routeTask budget enforcement", () => {
 			spend: { todayUsd: 4.95, taskUsd: 0 },
 		});
 		expect(result.ok).toBe(false);
+	});
+});
+
+// #334 review: a budget stop is not a model answer. Callers that treat
+// `generate().text` as output (commit messages, reviews, the setup
+// constitution) must be able to tell it apart, and must not get it back as AI text.
+describe("a budget stop reaches callers as a stop, not as model output", () => {
+	let root = "";
+	beforeAll(() => {
+		root = mkdtempSync(join(tmpdir(), "maina-334-budget-stop-"));
+		writeFileSync(
+			join(root, "maina.config.js"),
+			"module.exports = { budget: { perTaskUsd: 0.001, onBreach: 'stop' } };",
+		);
+	});
+	afterAll(() => {
+		rmSync(root, { recursive: true, force: true });
+	});
+
+	test("generate flags the stop and never reaches the model", async () => {
+		const result = await generate({
+			task: "commit",
+			systemPrompt: "s",
+			userPrompt: "u",
+			mainaDir: join(root, ".maina"),
+			root,
+			env: createFakeEnv({ MAINA_API_KEY: "test-key" }),
+		});
+		expect(result.budgetStop).toContain("budget.perTaskUsd");
+		expect(result.model).toBe("");
+	});
+
+	test("tryAIGenerate reports the stop instead of returning it as AI text", async () => {
+		const result = await tryAIGenerate(
+			"commit",
+			join(root, ".maina"),
+			{},
+			"diff",
+			{ root, env: createFakeEnv({ MAINA_API_KEY: "test-key" }) },
+		);
+		expect(result.text).toBeNull();
+		expect(result.fromAI).toBe(false);
+		expect(result.hostDelegation).toBe(false);
+		expect(result.budgetStop).toContain("budget.perTaskUsd");
 	});
 });
