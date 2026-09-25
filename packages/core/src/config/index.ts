@@ -107,23 +107,24 @@ export function findConfigFile(startDir: string): string | null {
 	}
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /**
  * Maps a 1.x `maina.config.ts` export onto the current file shape: the
  * unenforced `budget.daily/perTask/alertAt` become `dailyUsd/perTaskUsd`
  * and the never-read `apiKey` is dropped (keys come from the environment).
  */
 function fromLegacyModule(raw: unknown): unknown {
-	if (typeof raw !== "object" || raw === null) return raw;
-	const { apiKey: _apiKey, budget, ...rest } = raw as Record<string, unknown>;
-	if (typeof budget !== "object" || budget === null) {
+	// Anything but a plain record (arrays included) passes through untouched
+	// so validation reports it instead of the spread hiding it.
+	if (!isRecord(raw)) return raw;
+	const { apiKey: _apiKey, budget, ...rest } = raw;
+	if (!isRecord(budget)) {
 		return budget === undefined ? rest : { ...rest, budget };
 	}
-	const {
-		daily,
-		perTask,
-		alertAt: _alertAt,
-		...current
-	} = budget as Record<string, unknown>;
+	const { daily, perTask, alertAt: _alertAt, ...current } = budget;
 	return {
 		...rest,
 		budget: {

@@ -253,6 +253,26 @@ describe("loadConfigModule", () => {
 		expect(errors[0]?.path).toBe("");
 	});
 
+	// Review of #397: the legacy normaliser must not spread an array into an
+	// object, which made `[]` look like a valid empty config.
+	test.each([
+		"[]",
+		`["provider"]`,
+	])("reports an array export (%s) as a root error", async (body) => {
+		writeModule(body);
+		const { config, errors } = await loadConfigModule(tmpDir);
+		expect(config).toEqual(getDefaultConfig());
+		expect(errors).toHaveLength(1);
+		expect(errors[0]?.path).toBe("");
+	});
+
+	test("reports an array budget instead of normalising it to an empty one", async () => {
+		writeModule(`{ provider: "custom-provider", budget: [] }`);
+		const { config, errors } = await loadConfigModule(tmpDir);
+		expect(config.provider).toBe("custom-provider");
+		expect(errors.map((e) => e.path)).toEqual(["budget"]);
+	});
+
 	// Review of #397: the "never throws" contract covers reading the export
 	// too, since the CLI calls this before every command.
 	test("reports an export whose fields throw when read instead of throwing", async () => {
