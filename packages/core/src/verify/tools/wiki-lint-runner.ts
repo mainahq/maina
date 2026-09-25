@@ -6,7 +6,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import type { Finding } from "../diff-filter";
 import { runWikiLint, wikiLintToFindings } from "./wiki-lint";
 
@@ -24,7 +24,12 @@ export async function runWikiLintTool(
 ): Promise<{ findings: Finding[]; skipped: boolean }> {
 	const { cwd } = options;
 	const mainaDir = options.mainaDir ?? ".maina";
-	const wikiDir = join(cwd, mainaDir, "wiki");
+	// The pipeline passes an absolute `<root>/.maina`; only a relative dir is
+	// resolved against the root (joining an absolute one would double it).
+	const wikiDir = join(
+		isAbsolute(mainaDir) ? mainaDir : join(cwd, mainaDir),
+		"wiki",
+	);
 
 	// Skip if wiki not initialized
 	if (!existsSync(wikiDir)) {

@@ -29,6 +29,7 @@ import { runSemgrep } from "../semgrep";
 import { detectSlop } from "../slop";
 import { runSonar } from "../sonar";
 import { syntaxGuard } from "../syntax-guard";
+import { runWikiLintTool } from "../tools/wiki-lint-runner";
 import { runTrivy } from "../trivy";
 import { runTypecheck } from "../typecheck";
 import { captureScreenshot } from "../visual";
@@ -207,5 +208,33 @@ describe("captureScreenshot runs Playwright from the explicit root", () => {
 
 		expect(JSON.parse(stdout).captured).toBe(true);
 		expect(readFileSync(out, "utf8").trim()).toBe(realpathSync(root));
+	});
+});
+
+describe("wiki lint resolves the pipeline's absolute .maina dir", () => {
+	let root: string;
+
+	beforeEach(() => {
+		root = mkdtempSync(join(tmpdir(), "maina-wiki-root-"));
+		mkdirSync(join(root, ".maina", "wiki"), { recursive: true });
+	});
+
+	afterEach(() => {
+		rmSync(root, { recursive: true, force: true });
+	});
+
+	test("an absolute mainaDir (the pipeline default) is not re-joined onto the root", async () => {
+		// runPipeline defaults mainaDir to join(root, ".maina") and the CLI
+		// passes the same absolute path; the wiki must still be found.
+		const result = await runWikiLintTool({
+			cwd: root,
+			mainaDir: join(root, ".maina"),
+		});
+		expect(result.skipped).toBe(false);
+	});
+
+	test("a relative mainaDir still resolves against the root", async () => {
+		const result = await runWikiLintTool({ cwd: root, mainaDir: ".maina" });
+		expect(result.skipped).toBe(false);
 	});
 });
