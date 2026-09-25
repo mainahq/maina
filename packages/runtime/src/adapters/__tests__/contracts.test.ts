@@ -12,7 +12,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import Ajv from "ajv";
 
 const FIXTURES_DIR = join(import.meta.dir, "..", "__fixtures__");
@@ -143,6 +143,24 @@ function isHttpsUrl(value: unknown): boolean {
 	return typeof value === "string" && value.startsWith("https://");
 }
 
+/** `PreToolUse` -> `pre-tool-use`, `beforeMCPExecution` -> `before-mcp-execution`. */
+function kebab(event: string): string {
+	return event
+		.replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+		.replace(/([A-Z])([A-Z][a-z])/g, "$1-$2")
+		.toLowerCase();
+}
+
+/** The schema a fixture for `event`/`direction` must be validated against. */
+function schemaPathFor(event: string, direction: Direction): string {
+	return `schemas/${kebab(event)}.${direction}.schema.json`;
+}
+
+/** Manifest paths use `/`; `path.relative` uses the platform separator. */
+function toPosix(path: string): string {
+	return path.split(sep).join("/");
+}
+
 for (const host of HOSTS) {
 	describe(`${host} hook contract`, () => {
 		const hostDir = join(FIXTURES_DIR, host);
@@ -196,6 +214,20 @@ for (const host of HOSTS) {
 			expect(missing).toEqual([]);
 		});
 
+		test("validates each fixture against its own event's schema", () => {
+			// The coverage checks trust each entry's `event` and `direction`. Binding
+			// the schema path to them stops an entry from claiming a gate event while
+			// being validated against another event's schema.
+			const mismatched = manifest.fixtures
+				.filter((f) => f.schema !== schemaPathFor(f.event, f.direction))
+				.map((f) => ({
+					file: f.file,
+					schema: f.schema,
+					expected: schemaPathFor(f.event, f.direction),
+				}));
+			expect(mismatched).toEqual([]);
+		});
+
 		test("has no unreferenced JSON files in the fixture folder", () => {
 			const referenced = new Set([
 				"manifest.json",
@@ -204,7 +236,7 @@ for (const host of HOSTS) {
 				...manifest.invalid.map((f) => f.file),
 			]);
 			const orphans = listJsonFiles(hostDir)
-				.map((p) => relative(hostDir, p))
+				.map((p) => toPosix(relative(hostDir, p)))
 				.filter((rel) => !referenced.has(rel));
 			expect(orphans).toEqual([]);
 		});
