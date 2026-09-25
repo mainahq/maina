@@ -15,6 +15,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { VERSION } from "@mainahq/core";
 import {
 	type Call,
 	call,
@@ -430,7 +431,7 @@ describe("status", () => {
 			tools: { enabled: string[] };
 			wiki: { initialized: boolean };
 		};
-		expect(data.version).toBe("9.9.9-test");
+		expect(data.version).toBe(VERSION);
 		expect(data.tools.enabled).toEqual(["verify", "status"]);
 		expect(data.wiki.initialized).toBe(true);
 	});

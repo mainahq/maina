@@ -3,6 +3,7 @@
  * version, enabled tools, code graph, wiki and policy health.
  */
 
+import { VERSION } from "@mainahq/core";
 import { z } from "zod";
 import { ALL_TOOLS } from "../allowlist";
 import { defineTool, ok, rootInput } from "./shared";
@@ -31,7 +32,7 @@ export const statusTool = defineTool({
 		if (!result.ok) return result;
 		const repo = result.value;
 		const status = {
-			version: runtime.version,
+			version: VERSION,
 			root,
 			tools: { enabled: [...enabled], available: [...ALL_TOOLS] },
 			graph: { indexed: repo.graphIndexed },

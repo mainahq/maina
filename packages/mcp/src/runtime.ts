@@ -128,7 +128,6 @@ export type WikiCapabilities = Readonly<{
 }>;
 
 export type McpRuntime = Readonly<{
-	version: string;
 	resolveRoot: RootResolver;
 	verify: (
 		call: VerifyRequest,
