@@ -78,7 +78,12 @@ Wiki articles are automatically loaded as context for every AI call:
 
 ## MCP Tools
 
-| Tool | Description |
-|------|------------|
-| `wikiQuery` | Search and synthesize from wiki |
-| `wikiStatus` | Health dashboard |
+The `status` tool reports whether the wiki is ready. The DeepWiki-compatible wiki tools are off by default; enable them with the allow-list (`maina --mcp --tools default,ask_question`, or `MAINA_MCP_TOOLS`):
+
+{/* maina:mcp-tools deepwiki table */}
+| Tool | When to use |
+|------|-------------|
+| `ask_question` | Ask the maina wiki a question about the codebase; answers cite source articles. |
+| `read_wiki_structure` | List the maina wiki's articles with their paths, types and titles. |
+| `read_wiki_contents` | Read one maina wiki article by its path. |
+{/* /maina:mcp-tools */}

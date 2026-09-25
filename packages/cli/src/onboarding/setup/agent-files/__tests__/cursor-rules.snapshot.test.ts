@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { DEFAULT_TOOLS, renderToolList } from "@mainahq/mcp/catalog";
 import { generateCursorRules } from "../cursor-rules";
 import type { StackContext } from "../types";
 
@@ -45,8 +46,7 @@ Read \`.maina/constitution.md\` for the full project DNA.
 - Diff-only review
 
 ## MCP Tools
-- \`getContext\`, \`verify\`, \`checkSlop\`, \`reviewCode\`, \`suggestTests\`
-- \`wikiQuery\` — search codebase knowledge
+${renderToolList(DEFAULT_TOOLS, "list")}
 
 ## Rules
 - TDD always

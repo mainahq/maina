@@ -17,7 +17,7 @@ When implementing any feature or fixing any bug. Maina enforces TDD as the defau
 
 ## Steps
 
-1. **Generate test stubs** with `maina spec` (or call the `suggestTests` MCP tool). This reads the current feature's plan.md and creates test files for each task, organized by test category.
+1. **Generate test stubs** with `maina spec`. This reads the current feature's plan.md and creates test files for each task, organized by test category.
 2. **Five test categories** are generated for comprehensive coverage:
    - **Happy path:** The expected behavior works correctly with valid inputs.
    - **Edge cases:** Boundary values, empty inputs, maximum sizes, concurrent access.

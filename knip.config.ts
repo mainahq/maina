@@ -72,7 +72,12 @@ const config: KnipConfig = {
 		},
 		"packages/mcp": {
 			// The stdio fixture is spawned by path from the resilience test.
-			entry: ["src/index.ts!", TESTS, "src/__tests__/stdio-fixture.ts"],
+			entry: [
+				"src/index.ts!",
+				"src/catalog.ts!",
+				TESTS,
+				"src/__tests__/stdio-fixture.ts",
+			],
 			// Test fixtures (the fake runtime) are reachable from tests only.
 			project: ["src/**/*.ts!", "!src/**/__tests__/**!"],
 		},

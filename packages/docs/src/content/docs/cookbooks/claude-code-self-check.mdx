@@ -25,10 +25,9 @@ Claude Code can use Maina's MCP tools to verify its own work before committing.
 
    ```markdown title="CLAUDE.md"
    Before committing, always:
-   1. Call `verify` to run the full verification pipeline
-   2. Call `checkSlop` on changed files
-   3. Call `reviewCode` with your diff
-   4. Fix any findings before committing
+   1. Call `verify` to run the full verification pipeline (it includes slop detection)
+   2. Call `review_triage` with your diff
+   3. Fix any findings before committing
    ```
 
 3. **Use `maina commit` instead of `git commit`**
@@ -38,5 +37,5 @@ Claude Code can use Maina's MCP tools to verify its own work before committing.
 </Steps>
 
 <Aside>
-The MCP tools (`verify`, `checkSlop`, `reviewCode`) give Claude Code the same verification pipeline humans get, with zero extra setup.
+The MCP tools (`verify`, `review_triage`) give Claude Code the same verification pipeline humans get, with zero extra setup.
 </Aside>

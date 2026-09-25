@@ -16,7 +16,7 @@ When you need to understand a codebase, explore how components relate, or gather
 
 ## Steps
 
-1. **Run context generation** with `maina context` (or call the `getContext` MCP tool). This activates all four retrieval layers and returns a structured context document.
+1. **Run context generation** with `maina context` (or call the `context` MCP tool for explicit files or a query). This activates all four retrieval layers and returns a structured context document.
 2. **Working layer** gathers immediate context: the current branch, staged/unstaged changes, and recently touched files. This is what you are actively working on.
 3. **Episodic layer** retrieves historical context: past commit summaries, PR review feedback, and related discussions. Older memories decay using Ebbinghaus forgetting curves, keeping recent and significant events prominent.
 4. **Semantic layer** builds structural understanding: tree-sitter parses source files into typed entities (functions, classes, interfaces), and a PageRank-scored dependency graph identifies the most connected and important modules.

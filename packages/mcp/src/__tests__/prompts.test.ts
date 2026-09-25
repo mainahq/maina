@@ -8,24 +8,11 @@ import { describe, expect, test } from "bun:test";
 import { DECISION_CATALOG } from "@mainahq/core";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { ALL_TOOLS, DEFAULT_TOOLS } from "../allowlist";
+import { RETIRED_TOOLS } from "../catalog";
 import { PROMPTS as DEFINITIONS } from "../prompts";
 import { connect, fakeRuntime } from "./fixtures";
 
 const PROMPTS = ["review-changes", "pre-merge", "plan-feature"] as const;
-
-/** v1 tool names that no v2 server registers. */
-const LEGACY_TOOLS = [
-	"getContext",
-	"reviewCode",
-	"checkSlop",
-	"getConventions",
-	"explainModule",
-	"suggestTests",
-	"analyzeFeature",
-	"wikiQuery",
-	"wikiStatus",
-	"reviewDesign",
-];
 
 /** Every argument a prompt accepts, filled in. */
 const FULL_ARGS: Readonly<Record<string, Record<string, string>>> = {
@@ -268,7 +255,7 @@ describe("tool references", () => {
 				const tools = referencedTools(text);
 				expect(tools.length).toBeGreaterThan(0);
 				for (const tool of tools) expect(registered).toContain(tool);
-				for (const legacy of LEGACY_TOOLS) expect(text).not.toContain(legacy);
+				for (const legacy of RETIRED_TOOLS) expect(text).not.toContain(legacy);
 			}
 		}
 	});

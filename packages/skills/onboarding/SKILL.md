@@ -23,18 +23,20 @@ When setting up maina for the first time in a repository, configuring it for a n
 4. **Compile codebase knowledge** with `maina wiki init`. This scans your codebase, extracts entities via tree-sitter, and generates initial wiki articles.
 5. **Review available MCP tools** -- once configured, your AI coding tool can call these MCP tools directly:
 
-| MCP Tool | Description |
-|----------|-------------|
-| `getContext` | 4-layer context retrieval with dynamic token budget |
-| `getConventions` | Project conventions and constitution |
-| `verify` | Full verification pipeline on staged changes |
-| `checkSlop` | Detect AI-generated filler text and placeholders |
-| `reviewCode` | Two-stage AI code review (spec + quality) |
-| `explainModule` | Explain a module's purpose, exports, and dependencies |
-| `suggestTests` | Generate test stubs from feature plans |
-| `analyzeFeature` | Validate spec-plan consistency |
-| `wikiQuery` | Search and synthesize answers from wiki articles |
-| `wikiStatus` | Wiki health dashboard |
+<!-- maina:mcp-tools default table -->
+| Tool | When to use |
+|------|-------------|
+| `verify` | Run the verification pipeline on your changes before asking for review; fix findings on changed lines. |
+| `decide` | Ask the repo's policy typed questions (e.g. `finding.real`, `diff.needs_review`) instead of guessing. |
+| `impact` | Before changing files or symbols, see what they can affect: callers, dependent files, covering tests. |
+| `context` | Get the source you need for files or a query, within a token budget, before reading whole files. |
+| `review_triage` | Two-stage review of your diff (spec compliance, then code quality), triaged into blocking, advisory and info. |
+| `spec_check` | Check a feature's spec.md, plan.md and tasks.md agree before implementing it. |
+| `receipt` | Verify maina receipt JSON files against the v1 schema and their canonical hash. |
+| `status` | Check the maina version, the enabled tools, and whether the code graph, wiki and policy are ready. |
+<!-- /maina:mcp-tools -->
+
+The DeepWiki-compatible wiki tools (`ask_question`, `read_wiki_structure`, `read_wiki_contents`) are off by default; enable them with `--tools default,ask_question` or `MAINA_MCP_TOOLS`.
 
 6. **Follow the standard workflow** for development:
 

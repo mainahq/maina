@@ -130,7 +130,20 @@ Maina runs inside any AI coding tool via MCP and cross-platform skills:
 }
 ```
 
-MCP tools include `getContext`, `getConventions`, `verify`, `checkSlop`, `reviewCode`, `explainModule`, `suggestTests`, `analyzeFeature`, `wikiQuery`, `wikiStatus`. Run `bun run docs:manifest` for the live tool + skill inventory.
+The MCP server registers these tools by default (the DeepWiki-compatible wiki tools are added through the `--tools` allow-list):
+
+<!-- maina:mcp-tools default list -->
+- `verify` — Run the verification pipeline on your changes before asking for review; fix findings on changed lines.
+- `decide` — Ask the repo's policy typed questions (e.g. `finding.real`, `diff.needs_review`) instead of guessing.
+- `impact` — Before changing files or symbols, see what they can affect: callers, dependent files, covering tests.
+- `context` — Get the source you need for files or a query, within a token budget, before reading whole files.
+- `review_triage` — Two-stage review of your diff (spec compliance, then code quality), triaged into blocking, advisory and info.
+- `spec_check` — Check a feature's spec.md, plan.md and tasks.md agree before implementing it.
+- `receipt` — Verify maina receipt JSON files against the v1 schema and their canonical hash.
+- `status` — Check the maina version, the enabled tools, and whether the code graph, wiki and policy are ready.
+<!-- /maina:mcp-tools -->
+
+Run `bun run docs:manifest` for the live tool + skill inventory.
 
 Cross-platform skills work even without the CLI installed.
 
