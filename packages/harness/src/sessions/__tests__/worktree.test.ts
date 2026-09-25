@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorktree, runBranch } from "../worktree";
+import { runBranch } from "../lease";
+import { createWorktree } from "../worktree";
 import { gitIn, makeRepo } from "./repo-fixture";
 
 describe("createWorktree", () => {

@@ -13,12 +13,8 @@
 
 import type { Result } from "@mainahq/core";
 import { type CleanupOutcome, cleanup } from "./cleanup";
-import {
-	createWorktree,
-	type SessionDeps,
-	type SessionError,
-	type Worktree,
-} from "./worktree";
+import type { SessionError } from "./lease";
+import { createWorktree, type SessionDeps, type Worktree } from "./worktree";
 
 export type RunTask<T> = Readonly<{
 	runId: string;

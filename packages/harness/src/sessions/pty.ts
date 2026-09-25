@@ -14,8 +14,9 @@
 import { statSync } from "node:fs";
 import { type Result, stripRepoLocalGitEnv } from "@mainahq/core";
 import type { AgentSpec } from "../worker";
+import { recordPty, type SessionError } from "./lease";
 import { identify, type ProcessTable, systemProcesses } from "./processes";
-import { recordPty, type SessionError, type Worktree } from "./worktree";
+import type { Worktree } from "./worktree";
 
 export type PtyOptions = Readonly<{
 	cols?: number;

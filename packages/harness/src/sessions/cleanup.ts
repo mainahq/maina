@@ -21,23 +21,25 @@
 
 import { existsSync } from "node:fs";
 import type { Result } from "@mainahq/core";
-import { liveness, stopGroup } from "./processes";
 import {
-	branchExists,
 	dropLease,
-	findRepo,
-	git,
-	gitOk,
 	type Lease,
 	type LeaseFile,
 	listLeases,
 	loadLease,
-	type Repo,
-	resolveDeps,
-	type SessionDeps,
 	type SessionError,
 	validateRunId,
 	withWorktreeLock,
+} from "./lease";
+import { liveness, stopGroup } from "./processes";
+import {
+	branchExists,
+	findRepo,
+	git,
+	gitOk,
+	type Repo,
+	resolveDeps,
+	type SessionDeps,
 } from "./worktree";
 
 export type CleanupOptions = Readonly<{
@@ -92,7 +94,7 @@ type Release = Readonly<{
 	deps: SessionDeps;
 }>;
 
-/** Commits whatever is uncommitted in the checkout to its branch. Returns whether there was any. */
+/** Commits whatever is uncommitted in the checkout to its branch; true when there was something to commit. */
 async function salvage(
 	deps: SessionDeps,
 	lease: Lease,
