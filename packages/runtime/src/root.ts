@@ -27,7 +27,7 @@
  * blocking spawn would stall every connection.
  */
 
-import { isAbsolute, resolve } from "node:path";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Result, stripRepoLocalGitEnv } from "@mainahq/core";
 
@@ -113,13 +113,15 @@ const pickCandidates = (inputs: RootInputs): Candidates => {
 };
 
 /**
- * Top levels only an explicit root may choose: the filesystem root, and the
- * home directory when an absolute one is given.
+ * Whether a git top level is one only an explicit root may choose: a
+ * filesystem root (any drive root on Windows, not only the current drive, so
+ * the answer never depends on the process working directory), or the home
+ * directory when an absolute one is given.
  */
-const reservedRoots = (home: string | undefined): ReadonlySet<string> => {
-	const reserved = new Set([resolve("/")]);
-	if (provided(home) && isAbsolute(home)) reserved.add(resolve(home));
-	return reserved;
+const isReserved = (path: string, home: string | undefined): boolean => {
+	const top = resolve(path);
+	if (dirname(top) === top) return true;
+	return provided(home) && isAbsolute(home) && top === resolve(home);
 };
 
 export function resolveRoot(
@@ -127,13 +129,14 @@ export function resolveRoot(
 	git: GitProbe,
 ): Result<Root, NoRepo> {
 	const { source, values } = pickCandidates(inputs);
-	const reserved =
-		source === "explicit" ? new Set<string>() : reservedRoots(inputs.home);
 	const tried: string[] = [];
 	for (const value of values) {
 		const dir = toDir(value, inputs.cwd);
 		const path = dir === null ? null : git.toplevel(dir);
-		if (path !== null && !reserved.has(resolve(path))) {
+		const allowed =
+			path !== null &&
+			(source === "explicit" || !isReserved(path, inputs.home));
+		if (allowed) {
 			return { ok: true, value: { path, source } };
 		}
 		tried.push(dir ?? value);
