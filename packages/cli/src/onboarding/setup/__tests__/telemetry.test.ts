@@ -356,6 +356,32 @@ describe("sendSetupTelemetry — network behaviour", () => {
 	});
 });
 
+describe("sendSetupTelemetry — aiSource schema (#406)", () => {
+	test("a kept constitution reports aiSource=skipped, not degraded", async () => {
+		let capturedBody = "";
+		const fetchImpl = (async (_: string, init?: RequestInit) => {
+			capturedBody = (init?.body as string | undefined) ?? "";
+			return new Response(null, { status: 204 });
+		}) as unknown as typeof fetch;
+
+		await sendSetupTelemetry({
+			cwd: tmpDir,
+			event: fakeEvent({
+				aiSource: "skipped",
+				tailored: false,
+				degraded: false,
+			}),
+			fetchImpl,
+			userAgent: "maina/test",
+		});
+
+		const parsed = JSON.parse(capturedBody) as Record<string, unknown>;
+		expect(parsed.aiSource).toBe("skipped");
+		expect(parsed.degraded).toBe(false);
+		expect(parsed.tailored).toBe(false);
+	});
+});
+
 describe("sendSetupTelemetry — payload is PII-free", () => {
 	test("body contains only the enumerated keys, no PII", async () => {
 		let capturedBody = "";

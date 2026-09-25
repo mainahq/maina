@@ -37,6 +37,7 @@ export {
 	anonymizeStack,
 	isTelemetryOptedOut,
 	newSetupId,
+	type SetupTelemetryAISource,
 	type SetupTelemetryEvent,
 	type SetupTelemetryPhase,
 	sendSetupTelemetry,
