@@ -96,6 +96,45 @@ describe("protocol codec", () => {
 		});
 	});
 
+	test.each([
+		["no protocol version", {}],
+		["a non-numeric protocol version", { v: "1" }],
+	] as const)("a request with %s is a bad request, not a mismatch", (_name, extra) => {
+		const decoded = decodeRequest(
+			JSON.stringify({
+				id: "r9",
+				method: "status",
+				clientVersion: VERSION,
+				...extra,
+			}),
+		);
+		expect(decoded.ok).toBe(false);
+		if (!decoded.ok) expect(decoded.error.code).toBe("bad_request");
+	});
+
+	test("a malformed request never stops the runtime", async () => {
+		const rt = start({ gate: fixedGate("allow") });
+		const reply = await new Promise<string>((resolve) => {
+			void Bun.connect({
+				unix: rt.address,
+				socket: {
+					open: (s) => void s.write("{}\n"),
+					data: (s, chunk) => {
+						s.end();
+						resolve(new TextDecoder().decode(chunk));
+					},
+				},
+			});
+		});
+		expect(JSON.parse(reply).error.code).toBe("bad_request");
+		const sent = await sendRequest(
+			rt.address,
+			createRequest("status", undefined, VERSION),
+			1000,
+		);
+		expect(sent.ok && sent.value.ok).toBe(true);
+	});
+
 	test("another protocol version is a version mismatch", () => {
 		const decoded = decodeRequest(
 			JSON.stringify({

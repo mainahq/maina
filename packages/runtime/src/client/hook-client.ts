@@ -21,7 +21,7 @@ import {
 } from "../gate";
 import { createRequest, sendRequest } from "../ipc";
 import { ensureRuntime, type SpawnRuntime } from "../lifecycle";
-import type { Endpoint } from "../registry";
+import { type Endpoint, ensureEndpointDirs } from "../registry";
 
 type HookClientConfig = Readonly<{
 	endpoint: Endpoint;
@@ -133,6 +133,9 @@ export function createHookClient(config: HookClientConfig): HookClient {
 	): Promise<GateResult> => {
 		const deadline = Date.now() + timeoutMs;
 		try {
+			// Only a runtime behind a private socket dir is trusted to answer.
+			const dirs = ensureEndpointDirs(endpoint, process.platform);
+			if (!dirs.ok) return degrade(event, "insecure_endpoint", deadline);
 			return await evaluateRuntime(event, deadline);
 		} catch {
 			return degrade(event, "client_error", deadline);

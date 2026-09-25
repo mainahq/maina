@@ -13,6 +13,8 @@
 
 import { createHash } from "node:crypto";
 import {
+	chmodSync,
+	lstatSync,
 	mkdirSync,
 	readFileSync,
 	rmSync,
@@ -71,8 +73,10 @@ export function resolveEndpoint(inputs: EndpointInputs): Endpoint {
 		.update(`${user}\0${dir}`)
 		.digest("hex")
 		.slice(0, 12);
+	// A private per-user dir under tmp, never the shared tmp dir itself:
+	// `ensureEndpointDirs` creates it 0700 and refuses one it does not own.
 	return {
-		address: join(tmpDir, `maina-${digest}-${version}.sock`),
+		address: join(tmpDir, `maina-${digest}`, `${base}.sock`),
 		pidFile,
 		spawnLock,
 	};
@@ -97,7 +101,27 @@ const errorCode = (err: unknown): string | undefined =>
 		? String((err as { code: unknown }).code)
 		: undefined;
 
-/** Creates the dirs an endpoint lives in, private to the user. */
+/**
+ * Checks that `dir` is private to this user: a real directory (not a
+ * symlink), owned by this uid, with no group or other access. A loose dir of
+ * ours is tightened to 0700. Anything else is an error, because whoever
+ * controls the socket's dir can bind a socket that answers for the runtime.
+ */
+function ensurePrivateDir(dir: string): string | null {
+	const stat = lstatSync(dir);
+	if (!stat.isDirectory()) return `${dir} is not a directory`;
+	const uid = process.getuid?.();
+	if (uid !== undefined && stat.uid !== uid) {
+		return `${dir} is not owned by this user`;
+	}
+	if ((stat.mode & 0o077) !== 0) chmodSync(dir, 0o700);
+	return null;
+}
+
+/**
+ * Creates the dirs an endpoint lives in, private to the user, and checks
+ * that the socket's dir is private (see `ensurePrivateDir`).
+ */
 export function ensureEndpointDirs(
 	endpoint: Endpoint,
 	platform: NodeJS.Platform,
@@ -106,7 +130,11 @@ export function ensureEndpointDirs(
 	if (platform !== "win32") dirs.add(dirname(endpoint.address));
 	try {
 		for (const dir of dirs) mkdirSync(dir, { recursive: true, mode: 0o700 });
-		return { ok: true, value: undefined };
+		const refused =
+			platform === "win32" ? null : ensurePrivateDir(dirname(endpoint.address));
+		return refused === null
+			? { ok: true, value: undefined }
+			: { ok: false, error: { kind: "io_error", message: refused } };
 	} catch (err) {
 		return { ok: false, error: { kind: "io_error", message: message(err) } };
 	}

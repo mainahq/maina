@@ -10,18 +10,25 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import {
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	readFileSync,
+	statSync,
+	symlinkSync,
 	utimesSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { createHookClient } from "../client/hook-client";
 import { createRequest, sendRequest } from "../ipc";
 import { daemonSpawner, type SpawnRuntime } from "../lifecycle";
-import { defaultRuntimeDir, resolveEndpoint } from "../registry";
+import {
+	defaultRuntimeDir,
+	ensureEndpointDirs,
+	resolveEndpoint,
+} from "../registry";
 import { type Runtime, startRuntime } from "../server";
 import {
 	deadPid,
@@ -120,6 +127,33 @@ describe("endpoint registry", () => {
 		expect(e.address.startsWith("/tmp/")).toBe(true);
 		expect(Buffer.byteLength(e.address)).toBeLessThan(104);
 		expect(e.pidFile.startsWith(dir)).toBe(true);
+		// Inside a per-user subdirectory, never directly in the shared tmp dir.
+		expect(dirname(e.address)).not.toBe("/tmp");
+		expect(dirname(dirname(e.address))).toBe("/tmp");
+	});
+
+	test("the socket dir is created private and a loose one is tightened", () => {
+		if (process.platform === "win32") return;
+		const t = temp();
+		const socketDir = join(t.dir, "sockets");
+		mkdirSync(socketDir, { mode: 0o755 });
+		chmodSync(socketDir, 0o755);
+		const endpoint = { ...t.endpoint, address: join(socketDir, "rt.sock") };
+		expect(ensureEndpointDirs(endpoint, process.platform).ok).toBe(true);
+		expect(statSync(socketDir).mode & 0o777).toBe(0o700);
+	});
+
+	test("a socket dir reached through a symlink is refused", () => {
+		if (process.platform === "win32") return;
+		const t = temp();
+		const real = join(t.dir, "real");
+		mkdirSync(real, { mode: 0o700 });
+		const link = join(t.dir, "link");
+		symlinkSync(real, link);
+		const endpoint = { ...t.endpoint, address: join(link, "rt.sock") };
+		const dirs = ensureEndpointDirs(endpoint, process.platform);
+		expect(dirs.ok).toBe(false);
+		if (!dirs.ok) expect(dirs.error.kind).toBe("io_error");
 	});
 
 	test("the runtime dir is per user: XDG_RUNTIME_DIR, else ~/.maina/run", () => {

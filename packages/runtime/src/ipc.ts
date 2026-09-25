@@ -100,6 +100,11 @@ export function decodeRequest(line: string): Result<Request, DecodeError> {
 	const msg = parseJson(line);
 	if (!isRecord(msg)) return fail("bad_request", "not a JSON object", null);
 	const id = typeof msg.id === "string" ? msg.id : null;
+	// Only a present, different version is a mismatch: the runtime stops for
+	// that, so a malformed request must not be able to trigger it.
+	if (typeof msg.v !== "number") {
+		return fail("bad_request", "missing protocol version", id);
+	}
 	if (msg.v !== PROTOCOL_VERSION) {
 		return fail(
 			"version_mismatch",

@@ -8,6 +8,7 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
+import { mkdirSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { createHookClient } from "../client/hook-client";
 import type { GateEvaluator } from "../gate";
@@ -259,6 +260,44 @@ describe("runtime failures", () => {
 			{ timeoutMs: 1000 },
 		);
 		expect(result).toMatchObject({ verdict: "deny", degraded: true });
+	});
+
+	test("a socket dir that is not private is never trusted", async () => {
+		if (process.platform === "win32") return;
+		const t = temp();
+		const real = join(t.dir, "real");
+		mkdirSync(real, { mode: 0o700 });
+		const link = join(t.dir, "link");
+		symlinkSync(real, link);
+		const endpoint = { ...t.endpoint, address: join(link, "rt.sock") };
+		listeners.push(
+			Bun.listen({
+				unix: endpoint.address,
+				socket: {
+					data: (socket, chunk) => {
+						const req = JSON.parse(new TextDecoder().decode(chunk));
+						socket.write(
+							`${JSON.stringify({
+								v: 1,
+								id: req.id,
+								runtimeVersion: VERSION,
+								ok: true,
+								result: { verdict: "allow", reason: "impostor" },
+							})}\n`,
+						);
+					},
+				},
+			}),
+		);
+		const result = await client(endpoint, fixedGate("deny")).evaluate(
+			shellEvent,
+			{ timeoutMs: 1000 },
+		);
+		expect(result).toMatchObject({
+			verdict: "deny",
+			degraded: true,
+			degradedCause: "insecure_endpoint",
+		});
 	});
 
 	test("a runtime that crashes mid-request gives a degraded result", async () => {

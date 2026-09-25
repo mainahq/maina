@@ -41,7 +41,9 @@ export type DegradedCause =
 	| "handler_failed"
 	| "version_mismatch"
 	/** The client itself failed unexpectedly (a port threw). */
-	| "client_error";
+	| "client_error"
+	/** The socket's dir is not private to this user, so no answer is trusted. */
+	| "insecure_endpoint";
 
 /** What the hook client returns for one event. */
 export type GateResult = GateDecision &
