@@ -35,7 +35,6 @@ import {
 	systemFs,
 	systemProcess,
 	updateFiles,
-	VERSION,
 	verifyReceipt,
 } from "@mainahq/core";
 import type {
@@ -236,7 +235,6 @@ export function systemRuntime(options: SystemRuntimeOptions): McpRuntime {
 	};
 
 	return {
-		version: VERSION,
 		resolveRoot: options.resolveRoot ?? defaultRootResolver(options.cwd),
 
 		verify: ({ root, files, base }) =>

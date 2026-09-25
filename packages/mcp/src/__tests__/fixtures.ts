@@ -84,7 +84,6 @@ export function fakeRuntime(overrides: Partial<McpRuntime> = {}): {
 		return Promise.resolve({ ok: true as const, value });
 	};
 	const runtime: McpRuntime = {
-		version: "9.9.9-test",
 		resolveRoot: (explicit) =>
 			record("resolveRoot", explicit, explicit ?? DEFAULT_ROOT),
 		verify: (call) => record("verify", call, PIPELINE),

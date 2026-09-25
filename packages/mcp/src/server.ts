@@ -7,17 +7,22 @@
  * `registerTool`; tools outside the list are never registered. Every tool
  * resolves its root through the runtime, takes explicit files, paths or a
  * query, and answers with a `{ data, error, meta }` structured result plus
- * a text summary. The prompts (FR-MCP-3) are registered through
- * `registerPrompt`, each only when every tool it names is registered.
+ * a text summary; a tool that throws answers with a `failed` error and the
+ * server keeps serving (FR-MCP-5). The server reports maina's `VERSION`.
+ * The prompts (FR-MCP-3) are registered through `registerPrompt`, each
+ * only when every tool it names is registered.
  *
- * `startMcp` serves a server over stdio. `startServer` is the process
- * entry the CLI (`maina --mcp`) and the standalone runtime (`maina mcp`)
- * call: it reads the allow-list from `--tools` or `MAINA_MCP_TOOLS` and
- * builds the system runtime.
+ * `startMcp` serves a server over stdio, where stdout carries protocol
+ * frames only. `startServer` is the process entry the CLI (`maina --mcp`)
+ * and the standalone runtime (`maina mcp`) call: it reads the allow-list
+ * from `--tools` or `MAINA_MCP_TOOLS` and builds the system runtime.
  */
 
+import { Console } from "node:console";
+import { VERSION } from "@mainahq/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
 	DEFAULT_TOOLS,
 	knownTools,
@@ -68,6 +73,9 @@ export type McpOptions = Readonly<{
 	tools?: readonly string[];
 }>;
 
+const errorText = (e: unknown): string =>
+	e instanceof Error ? e.message : String(e);
+
 function register(
 	server: McpServer,
 	runtime: McpRuntime,
@@ -84,29 +92,29 @@ function register(
 		},
 		async (args: Readonly<Record<string, unknown>>) => {
 			const started = performance.now();
-			const elapsed = () => Math.round(performance.now() - started);
-			const explicit = typeof args.root === "string" ? args.root : undefined;
-			const root = await runtime.resolveRoot(explicit);
-			if (!root.ok) {
-				return errorResult(
-					def.name,
-					{ root: null, version: runtime.version, durationMs: elapsed() },
-					root.error,
-				);
-			}
-			const outcome = await def.run(args, {
-				root: root.value,
-				runtime,
-				enabled,
+			let root: string | null = null;
+			const meta = () => ({
+				root,
+				version: VERSION,
+				durationMs: Math.round(performance.now() - started),
 			});
-			const meta = {
-				root: root.value,
-				version: runtime.version,
-				durationMs: elapsed(),
-			};
-			return outcome.ok
-				? successResult(def.name, meta, outcome.value)
-				: errorResult(def.name, meta, outcome.error);
+			// A capability that throws (a legacy core path, a bug) answers
+			// like any other failure, and the server keeps serving.
+			try {
+				const explicit = typeof args.root === "string" ? args.root : undefined;
+				const resolved = await runtime.resolveRoot(explicit);
+				if (!resolved.ok) return errorResult(def.name, meta(), resolved.error);
+				root = resolved.value;
+				const outcome = await def.run(args, { root, runtime, enabled });
+				return outcome.ok
+					? successResult(def.name, { ...meta(), root }, outcome.value)
+					: errorResult(def.name, meta(), outcome.error);
+			} catch (e) {
+				return errorResult(def.name, meta(), {
+					kind: "failed",
+					message: errorText(e),
+				});
+			}
 		},
 	);
 }
@@ -129,7 +137,7 @@ export function createMcpServer(
 	options: McpOptions = {},
 ): McpServer {
 	const server = new McpServer(
-		{ name: "maina", version: runtime.version },
+		{ name: "maina", version: VERSION },
 		{ capabilities: { tools: {} } },
 	);
 	const enabled =
@@ -145,12 +153,60 @@ export function createMcpServer(
 	return server;
 }
 
-/** Serves the allow-listed tools over stdio until the client disconnects. */
+/**
+ * stdout carries protocol frames only: every console method (from core, a
+ * dependency, a stray debug line) is rebound to a console that writes to
+ * stderr.
+ */
+function routeConsoleToStderr(): void {
+	const quiet = new Console({
+		stdout: process.stderr,
+		stderr: process.stderr,
+		colorMode: false,
+	});
+	for (const [name, value] of Object.entries(quiet)) {
+		if (typeof value === "function") {
+			Object.assign(console, { [name]: value.bind(quiet) });
+		}
+	}
+	// Bun's own `console.write` also goes straight to fd 1, and a node
+	// `Console` has no counterpart to rebind it to.
+	if ("write" in console) {
+		Object.assign(console, { write: writeToStderr });
+	}
+}
+
+function writeToStderr(
+	...data: ReadonlyArray<string | ArrayBufferView | ArrayBuffer>
+): number {
+	let written = 0;
+	for (const chunk of data) {
+		if (typeof chunk === "string") {
+			process.stderr.write(chunk);
+			written += Buffer.byteLength(chunk);
+			continue;
+		}
+		const bytes = ArrayBuffer.isView(chunk)
+			? new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength)
+			: new Uint8Array(chunk);
+		process.stderr.write(bytes);
+		written += bytes.byteLength;
+	}
+	return written;
+}
+
+/**
+ * Serves the allow-listed tools until the client disconnects, over stdio
+ * unless a `transport` is given. From here on stdout belongs to the
+ * transport: console output is routed to stderr.
+ */
 export async function startMcp(
 	runtime: McpRuntime,
 	options: McpOptions = {},
+	transport: Transport = new StdioServerTransport(),
 ): Promise<void> {
-	await createMcpServer(runtime, options).connect(new StdioServerTransport());
+	routeConsoleToStderr();
+	await createMcpServer(runtime, options).connect(transport);
 }
 
 export type StartServerInput = Readonly<{
