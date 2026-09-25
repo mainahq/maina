@@ -116,6 +116,38 @@ describe("checkTodoComments", () => {
 		const findings = checkTodoComments("src/app.ts", content);
 		expect(findings).toHaveLength(0);
 	});
+
+	it("ignores markers inside string, template and regex literals (#400)", () => {
+		const content = [
+			'const rules = [["ai-todo", "AI generated TODO without ticket reference"]];',
+			'const m = { message: () => "TODO without ticket reference in added code" };',
+			"const ok = !/TODO\\s*[(#]|TODO\\s*\\([A-Z]+-\\d+\\)/.test(text);",
+			"const note = 'FIXME is only text here';",
+			"const doc = `first line",
+			"  HACK inside a multi-line template",
+			"`;",
+		].join("\n");
+		expect(checkTodoComments("src/slop.ts", content)).toEqual([]);
+	});
+
+	it("still flags markers in comments next to literals (#400)", () => {
+		const content = [
+			'const s = "TODO in a string"; // TODO: real one',
+			"/**",
+			" * FIXME: in a JSDoc block",
+			" */",
+			"const re = /x/; /* HACK: block */",
+			"// don't forget: TODO later",
+		].join("\n");
+		const findings = checkTodoComments("src/app.ts", content);
+		expect(findings.map((f) => f.line)).toEqual([1, 3, 5, 6]);
+	});
+
+	it("keeps line-based detection for non-JS languages (#400)", () => {
+		const content = `x = 1\n# TODO: fix this\n`;
+		const findings = checkTodoComments("src/app.py", content);
+		expect(findings.map((f) => f.line)).toEqual([2]);
+	});
 });
 
 // ─── checkFileSize ───────────────────────────────────────────────────────
@@ -389,6 +421,32 @@ describe("checkAnyType", () => {
 		].join("\n");
 		const findings = checkAnyType("src/app.ts", content);
 		expect(findings.map((f) => f.line)).toEqual([1, 2, 3, 4]);
+	});
+
+	it("does not flag 'any' inside regex and template literals (#400)", () => {
+		const content = [
+			"const ANY = /(?:as any|: any\\b)/;",
+			"const hit = /x: any[,)]/g.test(line);",
+			"const doc = `first line",
+			"  const y: any = 1;",
+			"`;",
+			"const s = 'it\\'s : any value';",
+		].join("\n");
+		expect(checkAnyType("src/slop.ts", content)).toEqual([]);
+	});
+
+	it("does not flag 'any' inside multi-line block comments (#400)", () => {
+		const content = ["/*", "  example: const x: any = 1;", "*/"].join("\n");
+		expect(checkAnyType("src/app.ts", content)).toEqual([]);
+	});
+
+	it("still flags 'any' in code next to a literal (#400)", () => {
+		const content = [
+			'const x: any = "text";',
+			"const re = /a/; const y = z as any;",
+		].join("\n");
+		const findings = checkAnyType("src/app.ts", content);
+		expect(findings.map((f) => f.line)).toEqual([1, 2]);
 	});
 });
 

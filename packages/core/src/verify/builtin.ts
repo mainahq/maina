@@ -8,6 +8,7 @@
 
 import { isCodeFile } from "../language/profile";
 import type { Finding } from "./diff-filter";
+import { lexLines } from "./lex";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -48,6 +49,11 @@ function isTypeScriptFile(filePath: string): boolean {
 		filePath.endsWith(".mts") ||
 		filePath.endsWith(".cts")
 	);
+}
+
+/** TypeScript or JavaScript source: the syntax `lexLines` understands. */
+function isJsFamilyFile(filePath: string): boolean {
+	return isTypeScriptFile(filePath) || /\.(?:js|jsx|mjs|cjs)$/.test(filePath);
 }
 
 // ─── Check 1: console.log in non-test files ─────────────────────────────
@@ -163,9 +169,15 @@ export function checkTodoComments(
 	const findings: Finding[] = [];
 	const lines = content.split("\n");
 	const todoPattern = /\b(TODO|FIXME|HACK)\b/;
+	// In JS/TS only comment text counts, so markers inside string, template
+	// and regex literals are skipped (#400). Other languages have their own
+	// comment and literal syntax, so they keep the whole-line scan.
+	const scanned = isJsFamilyFile(filePath)
+		? lexLines(content).map((l) => l.comments)
+		: lines;
 
 	for (const [i, line] of lines.entries()) {
-		const match = line.match(todoPattern);
+		const match = (scanned[i] ?? "").match(todoPattern);
 		if (match) {
 			findings.push({
 				tool: "builtin",
@@ -386,33 +398,22 @@ export function checkEmptyCatch(filePath: string, content: string): Finding[] {
  * Detect `any` type annotations in TypeScript files.
  * Skips .d.ts files where `any` is sometimes necessary.
  * Avoids false positives on words containing "any" (e.g., "many", "company")
- * and on comments/strings.
+ * and on comments and string, template and regex literals (#400).
  */
 export function checkAnyType(filePath: string, content: string): Finding[] {
 	if (!isTypeScriptFile(filePath)) return [];
 	if (isDeclarationFile(filePath)) return [];
 
 	const findings: Finding[] = [];
-	const lines = content.split("\n");
 
 	// Match `: any`, `as any`, `<any>`, `any[]`, `any,`, `any)`, `any;`
 	// — basically `any` used as a type annotation, not as a substring in identifiers
 	const anyTypePattern =
 		/(?::\s*any\b|(?:as|extends|implements)\s+any\b|<any\b|\bany\s*[[\]>,);|&])/;
 
-	for (const [i, line] of lines.entries()) {
-		// Skip comment lines
-		const trimmed = line.trim();
-		if (trimmed.startsWith("//") || trimmed.startsWith("*")) continue;
-
-		// Skip lines where 'any' only appears in a string literal
-		// Simple heuristic: remove string contents and check again
-		const withoutStrings = line
-			.replace(/"(?:[^"\\]|\\.)*"/g, '""')
-			.replace(/'(?:[^'\\]|\\.)*'/g, "''")
-			.replace(/`(?:[^`\\]|\\.)*`/g, "``");
-
-		if (anyTypePattern.test(withoutStrings)) {
+	// `masked` blanks comments and literal contents, keeping columns
+	for (const [i, { masked }] of lexLines(content).entries()) {
+		if (anyTypePattern.test(masked)) {
 			findings.push({
 				tool: "builtin",
 				file: filePath,

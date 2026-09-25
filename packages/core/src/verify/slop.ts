@@ -16,6 +16,7 @@ import { decideEach, defaultDecidePorts } from "../decide/decide";
 import type { LanguageProfile } from "../language/profile";
 import { isCodeFile, TYPESCRIPT_PROFILE } from "../language/profile";
 import type { Finding } from "./diff-filter";
+import { type LexedLine, lexLines } from "./lex";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -123,123 +124,6 @@ export function detectEmptyBodies(
 	return judgeCandidates("empty-body", candidates);
 }
 
-/** Lexer state carried from one line to the next. */
-type LexState = "code" | "block" | "template";
-
-interface LexedLine {
-	/** The line with comments blanked to spaces; columns are preserved. */
-	code: string;
-	/** `code` with string and template contents blanked too; quotes stay. */
-	masked: string;
-	state: LexState;
-}
-
-/** Keywords after which a `/` starts a regex literal, not a division. */
-const REGEX_AFTER_WORD =
-	/(?:^|[^\w$])(?:return|typeof|case|do|else|in|of|new|delete|void|throw|yield|await)$/;
-
-/**
- * Whether a `/` that follows `before` (the line's code so far) opens a
- * regex literal: at line start, after an operator or opening bracket, after
- * `=>`, or after a keyword such as `return`. After an operand it divides.
- */
-function slashStartsRegex(before: string): boolean {
-	const prev = before.trimEnd();
-	if (prev === "") return true;
-	if (prev.endsWith("=>")) return true;
-	if ("(,=:[!&|?{};".includes(prev[prev.length - 1] ?? "")) return true;
-	return REGEX_AFTER_WORD.test(prev);
-}
-
-/**
- * The index just past the closing `/` of a regex literal whose opening `/`
- * is at `start`, or -1 when the line ends first (then it is a division).
- */
-function regexLiteralEnd(line: string, start: number): number {
-	let inClass = false;
-	for (let i = start + 1; i < line.length; i++) {
-		const ch = line[i];
-		if (ch === "\\") i++;
-		else if (ch === "[") inClass = true;
-		else if (ch === "]") inClass = false;
-		else if (ch === "/" && !inClass) return i + 1;
-	}
-	return -1;
-}
-
-/**
- * Blank out comments (and, in `masked`, string and regex contents) on one
- * line so import-like text in JSDoc, `//` notes or literals is not read as
- * code (#399). Block comments and template literals carry across lines;
- * `'`/`"` strings and regex literals end at the line break. Regex literals
- * are skipped whole so a quote, backtick or `/*` inside one cannot flip the
- * lexer into another state and hide the real imports after it. Backticks
- * nested in `${…}` are not modelled; they are rare and balance out on a line.
- */
-function lexLine(line: string, start: LexState): LexedLine {
-	let code = "";
-	let masked = "";
-	let state: LexState | "'" | '"' = start;
-	for (let i = 0; i < line.length; i++) {
-		const ch = line[i] ?? "";
-		const next = line[i + 1] ?? "";
-		if (state === "block") {
-			if (ch === "*" && next === "/") {
-				state = "code";
-				i++;
-				code += "  ";
-				masked += "  ";
-			} else {
-				code += " ";
-				masked += " ";
-			}
-			continue;
-		}
-		if (state === "code") {
-			if (ch === "/" && next === "/") break;
-			if (ch === "/" && next === "*") {
-				state = "block";
-				i++;
-				code += "  ";
-				masked += "  ";
-				continue;
-			}
-			if (ch === "/" && slashStartsRegex(code)) {
-				const end = regexLiteralEnd(line, i);
-				if (end !== -1) {
-					const body = line.slice(i, end);
-					code += body;
-					masked += `/${" ".repeat(body.length - 2)}/`;
-					i = end - 1;
-					continue;
-				}
-			}
-			if (ch === "`") state = "template";
-			else if (ch === "'" || ch === '"') state = ch;
-			code += ch;
-			masked += ch;
-			continue;
-		}
-		// Inside a string or template literal
-		const close = state === "template" ? "`" : state;
-		if (ch === "\\" && next) {
-			i++;
-			code += ch + next;
-			masked += "  ";
-		} else if (ch === close) {
-			state = "code";
-			code += ch;
-			masked += ch;
-		} else {
-			code += ch;
-			masked += " ";
-		}
-	}
-	const carried: LexState =
-		state === "block" || state === "template" ? state : "code";
-	return { code, masked, state: carried };
-}
-
 /**
  * Import forms matched against the masked line, each ending at the opening
  * quote of the specifier: `import … from`/`export … from` and side-effect
@@ -286,15 +170,11 @@ export function detectHallucinatedImports(
 	}
 
 	const candidates: Candidate[] = [];
-	const lines = content.split("\n");
 
 	// Determine the directory of the file being checked
 	const fileDir = dirname(isAbsolute(file) ? file : resolve(cwd, file));
 
-	let state: LexState = "code";
-	for (let i = 0; i < lines.length; i++) {
-		const lexed = lexLine(lines[i] ?? "", state);
-		state = lexed.state;
+	for (const [i, lexed] of lexLines(content).entries()) {
 		const importPath = findImportPath(lexed);
 		// Null for non-relative specifiers (react, node:path) too
 		if (!importPath) continue;
