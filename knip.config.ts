@@ -72,7 +72,8 @@ const config: KnipConfig = {
 		},
 		"packages/mcp": {
 			entry: ["src/index.ts!", TESTS],
-			project: ["src/**/*.ts!"],
+			// Test fixtures (the fake runtime) are reachable from tests only.
+			project: ["src/**/*.ts!", "!src/**/__tests__/**!"],
 		},
 		"packages/skills": {
 			entry: ["__tests__/**/*.test.ts"],

@@ -108,45 +108,53 @@ Or configure manually per tool:
 
 No plugins, no extensions, no separate server process.
 
-## Tools — progressive disclosure
+## Tools
 
-By default the MCP server registers **three high-value tools + one discovery meta-tool** at handshake, keeping the capability payload that every session streams to the host small:
+The server registers a small default set at handshake, kept to eight tools or fewer so the capability payload every session streams to the host stays small:
 
-| Default (handshake) | Description | Engine |
-|------|------------|--------|
-| `verify` | Run the verification pipeline on staged or specified files. Returns findings with severity and location. | Verify |
-| `getContext` | Get focused codebase context for a command. Returns context assembled from the relevant layers with token budget applied. | Context |
-| `reviewCode` | Run two-stage review on a diff — spec compliance first, then code quality. | Verify + Prompt |
-| `list_tools` | Enumerate every MCP tool the server could expose, for capability discovery. Returns the full 10-tool catalogue without registering them. | Server |
+| Tool | What it answers | Inputs |
+|------|-----------------|--------|
+| `verify` | Runs the verification pipeline. Returns pass/fail, findings on changed lines, and each tool's status (`passed`, `failed`, `skipped`) with the reason a tool was skipped. | `files` (omit for staged files), `base` |
+| `decide` | Answers typed questions for a decision type (`finding.real`, `diff.needs_review`, ...) with the repo's policy. Each answer carries a probability distribution and its backend. | `type`, `questions`, `state` |
+| `impact` | What changing files or symbols can affect: transitive callers, dependent files, covering tests and a blast score. | `files`, `symbols`, `depth` |
+| `context` | Source snippets for files or a free-text query plus their call-graph neighbourhood, within a token budget, with the tokens saved. | `files`, `query`, `budgetTokens` |
+| `review_triage` | Two-stage review (spec compliance, then code quality) of a diff, triaged into blocking, advisory and info findings. | `diff` or `files` + `base`, `planContent` |
+| `spec_check` | Spec/plan/tasks consistency for feature directories. | `paths` |
+| `receipt` | Verifies receipt JSON files against the v1 schema and their canonical hash. | `paths` |
+| `status` | Server version, enabled tools, and whether the code graph, wiki and policy are ready. | — |
 
-Opt in to the **full 10-tool surface** with `--all-tools`. In this mode `list_tools` is no longer registered (it was only relevant when the remaining seven were hidden):
+Every tool also takes an optional `root`: the absolute path of the repository to act on. Without it the server uses the root it resolves for itself, normally the repository it was started in (the standalone runtime also honours the project dir the host reports). Relative `files` and `paths` resolve against the root, and absolute ones must sit inside it.
 
-```bash
-maina --mcp --all-tools
-# or via createMcpServer({ allTools: true })
+Every tool answers with a text summary for the model plus structured content in a `{ data, error, meta }` envelope, described by the tool's output schema:
+
+```json
+{
+  "data": { "passed": true, "tools": [{ "tool": "semgrep", "status": "skipped", "findings": 0, "durationMs": 0, "reason": "semgrep is not installed" }] },
+  "error": null,
+  "meta": { "tool": "verify", "root": "/repo", "version": "2.0.0", "durationMs": 812 }
+}
 ```
 
-| Extended (only with `--all-tools`) | Description | Engine |
-|------|------------|--------|
-| `getConventions` | Get the project constitution and conventions. Returns `.maina/constitution.md` content. | Prompt |
-| `checkSlop` | Check code for AI-generated slop patterns (filler words, hallucinated imports, dead code). | Verify |
-| `explainModule` | Get a Mermaid dependency diagram for a directory. Visualizes module structure and cross-file references. | Context |
-| `suggestTests` | Generate TDD test stubs from a plan.md file. Returns test code with red-green annotations. | Prompt + Context |
-| `analyzeFeature` | Check spec/plan/tasks consistency for a feature. Reports mismatches and orphaned artifacts. | Context |
-| `wikiQuery` | Search and synthesize answers from codebase wiki. Returns AI-generated answer with source citations. | Context (L5) |
-| `wikiStatus` | Wiki health dashboard — article counts, coverage, staleness. | Context |
+A failed call sets `isError`, `data: null` and `error: { kind, message }`, where `kind` is `no_root`, `invalid_input`, `not_found` or `failed`.
 
-**DeepWiki compat** — three additional tools are registered alongside the 10 when `--all-tools` is on, preserving wire-compatibility with DeepWiki clients:
+### Allow-list
 
-| DeepWiki-compat | Description | Engine |
-|------|------------|--------|
-| `ask_question` | Ask the wiki an open-ended question. | Context (L5) |
-| `read_wiki_structure` | Return the wiki's article index — titles, types, paths. | Context |
-| `read_wiki_contents` | Fetch the full markdown of a named wiki article. | Context |
+Narrow the tool set, or add the DeepWiki-compatible tools, with the `--tools` flag or the `MAINA_MCP_TOOLS` env var (the flag wins). Names are comma-separated; `default` stands for the default set:
 
-Set `MAINA_MCP_STRICT_TEN=1` to prune DeepWiki from the `--all-tools` surface when you need an exact 10-tool handshake (for comparison tests, for example).
+```bash
+maina --mcp --tools verify,context,status        # only these three
+MAINA_MCP_TOOLS=default,ask_question maina --mcp  # the default set plus ask_question
+```
 
-Why progressive: every tool description is streamed to the host on every session start, and that payload burns conversation context before any real work happens. Three tools at handshake is enough for the most common flows; agents that need the rest can call `list_tools` to discover them and ask the user to relaunch with `--all-tools`.
+Tools outside the list are never registered. Unknown names are skipped with a warning on stderr.
+
+**DeepWiki compat** — three tools keep wire-compatibility with DeepWiki clients. They are off by default; enable them through the allow-list:
+
+| DeepWiki-compat | Description |
+|------|------------|
+| `ask_question` | Ask the wiki an open-ended question; answers with source articles. |
+| `read_wiki_structure` | The wiki's article index: paths, types, titles. |
+| `read_wiki_contents` | The markdown of one wiki article, by its path inside the wiki. |
 
 ## How It Works
 
@@ -158,31 +166,14 @@ IDE (Claude Code, Cursor, etc.)
   v
 maina --mcp
   |
-  +-- getContext -------> Context Engine (4 layers, dynamic budget)
-  +-- getConventions ---> Prompt Engine (constitution + custom prompts)
-  +-- verify -----------> Verify Engine (full pipeline)
-  +-- checkSlop --------> Verify Engine (slop detector)
-  +-- reviewCode -------> Verify Engine (two-stage review)
-  +-- explainModule ----> Context Engine (semantic layer + tree-sitter)
-  +-- suggestTests -----> Prompt Engine + Context Engine
-  +-- analyzeFeature ---> Context Engine (cross-artifact analysis)
-  +-- wikiQuery -------> Context Engine (L5 wiki layer)
-  +-- wikiStatus ------> Context Engine (wiki health)
-  |
-  +-- Cache (all tools respect the 3-layer cache)
+  +-- verify ---------> Verify Engine (full pipeline, per-tool status)
+  +-- decide ---------> decide (policy + backends)
+  +-- impact ---------> Code graph (callers, dependents, tests)
+  +-- context --------> Code graph (minimal context within a budget)
+  +-- review_triage --> Two-stage review
+  +-- spec_check -----> Feature analyzer (spec/plan/tasks)
+  +-- receipt --------> Receipt verifier (schema + canonical hash)
+  +-- status ---------> Runtime and repository health
 ```
 
-Every tool call goes through the same engines as the CLI commands. The cache ensures repeated queries return instantly.
-
-## Context in Your IDE
-
-With the MCP server running, your IDE's AI assistant gains:
-
-- **Codebase awareness** -- `getContext` provides the same 4-layer context the CLI uses, so the AI sees relevant code, not everything.
-- **Convention enforcement** -- `getConventions` injects your constitution into every interaction.
-- **Inline verification** -- `verify` and `checkSlop` catch issues as you write, not after you commit.
-- **Review on demand** -- `reviewCode` gives you the same two-stage review the CLI provides, inside your editor.
-- **Test suggestions** -- `suggestTests` generates TDD stubs from your plan files.
-- **Wiki search** -- `wikiQuery` searches compiled codebase knowledge and returns AI-synthesized answers with citations.
-
-The MCP server is the same three engines, accessible from any tool that speaks MCP.
+The MCP server is a thin surface over the same capabilities the CLI uses: each tool resolves its root, calls one capability with explicit inputs, and formats the answer.

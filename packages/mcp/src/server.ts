@@ -1,209 +1,173 @@
 /**
- * MCP Server — exposes Maina engines as tools for Claude Code, Cursor, and other IDE agents.
+ * MCP server v2 (FR-MCP-1, FR-MCP-2, FR-MCP-4): a thin surface over runtime
+ * capabilities.
  *
- * Progressive disclosure (default): only the 3 highest-value tools
- * (`verify`, `getContext`, `reviewCode`) are registered at handshake. A
- * `list_tools` meta-tool advertises the full 10-tool surface; the 7
- * extended tools are NOT registered in progressive mode, so agents must
- * opt in by restarting the server with `--all-tools`.
+ * `createMcpServer(runtime, { tools })` registers the allow-listed tools
+ * (the default set when `tools` is omitted) through the SDK's public
+ * `registerTool`; tools outside the list are never registered. Every tool
+ * resolves its root through the runtime, takes explicit files, paths or a
+ * query, and answers with a `{ data, error, meta }` structured result plus
+ * a text summary.
  *
- * This keeps the handshake payload small — important because every tool
- * description is streamed to the host on every session start, burning
- * conversation context.
- *
- * `allTools: true` opts out — all 10 tools are registered at handshake
- * and `list_tools` is not exposed.
- *
- * DeepWiki-compat tools (`ask_question`, `read_wiki_structure`,
- * `read_wiki_contents`) are shipped in `registerDeepWikiTools` and are NOT
- * part of the 10-tool MCP surface; they are a separate wire compatibility
- * layer and are only registered in `allTools` mode today.
+ * `startMcp` serves a server over stdio. `startServer` is the process
+ * entry the CLI (`maina --mcp`) and the standalone runtime (`maina mcp`)
+ * call: it reads the allow-list from `--tools` or `MAINA_MCP_TOOLS` and
+ * builds the system runtime.
  */
 
-import { VERSION } from "@mainahq/core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { registerContextTools } from "./tools/context";
-import { registerDeepWikiTools } from "./tools/deepwiki";
-import { registerExplainTools } from "./tools/explain";
-import { registerFeatureTools } from "./tools/features";
-import { registerReviewTools } from "./tools/review";
-import { registerVerifyTools } from "./tools/verify";
-import { registerWikiTools } from "./tools/wiki";
+import {
+	DEFAULT_TOOLS,
+	knownTools,
+	readToolsFlag,
+	resolveAllowList,
+	TOOLS_ENV,
+	type ToolName,
+} from "./allowlist";
+import type { McpRuntime, RootResolver } from "./runtime";
+import { systemRuntime } from "./system-runtime";
+import { contextTool } from "./tools/context";
+import { decideTool } from "./tools/decide";
+import {
+	askQuestionTool,
+	readWikiContentsTool,
+	readWikiStructureTool,
+} from "./tools/deepwiki";
+import { impactTool } from "./tools/impact";
+import { receiptTool } from "./tools/receipt";
+import { reviewTriageTool } from "./tools/review-triage";
+import {
+	errorResult,
+	successResult,
+	type ToolDefinition,
+} from "./tools/shared";
+import { specCheckTool } from "./tools/spec-check";
+import { statusTool } from "./tools/status";
+import { verifyTool } from "./tools/verify";
 
-interface McpServerOptions {
-	/** Register all tools at handshake instead of progressive disclosure */
-	allTools?: boolean;
-}
+const DEFINITIONS: Readonly<Record<ToolName, ToolDefinition>> = {
+	verify: verifyTool,
+	decide: decideTool,
+	impact: impactTool,
+	context: contextTool,
+	review_triage: reviewTriageTool,
+	spec_check: specCheckTool,
+	receipt: receiptTool,
+	status: statusTool,
+	ask_question: askQuestionTool,
+	read_wiki_structure: readWikiStructureTool,
+	read_wiki_contents: readWikiContentsTool,
+};
 
-/**
- * The full 10-tool MCP surface advertised by `list_tools`.
- *
- * Order matters for display — keep the three progressive-mode defaults
- * (`verify`, `getContext`, `reviewCode`) at the top.
- */
-const ALL_TOOL_DESCRIPTIONS = [
-	{
-		name: "verify",
-		description: "Run the full verification pipeline on staged/changed files",
-	},
-	{
-		name: "getContext",
-		description: "Get focused codebase context for a command",
-	},
-	{
-		name: "reviewCode",
-		description:
-			"Run two-stage review (spec compliance + code quality) on a diff",
-	},
-	{
-		name: "checkSlop",
-		description: "Detect AI-generated slop patterns in changed files",
-	},
-	{
-		name: "getConventions",
-		description: "Get project constitution and conventions",
-	},
-	{
-		name: "explainModule",
-		description: "Explain a module with dependency diagram",
-	},
-	{
-		name: "suggestTests",
-		description: "Generate TDD test stubs from a plan or spec",
-	},
-	{
-		name: "analyzeFeature",
-		description: "Analyze a feature directory for spec/plan consistency",
-	},
-	{
-		name: "wikiQuery",
-		description: "Search and synthesize answers from codebase wiki knowledge",
-	},
-	{
-		name: "wikiStatus",
-		description: "Wiki health check — article counts, staleness, coverage",
-	},
-];
+export type McpOptions = Readonly<{
+	/** Tool names to register; unknown names are ignored. Defaults to the default set. */
+	tools?: readonly string[];
+}>;
 
-/** Names of the 3 tools registered at handshake by default. */
-const DEFAULT_MCP_TOOLS = ["verify", "getContext", "reviewCode"] as const;
-
-function registerListToolsMeta(server: McpServer): void {
-	server.tool(
-		"list_tools",
-		"List all available Maina MCP tools with descriptions. Default mode only registers 3 tools at handshake — this meta-tool advertises the full 10-tool surface. To call an extended tool, restart the MCP server with `--all-tools` or via `createMcpServer({ allTools: true })`.",
-		{},
-		async () => {
-			return {
-				content: [
-					{
-						type: "text" as const,
-						text: JSON.stringify(
-							{
-								data: {
-									tools: ALL_TOOL_DESCRIPTIONS,
-									total: ALL_TOOL_DESCRIPTIONS.length,
-									defaultRegistered: DEFAULT_MCP_TOOLS,
-								},
-								error: null,
-								meta: {
-									hint: "Only the 3 tools in `defaultRegistered` are callable in progressive mode. Restart with `--all-tools` to enable the rest.",
-								},
-							},
-							null,
-							2,
-						),
-					},
-				],
+function register(
+	server: McpServer,
+	runtime: McpRuntime,
+	def: ToolDefinition,
+	enabled: readonly ToolName[],
+): void {
+	server.registerTool(
+		def.name,
+		{
+			description: def.description,
+			inputSchema: def.input,
+			outputSchema: def.output,
+			annotations: { readOnlyHint: def.readOnly },
+		},
+		async (args: Readonly<Record<string, unknown>>) => {
+			const started = performance.now();
+			const elapsed = () => Math.round(performance.now() - started);
+			const explicit = typeof args.root === "string" ? args.root : undefined;
+			const root = await runtime.resolveRoot(explicit);
+			if (!root.ok) {
+				return errorResult(
+					def.name,
+					{ root: null, version: runtime.version, durationMs: elapsed() },
+					root.error,
+				);
+			}
+			const outcome = await def.run(args, {
+				root: root.value,
+				runtime,
+				enabled,
+			});
+			const meta = {
+				root: root.value,
+				version: runtime.version,
+				durationMs: elapsed(),
 			};
+			return outcome.ok
+				? successResult(def.name, meta, outcome.value)
+				: errorResult(def.name, meta, outcome.error);
 		},
 	);
 }
 
-/**
- * Register only the 3 highest-value tools used in progressive mode.
- *
- * The underlying `registerVerifyTools` / `registerContextTools` / ... helpers
- * bundle multiple tools per file; we rely on the existing bundling but
- * accept that `checkSlop` and `getConventions` are co-registered with
- * their siblings. We wrap those with per-tool deregistration after
- * registration so the handshake only exposes the 3 defaults.
- */
-function registerProgressiveTools(server: McpServer): void {
-	// Register the bundles that own our 3 default tools.
-	registerVerifyTools(server); // verify, checkSlop
-	registerContextTools(server); // getContext, getConventions
-	registerReviewTools(server); // reviewCode
-
-	// Deregister the non-default siblings so only the 3 defaults remain.
-	// biome-ignore lint/suspicious/noExplicitAny: accessing private registry
-	const internal = server as any;
-	const registry: Record<string, unknown> = internal._registeredTools ?? {};
-	const allowed = new Set<string>(DEFAULT_MCP_TOOLS);
-	for (const name of Object.keys(registry)) {
-		if (!allowed.has(name)) {
-			delete registry[name];
-		}
-	}
-}
-
-/** Register all 10 Maina tools (progressive-mode opt-out). */
-function registerAllTools(server: McpServer): void {
-	registerVerifyTools(server); // verify, checkSlop
-	registerContextTools(server); // getContext, getConventions
-	registerReviewTools(server); // reviewCode
-	registerFeatureTools(server); // suggestTests, analyzeFeature
-	registerExplainTools(server); // explainModule
-	registerWikiTools(server); // wikiQuery, wikiStatus
-	// DeepWiki compat tools are a separate surface — see module docstring.
-	registerDeepWikiTools(server); // ask_question, read_wiki_structure, read_wiki_contents
-
-	// The 10-tool surface specified in the parent onboarding-60s spec. The
-	// DeepWiki-compat tools live alongside but are NOT part of the 10; drop
-	// them from the registry when the test/CLI wants strict 10-tool mode.
-	// For the default allTools behaviour we keep them registered for
-	// backward-compatibility with existing DeepWiki clients.
-	if (process.env.MAINA_MCP_STRICT_TEN === "1") {
-		// biome-ignore lint/suspicious/noExplicitAny: accessing private registry
-		const internal = server as any;
-		const registry: Record<string, unknown> = internal._registeredTools ?? {};
-		const allowed = new Set<string>(ALL_TOOL_DESCRIPTIONS.map((t) => t.name));
-		for (const name of Object.keys(registry)) {
-			if (!allowed.has(name)) {
-				delete registry[name];
-			}
-		}
-	}
-}
-
-export function createMcpServer(options?: McpServerOptions): McpServer {
+export function createMcpServer(
+	runtime: McpRuntime,
+	options: McpOptions = {},
+): McpServer {
 	const server = new McpServer(
-		{ name: "maina", version: VERSION },
+		{ name: "maina", version: runtime.version },
 		{ capabilities: { tools: {} } },
 	);
-
-	if (options?.allTools) {
-		// Register every tool including the DeepWiki-compat surface so callers
-		// that opt in via `--all-tools` keep getting `ask_question` et al.
-		// Strict-10 pruning is handled inside `registerAllTools` when (and only
-		// when) `MAINA_MCP_STRICT_TEN=1` — we do NOT re-prune here, because
-		// that would silently regress the DeepWiki tools whenever allTools
-		// is on. (See PR #220 review — this block used to unconditionally prune.)
-		registerAllTools(server);
-	} else {
-		registerProgressiveTools(server);
-		registerListToolsMeta(server);
+	const enabled =
+		options.tools === undefined
+			? [...DEFAULT_TOOLS]
+			: knownTools(options.tools);
+	for (const name of enabled) {
+		register(server, runtime, DEFINITIONS[name], enabled);
 	}
-
 	return server;
 }
 
-export async function startServer(allTools?: boolean): Promise<void> {
-	// Signal to core modules that we're running as MCP — suppress all stderr output
-	process.env.MAINA_MCP_SERVER = "1";
+/** Serves the allow-listed tools over stdio until the client disconnects. */
+export async function startMcp(
+	runtime: McpRuntime,
+	options: McpOptions = {},
+): Promise<void> {
+	await createMcpServer(runtime, options).connect(new StdioServerTransport());
+}
 
-	const server = createMcpServer({ allTools });
-	const transport = new StdioServerTransport();
-	await server.connect(transport);
+export type StartServerInput = Readonly<{
+	argv: readonly string[];
+	/** The process environment: the allow-list env var, AI keys, child processes. */
+	env: Readonly<Record<string, string | undefined>>;
+	/** The user's home, for the user policy layer. */
+	home?: string;
+	/** Where a call without an explicit root looks for the repository. */
+	cwd: string;
+	/** Replaces the default root resolution (the standalone runtime's own). */
+	resolveRoot?: RootResolver;
+}>;
+
+/**
+ * The MCP process entry: allow-list from `--tools` or `MAINA_MCP_TOOLS`,
+ * the system runtime, stdio. Unknown tool names are reported on stderr
+ * (never stdout, which carries the protocol) and skipped.
+ */
+export async function startServer(input: StartServerInput): Promise<void> {
+	// Core modules stay silent on stderr while serving MCP.
+	process.env.MAINA_MCP_SERVER = "1";
+	const allow = resolveAllowList({
+		flag: readToolsFlag(input.argv),
+		env: input.env[TOOLS_ENV],
+	});
+	if (allow.unknown.length > 0) {
+		process.stderr.write(
+			`maina mcp: ignoring unknown tool(s) in the ${allow.source === "flag" ? "--tools flag" : TOOLS_ENV}: ${allow.unknown.join(", ")}\n`,
+		);
+	}
+	const runtime = systemRuntime({
+		cwd: input.cwd,
+		env: input.env,
+		...(input.home !== undefined ? { home: input.home } : {}),
+		...(input.resolveRoot ? { resolveRoot: input.resolveRoot } : {}),
+	});
+	await startMcp(runtime, { tools: allow.tools });
 }

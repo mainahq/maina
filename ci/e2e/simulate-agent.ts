@@ -7,10 +7,10 @@
  * matrix cell, this script:
  *
  *   1. Spawns `maina --mcp` on the same scratch dir,
- *   2. Issues a handshake + `list_tools` + one `getContext` call
+ *   2. Issues a handshake + `tools/list` + one `status` call
  *      via the MCP stdio JSON-RPC protocol,
- *   3. Asserts the response envelope shape (`data` present, `error`
- *      null-or-absent, `meta` present) on `getContext`,
+ *   3. Asserts the structured envelope shape (`data` and `meta`
+ *      present) on `status`,
  *   4. Exits 0 on success, non-zero on any protocol or assertion
  *      failure.
  *
@@ -201,45 +201,38 @@ async function main(): Promise<void> {
 			`simulate-agent: handshake ok — ${tools.length} tools advertised`,
 		);
 		const toolNames = new Set(tools.map((t) => t.name));
-		// Core tool presence is required — these are the three from the
-		// progressive-disclosure handshake owned by Wave 3.
-		for (const required of ["getContext", "verify", "reviewCode"]) {
+		// The MCP v2 default set (#335) must be advertised.
+		for (const required of ["verify", "context", "status"]) {
 			if (!toolNames.has(required)) {
 				throw new Error(`required tool '${required}' missing from handshake`);
 			}
 		}
 
-		// Step 3 — call getContext with a tiny scope. Assert envelope shape.
-		const call = await rpc(
-			"tools/call",
-			{ name: "getContext", arguments: { command: "context" } },
-			3,
-		);
+		// Step 3 — call status. Assert the structured envelope shape.
+		const call = await rpc("tools/call", { name: "status", arguments: {} }, 3);
 		if (call.error) {
-			throw new Error(`tools/call(getContext) failed: ${call.error.message}`);
+			throw new Error(`tools/call(status) failed: ${call.error.message}`);
 		}
 		const callResult = call.result as {
 			content?: Array<{ type: string; text: string }>;
+			structuredContent?: { data?: unknown; error?: unknown; meta?: unknown };
 		};
 		const text = callResult?.content?.[0]?.text ?? "";
 		if (typeof text !== "string" || text.length === 0) {
-			throw new Error("getContext returned empty text payload");
+			throw new Error("status returned an empty text summary");
 		}
-		let parsed: { data?: unknown; error?: unknown; meta?: unknown };
-		try {
-			parsed = JSON.parse(text);
-		} catch (e) {
+		const structured = callResult?.structuredContent;
+		if (
+			structured === undefined ||
+			!("data" in structured) ||
+			!("meta" in structured)
+		) {
 			throw new Error(
-				`getContext payload is not JSON: ${e instanceof Error ? e.message : String(e)}`,
-			);
-		}
-		if (!("data" in parsed) || !("meta" in parsed)) {
-			throw new Error(
-				"getContext response missing `data`/`meta` envelope fields",
+				"status response missing the structured `data`/`meta` envelope",
 			);
 		}
 		// eslint-disable-next-line no-console
-		console.log("simulate-agent: getContext envelope OK");
+		console.log("simulate-agent: status envelope OK");
 	} catch (e) {
 		// eslint-disable-next-line no-console
 		console.error(

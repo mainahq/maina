@@ -44,21 +44,7 @@ function countVisibleCommands(): number {
 }
 
 function countMcpTools(): number {
-	const path = join(ROOT, "packages", "mcp", "src", "server.ts");
-	const body = readFileSync(path, "utf-8");
-	// `ALL_TOOL_DESCRIPTIONS` is the canonical list. We parse the array
-	// literal length by counting occurrences of `name: "` after its
-	// opening.
-	const start = body.indexOf("ALL_TOOL_DESCRIPTIONS");
-	if (start < 0) {
-		throw new Error(
-			"docs-manifest: ALL_TOOL_DESCRIPTIONS not found in server.ts",
-		);
-	}
-	const end = body.indexOf("];", start);
-	const block = body.slice(start, end);
-	const matches = block.match(/name:\s*"/g) ?? [];
-	return matches.length;
+	return listMcpToolNames().length;
 }
 
 function listSkills(): string[] {
@@ -87,20 +73,22 @@ function listSkills(): string[] {
 	return out.sort();
 }
 
+/**
+ * The MCP default tool set: the `DEFAULT_TOOLS` literal in the MCP
+ * package's allow-list, the one place the tool names are defined.
+ */
 function listMcpToolNames(): string[] {
-	const path = join(ROOT, "packages", "mcp", "src", "server.ts");
+	const path = join(ROOT, "packages", "mcp", "src", "allowlist.ts");
 	const body = readFileSync(path, "utf-8");
-	const start = body.indexOf("ALL_TOOL_DESCRIPTIONS");
-	const end = body.indexOf("];", start);
-	const block = body.slice(start, end);
-	const names: string[] = [];
-	const re = /name:\s*"([^"]+)"/g;
-	let m: RegExpExecArray | null;
-	// biome-ignore lint/suspicious/noAssignInExpressions: idiomatic regex scan
-	while ((m = re.exec(block)) !== null) {
-		names.push(m[1] ?? "");
+	const start = body.indexOf("export const DEFAULT_TOOLS = [");
+	if (start < 0) {
+		throw new Error("docs-manifest: DEFAULT_TOOLS not found in allowlist.ts");
 	}
-	return names.filter((n) => n.length > 0);
+	const end = body.indexOf("] as const", start);
+	const block = body.slice(start, end);
+	return [...block.matchAll(/"([^"]+)"/g)]
+		.map((m) => m[1] ?? "")
+		.filter((n) => n.length > 0);
 }
 
 function listVisibleCommandNames(): string[] {
