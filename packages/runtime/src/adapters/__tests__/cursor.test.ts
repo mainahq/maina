@@ -292,14 +292,23 @@ describe("fromCursor", () => {
 
 // ── toCursor ────────────────────────────────────────────────────────────────
 
-const ALLOW: GateDecision = { verdict: "allow", reason: "no rule matched" };
+const ALLOW: GateDecision = {
+	verdict: "allow",
+	reason: "no rule matched",
+	decisionIds: [],
+	degraded: false,
+};
 const ASK: GateDecision = {
 	verdict: "ask",
 	reason: "recursive delete needs confirmation",
+	decisionIds: [],
+	degraded: false,
 };
 const DENY: GateDecision = {
 	verdict: "deny",
 	reason: "destructive operation outside policy",
+	decisionIds: [],
+	degraded: false,
 };
 
 const rendered = (result: CursorResult): unknown =>

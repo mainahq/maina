@@ -50,6 +50,8 @@ export async function runCursorHook(
 			const decision: GateDecision = {
 				verdict: "ask",
 				reason: `maina could not read this hook input (${event.reason}); confirm it yourself.`,
+				decisionIds: [],
+				degraded: true,
 			};
 			return {
 				event,

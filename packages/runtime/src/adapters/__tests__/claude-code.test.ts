@@ -301,6 +301,8 @@ describe("fromClaude", () => {
 const decision = (verdict: GateDecision["verdict"], reason: string) => ({
 	verdict,
 	reason,
+	decisionIds: [],
+	degraded: false,
 });
 
 /** The result each output fixture is the rendering of. */

@@ -62,12 +62,16 @@ export async function safeDecision(
 			failClosed({
 				verdict: "ask",
 				reason: "the maina gate gave no usable answer",
+				decisionIds: [],
+				degraded: true,
 			})
 		);
 	} catch (e) {
 		return {
 			verdict: "ask",
 			reason: `maina gate failed (${message(e)}); confirm it yourself.`,
+			decisionIds: [],
+			degraded: true,
 		};
 	}
 }
@@ -106,6 +110,8 @@ export async function runClaudeHook(
 			const decision: GateDecision = {
 				verdict: "ask",
 				reason: `maina could not read this hook input (${event.reason}); confirm it yourself.`,
+				decisionIds: [],
+				degraded: true,
 			};
 			return {
 				event,
