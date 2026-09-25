@@ -101,16 +101,25 @@ export async function deploySkills(
 }
 
 /**
- * Sibling `skills` package locations relative to this module's directory.
- * From source the module sits in `cli/src/onboarding/setup`; bundled by
- * bunup it runs from `cli/dist` (monorepo build or an npm install next to
- * `@mainahq/skills`), so both depths are probed.
+ * Sibling `skills` package location for the CLI package enclosing
+ * `hereDir`. From source this module sits in `cli/src/onboarding/setup`;
+ * bundled by bunup it lands in a code-split chunk (`cli/dist/shared/…`),
+ * in the monorepo or in an npm install next to `@mainahq/skills`. Anchoring
+ * on the nearest `package.json` (the CLI package root) instead of a fixed
+ * `..` count keeps every layout pointing at the same sibling.
  */
-export function skillsRootCandidates(hereDir: string): readonly string[] {
-	return [
-		join(hereDir, "..", "..", "..", "..", "skills"),
-		join(hereDir, "..", "..", "skills"),
-	];
+export function skillsRootCandidates(
+	hereDir: string,
+	hasPackageJson: (dir: string) => boolean = (dir) =>
+		existsSync(join(dir, "package.json")),
+): readonly string[] {
+	let dir = hereDir;
+	for (;;) {
+		if (hasPackageJson(dir)) return [join(dir, "..", "skills")];
+		const parent = dirname(dir);
+		if (parent === dir) return [];
+		dir = parent;
+	}
 }
 
 /**

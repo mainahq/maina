@@ -162,24 +162,36 @@ describe("deploySkills", () => {
 });
 
 describe("skillsRootCandidates", () => {
-	// The CLI runs from source in tests and from a bunup bundle in `dist/`
-	// once built or installed, so `import.meta.url` sits at two different
-	// depths. Both must reach the `skills` package next to `cli`.
-	test("from source reaches packages/skills", () => {
-		expect(
-			skillsRootCandidates("/repo/packages/cli/src/onboarding/setup"),
-		).toContain("/repo/packages/skills");
-	});
+	// The CLI runs from source in tests and from a bunup bundle once built or
+	// installed, where this module lands in a code-split chunk under
+	// `dist/shared/`. `import.meta.url` therefore sits at different depths;
+	// every layout must reach the `skills` package next to the `cli` package.
+	const pkgRoots = new Set([
+		"/repo/packages/cli",
+		"/g/node_modules/@mainahq/cli",
+	]);
+	const hasPackageJson = (dir: string) => pkgRoots.has(dir);
 
-	test("from the built bundle in dist/ reaches packages/skills", () => {
-		expect(skillsRootCandidates("/repo/packages/cli/dist")).toContain(
+	test.each([
+		["source", "/repo/packages/cli/src/onboarding/setup"],
+		["bundle entry", "/repo/packages/cli/dist"],
+		["bundle chunk", "/repo/packages/cli/dist/shared"],
+	])("from the %s reaches packages/skills", (_layout, here) => {
+		expect(skillsRootCandidates(here, hasPackageJson)).toEqual([
 			"/repo/packages/skills",
-		);
+		]);
 	});
 
-	test("from an installed bundle reaches the sibling @mainahq/skills", () => {
-		expect(skillsRootCandidates("/g/node_modules/@mainahq/cli/dist")).toContain(
-			"/g/node_modules/@mainahq/skills",
-		);
+	test("from an installed chunk reaches the sibling @mainahq/skills", () => {
+		expect(
+			skillsRootCandidates(
+				"/g/node_modules/@mainahq/cli/dist/shared",
+				hasPackageJson,
+			),
+		).toEqual(["/g/node_modules/@mainahq/skills"]);
+	});
+
+	test("with no enclosing package there is no candidate", () => {
+		expect(skillsRootCandidates("/tmp/a/b", hasPackageJson)).toEqual([]);
 	});
 });
