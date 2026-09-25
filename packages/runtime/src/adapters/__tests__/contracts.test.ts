@@ -63,31 +63,34 @@ const COMMON_SLOTS: readonly string[] = [
 	"stop:output",
 ];
 
+/** Every native event must have both an input and an output fixture. */
+const inAndOut = (...events: readonly string[]): readonly string[] =>
+	events.flatMap((ev) => [`${ev}:input`, `${ev}:output`]);
+
 /** Native host events that must be covered explicitly (event:direction). */
 const HOST_EVENTS: Readonly<Record<string, readonly string[]>> = {
-	"claude-code": [
-		"SessionStart:input",
-		"PreToolUse:input",
-		"PreToolUse:output",
-		"PostToolUse:input",
-		"Stop:input",
-	],
-	cursor: [
-		"sessionStart:input",
-		"beforeShellExecution:input",
-		"beforeShellExecution:output",
-		"preToolUse:input",
-		"preToolUse:output",
-		"stop:input",
-	],
-	codex: [
-		"SessionStart:input",
-		"PreToolUse:input",
-		"PreToolUse:output",
-		"PermissionRequest:input",
-		"PermissionRequest:output",
-		"Stop:input",
-	],
+	"claude-code": inAndOut(
+		"SessionStart",
+		"PreToolUse",
+		"PermissionRequest",
+		"PostToolUse",
+		"Stop",
+	),
+	cursor: inAndOut(
+		"sessionStart",
+		"beforeShellExecution",
+		"beforeMCPExecution",
+		"preToolUse",
+		"postToolUse",
+		"stop",
+	),
+	codex: inAndOut(
+		"SessionStart",
+		"PreToolUse",
+		"PermissionRequest",
+		"PostToolUse",
+		"Stop",
+	),
 };
 
 const HOSTS = Object.keys(HOST_EVENTS);
