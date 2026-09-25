@@ -1,4 +1,11 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import {
+	afterAll,
+	beforeAll,
+	describe,
+	expect,
+	it,
+	setDefaultTimeout,
+} from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +14,12 @@ import { parseBiomeOutput, syntaxGuard } from "../syntax-guard";
 
 // Tests run from the repository; pass it as the explicit root (#290).
 const ROOT = process.cwd();
+
+// These are the real-tool smoke tests: they spawn biome, ruff, go vet and
+// cargo clippy for real, and go vet alone can run past bun's 5s default
+// under parallel load (#434). Behaviour is covered over a scripted
+// ProcessPort in syntax-guard-process.test.ts.
+setDefaultTimeout(30_000);
 
 // ─── Fixtures ──────────────────────────────────────────────────────────────
 
@@ -108,7 +121,7 @@ describe("SyntaxGuard", () => {
 
 // ─── syntaxGuard with language profile ────────────────────────────────────
 
-describe("syntaxGuard with language profile", () => {
+describe("syntaxGuard with language profile (real-tool smoke)", () => {
 	it("should accept a language profile parameter", async () => {
 		const profile = getProfile("typescript");
 		const result = await syntaxGuard([], ROOT, profile);

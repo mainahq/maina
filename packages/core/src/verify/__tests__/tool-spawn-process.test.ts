@@ -7,7 +7,7 @@
 import { describe, expect, test } from "bun:test";
 import { createFakeProcess } from "../../ports/testing";
 import { runSemgrep } from "../semgrep";
-import { spawnTool } from "../tool-spawn";
+import { resolveTool, spawnTool } from "../tool-spawn";
 
 const SARIF = JSON.stringify({
 	runs: [
@@ -103,5 +103,33 @@ describe("runners pass an injected ProcessPort to spawnTool", () => {
 		expect(result.findings).toHaveLength(1);
 		expect(result.findings[0]?.message).toContain("fake semgrep finding");
 		expect(proc.calls()[0]?.argv[0]).toBe("/bin/semgrep");
+	});
+});
+
+describe("resolveTool detects through the injected ProcessPort (#434)", () => {
+	test("without pre-resolved availability the version probe uses the port", async () => {
+		const proc = createFakeProcess({
+			"semgrep --version": { stdout: "1.2.3" },
+		});
+		const resolved = await resolveTool("semgrep", {
+			cwd: "/repo",
+			process: proc,
+		});
+		expect(resolved).toEqual({ available: true, command: "semgrep" });
+		expect(proc.calls()).toEqual([
+			{ argv: ["semgrep", "--version"], options: { cwd: "/repo" } },
+		]);
+	});
+
+	test("a runner with only a fake port detects and runs over it", async () => {
+		const proc = createFakeProcess((argv) =>
+			argv[1] === "--version"
+				? { ok: true, value: { exitCode: 0, stdout: "1.2.3", stderr: "" } }
+				: { ok: true, value: { exitCode: 1, stdout: SARIF, stderr: "" } },
+		);
+		const result = await runSemgrep({ cwd: "/repo", process: proc });
+		expect(result.skipped).toBe(false);
+		expect(result.findings).toHaveLength(1);
+		expect(proc.calls()[0]?.argv).toEqual(["semgrep", "--version"]);
 	});
 });

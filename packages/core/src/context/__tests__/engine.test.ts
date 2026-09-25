@@ -1,4 +1,11 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import {
+	afterAll,
+	beforeAll,
+	describe,
+	expect,
+	setDefaultTimeout,
+	test,
+} from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,6 +19,11 @@ import { assembleContext } from "../engine";
 // built the semantic layer over the whole maina monorepo (5s timeouts under
 // load). A tiny git fixture keeps the engine's behaviour identical while
 // bounding the work to a handful of files.
+//
+// The engine still spawns real git (and tree-sitter/ripgrep) against that
+// fixture, and the fixture build itself runs ~25 git commands, so the suite
+// declares an explicit timeout for CI and parallel local load (#434).
+setDefaultTimeout(30_000);
 
 const FIXTURE_BRANCH = "engine-fixture";
 
