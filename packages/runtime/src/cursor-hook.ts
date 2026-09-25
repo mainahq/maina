@@ -5,7 +5,7 @@
  *
  * Never rejects. A payload it cannot read, a gate that throws or answers
  * with the wrong shape: each asks. A summary that fails is left out, so a
- * session start or stop is never held up by it.
+ * session start is never held up by it; a stop does not read it at all.
  */
 
 import {
@@ -58,11 +58,13 @@ export async function runCursorHook(
 			};
 		}
 		case "session": {
+			// Cursor's stop output has no field for the summary, so only a
+			// session start reads the decision log.
+			if (event.hookEvent === "stop") {
+				return { event, output: toCursor({ hookEvent: event.hookEvent }) };
+			}
 			const line = await safeSummary(ports, event.event);
-			const context =
-				event.hookEvent === "sessionStart"
-					? [GUARDRAILS_ACTIVE, line].filter(Boolean).join(" ")
-					: line;
+			const context = [GUARDRAILS_ACTIVE, line].filter(Boolean).join(" ");
 			return {
 				event,
 				output: toCursor({ hookEvent: event.hookEvent, context }),

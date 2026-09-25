@@ -242,6 +242,26 @@ describe("fromCursor", () => {
 		});
 	});
 
+	test("sessionStart is keyed by conversation_id, the id every other hook carries", () => {
+		// Gate, edit and stop payloads name the session only by conversation_id,
+		// so sessionStart must use it too or its summary reads another session.
+		const start = {
+			...payload("session-start.input.json"),
+			session_id: "a-different-session-id",
+		};
+		expect(fromCursor("sessionStart", start)).toMatchObject({
+			type: "session",
+			event: { sessionId: CONVERSATION },
+		});
+		const { conversation_id: _, ...onlySession } = payload(
+			"session-start.input.json",
+		);
+		expect(fromCursor("sessionStart", onlySession)).toMatchObject({
+			type: "session",
+			event: { sessionId: CONVERSATION },
+		});
+	});
+
 	test("postToolUse is not gated", () => {
 		expect(
 			fromCursor("postToolUse", fixture("post-tool-use.input.json")).type,

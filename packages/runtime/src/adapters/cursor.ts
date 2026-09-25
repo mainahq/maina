@@ -135,9 +135,14 @@ const malformed = (hookEvent: string, reason: string): CursorEvent => ({
 	reason,
 });
 
-/** Cursor's session is its conversation; sessionStart names it twice. */
+/**
+ * Cursor's session is its conversation. sessionStart also sends a
+ * `session_id` (documented as the same value), but every other hook carries
+ * only `conversation_id`, so it wins: the decision log and the summary must
+ * key on the same id.
+ */
 const sessionIdOf = (payload: Payload): string | undefined =>
-	text(payload.session_id) ?? text(payload.conversation_id);
+	text(payload.conversation_id) ?? text(payload.session_id);
 
 /** The event's directory: its own `cwd`, else the first workspace root. */
 function cwdOf(payload: Payload): string | undefined {

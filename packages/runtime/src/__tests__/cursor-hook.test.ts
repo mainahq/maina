@@ -120,6 +120,22 @@ describe("runCursorHook", () => {
 		});
 	});
 
+	test("stop does not read the session summary, which its output cannot carry", async () => {
+		let summarised = 0;
+		const run = await runCursorHook(
+			raw("stop.input.json"),
+			ports({
+				sessionSummary: async () => {
+					summarised += 1;
+					return "maina session: 1 blocked";
+				},
+			}),
+			"stop",
+		);
+		expect(summarised).toBe(0);
+		expect(run.output.stdout).toBe("{}\n");
+	});
+
 	test("stop and afterFileEdit print {} and never fail", async () => {
 		const stop = await runCursorHook(
 			raw("stop.input.json"),
