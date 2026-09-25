@@ -313,14 +313,23 @@ describe("fromCodex", () => {
 
 // ── toCodex ─────────────────────────────────────────────────────────────────
 
-const ALLOW: GateDecision = { verdict: "allow", reason: "no rule matched" };
+const ALLOW: GateDecision = {
+	verdict: "allow",
+	reason: "no rule matched",
+	decisionIds: [],
+	degraded: false,
+};
 const ASK: GateDecision = {
 	verdict: "ask",
 	reason: "fs.delete.recursive is irreversible",
+	decisionIds: [],
+	degraded: false,
 };
 const DENY: GateDecision = {
 	verdict: "deny",
 	reason: "destructive operation outside policy",
+	decisionIds: [],
+	degraded: false,
 };
 
 const rendered = (result: CodexResult): Readonly<Record<string, unknown>> =>

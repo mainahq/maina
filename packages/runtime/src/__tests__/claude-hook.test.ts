@@ -29,7 +29,12 @@ function ports(overrides: Partial<ClaudeHookPorts> = {}): ClaudeHookPorts & {
 		seen,
 		evaluate: async (event) => {
 			seen.push(event);
-			return { verdict: "allow", reason: "no rule matched" };
+			return {
+				verdict: "allow",
+				reason: "no rule matched",
+				decisionIds: [],
+				degraded: false,
+			};
 		},
 		sessionSummary: async () => undefined,
 		...overrides,
@@ -41,10 +46,20 @@ const parsed = (stdout: string): unknown => JSON.parse(stdout);
 describe("runClaudeHook", () => {
 	test("gates a PreToolUse event and renders the decision", async () => {
 		const p = ports({
-			evaluate: async () => ({ verdict: "ask", reason: "confirm it" }),
+			evaluate: async () => ({
+				verdict: "ask",
+				reason: "confirm it",
+				decisionIds: [],
+				degraded: false,
+			}),
 		});
 		const run = await runClaudeHook(raw("pre-tool-use.bash.input.json"), p);
-		expect(run.decision).toEqual({ verdict: "ask", reason: "confirm it" });
+		expect(run.decision).toEqual({
+			verdict: "ask",
+			reason: "confirm it",
+			decisionIds: [],
+			degraded: false,
+		});
 		expect(run.output.exitCode).toBe(0);
 		expect(parsed(run.output.stdout)).toEqual({
 			hookSpecificOutput: {
@@ -65,7 +80,12 @@ describe("runClaudeHook", () => {
 
 	test("a deny exits 2 with the reason on stderr", async () => {
 		const p = ports({
-			evaluate: async () => ({ verdict: "deny", reason: "denied by rule" }),
+			evaluate: async () => ({
+				verdict: "deny",
+				reason: "denied by rule",
+				decisionIds: [],
+				degraded: false,
+			}),
 		});
 		const run = await runClaudeHook(raw("pre-tool-use.bash.input.json"), p);
 		expect(run.output.exitCode).toBe(2);

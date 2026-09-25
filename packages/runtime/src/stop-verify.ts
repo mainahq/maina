@@ -80,7 +80,12 @@ type SessionEdits = {
 const MAX_SESSIONS = 1024;
 
 /** A stop with nothing to say: every host renders it as `{}`. */
-export const QUIET_STOP: GateDecision = { verdict: "allow", reason: "" };
+export const QUIET_STOP: GateDecision = {
+	verdict: "allow",
+	reason: "",
+	decisionIds: [],
+	degraded: false,
+};
 
 const nonEmpty = (value: unknown): value is string =>
 	typeof value === "string" && value !== "";
@@ -108,6 +113,8 @@ function stillFailing(report: StopVerifyReport): GateDecision {
 	return {
 		verdict: "allow",
 		reason: `maina verify: still failing on changed lines${failedCount(report)}; not re-run, nothing was edited since the block.`,
+		decisionIds: [],
+		degraded: false,
 	};
 }
 
@@ -119,6 +126,8 @@ function stopDecision(report: StopVerifyReport): GateDecision {
 			return {
 				verdict: "deny",
 				reason: `maina verify failed on changed lines${failedCount(report)}; fix before finishing.`,
+				decisionIds: [],
+				degraded: false,
 			};
 		case "passed":
 			return {
@@ -127,11 +136,15 @@ function stopDecision(report: StopVerifyReport): GateDecision {
 					report.findings === 0
 						? `maina verify: passed on ${changed}`
 						: `maina verify: passed on ${changed}, ${plural(report.findings, "non-blocking finding")}`,
+				decisionIds: [],
+				degraded: false,
 			};
 		case "skipped":
 			return {
 				verdict: "allow",
 				reason: `maina verify: skipped, no checker ran on ${changed}`,
+				decisionIds: [],
+				degraded: false,
 			};
 	}
 }
@@ -224,6 +237,8 @@ export function createStopVerify(ports: StopVerifyPorts): StopVerify {
 			return {
 				verdict: "allow",
 				reason: `maina verify could not run on this session's changes (${errorMessage(err)})`,
+				decisionIds: [],
+				degraded: false,
 			};
 		}
 	};

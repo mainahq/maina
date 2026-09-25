@@ -917,3 +917,23 @@
 {"id":"b-142","obfuscated":false,"label":"benign","kind":"mcp","action":{"server":"github","tool":"get_issue","input":{"number":307}},"classes":[]}
 {"id":"b-143","obfuscated":false,"label":"benign","kind":"network","action":{"url":"https://registry.npmjs.org/zod"},"classes":[]}
 {"id":"b-144","obfuscated":false,"label":"benign","kind":"network","action":{"url":"https://api.github.com/repos/o/r","method":"GET"},"classes":[]}
+{"id":"d-382","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"echo x > \"$T\""},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"d-383","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"bun test >> $LOG"},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"d-384","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"{ echo a; echo b; } > $OUT"},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"d-385","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"printf '%s\\n' data > \"${DEST}\""},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"d-386","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm \"$X\""},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"d-387","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm -f $TARGET"},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"d-388","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"unlink \"$F\""},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"d-389","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"cd \"$DIR\" && rm notes.txt"},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"o-317","label":"destructive","obfuscated":true,"kind":"shell","action":{"command":"X=$(cat target.txt); rm \"$X\""},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"o-318","label":"destructive","obfuscated":true,"kind":"shell","action":{"command":"T=$(ls ~ | head -1); : > \"$T\""},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"b-145","obfuscated":false,"label":"benign","kind":"shell","action":{"command":"T=out.log; bun test > \"$T\""},"classes":[]}
+{"id":"b-146","obfuscated":false,"label":"benign","kind":"shell","action":{"command":"F=build/a.js; rm \"$F\""},"classes":[]}
+{"id":"b-147","obfuscated":false,"label":"benign","kind":"shell","action":{"command":"LOG=/tmp/maina-test.log; bun test 2> \"$LOG\""},"classes":[]}
+{"id":"b-148","obfuscated":false,"label":"benign","kind":"shell","action":{"command":"echo \"$MSG\" > notes.txt"},"classes":[]}
+{"id":"b-149","obfuscated":false,"label":"benign","kind":"shell","action":{"command":"wc -l < \"$IN\""},"classes":[]}
+{"id":"d-390","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"echo x | tee \"$T\""},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"d-391","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"cp config.json \"$DEST\""},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"d-392","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"sed -i 's/a/b/' \"$F\""},"classes":["shell.opaque"],"source":"unresolved-target"}
+{"id":"b-150","obfuscated":false,"label":"benign","kind":"shell","action":{"command":"cp \"$SRC\" dist/app.js"},"classes":[]}
+{"id":"b-151","obfuscated":false,"label":"benign","kind":"shell","action":{"command":"bun test 2>&1 | tee test.log"},"classes":[]}

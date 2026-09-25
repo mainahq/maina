@@ -25,7 +25,12 @@ function ports(overrides: Partial<ClaudeHookPorts> = {}): ClaudeHookPorts & {
 		seen,
 		evaluate: async (event) => {
 			seen.push(event);
-			return { verdict: "allow", reason: "no rule matched" };
+			return {
+				verdict: "allow",
+				reason: "no rule matched",
+				decisionIds: [],
+				degraded: false,
+			};
 		},
 		sessionSummary: async () => undefined,
 		...overrides,
@@ -39,7 +44,12 @@ describe("runCursorHook", () => {
 		const p = ports({
 			evaluate: async (event) => {
 				p.seen.push(event);
-				return { verdict: "ask", reason: "confirm it" };
+				return {
+					verdict: "ask",
+					reason: "confirm it",
+					decisionIds: [],
+					degraded: false,
+				};
 			},
 		});
 		const run = await runCursorHook(
@@ -48,7 +58,12 @@ describe("runCursorHook", () => {
 			"beforeShellExecution",
 		);
 		expect(p.seen[0]?.kind).toBe("shell");
-		expect(run.decision).toEqual({ verdict: "ask", reason: "confirm it" });
+		expect(run.decision).toEqual({
+			verdict: "ask",
+			reason: "confirm it",
+			decisionIds: [],
+			degraded: false,
+		});
 		expect(run.output.exitCode).toBe(0);
 		expect(parsed(run.output.stdout)).toMatchObject({ permission: "ask" });
 		expect(run.output.stderr).toBe(`${CURSOR_ALLOW_LIST_WARNING}\n`);
@@ -58,7 +73,12 @@ describe("runCursorHook", () => {
 		const run = await runCursorHook(
 			raw("before-mcp-execution.stdio.input.json"),
 			ports({
-				evaluate: async () => ({ verdict: "deny", reason: "denied by rule" }),
+				evaluate: async () => ({
+					verdict: "deny",
+					reason: "denied by rule",
+					decisionIds: [],
+					degraded: false,
+				}),
 			}),
 			"beforeMCPExecution",
 		);

@@ -113,7 +113,12 @@ describe("createStopVerify", () => {
 		stops.observe(edit("other", "src/a.ts"));
 		const decision = await stops.stop(stopEvent("s1"));
 		expect(calls).toEqual([]);
-		expect(decision).toEqual({ verdict: "allow", reason: "" });
+		expect(decision).toEqual({
+			verdict: "allow",
+			reason: "",
+			decisionIds: [],
+			degraded: false,
+		});
 	});
 
 	test("a failed verify blocks the stop with the reason to fix it", async () => {
@@ -162,6 +167,8 @@ describe("createStopVerify", () => {
 		expect(await stops.stop(stopEvent("s1"))).toEqual({
 			verdict: "allow",
 			reason: "",
+			decisionIds: [],
+			degraded: false,
 		});
 		expect(calls).toEqual([]);
 	});
@@ -187,6 +194,8 @@ describe("createStopVerify", () => {
 		expect(await stops.stop(stopEvent("s1"))).toEqual({
 			verdict: "allow",
 			reason: "",
+			decisionIds: [],
+			degraded: false,
 		});
 		expect(calls).toHaveLength(1);
 	});
@@ -230,7 +239,12 @@ describe("createStopVerify", () => {
 		await rootAsked;
 		stops.observe(edit("s1", "src/a.ts"));
 		answerRoot(null);
-		expect(await pending).toEqual({ verdict: "allow", reason: "" });
+		expect(await pending).toEqual({
+			verdict: "allow",
+			reason: "",
+			decisionIds: [],
+			degraded: false,
+		});
 		await stops.stop(stopEvent("s1"));
 		expect(calls).toEqual([{ root: "/repo", files: ["src/a.ts"] }]);
 	});
@@ -329,13 +343,20 @@ describe("session.stop through the runtime", () => {
 		expect(await send(runtime, stopEvent("s1"))).toEqual({
 			verdict: "allow",
 			reason: "",
+			decisionIds: [],
+			degraded: false,
 		});
 	});
 });
 
 describe("renderStop", () => {
 	test("a degraded ask on stop never blocks and prints {}", () => {
-		const ask: GateDecision = { verdict: "ask", reason: "runtime down" };
+		const ask: GateDecision = {
+			verdict: "ask",
+			reason: "runtime down",
+			decisionIds: [],
+			degraded: true,
+		};
 		for (const host of HOSTS) expect(throughContract(host, ask)).toEqual({});
 	});
 });

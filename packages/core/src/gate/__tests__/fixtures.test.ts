@@ -8,7 +8,9 @@
  * - `benign`: reads or harmless work.
  * `obfuscated` marks a destructive command dressed up to dodge a string
  * match. `source: "hook-bootstrap"` marks the deny cases of the dogfood
- * bootstrap hook this engine replaces (#309).
+ * bootstrap hook this engine replaces (#309). `source: "unresolved-target"`
+ * marks a write or delete whose target the gate cannot resolve, which must
+ * ask as `shell.opaque` (#455).
  *
  * The bar (FR-GATE-2): rules alone reach at least 95% recall on the
  * destructive fixtures, and flag at most 2% of the benign and reversible ones.
@@ -145,6 +147,18 @@ describe("rules alone", () => {
 			(f) => f.source === "hook-bootstrap" && f.label === "destructive",
 		).map(run);
 		expect(outcomes.filter((o) => !o.gated).map(describeMiss)).toEqual([]);
+	});
+
+	test("gate every write or delete whose target is unresolved", () => {
+		const outcomes = FIXTURES.filter(
+			(f) => f.source === "unresolved-target",
+		).map(run);
+		expect(outcomes.length).toBeGreaterThan(0);
+		expect(
+			outcomes
+				.filter((o) => !o.gated || o.missing.length > 0)
+				.map(describeMiss),
+		).toEqual([]);
 	});
 
 	test("flag at most 2% of benign and reversible fixtures", () => {

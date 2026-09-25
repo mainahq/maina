@@ -366,6 +366,56 @@ describe("what the gate cannot see is opaque", () => {
 		});
 	}
 
+	// Unsure means ask (#455): a write or delete whose target the gate cannot
+	// resolve might land anywhere, so it is opaque rather than unclassified.
+	for (const command of [
+		'echo x > "$T"',
+		"bun test >> $LOG",
+		"cat a.txt 2> $ERR",
+		"{ echo a; echo b; } > $OUT",
+		'rm "$X"',
+		"rm -f $X",
+		'rm -rf "$DIR"',
+		'unlink "$F"',
+		'rm -- "$X"',
+		'cd "$DIR" && rm notes.txt',
+		// A write command is a redirect by another name.
+		'echo x | tee "$T"',
+		'echo x | tee -a build.log "$T"',
+		'cp a.txt "$DEST"',
+		'mv a.txt "$DEST"',
+		'cp -t "$DIR" a.txt',
+		'install -m 644 a.txt "$DEST"',
+		'ln -sf a.txt "$DEST"',
+		'sed -i s/a/b/ "$F"',
+		"dd if=a.img of=$T",
+	]) {
+		test(`an unresolved write or delete target: ${JSON.stringify(command)}`, () => {
+			expect(classesOf(command)).toContain("shell.opaque");
+		});
+	}
+
+	for (const command of [
+		'T=out.log; echo x > "$T"',
+		'F=build/a.js; rm "$F"',
+		"bun test > /dev/null 2>&1",
+		"ls 2>/dev/null",
+		'cat < "$IN"',
+		"rm build/out.js",
+		'echo "$X" > out.txt',
+		// Only the destination matters: an unresolved source is a read.
+		'cp "$SRC" out/a.txt',
+		'mv "$SRC" out/',
+		'sed -i "s/$A/$B/" notes.txt',
+		'echo "$X" | tee out.txt',
+		'T=out.log; bun test | tee "$T"',
+		'D=out; cp a.txt "$D"',
+	]) {
+		test(`a resolved target stays clear: ${JSON.stringify(command)}`, () => {
+			expect(classesOf(command)).not.toContain("shell.opaque");
+		});
+	}
+
 	test("a syntax error is opaque", () => {
 		expect(classesOf("rm -rf ( build")).toContain("shell.opaque");
 	});
