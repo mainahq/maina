@@ -49,7 +49,7 @@ export const preMergePrompt: PromptDefinition = {
 			...(givenFiles
 				? []
 				: [
-						`List the files the branch changes with \`git diff --name-only ${givenBase ?? "BASE"}...HEAD\` and use them as FILES below.`,
+						`List the files the branch changes with \`git diff --name-only --diff-filter=d ${givenBase ?? "BASE"}...HEAD\` and use them as FILES below.`,
 					]),
 		];
 		return [

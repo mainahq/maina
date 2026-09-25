@@ -37,7 +37,7 @@ export const reviewChangesPrompt: PromptDefinition = {
 		const files = given ? json(given) : "FILES";
 		const scope = given
 			? `Review these files: ${files}.`
-			: `First list the changed files with \`git diff --name-only ${base}\` (plus any untracked files you created) and use that list as FILES below.`;
+			: `First list the changed files with \`git diff --name-only --diff-filter=d ${base}\` (plus any untracked files you created) and use that list as FILES below.`;
 		return [
 			`Review the changes against \`${base}\`${focus ? `, paying particular attention to ${focus}` : ""}.`,
 			"",

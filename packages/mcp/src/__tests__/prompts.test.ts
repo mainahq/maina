@@ -135,7 +135,7 @@ describe("review-changes", () => {
 		const text = await render(client, "review-changes", {});
 		expect(text).toContain("HEAD");
 		expect(text).not.toContain("undefined");
-		expect(text).toContain("git diff --name-only HEAD");
+		expect(text).toContain("git diff --name-only --diff-filter=d HEAD");
 	});
 });
 
@@ -220,6 +220,42 @@ describe("base argument", () => {
 			expect(text).toContain("origin/v1/main~2");
 		}
 	});
+
+	test("refuses a base the shell would expand", async () => {
+		const client = await connect(fakeRuntime().runtime);
+		for (const name of ["review-changes", "pre-merge"]) {
+			for (const base of ["~root", "^main"]) {
+				await expect(
+					client.getPrompt({ name, arguments: { base } }),
+				).rejects.toThrow(/base/);
+			}
+		}
+	});
+
+	test("treats a blank base as absent, as clients send unfilled arguments", async () => {
+		const client = await connect(fakeRuntime().runtime);
+		for (const base of ["", "   "]) {
+			const review = await render(client, "review-changes", { base });
+			expect(review).toContain("git diff --name-only --diff-filter=d HEAD");
+			const gate = await render(client, "pre-merge", { base });
+			expect(gate).toContain("BASE");
+			expect(gate).not.toContain("undefined");
+		}
+		const padded = await render(client, "pre-merge", {
+			base: " origin/develop ",
+		});
+		expect(padded).toContain('base: "origin/develop"');
+	});
+});
+
+describe("changed-file listing", () => {
+	test("leaves deleted files out of FILES", async () => {
+		const client = await connect(fakeRuntime().runtime);
+		const review = await render(client, "review-changes", {});
+		expect(review).toContain("git diff --name-only --diff-filter=d HEAD");
+		const gate = await render(client, "pre-merge", {});
+		expect(gate).toContain("git diff --name-only --diff-filter=d BASE...HEAD");
+	});
 });
 
 describe("tool references", () => {
@@ -284,13 +320,16 @@ describe("tool references", () => {
 		const client = await connect(fakeRuntime().runtime, {
 			tools: [...ALL_TOOLS],
 		});
+		const named = new Set<string>();
 		for (const name of PROMPTS) {
 			const text = await render(client, name, FULL_ARGS[name] ?? {});
-			const types = [...text.matchAll(/decision type `([a-z_.]+)`/g)].map(
-				(m) => m[1] ?? "",
-			);
-			for (const type of types)
-				expect(Object.keys(DECISION_CATALOG)).toContain(type);
+			for (const m of text.matchAll(/decision type `([a-z_.]+)`/g)) {
+				named.add(m[1] ?? "");
+			}
 		}
+		// review-changes names `finding.real`; an empty set would pass vacuously.
+		expect([...named]).toContain("finding.real");
+		for (const type of named)
+			expect(Object.keys(DECISION_CATALOG)).toContain(type);
 	});
 });

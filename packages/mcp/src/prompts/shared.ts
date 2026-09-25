@@ -31,12 +31,17 @@ export const requiredArg = (description: string) =>
 
 /**
  * An optional git ref. A rendered prompt puts it in a shell command the
- * host may run, so it is limited to ref characters and never option-like.
+ * host may run, so it is limited to ref characters and never starts with
+ * `-` (an option), `~` (tilde expansion) or `^`. Blank counts as absent,
+ * like `arg`, because clients send unfilled optional arguments as "".
  */
 export const refArg = (description: string) =>
 	z
 		.string()
-		.regex(/^(?!-)[A-Za-z0-9._/@^~+-]+$/, "base must be a plain git ref")
+		.regex(
+			/^\s*(?:(?![-~^])[A-Za-z0-9._/@^~+-]+)?\s*$/,
+			"base must be a plain git ref",
+		)
 		.optional()
 		.describe(description);
 
