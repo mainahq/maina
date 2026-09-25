@@ -16,10 +16,24 @@ let fixtureRoot: string;
 let repoRoot: string;
 let tempMainaDir: string;
 
+// Drop inherited GIT_* variables (git exports GIT_DIR / GIT_INDEX_FILE to
+// hooks). If the suite runs from a hook, a leaked GIT_DIR would point
+// `git init` / `git commit` at the host repository and commit fixture files
+// onto the developer's branch.
+const fixtureGitEnv = (): Record<string, string> => {
+	const env: Record<string, string> = { LC_ALL: "C" };
+	for (const [key, value] of Object.entries(process.env)) {
+		if (value !== undefined && !key.startsWith("GIT_") && key !== "LC_ALL") {
+			env[key] = value;
+		}
+	}
+	return env;
+};
+
 const git = (cwd: string, ...args: string[]): void => {
 	const proc = Bun.spawnSync(["git", ...args], {
 		cwd,
-		env: { ...process.env, LC_ALL: "C" },
+		env: fixtureGitEnv(),
 	});
 	if (proc.exitCode !== 0) {
 		throw new Error(`git ${args.join(" ")} failed: ${proc.stderr.toString()}`);
