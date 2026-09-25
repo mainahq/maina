@@ -112,7 +112,10 @@ interface ParsedTask {
 	fullLine: string;
 }
 
-/** `T001: text` or the template's `**T-001** text`. */
+/**
+ * `T001: text`, the template's `**T-001** text`, or Spec Kit's
+ * `T001 [P] [US1] text`, whose `[P]` / `[USn]` markers are not description.
+ */
 function parseTaskContent(taskContent: string): ParsedTask {
 	const idMatch =
 		taskContent.match(/^(T\d+):\s*(.*)/i) ??
@@ -124,8 +127,19 @@ function parseTaskContent(taskContent: string): ParsedTask {
 			fullLine: taskContent,
 		};
 	}
+	const specKit = taskContent.match(/^(T\d+)\s+((?:\[[^\]]*\]\s*)*)(.*)/);
+	if (specKit) {
+		return {
+			id: specKit[1] ?? null,
+			description: specKit[3] ?? "",
+			fullLine: taskContent,
+		};
+	}
 	return { id: null, description: taskContent, fullLine: taskContent };
 }
+
+/** `# Tasks`, `## Phases`, or a Spec Kit `## Phase 3: User Story 1 …`. */
+const TASK_SECTION = /^##?\s+(tasks|phases?)\b/i;
 
 function extractTasks(content: string): ParsedTask[] {
 	const lines = content.split("\n");
@@ -135,17 +149,16 @@ function extractTasks(content: string): ParsedTask[] {
 	for (const line of lines) {
 		const trimmed = line.trim();
 
-		if (/^##?\s+(tasks|phases)/i.test(trimmed)) {
+		if (TASK_SECTION.test(trimmed)) {
 			inSection = true;
 			continue;
 		}
 
-		if (
-			inSection &&
-			/^##\s/.test(trimmed) &&
-			!/^###\s+(T\d+):/i.test(trimmed)
-		) {
-			break;
+		// Any other h2 closes the section; a later task section (Spec Kit
+		// has one per phase) opens it again.
+		if (inSection && /^##\s/.test(trimmed)) {
+			inSection = false;
+			continue;
 		}
 
 		// Support checklist format: - [ ] T001: description

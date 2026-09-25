@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 // ── Mock State ───────────────────────────────────────────────────────────────
@@ -412,5 +412,140 @@ describe("analyzeAction", () => {
 
 		expect(result.analyzed).toBe(false);
 		expect(result.reason).toContain("Feature directory does not exist");
+	});
+});
+
+// ── Spec Kit feature input (FR-SPEC-7) ──────────────────────────────────────
+
+describe("analyzeAction on a Spec Kit repository", () => {
+	const noEnv = { get: (_name: string) => undefined };
+
+	function specKitRepo(features: readonly string[]): void {
+		mkdirSync(join(tmpDir, ".specify"), { recursive: true });
+		for (const name of features) {
+			mkdirSync(join(tmpDir, "specs", name), { recursive: true });
+		}
+	}
+
+	function recordingDeps(branch: string) {
+		const analyzed: string[] = [];
+		const deps = createMockDeps({
+			getCurrentBranch: async () => branch,
+			analyze: (dir) => {
+				analyzed.push(dir);
+				return {
+					ok: true,
+					value: {
+						featureDir: dir,
+						findings: [],
+						summary: { errors: 0, warnings: 0, info: 0 },
+					},
+				};
+			},
+		});
+		return { analyzed, deps };
+	}
+
+	test("reads the feature named in .specify/feature.json", async () => {
+		specKitRepo(["001-photo-albums", "002-sharing"]);
+		writeFileSync(
+			join(tmpDir, ".specify", "feature.json"),
+			JSON.stringify({ feature_directory: "specs/002-sharing" }),
+		);
+		const { analyzed, deps } = recordingDeps("main");
+
+		const result = await analyzeAction({ cwd: tmpDir, env: noEnv }, deps);
+
+		expect(result.analyzed).toBe(true);
+		expect(analyzed).toEqual([join(tmpDir, "specs", "002-sharing")]);
+	});
+
+	test("matches a Spec Kit branch (NNN-name) to specs/NNN-name", async () => {
+		specKitRepo(["001-photo-albums"]);
+		const { analyzed, deps } = recordingDeps("001-photo-albums");
+
+		const result = await analyzeAction({ cwd: tmpDir, env: noEnv }, deps);
+
+		expect(result.analyzed).toBe(true);
+		expect(analyzed).toEqual([join(tmpDir, "specs", "001-photo-albums")]);
+	});
+
+	test("SPECIFY_FEATURE_DIRECTORY overrides the branch", async () => {
+		specKitRepo(["001-photo-albums", "002-sharing"]);
+		const { analyzed, deps } = recordingDeps("001-photo-albums");
+		const env = {
+			get: (name: string) =>
+				name === "SPECIFY_FEATURE_DIRECTORY" ? "specs/002-sharing" : undefined,
+		};
+
+		await analyzeAction({ cwd: tmpDir, env }, deps);
+
+		expect(analyzed).toEqual([join(tmpDir, "specs", "002-sharing")]);
+	});
+
+	test("SPECIFY_FEATURE stands in for the branch", async () => {
+		specKitRepo(["001-photo-albums", "002-sharing"]);
+		const { analyzed, deps } = recordingDeps("main");
+		const env = {
+			get: (name: string) =>
+				name === "SPECIFY_FEATURE" ? "002-sharing" : undefined,
+		};
+
+		await analyzeAction({ cwd: tmpDir, env }, deps);
+
+		expect(analyzed).toEqual([join(tmpDir, "specs", "002-sharing")]);
+	});
+
+	test("a Maina feature branch still wins over Spec Kit", async () => {
+		specKitRepo(["001-user-auth"]);
+		const mainaDir = join(tmpDir, ".maina", "features", "001-user-auth");
+		mkdirSync(mainaDir, { recursive: true });
+		const { analyzed, deps } = recordingDeps("feature/001-user-auth");
+
+		await analyzeAction({ cwd: tmpDir, env: noEnv }, deps);
+
+		expect(analyzed).toEqual([mainaDir]);
+	});
+
+	test("--all includes the numbered Spec Kit features", async () => {
+		specKitRepo(["001-photo-albums", "002-sharing"]);
+		mkdirSync(join(tmpDir, ".maina", "features", "001-user-auth"), {
+			recursive: true,
+		});
+		const { analyzed, deps } = recordingDeps("main");
+
+		const result = await analyzeAction(
+			{ all: true, cwd: tmpDir, env: noEnv },
+			deps,
+		);
+
+		expect(result.analyzed).toBe(true);
+		expect(analyzed).toEqual([
+			join(tmpDir, ".maina", "features", "001-user-auth"),
+			join(tmpDir, "specs", "001-photo-albums"),
+			join(tmpDir, "specs", "002-sharing"),
+		]);
+	});
+
+	test("specs/ without .specify/ is not a Spec Kit repository", async () => {
+		mkdirSync(join(tmpDir, "specs", "001-photo-albums"), { recursive: true });
+		const { analyzed, deps } = recordingDeps("001-photo-albums");
+
+		const result = await analyzeAction({ cwd: tmpDir, env: noEnv }, deps);
+
+		expect(result.analyzed).toBe(false);
+		expect(analyzed).toEqual([]);
+	});
+
+	test("an unreadable feature.json is reported, not guessed around", async () => {
+		specKitRepo(["001-photo-albums"]);
+		writeFileSync(join(tmpDir, ".specify", "feature.json"), "{broken");
+		const { analyzed, deps } = recordingDeps("001-photo-albums");
+
+		const result = await analyzeAction({ cwd: tmpDir, env: noEnv }, deps);
+
+		expect(result.analyzed).toBe(false);
+		expect(result.reason).toContain("feature.json");
+		expect(analyzed).toEqual([]);
 	});
 });

@@ -1,0 +1,36 @@
+# A stock Spec Kit v1 workflow whose shell step consumes `maina decide --json`
+# and whose switch routes on the verdict. Each branch records what it saw.
+schema_version: "1.0"
+workflow:
+  id: "maina-decide-switch"
+  name: "Route on a Maina verdict"
+  version: "1.0.0"
+  author: "mainahq"
+  description: "Interop fixture: shell step -> maina decide --json -> switch"
+
+steps:
+  - id: verdict
+    type: shell
+    run: "maina decide --type action.risk --trusted actionClass=speckit.implement --json"
+    output_format: json
+
+  - id: route
+    type: switch
+    expression: "{{ steps.verdict.output.data.data.verdict }}"
+    cases:
+      allow:
+        - id: on-allow
+          type: shell
+          run: "echo allow > outcome.txt"
+      ask:
+        - id: on-ask
+          type: shell
+          run: "echo ask > outcome.txt"
+      deny:
+        - id: on-deny
+          type: shell
+          run: "echo deny > outcome.txt"
+    default:
+      - id: on-other
+        type: shell
+        run: "echo other > outcome.txt"

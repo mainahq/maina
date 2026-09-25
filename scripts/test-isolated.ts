@@ -23,6 +23,8 @@ const testGlobs = [
 	new Glob("packages/**/__golden__/**/*.test.ts"),
 	// Repo scripts (receipts backfill, dogfood gate) have tests too.
 	new Glob("scripts/**/__tests__/**/*.test.ts"),
+	// Third-party integrations (Spec Kit extension and workflow overlay).
+	new Glob("integrations/**/__tests__/**/*.test.ts"),
 ];
 const testFiles: string[] = [];
 
