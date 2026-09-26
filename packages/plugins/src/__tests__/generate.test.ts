@@ -548,7 +548,22 @@ describe("Cursor rules", () => {
 	});
 
 	test("front matter reads back as the definition's strings", () => {
-		for (const description of ["null", "true", "1.5", "a: b", "#x", "Plain"]) {
+		for (const description of [
+			"null",
+			"true",
+			"1.5",
+			"a: b",
+			"#x",
+			"Plain",
+			// Numbers YAML reads in other bases, keywords of YAML 1.1 and
+			// whitespace a plain scalar drops.
+			"0x1F",
+			"0o17",
+			"1-2",
+			"y",
+			"trailing ",
+			"Plain, with (punctuation) and a/path",
+		]) {
 			const [rule] = generate("cursor", sources, {
 				...PLUGIN,
 				rules: [{ name: "r", description, alwaysApply: true, body: "x" }],

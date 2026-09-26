@@ -51,14 +51,20 @@ const HOOK_LAUNCHER = `PLUGIN_DATA="$PWD/${DATA_DIR}" ./${LAUNCHER}`;
 
 const ROOT = `\${CURSOR_PLUGIN_ROOT}`;
 
-/** Plain scalars YAML reads back as something other than that string. */
-const YAML_NON_STRING =
-	/^(?:true|false|yes|no|on|off|null|~|[-+]?(?:\d[\d_]*)?(?:\.\d*)?(?:e[-+]?\d+)?)$/i;
+/**
+ * Words YAML (1.1 or 1.2) reads as a boolean or null. Starting with a
+ * letter already rules out numbers in any base, dates and `~`.
+ */
+const YAML_KEYWORD = /^(?:true|false|yes|no|on|off|y|n|null)$/i;
 
-/** A YAML scalar: plain when that reads back as the same string. */
+/**
+ * A YAML scalar: plain when that reads back as the same string (a letter
+ * first, no edge whitespace, no indicator characters, not a keyword),
+ * double-quoted otherwise.
+ */
 const yamlString = (value: string): string =>
-	/^[A-Za-z0-9][A-Za-z0-9 ,.()'/-]*$/.test(value) &&
-	!YAML_NON_STRING.test(value)
+	/^[A-Za-z](?:[A-Za-z0-9 ,.()'/-]*[A-Za-z0-9,.()'/-])?$/.test(value) &&
+	!YAML_KEYWORD.test(value)
 		? value
 		: JSON.stringify(value);
 

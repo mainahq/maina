@@ -85,15 +85,23 @@ const readOrNull = (path: string): string | null => {
 	}
 };
 
-/** The pid the runtime's pid file in `runDir` names. */
+/**
+ * The pid the runtime's pid file in `runDir` names. Null while the file is
+ * missing or half-written (the runtime creates it, then writes it), so a
+ * `waitFor` poll retries instead of throwing.
+ */
 export function runtimePid(runDir: string): number | null {
 	const pidFile = existsSync(runDir)
 		? readdirSync(runDir).find((name) => name.endsWith(".pid"))
 		: undefined;
 	const raw = pidFile === undefined ? null : readOrNull(join(runDir, pidFile));
 	if (raw === null) return null;
-	const pid = (JSON.parse(raw) as { pid?: unknown }).pid;
-	return typeof pid === "number" ? pid : null;
+	try {
+		const pid = (JSON.parse(raw) as { pid?: unknown } | null)?.pid;
+		return typeof pid === "number" ? pid : null;
+	} catch {
+		return null;
+	}
 }
 
 export function alive(pid: number): boolean {
