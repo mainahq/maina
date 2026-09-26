@@ -14,7 +14,9 @@
  * `toClaude` renders a result in the host's wire format, pinned by
  * `__fixtures__/claude-code`:
  *
- *   PreToolUse         hookSpecificOutput.permissionDecision + reason
+ *   PreToolUse         hookSpecificOutput.permissionDecision + reason (an
+ *                      ask or deny gives the gate message, with the id
+ *                      `maina allow` takes: #497)
  *   PermissionRequest  allow/deny as decision.behavior; ask prints `{}` so
  *                      the host's dialog (which is asking) stays
  *   SessionStart       hookSpecificOutput.additionalContext
@@ -22,13 +24,14 @@
  *   Stop               the session summary as `systemMessage` (shown to the
  *                      user); a deny blocks with `decision: "block"`
  *
- * A deny on a tool event also exits 2 with the reason on stderr. Claude
+ * A deny on a tool event also exits 2 with the gate message on stderr. Claude
  * Code blocks the tool on exit 2 whatever it makes of stdout (it reads JSON
  * only on exit 0), so a deny holds even where the JSON is not understood.
  * Adapters normalise; they never decide.
  */
 
 import type { GateDecision, GateEvent } from "../gate";
+import { gateMessage } from "./gate-message";
 import type { HostHookMap } from "./hook-map";
 
 /** A session boundary, for the session summary. */
@@ -370,29 +373,39 @@ const denied = (value: unknown, reason: string): ClaudeOutput => ({
 });
 
 function preToolUse(decision: GateDecision): ClaudeOutput {
+	// An ask or deny shows the gate message, with the id to override by.
+	const reason =
+		decision.verdict === "allow" ? decision.reason : gateMessage(decision);
 	const out = {
 		hookSpecificOutput: {
 			hookEventName: "PreToolUse",
 			permissionDecision: decision.verdict,
-			permissionDecisionReason: decision.reason,
+			permissionDecisionReason: reason,
 		},
 	};
-	return decision.verdict === "deny" ? denied(out, decision.reason) : ok(out);
+	return decision.verdict === "deny" ? denied(out, reason) : ok(out);
 }
 
 function permissionRequest(decision: GateDecision): ClaudeOutput {
 	if (decision.verdict === "ask") return ok({});
-	const behavior =
-		decision.verdict === "deny"
-			? { behavior: "deny", message: decision.reason }
-			: { behavior: "allow" };
-	const out = {
-		hookSpecificOutput: {
-			hookEventName: "PermissionRequest",
-			decision: behavior,
+	if (decision.verdict === "allow") {
+		return ok({
+			hookSpecificOutput: {
+				hookEventName: "PermissionRequest",
+				decision: { behavior: "allow" },
+			},
+		});
+	}
+	const message = gateMessage(decision);
+	return denied(
+		{
+			hookSpecificOutput: {
+				hookEventName: "PermissionRequest",
+				decision: { behavior: "deny", message },
+			},
 		},
-	};
-	return decision.verdict === "deny" ? denied(out, decision.reason) : ok(out);
+		message,
+	);
 }
 
 const withContext = (hookEvent: string, context: string | undefined) =>

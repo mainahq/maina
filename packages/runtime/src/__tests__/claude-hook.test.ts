@@ -54,23 +54,27 @@ describe("runClaudeHook", () => {
 			evaluate: async () => ({
 				verdict: "ask",
 				reason: "confirm it",
-				decisionIds: [],
+				decisionIds: ["d-1"],
 				degraded: false,
+				confidence: 0.9,
 			}),
 		});
 		const run = await runClaudeHook(raw("pre-tool-use.bash.input.json"), p);
 		expect(run.decision).toEqual({
 			verdict: "ask",
 			reason: "confirm it",
-			decisionIds: [],
+			decisionIds: ["d-1"],
 			degraded: false,
+			confidence: 0.9,
 		});
 		expect(run.output.exitCode).toBe(0);
+		// #497: the gate message, with the id to override by and its band.
 		expect(parsed(run.output.stdout)).toEqual({
 			hookSpecificOutput: {
 				hookEventName: "PreToolUse",
 				permissionDecision: "ask",
-				permissionDecisionReason: "confirm it",
+				permissionDecisionReason:
+					"maina ask: confirm it (confidence high) | override: maina allow d-1 [--always]",
 			},
 		});
 	});
@@ -83,7 +87,7 @@ describe("runClaudeHook", () => {
 		expect(p.seen[0]?.cwd).toBe("/home/user/project");
 	});
 
-	test("a deny exits 2 with the reason on stderr", async () => {
+	test("a deny exits 2 with the gate message on stderr", async () => {
 		const p = ports({
 			evaluate: async () => ({
 				verdict: "deny",
@@ -94,7 +98,9 @@ describe("runClaudeHook", () => {
 		});
 		const run = await runClaudeHook(raw("pre-tool-use.bash.input.json"), p);
 		expect(run.output.exitCode).toBe(2);
-		expect(run.output.stderr).toBe("denied by rule\n");
+		expect(run.output.stderr).toBe(
+			"maina deny: denied by rule (confidence high) | override: change the deny rule or class in your maina policy\n",
+		);
 	});
 
 	test("input that is not JSON asks without calling the gate", async () => {

@@ -17,7 +17,8 @@
  * `__fixtures__/codex` (the upstream generated schemas):
  *
  *   PreToolUse         a deny is `permissionDecision: "deny"` plus exit 2
- *                      with the reason on stderr. Codex fails a hook that
+ *                      with the gate message (naming the id `maina allow`
+ *                      takes: #497) on stderr. Codex fails a hook that
  *                      answers `ask` and runs the tool anyway, so an `ask`
  *                      is a deny that tells the agent the user must confirm.
  *                      An allow prints `{}`: Codex's own approval stands
@@ -39,6 +40,7 @@
 
 import type { GateDecision, GateEvent } from "../gate";
 import type { SessionEvent } from "./claude-code";
+import { gateMessage, overrideId } from "./gate-message";
 import type { HostHookMap } from "./hook-map";
 
 type GateHookEvent = "PreToolUse" | "PermissionRequest";
@@ -346,14 +348,24 @@ const denied = (value: unknown, reason: string): CodexOutput => ({
 	stderr: `${reason}\n`,
 });
 
-/** Why an `ask` is a deny on PreToolUse, for the agent to relay. */
-const askAsDeny = (reason: string): string =>
-	`maina needs the user to confirm this action (${reason}). Codex hooks cannot ask for confirmation, so maina blocked it; ask the user before trying another way.`;
+/**
+ * Why an `ask` is a deny on PreToolUse, for the agent to relay. With a
+ * logged decision it leads with the gate message, which names the override;
+ * without one there is none to name (and the gate message's "approve it at
+ * the prompt" is wrong where no prompt shows), so it gives the reason alone.
+ */
+function askAsDeny(decision: GateDecision): string {
+	const asked =
+		overrideId(decision) === undefined
+			? `maina needs the user to confirm this action (${decision.reason})`
+			: gateMessage(decision);
+	return `${asked}. Codex hooks cannot ask for confirmation, so maina blocked it; ask the user before trying another way.`;
+}
 
 function preToolUse(decision: GateDecision | undefined): CodexOutput {
 	if (decision === undefined || decision.verdict === "allow") return ok({});
 	const reason =
-		decision.verdict === "ask" ? askAsDeny(decision.reason) : decision.reason;
+		decision.verdict === "ask" ? askAsDeny(decision) : gateMessage(decision);
 	return denied(
 		{
 			hookSpecificOutput: {
@@ -376,14 +388,15 @@ function permissionRequest(decision: GateDecision | undefined): CodexOutput {
 			},
 		});
 	}
+	const message = gateMessage(decision);
 	return denied(
 		{
 			hookSpecificOutput: {
 				hookEventName: "PermissionRequest",
-				decision: { behavior: "deny", message: decision.reason },
+				decision: { behavior: "deny", message },
 			},
 		},
-		decision.reason,
+		message,
 	);
 }
 

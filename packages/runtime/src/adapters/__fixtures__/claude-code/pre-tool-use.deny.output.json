@@ -2,6 +2,6 @@
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "deny",
-    "permissionDecisionReason": "Blocked by maina policy: destructive command"
+    "permissionDecisionReason": "maina deny: Blocked by maina policy: destructive command (confidence medium) | override: maina allow d-7 [--always]"
   }
 }
