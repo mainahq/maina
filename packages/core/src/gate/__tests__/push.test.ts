@@ -195,6 +195,17 @@ describe("implicitPush: remote.<name>.push refspecs", () => {
 		).toEqual(["master", "feature"]);
 	});
 
+	test("a glob with more than one `*` a side is unknown", () => {
+		for (const spec of [
+			"refs/heads/*/*:refs/heads/rel/*",
+			"refs/heads/*:refs/heads/*/*",
+		]) {
+			expect(
+				implicitPush(withSpecs([spec]), "feature", undefined).unknown,
+			).toBe(true);
+		}
+	});
+
 	test("a glob over refs other than local branches is unknown", () => {
 		expect(
 			implicitPush(

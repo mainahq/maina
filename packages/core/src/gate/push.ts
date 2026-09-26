@@ -155,8 +155,13 @@ function globTargets(
 ): string[] | null {
 	// Only a glob over local branches maps from them; any other source (such
 	// as remote-tracking refs) may push to any branch.
-	if (!src.startsWith(HEADS) || !dst.includes("*")) return null;
-	const [prefix = "", suffix = ""] = src.slice(HEADS.length).split("*");
+	if (!src.startsWith(HEADS)) return null;
+	// git allows exactly one `*` on each side; anything else is not resolved.
+	const from = src.slice(HEADS.length).split("*");
+	const to = dst.split("*");
+	if (from.length !== 2 || to.length !== 2) return null;
+	const [prefix = "", suffix = ""] = from;
+	const [before = "", after = ""] = to;
 	return locals
 		.filter(
 			(l) =>
@@ -166,7 +171,7 @@ function globTargets(
 		)
 		.map((l) =>
 			stripHeads(
-				dst.replace("*", l.slice(prefix.length, l.length - suffix.length)),
+				before + l.slice(prefix.length, l.length - suffix.length) + after,
 			),
 		);
 }
