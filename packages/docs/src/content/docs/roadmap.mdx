@@ -97,6 +97,8 @@ What is released, and what the next release brings. The next release is read fro
 - The built-in `no-any-type` and `todo-comment` verify checks no longer flag text that only mentions their patterns. _(@mainahq/core)_
 - Context commands that use the episodic layer (such as `review` and `verify`) no longer hang for about 43 seconds when maina cloud is slow or unreachable. _(@mainahq/core)_
 - The built-in `no-any-type` check no longer flags identifiers that end in `any` when they are followed by punctuation, such as `many)`, `company,` or `Array<Company>`. _(@mainahq/core)_
+- The `hardcoded-secret` check no longer flags an environment variable or CI secret name used as a value, such as `secret: ANTHROPIC_API_KEY` in a GitHub Actions matrix. _(@mainahq/core)_
+- Quieter, more honest verify tools, and `maina decide` now applies the policy's confidence threshold. _(@mainahq/cli, @mainahq/core)_
 - Add golden fixtures that pin the current output of every heuristic decision site (plan checklist, cross-artifact analyzer, spec quality, two-stage review, external-review categorisation, false-positive preferences, slop detector, AI output validation, wiki consult, relevance scoring, model tiers). _(@mainahq/core)_
 - Export the gate verdict catalog (`VERDICTS`, `Verdict`) from the package root, so the resident runtime (#297) validates `allow | ask | deny` against the same list as the policy schema instead of redefining it. _(@mainahq/core)_
 - MCP error isolation and real version (FR-MCP-5): a tool whose capability throws (or rejects) now answers with a structured `{ data: null, error: { kind: "failed", message }, meta }` result instead of an unstructured SDK error, and the server keeps serving the next call. _(@mainahq/mcp)_
@@ -110,6 +112,8 @@ What is released, and what the next release brings. The next release is read fro
 - `maina doctor` no longer runs a repo's `bunfig.toml` preload when it launches a configured MCP entry on its own. _(@mainahq/cli)_
 - `gate.self_override` now matches gate control files and directories in any letter case. _(@mainahq/core)_
 - Gate: a write or delete whose target the shell walk cannot resolve now classifies as `shell.opaque`, so the default policy asks (FR-GATE-2, FR-GATE-4). _(@mainahq/core)_
+- MCP server hardening (#542): an allow-list that names no known tool now serves an empty `tools/list` (with a stderr notice) instead of answering method-not-found; `maina --mcp` and `maina mcp` log a stray async throw or unhandled rejection on stderr and keep serving instead of exiting (a failure to start stays fatal); a prompt whose render throws answers a `failed` error naming the prompt, like a tool. _(@mainahq/cli, @mainahq/mcp)_
+- The gate now classes two more CLI commands as `gate.self_override` when an agent runs them, because they write Codex's `config.toml` (a gate control file) from inside the CLI, where the gate cannot see the write: _(@mainahq/core)_
 
 
 ## Contributing
