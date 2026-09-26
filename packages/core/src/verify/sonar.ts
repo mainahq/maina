@@ -122,6 +122,9 @@ export function parseSonarReport(json: string): Finding[] {
 const NO_LOCAL_REPORT_NOTICE =
 	"sonarqube ran but left no local issues report (the analysis is on the SonarQube server). Skipped, no results from this tool.";
 
+const UNREADABLE_REPORT_NOTICE =
+	"sonarqube left a local issues report that could not be read. Skipped, no results from this tool.";
+
 /**
  * Run SonarQube scanner and return parsed findings.
  *
@@ -181,6 +184,7 @@ export async function runSonar(options: SonarOptions): Promise<SonarResult> {
 		const findings = parseSonarReport(reportJson);
 		return { findings, skipped: false };
 	} catch {
-		return { findings: [], skipped: false };
+		// A report it could not read is no result: a skip, never a pass.
+		return { findings: [], skipped: true, notice: UNREADABLE_REPORT_NOTICE };
 	}
 }

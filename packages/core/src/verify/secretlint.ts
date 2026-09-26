@@ -8,7 +8,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import type { ProcessPort } from "../ports/process";
 import type { Finding } from "./diff-filter";
 import {
@@ -151,18 +151,37 @@ const SECRETLINT_CONFIG_FILES = [
 	".secretlintrc.cjs",
 ] as const;
 
-/** True when `root` has a secretlint config file or a `secretlint` field in package.json. */
-function hasSecretlintConfig(root: string): boolean {
-	if (SECRETLINT_CONFIG_FILES.some((name) => existsSync(join(root, name)))) {
+/** True when `dir` itself has a secretlint config file or a non-empty `secretlint` field in package.json. */
+function dirHasSecretlintConfig(dir: string): boolean {
+	if (SECRETLINT_CONFIG_FILES.some((name) => existsSync(join(dir, name)))) {
 		return true;
 	}
 	try {
 		const pkg: unknown = JSON.parse(
-			readFileSync(join(root, "package.json"), "utf8"),
+			readFileSync(join(dir, "package.json"), "utf8"),
 		);
-		return typeof pkg === "object" && pkg !== null && "secretlint" in pkg;
+		// rc-config-loader skips a falsy field, as secretlint then does.
+		return (
+			typeof pkg === "object" &&
+			pkg !== null &&
+			Boolean((pkg as Record<string, unknown>).secretlint)
+		);
 	} catch {
 		return false;
+	}
+}
+
+/**
+ * True when secretlint run in `root` finds a config: in `root` or any
+ * directory above it, the way its `rc-config-loader` looks.
+ */
+function hasSecretlintConfig(root: string): boolean {
+	let dir = resolve(root);
+	for (;;) {
+		if (dirHasSecretlintConfig(dir)) return true;
+		const parent = dirname(dir);
+		if (parent === dir) return false;
+		dir = parent;
 	}
 }
 
@@ -171,7 +190,7 @@ function hasSecretlintConfig(root: string): boolean {
 /**
  * Run Secretlint and return parsed findings.
  *
- * If secretlint is not installed, or the root has no secretlint config
+ * If secretlint is not installed, or no secretlint config is found from the root up
  * (secretlint then exits with an error), returns
  * `{ findings: [], skipped: true }` without spawning it. Spawns the command
  * detection resolved (it may be root-local); if it cannot be started,
