@@ -96,3 +96,24 @@ export function readToolsFlag(argv: readonly string[]): string | undefined {
 	}
 	return undefined;
 }
+
+/**
+ * What an operator should hear about an allow-list, one line each, for
+ * stderr (stdout carries the protocol): the unknown names it skips, and
+ * that nothing is served when it names no tool at all.
+ */
+export function allowListNotices(allow: AllowList): string[] {
+	const where = allow.source === "flag" ? "--tools flag" : TOOLS_ENV;
+	const notices: string[] = [];
+	if (allow.unknown.length > 0) {
+		notices.push(
+			`maina mcp: ignoring unknown tool(s) in the ${where}: ${allow.unknown.join(", ")}`,
+		);
+	}
+	if (allow.tools.length === 0) {
+		notices.push(
+			`maina mcp: the ${where} names no known tool, so no tools are served`,
+		);
+	}
+	return notices;
+}

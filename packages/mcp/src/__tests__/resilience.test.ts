@@ -6,11 +6,15 @@
  */
 
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
+import { EventEmitter } from "node:events";
 import { join } from "node:path";
 import { VERSION } from "@mainahq/core";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { startMcp } from "../server";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+import { PROMPTS } from "../prompts";
+import { keepServingOnStrayErrors, startMcp, startServer } from "../server";
 import { call, connect, expectEnvelope, fakeRuntime, text } from "./fixtures";
 
 const boom = (): never => {
@@ -89,6 +93,144 @@ describe("a throwing tool", () => {
 			true,
 		);
 		expect((await client.listTools()).tools.length).toBeGreaterThan(0);
+	});
+});
+
+describe("a throwing prompt (#542)", () => {
+	const reviewChanges = PROMPTS.find((p) => p.name === "review-changes");
+	if (reviewChanges === undefined) throw new Error("review-changes missing");
+
+	async function failure(client: Client): Promise<unknown> {
+		try {
+			await client.getPrompt({ name: "review-changes", arguments: {} });
+		} catch (e) {
+			return e;
+		}
+		throw new Error("getPrompt resolved");
+	}
+
+	test("a render that throws answers a `failed` error naming the prompt", async () => {
+		const render = spyOn(reviewChanges, "render").mockImplementation(() => {
+			throw new Error("prompt blew up");
+		});
+		try {
+			const client = await connect(fakeRuntime().runtime);
+			const error = await failure(client);
+			expect(error).toBeInstanceOf(McpError);
+			const mcp = error as McpError;
+			expect(mcp.code).toBe(ErrorCode.InternalError);
+			expect(mcp.message).toContain("review-changes: prompt blew up");
+			expect(mcp.data).toEqual({
+				kind: "failed",
+				prompt: "review-changes",
+				version: VERSION,
+			});
+		} finally {
+			render.mockRestore();
+		}
+	});
+
+	test("a non-Error throw keeps its text", async () => {
+		const render = spyOn(reviewChanges, "render").mockImplementation(() => {
+			throw "plain string";
+		});
+		try {
+			const client = await connect(fakeRuntime().runtime);
+			const error = (await failure(client)) as McpError;
+			expect(error.message).toContain("review-changes: plain string");
+		} finally {
+			render.mockRestore();
+		}
+	});
+
+	test("the server keeps serving prompts and tools after a prompt throws", async () => {
+		const render = spyOn(reviewChanges, "render").mockImplementation(() => {
+			throw new Error("prompt blew up");
+		});
+		try {
+			const client = await connect(fakeRuntime().runtime);
+			await failure(client);
+			const other = await client.getPrompt({
+				name: "plan-feature",
+				arguments: { description: "Add a toggle" },
+			});
+			expect(other.messages.length).toBeGreaterThan(0);
+			expectEnvelope(
+				await call(client, "status", { root: "/repo" }),
+				"status",
+				"/repo",
+			);
+		} finally {
+			render.mockRestore();
+		}
+	});
+});
+
+describe("keepServingOnStrayErrors (#542, FR-MCP-5)", () => {
+	test("logs a stray throw or rejection to stderr instead of exiting", () => {
+		const proc = new EventEmitter();
+		const lines: string[] = [];
+		keepServingOnStrayErrors(proc, (line) => lines.push(line));
+		proc.emit("uncaughtException", new Error("detached throw"));
+		proc.emit("unhandledRejection", "detached rejection");
+		expect(lines).toEqual([
+			"maina mcp: uncaught exception (still serving): detached throw\n",
+			"maina mcp: unhandled rejection (still serving): detached rejection\n",
+		]);
+	});
+
+	test("a failing log write never throws out of the listener", () => {
+		const proc = new EventEmitter();
+		keepServingOnStrayErrors(proc, () => {
+			throw new Error("EPIPE");
+		});
+		expect(() =>
+			proc.emit("uncaughtException", new Error("detached throw")),
+		).not.toThrow();
+	});
+
+	test("the returned stop removes both listeners", () => {
+		const proc = new EventEmitter();
+		const stop = keepServingOnStrayErrors(proc, () => {});
+		expect(proc.listenerCount("uncaughtException")).toBe(1);
+		expect(proc.listenerCount("unhandledRejection")).toBe(1);
+		stop();
+		expect(proc.listenerCount("uncaughtException")).toBe(0);
+		expect(proc.listenerCount("unhandledRejection")).toBe(0);
+	});
+});
+
+describe("startServer that fails to start (#542)", () => {
+	// startServer reroutes console and marks the process as serving; put
+	// both back.
+	const saved = { ...console };
+	const savedFlag = process.env.MAINA_MCP_SERVER;
+	afterEach(() => {
+		Object.assign(console, saved);
+		if (savedFlag === undefined) delete process.env.MAINA_MCP_SERVER;
+		else process.env.MAINA_MCP_SERVER = savedFlag;
+	});
+
+	test("rejects and leaves no keep-serving listener behind", async () => {
+		// A startup failure must stay fatal: with the stray-error listener
+		// still installed, the entry's rejection would be logged as
+		// "still serving" and the process would exit 0 with no server.
+		const before = {
+			exception: process.listenerCount("uncaughtException"),
+			rejection: process.listenerCount("unhandledRejection"),
+		};
+		const connectSpy = spyOn(McpServer.prototype, "connect").mockRejectedValue(
+			new Error("transport refused"),
+		);
+		try {
+			await expect(
+				startServer({ argv: [], env: {}, cwd: "/repo" }),
+			).rejects.toThrow("transport refused");
+		} finally {
+			connectSpy.mockRestore();
+		}
+		expect(process.listenerCount("uncaughtException")).toBe(before.exception);
+		expect(process.listenerCount("unhandledRejection")).toBe(before.rejection);
 	});
 });
 
