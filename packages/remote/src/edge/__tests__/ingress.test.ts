@@ -101,6 +101,68 @@ describe("ingressHandler", () => {
 		await reader.cancel();
 	});
 
+	test("passes a compressed response through intact, not decoded under its content-encoding", async () => {
+		const body = "compressed hello from upstream";
+		const gz = Bun.serve({
+			port: 0,
+			hostname: "127.0.0.1",
+			fetch: () =>
+				new Response(Bun.gzipSync(body), {
+					headers: {
+						"content-encoding": "gzip",
+						"content-type": "text/plain",
+					},
+				}),
+		});
+		servers.push(gz);
+		const ingress = Bun.serve({
+			port: 0,
+			hostname: "127.0.0.1",
+			fetch: ingressHandler(`http://127.0.0.1:${gz.port}`),
+		});
+		servers.push(ingress);
+		const res = await fetch(`http://127.0.0.1:${ingress.port}/`, {
+			headers: { "accept-encoding": "gzip" },
+		});
+		expect(res.status).toBe(200);
+		expect(await res.text()).toBe(body);
+	});
+
+	test("drops hop-by-hop request headers, including those the Connection header names", async () => {
+		let seen: Headers | undefined;
+		const handle = ingressHandler("http://upstream.test", async (req) => {
+			seen = req.headers;
+			return new Response("ok");
+		});
+		await handle(
+			new Request("https://maina.example.com/mcp", {
+				headers: {
+					connection: "keep-alive, x-hop",
+					"x-hop": "1",
+					te: "trailers",
+					trailer: "x-sum",
+					"proxy-authorization": "Basic Zm9vOmJhcg==",
+					"keep-alive": "timeout=5",
+					authorization: "Bearer abc",
+				},
+			}),
+		);
+		expect(seen?.get("authorization")).toBe("Bearer abc");
+		for (const name of [
+			"connection",
+			"x-hop",
+			"te",
+			"trailer",
+			"proxy-authorization",
+			"keep-alive",
+		]) {
+			expect({ name, value: seen?.get(name) ?? null }).toEqual({
+				name,
+				value: null,
+			});
+		}
+	});
+
 	test("an unreachable upstream is a 502, never a throw", async () => {
 		const up = upstream();
 		for (const s of servers.splice(0)) s.stop(true);
