@@ -84,7 +84,14 @@ function logGateDecision(id: string, subject: Partial<GateSubject> = {}): void {
 	expect(recorded.ok).toBe(true);
 }
 
-async function run(decisionId: string, always = false) {
+async function run(
+	decisionId: string,
+	always = false,
+	terminal: Readonly<{ interactive: boolean; allowNonInteractive: boolean }> = {
+		interactive: true,
+		allowNonInteractive: false,
+	},
+) {
 	const out: string[] = [];
 	const result = await allowAction(
 		{ decisionId, always },
@@ -94,6 +101,7 @@ async function run(decisionId: string, always = false) {
 			home,
 			clock: { now: () => 5_000 },
 			print: (text) => out.push(text),
+			...terminal,
 		},
 	);
 	return { result, text: out.join("\n") };
@@ -167,5 +175,33 @@ describe("maina allow", () => {
 		const outcomes = queryOutcomes({ db }, { decisionId: "d-4" });
 		expect(outcomes.ok && outcomes.value).toEqual([]);
 		expect(existsSync(userPolicy())).toBe(false);
+	});
+
+	test("without a terminal it refuses, records nothing and says how to run it (#447)", async () => {
+		logGateDecision("d-5");
+		const { result, text } = await run("d-5", true, {
+			interactive: false,
+			allowNonInteractive: false,
+		});
+		expect(result.ok).toBe(false);
+		expect(!result.ok && result.error.kind).toBe("not_interactive");
+		expect(text).toContain("terminal");
+		expect(text).toContain("MAINA_ALLOW_NONINTERACTIVE=1");
+		const outcomes = queryOutcomes({ db }, { decisionId: "d-5" });
+		expect(outcomes.ok && outcomes.value).toEqual([]);
+		expect(existsSync(userPolicy())).toBe(false);
+	});
+
+	test("MAINA_ALLOW_NONINTERACTIVE=1 lets a human's script override without a terminal", async () => {
+		logGateDecision("d-6");
+		const { result } = await run("d-6", false, {
+			interactive: false,
+			allowNonInteractive: true,
+		});
+		expect(result.ok).toBe(true);
+		const outcomes = queryOutcomes({ db }, { decisionId: "d-6" });
+		expect(outcomes.ok && outcomes.value.map((o) => o.outcome)).toEqual([
+			"override",
+		]);
 	});
 });

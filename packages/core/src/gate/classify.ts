@@ -119,6 +119,7 @@ function classifyWrite(
 	}
 	if (content !== undefined && containsSecret(content))
 		out.add("secrets.write");
+	if (isGateControlFile(resolved ?? path)) out.add("gate.self_override");
 	if (isOutsideWorkspace(resolved, event.root)) out.add("fs.write.outside");
 	if (out.size === 0) out.add("fs.write");
 }
@@ -140,6 +141,118 @@ function classifyRead(
 		// without one it would reach the backend with no class and ask.
 		out.add("fs.read");
 	}
+}
+
+// ── Gate control files (#447) ───────────────────────────────────────────────
+
+/**
+ * Files that configure the gate itself: a maina policy (`.maina/policy*`, in
+ * the repo or the user's home) and the host hook configs that run maina
+ * (`.claude/settings*.json`, `.cursor/hooks.json`, `.codex/hooks.json`,
+ * `.codex/config.toml`). An agent writing, moving or deleting one could
+ * override its own gate, so each is `gate.self_override`.
+ */
+function isGateControlFile(path: string): boolean {
+	const segments = path.split(/[\\/]+/);
+	const name = segments.at(-1) ?? "";
+	switch (segments.at(-2)) {
+		case ".maina":
+			return name.startsWith("policy");
+		case ".claude":
+			return /^settings(\.[^.]+)*\.json$/.test(name);
+		case ".cursor":
+			return name === "hooks.json";
+		case ".codex":
+			return name === "hooks.json" || name === "config.toml";
+		default:
+			return false;
+	}
+}
+
+const GATE_CONTROL_DIRS: ReadonlySet<string> = new Set([
+	".maina",
+	".claude",
+	".cursor",
+	".codex",
+]);
+
+/** The last path segment, ignoring a trailing slash (`~/.claude/`). */
+const lastSegment = (path: string): string =>
+	path
+		.split(/[\\/]+/)
+		.filter((s) => s !== "")
+		.at(-1) ?? "";
+
+/** Deleting or moving a path removes a control file when it is one or holds one. */
+function removesGateControl(path: string): boolean {
+	return GATE_CONTROL_DIRS.has(lastSegment(path)) || isGateControlFile(path);
+}
+
+/**
+ * Where a copy, move or link lands. When the destination is a directory
+ * each source lands at `DEST/<its name>`, and the gate cannot know which, so
+ * both readings count. Landing on a control file, pouring a tree's contents
+ * into a control dir (`cp -r x/. .maina`, `rsync -a x/ .claude/`) or putting
+ * a control dir in place as a tree (`cp -r x/.maina .`) is
+ * `gate.self_override`. Any other tree put into, or as, a control dir might
+ * carry a control file, so it asks (`shell.opaque`). Scratch landings are
+ * backups, not the gate's config.
+ */
+function landsOnGateControl(
+	args: Argv,
+	cwd: string | null,
+	ctx: ShellCtx,
+	how: Readonly<{ tree: boolean; targetOption: boolean }>,
+): void {
+	const { destination, sources } = copyOperands(args, how.targetOption);
+	if (destination === undefined) return;
+	const dest = resolvePath(destination, cwd, ctx.gate.home) ?? destination;
+	if (isScratchPath(dest)) return;
+	if (isGateControlFile(dest)) ctx.out.add("gate.self_override");
+	const intoControlDir = GATE_CONTROL_DIRS.has(lastSegment(dest));
+	for (const source of sources) {
+		const name = source.split(/[\\/]/).at(-1) ?? "";
+		if (name === "" || name === ".") {
+			if (how.tree && intoControlDir) ctx.out.add("gate.self_override");
+		} else if (
+			isGateControlFile(`${dest}/${name}`) ||
+			(how.tree && GATE_CONTROL_DIRS.has(name))
+		) {
+			ctx.out.add("gate.self_override");
+		} else if (how.tree && intoControlDir) {
+			ctx.out.add("shell.opaque");
+		}
+	}
+}
+
+/** `cp`/`mv`/`ln`/`install` take `-t DIR`; otherwise the last operand is the destination. */
+function copyOperands(
+	args: Argv,
+	targetOption: boolean,
+): Readonly<{ destination: string | undefined; sources: readonly string[] }> {
+	const literals = literalArgs(args);
+	const pos = positional(args);
+	const at = literals.findIndex(
+		(a) => a === "-t" || a === "--target-directory",
+	);
+	const target = !targetOption
+		? undefined
+		: at >= 0
+			? literals[at + 1]
+			: literals
+					.find((a) => a.startsWith("--target-directory="))
+					?.slice("--target-directory=".length);
+	if (target !== undefined)
+		return { destination: target, sources: pos.filter((p) => p !== target) };
+	return { destination: pos.at(-1), sources: pos.slice(0, -1) };
+}
+
+/** `cp -r`, `cp -a`, `rsync -a`: the copy takes directories whole. */
+function copiesTree(args: Argv): boolean {
+	return literalArgs(args).some(
+		(a) =>
+			/^-[a-zA-Z]*[rRa]/.test(a) || a === "--recursive" || a === "--archive",
+	);
 }
 
 /** True only when the path is known and lands outside the workspace and scratch dirs. */
@@ -595,17 +708,115 @@ function classifyCommand(
 		}
 	}
 	CLASSIFIERS[cmd]?.(args, cwd, ctx);
-	// Package runners that take a program name (`npx rimraf`, `time git push`).
-	if (RUNNERS.has(cmd)) {
-		const first = literalArgs(args)[0];
-		if (first !== undefined) {
-			CLASSIFIERS[baseCommand(first)]?.(
-				args.slice(indexOfArg(args, first) + 1),
-				cwd,
-				ctx,
-			);
+	// Package runners that take a program name (`npx rimraf`, `npx -y @mainahq/cli`).
+	if (RUNNERS.has(cmd)) runProgram(args, 0, cwd, ctx);
+	// A JavaScript runtime running maina's entry file (`bun …/cli/dist/index.js allow`).
+	if (JS_RUNTIMES.has(cmd)) {
+		const pos = positional(args);
+		const script = pos[0] === "run" ? pos[1] : pos[0];
+		if (script !== undefined && MAINA_ENTRY.test(script)) {
+			mainaClassifier(args.slice(indexOfArg(args, script) + 1), cwd, ctx);
 		}
 	}
+}
+
+const JS_RUNTIMES: ReadonlySet<string> = new Set([
+	"bun",
+	"node",
+	"nodejs",
+	"deno",
+	"tsx",
+]);
+
+/** maina's bin, or its entry file in the package or the monorepo. */
+const MAINA_ENTRY =
+	/(^|\/)(maina|(@mainahq|packages)\/cli\/(dist|src)\/index\.[cm]?[jt]s)$/;
+
+const MAINA_PACKAGE = "@mainahq/cli";
+
+/** Runner options whose value is the next word (`npx -p <pkg> <bin>`). */
+const RUNNER_OPERAND: ReadonlySet<string> = new Set(["-p", "--package"]);
+
+/**
+ * Classifies the program a runner runs: its first word from `from` on that
+ * is neither an option nor an option's value, so `npx -p @mainahq/cli maina
+ * allow` names `maina`, not the package. `-c`/`--call` runs a shell string
+ * instead (`npx -c 'maina allow d-1'`), which is classified as shell.
+ */
+function runProgram(
+	args: Argv,
+	from: number,
+	cwd: string | null,
+	ctx: ShellCtx,
+): void {
+	for (let i = from; i < args.length; i++) {
+		const word = args[i]?.text;
+		if (word === null || word === undefined) continue;
+		if (word === "-c" || word === "--call" || word.startsWith("--call=")) {
+			const script = word.startsWith("--call=")
+				? word.slice("--call=".length)
+				: args[i + 1]?.text;
+			if (script === null) ctx.out.add("shell.opaque");
+			else if (script !== undefined)
+				classifyShell(
+					script,
+					cwd ?? ctx.event.root,
+					ctx.event,
+					ctx.gate,
+					ctx.out,
+				);
+			return;
+		}
+		if (RUNNER_OPERAND.has(word)) i++;
+		else if (!word.startsWith("-")) {
+			programClassifier(word)?.(args.slice(i + 1), cwd, ctx);
+			return;
+		}
+	}
+}
+
+/**
+ * The classifier for the program a runner names: its version stripped
+ * (`rimraf@5`, `@mainahq/cli@latest`) and maina's package mapped to maina.
+ */
+function programClassifier(program: string): Classifier | undefined {
+	const bare = program.replace(/(.)@[^/]*$/, "$1");
+	return bare === MAINA_PACKAGE
+		? mainaClassifier
+		: CLASSIFIERS[baseCommand(bare)];
+}
+
+/** `maina policy` subcommands that only read. */
+const POLICY_READS: ReadonlySet<string> = new Set([
+	"show",
+	"list",
+	"get",
+	"check",
+	"validate",
+	"explain",
+	"path",
+]);
+
+/**
+ * `maina allow` and `maina policy` mutations change what the gate lets
+ * through, so an agent running one is overriding its own gate (#447). Help
+ * is harmless; a subcommand the gate cannot read asks.
+ */
+function mainaClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
+	const words = args.map((a) => a.text ?? UNKNOWN_WORD);
+	// A help flag after `--` is an operand, not help.
+	const end = words.indexOf("--");
+	const options = end < 0 ? words : words.slice(0, end);
+	if (options.includes("--help") || options.includes("-h")) return;
+	const [sub, action] = words.filter((w) => !w.startsWith("-"));
+	if (sub === UNKNOWN_WORD) ctx.out.add("shell.opaque");
+	else if (sub === "allow") ctx.out.add("gate.self_override");
+	else if (
+		sub === "policy" &&
+		action !== undefined &&
+		!POLICY_READS.has(action)
+	)
+		ctx.out.add("gate.self_override");
 }
 
 const literalArgs = (args: Argv): readonly string[] =>
@@ -670,6 +881,7 @@ function flagDelete(
 		ctx.out.add("shell.opaque");
 		return;
 	}
+	if (removesGateControl(resolved)) ctx.out.add("gate.self_override");
 	const root = ctx.event.root;
 	// Outside the workspace, the workspace root itself, or an ancestor of it:
 	// each removes the whole tree from outside.
@@ -897,15 +1109,11 @@ function publishManagerClassifier(
 	// A package manager running another publisher (`pnpm changeset publish`).
 	if (pos[0] === "changeset" && pos[1] === "publish")
 		ctx.out.add("package.publish");
-	if (pos[0] === "dlx" || pos[0] === "exec") {
-		const first = pos[1];
-		if (first !== undefined)
-			CLASSIFIERS[baseCommand(first)]?.(
-				args.slice(indexOfArg(args, first) + 1),
-				cwd,
-				ctx,
-			);
-	}
+	if (pos[0] === "dlx" || pos[0] === "exec" || pos[0] === "x")
+		runProgram(args, indexOfArg(args, pos[0]) + 1, cwd, ctx);
+	// `pnpm maina allow`, `yarn maina allow`: a package manager runs a bin by name.
+	if (pos[0] === "maina")
+		mainaClassifier(args.slice(indexOfArg(args, "maina") + 1), cwd, ctx);
 	// Run scripts: `npm run release`, `yarn release`, `pnpm run publish`.
 	const runAt = literals.indexOf("run");
 	const script =
@@ -941,6 +1149,8 @@ function fetchClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
 	const record = (target: string): void => {
 		ctx.downloads.add(baseCommand(target));
 		const resolved = resolvePath(target, cwd, ctx.gate.home);
+		if (isGateControlFile(resolved ?? target))
+			ctx.out.add("gate.self_override");
 		if (
 			isCredentialStorePath(resolved ?? target) ||
 			isSecretPath(resolved ?? target)
@@ -982,6 +1192,7 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 		for (const t of positional(args)) flagDelete(t, cwd, true, ctx);
 	},
 	rimraf: (_args, _cwd, ctx) => ctx.out.add("fs.delete.recursive"),
+	maina: mainaClassifier,
 	find: findClassifier,
 	git: gitClassifier,
 	npm: publishManagerClassifier,
@@ -1040,6 +1251,8 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 			if (isBlockDevice(target)) ctx.out.add("system.destructive");
 			else {
 				const resolved = resolvePath(target, cwd, ctx.gate.home);
+				if (isGateControlFile(resolved ?? target))
+					ctx.out.add("gate.self_override");
 				if (isOutsideWorkspace(resolved, ctx.event.root))
 					ctx.out.add("fs.write.outside");
 			}
@@ -1050,6 +1263,10 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 		if (literalArgs(args).includes("--delete"))
 			ctx.out.add("fs.delete.recursive");
 		for (const t of positional(args).slice(0, -1)) readTargets(t, cwd, ctx);
+		landsOnGateControl(args, cwd, ctx, {
+			tree: copiesTree(args),
+			targetOption: false,
+		});
 	},
 	kill: (args, _cwd, ctx) => {
 		const p = positional(args);
@@ -1127,12 +1344,30 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 	install: (args, cwd, ctx) => {
 		flagUnresolvedDestination(args, ctx);
 		writeTargets(positional(args).slice(-1), cwd, ctx);
+		landsOnGateControl(args, cwd, ctx, { tree: false, targetOption: true });
 	},
-	cp: copyClassifier,
-	mv: copyClassifier,
+	cp: (args, cwd, ctx) => {
+		copyClassifier(args, cwd, ctx);
+		landsOnGateControl(args, cwd, ctx, {
+			tree: copiesTree(args),
+			targetOption: true,
+		});
+	},
+	mv: (args, cwd, ctx) => {
+		copyClassifier(args, cwd, ctx);
+		// A move deletes its sources.
+		for (const source of positional(args).slice(0, -1)) {
+			const resolved = resolvePath(source, cwd, ctx.gate.home);
+			if (removesGateControl(resolved ?? source))
+				ctx.out.add("gate.self_override");
+		}
+		landsOnGateControl(args, cwd, ctx, { tree: true, targetOption: true });
+	},
 	ln: (args, cwd, ctx) => {
 		flagUnresolvedDestination(args, ctx);
 		writeTargets(positional(args).slice(-1), cwd, ctx);
+		// A link to a directory stands in for the whole tree.
+		landsOnGateControl(args, cwd, ctx, { tree: true, targetOption: true });
 	},
 	sed: sedClassifier,
 	printenv: (args, _cwd, ctx) => {
@@ -1275,6 +1510,7 @@ function writeTargets(
 	for (const t of targets) {
 		const resolved = resolvePath(t, cwd, ctx.gate.home);
 		const path = resolved ?? t;
+		if (isGateControlFile(path)) ctx.out.add("gate.self_override");
 		if (isCredentialStorePath(path) || isSecretPath(path))
 			ctx.out.add("secrets.write");
 		else if (resolved !== null && isSafeDevice(resolved)) continue;
@@ -1598,6 +1834,7 @@ function redirectClasses(
 			if (r.op.startsWith("<")) {
 				readTargets(text, cwd, ctx);
 			} else {
+				if (isGateControlFile(path)) ctx.out.add("gate.self_override");
 				if (isCredentialStorePath(path) || isSecretPath(path))
 					ctx.out.add("secrets.write");
 				else if (resolved !== null && isSafeDevice(resolved)) continue;

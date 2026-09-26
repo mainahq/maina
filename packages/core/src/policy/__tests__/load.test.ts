@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { createMemoryFs } from "../../ports/testing";
-import { DEFAULT_POLICY, IRREVERSIBLE_ACTION_CLASSES } from "../defaults";
+import {
+	DEFAULT_POLICY,
+	DENIED_ACTION_CLASSES,
+	IRREVERSIBLE_ACTION_CLASSES,
+} from "../defaults";
 import { loadPolicy } from "../load";
 
 const ROOT = "/repo";
@@ -20,9 +24,21 @@ describe("default policy", () => {
 			.filter(([, spec]) => spec.irreversible)
 			.map(([id]) => id)
 			.sort();
-		expect(irreversible).toEqual([...IRREVERSIBLE_ACTION_CLASSES].sort());
+		expect(irreversible).toEqual(
+			[...IRREVERSIBLE_ACTION_CLASSES, ...DENIED_ACTION_CLASSES].sort(),
+		);
 		for (const id of IRREVERSIBLE_ACTION_CLASSES) {
 			expect(DEFAULT_POLICY.action_classes[id]?.verdict).toBe("ask");
+		}
+	});
+
+	test("denies an agent changing its own gate by default (#447)", () => {
+		expect([...DENIED_ACTION_CLASSES]).toEqual(["gate.self_override"]);
+		for (const id of DENIED_ACTION_CLASSES) {
+			expect(DEFAULT_POLICY.action_classes[id]).toEqual({
+				irreversible: true,
+				verdict: "deny",
+			});
 		}
 	});
 

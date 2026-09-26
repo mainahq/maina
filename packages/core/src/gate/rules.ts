@@ -79,7 +79,7 @@ export function evaluateRules(
 			kind: "deny",
 			final: true,
 			source: "class",
-			reason: `action class ${denyClass.id} is denied`,
+			reason: classDenyReason(denyClass.id),
 			classes,
 		};
 	}
@@ -139,6 +139,13 @@ export function evaluateRules(
 
 	// 7. No rule and no risky class: defer to the later stages.
 	return { kind: "no_rule", classes };
+}
+
+/** Why a class denied; for `gate.self_override`, also who can override it. */
+function classDenyReason(id: string): string {
+	return id === "gate.self_override"
+		? "action class gate.self_override is denied: an agent cannot change its own gate; the user can run it in a terminal"
+		: `action class ${id} is denied`;
 }
 
 /**

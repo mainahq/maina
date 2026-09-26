@@ -467,3 +467,59 @@ describe("rules for other event kinds", () => {
 		).toBe("no_rule");
 	});
 });
+
+describe("an agent cannot override its own gate (#447)", () => {
+	test("maina allow is a final deny that names the way out", () => {
+		const result = evaluateRules(
+			shellEvent("maina allow d-1 --always"),
+			DEFAULT_POLICY,
+			ctx,
+		);
+		expect(result.kind).toBe("deny");
+		expect(result.classes).toContain("gate.self_override");
+		if (result.kind === "deny") {
+			expect(result.reason).toContain("gate.self_override");
+			expect(result.reason).toContain("terminal");
+		}
+	});
+
+	test("no allow rule reaches it", () => {
+		const policy = withRules({
+			allow: [
+				{ match: "maina allow d-1 --always", exact: true },
+				{ match: "maina *" },
+				{ match: ".claude/settings.json", kind: "file.write" },
+			],
+		});
+		expect(
+			evaluateRules(shellEvent("maina allow d-1 --always"), policy, ctx).kind,
+		).toBe("deny");
+		expect(
+			evaluateRules(writeEvent(".claude/settings.json"), policy, ctx).kind,
+		).toBe("deny");
+	});
+
+	test("a repo policy cannot loosen it without explicitly_allow", async () => {
+		const loaded = await loadPolicy(
+			{
+				fs: createMemoryFs({
+					[`${ROOT}/.maina/policy.json`]: JSON.stringify({
+						action_classes: { "gate.self_override": { verdict: "allow" } },
+					}),
+				}),
+			},
+			ROOT,
+			undefined,
+		);
+		expect(loaded.ok).toBe(false);
+	});
+
+	test("a policy that omits the class still denies it", () => {
+		const { "gate.self_override": _omitted, ...rest } =
+			DEFAULT_POLICY.action_classes;
+		const policy: Policy = { ...DEFAULT_POLICY, action_classes: rest };
+		expect(
+			evaluateRules(writeEvent(".maina/policy.json"), policy, ctx).kind,
+		).toBe("deny");
+	});
+});

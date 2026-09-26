@@ -4,6 +4,10 @@
  * decision; `--always` also remembers the action as a scoped allow rule in
  * the user policy (`~/.maina/policy.json`). It never writes a repo policy.
  * Thin wrapper over core's `recordOverride` and `rememberOverride`.
+ *
+ * Overrides are for the human at the terminal (#447): without a TTY on stdin
+ * it refuses, unless the user set `MAINA_ALLOW_NONINTERACTIVE=1` for a script
+ * they trust. The gate also denies an agent running it (`gate.self_override`).
  */
 
 import { join } from "node:path";
@@ -37,10 +41,15 @@ interface AllowDeps {
 	home: string | undefined;
 	clock: ClockPort;
 	print: (text: string) => void;
+	/** stdin is a terminal, so a human is at the keyboard. */
+	interactive: boolean;
+	/** The user set `MAINA_ALLOW_NONINTERACTIVE=1`. */
+	allowNonInteractive: boolean;
 }
 
 type AllowError =
 	| OverrideError
+	| Readonly<{ kind: "not_interactive" }>
 	| Readonly<{ kind: "no_home" }>
 	| Readonly<{ kind: "store"; message: string }>;
 
@@ -76,6 +85,8 @@ function describeAllowError(id: string, error: AllowError): string {
 			return `the decision store failed: ${error.message}`;
 		case "corrupt_row":
 			return `the gate subject for ${id} is corrupt`;
+		case "not_interactive":
+			return `refusing to override ${id} without a terminal: run \`maina allow ${id}\` yourself in a terminal, or set ${NON_INTERACTIVE_ENV}=1 for a script you trust`;
 		case "no_home":
 			return "no home directory (HOME is unset), so --always has no user policy to write";
 		default: {
@@ -84,6 +95,9 @@ function describeAllowError(id: string, error: AllowError): string {
 		}
 	}
 }
+
+/** Lets a script the user trusts override without a terminal. */
+const NON_INTERACTIVE_ENV = "MAINA_ALLOW_NONINTERACTIVE";
 
 function fail(error: AllowError): Readonly<{ ok: false; error: AllowError }> {
 	return { ok: false, error };
@@ -116,6 +130,9 @@ async function run(
 	options: AllowActionOptions,
 	deps: AllowDeps,
 ): Promise<AllowResult> {
+	if (!deps.interactive && !deps.allowNonInteractive) {
+		return fail({ kind: "not_interactive" });
+	}
 	const plan = planAlways(options, deps);
 	if (!plan.ok) return plan;
 
@@ -185,7 +202,7 @@ export async function allowAction(
 export function allowCommand(): Command {
 	return new Command("allow")
 		.description(
-			"Override a gate decision; --always also allows the action in your user policy",
+			"Override a gate decision from your terminal; --always also allows the action in your user policy",
 		)
 		.argument("<decision-id>", "The id from the gate message")
 		.option(
@@ -222,6 +239,8 @@ export function allowCommand(): Command {
 							home: home || undefined,
 							clock: { now: () => Date.now() },
 							print,
+							interactive: process.stdin.isTTY === true,
+							allowNonInteractive: processEnv.get(NON_INTERACTIVE_ENV) === "1",
 						},
 					);
 					if (!result.ok) process.exitCode = EXIT_CONFIG_ERROR;

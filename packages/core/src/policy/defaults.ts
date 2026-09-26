@@ -49,7 +49,25 @@ export const IRREVERSIBLE_ACTION_CLASSES = [
 	"privilege.escalate",
 ] as const;
 
+/**
+ * Irreversible classes denied by default, not merely asked about (#447).
+ * Loosening one follows the same `explicitly_allow` rule as any other
+ * irreversible class, and a repo layer's loosening still needs the user's
+ * confirmation.
+ */
+export const DENIED_ACTION_CLASSES = [
+	/**
+	 * An agent changing its own gate: `maina allow`, a `maina policy`
+	 * mutation, or a write, move or delete of a maina policy file or a host
+	 * hook config (`.claude/settings*.json`, `.cursor/hooks.json`,
+	 * `.codex/hooks.json`, `.codex/config.toml`). A human overrides from a
+	 * terminal instead.
+	 */
+	"gate.self_override",
+] as const;
+
 const irreversible: ActionClassPolicy = { irreversible: true, verdict: "ask" };
+const denied: ActionClassPolicy = { irreversible: true, verdict: "deny" };
 const allowed: ActionClassPolicy = { irreversible: false, verdict: "allow" };
 const asked: ActionClassPolicy = { irreversible: false, verdict: "ask" };
 
@@ -73,6 +91,7 @@ const REVERSIBLE_ACTION_CLASSES = {
 /** Every built-in action class; the gate classifier only produces these. */
 export type ActionClass =
 	| (typeof IRREVERSIBLE_ACTION_CLASSES)[number]
+	| (typeof DENIED_ACTION_CLASSES)[number]
 	| keyof typeof REVERSIBLE_ACTION_CLASSES;
 
 /** Missing a risky action costs more than asking about a safe one. */
@@ -102,6 +121,7 @@ export const DEFAULT_POLICY: Policy = {
 		...Object.fromEntries(
 			IRREVERSIBLE_ACTION_CLASSES.map((id) => [id, irreversible]),
 		),
+		...Object.fromEntries(DENIED_ACTION_CLASSES.map((id) => [id, denied])),
 	},
 	rules: { allow: [], deny: [] },
 	decisions: Object.fromEntries(
