@@ -176,7 +176,7 @@ function capped(events: readonly RetentionEvent[]): readonly RetentionEvent[] {
 /**
  * The log after `event`, or null when nothing needs writing: a surface seen
  * again within five minutes of its last sighting, or a session start within
- * a minute of the last one. A surface seen again later replaces its last
+ * a minute of the last session start. A surface seen again later replaces its last
  * sighting when nothing came between, so a status line redrawn all day is
  * one line. The log is capped at `MAX_RETENTION_EVENTS`, always keeping the
  * first session (the cohort start).
@@ -192,12 +192,16 @@ export function appendRetentionEvent(
 			return [...events.slice(0, -1), event];
 		}
 	}
-	if (
-		last?.kind === "session" &&
-		event.kind === "session" &&
-		Math.abs(event.ts - last.ts) < SESSION_DEDUP_MS
-	) {
-		return null;
+	if (event.kind === "session") {
+		// Against the last session start, not the last event: the status line
+		// renders right after SessionStart, so a surface usually sits between.
+		const lastSession = events.findLast((e) => e.kind === "session");
+		if (
+			lastSession !== undefined &&
+			Math.abs(event.ts - lastSession.ts) < SESSION_DEDUP_MS
+		) {
+			return null;
+		}
 	}
 	return capped([...events, event]);
 }

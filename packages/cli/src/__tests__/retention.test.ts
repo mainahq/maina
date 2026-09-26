@@ -70,6 +70,28 @@ describe("retentionRecorder", () => {
 		}
 	});
 
+	test("recorders running at once lose no event (a hook and the status line at session start)", async () => {
+		const home = mkdtempSync(join(tmpdir(), "maina-retention-"));
+		const saved = process.env.HOME;
+		process.env.HOME = home;
+		try {
+			const events = Array.from({ length: 12 }, (_, i) => ({
+				kind: "session" as const,
+				ts: (i + 1) * 3_600_000,
+			}));
+			await Promise.all(events.map((event) => recordRetention(event)));
+			const dir = join(home, ".maina");
+			const lines = readFileSync(join(dir, "retention.jsonl"), "utf-8")
+				.split("\n")
+				.filter((line) => line !== "");
+			expect(lines.length).toBe(events.length);
+			expect(readdirSync(dir)).toEqual(["retention.jsonl"]);
+		} finally {
+			process.env.HOME = saved;
+			rmSync(home, { recursive: true, force: true });
+		}
+	});
+
 	test("a failing filesystem never rejects", async () => {
 		const broken: FsPort = {
 			...memoryFs(),

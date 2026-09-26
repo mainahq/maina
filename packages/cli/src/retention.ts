@@ -5,12 +5,15 @@
  * digest) is never held up or broken by it.
  *
  * The log is replaced whole (written to a temp file, then renamed over it),
- * so a hook and the status line recording at once never read a half-written
- * log and write the truncated copy back.
+ * so a reader never sees a half-written log. Each read-append-write runs
+ * under an exclusive lock file next to the log, so a hook and the status
+ * line recording at once (both fire at session start) never overwrite each
+ * other's event.
  */
 
-import { rename, rm } from "node:fs/promises";
+import { mkdir, open, rename, rm, stat } from "node:fs/promises";
 import { homedir } from "node:os";
+import { dirname } from "node:path";
 import {
 	type EnvPort,
 	type FsPort,
@@ -73,7 +76,65 @@ export function userHome(env: EnvPort = processEnv): string | undefined {
 	}
 }
 
-/** Records `event` in the current user's history. Never rejects. */
-export function recordRetention(event: RetentionEvent): Promise<void> {
-	return retentionRecorder(atomicFs, userHome())(event);
+/** How long a recorder waits for another one to finish before giving up. */
+const LOCK_WAIT_MS = 1_000;
+const LOCK_RETRY_MS = 5;
+/** A lock older than this was left by a recorder that died; it is broken. */
+const LOCK_STALE_MS = 10_000;
+
+const pause = (ms: number) =>
+	new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const errorCode = (error: unknown): unknown =>
+	typeof error === "object" && error !== null && "code" in error
+		? error.code
+		: undefined;
+
+/** Creates `lock` exclusively; false when it stays taken or cannot be made. */
+async function acquireLock(lock: string): Promise<boolean> {
+	const deadline = Date.now() + LOCK_WAIT_MS;
+	for (;;) {
+		try {
+			await (await open(lock, "wx")).close();
+			return true;
+		} catch (error) {
+			const code = errorCode(error);
+			if (code === "ENOENT") {
+				await mkdir(dirname(lock), { recursive: true });
+				continue;
+			}
+			if (code !== "EEXIST") return false;
+		}
+		const age = await stat(lock).then(
+			(s) => Date.now() - s.mtimeMs,
+			() => 0,
+		);
+		if (age > LOCK_STALE_MS) {
+			await rm(lock, { force: true });
+			continue;
+		}
+		if (Date.now() >= deadline) return false;
+		await pause(LOCK_RETRY_MS);
+	}
+}
+
+/**
+ * Records `event` in the current user's history, one recorder at a time.
+ * Never rejects; when another recorder holds the log past `LOCK_WAIT_MS`,
+ * the event is dropped rather than holding up the surface.
+ */
+export async function recordRetention(event: RetentionEvent): Promise<void> {
+	const home = userHome();
+	if (home === undefined) return;
+	const lock = `${retentionLogFile(home)}.lock`;
+	try {
+		if (!(await acquireLock(lock))) return;
+	} catch {
+		return;
+	}
+	try {
+		await retentionRecorder(atomicFs, home)(event);
+	} finally {
+		await rm(lock, { force: true }).catch(() => undefined);
+	}
 }

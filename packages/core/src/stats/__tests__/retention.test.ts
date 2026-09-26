@@ -208,6 +208,25 @@ describe("recording", () => {
 		]);
 	});
 
+	test("a session start within a minute of the last one is the same session, even with a surface seen between", () => {
+		// The status line renders right after SessionStart, so the last event
+		// is rarely the session itself (review on #352).
+		const start = session(0);
+		const seen: RetentionEvent = {
+			kind: "surface",
+			ts: start.ts + 2_000,
+			surface: "statusline",
+		};
+		expect(
+			appendRetentionEvent([start, seen], { ...start, ts: start.ts + 30_000 }),
+		).toBeNull();
+		expect(appendRetentionEvent([start, seen], session(0, 1))).toEqual([
+			start,
+			seen,
+			session(0, 1),
+		]);
+	});
+
 	test("a full log keeps the first session and drops the oldest after it", () => {
 		const events: RetentionEvent[] = [session(0)];
 		for (let i = 1; i < 5000; i++) events.push(session(0, i));
