@@ -26,6 +26,7 @@ import {
 import { Command } from "commander";
 import { aiContext, processEnv } from "../env";
 import { EXIT_FINDINGS, EXIT_PASSED, outputJson } from "../json";
+import { receiptPublishCommand } from "./receipt-publish";
 
 interface ReceiptActionOptions {
 	all?: boolean;
@@ -304,6 +305,7 @@ export function receiptCommand(): Command {
 			"skip refreshing .maina/receipts/index.html after writing",
 		)
 		.option("--json", "emit structured JSON envelope instead of human output")
+		.addCommand(receiptPublishCommand())
 		.action(async (opts: ReceiptActionOptions) => {
 			const result = await receiptAction(opts);
 			const exitCode = exitCodeFor(result);
