@@ -236,3 +236,20 @@ describe("harness", () => {
 		expect(anchors).toContain("plugins-get-hooks-not-the-sandbox");
 	});
 });
+
+describe("hook failures", () => {
+	// Claude Code and Codex have no fail-closed hook setting: a hook that
+	// crashes or times out lets the action through. Only Cursor's
+	// `failClosed` blocks it (packages/plugins/src/generate/{claude,codex}.ts,
+	// packages/runtime/src/adapters/cursor.ts). No page may promise more.
+	const OVERCLAIM = /blocking hook that crashes or times out blocks/i;
+
+	for (const slug of ["concepts/harness", "concepts/policy"] as const) {
+		test(`${slug} does not promise every host fails closed on a hook crash`, () => {
+			const text = read(slug);
+			expect(OVERCLAIM.test(text)).toBe(false);
+			expect(text).toContain("`failClosed`");
+			expect(text).toMatch(/Claude Code and Codex[^.]*fail open/);
+		});
+	}
+});

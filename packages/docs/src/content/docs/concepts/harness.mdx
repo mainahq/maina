@@ -21,7 +21,7 @@ maina can sit next to a coding agent in three ways. They share the [policy](/con
 
 The Claude Code, Cursor and Codex plugins ([Install](/install/)) register maina on the host's lifecycle hooks. Before a tool runs, and when the host is about to ask you for a permission, the gate decides `allow`, `ask` or `deny`. When the session stops, maina checks what it changed. The [hook events reference](/reference/hooks/) lists each host's hooks.
 
-The host still runs its own tools, in your checkout, with your permissions. maina sees an action only where the host fires a hook for it, and there is no operating-system floor underneath: nothing stops a process the agent started from doing what the gate never saw. A blocking hook that crashes or times out blocks the action, so a broken gate fails closed.
+The host still runs its own tools, in your checkout, with your permissions. maina sees an action only where the host fires a hook for it, and there is no operating-system floor underneath: nothing stops a process the agent started from doing what the gate never saw. When the maina runtime cannot answer, the plugin's launcher gives the fail-closed answer itself. A hook that crashes or times out is up to the host: Cursor blocks the action, because maina sets `failClosed` on its permission hooks; Claude Code and Codex fail open and let it through, since neither has a fail-closed setting. The Codex plugin's rules file still forbids `maina allow` in that case.
 
 To put an agent inside the sandbox, drive it with `maina run`.
 
