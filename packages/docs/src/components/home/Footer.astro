@@ -1,0 +1,33 @@
+---
+/** Founder CTA, second waitlist form and the footer of `/`. */
+import { HOME_FOOTER } from '../../data/landing';
+import WaitlistForm from './WaitlistForm.astro';
+
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+const href = (h: string): string => (h.startsWith('/') ? `${base}${h}` : h);
+const year = new Date().getFullYear();
+---
+
+<footer class="dark foot">
+  <div class="wrap">
+    <div class="mb-[clamp(48px,8vw,96px)] flex flex-wrap items-end justify-between gap-8" id="contact">
+      <h2 class="h2 max-w-[14ch]">{HOME_FOOTER.cta}</h2>
+      <div class="grid w-full max-w-[560px] gap-4">
+        <div class="founder flex items-center gap-4">
+          <span class="avatar" aria-hidden="true">{HOME_FOOTER.founder.initials}</span>
+          <p><b>{HOME_FOOTER.founder.lead}</b>{HOME_FOOTER.founder.body}</p>
+        </div>
+        <WaitlistForm id="wl-foot" />
+      </div>
+    </div>
+    <p class="giant" aria-hidden="true">maina<svg class="mark" aria-hidden="true"><use href="#mynah" /></svg></p>
+    <div class="foot-row">
+      <span>© {year} {HOME_FOOTER.site} · {HOME_FOOTER.licence}</span>
+      <span class="inline-flex items-center gap-2.5"><span id="mail">{HOME_FOOTER.email}</span><button class="copy" data-copy="mail" type="button">Copy</button></span>
+      <span class="flex flex-wrap gap-x-3">
+        {HOME_FOOTER.links.map((l) => <a href={href(l.href)} rel="noopener">{l.label}</a>)}
+      </span>
+    </div>
+  </div>
+</footer>

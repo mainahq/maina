@@ -15,6 +15,7 @@ import {
 	type ClaimContext,
 	checkDocsClaims,
 	findClaims,
+	scannedFiles,
 } from "../docs-claims";
 
 const REPO_ROOT = join(import.meta.dir, "..", "..");
@@ -146,6 +147,26 @@ describe("AST evidence", () => {
 			"README.md: packages/core/src/verify/consistency.ts does not load a tree-sitter grammar",
 			"docs.mdx: packages/core/src/does-not-exist.ts does not exist",
 		]);
+	});
+});
+
+describe("the landing copy (#360)", () => {
+	test("is scanned: the landing data and every landing component", () => {
+		const files = scannedFiles(REPO_ROOT);
+		expect(files).toContain("packages/docs/src/data/landing.ts");
+		expect(
+			files.filter((f) => f.startsWith("packages/docs/src/components/home/")),
+		).not.toEqual([]);
+		expect(files).toContain("packages/docs/src/pages/index.astro");
+	});
+
+	test("a claim inside a TypeScript string is still a claim", () => {
+		const text = [
+			"export const HERO = {",
+			'\tsub: "Maina is deterministic and sends nothing.",',
+			"} as const;",
+		].join("\n");
+		expect(rules(text)).toEqual(["deterministic", "no-telemetry"]);
 	});
 });
 

@@ -1,0 +1,21 @@
+---
+/** FAQ. The page's JSON-LD FAQPage is built from the same items. */
+import { FAQ } from '../../data/landing';
+---
+
+<section class="paper section" id="faq" style="padding-top:0" aria-labelledby="faq-title">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">{FAQ.eyebrow}</p>
+      <h2 class="h2" id="faq-title">{FAQ.title}</h2>
+    </div>
+    <div class="faq">
+      {FAQ.items.map((item, i) => (
+        <details open={i === 0}>
+          <summary>{item.q}</summary>
+          <p>{item.a}</p>
+        </details>
+      ))}
+    </div>
+  </div>
+</section>

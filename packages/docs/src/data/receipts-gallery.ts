@@ -1,8 +1,7 @@
 /**
- * Build-time helpers for the homepage receipts gallery (Wave 3.2 #257).
- *
- * The Astro component reads the JSON files via `import.meta.glob`; this
- * module turns the raw shapes into the trimmed cards the UI renders.
+ * Build-time helpers that turn raw `.maina/receipts/<hash>/receipt.json`
+ * shapes into trimmed receipt cards (Wave 3.2 #257). The landing page's
+ * receipt proof (`scripts/landing-proofs.ts`, #360) takes the newest one.
  *
  * Pure functions only — kept out of the component so unit tests can
  * exercise the empty state, sort order, copy discipline (C2), and the
@@ -24,9 +23,9 @@ export interface RawReceipt {
 	checks?: unknown[];
 }
 
-export type StatusBadge = "passed" | "failed" | "partial";
+type StatusBadge = "passed" | "failed" | "partial";
 
-export interface GalleryCard {
+interface GalleryCard {
 	prTitle: string;
 	repo: string;
 	timestamp: string;

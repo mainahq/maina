@@ -48,6 +48,7 @@ import {
 	TOOL_USAGE,
 } from "../packages/mcp/src/catalog";
 import { PLUGIN } from "../packages/plugins/src/definition";
+import { claudeMarketplace } from "../packages/plugins/src/generate/marketplace";
 import { CLAUDE_HOOK_MAP } from "../packages/runtime/src/adapters/claude-code";
 import { CODEX_HOOK_MAP } from "../packages/runtime/src/adapters/codex";
 import { CURSOR_HOOK_MAP } from "../packages/runtime/src/adapters/cursor";
@@ -156,6 +157,8 @@ export type Facts = Readonly<{
 	decisionTypes: Readonly<{ count: number; names: readonly string[] }>;
 	hookEvents: Readonly<{ count: number; names: readonly string[] }>;
 	hosts: readonly string[];
+	/** What the install commands name: `/plugin install <name>@<marketplace>`. */
+	plugin: Readonly<{ name: string; marketplace: string; repository: string }>;
 	telemetry: Readonly<{
 		channels: readonly string[];
 		onByDefault: readonly string[];
@@ -175,6 +178,14 @@ export function telemetrySummary(on: readonly string[]): string {
 	const optIn = `${prose(off)} ${off.length === 1 ? "is" : "are each"} opt-in, turned on in your user policy (~/.maina/policy.json)`;
 	if (on.length === 0) return `Telemetry is off by default: ${optIn}.`;
 	return `${prose(on)} ${on.length === 1 ? "is" : "are"} on by default; ${optIn}.`;
+}
+
+/** The marketplace name `/plugin install maina@<name>` refers to. */
+function claudeMarketplaceName(): string {
+	const listing = JSON.parse(claudeMarketplace(PLUGIN).content) as {
+		name?: unknown;
+	};
+	return typeof listing.name === "string" ? listing.name : "";
 }
 
 export function collectFacts(root: string): Facts {
@@ -200,6 +211,11 @@ export function collectFacts(root: string): Facts {
 		decisionTypes: { count: DECISION_TYPES.length, names: [...DECISION_TYPES] },
 		hookEvents: { count: LIFECYCLE.length, names: LIFECYCLE },
 		hosts: HOSTS.map((h) => h.name),
+		plugin: {
+			name: PLUGIN.name,
+			marketplace: claudeMarketplaceName(),
+			repository: PLUGIN.repository.replace(/^https:\/\/github\.com\//, ""),
+		},
 		telemetry: {
 			channels: [...TELEMETRY_CHANNELS],
 			onByDefault,

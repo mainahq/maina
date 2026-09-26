@@ -48,6 +48,33 @@ jobs:
         env:
           MAINA_REQUIRE_SPECKIT: "1"
 
+  # Landing page budget (#360): build the docs site and hold / to the
+  # Lighthouse category floors and the byte/timing budget, both written as
+  # assertions in packages/docs/lighthouserc.json.
+  landing-lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build docs
+        run: cd packages/docs && bun run build
+
+      - name: Lighthouse budget for /
+        working-directory: packages/docs
+        run: npx --yes @lhci/cli@0.14.0 autorun --config=./lighthouserc.json
+
   # OS sandbox per worker (v1 task 4B.3, FR-SBX-1..4, ADR 0048): the sandbox
   # tests against the pinned sandbox-runtime on both platforms it supports,
   # with Codex installed for the nested-sandbox spike. The `ci` job has no
