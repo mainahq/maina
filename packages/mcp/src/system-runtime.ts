@@ -30,6 +30,7 @@ import {
 	queryWiki,
 	type Result,
 	readUserPolicy,
+	runAsSpendTask,
 	runPipeline,
 	runTwoStageReview,
 	systemFs,
@@ -66,15 +67,22 @@ const failed = (message: string): Result<never, RuntimeError> => ({
 const errorText = (e: unknown): string =>
 	e instanceof Error ? e.message : String(e);
 
-/** Runs `work`, turning a throw from a legacy core path into `failed`. */
-async function guard<T>(
+/**
+ * Runs one capability call: a throw from a legacy core path becomes
+ * `failed`, and the call
+ * is its own spend task, so the per-task budget cap counts only its model
+ * calls rather than the whole server session's (#463).
+ */
+export function guard<T>(
 	work: () => Promise<Result<T, RuntimeError>>,
 ): Promise<Result<T, RuntimeError>> {
-	try {
-		return await work();
-	} catch (e) {
-		return failed(errorText(e));
-	}
+	return runAsSpendTask(async () => {
+		try {
+			return await work();
+		} catch (e) {
+			return failed(errorText(e));
+		}
+	});
 }
 
 const isDirectory = (path: string): boolean => {
