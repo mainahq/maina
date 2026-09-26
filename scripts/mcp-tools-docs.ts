@@ -20,7 +20,8 @@
  *
  * Scanned: README.md, .github/copilot-instructions.md, every skill's
  * SKILL.md, the docs site's content, and the `maina setup` agent-file
- * templates.
+ * templates. Pages `scripts/docs-manifest.ts` generates are not checked
+ * for retired names: the changelog records them as history.
  */
 
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -34,6 +35,7 @@ import {
 	type ToolListFormat,
 	type ToolName,
 } from "../packages/mcp/src/catalog";
+import { GENERATED_DOCS } from "./docs-generated";
 
 const ROOT = join(import.meta.dir, "..");
 
@@ -188,6 +190,8 @@ function read(file: string): string | undefined {
 	}
 }
 
+const GENERATED: ReadonlySet<string> = new Set(GENERATED_DOCS);
+
 /** Stale blocks and retired tool names in the files under `root`. */
 export function checkToolDocs(root: string): CheckResult {
 	const { files, errors } = targets(root);
@@ -199,6 +203,8 @@ export function checkToolDocs(root: string): CheckResult {
 		const synced = syncToolBlocks(body);
 		if (synced.text !== body) result.stale.push(rel);
 		result.errors.push(...synced.errors.map((e) => `${rel}: ${e}`));
+		// Generated pages (the changelog) record history, retired names included.
+		if (GENERATED.has(rel)) continue;
 		body.split("\n").forEach((line, i) => {
 			for (const name of findRetiredTools(line)) {
 				result.retired.push({ file: rel, line: i + 1, name });
