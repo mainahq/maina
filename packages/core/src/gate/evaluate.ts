@@ -13,6 +13,8 @@
  *   3. decide   — `decide("action.risk")` with the policy's backend. Its
  *                 answer is folded in by `settleVerdict`, so it can tighten a
  *                 rule result or decide a `no_rule`, never loosen a result.
+ *                 An ask or deny the rules settle without a backend is
+ *                 recorded as the rules backend's answer, so it has an id.
  *
  * Fail closed: a backend error, an answer slower than the budget, one below
  * the policy's confidence threshold, a two-order disagreement, a malformed
@@ -22,6 +24,7 @@
  * everything the agent or the repository wrote goes into the untrusted one.
  */
 
+import { rulesBackend } from "../decide/backends/rules";
 import { type DecidePorts, decide } from "../decide/decide";
 import { type BackendRegistry, selectBackend } from "../decide/registry";
 import type { DecideError, DecideRequest, Decision } from "../decide/types";
@@ -62,13 +65,19 @@ export type GatePorts = Readonly<{
 export type GateResult = Readonly<{
 	verdict: Verdict;
 	reason: string;
-	/** Ids of the `action.risk` decisions behind the verdict, for the log. */
+	/**
+	 * Ids of the `action.risk` decisions behind the verdict, for the log. An
+	 * ask or deny a rule reached alone has one too, answered as the rules
+	 * backend, so every rule-decided ask or deny can be overridden by id; a
+	 * rule's allow has none, so allowed actions are not logged.
+	 */
 	decisionIds: readonly string[];
 	/** The gate could not run in full (no model answer, no shell grammar). */
 	degraded: boolean;
 	/**
-	 * The lowest confidence among the `action.risk` answers, when the model
-	 * answered; absent when a rule decided alone. Feeds the message's band.
+	 * The lowest confidence among the `action.risk` answers: the model's, or
+	 * 1 for a rule's own ask or deny. Absent when nothing was decided. Feeds
+	 * the message's band.
 	 */
 	confidence?: number;
 	/** A rewrite of the tool input for the host to run instead. */
@@ -142,14 +151,37 @@ function evaluate(
 					`the repo policy's explicitly_allow for ${c} needs user confirmation`,
 			),
 	].join("; ");
-	if (rules.kind === "deny") {
-		return { verdict: "deny", reason, decisionIds: [], degraded: blind };
-	}
-
 	const highRisk =
 		rules.classes.some((c) => isIrreversible(c, policy)) ||
 		(Array.isArray(event.untrusted) && event.untrusted.length > 0);
-	const model = consultModel(ports, event, rules, narrowed.policy, highRisk);
+	const model =
+		rules.kind === "deny"
+			? null
+			: consultModel(ports, event, rules, narrowed.policy, highRisk);
+	if (model === null) {
+		const verdict = settleVerdict(rules, undefined);
+		const settled = { verdict, reason, decisionIds: [], degraded: blind };
+		if (verdict === "allow") return settled;
+		// An ask or a deny the rules reached alone is still a decision: it gets
+		// an id and a log record, so `maina allow <id>` can override it (#448).
+		const answer = ruleAnswer(
+			riskRequest(
+				event,
+				rules,
+				narrowed.policy,
+				highRisk,
+				ports.newId(),
+				false,
+			),
+			verdict,
+		);
+		return {
+			...settled,
+			decisionIds: [answer.decision.id],
+			confidence: answer.decision.confidence,
+			decided: { policy: narrowed.policy, answers: [answer] },
+		};
+	}
 	return {
 		verdict: settleVerdict(rules, model.verdict),
 		reason: model.note === undefined ? reason : `${reason}; ${model.note}`,
@@ -167,7 +199,10 @@ function evaluate(
  * defaults, when it names none). Protecting a branch only tightens, so every
  * layer's list counts, a repo's included.
  */
-function withPolicyBranches(ctx: GateContext, policy: Policy): GateContext {
+export function withPolicyBranches(
+	ctx: GateContext,
+	policy: Policy,
+): GateContext {
 	const own = ctx.protectedBranches ?? DEFAULT_PROTECTED_BRANCHES;
 	return {
 		...ctx,
@@ -256,20 +291,17 @@ type ModelOutcome = Readonly<{
 	answers?: readonly GateAnswer[];
 }>;
 
-const NO_MODEL: ModelOutcome = {
-	verdict: undefined,
-	ids: [],
-	degraded: false,
-	note: undefined,
-};
-
+/**
+ * The `action.risk` outcome for a rule result, or null when no backend is
+ * asked because the rule already decided.
+ */
 function consultModel(
 	ports: GatePorts,
 	event: GateEvent,
 	rules: RuleResult,
 	policy: Policy,
 	highRisk: boolean,
-): ModelOutcome {
+): ModelOutcome | null {
 	// The rules backend answers by looking up the strictest class's verdict,
 	// which `evaluateRules` already did (with allow rules on top): its answer
 	// adds something only where no rule decided.
@@ -279,7 +311,7 @@ function consultModel(
 		selected.value.id === "rules" &&
 		rules.kind !== "no_rule"
 	) {
-		return NO_MODEL;
+		return null;
 	}
 
 	const decidePorts: DecidePorts = {
@@ -407,6 +439,30 @@ function riskRequest(
 				options: reversed ? [...VERDICTS].reverse() : [...VERDICTS],
 			},
 		],
+	};
+}
+
+/**
+ * The rules' own answer to `request`: `verdict`, certain, from the rules
+ * backend, as the log records a verdict no backend was asked for.
+ */
+function ruleAnswer(request: DecideRequest, verdict: Verdict): GateAnswer {
+	const [question] = request.questions;
+	const options = question?.kind === "choice" ? question.options : VERDICTS;
+	return {
+		request,
+		decision: {
+			id: question?.id ?? "",
+			type: request.type,
+			answer: verdict,
+			distribution: options.map((o) => ({
+				answer: o,
+				p: o === verdict ? 1 : 0,
+			})),
+			confidence: 1,
+			backend: { id: rulesBackend.id, version: rulesBackend.version },
+			latencyMs: 0,
+		},
 	};
 }
 

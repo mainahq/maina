@@ -14,6 +14,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { buildDecisionRecord } from "../../decide/log/append";
 import {
 	createRegistry,
 	DEFAULT_REGISTRY,
@@ -260,7 +261,10 @@ describe("evaluateGate: rules, then decide, then thresholds", () => {
 			modelPolicy(withRules({ deny: [{ match: "git status" }] })),
 		);
 		expect(result.verdict).toBe("deny");
-		expect(result.decisionIds).toEqual([]);
+		// Only the rules' own record of the deny (#448), never a model call.
+		expect(result.decided?.answers.map((a) => a.decision.backend.id)).toEqual([
+			"rules",
+		]);
 		expect(calls).toEqual([]);
 	});
 
@@ -310,11 +314,20 @@ describe("evaluateGate: rules, then decide, then thresholds", () => {
 		expect(result.confidence).toBeCloseTo(0.93, 5);
 	});
 
-	test("a verdict no model answered carries no confidence", () => {
+	test("a verdict a rule reached alone carries the rules' certainty (#448)", () => {
 		const result = evaluateGate(
 			gatePorts(),
 			shellEvent("git status"),
 			withRules({ deny: [{ match: "git status" }] }),
+		);
+		expect(result.confidence).toBe(1);
+	});
+
+	test("a verdict nothing decided carries no confidence", () => {
+		const result = evaluateGate(
+			gatePorts(),
+			{ ...shellEvent("ls"), kind: "nope" } as unknown as GateEvent,
+			DEFAULT_POLICY,
 		);
 		expect(result.confidence).toBeUndefined();
 	});
@@ -876,12 +889,71 @@ describe("the action.risk answers behind a verdict, for the log", () => {
 		);
 	});
 
-	test("a rule deciding alone has no answers", () => {
+	// #448: every ask or deny has a logged decision, so `maina allow <id>`
+	// resolves, even when a rule decided it without any backend.
+	test("a deny rule deciding alone is answered as the rules backend", () => {
+		const policy = withRules({ deny: [{ match: "git status" }] });
+		const result = evaluateGate(gatePorts(), shellEvent("git status"), policy);
+		expect(result.verdict).toBe("deny");
+		expect(result.decisionIds).toEqual(["d1"]);
+		const [answer, ...rest] = result.decided?.answers ?? [];
+		expect(rest).toEqual([]);
+		expect(answer?.request.type).toBe("action.risk");
+		expect(answer?.request.questions.map((q) => q.id)).toEqual(["d1"]);
+		expect(answer?.decision).toMatchObject({
+			id: "d1",
+			type: "action.risk",
+			answer: "deny",
+			confidence: 1,
+			backend: { id: "rules" },
+			latencyMs: 0,
+		});
+		expect(result.decided?.policy.rules.deny).toEqual(policy.rules.deny);
+	});
+
+	test.each([
+		["rm -rf build"],
+		["git push origin main"],
+	] as const)("a rule ask on the rules backend (%s) has one decision id", (command) => {
 		const result = evaluateGate(
 			gatePorts(),
-			shellEvent("git status"),
-			withRules({ deny: [{ match: "git status" }] }),
+			shellEvent(command),
+			DEFAULT_POLICY,
 		);
+		expect(result.verdict).toBe("ask");
+		expect(result.decisionIds).toEqual(["d1"]);
+		expect(result.decided?.answers[0]?.decision.answer).toBe("ask");
+	});
+
+	test("a rule's decision builds a valid log record", () => {
+		const result = evaluateGate(
+			gatePorts(),
+			shellEvent("rm -rf build"),
+			DEFAULT_POLICY,
+		);
+		const [answer] = result.decided?.answers ?? [];
+		if (answer === undefined || result.decided === undefined) {
+			throw new Error("no rule decision");
+		}
+		const record = buildDecisionRecord({
+			id: answer.decision.id,
+			ts: 1,
+			request: answer.request,
+			decision: answer.decision,
+			policy: result.decided.policy,
+			finalAction: result.verdict,
+			host: "test",
+		});
+		expect(record.ok).toBe(true);
+	});
+
+	test("a rule's allow has no decision, so allowed actions are not logged", () => {
+		const result = evaluateGate(
+			gatePorts(),
+			shellEvent("git push origin main"),
+			withRules({ allow: [{ match: "git push" }] }),
+		);
+		expect(result.verdict).toBe("allow");
 		expect(result.decisionIds).toEqual([]);
 		expect(result.decided).toBeUndefined();
 	});

@@ -21,10 +21,12 @@ import {
 	evaluateGate,
 	type GateContext,
 	type GateEvaluation,
+	gateSubject,
 	logPrivacy,
 	type PermissionMode,
 	type Policy,
 	type Result,
+	recordGateSubject,
 	VERDICTS,
 	type Verdict,
 	withBackend,
@@ -213,6 +215,10 @@ export function createGateEvaluator(
 			if (!ctx.ok) {
 				return asking(`the checked-out branch in ${root} could not be read`);
 			}
+			const effective =
+				mode === "rules_only"
+					? withBackend(policy.value, "action.risk", "rules")
+					: policy.value;
 			const result = evaluateGate(
 				{
 					clock: deps.clock,
@@ -222,11 +228,15 @@ export function createGateEvaluator(
 					confirmedLoosenings: deps.confirmedLoosenings,
 				},
 				core,
-				mode === "rules_only"
-					? withBackend(policy.value, "action.risk", "rules")
-					: policy.value,
+				effective,
 			);
-			await logDecisions(deps, root, core, result);
+			await logDecisions(deps, root, {
+				event: core,
+				policy: effective,
+				ctx: ctx.value,
+				result,
+				tightens: mode === "rules_only",
+			});
 			return {
 				verdict: result.verdict,
 				reason: result.reason,
@@ -263,17 +273,31 @@ async function contextFor(
 	};
 }
 
+/** One evaluated event, as the log needs it. */
+type Evaluated = Readonly<{
+	event: CoreGateEvent;
+	/** The policy the gate evaluated with. */
+	policy: Policy;
+	/** The context the gate classified with, the checked-out branch included. */
+	ctx: GateContext;
+	result: GateEvaluation;
+	/** The caller turns an allow into an ask (the rules-only fallback). */
+	tightens: boolean;
+}>;
+
 /**
  * Appends each `action.risk` decision behind `result` to the root's log,
- * keyed by the repo's salt. Never rejects and never changes the verdict: a
- * log that cannot be opened, or a salt that cannot be loaded, logs nothing
- * (never an unsalted record), and a failed append skips that record.
+ * keyed by the repo's salt, and, for an ask or a deny, records its subject
+ * under `decisionIds[0]`: the id the gate message names, so `maina allow
+ * <id> [--always]` finds both (#448). Never rejects and never changes the
+ * verdict: a log that cannot be opened, or a salt that cannot be loaded,
+ * logs nothing (never an unsalted record), and a failed write skips that
+ * record.
  */
 async function logDecisions(
 	deps: GateEvaluatorDeps,
 	root: string,
-	event: CoreGateEvent,
-	result: GateEvaluation,
+	{ event, policy, ctx, result, tightens }: Evaluated,
 ): Promise<void> {
 	const { decided } = result;
 	if (deps.logFor === undefined || decided === undefined) return;
@@ -298,6 +322,12 @@ async function logDecisions(
 				privacy,
 			);
 			if (record.ok) appendDecision({ db, privacy }, record.value);
+		}
+		// The hook client's fallback tightens every allow to an ask, so there
+		// each id may reach a gate message.
+		const [id] = result.decisionIds;
+		if (id !== undefined && (result.verdict !== "allow" || tightens)) {
+			recordGateSubject(db, gateSubject(id, event, policy, ctx));
 		}
 	} catch {
 		// The log is evidence, not the gate: losing a record never blocks.

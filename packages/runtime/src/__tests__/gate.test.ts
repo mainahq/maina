@@ -28,13 +28,17 @@ import {
 	DEFAULT_REGISTRY,
 	type DecisionRecord,
 	evaluateGate,
+	findGateSubject,
 	type GateContext,
 	hashInput,
 	LOG_SALT_PATH,
 	loadShellParser,
 	migrateDecisionLog,
+	migrateGateSubjects,
 	type Policy,
 	queryDecisions,
+	recordOverride,
+	scopedAllowRules,
 	toDbPort,
 } from "@mainahq/core";
 import { createHookClient } from "../client/hook-client";
@@ -465,7 +469,32 @@ describe("decision log", () => {
 		const db = toDbPort(new Database(":memory:"));
 		const migrated = migrateDecisionLog(db);
 		if (!migrated.ok) throw new Error(migrated.error.message);
+		const subjects = migrateGateSubjects(db);
+		if (!subjects.ok) throw new Error(subjects.error.message);
 		return db;
+	}
+
+	function subjectOf(db: DbPort, id: string) {
+		const found = findGateSubject(db, id);
+		if (!found.ok) throw new Error(found.error.kind);
+		return found.value;
+	}
+
+	function gateWithLog(
+		db: DbPort,
+		overrides: Partial<GateEvaluatorDeps> = {},
+		mode: "full" | "rules_only" = "full",
+	) {
+		return createGateEvaluator(
+			deps({
+				logFor: async () => ({
+					ok: true,
+					value: { db, salt: SALT_A, now: () => 1 },
+				}),
+				...overrides,
+			}),
+			mode,
+		);
 	}
 
 	function logged(db: DbPort): readonly DecisionRecord[] {
@@ -514,19 +543,103 @@ describe("decision log", () => {
 		expect(a?.schemaHash).not.toBe(b?.schemaHash as string);
 	});
 
-	test("a verdict decided by a rule alone logs nothing", async () => {
+	// #448: every ask or deny is logged with its subject under
+	// `decisionIds[0]`, so `maina allow <id> [--always]` resolves.
+	test.each([
+		"full",
+		"rules_only",
+	] as const)("a rule's own deny is logged with its subject (%s)", async (mode) => {
 		const db = memoryDb();
-		const decision = await createGateEvaluator(
-			deps({
-				policyFor: async () => ({ ok: true, value: withDeny("git status") }),
-				logFor: async () => ({
-					ok: true,
-					value: { db, salt: SALT_A, now: () => 1 },
-				}),
-			}),
+		const decision = await gateWithLog(
+			db,
+			{ policyFor: async () => ({ ok: true, value: withDeny("git status") }) },
+			mode,
 		)(shell("git status"));
 		expect(decision.verdict).toBe("deny");
-		expect(logged(db)).toEqual([]);
+		expect(decision.decisionIds).toEqual(["id-1"]);
+		expect(logged(db)).toMatchObject([
+			{ id: "id-1", answer: "deny", finalAction: "deny" },
+		]);
+		expect(subjectOf(db, "id-1")).toEqual({
+			decisionId: "id-1",
+			kind: "shell",
+			targets: ["git status"],
+			classes: ["shell.exec"],
+			rule: "deny",
+			irreversible: false,
+		});
+	});
+
+	test("a rule's own ask is logged with its subject", async () => {
+		const db = memoryDb();
+		const decision = await gateWithLog(db)(shell("git push origin main"));
+		expect(decision.verdict).toBe("ask");
+		const [id] = decision.decisionIds;
+		expect(logged(db).map((r) => r.id)).toEqual([id as string]);
+		expect(subjectOf(db, id as string)).toMatchObject({
+			kind: "shell",
+			targets: ["git push origin main"],
+			rule: "ask",
+		});
+	});
+
+	test("a model's two-order ask records one subject, under the first id", async () => {
+		const db = memoryDb();
+		// Answers in each question's own option order, so both orders agree.
+		const denyEach: Backend = {
+			id: "system1",
+			version: "test",
+			answer: ({ questions }) => ({
+				ok: true,
+				value: questions.map((q) => ({
+					answer: "deny",
+					distribution: (q.kind === "choice" ? q.options : []).map((o) => ({
+						answer: o,
+						p: o === "deny" ? 1 : 0,
+					})),
+				})),
+			}),
+		};
+		const decision = await gateWithLog(db, {
+			backends: createRegistry([...DEFAULT_REGISTRY.values(), denyEach]),
+			policyFor: async () => ({ ok: true, value: modelPolicy }),
+		})({
+			kind: "shell",
+			input: { command: "ls -la", untrusted: ["web"] },
+			cwd: ROOT,
+		});
+		expect(decision.verdict).toBe("deny");
+		const [first, second] = decision.decisionIds;
+		expect(decision.decisionIds.length).toBe(2);
+		expect(subjectOf(db, first as string)?.targets).toEqual(["ls -la"]);
+		expect(subjectOf(db, second as string)).toBeUndefined();
+	});
+
+	test("an allowed action records no subject", async () => {
+		const db = memoryDb();
+		const decision = await gateWithLog(db)(shell("ls -la"));
+		expect(decision.verdict).toBe("allow");
+		expect(subjectOf(db, decision.decisionIds[0] as string)).toBeUndefined();
+	});
+
+	test("the rules-only fallback records a subject for an allow, which the client tightens to an ask", async () => {
+		const db = memoryDb();
+		const decision = await gateWithLog(db, {}, "rules_only")(shell("ls -la"));
+		expect(decision.verdict).toBe("allow");
+		expect(subjectOf(db, decision.decisionIds[0] as string)?.targets).toEqual([
+			"ls -la",
+		]);
+	});
+
+	test("the subject sees the checked-out branch the gate saw", async () => {
+		const db = memoryDb();
+		const decision = await gateWithLog(db, {
+			branchOf: async () => ({ ok: true, value: "main" }),
+		})(shell("git push"));
+		expect(decision.verdict).toBe("ask");
+		expect(subjectOf(db, decision.decisionIds[0] as string)?.classes).toContain(
+			"git.push.protected",
+		);
 	});
 
 	const failingLogs: ReadonlyArray<
@@ -902,6 +1015,36 @@ describe("systemGates", () => {
 			);
 			for (const r of logged) {
 				expect(r.inputHash).toBe(hashInput("action.risk", state, r.id, salt));
+			}
+		});
+
+		// #448: the id in a real gate message resolves for `maina allow`.
+		test("a real ask's id resolves for maina allow and --always", async () => {
+			const repo = newRepo();
+			const decided = await systemGates({ home }).runtime(
+				shell("git push origin main", repo),
+			);
+			expect(decided.verdict).toBe("ask");
+			const [id] = decided.decisionIds;
+			const opened = openDecisionDb(join(repo, ".maina"));
+			if (!opened.ok) throw new Error(opened.error);
+			try {
+				const { db } = opened.value;
+				const subject = findGateSubject(db, id as string);
+				if (!subject.ok || subject.value === undefined) {
+					throw new Error(`no subject for ${id}`);
+				}
+				const rules = scopedAllowRules(subject.value);
+				expect(rules.ok && rules.value.map((r) => r.match)).toEqual([
+					"git push origin main",
+				]);
+				const overridden = recordOverride(
+					{ db, clock: { now: () => 7 } },
+					id as string,
+				);
+				expect(overridden.ok).toBe(true);
+			} finally {
+				opened.value.close();
 			}
 		});
 

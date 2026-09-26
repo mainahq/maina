@@ -5,8 +5,12 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { GateResult } from "../evaluate";
+import { DEFAULT_REGISTRY } from "../../decide/registry";
+import { DEFAULT_POLICY } from "../../policy/defaults";
+import type { Policy } from "../../policy/schema";
+import { evaluateGate, type GateResult } from "../evaluate";
 import { confidenceBand, formatGateMessage } from "../messages";
+import { gateContext, shellEvent } from "./helpers";
 
 function result(overrides: Partial<GateResult> = {}): GateResult {
 	return {
@@ -136,5 +140,38 @@ describe("confidenceBand", () => {
 
 	test("a model decision with no reported confidence is low", () => {
 		expect(confidenceBand(result({ decisionIds: ["d-1"] }))).toBe("low");
+	});
+});
+
+const withRules = (rules: Policy["rules"]): Policy => ({
+	...DEFAULT_POLICY,
+	rules,
+});
+
+// #448: a rule's own ask or deny carries a decision id and the rules'
+// certainty, so its message names an override and stays `high`.
+describe("a rule-only verdict's message", () => {
+	test.each([
+		[
+			"deny",
+			withRules({ allow: [], deny: [{ match: "git status" }] }),
+			"git status",
+		],
+		["ask", DEFAULT_POLICY, "git push origin main"],
+	] as const)("a rule %s names its override and a high band", async (verdict, policy, command) => {
+		const gate = evaluateGate(
+			{
+				clock: { now: () => 0 },
+				backends: DEFAULT_REGISTRY,
+				ctx: await gateContext(),
+				newId: () => "d-3",
+			},
+			shellEvent(command),
+			policy,
+		);
+		const message = formatGateMessage(gate);
+		expect(message).toStartWith(`maina ${verdict}:`);
+		expect(message).toContain("(confidence high)");
+		expect(message).toContain("override: maina allow d-3 [--always]");
 	});
 });
