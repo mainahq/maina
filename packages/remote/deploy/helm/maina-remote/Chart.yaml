@@ -1,0 +1,15 @@
+apiVersion: v2
+name: maina-remote
+description: >-
+  maina, self-hosted: the remote MCP service behind OAuth 2.1 and an egress
+  proxy that lets the install reach GitHub and nothing else.
+type: application
+version: 0.1.0
+appVersion: "0.0.0"
+home: https://mainahq.com/self-host/
+sources:
+  - https://github.com/mainahq/maina
+keywords:
+  - maina
+  - mcp
+  - self-hosted

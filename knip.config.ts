@@ -132,10 +132,24 @@ const config: KnipConfig = {
 			],
 		},
 		"packages/remote": {
-			// The service process (the Dockerfile runs it by path) and the
-			// one-shot GitHub App job process, also run by path.
-			entry: ["src/main.ts!", "src/github/main.ts!", TESTS],
-			project: ["src/**/*.ts!", "!src/**/__tests__/**!"],
+			// The service process (the Dockerfile runs it by path), the
+			// one-shot GitHub App job process and the self-host edge
+			// forwarders, also run by path. The smoke test preloads the
+			// network spy and serves the fake GitHub by path.
+			entry: [
+				"src/main.ts!",
+				"src/github/main.ts!",
+				"src/edge/main.ts!",
+				TESTS,
+				"deploy/__tests__/*.test.ts",
+				"deploy/__tests__/network-spy.ts",
+				"deploy/__tests__/fake-github-server.ts",
+			],
+			project: [
+				"src/**/*.ts!",
+				"!src/**/__tests__/**!",
+				"deploy/__tests__/*.ts",
+			],
 		},
 		"packages/skills": {
 			entry: ["__tests__/**/*.test.ts"],

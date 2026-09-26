@@ -1,0 +1,83 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $fullname := include "maina.fullname" . -}}
+# Restricted pods (the service, and any PR job pod labelled
+# maina.dev/egress=restricted) may reach only the egress proxy and DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-restricted
+  labels:
+    {{- include "maina.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      maina.dev/egress: restricted
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "maina.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: egress
+      ports:
+        - protocol: TCP
+          port: {{ .Values.egress.port }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dns.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dns.podLabels | nindent 14 }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# The egress proxy takes connections only from restricted pods and opens
+# connections only on the upstream ports; it enforces the host allow-list.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-egress
+  labels:
+    {{- include "maina.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "maina.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: egress
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              maina.dev/egress: restricted
+      ports:
+        - protocol: TCP
+          port: {{ .Values.egress.port }}
+  egress:
+    - ports:
+        {{- range .Values.egress.upstreamPorts }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dns.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dns.podLabels | nindent 14 }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

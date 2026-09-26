@@ -1,0 +1,87 @@
+# maina-remote: the remote MCP service and the egress proxy.
+# Guide: https://mainahq.com/self-host/
+
+image:
+  # Build from packages/remote/Dockerfile and push to your registry.
+  repository: maina-remote
+  tag: local
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# $HOME inside the image. The policy file and the model artifacts are
+# mounted under $HOME/.maina, where the image reads them.
+home: /home/bun
+
+remote:
+  # Public origin of the service (https unless loopback, no path).
+  issuer: https://maina.example.com
+  owner: owner
+  # Secret with the owner's password (12+ characters) under `passwordKey`.
+  # Required: kubectl create secret generic maina --from-literal=password=...
+  existingSecret: ""
+  passwordKey: password
+  # Tool allow-list (comma-separated); empty: the remote default set.
+  tools: ""
+  workspace:
+    # PVC with the repository the MCP tools act on, mounted read-only.
+    # Empty: an empty directory (the tools then have nothing to act on).
+    existingClaim: ""
+  # Clients, tokens and sessions live in memory: keep one replica.
+  replicas: 1
+  resources: {}
+
+policy:
+  # The operator's policy (JSON), mounted at $HOME/.maina/policy.json. It is
+  # the user layer of the policy merge. A policy that opts into telemetry is
+  # refused at startup: a self-hosted install sends nothing but GitHub
+  # traffic.
+  json: |
+    {
+      "version": 1,
+      "telemetry": { "crash_reports": false, "usage": false, "outcome_sharing": false }
+    }
+
+model:
+  # PVC with local model artifacts, mounted read-only at $HOME/.maina/models.
+  # Empty: none installed (heuristics serve every decision).
+  existingClaim: ""
+
+egress:
+  # Exact hosts (host or host:port, default 443) the install may reach.
+  # GitHub Enterprise: your GHE host instead. Anything added here is
+  # traffic leaving your network.
+  allowedHosts:
+    - github.com
+    - api.github.com
+  # Destination ports the proxy itself may open (match allowedHosts).
+  upstreamPorts:
+    - 443
+  port: 3128
+  resources: {}
+
+networkPolicy:
+  # Pods labelled maina.dev/egress=restricted (the service, and any PR job
+  # pod you give the label) may reach only the egress proxy and cluster DNS.
+  enabled: true
+  dns:
+    namespace: kube-system
+    podLabels:
+      k8s-app: kube-dns
+
+service:
+  type: ClusterIP
+  port: 8787
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]

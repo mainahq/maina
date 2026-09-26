@@ -1,0 +1,9 @@
+{
+	"$schema": "https://raw.githubusercontent.com/mainahq/maina/master/schemas/policy.schema.json",
+	"version": 1,
+	"telemetry": {
+		"crash_reports": false,
+		"usage": false,
+		"outcome_sharing": false
+	}
+}

@@ -1,0 +1,71 @@
+{{- $fullname := include "maina.fullname" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-egress
+  labels:
+    {{- include "maina.labels" . | nindent 4 }}
+    app.kubernetes.io/component: egress
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "maina.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: egress
+  template:
+    metadata:
+      labels:
+        {{- include "maina.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: egress
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: egress
+          image: {{ include "maina.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["bun", "packages/remote/src/edge/main.ts", "egress"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: PORT
+              value: {{ .Values.egress.port | quote }}
+            - name: MAINA_EGRESS_ALLOW
+              value: {{ join "," .Values.egress.allowedHosts | quote }}
+          ports:
+            - name: proxy
+              containerPort: {{ .Values.egress.port }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: proxy
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: proxy
+          {{- with .Values.egress.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-egress
+  labels:
+    {{- include "maina.labels" . | nindent 4 }}
+    app.kubernetes.io/component: egress
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "maina.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: egress
+  ports:
+    - name: proxy
+      port: {{ .Values.egress.port }}
+      targetPort: proxy
