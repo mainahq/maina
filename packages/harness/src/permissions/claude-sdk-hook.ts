@@ -27,8 +27,13 @@
  * prints `{}` so the host's own flow stands. `claude-hook-main.ts` is the
  * process that runs it.
  *
- * Limits: Claude Code treats a hook that fails to start (no `bun`) as a
- * non-blocking error and runs the tool; the sandbox is what holds then.
+ * Limits: Claude Code treats a hook that fails to start (no `bun`) or
+ * outlives its timeout as a non-blocking error and runs the tool; the
+ * sandbox is what holds then. The hook runs inside the worker's sandbox, so
+ * its log has to be writable there, and the agent can append to or rewrite
+ * it: the log is the hook's account of what it judged, not tamper-proof
+ * evidence. Uninstall before the worktree is committed or salvaged, or the
+ * local settings (and their backup) go into the run's branch with it.
  */
 
 import {

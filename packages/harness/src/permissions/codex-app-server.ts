@@ -13,16 +13,23 @@
  * every approval request from the gate and logs it:
  *
  *   item/commandExecution/requestApproval   `shell`         accept | decline
+ *     plus `network` for the host when it asks for network access
  *   item/fileChange/requestApproval         `file.write`    accept | decline
- *     per path the item announced in `item/started` (a move writes both ends)
+ *     per path the item announced in `item/started` or last updated in
+ *     `item/fileChange/patchUpdated` (a move writes both ends)
  *   execCommandApproval (legacy)            `shell`         approved | denied
  *   applyPatchApproval (legacy)             `file.write`    approved | denied
  *
  * A standing approval (`acceptForSession`, `approved_for_session`) is never
- * given: it would let later calls skip the gate. `ask` declines, since a run
- * has nobody to ask. A request whose target cannot be read (no command, a
- * file change for an item never announced) is declined. Any other server
- * request gets a JSON-RPC "method not found" error, never an approval.
+ * given: it would let later calls skip the gate. For the same reason a
+ * request that would grant more than the call itself is declined outright:
+ * a file change asking to `grantRoot` writes for the rest of the session, a
+ * command asking for `additionalPermissions`, and input to a running
+ * terminal (`kind: writeStdin`), whose text the request does not carry.
+ * `ask` declines, since a run has nobody to ask. A request whose target
+ * cannot be read (no command, a file change for an item never announced) is
+ * declined. Any other server request gets a JSON-RPC "method not found"
+ * error, never an approval.
  *
  * Calls go through `../events` as the ACP tool calls they amount to, so the
  * gate judges Codex's actions exactly as an ACP agent's. A file change's
@@ -238,9 +245,45 @@ function patchChanges(fileChanges: unknown): readonly Change[] {
 type Approval = Readonly<{
 	sessionId: string;
 	id: string;
-	/** The call to judge, or undefined when its target cannot be read. */
-	call: ToolCallUpdate | undefined;
+	/** The calls to judge, or undefined when the target cannot be read. */
+	calls: readonly ToolCallUpdate[] | undefined;
+	/** Why the request is declined whatever the gate says: it asks for more than the call. */
+	refused?: string;
 }>;
+
+/** A request for more than the call: a standing grant the gate never judged. */
+function refusal(p: Payload): string | undefined {
+	const grantRoot = text(p.grantRoot);
+	if (grantRoot !== undefined) {
+		return `asks for a standing write grant under ${grantRoot}, which would let later writes skip the gate; declined`;
+	}
+	if (
+		p.additionalPermissions !== undefined &&
+		p.additionalPermissions !== null
+	) {
+		return "asks for permissions beyond the command, which the gate cannot judge; declined";
+	}
+	if (p.kind !== undefined && p.kind !== null && p.kind !== "command") {
+		return `a ${String(p.kind)} approval carries nothing the gate can judge; declined`;
+	}
+	return undefined;
+}
+
+/** The host a command asks network access for, as the fetch it amounts to. */
+function networkCall(id: string, context: unknown): ToolCallUpdate[] {
+	if (!isRecord(context)) return [];
+	const host = text(context.host);
+	if (host === undefined) return [];
+	const scheme = text(context.protocol) ?? "https";
+	return [
+		{
+			toolCallId: id,
+			kind: "fetch",
+			title: "network access",
+			rawInput: { url: `${scheme}://${host}` },
+		},
+	];
+}
 
 const HOST = "codex";
 
@@ -265,20 +308,33 @@ export function attachCodexApprovals(
 		if (method === "item/started") announced.set(id, itemChanges(item.changes));
 		else if (method === "item/completed") announced.delete(id);
 	});
+	// A patch that grows after `item/started` is judged as it now stands.
+	const unsubscribePatch = rpc.onNotification(({ method, params }) => {
+		if (method !== "item/fileChange/patchUpdated" || !isRecord(params)) return;
+		const id = text(params.itemId);
+		if (id !== undefined) announced.set(id, itemChanges(params.changes));
+	});
 
 	const answer =
 		(read: (p: Payload) => Approval, decisions: readonly [string, string]) =>
 		(params: unknown) => {
 			const approval = read(isRecord(params) ? params : {});
-			const normalised =
-				approval.call === undefined
-					? { gate: [], opaque: true }
-					: gateEvents(approval.call, {
-							host: HOST,
-							sessionId: approval.sessionId,
-							root,
-						});
-			const judged = judgeActions(bridge, normalised.gate, normalised.opaque);
+			const each = (approval.calls ?? []).map((call) =>
+				gateEvents(call, { host: HOST, sessionId: approval.sessionId, root }),
+			);
+			const normalised = {
+				gate: each.flatMap((n) => n.gate),
+				opaque: approval.calls === undefined || each.some((n) => n.opaque),
+			};
+			const judged =
+				approval.refused === undefined
+					? judgeActions(bridge, normalised.gate, normalised.opaque)
+					: {
+							verdict: "deny" as const,
+							reason: approval.refused,
+							degraded: false,
+							decisionIds: [],
+						};
 			const decision = judged.verdict === "allow" ? decisions[0] : decisions[1];
 			logPermission(bridge, {
 				source: "codex-app-server",
@@ -297,15 +353,17 @@ export function attachCodexApprovals(
 		id: string,
 		cmd: unknown,
 		cwd: unknown,
-	): ToolCallUpdate | undefined =>
+	): ToolCallUpdate[] | undefined =>
 		cmd === undefined || cmd === null
 			? undefined
-			: {
-					toolCallId: id,
-					kind: "execute",
-					title: "command",
-					rawInput: { command: cmd, cwd: text(cwd) ?? root },
-				};
+			: [
+					{
+						toolCallId: id,
+						kind: "execute",
+						title: "command",
+						rawInput: { command: cmd, cwd: text(cwd) ?? root },
+					},
+				];
 
 	const V2: readonly [string, string] = ["accept", "decline"];
 	const LEGACY: readonly [string, string] = ["approved", "denied"];
@@ -314,10 +372,16 @@ export function attachCodexApprovals(
 			"item/commandExecution/requestApproval",
 			answer((p) => {
 				const id = text(p.itemId) ?? "";
+				const refused = refusal(p);
+				const calls = command(id, p.command, p.cwd);
 				return {
 					sessionId: text(p.threadId) ?? "",
 					id,
-					call: command(id, p.command, p.cwd),
+					calls:
+						calls === undefined
+							? undefined
+							: [...calls, ...networkCall(id, p.networkApprovalContext)],
+					...(refused === undefined ? {} : { refused }),
 				};
 			}, V2),
 		),
@@ -326,13 +390,15 @@ export function attachCodexApprovals(
 			answer((p) => {
 				const id = text(p.itemId) ?? "";
 				const changes = announced.get(id);
+				const refused = refusal(p);
 				return {
 					sessionId: text(p.threadId) ?? "",
 					id,
-					call:
+					calls:
 						changes === undefined || changes.length === 0
 							? undefined
-							: editCall(id, changes, root),
+							: [editCall(id, changes, root)],
+					...(refused === undefined ? {} : { refused }),
 				};
 			}, V2),
 		),
@@ -343,7 +409,7 @@ export function attachCodexApprovals(
 				return {
 					sessionId: text(p.conversationId) ?? "",
 					id,
-					call: command(id, p.command, p.cwd),
+					calls: command(id, p.command, p.cwd),
 				};
 			}, LEGACY),
 		),
@@ -352,16 +418,20 @@ export function attachCodexApprovals(
 			answer((p) => {
 				const id = text(p.callId) ?? "";
 				const changes = patchChanges(p.fileChanges);
+				const refused = refusal(p);
 				return {
 					sessionId: text(p.conversationId) ?? "",
 					id,
-					call: changes.length === 0 ? undefined : editCall(id, changes, root),
+					calls:
+						changes.length === 0 ? undefined : [editCall(id, changes, root)],
+					...(refused === undefined ? {} : { refused }),
 				};
 			}, LEGACY),
 		),
 	];
 	return () => {
 		unsubscribe();
+		unsubscribePatch();
 		for (const off of unregister) off();
 	};
 }
