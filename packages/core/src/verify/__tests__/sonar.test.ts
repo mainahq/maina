@@ -1,8 +1,11 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createFakeProcess } from "../../ports/testing";
 import { parseSonarReport, runSonar } from "../sonar";
 
-// Tests run from the repository; pass it as the explicit root (#290).
-const ROOT = process.cwd();
+const OK = { exitCode: 0, stdout: "", stderr: "" };
 
 describe("SonarQube Integration", () => {
 	describe("parseSonarReport", () => {
@@ -107,10 +110,66 @@ describe("SonarQube Integration", () => {
 	});
 
 	describe("runSonar", () => {
+		let root: string;
+
+		beforeEach(() => {
+			root = mkdtempSync(join(tmpdir(), "maina-544-sonar-"));
+		});
+
+		afterEach(() => {
+			rmSync(root, { recursive: true, force: true });
+		});
+
+		/** Records every spawn and answers each with exit 0. */
+		const recording = () => createFakeProcess(() => ({ ok: true, value: OK }));
+
 		it("should skip when sonarqube is not available", async () => {
-			const result = await runSonar({ cwd: ROOT, available: false });
+			const result = await runSonar({ cwd: root, available: false });
 			expect(result.skipped).toBe(true);
 			expect(result.findings).toHaveLength(0);
+		});
+
+		it("should skip quietly without spawning when the root has no sonar-project.properties (#544)", async () => {
+			const proc = recording();
+			const result = await runSonar({
+				cwd: root,
+				available: true,
+				process: proc,
+			});
+			expect(result).toEqual({ findings: [], skipped: true });
+			expect(proc.calls()).toEqual([]);
+		});
+
+		it("should not pass the removed preview analysis mode (#544)", async () => {
+			writeFileSync(
+				join(root, "sonar-project.properties"),
+				"sonar.projectKey=x\n",
+			);
+			const proc = recording();
+			await runSonar({ cwd: root, available: true, process: proc });
+			const argv = proc.calls()[0]?.argv ?? [];
+			expect(argv[0]).toBe("sonar-scanner");
+			expect(argv.some((a) => a.includes("sonar.analysis.mode"))).toBe(false);
+			expect(argv.some((a) => a.includes("sonar.report.export.path"))).toBe(
+				false,
+			);
+		});
+
+		it("should report a run that left no local report as skipped with a notice, never a pass", async () => {
+			// Since SonarQube 7 the issues live on the server, not in a local file.
+			writeFileSync(
+				join(root, "sonar-project.properties"),
+				"sonar.projectKey=x\n",
+			);
+			const result = await runSonar({
+				cwd: root,
+				available: true,
+				process: recording(),
+			});
+			expect(result.skipped).toBe(true);
+			expect(result.findings).toEqual([]);
+			expect(result.notice).toContain("sonarqube");
+			expect(result.notice).toContain("server");
 		});
 	});
 });

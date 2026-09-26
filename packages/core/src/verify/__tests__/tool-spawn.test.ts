@@ -237,6 +237,12 @@ describe("runners spawn the tool path resolved by detection (#389)", () => {
 	beforeEach(() => {
 		root = mkdtempSync(join(tmpdir(), "maina-tool-spawn-"));
 		mkdirSync(join(root, "node_modules", ".bin"), { recursive: true });
+		// secretlint and sonar-scanner run only in a configured project (#544).
+		writeFileSync(join(root, ".secretlintrc.json"), "{}");
+		writeFileSync(
+			join(root, "sonar-project.properties"),
+			"sonar.projectKey=x\n",
+		);
 	});
 
 	afterEach(() => {

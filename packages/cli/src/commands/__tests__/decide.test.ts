@@ -9,6 +9,8 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { type Backend, createRegistry } from "@mainahq/core";
+import { nodeFs } from "../../ports";
 import { decideAction } from "../decide";
 
 let home: string;
@@ -31,6 +33,24 @@ function writePolicy(dir: string, policy: unknown): void {
 
 function classPolicy(id: string, verdict: "allow" | "ask" | "deny"): unknown {
 	return { action_classes: { [id]: { irreversible: false, verdict } } };
+}
+
+const deps = {
+	fs: nodeFs,
+	clock: { now: () => Date.now() },
+	repoRoot: async () => "",
+};
+
+/** A finding.real request for rule r1 with `totalCount` samples. */
+function findingInput(totalCount: number): string {
+	return JSON.stringify({
+		state: {
+			trusted: {
+				candidates: { r1: { falsePositiveRate: 0.1, totalCount } },
+			},
+		},
+		questions: [{ kind: "bool", id: "rule:r1" }],
+	});
 }
 
 const run = (options: {
@@ -183,6 +203,79 @@ describe("decideAction", () => {
 		const numeric = await run({ type: "slop", input, untrusted: ["text=3"] });
 		expect(numeric.exitCode).toBe(2);
 		expect(numeric.output.error?.kind).toBe("unsupported");
+	});
+
+	test("an answer at or above the policy threshold is the verdict", async () => {
+		const { output } = await run({
+			type: "action.risk",
+			trusted: ["actionClass=git.push.force"],
+		});
+		expect(output.data?.threshold).toBe(0.9);
+		expect(output.data?.belowThreshold).toBe(false);
+		expect(output.data?.verdict).toBe("ask");
+	});
+
+	test("action.risk below the policy threshold fails closed to ask, like the gate (#544)", async () => {
+		const unsure: Backend = {
+			id: "rules",
+			version: "test",
+			answer: ({ questions }) => ({
+				ok: true,
+				value: questions.map(() => ({
+					answer: "allow",
+					distribution: [
+						{ answer: "allow", p: 0.6 },
+						{ answer: "ask", p: 0.3 },
+						{ answer: "deny", p: 0.1 },
+					],
+				})),
+			}),
+		};
+		const { output, exitCode } = await decideAction(
+			{ cwd: repo, home, type: "action.risk", trusted: ["actionClass=x"] },
+			{ ...deps, backends: createRegistry([unsure]) },
+		);
+		expect(exitCode).toBe(0);
+		expect(output.data?.verdict).toBe("ask");
+		expect(output.data?.confidence).toBe(0.6);
+		expect(output.data?.threshold).toBe(0.9);
+		expect(output.data?.belowThreshold).toBe(true);
+		// The backend's own answer stays on record.
+		expect(output.data?.decisions[0]?.answer).toBe("allow");
+	});
+
+	test("the repo policy's threshold is the one applied", async () => {
+		writePolicy(repo, {
+			decisions: {
+				"finding.real": {
+					backend: "heuristic",
+					thresholds: { confidence: 0.5 },
+					error_costs: { false_positive: 1, false_negative: 1 },
+				},
+			},
+		});
+		const { output } = await run({
+			type: "finding.real",
+			input: findingInput(2),
+		});
+		expect(output.data?.threshold).toBe(0.5);
+		expect(output.data?.belowThreshold).toBe(false);
+		expect(output.data?.verdict).toBe("true");
+	});
+
+	test("any other type below the threshold has the verdict unsure", async () => {
+		// Two samples: the heuristic keeps the rule at an even split (0.5),
+		// under finding.real's default 0.8 threshold.
+		const { output, exitCode } = await run({
+			type: "finding.real",
+			input: findingInput(2),
+		});
+		expect(exitCode).toBe(0);
+		expect(output.data?.confidence).toBe(0.5);
+		expect(output.data?.threshold).toBe(0.8);
+		expect(output.data?.belowThreshold).toBe(true);
+		expect(output.data?.verdict).toBe("unsure");
+		expect(output.data?.decisions[0]?.answer).toBe(true);
 	});
 
 	test("a backend that cannot answer is a tool failure with no verdict", async () => {

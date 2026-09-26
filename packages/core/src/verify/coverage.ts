@@ -123,11 +123,16 @@ export async function runCoverage(
 	const coverageXml = options.coverageXml ?? "coverage/cobertura-coverage.xml";
 	const baseBranch = await resolveBaseBranch(cwd, options.baseBranch);
 
+	// The JSON report goes to stdout ("-"); --quiet keeps diff-cover's text
+	// summary out of it. `--json-report` needs its argument: a bare `--json`
+	// is read as `--json-report` without one, a usage error.
 	const args: [string, ...string[]] = [
 		resolved.command,
 		coverageXml,
 		`--compare-branch=${baseBranch}`,
-		"--json",
+		"--json-report",
+		"-",
+		"--quiet",
 	];
 
 	const run = await spawnTool(args, cwd, options.process);

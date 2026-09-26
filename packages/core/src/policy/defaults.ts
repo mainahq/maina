@@ -169,3 +169,18 @@ export const DEFAULT_POLICY: Policy = {
 	discovery: { receipt_line: true },
 	loosened: [],
 };
+
+/**
+ * The confidence below which `policy` does not act on a `type` answer: the
+ * policy's own threshold, else the built-in one. The gate and
+ * `maina decide` both read it here, so they agree on what "unsure" means.
+ */
+export function confidenceThreshold(
+	policy: Policy,
+	type: DecisionType,
+): number {
+	return (
+		policy.decisions[type]?.thresholds.confidence ??
+		DEFAULT_POLICY.decisions[type].thresholds.confidence
+	);
+}

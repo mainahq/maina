@@ -1,10 +1,18 @@
 /**
  * SonarQube Integration for the Verify Engine.
  *
- * Runs sonar-scanner and parses the JSON report into unified Findings.
- * Gracefully skips if sonar-scanner is not installed.
+ * Runs sonar-scanner and parses a local JSON issues report, when the run
+ * leaves one, into unified Findings. The scanner's local "issues" preview
+ * mode (`sonar.analysis.mode`) was removed in SonarQube 7: a modern scanner
+ * uploads its analysis and the issues live on the server, so a run without a
+ * local report is a skip with a notice, never a pass.
+ *
+ * Gracefully skips if sonar-scanner is not installed, or if the repository
+ * has no `sonar-project.properties` (the scanner has no project to analyse).
  */
 
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { ProcessPort } from "../ports/process";
 import type { Finding } from "./diff-filter";
 import {
@@ -111,26 +119,29 @@ export function parseSonarReport(json: string): Finding[] {
 
 // ─── Runner ───────────────────────────────────────────────────────────────
 
+const NO_LOCAL_REPORT_NOTICE =
+	"sonarqube ran but left no local issues report (the analysis is on the SonarQube server). Skipped, no results from this tool.";
+
 /**
  * Run SonarQube scanner and return parsed findings.
  *
- * If sonar-scanner is not installed, returns `{ findings: [], skipped: true }`.
- * Spawns the command detection resolved (it may be root-local); if it cannot
- * be started, returns `{ findings: [], skipped: true, notice }`.
+ * If sonar-scanner is not installed, or the root has no
+ * `sonar-project.properties`, returns `{ findings: [], skipped: true }`
+ * without spawning it. Spawns the command detection resolved (it may be
+ * root-local); if it cannot be started, returns
+ * `{ findings: [], skipped: true, notice }`.
  */
 export async function runSonar(options: SonarOptions): Promise<SonarResult> {
 	const resolved = await resolveTool("sonarqube", options);
-	if (!resolved.available) {
+	const cwd = options.cwd;
+	if (
+		!resolved.available ||
+		!existsSync(join(cwd, "sonar-project.properties"))
+	) {
 		return { findings: [], skipped: true };
 	}
 
-	const cwd = options.cwd;
-
-	const args: [string, ...string[]] = [
-		resolved.command,
-		"-Dsonar.analysis.mode=issues",
-		"-Dsonar.report.export.path=sonar-report.json",
-	];
+	const args: [string, ...string[]] = [resolved.command];
 
 	const run = await spawnTool(args, cwd, options.process);
 	if (!run.ok) {
@@ -158,7 +169,12 @@ export async function runSonar(options: SonarOptions): Promise<SonarResult> {
 					notice: exitFailureNotice("sonarqube", run.value),
 				};
 			}
-			return { findings: [], skipped: false };
+			// The analysis went to the server; nothing local to report.
+			return {
+				findings: [],
+				skipped: true,
+				notice: NO_LOCAL_REPORT_NOTICE,
+			};
 		}
 
 		const reportJson = await reportFile.text();

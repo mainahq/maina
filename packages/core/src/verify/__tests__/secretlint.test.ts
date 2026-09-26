@@ -1,8 +1,9 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createFakeProcess } from "../../ports/testing";
 import { parseSecretlintOutput, runSecretlint } from "../secretlint";
-
-// Tests run from the repository; pass it as the explicit root (#290).
-const ROOT = process.cwd();
 
 // ─── parseSecretlintOutput ─────────────────────────────────────────────────
 
@@ -162,32 +163,109 @@ describe("parseSecretlintOutput", () => {
 
 // ─── runSecretlint ─────────────────────────────────────────────────────────
 
+const FINDINGS = JSON.stringify([
+	{
+		filePath: "src/app.ts",
+		messages: [
+			{
+				ruleId: "fake-secret",
+				message: "fake secretlint finding",
+				loc: { start: { line: 2, column: 1 } },
+				severity: 2,
+			},
+		],
+	},
+]);
+
 describe("runSecretlint", () => {
-	it("should skip when secretlint is not installed", async () => {
-		const result = await runSecretlint({ cwd: ROOT });
-		if (result.skipped) {
-			expect(result.findings).toEqual([]);
-			expect(result.skipped).toBe(true);
-		} else {
-			expect(Array.isArray(result.findings)).toBe(true);
-			expect(result.skipped).toBe(false);
-		}
+	let root: string;
+
+	beforeEach(() => {
+		root = mkdtempSync(join(tmpdir(), "maina-544-secretlint-"));
 	});
 
-	it("should return correct result shape", async () => {
-		const result = await runSecretlint({ cwd: ROOT });
-		expect(result).toHaveProperty("findings");
-		expect(result).toHaveProperty("skipped");
-		expect(Array.isArray(result.findings)).toBe(true);
-		expect(typeof result.skipped).toBe("boolean");
+	afterEach(() => {
+		rmSync(root, { recursive: true, force: true });
 	});
 
-	it("should accept options without crashing", async () => {
-		const result = await runSecretlint({
-			files: ["nonexistent-file.ts"],
-			cwd: "/tmp",
+	const scripted = () =>
+		createFakeProcess({
+			"secretlint --format json src/app.ts": { stdout: FINDINGS },
 		});
-		expect(result).toHaveProperty("findings");
-		expect(result).toHaveProperty("skipped");
+
+	it("should skip without spawning when secretlint is not installed", async () => {
+		const proc = scripted();
+		const result = await runSecretlint({
+			cwd: root,
+			available: false,
+			process: proc,
+		});
+		expect(result).toEqual({ findings: [], skipped: true });
+		expect(proc.calls()).toEqual([]);
+	});
+
+	it("should skip quietly without spawning when the root has no secretlint config (#544)", async () => {
+		// secretlint refuses to run without one; spawning it only produced a
+		// stack trace as a notice on every verify.
+		const proc = scripted();
+		const result = await runSecretlint({
+			cwd: root,
+			files: ["src/app.ts"],
+			available: true,
+			process: proc,
+		});
+		expect(result).toEqual({ findings: [], skipped: true });
+		expect(proc.calls()).toEqual([]);
+	});
+
+	for (const config of [
+		".secretlintrc",
+		".secretlintrc.json",
+		".secretlintrc.yaml",
+		".secretlintrc.yml",
+		".secretlintrc.js",
+		".secretlintrc.cjs",
+	]) {
+		it(`should run when the root has ${config}`, async () => {
+			writeFileSync(join(root, config), "{}");
+			const proc = scripted();
+			const result = await runSecretlint({
+				cwd: root,
+				files: ["src/app.ts"],
+				available: true,
+				process: proc,
+			});
+			expect(result.skipped).toBe(false);
+			expect(result.findings).toHaveLength(1);
+			expect(proc.calls()).toHaveLength(1);
+		});
+	}
+
+	it("should run when package.json carries a secretlint config", async () => {
+		writeFileSync(
+			join(root, "package.json"),
+			JSON.stringify({ secretlint: { rules: [] } }),
+		);
+		const result = await runSecretlint({
+			cwd: root,
+			files: ["src/app.ts"],
+			available: true,
+			process: scripted(),
+		});
+		expect(result.skipped).toBe(false);
+		expect(result.findings).toHaveLength(1);
+	});
+
+	it("should not count a package.json without a secretlint field as config", async () => {
+		writeFileSync(join(root, "package.json"), JSON.stringify({ name: "x" }));
+		const proc = scripted();
+		const result = await runSecretlint({
+			cwd: root,
+			files: ["src/app.ts"],
+			available: true,
+			process: proc,
+		});
+		expect(result).toEqual({ findings: [], skipped: true });
+		expect(proc.calls()).toEqual([]);
 	});
 });

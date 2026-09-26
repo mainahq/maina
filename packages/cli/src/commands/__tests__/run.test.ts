@@ -71,6 +71,43 @@ const options: RunActionOptions = {
 };
 
 describe("runAction", () => {
+	test("the prepared run is released once the agent is done, before the receipt (#544)", async () => {
+		for (const writeOk of [true, false]) {
+			const events: string[] = [];
+			const base = deps({
+				writeFile: async () => {
+					events.push("write");
+					return writeOk
+						? { ok: true, value: undefined }
+						: {
+								ok: false,
+								error: { kind: "io", path: "/x", message: "disk full" },
+							};
+				},
+			});
+			const prepare = base.deps.prepare;
+			const d: RunActionDeps = {
+				...base.deps,
+				prepare: async (input) => {
+					const prepared = await prepare(input);
+					if (!prepared.ok) return prepared;
+					return {
+						ok: true,
+						value: {
+							...prepared.value,
+							release: async () => {
+								events.push("release");
+							},
+						},
+					};
+				},
+			};
+			const result = await runAction(options, d);
+			expect(result.ok).toBe(writeOk);
+			expect(events).toEqual(["release", "write"]);
+		}
+	});
+
 	test("with no terminal the run is unattended, bounded by the policy's unattended budgets", async () => {
 		const { deps: d, seen } = deps();
 		const result = await runAction(options, d);
