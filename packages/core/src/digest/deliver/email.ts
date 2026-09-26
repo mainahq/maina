@@ -23,8 +23,14 @@ export type EmailError =
 	| Readonly<{ kind: "timeout"; timeoutMs: number }>
 	| Readonly<{ kind: "exit"; exitCode: number; detail: string }>;
 
-/** One bare address: no spaces, controls, brackets, commas or quotes. */
-export const EMAIL_ADDRESS = /^[^\s@<>,;:"()[\]\\]+@[^\s@<>,;:"()[\]\\]+$/;
+/**
+ * One bare ASCII address: RFC 5322 `atext` and dots before the `@`, a
+ * hostname (letters, digits, dots, hyphens; punycode for IDNs) after it.
+ * Nothing that could end a header line or add a recipient gets through:
+ * no whitespace, control characters, brackets, commas or quotes.
+ */
+export const EMAIL_ADDRESS =
+	/^[A-Za-z0-9!#$%&'*+/=?^_`{|}~.-]+@[A-Za-z0-9.-]+$/;
 
 const SENDMAIL = ["sendmail", "-t", "-i"] as const;
 const TIMEOUT_MS = 15_000;

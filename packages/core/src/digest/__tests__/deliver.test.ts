@@ -178,6 +178,11 @@ describe("deliverDigest: email", () => {
 			"dev@example.com\nBcc: all@example.com",
 			"dev@example.com, other@example.com",
 			"not-an-address",
+			// Control characters that `\s` does not cover.
+			"dev\u0000@example.com",
+			"dev@example.com\u0001",
+			"dev@exa\u007fmple.com",
+			"dev@example.com\u0085Bcc: x@example.com",
 		]) {
 			expect(buildDigestEmail(MESSAGE, { to: [to] })).toEqual({
 				ok: false,

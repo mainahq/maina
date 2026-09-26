@@ -109,13 +109,13 @@
 							"type": "array",
 							"items": {
 								"type": "string",
-								"pattern": "^[^\\s@<>,;:\"()[\\]\\\\]+@[^\\s@<>,;:\"()[\\]\\\\]+$"
+								"pattern": "^[A-Za-z0-9!#$%&'*+/=?^_`{|}~.-]+@[A-Za-z0-9.-]+$"
 							},
 							"description": "Recipients of the card."
 						},
 						"from": {
 							"type": "string",
-							"pattern": "^[^\\s@<>,;:\"()[\\]\\\\]+@[^\\s@<>,;:\"()[\\]\\\\]+$",
+							"pattern": "^[A-Za-z0-9!#$%&'*+/=?^_`{|}~.-]+@[A-Za-z0-9.-]+$",
 							"description": "Sender address; the local user when absent."
 						}
 					},
