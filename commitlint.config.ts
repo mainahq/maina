@@ -11,6 +11,7 @@ export default {
 				"harness",
 				"adapters",
 				"mcp",
+				"remote",
 				"skills",
 				"plugins",
 				"docs",

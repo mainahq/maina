@@ -96,6 +96,15 @@
         "ajv": "^8.18.0",
       },
     },
+    "packages/remote": {
+      "name": "@mainahq/remote",
+      "version": "0.0.0",
+      "dependencies": {
+        "@mainahq/core": "workspace:*",
+        "@mainahq/mcp": "workspace:*",
+        "@modelcontextprotocol/sdk": "^1.29.0",
+      },
+    },
     "packages/runtime": {
       "name": "@mainahq/runtime",
       "version": "0.0.0",
@@ -421,6 +430,8 @@
     "@mainahq/mcp": ["@mainahq/mcp@workspace:packages/mcp"],
 
     "@mainahq/plugins": ["@mainahq/plugins@workspace:packages/plugins"],
+
+    "@mainahq/remote": ["@mainahq/remote@workspace:packages/remote"],
 
     "@mainahq/runtime": ["@mainahq/runtime@workspace:packages/runtime"],
 
