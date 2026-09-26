@@ -1,15 +1,15 @@
 ---
 title: Verify Engine
-description: Deterministic verification pipeline with syntax guard, parallel tools, diff-only filtering, and two-stage review.
+description: Verification pipeline with syntax guard, parallel tools, diff-only filtering, and two-stage review.
 ---
 
-The Verify Engine proves code is correct. Deterministic tools find issues. AI generates fixes. Humans review. Feedback improves everything.
+The Verify Engine proves code is correct. Static analysis tools find issues. AI generates fixes. Humans review. Feedback improves everything.
 
 ## The Problem
 
 AI-generated code ships with vulnerabilities, dead code, hallucinated imports, and copy-paste patterns that no single linter catches. Manual code review cannot keep pace with AI generation speed.
 
-The solution: a hybrid verification pipeline that runs deterministic tools first, filters to changed lines only, and uses AI only for fix generation and review.
+The solution: a hybrid verification pipeline that runs static analysis tools first, filters to changed lines only, and uses AI only for fix generation and review.
 
 ## Pipeline
 
@@ -20,7 +20,7 @@ Code change (diff)
 Syntax Guard (Biome) ---------- REJECT if invalid (< 500ms)
     |                            Prevents bad states early
     v
-Parallel Deterministic Analysis
+Parallel Static Analysis
     |   Biome (423+ rules)
     |   Semgrep (2,000+ SAST rules + custom)
     |   SonarQube CE (quality gates)
@@ -30,7 +30,7 @@ Parallel Deterministic Analysis
     |   Stryker (mutation testing)
     |   AI Slop Detector
     |   typecheck (tsc --noEmit)
-    |   consistency (AST cross-function check)
+    |   consistency (cross-function pattern check)
     |
     v
 Diff-only Filter --------------- Only findings on changed lines
@@ -133,7 +133,7 @@ The same constitution surface controls every other verify tool, so the silencing
 | **Stryker** | Mutation testing -- are your tests actually testing? | Optional |
 | **AI Slop Detector** | AI-generated filler, hallucinations, dead code | Built-in |
 | **typecheck** | `tsc --noEmit` type checking with zero extra installs | Built-in (TS projects) |
-| **consistency** | AST-based cross-function consistency check | Built-in |
+| **consistency** | Pattern-based cross-function consistency check | Built-in |
 | **doc-claims** | Verifies `import` statements in changed `.md` / `.mdx` files reference symbols actually exported by the resolved package source | Built-in |
 
 ## Commands

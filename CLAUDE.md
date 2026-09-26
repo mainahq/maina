@@ -58,35 +58,49 @@ bun run verify           # Full verification: check + typecheck + test
 
 ```
 packages/
-├── cli/       # Commander entrypoint, commands (thin wrappers over engines), terminal UI
-├── core/      # Three engines + cache + AI + git + DB + hooks
+├── core/      # Pure functions + injected ports: decide, gate, policy, graph, verify, receipts
 │   └── src/
-│       ├── context/   # Context Engine: 4-layer retrieval, PageRank, budget, tree-sitter
-│       ├── prompts/   # Prompt Engine: constitution, custom prompts, versioning, A/B testing
-│       ├── verify/    # Verify Engine: syntax guard → parallel tools → diff filter → AI fix → review
-│       ├── features/  # Feature directory management, auto-numbering
-│       ├── cache/     # 3-layer: LRU memory → SQLite → API
-│       ├── ai/        # Vercel AI SDK wrapper, model tiers
-│       ├── feedback/  # RL feedback collection
-│       ├── git/       # Git operations via the ProcessPort
-│       ├── hooks/     # Lifecycle hook executor
-│       └── db/        # Drizzle schemas
-├── mcp/       # MCP server (delegates to engines)
-└── skills/    # Cross-platform skills (Claude Code, Cursor, Codex, Gemini CLI)
+│       ├── ports/     # CorePorts (fs, git, db, clock, logger, model, env, process) + fakes
+│       ├── decide/    # decide(), backends (rules, heuristic), decision log, outcomes, promotion, drift
+│       ├── gate/      # evaluateGate: trust → rules → decide("action.risk"); shell/SQL parsers
+│       ├── policy/    # Policy schema, defaults, layered load (defaults < user < repo)
+│       ├── graph/     # Code graph: tree-sitter parse, store, impact/context queries
+│       ├── verify/    # Verify pipeline: syntax guard → tools → diff filter → triage → review
+│       ├── receipt/   # Receipt build, canonical JSON hash, offline verification
+│       ├── context/   # Context Engine: working, episodic, semantic (graph), retrieval
+│       ├── prompts/   # Prompt Engine: constitution, custom prompts, versioning
+│       ├── telemetry/ # Opt-in channels, consent, outcome sharing
+│       └── ...        # ai, cache, db, features, feedback, wiki, digest, brain, ...
+├── runtime/   # Process concerns: repo root, config, daemon + IPC, MCP root, retention
+│   └── src/adapters/  # Host adapters (claude-code, codex, cursor): hook events in, verdicts out
+├── harness/   # maina run / maina acp: ACP orchestrator, workers, OS sandbox, worktrees, budgets
+├── cli/       # Commander entrypoint; commands are thin wrappers over core/runtime/harness
+├── mcp/       # MCP server: the default tool allow-list, delegating to core
+├── remote/    # Remote connector: MCP over Streamable HTTP + OAuth, GitHub App jobs, self-host
+├── plugins/   # One definition generating the Claude Code, Cursor, Codex plugin packages
+├── skills/    # Agent Skills (gate, verify, spec, triage, graph)
+└── docs/      # Astro Starlight site; reference pages and facts generated from the code
 ```
 
 ## Architecture
 
-- **Context Engine** has 4 layers: Working (current branch/files) → Episodic (PR summaries with Ebbinghaus decay) → Semantic (tree-sitter AST, PageRank-scored dependency graph) → Retrieval (Zoekt code search). Dynamic token budget: 60% default, 80% explore, 40% focused. Each command declares its context needs via a selector.
-- **Prompt Engine** loads constitution (`.maina/constitution.md`) + custom prompts (`.maina/prompts/`). Prompts are hashed and versioned. Feedback drives A/B-tested evolution.
-- **Verify Engine** pipeline: syntax guard (Biome, <500ms) → parallel deterministic tools (Semgrep, Trivy, Secretlint, SonarQube, diff-cover, Stryker, slop detector) → diff-only filter → AI fix → two-stage review (spec compliance then code quality).
-- **Cache** keys on `hash(prompt_version + context_hash + model + input)`. Same query never hits AI twice.
-- **Single LLM call per command** (exception: PR review gets two for the two-stage review).
+Layers, from the inside out (dependencies point inward only):
+
+- **core** decides. Pure functions over explicit inputs and `CorePorts`. `decide(type, state, questions)` is the one entry point for every judgement: a backend (`rules`, `heuristic`, later the local `system1` model) returns a probability distribution per question, and every gate decision is appended to the local decision log (`.maina/decisions.db`, append-only, hashes and labels only). The gate runs trust → rules → `decide("action.risk")`, which may tighten a rule verdict but never loosen it; every error asks. Policy merges defaults < user (`~/.maina/policy.json`) < repo (`.maina/policy.json`); rule lists accumulate and irreversible classes only loosen through `explicitly_allow`.
+- **runtime** owns process concerns: finding the repo root, loading config and policy, the daemon and its IPC, the MCP root, retention. It builds the real ports and calls core.
+- **adapters** (`runtime/src/adapters`) normalise each host's hook events into gate events and map verdicts back. They never decide. Hook mappings are defined once (`hook-map.ts`) and generated into docs and plugins.
+- **harness** drives agents over ACP. `maina run` gives each run its own worktree, wraps the agent in the OS sandbox (sandbox-runtime: Seatbelt on macOS, bubblewrap on Linux; a floor under the gate, never a copy), gates permission requests by the run context (interactive or unattended), enforces budgets and allows one revision after a failed review. `maina acp` proxies an editor's agent and gates its permission requests, without a sandbox.
+- **plugins** are generated packaging: one definition produces each host's plugin (hooks, MCP server, skills). Plugin users get the gate at the host's hooks, not the sandbox.
+- **remote** serves the MCP tools over HTTP behind OAuth and runs GitHub App jobs in scratch directories that are deleted when the job ends. There is no action gate remotely.
+- **Surfaces** (cli, mcp, skills, docs) are thin: they call core through runtime or harness and hold no decisions of their own.
+
+The 1.x engines live on inside core: the Context Engine (working → episodic → semantic code graph → retrieval, with a task-dependent token budget), the Prompt Engine (constitution + custom prompts, hashed and versioned) and the Verify pipeline (syntax guard → parallel tools → diff-only filter → triage → review). AI calls are cached on `hash(prompt_version + context_hash + model + input)`.
 
 ## Conventions
 
 - **TDD always.** Write tests first, watch them fail, implement, watch them pass.
-- **Conventional commits.** Scopes: `cli`, `core`, `mcp`, `skills`, `docs`, `ci`.
+- **Conventional commits.** Scopes (`commitlint.config.ts`): `cli`, `core`, `runtime`, `harness`, `adapters`, `mcp`, `remote`, `skills`, `plugins`, `docs`, `ci`.
+- **Docs claims.** `bun run docs:check` fails on forbidden claims (`scripts/docs-claims.ts`): "deterministic", "can't hallucinate", "no telemetry" without the qualifier the config makes true, and "AST" on a page no tree-sitter source backs.
 - **Error handling:** `Result<T, E>` pattern. Never throw.
 - **WHAT/WHY in spec.md, HOW in plan.md** — never mixed.
 - **`[NEEDS CLARIFICATION]` markers** for ambiguity in AI output — never guess.
@@ -98,7 +112,10 @@ packages/
 
 ## Model Tiers
 
+`task.tier` routes AI work to one of three tiers (`packages/core/src/ai/tiers.ts`):
+
 - **mechanical:** cheap/fast (tests, commit msgs, slop detection, compression)
 - **standard:** mid-tier (reviews, plans, design docs)
 - **architectural:** powerful (design review, architecture, prompt evolution)
-- **local:** Ollama for offline use
+
+The local `system1` model is a `decide` backend, not a tier.
