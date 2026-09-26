@@ -647,8 +647,7 @@ export function statsCommand(): Command {
 				);
 				const text = formatRetention(result, { json: options.json });
 				if (options.json) {
-					// biome-ignore lint/suspicious/noConsole: JSON output goes to stdout
-					console.log(text);
+					process.stdout.write(`${text}\n`);
 				} else {
 					intro("maina stats --retention");
 					log.message(text);
