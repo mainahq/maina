@@ -9,6 +9,7 @@ import {
 	DECISION_TYPES,
 	type DecisionPolicy,
 	type DecisionType,
+	LOCKED_ACTION_CLASSES,
 	type Policy,
 } from "./schema";
 
@@ -17,7 +18,8 @@ import {
  * production data, deploys, credential access, package publishing) plus the
  * other actions whose effects cannot be undone from the working tree. They
  * default to `ask`; a layer may tighten them to `deny`, but only a layer that
- * names them in `explicitly_allow` may loosen them.
+ * names them in `explicitly_allow` may loosen them. The denied classes below
+ * cannot be loosened at all.
  */
 export const IRREVERSIBLE_ACTION_CLASSES = [
 	/** Any delete that targets a path outside the workspace. */
@@ -51,21 +53,16 @@ export const IRREVERSIBLE_ACTION_CLASSES = [
 ] as const;
 
 /**
- * Irreversible classes denied by default, not merely asked about (#447).
- * Loosening one follows the same `explicitly_allow` rule as any other
- * irreversible class, and a repo layer's loosening still needs the user's
- * confirmation.
+ * Irreversible classes denied by default, not merely asked about (#447):
+ * the locked classes, which no policy layer can loosen, `explicitly_allow`
+ * included (#513). Today that is `gate.self_override`, an agent changing its
+ * own gate: `maina allow`, a `maina policy` mutation, `maina setup`/`init`,
+ * or a write, move, delete, `chmod`, `git checkout`/`restore` or symlink of
+ * a maina policy file or a host hook config (`.claude/settings*.json`,
+ * `.cursor/hooks.json`, `.codex/hooks.json`, `.codex/config.toml`), from the
+ * shell or an MCP tool. A human overrides from a terminal instead.
  */
-export const DENIED_ACTION_CLASSES = [
-	/**
-	 * An agent changing its own gate: `maina allow`, a `maina policy`
-	 * mutation, or a write, move or delete of a maina policy file or a host
-	 * hook config (`.claude/settings*.json`, `.cursor/hooks.json`,
-	 * `.codex/hooks.json`, `.codex/config.toml`). A human overrides from a
-	 * terminal instead.
-	 */
-	"gate.self_override",
-] as const;
+export const DENIED_ACTION_CLASSES = LOCKED_ACTION_CLASSES;
 
 const irreversible: ActionClassPolicy = { irreversible: true, verdict: "ask" };
 const denied: ActionClassPolicy = { irreversible: true, verdict: "deny" };

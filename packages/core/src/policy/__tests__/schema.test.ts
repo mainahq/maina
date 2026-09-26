@@ -28,6 +28,23 @@ describe("policy JSON Schema", () => {
 		);
 	});
 
+	test("explicitly_allow never names gate.self_override (#513)", () => {
+		expect(
+			parsePolicyLayer({ explicitly_allow: ["gate.self_override"] }, "user").ok,
+		).toBe(false);
+		expect(
+			parsePolicyLayer({ explicitly_allow: ["package.publish"] }, "user").ok,
+		).toBe(true);
+		const schema = policyJsonSchema() as {
+			properties: {
+				explicitly_allow: { items: { not?: { enum?: readonly string[] } } };
+			};
+		};
+		expect(schema.properties.explicitly_allow.items.not?.enum).toEqual([
+			"gate.self_override",
+		]);
+	});
+
 	test("a rule accepts an optional boolean `exact`", () => {
 		expect(
 			parsePolicyLayer(

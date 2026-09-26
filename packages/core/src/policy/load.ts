@@ -9,7 +9,8 @@
  * - An irreversible action class can always be tightened, but loosening it
  *   (a looser verdict, or `irreversible: false`) is an error unless that
  *   layer lists the class in `explicitly_allow`. Allowed loosenings are
- *   recorded in `Policy.loosened`.
+ *   recorded in `Policy.loosened`. A locked class (`gate.self_override`)
+ *   cannot be loosened at all (#513).
  * - A class a layer introduces fails closed: no verdict means `ask`.
  * - Telemetry opt-ins can only be turned on by the user layer.
  */
@@ -23,6 +24,7 @@ import {
 	type ActionClassPolicy,
 	type DecisionPolicy,
 	type DecisionType,
+	isLockedClass,
 	type Loosening,
 	type Policy,
 	type PolicyError,
@@ -62,7 +64,10 @@ function mergeActionClasses(base: Policy, layer: Layer): Merged {
 	const classes: Record<string, ActionClassPolicy> = {
 		...base.action_classes,
 	};
-	const unlocked = new Set(layer.value.explicitly_allow ?? []);
+	// A locked class stays locked even if a layer slipped past the schema.
+	const unlocked = new Set(
+		(layer.value.explicitly_allow ?? []).filter((id) => !isLockedClass(id)),
+	);
 
 	for (const [id, spec] of Object.entries(layer.value.action_classes ?? {})) {
 		const prev = classes[id] ?? newClass(spec);
@@ -84,7 +89,9 @@ function mergeActionClasses(base: Policy, layer: Layer): Merged {
 					file: layer.file,
 					path: `action_classes.${id}.${field}`,
 					actionClass: id,
-					message: `"${id}" is irreversible: this layer may tighten it but not loosen it unless it lists "${id}" in explicitly_allow`,
+					message: isLockedClass(id)
+						? `"${id}" cannot be loosened by any policy: only the user can pass it, by running maina allow in a terminal`
+						: `"${id}" is irreversible: this layer may tighten it but not loosen it unless it lists "${id}" in explicitly_allow`,
 				});
 			}
 			continue;

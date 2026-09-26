@@ -231,6 +231,26 @@ function landsOnGateControl(
 	}
 }
 
+/**
+ * A link that stands in for a control dir (`ln -sfn /tmp/evil .claude`) swaps
+ * the gate's config for another tree, and a link to a control path
+ * (`ln -s .claude/settings.json /tmp/s`) lets a later write reach it where
+ * the gate sees only the link (#513). A link target resolves against the
+ * link's directory, not the shell's, so it is also matched as written.
+ */
+function linksGateControl(args: Argv, cwd: string | null, ctx: ShellCtx): void {
+	const { destination, sources } = copyOperands(args, true);
+	if (destination === undefined) return;
+	const dest = resolvePath(destination, cwd, ctx.gate.home) ?? destination;
+	const linksToControl = sources.some(
+		(source) =>
+			removesGateControl(source) ||
+			removesGateControl(resolvePath(source, cwd, ctx.gate.home) ?? source),
+	);
+	if (isGateControlDir(lastSegment(dest)) || linksToControl)
+		ctx.out.add("gate.self_override");
+}
+
 /** `cp`/`mv`/`ln`/`install` take `-t DIR`; otherwise the last operand is the destination. */
 function copyOperands(
 	args: Argv,
@@ -286,6 +306,117 @@ function classifyMcp(
 			classifyShell(v, event.root, event, ctx, out);
 		}
 	}
+	if (mcpTouchesGateControl(event, ctx)) out.add("gate.self_override");
+}
+
+/** Input keys an MCP filesystem tool names a path with (`path`, `file_path`, `destination`, `uri`). */
+const MCP_PATH_KEY =
+	/path|file|dir|folder|dest|target|source|src|uri|^to$|^from$/i;
+
+/** Tool-name words that only read. */
+const MCP_READ_VERBS: ReadonlySet<string> = new Set([
+	"read",
+	"get",
+	"list",
+	"search",
+	"find",
+	"view",
+	"stat",
+	"info",
+	"tree",
+	"show",
+	"describe",
+	"head",
+	"tail",
+	"glob",
+	"grep",
+	"cat",
+	"ls",
+]);
+
+/** Tool-name words that change a file, overriding any read word beside them. */
+const MCP_WRITE_VERBS: ReadonlySet<string> = new Set([
+	"write",
+	"edit",
+	"create",
+	"mkdir",
+	"put",
+	"set",
+	"patch",
+	"append",
+	"insert",
+	"update",
+	"modify",
+	"save",
+	"upload",
+	"touch",
+	"truncate",
+	"apply",
+]);
+
+/** Tool-name words that remove or replace what a path names, a directory included. */
+const MCP_REPLACE_VERBS: ReadonlySet<string> = new Set([
+	"move",
+	"mv",
+	"rename",
+	"delete",
+	"remove",
+	"rm",
+	"rmdir",
+	"unlink",
+	"link",
+	"symlink",
+	"chmod",
+	"chown",
+	"copy",
+	"cp",
+	"replace",
+]);
+
+/**
+ * An MCP tool that writes, moves, deletes or links a gate control file, or
+ * removes or replaces a control dir, from a path in its input (#513). The
+ * tool name tells a read (`read_file`, `get_file_info`) from a change; a
+ * name the gate cannot read counts as a change, so it fails closed.
+ */
+function mcpTouchesGateControl(
+	event: Extract<GateEvent, { kind: "mcp" }>,
+	ctx: GateContext,
+): boolean {
+	const words = event.action.tool
+		.replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+		.toLowerCase()
+		.split(/[^a-z0-9]+/);
+	const replaces = words.some((w) => MCP_REPLACE_VERBS.has(w));
+	const changes =
+		replaces ||
+		words.some((w) => MCP_WRITE_VERBS.has(w)) ||
+		!words.some((w) => MCP_READ_VERBS.has(w));
+	if (!changes) return false;
+	return mcpPaths(event.action.input ?? {}, false, 0).some((raw) => {
+		const path = raw.replace(/^file:\/\//i, "");
+		const resolved = resolvePath(path, event.root, ctx.home) ?? path;
+		return (
+			isGateControlFile(resolved) ||
+			(replaces && isGateControlDir(lastSegment(resolved)))
+		);
+	});
+}
+
+/** Every string under a path-like key in an MCP input, nested arrays and objects included. */
+function mcpPaths(
+	value: unknown,
+	pathKey: boolean,
+	depth: number,
+): readonly string[] {
+	if (depth > 8) return [];
+	if (typeof value === "string") return pathKey ? [value] : [];
+	if (Array.isArray(value))
+		return value.flatMap((v) => mcpPaths(v, pathKey, depth + 1));
+	if (value === null || typeof value !== "object") return [];
+	return Object.entries(value).flatMap(([key, v]) =>
+		mcpPaths(v, MCP_PATH_KEY.test(key), depth + 1),
+	);
 }
 
 // ── Shell events ────────────────────────────────────────────────────────────
@@ -486,6 +617,14 @@ function walkCommand(
 		const joined = joinLiteral(args);
 		if (joined === null) ctx.out.add("shell.opaque");
 		else classifyShell(joined, runFrom, ctx.event, ctx.gate, ctx.out);
+		return cwd;
+	}
+	// `script` runs its `-c` string, or the command after its log file (#513).
+	if (cmd === "script") {
+		for (const inner of scriptCommands(args)) {
+			if (inner === null) ctx.out.add("shell.opaque");
+			else classifyShell(inner, runFrom, ctx.event, ctx.gate, ctx.out);
+		}
 		return cwd;
 	}
 	// Inline code in another interpreter is beyond the gate's sight.
@@ -804,9 +943,17 @@ const POLICY_READS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * `maina setup` and its deprecated alias `init` write `.maina/` and the
+ * host hook configs from inside the CLI, where the gate never sees the
+ * write, so an agent running one is overriding its own gate (#513).
+ */
+const MAINA_REWRITES: ReadonlySet<string> = new Set(["setup", "init"]);
+
+/**
  * `maina allow` and `maina policy` mutations change what the gate lets
- * through, so an agent running one is overriding its own gate (#447). Help
- * is harmless; a subcommand the gate cannot read asks.
+ * through, so an agent running one is overriding its own gate (#447), as does
+ * `maina setup`/`init`. Help is harmless; a subcommand the gate cannot read
+ * asks.
  */
 function mainaClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 	const words = args.map((a) => a.text ?? UNKNOWN_WORD);
@@ -816,7 +963,8 @@ function mainaClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 	if (options.includes("--help") || options.includes("-h")) return;
 	const [sub, action] = words.filter((w) => !w.startsWith("-"));
 	if (sub === UNKNOWN_WORD) ctx.out.add("shell.opaque");
-	else if (sub === "allow") ctx.out.add("gate.self_override");
+	else if (sub === "allow" || MAINA_REWRITES.has(sub ?? ""))
+		ctx.out.add("gate.self_override");
 	else if (
 		sub === "policy" &&
 		action !== undefined &&
@@ -935,21 +1083,34 @@ function hasExecRemoval(literals: readonly string[]): boolean {
 /** Stands in for a word the gate cannot resolve; no real argument spells it. */
 const UNKNOWN_WORD = "\u0000unknown";
 
-function gitClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
+function gitClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
 	// Skip `-C <dir>`, `-c k=v` and other global options to find the subcommand.
 	// Unresolved words keep their position, so `git push $R main` still reads
 	// `main` as the refspec rather than the remote.
 	const literals = args.map((a) => a.text ?? UNKNOWN_WORD);
 	let i = 0;
+	let dir = cwd;
 	while (i < literals.length) {
 		const a = literals[i] as string;
-		if (a === "-C" || a === "-c" || a === "--git-dir" || a === "--work-tree")
+		if (a === "-C") {
+			const to = literals[i + 1];
+			dir =
+				to === undefined || to === UNKNOWN_WORD
+					? null
+					: resolvePath(to, dir, ctx.gate.home);
 			i += 2;
+		} else if (a === "-c" || a === "--git-dir" || a === "--work-tree") i += 2;
 		else if (a.startsWith("-")) i++;
 		else break;
 	}
 	const sub = literals[i];
 	const rest = literals.slice(i + 1);
+	if (
+		sub !== undefined &&
+		GIT_PATH_REWRITERS.has(sub) &&
+		rest.some((p) => gitPathIsGateControl(p, dir, ctx))
+	)
+		ctx.out.add("gate.self_override");
 	if (sub === UNKNOWN_WORD) ctx.out.add("shell.opaque");
 	else if (sub === "push") gitPush(rest, ctx);
 	else if (sub === "reset" && rest.includes("--hard"))
@@ -982,6 +1143,30 @@ function gitClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 	else if (sub === "filter-branch") ctx.out.add("git.discard");
 	else if (sub === "update-ref" && rest.includes("-d"))
 		ctx.out.add("git.discard");
+}
+
+/**
+ * Subcommands that overwrite, delete or move the paths they name: an older
+ * `.claude/settings.json` checked out or restored, or a hook config removed
+ * or renamed, overrides the gate (#513).
+ */
+const GIT_PATH_REWRITERS: ReadonlySet<string> = new Set([
+	"checkout",
+	"restore",
+	"rm",
+	"mv",
+]);
+
+/** A pathspec (`:(top)` and `:/` magic stripped) naming a control file or dir. */
+function gitPathIsGateControl(
+	word: string,
+	cwd: string | null,
+	ctx: ShellCtx,
+): boolean {
+	if (word.startsWith("-") || word === UNKNOWN_WORD) return false;
+	const path = word.replace(/^:(\([^)]*\)|\/)?/, "");
+	const resolved = resolvePath(path, cwd, ctx.gate.home) ?? path;
+	return removesGateControl(resolved);
 }
 
 const DEPLOY_REMOTES: ReadonlySet<string> = new Set([
@@ -1338,8 +1523,10 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 	crontab: (args, _cwd, ctx) => {
 		if (literalArgs(args).includes("-r")) ctx.out.add("system.destructive");
 	},
-	chmod: permissionClassifier,
-	chown: permissionClassifier,
+	chmod: (args, cwd, ctx) =>
+		permissionClassifier(permissionTargets(args, true), args, cwd, ctx),
+	chown: (args, cwd, ctx) =>
+		permissionClassifier(permissionTargets(args, false), args, cwd, ctx),
 	tee: (args, cwd, ctx) => {
 		// Every operand of `tee` is a file it truncates, so any unresolved one
 		// is an unresolved write (#455).
@@ -1374,6 +1561,7 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 		writeTargets(positional(args).slice(-1), cwd, ctx);
 		// A link to a directory stands in for the whole tree.
 		landsOnGateControl(args, cwd, ctx, { tree: true, targetOption: true });
+		linksGateControl(args, cwd, ctx);
 	},
 	sed: sedClassifier,
 	printenv: (args, _cwd, ctx) => {
@@ -1473,7 +1661,25 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 	".": sourceClassifier,
 };
 
+/**
+ * The files a `chmod` or `chown` changes: every operand after the mode or
+ * owner (none with `--reference`). A `chmod` mode may start with `-`
+ * (`chmod -r f`), so it is not mistaken for an option.
+ */
+function permissionTargets(args: Argv, chmod: boolean): readonly string[] {
+	const words = literalArgs(args);
+	let modeSeen = words.some((w) => w.startsWith("--reference"));
+	const targets: string[] = [];
+	for (const w of words) {
+		const isMode = chmod && /^-[rwxXst]+$/.test(w);
+		if (!modeSeen && (isMode || !w.startsWith("-"))) modeSeen = true;
+		else if (!w.startsWith("-")) targets.push(w);
+	}
+	return targets;
+}
+
 function permissionClassifier(
+	targets: readonly string[],
 	args: Argv,
 	cwd: string | null,
 	ctx: ShellCtx,
@@ -1481,8 +1687,11 @@ function permissionClassifier(
 	const recursive = literalArgs(args).some(
 		(a) => /^-[a-zA-Z]*R/.test(a) || a === "--recursive",
 	);
-	for (const t of positional(args).slice(1)) {
+	for (const t of targets) {
 		const resolved = resolvePath(t, cwd, ctx.gate.home);
+		// Locking a hook config or policy away from its reader disables the
+		// gate as surely as deleting it (#513).
+		if (removesGateControl(resolved ?? t)) ctx.out.add("gate.self_override");
 		if (isSecretPath(resolved ?? t) || isCredentialStorePath(resolved ?? t)) {
 			ctx.out.add("secrets.write");
 			continue;
@@ -2152,6 +2361,78 @@ function shellCScript(args: Argv): string | null | undefined {
 	return undefined;
 }
 
+/** util-linux `script` options whose value is the next word. */
+const SCRIPT_OPERAND: ReadonlySet<string> = new Set([
+	"-c",
+	"--command",
+	"-E",
+	"--echo",
+	"-I",
+	"--log-in",
+	"-O",
+	"--log-out",
+	"-B",
+	"--log-io",
+	"-T",
+	"--log-timing",
+	"-m",
+	"--logging-format",
+	"-o",
+	"--output-limit",
+]);
+
+/**
+ * What `script` runs, as shell text (null where a word is unresolved): its
+ * `-c`/`--command` string, which util-linux reads anywhere in the line
+ * (`script log -c cmd`), and the BSD/macOS form's command after the log file
+ * (`script -q /dev/null cmd args…`), re-quoted word by word.
+ */
+function scriptCommands(args: Argv): readonly (string | null)[] {
+	const found: (string | null)[] = [];
+	for (let i = 0; i < args.length; i++) {
+		const a = args[i]?.text;
+		if (a == null) continue;
+		const combined = /^-[a-zA-Z]*c[a-zA-Z]*$/.test(a) ? a.indexOf("c") : -1;
+		if (a === "--command" || (combined >= 0 && combined === a.length - 1)) {
+			const value = args[i + 1];
+			if (value !== undefined) found.push(value.text);
+			i++;
+		} else if (a.startsWith("--command=")) {
+			found.push(a.slice("--command=".length));
+		} else if (combined >= 0) {
+			found.push(a.slice(combined + 1));
+		}
+	}
+	const argv = args.slice(scriptFileIndex(args) + 1);
+	if (argv.length > 0) found.push(quoteArgv(argv));
+	return found;
+}
+
+/** Index of `script`'s log file operand: its first word that is not an option or an option's value. */
+function scriptFileIndex(args: Argv): number {
+	let i = 0;
+	for (; i < args.length; i++) {
+		const a = args[i]?.text;
+		if (a == null) break;
+		if (a === "--") return i + 1;
+		// BSD `-t <seconds>`; util-linux `-t` takes no separate value.
+		const bsdTime = a === "-t" && /^\d+$/.test(args[i + 1]?.text ?? "");
+		if (SCRIPT_OPERAND.has(a) || /^-[a-zA-Z]*c$/.test(a) || bsdTime) i++;
+		else if (!a.startsWith("-")) break;
+	}
+	return i;
+}
+
+/** Words as shell text that parses back to the same words; null if any is unresolved. */
+function quoteArgv(args: Argv): string | null {
+	const words: string[] = [];
+	for (const a of args) {
+		if (a.text === null) return null;
+		words.push(`'${a.text.replace(/'/g, "'\\''")}'`);
+	}
+	return words.join(" ");
+}
+
 function nextCwd(args: Argv, cwd: string | null, ctx: ShellCtx): string | null {
 	// `cd "$DIR"`: the directory is unknown, not home.
 	if (isOpaque(args)) return null;
@@ -2436,6 +2717,10 @@ function collectCommandNode(
 	} else if (cmd === "eval") {
 		const joined = joinLiteral(args);
 		if (joined !== null) collectNested(joined, scope, ctx, out);
+	} else if (cmd === "script") {
+		for (const inner of scriptCommands(args)) {
+			if (inner !== null) collectNested(inner, scope, ctx, out);
+		}
 	}
 }
 

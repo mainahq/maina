@@ -57,6 +57,19 @@ export type DecisionBackend = (typeof DECISION_BACKENDS)[number];
 
 export type PolicySource = "user" | "repo";
 
+/**
+ * Action classes no policy layer can loosen, `explicitly_allow` included
+ * (#513): the loader rejects a layer that names one there or loosens one, and
+ * the evaluator applies the built-in spec whatever the policy says. Only the
+ * user, running `maina allow` in a terminal, can pass one.
+ */
+export const LOCKED_ACTION_CLASSES = ["gate.self_override"] as const;
+
+const LOCKED: ReadonlySet<string> = new Set(LOCKED_ACTION_CLASSES);
+
+/** Whether no policy layer may loosen `id`. */
+export const isLockedClass = (id: string): boolean => LOCKED.has(id);
+
 // ── Building blocks ─────────────────────────────────────────────────────────
 
 const ActionClassId = z
@@ -211,9 +224,14 @@ const PolicyLayerSchema = z
 		$schema: z.string().optional(),
 		version: z.literal(1).optional(),
 		explicitly_allow: z
-			.array(ActionClassId)
+			.array(
+				ActionClassId.refine((id) => !isLockedClass(id), {
+					error: (issue) =>
+						`${JSON.stringify(issue.input)} cannot be loosened by any policy: only the user can pass it, by running maina allow in a terminal`,
+				}).meta({ not: { enum: [...LOCKED_ACTION_CLASSES] } }),
+			)
 			.describe(
-				"Irreversible action classes this layer is allowed to loosen. Anything else it tries to loosen is an error.",
+				"Irreversible action classes this layer is allowed to loosen. Anything else it tries to loosen is an error. gate.self_override can never be listed.",
 			)
 			.optional(),
 		action_classes: z
