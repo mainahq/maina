@@ -57,8 +57,9 @@ export const IRREVERSIBLE_ACTION_CLASSES = [
  * the locked classes, which no policy layer can loosen, `explicitly_allow`
  * included (#513). Today that is `gate.self_override`, an agent changing its
  * own gate: `maina allow`, a `maina policy` mutation, `maina setup`/`init`,
- * or a write, move, delete, `chmod`, `git checkout`/`restore` or symlink of
- * a maina policy file or a host hook config (`.claude/settings*.json`,
+ * a `maina mcp add|remove` that may write Codex's config, `maina doctor
+ * --fix`, or a write, move, delete, `chmod`, `git checkout`/`restore` or
+ * symlink of a maina policy file or a host hook config (`.claude/settings*.json`,
  * `.cursor/hooks.json`, `.codex/hooks.json`, `.codex/config.toml`), from the
  * shell or an MCP tool. A human overrides from a terminal instead.
  */
