@@ -19,6 +19,13 @@
  * ships no `node_modules/@mainahq/cli` the runner could resolve instead
  * and no project `.npmrc` that could point it at another registry.
  * User-scope entries are the user's own and always launch.
+ *
+ * Every launch doctor makes on its own (user-scope entries and trusted
+ * project entries) starts in `launchCwd`, an empty directory outside the
+ * repo, not in the repo: bun reads `bunfig.toml` from its cwd, so a repo
+ * `preload` would otherwise run repo code ahead of any bun-backed launcher
+ * (`bun <entry>`, the `maina` shim, `bunx`). Only an entry launched because
+ * the user passed `--launch-project` starts in the repo, as its host would.
  * This module is pure apart from the injected ports: `./probe.ts` does the
  * spawning, `commands/doctor.ts` wires the real filesystem and git.
  */
@@ -515,12 +522,20 @@ export interface HostHealthPorts {
 	readonly loadPolicy: (
 		root: string,
 	) => Promise<Result<unknown, readonly PolicyError[]>>;
+	/**
+	 * An empty directory outside the repo that doctor's own launches start
+	 * in, so no repo `bunfig.toml` preload runs (see the module comment).
+	 */
+	readonly launchCwd: string;
 	readonly probe: Probe;
 }
 
 interface LaunchContext {
 	readonly env: EnvVars;
+	/** The repo cwd; only opted-in project entries launch here. */
 	readonly cwd: string;
+	/** Where every other launch starts (`HostHealthPorts.launchCwd`). */
+	readonly launchCwd: string;
 	/** The repo's directories; a project entry must not run a file in one. */
 	readonly repoDirs: readonly string[];
 	readonly realpath: (path: string) => string;
@@ -577,11 +592,10 @@ async function hostReport(
 		status: "pass",
 		message: `maina entry in ${target.path}`,
 	};
-	if (
-		target.scope === "project" &&
-		input.launchProject !== true &&
-		!trustedProjectLaunch(spec.value, launch.repoDirs, launch)
-	) {
+	const trusted =
+		target.scope !== "project" ||
+		trustedProjectLaunch(spec.value, launch.repoDirs, launch);
+	if (!trusted && input.launchProject !== true) {
 		const shadow = isPackageRunnerLauncher(spec.value)
 			? launch.packageShadow
 			: null;
@@ -601,7 +615,11 @@ async function hostReport(
 			],
 		};
 	}
-	const outcome = await launch.probe(spec.value, launch.env, launch.cwd);
+	const outcome = await launch.probe(
+		spec.value,
+		launch.env,
+		trusted ? launch.launchCwd : launch.cwd,
+	);
 	const checks: HealthCheck<HostCheckId>[] = [
 		config,
 		...evaluateLaunch(outcome, input.version, fix),
@@ -653,6 +671,7 @@ export async function checkHostHealth(
 	const launch: LaunchContext = {
 		env: env.env,
 		cwd: ctx.cwd,
+		launchCwd: ports.launchCwd,
 		repoDirs,
 		realpath: ports.realpath,
 		packageShadow,

@@ -357,6 +357,7 @@ describe("codexApplyPatchCheck", () => {
 			realpath: (path) => path,
 			repoRoot: async () => "/p",
 			loadPolicy: async () => ({ ok: true, value: {} }),
+			launchCwd: "/tmp/neutral",
 			probe: async () => ({ kind: "not-found", command: "", path: "" }),
 		};
 		const health = await checkHostHealth(
