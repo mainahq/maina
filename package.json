@@ -6,6 +6,7 @@
     "packages/cli",
     "packages/core",
     "packages/runtime",
+    "packages/harness",
     "packages/mcp",
     "packages/skills",
     "packages/docs"

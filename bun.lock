@@ -62,6 +62,14 @@
         "typescript": "^5.8.3",
       },
     },
+    "packages/harness": {
+      "name": "@mainahq/harness",
+      "version": "0.0.0",
+      "dependencies": {
+        "@agentclientprotocol/sdk": "^1.5.0",
+        "@mainahq/core": "workspace:*",
+      },
+    },
     "packages/mcp": {
       "name": "@mainahq/mcp",
       "version": "1.8.1",
@@ -89,6 +97,8 @@
     },
   },
   "packages": {
+    "@agentclientprotocol/sdk": ["@agentclientprotocol/sdk@1.5.0", "", { "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" } }, "sha512-524jwbB2iYWA+kWWyv9fhKbhU89dH/lu9u5EXwVNmfYzopV8BujCDxByBDZhxRUkB7RWIJzISCnwivdDk+bdVg=="],
+
     "@ai-sdk/gateway": ["@ai-sdk/gateway@3.0.87", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.22", "@vercel/oidc": "3.1.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-knLx/VY0u5KAZGgrTorWCTbEnwK3oCCdm8yjxVQm3s14erqVo60SP08dsFWm+xNULPTusftQGVD/l0/hx5QOHg=="],
 
     "@ai-sdk/openai": ["@ai-sdk/openai@3.0.50", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@ai-sdk/provider-utils": "4.0.22" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-7M7bklrS+gckzPdpQpC3iG5aN5aQPRJdAJQ5jt7sEgYCqDgUuef9x4Nd570+ghIfKTZvV6tSqeeTuD6De/bZig=="],
@@ -388,6 +398,8 @@
     "@mainahq/core": ["@mainahq/core@workspace:packages/core"],
 
     "@mainahq/docs": ["@mainahq/docs@workspace:packages/docs"],
+
+    "@mainahq/harness": ["@mainahq/harness@workspace:packages/harness"],
 
     "@mainahq/mcp": ["@mainahq/mcp@workspace:packages/mcp"],
 
