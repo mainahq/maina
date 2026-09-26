@@ -17,6 +17,14 @@
  *           later call cannot skip the gate; the editor's answer goes back
  *           to the agent as it is and is logged
  *
+ * An editor that offers `fs` and `terminal` also does the agent's writes,
+ * reads and commands for it (`fs/write_text_file`, `fs/read_text_file`,
+ * `terminal/create`). An agent the editor put in a permissive mode sends
+ * no permission request first, so the gate judges these too: a deny is
+ * answered with an error by the proxy and logged, and the editor never
+ * sees it; anything else is forwarded as it is (an ask was, or will be,
+ * the permission request's to settle).
+ *
  * Along the way the router keeps what a receipt needs: the sessions, their
  * prompt turns and stop reasons, the tool calls and files each touched
  * (normalised as `../events` does for a run), and every permission answer.
@@ -27,10 +35,12 @@ import type {
 	RequestPermissionRequest,
 	SessionUpdate,
 	StopReason,
+	ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
 import type { Verdict } from "@mainahq/core";
 import {
 	chooseOption,
+	gateEvents,
 	INITIAL_STATE,
 	type NormaliseContext,
 	type NormaliseState,
@@ -57,7 +67,10 @@ export type PermissionEntry = Readonly<{
 	reason: string;
 	/** `gate` when the proxy answered, `editor` when the person did. */
 	answeredBy: "gate" | "editor";
-	/** The kind of option picked (`allow_once`, `reject_once`), or `cancelled`. */
+	/**
+	 * The kind of option picked (`allow_once`, `reject_once`), `cancelled`,
+	 * or `error` for a request on the editor the gate refused.
+	 */
 	answer: string;
 }>;
 
@@ -430,6 +443,112 @@ function gatePermission(
 	};
 }
 
+const CLIENT_METHODS: ReadonlySet<string> = new Set([
+	"terminal/create",
+	"fs/write_text_file",
+	"fs/read_text_file",
+]);
+
+/** A JSON-RPC error answer: the gate refused what the agent asked the editor. */
+const refusalLine = (id: unknown, reason: string): string =>
+	JSON.stringify({
+		jsonrpc: "2.0",
+		id,
+		error: { code: -32000, message: `denied by maina's gate: ${reason}` },
+	});
+
+/**
+ * An agent's request that the editor act for it, as the tool call the gate
+ * would see; undefined for any other method.
+ */
+function clientCall(
+	method: string,
+	params: Json,
+	toolCallId: string,
+): ToolCallUpdate | undefined {
+	switch (method) {
+		case "terminal/create": {
+			const cwd = str(params.cwd);
+			return {
+				toolCallId,
+				kind: "execute",
+				rawInput: {
+					command: params.command,
+					args: params.args,
+					...(cwd === undefined ? {} : { cwd }),
+				},
+			};
+		}
+		case "fs/write_text_file": {
+			const path = str(params.path);
+			return {
+				toolCallId,
+				kind: "edit",
+				rawInput: { path },
+				...(path !== undefined && typeof params.content === "string"
+					? { content: [{ type: "diff", path, newText: params.content }] }
+					: {}),
+			};
+		}
+		case "fs/read_text_file":
+			return { toolCallId, kind: "read", rawInput: { path: str(params.path) } };
+		default:
+			return undefined;
+	}
+}
+
+/** The gate on what the agent asks the editor to do: only a deny is held. */
+function gateClientCall(
+	bridge: GateBridge,
+	state: ProxyState,
+	line: string,
+	message: Json,
+	method: string,
+	key: string,
+): Step {
+	const params = isRecord(message.params) ? message.params : {};
+	const sessionId = str(params.sessionId);
+	const call =
+		sessionId === undefined
+			? undefined
+			: clientCall(method, params, `${method}:${key}`);
+	if (sessionId === undefined || call === undefined) {
+		return forward(state, "editor", line);
+	}
+	const session = sessionOf(state, sessionId);
+	const ctx = contextOf(state, session);
+	const { gate, opaque } = gateEvents(call, ctx);
+	const judged = judgeActions(bridge, gate, opaque);
+	if (judged.verdict !== "deny") return forward(state, "editor", line);
+	logPermission(bridge, {
+		source: "acp",
+		host: ctx.host,
+		sessionId,
+		toolCallId: call.toolCallId,
+		gate,
+		opaque,
+		...judged,
+		answer: "error",
+	});
+	return {
+		state: {
+			...state,
+			permissions: [
+				...state.permissions,
+				{
+					sessionId,
+					toolCallId: call.toolCallId,
+					verdict: judged.verdict,
+					reason: judged.reason,
+					answeredBy: "gate",
+					answer: "error",
+				},
+			],
+		},
+		out: [{ to: "agent", line: refusalLine(message.id, judged.reason) }],
+	};
+}
+
 export function fromAgent(
 	bridge: GateBridge,
 	state: ProxyState,
@@ -451,6 +570,14 @@ export function fromAgent(
 		} catch {
 			// A request the gate cannot read fails closed to `ask`: the person
 			// in the editor decides.
+			return forward(state, "editor", line);
+		}
+	}
+	if (key !== undefined && CLIENT_METHODS.has(method)) {
+		try {
+			return gateClientCall(bridge, state, line, message, method, key);
+		} catch {
+			// The gate could not judge it: the editor, and the person, decide.
 			return forward(state, "editor", line);
 		}
 	}

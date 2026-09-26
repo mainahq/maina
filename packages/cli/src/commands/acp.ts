@@ -6,9 +6,10 @@
  * `codex-acp`, ...) and passes every message between the two unchanged,
  * except the agent's permission requests: the gate answers them first,
  * denying what the policy denies and allowing what it allows, and passes
- * only an `ask` on to the person in the editor. When the editor or the
- * agent goes away, the other is cleaned up and a receipt of the session is
- * written to `.maina/runs/acp-<id>.json`.
+ * only an `ask` on to the person in the editor. What the agent asks the
+ * editor to run, write or read for it is judged too, and a deny refused.
+ * When the editor or the agent goes away, the other is cleaned up and a
+ * receipt of the session is written to `.maina/runs/acp-<id>.json`.
  *
  * stdout carries the protocol: everything else goes to stderr.
  *

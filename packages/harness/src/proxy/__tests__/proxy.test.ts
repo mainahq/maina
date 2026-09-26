@@ -472,6 +472,94 @@ describe("proxy: permission requests go through the gate", () => {
 	});
 });
 
+// ── the agent's calls on the editor ─────────────────────────────────────────
+
+describe("proxy: what the agent asks the editor to do goes through the gate", () => {
+	// An editor that offers `fs` and `terminal` does the agent's writes and
+	// commands for it. An agent the editor put in a permissive mode (accept
+	// edits, bypass) sends no permission request first, so these requests are
+	// the only place the gate sees the action: a deny must hold there too.
+	async function gated(line: string): Promise<{
+		toAgent: string | undefined | "timeout";
+		toEditor: string | undefined | "timeout";
+	}> {
+		bridge.records.length = 0;
+		const pipes = editorPipes();
+		const fake = inProcessAgent();
+		const proxy = startProxy(
+			{ editor: pipes.io, agent: FAKE, root: ROOT, bridge },
+			{ spawn: fake.spawn },
+		);
+		const editor = rawEditor(pipes);
+		const { agent } = fake;
+		await openSession(editor, agent);
+		await agent.send(line);
+		const toEditor = await editor.next(300);
+		const toAgent = await agent.next(300);
+		await editor.hangUp();
+		await within(proxy.done);
+		return { toAgent, toEditor };
+	}
+
+	test("a denied command on the editor's terminal is refused; the editor never runs it", async () => {
+		const { toAgent, toEditor } = await gated(
+			JSON.stringify({
+				jsonrpc: "2.0",
+				id: "term-1",
+				method: "terminal/create",
+				params: { sessionId: "s-1", command: "npm", args: ["publish"] },
+			}),
+		);
+		expect(toEditor).toBe("timeout");
+		const answer = JSON.parse(toAgent as string);
+		expect(answer).toMatchObject({ jsonrpc: "2.0", id: "term-1" });
+		expect(answer.error.message).toContain("maina");
+		expect(answer.result).toBeUndefined();
+		expect(bridge.records).toEqual([
+			expect.objectContaining({
+				source: "acp",
+				sessionId: "s-1",
+				verdict: "deny",
+				answer: "error",
+			}),
+		]);
+	});
+
+	test("a denied write through the editor's fs is refused; the editor never writes it", async () => {
+		const { toAgent, toEditor } = await gated(
+			JSON.stringify({
+				jsonrpc: "2.0",
+				id: 41,
+				method: "fs/write_text_file",
+				params: {
+					sessionId: "s-1",
+					path: join(ROOT, ".maina", "policy.yml"),
+					content: "rules: {}\n",
+				},
+			}),
+		);
+		expect(toEditor).toBe("timeout");
+		expect(JSON.parse(toAgent as string)).toMatchObject({
+			id: 41,
+			error: { code: expect.any(Number) },
+		});
+		expect(bridge.records[0]).toMatchObject({ verdict: "deny" });
+	});
+
+	test("what the gate does not deny reaches the editor as the same bytes, unlogged", async () => {
+		const line = JSON.stringify({
+			jsonrpc: "2.0",
+			id: "term-2",
+			method: "terminal/create",
+			params: { sessionId: "s-1", command: "ls", args: ["-la"] },
+		});
+		const { toAgent, toEditor } = await gated(line);
+		expect(toEditor).toBe(line);
+		expect(toAgent).toBe("timeout");
+		expect(bridge.records).toEqual([]);
+	});
+});
+
 // ── receipts, end to end ────────────────────────────────────────────────────
 
 /** An editor on the ACP SDK: the real client side of the protocol. */
