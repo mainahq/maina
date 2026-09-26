@@ -8,6 +8,7 @@ import { expect } from "bun:test";
 import type { PipelineResult, Receipt } from "@mainahq/core";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { ListRootsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { McpRuntime } from "../runtime";
 import { createMcpServer } from "../server";
 
@@ -244,15 +245,28 @@ export function fakeRuntime(overrides: Partial<McpRuntime> = {}): {
 	return { runtime, calls };
 }
 
-/** A client connected to a fresh server over the SDK's in-memory transport. */
+/**
+ * A client connected to a fresh server over the SDK's in-memory transport.
+ * With `roots`, the client advertises the roots capability and answers
+ * `roots/list` with them, as an editor names its workspace folders.
+ */
 export async function connect(
 	runtime: McpRuntime,
-	options: { tools?: readonly string[] } = {},
+	options: { tools?: readonly string[]; roots?: readonly string[] } = {},
 ): Promise<Client> {
-	const server = createMcpServer(runtime, options);
+	const { roots, ...serverOptions } = options;
+	const server = createMcpServer(runtime, serverOptions);
 	const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
 	await server.connect(serverSide);
-	const client = new Client({ name: "maina-mcp-test", version: "0.0.0" });
+	const client = new Client(
+		{ name: "maina-mcp-test", version: "0.0.0" },
+		roots ? { capabilities: { roots: {} } } : {},
+	);
+	if (roots) {
+		client.setRequestHandler(ListRootsRequestSchema, () => ({
+			roots: roots.map((uri) => ({ uri })),
+		}));
+	}
 	await client.connect(clientSide);
 	return client;
 }

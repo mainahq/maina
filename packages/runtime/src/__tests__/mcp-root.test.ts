@@ -1,7 +1,8 @@
 /**
  * The standalone MCP server resolves a tool call's root with the runtime's
  * root resolution (FR-INS-3): explicit root, then the host project dir,
- * then the working directory, each mapped to its git top level.
+ * then the client's MCP roots, then the working directory, each mapped to
+ * its git top level.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -39,6 +40,55 @@ describe("mcpRootResolver", () => {
 		expect(
 			await mcpRootResolver({ cwd: "/cwd" }, probe(repos))(undefined),
 		).toEqual({ ok: true, value: "/cwd" });
+	});
+
+	test("without a host project dir, the client's MCP roots come before the cwd", async () => {
+		// An Agent Plugins client (VS Code agent mode) starts the server in the
+		// plugin root and names the workspace as its MCP roots.
+		const roots = async () => ["file:///nowhere", "file:///work/app/src"];
+		expect(
+			await mcpRootResolver({ cwd: "/cwd" }, probe(repos))(undefined, {
+				mcpRoots: roots,
+			}),
+		).toEqual({ ok: true, value: "/work/app" });
+		// No roots: the cwd, as before.
+		expect(
+			await mcpRootResolver({ cwd: "/cwd" }, probe(repos))(undefined, {
+				mcpRoots: async () => [],
+			}),
+		).toEqual({ ok: true, value: "/cwd" });
+	});
+
+	test("the client is asked for roots only when nothing above them decides", async () => {
+		let asked = 0;
+		const hints = {
+			mcpRoots: async () => {
+				asked += 1;
+				return ["/work/app/src"];
+			},
+		};
+		const resolve = mcpRootResolver(
+			{ cwd: "/cwd", hostProjectDir: "/host/project" },
+			probe(repos),
+		);
+		expect(await resolve(undefined, hints)).toEqual({
+			ok: true,
+			value: "/host/project",
+		});
+		expect(await resolve("/cwd", hints)).toEqual({ ok: true, value: "/cwd" });
+		expect(asked).toBe(0);
+	});
+
+	test("MCP roots outside any repository refuse instead of falling back to the cwd", async () => {
+		const result = await mcpRootResolver({ cwd: "/cwd" }, probe(repos))(
+			undefined,
+			{ mcpRoots: async () => ["file:///nowhere"] },
+		);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error.message).toContain("mcp");
+			expect(result.error.message).toContain("/nowhere");
+		}
 	});
 
 	test("no repository is a no_root error naming what was tried", async () => {

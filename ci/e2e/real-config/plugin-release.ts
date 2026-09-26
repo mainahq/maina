@@ -8,7 +8,8 @@
  * throwaway key, serves it on 127.0.0.1 and writes a marketplace (the
  * repo's `.claude-plugin/marketplace.json`, `.cursor-plugin/
  * marketplace.json` and `.agents/plugins/marketplace.json`, plus every
- * plugin package they list) whose launchers pin that artifact. Installing
+ * plugin package they list and the Agent Plugins package, which is
+ * installed from its directory) whose launchers pin that artifact. Installing
  * from it is installing a release, with the network kept local.
  *
  * Built once per test process; `stopPluginRelease` stops the server and
@@ -41,6 +42,7 @@ import {
 	currentTarget,
 	startArtifactServer,
 } from "../../../packages/runtime/launcher/__tests__/fixture";
+import { AGENT_PLUGINS_SOURCE } from "./hosts/agent-plugins";
 import type { Result } from "./types";
 
 const REPO_ROOT = resolve(import.meta.dir, "..", "..", "..");
@@ -51,6 +53,12 @@ const MARKETPLACE_FILES: readonly string[] = [
 	".cursor-plugin/marketplace.json",
 	".agents/plugins/marketplace.json",
 ];
+
+/**
+ * Plugin packages no marketplace lists, installed from their directory:
+ * the Agent Plugins package (VS Code agent mode, Copilot; #344).
+ */
+const DIRECTORY_SOURCES: readonly string[] = [AGENT_PLUGINS_SOURCE];
 
 export interface PluginRelease {
 	/** A marketplace root to add, as a user adds the repo. */
@@ -108,11 +116,12 @@ async function stage(): Promise<Result<PluginRelease, string>> {
 			cpSync(join(REPO_ROOT, file), join(marketplace, file));
 		}
 		const sources = [
-			...new Set(
-				MARKETPLACE_FILES.flatMap((file) =>
+			...new Set([
+				...MARKETPLACE_FILES.flatMap((file) =>
 					relativeSources(readJson(join(REPO_ROOT, file))),
 				),
-			),
+				...DIRECTORY_SOURCES,
+			]),
 		];
 		const launcherManifest = (source: string) =>
 			join(marketplace, source, "launcher", "manifest.json");

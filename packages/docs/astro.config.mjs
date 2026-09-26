@@ -54,6 +54,7 @@ export default defineConfig({
             { slug: 'skills' },
             { slug: 'cursor' },
             { slug: 'codex' },
+            { slug: 'vscode' },
           ],
         },
         {

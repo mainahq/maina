@@ -76,6 +76,27 @@ export type McpOptions = Readonly<{
 const errorText = (e: unknown): string =>
 	e instanceof Error ? e.message : String(e);
 
+/** How long a call waits for the client's `roots/list` answer. */
+const ROOTS_TIMEOUT_MS = 5_000;
+
+/**
+ * The client's MCP roots (FR-INS-3): an editor names its workspace folders
+ * here, which is how a server started outside the project (an Agent Plugins
+ * client starts it in the plugin root) finds it. None when the client has
+ * no roots capability, or fails or times out answering.
+ */
+async function clientRoots(server: McpServer): Promise<readonly string[]> {
+	if (server.server.getClientCapabilities()?.roots === undefined) return [];
+	try {
+		const { roots } = await server.server.listRoots(undefined, {
+			timeout: ROOTS_TIMEOUT_MS,
+		});
+		return roots.map((root) => root.uri);
+	} catch {
+		return [];
+	}
+}
+
 function register(
 	server: McpServer,
 	runtime: McpRuntime,
@@ -102,7 +123,9 @@ function register(
 			// like any other failure, and the server keeps serving.
 			try {
 				const explicit = typeof args.root === "string" ? args.root : undefined;
-				const resolved = await runtime.resolveRoot(explicit);
+				const resolved = await runtime.resolveRoot(explicit, {
+					mcpRoots: () => clientRoots(server),
+				});
 				if (!resolved.ok) return errorResult(def.name, meta(), resolved.error);
 				root = resolved.value;
 				const outcome = await def.run(args, { root, runtime, enabled });
