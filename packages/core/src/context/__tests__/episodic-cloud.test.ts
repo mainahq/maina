@@ -168,6 +168,31 @@ describe("loadCloudEpisodicEntries", () => {
 		expect(source.calls()).toBe(1);
 	});
 
+	test("a cached entry without a numeric decayFactor is ignored", async () => {
+		// The merge computes relevance as relevanceScore * decayFactor; a
+		// missing factor would turn it into NaN and break the relevance sort.
+		const { decayFactor: _dropped, ...withoutDecay } = entry;
+		const fs = createMemoryFs({
+			[CACHE_FILE]: JSON.stringify({
+				key: "k",
+				fetchedAt: 1_000,
+				ok: true,
+				entries: [withoutDecay],
+			}),
+		});
+		const source = counting(answers);
+		const entries = await loadCloudEpisodicEntries({
+			mainaDir: MAINA_DIR,
+			fs,
+			key: "k",
+			fetch: source.fetch,
+			timeoutMs: 50,
+			now: () => 1_000,
+		});
+		expect(entries).toEqual([entry]);
+		expect(source.calls()).toBe(1);
+	});
+
 	test("the cache is read and written only through the injected FsPort", async () => {
 		const fs = createMemoryFs();
 		const load = (fetch: Fetch) =>

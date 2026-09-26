@@ -317,7 +317,7 @@ async function loadTeamEpisodicEntries(
 		key: `${request.cloudUrl}|${repo}|${account}`,
 		fetch: () => client.getEpisodicEntries(repo),
 		timeoutMs: request.cloudTimeoutMs,
-		now: request.clock.now,
+		now: () => request.clock.now(),
 	});
 }
 

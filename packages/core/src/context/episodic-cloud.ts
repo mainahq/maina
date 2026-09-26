@@ -43,7 +43,10 @@ type CloudEpisodicRequest = Readonly<{
 const cachePath = (mainaDir: string): string =>
 	join(mainaDir, "cache", "episodic-cloud.json");
 
-/** Only the fields the episodic merge reads; anything else is a bad cache. */
+/**
+ * The fields the episodic merge needs to be well-formed (it computes
+ * relevance as `relevanceScore * decayFactor`); anything else is a bad cache.
+ */
 const isCachedEntry = (value: unknown): value is CloudEpisodicEntry => {
 	if (typeof value !== "object" || value === null) return false;
 	const e = value as Record<string, unknown>;
@@ -51,7 +54,8 @@ const isCachedEntry = (value: unknown): value is CloudEpisodicEntry => {
 		typeof e.id === "string" &&
 		typeof e.title === "string" &&
 		typeof e.summary === "string" &&
-		typeof e.relevanceScore === "number"
+		typeof e.relevanceScore === "number" &&
+		typeof e.decayFactor === "number"
 	);
 };
 
