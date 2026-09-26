@@ -61,12 +61,14 @@ const config: KnipConfig = {
 		"packages/runtime": {
 			// The daemon and the crash fixtures are spawned or compiled by path,
 			// the bench is run directly, and the standalone entry is compiled
-			// by path, so none of them is reached by an import.
+			// by path, so none of them is reached by an import. The standalone
+			// entry is a production entry too: it is the shipped binary, and it
+			// wires CLI modules the CLI's own bin does not (`cli statusline`).
 			entry: [
 				"src/**/__tests__/**/*.test.ts",
 				"src/**/__tests__/fixtures/*.ts",
 				"src/daemon.ts",
-				"src/standalone/main.ts",
+				"src/standalone/main.ts!",
 				"bench/*.bench.ts",
 				"build/__tests__/*.test.ts",
 				"launcher/__tests__/*.test.ts",

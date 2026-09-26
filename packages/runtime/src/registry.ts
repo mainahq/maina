@@ -21,7 +21,7 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { uptime } from "node:os";
+import { homedir, tmpdir, uptime, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import type { Result } from "@mainahq/core";
 
@@ -96,6 +96,20 @@ export function defaultRuntimeDir(
 	if (pluginData) return join(pluginData, "run");
 	const xdg = env.XDG_RUNTIME_DIR;
 	return xdg ? join(xdg, "maina") : join(home, ".maina", "run");
+}
+
+/** This machine user's endpoint for `version`, in the default runtime dir. */
+export function userEndpoint(
+	env: Readonly<Record<string, string | undefined>>,
+	version: string,
+): Endpoint {
+	return resolveEndpoint({
+		platform: process.platform,
+		dir: defaultRuntimeDir(env, homedir()),
+		user: userInfo().username,
+		version,
+		tmpDir: tmpdir(),
+	});
 }
 
 export type RegistryError = Readonly<{ kind: "io_error"; message: string }>;

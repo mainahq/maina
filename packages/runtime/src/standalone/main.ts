@@ -10,6 +10,9 @@
  *                             stdin), answered by that host's adapter
  *                             (`hook-route.ts`)
  *   maina cli [args...]       the maina CLI
+ *   maina statusline [install|remove|preview ...]
+ *                             the agent status line (`cli statusline ...`
+ *                             too, so the launcher's `cli` mode reaches it)
  *   maina runtime-daemon ...  the resident runtime (spawned by clients)
  *
  * Each mode loads only what it needs, so a cold MCP start does not pay for
@@ -29,9 +32,26 @@ function failClosed(host: HookHost | undefined, event: string, cause: string) {
 	process.exitCode = out.exitCode;
 }
 
+/**
+ * `maina statusline <args>`. A render (no subcommand) always prints a line
+ * and exits 0, even when the status line code itself fails to load.
+ */
+async function statusline(args: readonly string[]): Promise<void> {
+	try {
+		const { runStatuslineProcess } = await import("../statusline/system");
+		process.exitCode = await runStatuslineProcess(args, import.meta.path);
+	} catch {
+		if (args.length === 0) process.stdout.write("Maina: off\n");
+		else process.exitCode = 70;
+	}
+}
+
 const [mode, ...rest] = process.argv.slice(2);
 
 switch (mode) {
+	case "statusline":
+		await statusline(rest);
+		break;
 	case "mcp": {
 		const [{ startServer }, { mcpRootResolver }] = await Promise.all([
 			import("@mainahq/mcp"),
@@ -72,6 +92,11 @@ switch (mode) {
 		break;
 	}
 	case "cli": {
+		// The status line needs the runtime, which the CLI package cannot load.
+		if (rest[0] === "statusline") {
+			await statusline(rest.slice(1));
+			break;
+		}
 		// The CLI reads its arguments from process.argv after the script path.
 		process.argv.splice(2, 1);
 		await import("@mainahq/cli/src/index.ts");
@@ -84,7 +109,7 @@ switch (mode) {
 	}
 	default:
 		process.stderr.write(
-			"usage: maina mcp | hook [--host <claude|codex|cursor>] <event> | cli [args...] | runtime-daemon ...\n",
+			"usage: maina mcp | hook [--host <claude|codex|cursor>] <event> | cli [args...] | statusline [...] | runtime-daemon ...\n",
 		);
 		process.exit(64);
 }

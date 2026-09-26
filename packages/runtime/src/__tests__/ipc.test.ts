@@ -192,6 +192,18 @@ describe("runtime requests over the socket", () => {
 		});
 	});
 
+	test("status reports no gate decision yet as a null degraded flag", async () => {
+		const rt = start({ gate: fixedGate("allow") });
+		const sent = await sendRequest(
+			rt.address,
+			createRequest("status", { sessionId: "s1" }, VERSION),
+			1000,
+		);
+		expect(sent.ok && sent.value.ok && sent.value.result).toMatchObject({
+			lastGateDegraded: null,
+		});
+	});
+
 	test("an unknown method gets an unknown_method error", async () => {
 		const rt = start({ gate: fixedGate("allow") });
 		const bogus = {

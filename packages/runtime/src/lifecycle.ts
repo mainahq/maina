@@ -65,6 +65,11 @@ type DaemonOptions = Readonly<{
 /** Where a compiled runtime's modules live: Bun's `$bunfs` (`B:/~BUN` on Windows). */
 const COMPILED_MODULE = /^file:\/\/\/(\$bunfs\/|[A-Za-z]:\/~BUN\/)/;
 
+/** Whether `moduleUrl` is a module inside a compiled standalone runtime. */
+export function isCompiledModule(moduleUrl: string): boolean {
+	return COMPILED_MODULE.test(moduleUrl);
+}
+
 /**
  * The command that starts a daemon. From source it is `daemon.ts` run by
  * bun; inside a compiled standalone runtime (ADR 0045) it is the executable
@@ -74,7 +79,7 @@ export function daemonCommand(
 	moduleUrl: string,
 	execPath: string,
 ): readonly string[] {
-	return COMPILED_MODULE.test(moduleUrl)
+	return isCompiledModule(moduleUrl)
 		? [execPath, "runtime-daemon"]
 		: [execPath, fileURLToPath(new URL("./daemon.ts", moduleUrl))];
 }
