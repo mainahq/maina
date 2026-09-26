@@ -299,9 +299,14 @@ export async function computeLandingProofs(
 
 	const seen = new Set<string>();
 	const corpus: CorpusRow[] = [];
+	// A fixture evaluated on a named branch has a verdict that depends on
+	// that branch (`git push origin HEAD` asks on main, is allowed elsewhere);
+	// the viewer types a bare command, so those rows stay out of the table.
 	const shellRows = [
 		...Object.values(presets),
-		...outcomes.filter((o) => o.fixture?.kind === "shell").map((o) => o.row),
+		...outcomes
+			.filter((o) => o.fixture?.kind === "shell" && !o.fixture.branch)
+			.map((o) => o.row),
 	];
 	for (const row of shellRows) {
 		const key = normalize(row.label);

@@ -49,8 +49,8 @@ jobs:
           MAINA_REQUIRE_SPECKIT: "1"
 
   # Landing page budget (#360): build the docs site and hold / to the
-  # Lighthouse category floors and byte/timing budget in
-  # packages/docs/lighthouserc.json and lighthouse-budget.json.
+  # Lighthouse category floors and the byte/timing budget, both written as
+  # assertions in packages/docs/lighthouserc.json.
   landing-lighthouse:
     runs-on: ubuntu-latest
     timeout-minutes: 15

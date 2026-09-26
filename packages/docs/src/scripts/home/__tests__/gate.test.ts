@@ -1,6 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import corpus from "../../../../public/gate-corpus.json";
-import { type CorpusRow, lookupCommand, normalizeCommand } from "../gate";
+import {
+	type CorpusRow,
+	fetchCorpus,
+	lookupCommand,
+	normalizeCommand,
+} from "../gate";
 
 const rows = corpus as unknown as readonly CorpusRow[];
 
@@ -28,5 +33,31 @@ describe("lookupCommand", () => {
 			expect(typeof row.r).toBe("string");
 			expect(Array.isArray(row.k)).toBe(true);
 		}
+	});
+});
+
+describe("fetchCorpus", () => {
+	const reply = (status: number, body: unknown) => async () =>
+		new Response(JSON.stringify(body), { status });
+
+	it("returns the rows the server sends", async () => {
+		const got = await fetchCorpus(
+			reply(200, [{ c: "ls", v: "allow", r: "x", k: [] }]),
+			"/gate-corpus.json",
+		);
+		expect(got?.[0]?.c).toBe("ls");
+	});
+
+	// A failed load is not "not in the corpus": the page says it could not
+	// load, and tries again on the next check.
+	it("returns null on an HTTP error, a network error or a non-array body", async () => {
+		expect(await fetchCorpus(reply(404, []), "/gate-corpus.json")).toBeNull();
+		expect(
+			await fetchCorpus(reply(200, { rows: [] }), "/gate-corpus.json"),
+		).toBeNull();
+		const offline = async (): Promise<Response> => {
+			throw new TypeError("offline");
+		};
+		expect(await fetchCorpus(offline, "/gate-corpus.json")).toBeNull();
 	});
 });

@@ -21,6 +21,21 @@ import { facts } from "./facts";
 const GITHUB = "https://github.com/mainahq/maina";
 const NPM = "https://www.npmjs.com/package/@mainahq/cli";
 
+/** "a", "a and b", "a, b and c". */
+const prose = (items: readonly string[]): string =>
+	items.length < 2
+		? items.join("")
+		: items.slice(0, -1).join(", ") + " and " + items.slice(-1).join("");
+
+/** The hosts with a plugin, from facts.ts, as prose ("a, b and c"). */
+const HOSTS = prose(facts.hosts);
+
+/** The hero's short telemetry line; the full wording when anything is on. */
+const TELEMETRY_LINE =
+	facts.telemetry.onByDefault.length === 0
+		? facts.telemetry.summary.replace(/:.*$/, ".")
+		: facts.telemetry.summary;
+
 /** The CLI installer. The /cloud page's cross-pitch shows it. */
 export const INSTALL_COMMAND =
 	"curl -fsSL https://api.mainahq.com/install | bash" as const;
@@ -40,9 +55,11 @@ export const SECTION_IDS = [
 
 /** Meta / SEO. */
 export const META = {
-	title: "Maina: guardrails for Claude Code, Codex and Cursor",
+	title: "Maina: guardrails for " + HOSTS,
 	description:
-		"Maina is a guardrail layer for AI coding agents. It allows, asks or denies every command on your machine in milliseconds, with one policy across Claude Code, Codex and Cursor.",
+		"Maina is a guardrail layer for AI coding agents. It allows, asks or denies every command on your machine in milliseconds, with one policy across " +
+		HOSTS +
+		".",
 	ogDescription:
 		"Stop approving ls. Never approve rm -rf ~. Maina decides what your coding agents may do, on your machine, in milliseconds.",
 	url: "https://mainahq.com/",
@@ -92,7 +109,7 @@ export const WAITLIST = {
 		{ value: "200+", label: "200+" },
 	],
 	messages: {
-		idle: "v1 for Claude Code, Codex and Cursor. No spam, one email at launch.",
+		idle: "v1 for " + HOSTS + ". No spam, one email at launch.",
 		invalid: "Enter an email like you@company.com.",
 		more: "Two quick questions, then you are on the list.",
 		missing: "Pick your role and team size.",
@@ -124,7 +141,7 @@ export const HERO = {
 		],
 	},
 	trust: {
-		local: "The gate decides on your machine. Telemetry is off by default.",
+		local: "The gate decides on your machine. " + TELEMETRY_LINE,
 		star: { label: "★ Star on GitHub", href: GITHUB },
 		try: { label: "Try the gate ↓", href: "#gate" },
 	},
@@ -157,6 +174,7 @@ export const GATE = {
 		loading: "Loading the corpus…",
 		notFound:
 			"Not in the build's corpus, so the browser cannot say. Pick an example, or install maina and let the gate decide it for real.",
+		failed: "Could not load the corpus. Check again, or pick an example.",
 	},
 	examplesLabel: "Example agent actions",
 	// What to evaluate: `scripts/landing-proofs.ts` runs each through the
@@ -405,7 +423,7 @@ export const COMPARISON = {
 		{
 			label: "Covers",
 			them: "Their own agent",
-			us: "Claude Code, Codex, Cursor and ACP editors",
+			us: facts.hosts.join(", ") + " and ACP editors",
 		},
 		{
 			label: "Policy",
@@ -464,7 +482,10 @@ export const FAQ = {
 		},
 		{
 			q: "How is Maina different from Claude Code auto mode and Codex Auto-review?",
-			a: "Those checks cover their own agent. Maina gives you one policy and one audit trail across Claude Code, Codex, Cursor and other agents, decided on your machine in milliseconds.",
+			a:
+				"Those checks cover their own agent. Maina gives you one policy and one audit trail across " +
+				facts.hosts.join(", ") +
+				" and other agents, decided on your machine in milliseconds.",
 		},
 		{
 			q: "What happens when Maina is unsure or breaks?",
