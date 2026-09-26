@@ -162,7 +162,7 @@ describe("VERSION", () => {
 			readFileSync(join(ROOT, "package.json"), "utf-8"),
 		) as { scripts: Record<string, string> };
 		expect(root.scripts.version).toMatch(
-			/^changeset version && bun scripts\/version-source\.ts$/,
+			/^changeset version && bun scripts\/version-source\.ts( && |$)/,
 		);
 	});
 

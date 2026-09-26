@@ -58,6 +58,17 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Generated reference',
+          items: [
+            { slug: 'reference/commands' },
+            { slug: 'reference/mcp-tools' },
+            { slug: 'reference/hooks' },
+            { slug: 'reference/config' },
+            { slug: 'reference/policy' },
+            { slug: 'reference/decision-types' },
+          ],
+        },
+        {
           label: 'Advanced',
           collapsed: true,
           items: [
@@ -98,6 +109,7 @@ export default defineConfig({
           label: 'Roadmap',
           items: [
             { slug: 'roadmap' },
+            { slug: 'changelog' },
           ],
         },
       ],
