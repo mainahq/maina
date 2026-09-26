@@ -42,6 +42,7 @@ import {
 	currentTarget,
 	startArtifactServer,
 } from "../../../packages/runtime/launcher/__tests__/fixture";
+import { AGENT_PLUGINS_SOURCE } from "./hosts/agent-plugins";
 import type { Result } from "./types";
 
 const REPO_ROOT = resolve(import.meta.dir, "..", "..", "..");
@@ -57,9 +58,7 @@ const MARKETPLACE_FILES: readonly string[] = [
  * Plugin packages no marketplace lists, installed from their directory:
  * the Agent Plugins package (VS Code agent mode, Copilot; #344).
  */
-const DIRECTORY_SOURCES: readonly string[] = [
-	"./packages/plugins/dist/agent-plugins",
-];
+const DIRECTORY_SOURCES: readonly string[] = [AGENT_PLUGINS_SOURCE];
 
 export interface PluginRelease {
 	/** A marketplace root to add, as a user adds the repo. */
