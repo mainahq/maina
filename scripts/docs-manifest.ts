@@ -6,7 +6,8 @@
  * script renders them from the registries: the CLI program (commands), the
  * MCP catalog (tools), the host adapters' hook maps (hook events), the zod
  * config and policy schemas, the decision catalog and the privacy config.
- * The roadmap and the changelog are rendered from the changesets.
+ * The roadmap and the changelog are rendered from the changesets, and the
+ * benchmarks page from the benchmark report (`scripts/benchmark-report.ts`).
  *
  *   bun scripts/docs-manifest.ts           write every generated file
  *   bun scripts/docs-manifest.ts --json    print the facts as JSON
@@ -57,6 +58,12 @@ import {
 	LIFECYCLE_EVENTS,
 	type LifecycleEvent,
 } from "../packages/runtime/src/adapters/hook-map";
+import {
+	BENCHMARKS_DESCRIPTION,
+	BENCHMARKS_TITLE,
+	readBenchmarkReport,
+	renderBenchmarksPage,
+} from "./benchmark-report";
 import { GENERATED_DOCS } from "./docs-generated";
 
 export { GENERATED_DOCS };
@@ -814,6 +821,9 @@ function renderChangelog(
 export function generateDocs(root: string): ReadonlyMap<string, string> {
 	const facts = collectFacts(root);
 	const changesets = readChangesets(root);
+	// An invalid report renders the methodology page here; `docs:check` and
+	// `docs:generate` report it and fail instead of shipping that page.
+	const report = readBenchmarkReport(root);
 	const out = new Map<string, string>([
 		[FACTS_FILE, renderFactsModule(facts)],
 		[`${DOCS}/reference/commands.mdx`, renderCommands(cliCommands())],
@@ -826,6 +836,14 @@ export function generateDocs(root: string): ReadonlyMap<string, string> {
 		[
 			`${DOCS}/changelog.mdx`,
 			renderChangelog(root, changesets, facts.packages),
+		],
+		[
+			`${DOCS}/benchmarks.mdx`,
+			mdxPage(
+				BENCHMARKS_TITLE,
+				BENCHMARKS_DESCRIPTION,
+				renderBenchmarksPage(report.ok ? report.value : null),
+			),
 		],
 	]);
 	return out;
@@ -963,13 +981,15 @@ function runCheck(): number {
 	const facts = collectFacts(ROOT);
 	const stale = staleDocs(ROOT);
 	const hits = checkHandWrittenDocs(ROOT, facts);
-	if (stale.length === 0 && hits.length === 0) {
+	const report = readBenchmarkReport(ROOT);
+	if (stale.length === 0 && hits.length === 0 && report.ok) {
 		out(
 			"docs-manifest --check: OK: generated docs are current and hand-written pages take their facts from facts.ts.",
 		);
 		return 0;
 	}
 	err("docs-manifest --check: FAIL");
+	if (!report.ok) err(`  ${report.error}`);
 	for (const path of stale) {
 		err(`  ${path}: stale; run \`bun run docs:generate\``);
 	}
@@ -984,7 +1004,12 @@ function runCheck(): number {
 	return 1;
 }
 
-function writeDocs(): void {
+function writeDocs(): number {
+	const report = readBenchmarkReport(ROOT);
+	if (!report.ok) {
+		err(`docs-manifest: ${report.error}`);
+		return 1;
+	}
 	for (const [path, text] of generateDocs(ROOT)) {
 		const full = join(ROOT, path);
 		if (readOrEmpty(full) === text) continue;
@@ -992,6 +1017,7 @@ function writeDocs(): void {
 		writeFileSync(full, text);
 		out(`wrote ${path}`);
 	}
+	return 0;
 }
 
 function main(): number {
@@ -1001,8 +1027,7 @@ function main(): number {
 		out(JSON.stringify(collectFacts(ROOT), null, 2));
 		return 0;
 	}
-	writeDocs();
-	return 0;
+	return writeDocs();
 }
 
 if (import.meta.main) {
