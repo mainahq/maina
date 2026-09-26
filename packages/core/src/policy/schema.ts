@@ -92,6 +92,27 @@ const Rule = z.strictObject({
 	reason: z.string().min(1).optional(),
 });
 
+/**
+ * A literal short branch name, as `git push origin <name>` names it. The
+ * classifier compares names exactly (after stripping `refs/heads/`), so a
+ * name that could only ever fail to match is rejected here instead of
+ * silently protecting nothing: a glob (`release/*`), a full ref
+ * (`refs/heads/main`), refspec syntax (`+main`, `a:b`) and names git itself
+ * refuses (`..`, a trailing `/`, `.` or `.lock`).
+ */
+const BranchName = z
+	.string()
+	.regex(
+		/^(?![-+/]|refs\/)(?!.*(?:\.\.|\/\/|@\{|\/$|\.$|\.lock$))[^\s*?[\\~^:]+$/,
+		"Expected a literal branch name such as main or release/v1 (no globs, refs/heads/ prefix or refspec syntax)",
+	);
+
+const ProtectedBranches = z
+	.array(BranchName)
+	.describe(
+		"Branches a plain push to asks (git.push.protected) and a lease or delete push to counts as a force push (git.push.force). Lists accumulate across layers on top of main and master; none can be removed.",
+	);
+
 const probability = z.number().min(0).max(1);
 
 const Thresholds = z.strictObject({
@@ -149,6 +170,7 @@ const Log = z.strictObject({
 const PolicyBody = z.strictObject({
 	action_classes: z.record(ActionClassId, ActionClassSpec),
 	rules: z.strictObject({ allow: z.array(Rule), deny: z.array(Rule) }),
+	protected_branches: ProtectedBranches,
 	decisions: z.record(z.enum(DECISION_TYPES), DecisionSpec),
 	drift: Drift,
 	telemetry: Telemetry,
@@ -204,6 +226,7 @@ const PolicyLayerSchema = z
 			})
 			.describe("Rule lists accumulate across layers; none can be removed.")
 			.optional(),
+		protected_branches: ProtectedBranches.optional(),
 		decisions: z
 			.partialRecord(
 				z.enum(DECISION_TYPES),

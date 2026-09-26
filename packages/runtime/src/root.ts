@@ -229,3 +229,60 @@ export const asyncGitProbe: AsyncGitProbe = {
 		}
 	},
 };
+
+/**
+ * `symbolic-ref`, not `rev-parse --abbrev-ref`: it also names the branch of
+ * a repository with no commits yet, and fails on a detached HEAD instead of
+ * printing `HEAD`. The full ref, not `--short`: a tag of the same name
+ * would shorten it to `heads/<branch>`, which no protected branch matches.
+ */
+const BRANCH = ["git", "symbolic-ref", "--quiet", "HEAD"];
+const HEADS = "refs/heads/";
+
+/** `symbolic-ref --quiet` exits 1, silently, only when HEAD is detached. */
+const DETACHED_EXIT = 1;
+
+type BranchLookupError = Readonly<
+	| { kind: "git_failed"; exitCode: number }
+	| { kind: "not_a_branch"; ref: string }
+	| { kind: "spawn_failed"; message: string }
+>;
+
+/**
+ * The branch checked out in `dir`, or null for a detached HEAD. Any other
+ * failure (git erroring, a directory outside any repository, a spawn that
+ * cannot start) is an error, never null: an unknown branch lets a bare
+ * `git push` through, so the gate must be able to tell the two apart and
+ * ask. Read-only; never rejects.
+ */
+export async function checkedOutBranch(
+	dir: string,
+): Promise<Result<string | null, BranchLookupError>> {
+	try {
+		const proc = Bun.spawn(BRANCH, probeOptions(dir));
+		const [stdout, exitCode] = await Promise.all([
+			new Response(proc.stdout).text(),
+			proc.exited,
+		]);
+		const ref = stdout.trim();
+		if (exitCode === DETACHED_EXIT && ref === "") {
+			return { ok: true, value: null };
+		}
+		if (exitCode !== 0) {
+			return { ok: false, error: { kind: "git_failed", exitCode } };
+		}
+		const branch = ref.startsWith(HEADS) ? ref.slice(HEADS.length) : "";
+		if (branch === "")
+			return { ok: false, error: { kind: "not_a_branch", ref } };
+		return { ok: true, value: branch };
+	} catch (e) {
+		// Missing or unreadable dir.
+		return {
+			ok: false,
+			error: {
+				kind: "spawn_failed",
+				message: e instanceof Error ? e.message : String(e),
+			},
+		};
+	}
+}

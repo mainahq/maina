@@ -73,7 +73,10 @@ export type GateContext = Readonly<{
 	shell: ShellParser | null;
 	/** Home directory, for `~` and `$HOME`; unknown homes never count as inside the workspace. */
 	home?: string;
-	/** Defaults to `DEFAULT_PROTECTED_BRANCHES`. */
+	/**
+	 * Defaults to `DEFAULT_PROTECTED_BRANCHES`. `evaluateGate` adds the
+	 * policy's `protected_branches`.
+	 */
 	protectedBranches?: readonly string[];
 	/** Branch checked out in the workspace, for pushes with an implicit target. */
 	currentBranch?: string;

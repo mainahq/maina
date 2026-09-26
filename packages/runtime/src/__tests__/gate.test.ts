@@ -46,7 +46,7 @@ import {
 	parseGateDecision,
 	toCoreGateEvent,
 } from "../gate";
-import { systemGates } from "../gate-system";
+import { branchCache, systemGates } from "../gate-system";
 import { noSpawn, tempEndpoint } from "./support";
 
 const ROOT = "/work/repo";
@@ -284,6 +284,81 @@ describe("createGateEvaluator", () => {
 		);
 		expect((await gate(shell("git status", "/w/r/sub"))).verdict).toBe("deny");
 		expect(seen).toEqual(["/w/r/sub/.."]);
+	});
+
+	test("a bare push resolves against the branch checked out in the event's root (#459)", async () => {
+		const seen: string[] = [];
+		const on = (branch: string | null) =>
+			createGateEvaluator(
+				deps({
+					rootOf: (cwd) => `${cwd}/..`,
+					branchOf: async (root) => {
+						seen.push(root);
+						return { ok: true, value: branch };
+					},
+				}),
+			);
+		expect((await on("master")(shell("git push", "/w/r/sub"))).verdict).toBe(
+			"ask",
+		);
+		expect(
+			(await on("master")(shell("git push -u origin HEAD", "/w/r/sub")))
+				.verdict,
+		).toBe("ask");
+		expect((await on("feature")(shell("git push", "/w/r/sub"))).verdict).toBe(
+			"allow",
+		);
+		expect((await on(null)(shell("git push", "/w/r/sub"))).verdict).toBe(
+			"allow",
+		);
+		expect(seen).toEqual([
+			"/w/r/sub/..",
+			"/w/r/sub/..",
+			"/w/r/sub/..",
+			"/w/r/sub/..",
+		]);
+	});
+
+	test("the branch is looked up only for shell events (#459)", async () => {
+		let lookups = 0;
+		const gate = createGateEvaluator(
+			deps({
+				branchOf: async () => {
+					lookups++;
+					return { ok: true, value: "main" };
+				},
+			}),
+		);
+		await gate({
+			kind: "file.write",
+			input: { file_path: "src/a.ts", content: "x" },
+			cwd: ROOT,
+		});
+		expect(lookups).toBe(0);
+	});
+
+	test("a failing branch lookup asks (#459)", async () => {
+		const gate = createGateEvaluator(
+			deps({ branchOf: () => Promise.reject(new Error("git gone")) }),
+		);
+		const decision = await gate(shell("git push"));
+		expect(decision.verdict).toBe("ask");
+		expect(decision.degraded).toBe(true);
+	});
+
+	test("a branch lookup that returns an error asks, never allows (#459)", async () => {
+		const gate = createGateEvaluator(
+			deps({
+				branchOf: async () => ({
+					ok: false,
+					error: { kind: "git_failed", exitCode: 128 },
+				}),
+			}),
+		);
+		const decision = await gate(shell("git push"));
+		expect(decision.verdict).toBe("ask");
+		expect(decision.degraded).toBe(true);
+		expect(decision.reason).toContain("checked-out branch");
 	});
 
 	test("full mode consults the policy's model backend", async () => {
@@ -556,6 +631,46 @@ describe("hook client rules-only fallback", () => {
 	});
 });
 
+describe("branchCache (#459)", () => {
+	test("never reuses a settled answer, so a checkout reaches the next push", async () => {
+		const calls: string[] = [];
+		const branch = ["feature", "master"];
+		const branchOf = branchCache(async (root) => {
+			calls.push(root);
+			return branch[calls.length - 1] ?? null;
+		});
+		expect(await branchOf("/r")).toBe("feature");
+		expect(await branchOf("/r")).toBe("master");
+		expect(calls).toEqual(["/r", "/r"]);
+	});
+
+	test("a failed lookup is not remembered", async () => {
+		let n = 0;
+		const branchOf = branchCache(async () => {
+			n++;
+			if (n === 1) throw new Error("git gone");
+			return "main";
+		});
+		await expect(branchOf("/r")).rejects.toThrow("git gone");
+		expect(await branchOf("/r")).toBe("main");
+	});
+
+	test("keys by root, and concurrent lookups share one", async () => {
+		const calls: string[] = [];
+		const branchOf = branchCache(async (root) => {
+			calls.push(root);
+			return root === "/a" ? "main" : null;
+		});
+		const [a1, a2, b] = await Promise.all([
+			branchOf("/a"),
+			branchOf("/a"),
+			branchOf("/b"),
+		]);
+		expect([a1, a2, b]).toEqual(["main", "main", null]);
+		expect(calls).toEqual(["/a", "/b"]);
+	});
+});
+
 describe("systemGates", () => {
 	let repo = "";
 	beforeAll(() => {
@@ -582,6 +697,72 @@ describe("systemGates", () => {
 		expect((await gates.runtime(shell("git status", repo))).verdict).toBe(
 			"deny",
 		);
+	});
+
+	// #459: the repo's protected branches and its checked-out branch reach
+	// the classifier, so a push to either asks instead of being allowed.
+	describe("protected branches", () => {
+		let branchRepo = "";
+		const run = (cwd: string, ...args: string[]) => {
+			const p = Bun.spawnSync(["git", ...args], {
+				cwd,
+				stderr: "pipe",
+				env: { ...process.env, GIT_DIR: undefined, GIT_WORK_TREE: undefined },
+			});
+			if (p.exitCode !== 0) throw new Error(p.stderr.toString());
+		};
+		beforeAll(() => {
+			branchRepo = realpathSync(mkdtempSync(join(tmpdir(), "maina-gate-br-")));
+			run(branchRepo, "init", "-q");
+			run(branchRepo, "checkout", "-q", "-b", "master");
+			run(
+				branchRepo,
+				"-c",
+				"user.email=t@example.com",
+				"-c",
+				"user.name=t",
+				"-c",
+				"commit.gpgsign=false",
+				"commit",
+				"-q",
+				"--allow-empty",
+				"-m",
+				"init",
+			);
+		});
+		afterAll(() => rmSync(branchRepo, { recursive: true, force: true }));
+
+		test("a push to a branch the repo policy protects asks", async () => {
+			const push = shell("git push origin v1/main", branchRepo);
+			expect((await systemGates().runtime(push)).verdict).toBe("allow");
+			mkdirSync(join(branchRepo, ".maina"), { recursive: true });
+			writeFileSync(
+				join(branchRepo, ".maina", "policy.json"),
+				JSON.stringify({ protected_branches: ["v1/main"] }),
+			);
+			const decided = await systemGates().runtime(push);
+			expect(decided.verdict).toBe("ask");
+			expect(decided.reason).toContain("git.push.protected");
+			expect((await systemGates().fallback(push)).verdict).toBe("ask");
+		});
+
+		test("a bare push while on a protected branch asks; on a feature branch it is allowed", async () => {
+			run(branchRepo, "checkout", "-q", "-b", "feature/x");
+			expect(
+				(await systemGates().runtime(shell("git push", branchRepo))).verdict,
+			).toBe("allow");
+			run(branchRepo, "checkout", "-q", "master");
+			expect(
+				(await systemGates().runtime(shell("git push", branchRepo))).verdict,
+			).toBe("ask");
+			expect(
+				(
+					await systemGates().runtime(
+						shell("git push -u origin HEAD", branchRepo),
+					)
+				).verdict,
+			).toBe("ask");
+		});
 	});
 
 	test("reads the user policy, so `maina allow --always` takes effect (FR-GATE-8)", async () => {

@@ -27,7 +27,7 @@ import {
 	type GateEvaluatorDeps,
 	type GateLog,
 } from "./gate";
-import { gitProbe, resolveRoot } from "./root";
+import { checkedOutBranch, gitProbe, resolveRoot } from "./root";
 
 /** Working directories whose root is remembered; the cache resets past this. */
 const MAX_CACHED_ROOTS = 256;
@@ -68,9 +68,30 @@ function systemDeps(options: SystemOptions): GateEvaluatorDeps {
 			}));
 			return context;
 		},
+		branchOf: branchCache(checkedOutBranch),
 		clock: { now: () => performance.now() },
 		newId: () => randomUUID(),
 		logFor: decisionLogs(),
+	};
+}
+
+/**
+ * `lookup` shared while it runs: concurrent events for a root (a burst of
+ * parallel tool calls) spawn one git process. A settled answer is never
+ * reused. A checkout that ran just before the next event must reach that
+ * event's push: a host runs a message's tool calls back to back, so even a
+ * sub-second cache could miss it and allow the push.
+ */
+export function branchCache<T>(
+	lookup: (root: string) => Promise<T>,
+): (root: string) => Promise<T> {
+	const pending = new Map<string, Promise<T>>();
+	return (root) => {
+		const running = pending.get(root);
+		if (running !== undefined) return running;
+		const branch = lookup(root).finally(() => pending.delete(root));
+		pending.set(root, branch);
+		return branch;
 	};
 }
 
