@@ -10,6 +10,35 @@ inputs:
     description: Enable standard-tier AI semantic review
     required: false
     default: "false"
+  pr-comment:
+    description: >-
+      Opt in to the PR receipt: one sticky comment and one `maina/receipt`
+      check run, updated in place on every push. Off unless set to "true".
+    required: false
+    default: "false"
+  github-token:
+    description: >-
+      Token for the comment and check run (needs pull-requests and checks
+      write). On a fork PR it is read-only, so the receipt goes to the job
+      summary instead.
+    required: false
+    default: ${{ github.token }}
+  comment-author:
+    description: >-
+      Login the sticky comment is written by; only its comment is updated.
+      Change it when github-token is not the default workflow token.
+    required: false
+    default: github-actions[bot]
+  discovery-line:
+    description: Add the one-line "Verified by Maina" footer to the comment
+    required: false
+    default: "true"
+  receipt-context:
+    description: >-
+      Optional JSON file with acceptance criteria, verify scope and gate
+      counts to show beside the receipt.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -95,6 +124,76 @@ runs:
           echo "| Deep review | \`${{ inputs.deep }}\` |"
           echo "| Exit code | ${EXIT_CODE} |"
         } >> "$GITHUB_STEP_SUMMARY"
+
+    # ── PR receipt (opt-in: pr-comment) ─────────────────────────────────────
+    - name: Build PR receipt
+      id: receipt
+      if: always() && inputs.pr-comment == 'true' && github.event.pull_request.number != ''
+      shell: bash
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+      run: |
+        set -uo pipefail
+        git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null \
+          || git fetch --no-tags --depth=1 origin "$BASE_SHA" >/dev/null 2>&1 \
+          || true
+        MERGE_BASE=$(git merge-base "$BASE_SHA" HEAD 2>/dev/null || echo "$BASE_SHA")
+        ORIG_HEAD=$(git rev-parse HEAD)
+
+        # Stage exactly the PR's changes so `maina receipt` (staged scope)
+        # verifies them, then put HEAD back. The tree is untouched throughout.
+        git reset --soft "$MERGE_BASE"
+        OUTPUT=$(bun packages/cli/dist/index.js receipt --json --no-index \
+          --base "$MERGE_BASE" --title "$PR_TITLE" 2>/dev/null)
+        git reset --soft "$ORIG_HEAD"
+
+        JSON_PATH=$(echo "$OUTPUT" | bun -e "try { const j = JSON.parse(await Bun.stdin.text()); console.log(j.data?.jsonPath ?? '') } catch { console.log('') }")
+        if [ -z "$JSON_PATH" ]; then
+          echo "::warning::maina receipt produced no receipt; skipping the PR receipt"
+          exit 0
+        fi
+        echo "path=$JSON_PATH" >> "$GITHUB_OUTPUT"
+        echo "dir=$(dirname "$JSON_PATH")" >> "$GITHUB_OUTPUT"
+
+    - name: Upload receipt
+      if: always() && steps.receipt.outputs.path != ''
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: maina-receipt
+        path: ${{ steps.receipt.outputs.dir }}
+        if-no-files-found: ignore
+
+    - name: Publish PR receipt
+      if: always() && steps.receipt.outputs.path != ''
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        RECEIPT_PATH: ${{ steps.receipt.outputs.path }}
+        RECEIPT_CONTEXT: ${{ inputs.receipt-context }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        EVENT_NAME: ${{ github.event_name }}
+        # The PR's own base: the receipt diffs against its merge base, which
+        # need not be the verify `base` input (default main).
+        BASE_REF: ${{ github.event.pull_request.base.ref }}
+        AUTHOR: ${{ inputs.comment-author }}
+        DISCOVERY: ${{ inputs.discovery-line }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        FLAGS=(--opt-in --receipt "$RECEIPT_PATH" --pr "$PR_NUMBER" --sha "$HEAD_SHA"
+          --repo "$GITHUB_REPOSITORY" --scope-base "$BASE_REF" --receipt-url "$RUN_URL")
+        # A fork PR on `pull_request` gets a read-only token: the receipt
+        # goes to this job's summary (its own check run) instead.
+        if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+          FLAGS+=(--read-only)
+        fi
+        if [ -n "$AUTHOR" ]; then FLAGS+=(--author "$AUTHOR"); fi
+        if [ -n "$RECEIPT_CONTEXT" ]; then FLAGS+=(--context "$RECEIPT_CONTEXT"); fi
+        if [ "$DISCOVERY" != "true" ]; then FLAGS+=(--no-discovery-line); fi
+        bun packages/cli/dist/index.js receipt publish "${FLAGS[@]}" \
+          || echo "::warning::maina could not publish the PR receipt (see above)"
 
     - name: Fail if verify failed
       shell: bash

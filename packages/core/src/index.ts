@@ -607,6 +607,25 @@ export {
 	computeProofHash,
 	hasVerifiedByTrailer,
 } from "./git/trailer";
+// GitHub — PR receipt comment + check run (FR-RET-3)
+export {
+	type CommentExtras as ReceiptCommentExtras,
+	type CommentReceipt,
+	type ExtrasError as ReceiptCommentExtrasError,
+	type GateTally as ReceiptGateTally,
+	type GitHubAuth,
+	type GitHubError,
+	type HttpPort,
+	type HttpRequest,
+	type PublishError as ReceiptPublishError,
+	type PublishInput as ReceiptPublishInput,
+	type PublishOutcome as ReceiptPublishOutcome,
+	parseCommentExtras as parseReceiptCommentExtras,
+	publishReceipt,
+	type ReceiptCriterion,
+	renderReceiptComment,
+	type VerifyScope as ReceiptVerifyScope,
+} from "./github/index";
 // Graph — parser layer (FR-GRAPH-1)
 export {
 	type CallKind,

@@ -16,6 +16,7 @@ import { dirname } from "node:path";
 import type {
 	FsError,
 	FsPort,
+	HttpPort,
 	NetworkPort,
 	TelemetryContext,
 } from "@mainahq/core";
@@ -90,6 +91,43 @@ export const fetchNetwork: NetworkPort = {
 			return res.ok
 				? { ok: true, value: { status: res.status } }
 				: { ok: false, error: { kind: "http", url, status: res.status } };
+		} catch (error) {
+			if (controller.signal.aborted) {
+				return { ok: false, error: { kind: "timeout", url } };
+			}
+			return {
+				ok: false,
+				error: {
+					kind: "network",
+					url,
+					message: error instanceof Error ? error.message : String(error),
+				},
+			};
+		} finally {
+			clearTimeout(timer);
+		}
+	},
+};
+
+/**
+ * `fetch`-backed HTTP for the GitHub surfaces: any status comes back as a
+ * value (core decides what a 403 means); only transport failures are errors.
+ */
+export const fetchHttp: HttpPort = {
+	request: async ({ method, url, headers, body, timeoutMs }) => {
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), timeoutMs);
+		try {
+			const res = await fetch(url, {
+				method,
+				headers: { ...headers },
+				...(body === undefined ? {} : { body }),
+				signal: controller.signal,
+			});
+			return {
+				ok: true,
+				value: { status: res.status, body: await res.text() },
+			};
 		} catch (error) {
 			if (controller.signal.aborted) {
 				return { ok: false, error: { kind: "timeout", url } };
