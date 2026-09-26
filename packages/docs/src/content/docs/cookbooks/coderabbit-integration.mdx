@@ -5,7 +5,7 @@ description: Run Maina verification alongside CodeRabbit reviews for comprehensi
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-Maina and CodeRabbit complement each other — Maina handles deterministic verification (linting, security, slop detection) while CodeRabbit handles AI-powered code review.
+Maina and CodeRabbit complement each other — Maina handles rule-based verification (linting, security, slop detection) while CodeRabbit handles AI-powered code review.
 
 <Steps>
 
@@ -20,7 +20,7 @@ Maina and CodeRabbit complement each other — Maina handles deterministic verif
 3. **How they work together**
 
    On every PR:
-   - **Maina** runs 25+ deterministic tools (Biome, Semgrep, Trivy, slop detection, etc.) and posts inline findings
+   - **Maina** runs 25+ rule-based tools (Biome, Semgrep, Trivy, slop detection, etc.) and posts inline findings
    - **CodeRabbit** runs AI-powered review and posts its own inline comments
    - Both appear as separate review threads — no conflict
 
@@ -39,5 +39,5 @@ Maina and CodeRabbit complement each other — Maina handles deterministic verif
 </Steps>
 
 <Aside type="tip">
-Maina is deterministic (same code = same findings). CodeRabbit is AI-powered (nuanced review). Together they cover both the "is it correct?" and "is it good?" dimensions.
+Maina runs rule-based checks first and reports only findings on changed lines. CodeRabbit is AI-powered (nuanced review). Together they cover both the "is it correct?" and "is it good?" dimensions.
 </Aside>

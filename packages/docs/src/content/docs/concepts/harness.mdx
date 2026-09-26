@@ -1,0 +1,71 @@
+---
+title: Harness and sandbox
+description: Three ways maina meets an agent. A plugin gates the agent through its host's hooks; maina acp gates an editor's agent; maina run drives an agent in its own worktree inside an OS sandbox.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+maina can sit next to a coding agent in three ways. They share the [policy](/concepts/policy/) and the gate, and differ in how much of the agent maina controls.
+
+| | Plugin | `maina acp` | `maina run` |
+|---|---|---|---|
+| Who starts the agent | Your host (Claude Code, Cursor, Codex) | Your editor, through maina | maina |
+| Gate | At the host's hooks | On every permission request | On every permission request |
+| OS sandbox | No | No | Yes |
+| Own worktree | No: works in your checkout | No: works in your checkout | Yes |
+| Budgets | No | No | Yes |
+| Review and revision | A check when the session stops | No | Yes |
+| Receipt | No | `.maina/runs/acp-<id>.json` | `.maina/runs/<run id>.json` |
+
+## Plugins get hooks, not the sandbox
+
+The Claude Code, Cursor and Codex plugins ([Install](/install/)) register maina on the host's lifecycle hooks. Before a tool runs, and when the host is about to ask you for a permission, the gate decides `allow`, `ask` or `deny`. When the session stops, maina checks what it changed. The [hook events reference](/reference/hooks/) lists each host's hooks.
+
+The host still runs its own tools, in your checkout, with your permissions. maina sees an action only where the host fires a hook for it, and there is no operating-system floor underneath: nothing stops a process the agent started from doing what the gate never saw. When the maina runtime cannot answer, the plugin's launcher gives the fail-closed answer itself. A hook that crashes or times out is up to the host: Cursor blocks the action, because maina sets `failClosed` on its permission hooks; Claude Code and Codex fail open and let it through, since neither has a fail-closed setting. The Codex plugin's rules file still forbids `maina allow` in that case.
+
+To put an agent inside the sandbox, drive it with `maina run`.
+
+## `maina acp`: the gate for editor agents
+
+Zed, JetBrains IDEs and other Agent Client Protocol (ACP) editors can launch `maina acp --agent <name>` as their agent. maina starts the real agent and passes every message through unchanged, except permission requests: the gate answers those first. It denies what the policy denies, allows what it allows, and passes only an `ask` on to you in the editor. What the agent asks the editor to run, write or read for it is judged too.
+
+The agent runs in your checkout, as it would without maina: `maina acp` adds the gate, not a sandbox.
+
+## `maina run`: the harness
+
+```bash
+maina run --agent codex "fix the flaky retry test"
+```
+
+`maina run` drives an agent over ACP from start to finish:
+
+1. **A worktree.** The run gets its own checkout on its own branch, `maina/run/<run id>`, kept out of your working tree, so parallel runs never share files.
+2. **A sandbox.** The agent starts inside maina's OS sandbox. A run never starts unsandboxed: if the sandbox is not available, the run does not start.
+3. **The gate.** Every permission request goes through the policy for the run's context.
+4. **Review and one revision.** The result is reviewed. A failed review gets one revision with its findings and a second review. A second failure stops the run with a `stopped` receipt; only a passing review opens a pull request, and only with `--pr`.
+
+The agent is one of `claude` (the default), `codex`, `cursor`, `gemini` or `opencode`. Its ACP adapter must be installed at the pinned minimum version; maina prints the command that installs or updates it when it is not.
+
+### The sandbox
+
+The sandbox is Anthropic's sandbox-runtime (`srt`), pinned to one tested release: Seatbelt on macOS, bubblewrap with a seccomp filter on Linux. Other platforms have no `maina run`. When `srt` is missing, maina prints the command that installs it.
+
+- **Writes** are allowed in the run's worktree and its temp directory, minus the policy's `file.write` deny rules.
+- **Reads** are allowed everywhere except your home directory's credentials (`.ssh`, `.aws`, `.gnupg`, `.config/gh`, `.npmrc` and similar), the policy's `file.read.outside` deny rules, and other runs' worktrees.
+- **Network** reaches only the hosts of the policy's `network` allow rules.
+- **Credentials** never reach the agent. A declared credential is a stand-in inside the sandbox, swapped for the real value only on requests to that credential's hosts. Everything else in your environment is withheld unless a process needs it to run (`PATH`, `HOME`, locale, terminal, temp directory), so a token you happened to export stays out.
+- **Holdout scenarios** in `.maina/holdout/` are hidden from every worker, so an agent cannot tune its work to the tests that judge it.
+
+The sandbox is a floor under the gate, not a copy of it. An `ask`, or a rule about a shell command, has no sandbox form and stays with the gate. Agents that sandbox their own tools cannot start that inner sandbox inside maina's, so maina switches it off and its own sandbox is the one that enforces.
+
+### Interactive and unattended runs
+
+A run is `interactive` when you started it at a terminal, and `unattended` otherwise: no terminal, CI, a background job. `--interactive` and `--unattended` set it explicitly.
+
+An unattended run has nobody to answer an `ask`, so every `ask` is a `deny`. It also never performs `pr.merge`, `git.push.protected`, `deploy` or `package.publish`, whatever the policy says. By default it stops, with a report, at 60 minutes or 500 tool calls, whichever comes first. An interactive run has no budgets unless you set them.
+
+Both contexts are configured under `run` in the policy. Their deny lists accumulate across layers, and a repository's policy can only lower a budget.
+
+<Aside type="note">
+A run's receipt says how it ended and why. See [Receipts and the log](/concepts/receipts-and-log/#harness-runs).
+</Aside>

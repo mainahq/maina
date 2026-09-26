@@ -15,6 +15,7 @@ export const REDIRECTS: Readonly<Record<string, string>> = {
 	"/quickstart": "/install/",
 	"/getting-started": "/install/",
 	"/full-setup": "/install/",
+	"/privacy": "/concepts/privacy/",
 };
 
 export const SIDEBAR = [
@@ -32,12 +33,18 @@ export const SIDEBAR = [
 	{
 		label: "Concepts",
 		items: [
+			{ slug: "concepts/system-1" },
+			{ slug: "concepts/decisions" },
+			{ slug: "concepts/policy" },
+			{ slug: "concepts/receipts-and-log" },
+			{ slug: "concepts/calibration" },
+			{ slug: "concepts/privacy" },
+			{ slug: "concepts/harness" },
 			{ slug: "engines/context" },
 			{ slug: "engines/prompt" },
 			{ slug: "engines/verify" },
 			{ slug: "skills" },
 			{ slug: "wiki" },
-			{ slug: "privacy" },
 		],
 	},
 	{

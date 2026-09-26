@@ -1,0 +1,60 @@
+---
+title: Decisions
+description: A decision is a typed question with a probability for every answer. How decide works, what it returns, and what happens when it cannot answer.
+---
+
+import { facts } from '../../../data/facts';
+
+A decision is one judgement maina makes: whether an action is allowed, whether a finding is real, how relevant a file is. Every one goes through the same function, `decide`, whether the gate calls it before a tool runs, `maina verify` calls it to triage a diff, or you call it yourself.
+
+## A request
+
+A request has three parts:
+
+- **A type**, such as `action.risk` or `finding.real`. There are {facts.decisionTypes.count} types; the [decision types reference](/reference/decision-types/) lists each one, the question it answers and its default backend.
+- **The state** the decision is made over, in two parts: trusted values maina computed or you configured, and untrusted content from the repository or the agent. See [System 1](/concepts/system-1/#what-a-backend-is-trusted-with).
+- **The questions** to answer, each one of three kinds:
+  - `choice`: pick one of 2 to 255 options, such as `allow`, `ask` or `deny`.
+  - `score`: a number between a minimum and a maximum.
+  - `bool`: yes or no.
+
+## A decision
+
+For each question, `decide` returns:
+
+- **The answer.**
+- **The distribution**: a probability for every option, in option order, summing to 1. A score has a single entry at its value.
+- **The confidence**: the probability of the answer, the largest in the distribution.
+- **The backend** that answered, with its version, and how long it took.
+
+The heuristics that ship with maina give an exact rule (a keyword list, a pattern, a lookup) all the probability, so its confidence is 1. A rule that compares a value with a threshold gets more confident the further the value is from the threshold: a value on the threshold is an even split.
+
+## Backends
+
+A backend answers every question of a request, or says it cannot. There are three:
+
+- `rules`: the exact rules of your [policy](/concepts/policy/).
+- `heuristic`: the built-in rules and thresholds.
+- `system1`: a local model, not shipped yet. See [System 1](/concepts/system-1/).
+
+The policy's `decisions` key picks a type's backend. When that backend is not installed, the type's default backend answers instead, and the decision records which one did.
+
+## Thresholds and error costs
+
+The policy gives every type a confidence threshold, the lowest confidence at which its answer is acted on, and the cost of each kind of mistake. For the gate, an answer below the threshold means maina asks you instead of deciding. See [Policy](/concepts/policy/#fail-closed) for the defaults and [Calibration](/concepts/calibration/) for how the costs are used.
+
+## When there is no answer
+
+`decide` never throws. It returns an error instead: an unknown type, a malformed question, no backend for the type, a backend that cannot answer a question or failed, or an answer that fails the checks. The caller then takes its safe default. The gate asks; `maina decide` exits non-zero and prints no verdict, so a workflow that reads one fails closed.
+
+## Ask for a decision yourself
+
+From a terminal or a CI step, `maina decide` answers one decision with the same layered policy the gate uses:
+
+```bash
+maina decide --type action.risk --trusted actionClass=git.push.force --json
+```
+
+It prints a `{ data, error, meta }` envelope and exits 0 whatever the verdict, so a workflow can branch on it. Agents call the `decide` MCP tool with the same request.
+
+Every decision the gate makes is written to the decision log, with the backend's model hash, so its answers can later be checked against what happened. See [Receipts and the log](/concepts/receipts-and-log/#the-decision-log).

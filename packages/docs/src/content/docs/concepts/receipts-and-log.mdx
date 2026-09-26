@@ -1,0 +1,57 @@
+---
+title: Receipts and the log
+description: What maina writes down. A receipt records one verification or agent run; the decision log records every decision, as hashes and labels, append-only.
+---
+
+maina keeps two kinds of record. A **receipt** says what happened to one change: which checks ran, what they found, whether it passed. The **decision log** says what maina decided along the way, one entry per decision, so those decisions can later be checked against what actually happened.
+
+## Receipts
+
+`maina receipt` runs the verify pipeline on your change and writes a receipt to `.maina/receipts/`, in a directory named after the receipt's hash: `receipt.json` and an HTML page, `index.html`. It then refreshes the index of every receipt, `.maina/receipts/index.html`. A receipt holds:
+
+- the pull request title, the repository, a timestamp and a status: `passed`, `failed` or `partial`;
+- the diff's size: lines added and deleted, files changed;
+- the agent and model that wrote the change, and hashes of the constitution and prompts in use;
+- every check that ran, with its findings. A finding can carry the probability, from `decide` (`finding.real`), that it is a real problem;
+- the review triage: the `diff.needs_review` decision behind whether the deep review ran, with its confidence;
+- a walkthrough of the change, and how many retries it took.
+
+### Checking a receipt
+
+A receipt carries a SHA-256 hash of its own canonical JSON (keys sorted, the hash field left out). `maina verify-receipt` checks a receipt against the v1 schema and recomputes that hash, offline:
+
+```bash
+maina verify-receipt .maina/receipts/<hash>/receipt.json
+```
+
+A matching hash shows the receipt has not been edited since it was written. It is a checksum, not a signature: it does not prove who wrote the receipt.
+
+### On the pull request
+
+`maina receipt publish` posts a receipt to its pull request as one comment, updated in place on every push, and one check run. It is opt-in per repository. When a check comes with an autofix patch, `maina apply-fix <hash> <check-id>` applies it as a follow-up commit.
+
+### Harness runs
+
+A [harness run](/concepts/harness/) writes a receipt of its own to `.maina/runs/`. `maina run` writes `<run id>.json`: the run's context and budgets, its attempts and reviews, what it used, a report for a person, and how it ended (`passed`, with the pull request when one was opened, or `stopped`, with the reason). `maina acp` writes `acp-<id>.json` when the editor session ends: the agent, its sessions, every permission request with the gate's verdict, and which side went away first.
+
+## The decision log
+
+Every decision the gate makes is appended to `.maina/decisions.db`, a SQLite database in the repository's `.maina/` directory. The log is append-only: the database refuses any change to or removal of an entry.
+
+An entry records:
+
+- an id, a timestamp and the decision type;
+- hashes of the input, of the question's shape and of the policy in force;
+- the model hash of the backend that answered;
+- the options in the order they were offered, the distribution and the answer;
+- what maina did with it, as a label such as `allow` or `ask`, and the latency;
+- the host (`claude-code`, `cursor`, ...) and the session id.
+
+It never holds code, diff text or file contents. The options offered to a decision are fixed labels for most types. Where they are free-form (the file paths `context.select` ranks, say), `log.paths` in the policy decides how they are kept: `hashed` by default, keyed by a random per-repository salt in `.maina/private/log-salt` that never leaves your machine, or `plain`. See [Privacy](/concepts/privacy/#the-decision-log).
+
+### What the log is for
+
+- **Reproducibility.** Entries with the same input, question, policy and model hashes should carry the same answer and distribution. Promotion measures how often they do.
+- **Outcomes.** What happened after a decision (you overrode it, the commit was reverted, the tests failed) is linked to its entry, itself append-only. That is how maina learns which decisions were wrong: see [Calibration](/concepts/calibration/).
+- **The weekly digest.** `maina digest` reads a week of gate decisions and overrides into a summary, with a card that is safe to share.
+- **Overrides.** `maina allow <decision-id>` finds the action behind a gate decision by its id in the log.

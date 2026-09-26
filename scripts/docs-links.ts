@@ -55,7 +55,7 @@ const plain = (text: string): string =>
 		.trim();
 
 /** Lines outside fenced code blocks, with their 1-based line numbers. */
-function prose(text: string): { line: number; text: string }[] {
+export function prose(text: string): { line: number; text: string }[] {
 	const out: { line: number; text: string }[] = [];
 	let fence: string | null = null;
 	text.split(/\r?\n/).forEach((line, i) => {

@@ -3,7 +3,7 @@
 What the remote connector and its GitHub App jobs keep, what they log,
 which credentials they hold and how they reach the network (FR-REM-3,
 FR-PRIV-2). The user-facing version is the "Remote connector" section of
-`packages/docs/src/content/docs/privacy.mdx`.
+`packages/docs/src/content/docs/concepts/privacy.mdx`.
 
 ## Reporting a vulnerability
 

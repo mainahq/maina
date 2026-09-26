@@ -55,7 +55,7 @@ Every routing decision is logged with an estimate of what it saved against the `
 ### Free tier
 
 With no API key, Maina still works:
-- Deterministic verification (Biome, Semgrep, Trivy, etc.) runs normally
+- Rule-based verification (Biome, Semgrep, Trivy, etc.) runs normally
 - AI-dependent features gracefully degrade
 
 ## Constitution
@@ -119,7 +119,7 @@ Custom prompts:
 
 | Variable | Description | Required |
 |----------|------------|----------|
-| `MAINA_API_KEY` | OpenRouter API key for AI features | No (deterministic verification works without it) |
+| `MAINA_API_KEY` | OpenRouter API key for AI features | No (rule-based verification works without it) |
 | `OPENROUTER_API_KEY` | Alternative name for the API key | No |
 | `MAINA_MODEL_MECHANICAL` | Override the mechanical model tier | No |
 | `MAINA_MODEL_STANDARD` | Override the standard model tier | No |

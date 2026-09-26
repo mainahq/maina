@@ -1,0 +1,57 @@
+---
+title: Calibration
+description: A confidence should mean what it says. How maina links decisions to what happened next, and uses that to promote a backend, or take a decision type back from one.
+---
+
+Every [decision](/concepts/decisions/) comes with a confidence. Calibration is the promise that the number means something: of the answers given with a confidence of 0.8, about eight in ten should turn out right. maina checks that promise against what happened after each decision, recorded in the [decision log](/concepts/receipts-and-log/#the-decision-log).
+
+## Outcomes
+
+An outcome is linked to one logged decision, and is itself append-only. It carries a label and an id for the evidence (a commit, a CI run), never code or paths. There are seven:
+
+| Outcome | What happened | What it says about the decision |
+|---|---|---|
+| `accepted` | You accepted what the decision produced. | It was right. |
+| `override` | You overrode the decision at a gate prompt. | It acted when it should not have. |
+| `dismissed` | You dismissed what the decision flagged. | It acted when it should not have. |
+| `rejected` | You rejected what the decision produced. | It acted when it should not have. |
+| `reverted` | The commit the decision was made for was reverted. | It let through what it should have stopped. |
+| `hotfixed` | A fix touched the same lines soon after. | It let through what it should have stopped. |
+| `test_failed_after_allow` | Tests failed on a commit the decision allowed. | It let through what it should have stopped. |
+
+The first kind of mistake is a false positive, the second a false negative. The policy prices each one per decision type (`error_costs`): for `action.risk` and `diff.sensitive`, a false negative costs ten times a false positive.
+
+Today, `maina allow` links an `override` to the gate decision it overrides. The miners that link reverts, hotfixes and failing tests from your repository's history ship in `@mainahq/core`, and no command runs them yet.
+
+## Heuristics start uncalibrated
+
+The built-in heuristics give an exact rule all the probability, a confidence of 1: the heuristic is its own reference until outcomes say otherwise. A threshold rule's confidence grows with the distance from the threshold. Outcomes are what show where those numbers are too sure.
+
+## Promotion
+
+A new backend, such as the local [System 1](/concepts/system-1/) model, earns a decision type in shadow first. It answers the same questions as the backend in use; both answers are logged, and only the one in use is acted on. The shadow can never change what maina does.
+
+A promotion report then reads the log and checks, per decision type and candidate:
+
+- enough paired decisions, and enough of them with an outcome;
+- how often the candidate agrees with the backend in use;
+- its error rate and its expected cost, against the backend in use;
+- its expected calibration error: the gap between confidence and accuracy, over ten confidence bins;
+- its 95th-percentile latency;
+- where the type can ask, how often it decides without asking and how often it wrongly allows;
+- how often a repeated input gets the same answer.
+
+A candidate is promoted only when every check passes. Missing evidence fails a check.
+
+## The drift guard
+
+A promoted backend keeps being watched. Over the latest 200 decisions it served for a type, the guard checks two things:
+
+- **The error rate**, from linked outcomes, must stay at or below 10%.
+- **The drop in mean confidence**, against the 200 decisions before, must stay at or below 15%.
+
+A breach hands the type back to the backend it was promoted from and tells you. A breach on the type's default backend, which has nothing to fall back to, only tells you. The guard waits for 20 labelled decisions before it judges. The policy's `drift` key sets the window and both limits.
+
+## Sharing outcomes
+
+Calibration across many repositories needs outcomes from many repositories. That channel, `telemetry.outcome_sharing`, is off unless you turn it on in your user policy, and sends labels and numbers only. See [Privacy](/concepts/privacy/#outcome-sharing).
