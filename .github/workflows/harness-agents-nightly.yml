@@ -1,0 +1,90 @@
+name: Harness agents nightly
+
+# v1 task 4B.2 (FR-HAR-1): install each real ACP agent at its latest
+# release, resolve it through the worker registry and finish one trivial
+# turn with it (packages/harness/src/workers/__tests__/agents.e2e.test.ts).
+# Catches an adapter release that breaks the launch spec or the protocol.
+#
+# Needs each agent's credentials as a repository secret; an agent whose
+# secret is not set is skipped with a notice, not failed. Never gates `ci`.
+
+on:
+  schedule:
+    - cron: "15 4 * * *" # 04:15 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: harness-agents-nightly
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: ${{ matrix.agent }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - agent: claude
+            credential: ANTHROPIC_API_KEY
+            install: npm install -g @agentclientprotocol/claude-agent-acp
+          - agent: codex
+            credential: OPENAI_API_KEY
+            install: npm install -g @agentclientprotocol/codex-acp
+          - agent: cursor
+            credential: CURSOR_API_KEY
+            install: curl https://cursor.com/install -fsS | bash && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          - agent: gemini
+            credential: GEMINI_API_KEY
+            install: npm install -g @google/gemini-cli
+          - agent: opencode
+            credential: ANTHROPIC_API_KEY
+            install: npm install -g opencode-ai
+    steps:
+      - name: Check credentials
+        id: creds
+        env:
+          KEY: ${{ secrets[matrix.credential] }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::notice::${{ matrix.credential }} is not set; skipping ${{ matrix.agent }}"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.creds.outputs.skip != 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - if: steps.creds.outputs.skip != 'true'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - if: steps.creds.outputs.skip != 'true'
+        run: bun install --frozen-lockfile
+      - name: Install ${{ matrix.agent }}
+        if: steps.creds.outputs.skip != 'true'
+        run: ${{ matrix.install }}
+      # The harness never sends ACP `authenticate`, so an adapter that will
+      # not pick an auth method from the environment alone refuses
+      # `session/new` with auth_required. Gemini CLI reads it from
+      # settings (`security.auth.selectedType`); codex-acp from
+      # DEFAULT_AUTH_REQUEST below.
+      - name: Select Gemini API-key auth
+        if: steps.creds.outputs.skip != 'true' && matrix.agent == 'gemini'
+        run: |
+          mkdir -p "$HOME/.gemini"
+          echo '{"security":{"auth":{"selectedType":"gemini-api-key"}}}' > "$HOME/.gemini/settings.json"
+      - name: Smoke
+        if: steps.creds.outputs.skip != 'true'
+        # Each agent gets only its own credential, not every vendor's key.
+        env:
+          MAINA_AGENT_SMOKE: ${{ matrix.agent }}
+          DEFAULT_AUTH_REQUEST: ${{ matrix.agent == 'codex' && '{"methodId":"api-key"}' || '' }}
+          ANTHROPIC_API_KEY: ${{ matrix.credential == 'ANTHROPIC_API_KEY' && secrets.ANTHROPIC_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ matrix.credential == 'OPENAI_API_KEY' && secrets.OPENAI_API_KEY || '' }}
+          CURSOR_API_KEY: ${{ matrix.credential == 'CURSOR_API_KEY' && secrets.CURSOR_API_KEY || '' }}
+          GEMINI_API_KEY: ${{ matrix.credential == 'GEMINI_API_KEY' && secrets.GEMINI_API_KEY || '' }}
+        run: bun test packages/harness/src/workers/__tests__/agents.e2e.test.ts
