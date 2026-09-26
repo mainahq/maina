@@ -10,14 +10,17 @@
  * `git worktree add`/`remove` across processes.
  */
 
+import { randomUUID } from "node:crypto";
 import {
 	closeSync,
+	linkSync,
 	mkdirSync,
 	openSync,
 	readdirSync,
 	readFileSync,
 	renameSync,
 	rmSync,
+	writeFileSync,
 	writeSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -242,36 +245,28 @@ const LOCK_POLL_MS = 10;
  * Runs `fn` holding the repository's worktree lock. Concurrent
  * `git worktree add`/`remove` in one repository race: one reads another's
  * half-written `.git/worktrees/<name>` and fails. The lock file names its
- * holder (pid and start time), so a lock left by a crashed process is
- * broken instead of waited on.
+ * holder (pid, start time and a nonce), so a lock left by a crashed process
+ * is broken instead of waited on, and a holder only ever removes its own.
  */
 export async function withWorktreeLock<T>(
 	commonDir: string,
 	processes: ProcessTable,
 	fn: () => Promise<Result<T, SessionError>>,
 ): Promise<Result<T, SessionError>> {
-	const file = join(sessionsDir(commonDir), "worktrees.lock");
-	const me = JSON.stringify(identify(processes, process.pid));
+	const dir = sessionsDir(commonDir);
+	const file = join(dir, "worktrees.lock");
+	// The nonce tells this holder apart from every other, this process's own
+	// concurrent callers included.
+	const me = JSON.stringify({
+		...identify(processes, process.pid),
+		nonce: randomUUID(),
+	});
 	const deadline = Date.now() + LOCK_TIMEOUT_MS;
 	for (;;) {
-		try {
-			mkdirSync(sessionsDir(commonDir), { recursive: true });
-			const fd = openSync(file, "wx", 0o600);
-			try {
-				writeSync(fd, me);
-			} finally {
-				closeSync(fd);
-			}
-			break;
-		} catch (e) {
-			if ((e as NodeJS.ErrnoException).code !== "EEXIST") {
-				return { ok: false, error: ioError(e) };
-			}
-		}
-		if (lockHolderGone(file, processes)) {
-			rmSync(file, { force: true });
-			continue;
-		}
+		const taken = takeLock(dir, file, me);
+		if (!taken.ok) return taken;
+		if (taken.value) break;
+		if (breakIfStale(file, processes)) continue;
 		if (Date.now() > deadline) {
 			return {
 				ok: false,
@@ -286,17 +281,88 @@ export async function withWorktreeLock<T>(
 	try {
 		return await fn();
 	} finally {
-		rmSync(file, { force: true });
+		releaseLock(file, me);
 	}
 }
 
-function lockHolderGone(file: string, processes: ProcessTable): boolean {
+/**
+ * Creates the lock with its holder already in it: written to a private
+ * file, then hard-linked into place, which fails with EEXIST while the lock
+ * is held. So the lock never exists empty, even if its holder dies at once.
+ */
+function takeLock(
+	dir: string,
+	file: string,
+	me: string,
+): Result<boolean, SessionError> {
+	const tmp = `${file}.${process.pid}.${randomUUID()}.tmp`;
+	try {
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(tmp, me, { mode: 0o600 });
+		linkSync(tmp, file);
+		return { ok: true, value: true };
+	} catch (e) {
+		return (e as NodeJS.ErrnoException).code === "EEXIST"
+			? { ok: true, value: false }
+			: { ok: false, error: ioError(e) };
+	} finally {
+		rmSync(tmp, { force: true });
+	}
+}
+
+/**
+ * Removes the lock if its holder has crashed; true when the caller should
+ * try to take it again at once. The lock is moved aside atomically before
+ * it is judged a second time: another waiter that saw the same crashed
+ * holder may have broken the lock and taken it since it was read, and that
+ * live lock is put back, never deleted.
+ */
+function breakIfStale(file: string, processes: ProcessTable): boolean {
+	let text: string;
+	try {
+		text = readFileSync(file, "utf8");
+	} catch {
+		// Released since the take failed: take it.
+		return true;
+	}
+	if (!holderGone(text, processes)) return false;
+	const aside = `${file}.${process.pid}.${randomUUID()}.stale`;
+	try {
+		renameSync(file, aside);
+	} catch {
+		return true;
+	}
+	try {
+		if (readFileSync(aside, "utf8") !== text) {
+			try {
+				linkSync(aside, file);
+			} catch {
+				// Someone took the lock meanwhile; theirs stands.
+			}
+		}
+	} catch {
+		// Unreadable once moved: it was the stale one.
+	} finally {
+		rmSync(aside, { force: true });
+	}
+	return true;
+}
+
+function holderGone(text: string, processes: ProcessTable): boolean {
 	let holder: unknown;
 	try {
-		holder = JSON.parse(readFileSync(file, "utf8"));
+		holder = JSON.parse(text);
 	} catch {
-		// Mid-write, or already released: look again.
 		return false;
 	}
 	return isIdentity(holder) && liveness(processes, holder) === "gone";
+}
+
+/** Removes the lock only while it is still this holder's. */
+function releaseLock(file: string, me: string): void {
+	try {
+		if (readFileSync(file, "utf8") === me) rmSync(file, { force: true });
+	} catch {
+		// Already gone.
+	}
 }

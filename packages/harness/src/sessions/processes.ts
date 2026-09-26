@@ -32,14 +32,18 @@ export type ProcessTable = Readonly<{
 	signalGroup: (pgid: number, signal: NodeJS.Signals) => void;
 }>;
 
+/** What `probe` reads from the system; tests swap it. */
+export type ProbeIo = Readonly<{
+	/** Whether kill(pid, 0) finds the pid (EPERM counts: it runs as somebody else). */
+	exists: (pid: number) => boolean;
+	/** `/proc/<pid>/stat`, or undefined when it cannot be read. */
+	procStat: (pid: number) => string | undefined;
+	/** `ps -o stat=,lstart=` output for the pid, or undefined when ps cannot run. */
+	ps: (pid: number) => string | undefined;
+}>;
+
 /** `/proc/<pid>/stat`: state and start time (clock ticks since boot). */
-function probeProc(pid: number): ProcessState | undefined {
-	let stat: string;
-	try {
-		stat = readFileSync(`/proc/${pid}/stat`, "utf8");
-	} catch {
-		return undefined;
-	}
+function parseProcStat(stat: string): ProcessState {
 	// Fields after the parenthesised command name: state is field 3 and
 	// starttime field 22 of the whole line.
 	const fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
@@ -47,38 +51,65 @@ function probeProc(pid: number): ProcessState | undefined {
 	return { state: "running", start: fields[19] ?? null };
 }
 
-/** `ps`, where there is no `/proc` (macOS). */
-function probePs(pid: number): ProcessState {
-	const ps = Bun.spawnSync(["ps", "-o", "stat=,lstart=", "-p", String(pid)], {
-		env: { PATH: Bun.env.PATH ?? "/usr/bin:/bin", LC_ALL: "C" },
-	});
-	const line = ps.stdout.toString().trim();
-	if (line === "") return { state: "gone" };
+/** A `ps` line, where there is no `/proc` (macOS); undefined when empty. */
+function parsePs(line: string): ProcessState | undefined {
+	if (line === "") return undefined;
 	const [stat = "", ...start] = line.split(/\s+/);
 	if (stat.startsWith("Z")) return { state: "gone" };
 	return { state: "running", start: start.length > 0 ? start.join(" ") : null };
 }
 
-function exists(pid: number): boolean {
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch (e) {
-		// EPERM: it runs, as somebody else.
-		return (e as NodeJS.ErrnoException).code === "EPERM";
+/**
+ * Whether `pid` runs, and since when. Only kill(0) failing to find the pid,
+ * or a zombie, counts as gone: a pid kill(0) finds but neither `/proc` nor
+ * `ps` can show (`/proc` mounted `hidepid`, no `ps`) runs with an unknown
+ * start time, which never reads as crashed.
+ */
+export function probeWith(io: ProbeIo, pid: number): ProcessState {
+	// pid 1 runs (a container's entrypoint may be the harness itself); only
+	// signalling it is off limits, in `signalGroup`.
+	if (!Number.isInteger(pid) || pid < 1 || !io.exists(pid)) {
+		return { state: "gone" };
 	}
+	const stat = io.procStat(pid);
+	if (stat !== undefined) return parseProcStat(stat);
+	const line = io.ps(pid);
+	const shown = line === undefined ? undefined : parsePs(line.trim());
+	return shown ?? { state: "running", start: null };
 }
+
+const systemProbeIo: ProbeIo = {
+	exists: (pid) => {
+		try {
+			process.kill(pid, 0);
+			return true;
+		} catch (e) {
+			return (e as NodeJS.ErrnoException).code === "EPERM";
+		}
+	},
+	procStat: (pid) => {
+		try {
+			return readFileSync(`/proc/${pid}/stat`, "utf8");
+		} catch {
+			return undefined;
+		}
+	},
+	ps: (pid) => {
+		try {
+			const ps = Bun.spawnSync(
+				["ps", "-o", "stat=,lstart=", "-p", String(pid)],
+				{ env: { PATH: Bun.env.PATH ?? "/usr/bin:/bin", LC_ALL: "C" } },
+			);
+			return ps.stdout.toString();
+		} catch {
+			return undefined;
+		}
+	},
+};
 
 export const systemProcesses: ProcessTable = {
 	self: process.pid,
-	probe: (pid) => {
-		// pid 1 runs (a container's entrypoint may be the harness itself); only
-		// signalling it is off limits, in `signalGroup`.
-		if (!Number.isInteger(pid) || pid < 1 || !exists(pid)) {
-			return { state: "gone" };
-		}
-		return probeProc(pid) ?? probePs(pid);
-	},
+	probe: (pid) => probeWith(systemProbeIo, pid),
 	signalGroup: (pgid, signal) => {
 		if (!Number.isInteger(pgid) || pgid <= 1) return;
 		try {
