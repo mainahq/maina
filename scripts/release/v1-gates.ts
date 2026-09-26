@@ -22,7 +22,7 @@
  *                                 eceByLengthBucket, falseAllowDestructive, decidedWithoutAsking,
  *                                 orderFlips, injectionFlipsToAllow, modelLatencyP95Ms,
  *                                 gateLatencyP95Ms, shadowDecisionsWithOutcomes, reproducibility } }
- *   benchmark.json              { link, methodology, systems: string[], sets: string[] }
+ *   benchmark.json              { link, methodology: <http(s) link>, systems: string[], sets: string[] }
  *   docs-build.json             { link, clean }
  *   latency.json                { link, gateP95Ms, decideP95Ms, graphQueryP95Ms, mcpColdStartMs }
  *   dogfood-weeks.json          { link, weeks: [{ week: "yyyy-ww", onV1Runtime, openP0 }] }
@@ -140,6 +140,9 @@ function isCommandItem(item: GateItem): item is CommandItem {
 const fmt = (n: number) => n.toLocaleString("en-US");
 const pct = (r: number) => `${(Math.floor(r * 1000) / 10).toFixed(1)}%`;
 
+/** An evidence or methodology link: http(s) only. */
+const LINK = /^https?:\/\/\S+$/;
+
 function isObj(v: unknown): v is Obj {
 	return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -161,10 +164,18 @@ function checker() {
 	return {
 		problems,
 		facts,
-		/** A required number; records it as missing when absent. */
+		/**
+		 * A required number; records it as missing when absent. Every value
+		 * the gates read is a count, rate or duration, so a negative one is
+		 * invalid evidence and never satisfies a bound.
+		 */
 		need(data: Obj, key: string, label = key): number | undefined {
 			const v = num(data[key]);
 			if (v === undefined) problems.push(`${label}: missing`);
+			else if (v < 0) {
+				problems.push(`${label}: ${v} is not a valid value`);
+				return undefined;
+			}
 			return v;
 		},
 		/** A bound on one value: records a fact or a problem. */
@@ -195,7 +206,7 @@ function checkE2e(data: Obj): Check {
 	const passed = c.need(data, "passed");
 	if (runs === undefined || passed === undefined) return c.done();
 	const { minRuns, minPassRate } = THRESHOLDS.e2e;
-	if (passed > runs || passed < 0) {
+	if (passed > runs) {
 		c.problems.push(
 			`${fmt(passed)} passed of ${fmt(runs)} runs is not a valid count`,
 		);
@@ -318,8 +329,10 @@ function checkPromotion(data: Obj): Check {
 function checkBenchmark(data: Obj): Check {
 	const c = checker();
 	const b = THRESHOLDS.benchmark;
-	if (typeof data.methodology !== "string" || data.methodology === "") {
-		c.problems.push("methodology: missing (the methodology must be public)");
+	if (typeof data.methodology !== "string" || !LINK.test(data.methodology)) {
+		c.problems.push(
+			"methodology: no http(s) link (the methodology must be public)",
+		);
 	}
 	for (const key of ["systems", "sets"] as const) {
 		const have = strings(data[key]) ?? [];
@@ -433,7 +446,12 @@ function checkDogfoodWeeks(data: Obj, ctx: GateContext): Check {
 	if (run < need) c.problems.push(`${line} (need ≥ ${need})`);
 	else c.facts.push(line);
 	const current = isoWeek(ctx.now.getTime());
-	if (weeksBetween(latest.week, current) > 1) {
+	const behind = weeksBetween(latest.week, current);
+	if (behind < 0) {
+		c.problems.push(
+			`latest recorded week ${latest.week} is in the future (now ${current})`,
+		);
+	} else if (behind > 1) {
 		c.problems.push(
 			`latest recorded week ${latest.week} is stale (now ${current}; record the weeks since)`,
 		);
@@ -446,7 +464,7 @@ function checkReceipts(data: Obj): Check {
 	const merges = c.need(data, "merges");
 	const receipted = c.need(data, "receipted");
 	if (merges === undefined || receipted === undefined) return c.done();
-	if (receipted > merges || receipted < 0) {
+	if (receipted > merges) {
 		c.problems.push(
 			`${fmt(receipted)} receipted of ${fmt(merges)} merges is not a valid count`,
 		);
@@ -470,20 +488,26 @@ function checkEscape(data: Obj, ctx: GateContext): Check {
 	for (const worker of ctx.workers) {
 		for (const os of THRESHOLDS.escapeOses) {
 			const label = `${worker} on ${os}`;
-			const r = runs.find((x) => x.worker === worker && x.os === os);
-			if (r === undefined) {
+			// Every run recorded for this pair must pass: a clean run cannot
+			// hide a failing rerun.
+			const matching = runs.filter((x) => x.worker === worker && x.os === os);
+			if (matching.length === 0) {
 				c.problems.push(`${label}: missing`);
 				continue;
 			}
-			const cases = num(r.cases) ?? 0;
-			const blocked = num(r.blocked) ?? 0;
-			const line = `${label}: ${blocked} of ${cases} cases blocked`;
-			if (cases < ctx.escapeCases) {
-				c.problems.push(
-					`${line} (the suite has ${ctx.escapeCases} cases; run all of them)`,
-				);
-			} else if (blocked < cases) c.problems.push(line);
-			else c.facts.push(line);
+			for (const r of matching) {
+				const cases = num(r.cases) ?? 0;
+				const blocked = num(r.blocked) ?? 0;
+				const line = `${label}: ${blocked} of ${cases} cases blocked`;
+				if (blocked > cases || blocked < 0) {
+					c.problems.push(`${line} is not a valid count`);
+				} else if (cases < ctx.escapeCases) {
+					c.problems.push(
+						`${line} (the suite has ${ctx.escapeCases} cases; run all of them)`,
+					);
+				} else if (blocked < cases) c.problems.push(line);
+				else c.facts.push(line);
+			}
 		}
 	}
 	return c.done();
@@ -672,8 +696,6 @@ function parseEvidence(name: string, text: string): Result<Obj, string> {
 		};
 	}
 }
-
-const LINK = /^https?:\/\/\S+$/;
 
 function judge(item: GateItem, inputs: GateInputs): GateResult {
 	const base = { id: item.id, section: item.section, title: item.title };

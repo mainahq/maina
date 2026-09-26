@@ -352,6 +352,71 @@ const BELOW: ReadonlyArray<
 		says: /claude on macos.*59 of 60/,
 	},
 	{
+		name: "a clean escape run hiding a failing rerun of the same worker and OS",
+		id: "escape-suite",
+		file: "escape-suite.json",
+		patch: (g) => ({
+			...g,
+			runs: [
+				...(g.runs as unknown[]),
+				{ os: "linux", worker: "codex", cases: 60, blocked: 58 },
+			],
+		}),
+		says: /codex on linux.*58 of 60/,
+	},
+	{
+		name: "more escape cases blocked than run",
+		id: "escape-suite",
+		file: "escape-suite.json",
+		patch: (g) => ({
+			...g,
+			runs: [
+				...(g.runs as unknown[]).slice(1),
+				{ os: "macos", worker: "claude", cases: 60, blocked: 61 },
+			],
+		}),
+		says: /claude on macos.*61 of 60.*not a valid count/,
+	},
+	{
+		name: "dogfood weeks recorded in the future",
+		id: "dogfood-weeks",
+		file: "dogfood-weeks.json",
+		patch: (g) => ({
+			...g,
+			weeks: [
+				{ week: "2026-50", onV1Runtime: true, openP0: 0 },
+				{ week: "2026-51", onV1Runtime: true, openP0: 0 },
+				{ week: "2026-52", onV1Runtime: true, openP0: 0 },
+				{ week: "2026-53", onV1Runtime: true, openP0: 0 },
+			],
+		}),
+		says: /2026-53.*future.*2026-40/,
+	},
+	{
+		name: "a negative latency",
+		id: "latency",
+		file: "latency.json",
+		patch: (g) => ({ ...g, gateP95Ms: -1 }),
+		says: /gateP95Ms.*-1.*not a valid value/,
+	},
+	{
+		name: "a negative false-allow rate",
+		id: "promotion-action-risk",
+		file: "promotion-action-risk.json",
+		patch: (g) => ({
+			...g,
+			metrics: { ...(g.metrics as object), falseAllowDestructive: -0.1 },
+		}),
+		says: /falseAllowDestructive.*-0\.1.*not a valid value/,
+	},
+	{
+		name: "a benchmark methodology that is not a public link",
+		id: "benchmark",
+		file: "benchmark.json",
+		patch: (g) => ({ ...g, methodology: "see the team wiki" }),
+		says: /methodology.*http/,
+	},
+	{
 		name: "an unattended run that can ship",
 		id: "harness-control",
 		file: "harness-control.json",
