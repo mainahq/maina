@@ -67,11 +67,22 @@ jobs:
       - name: Install ${{ matrix.agent }}
         if: steps.creds.outputs.skip != 'true'
         run: ${{ matrix.install }}
+      # The harness never sends ACP `authenticate`, so an adapter that will
+      # not pick an auth method from the environment alone refuses
+      # `session/new` with auth_required. Gemini CLI reads it from
+      # settings (`security.auth.selectedType`); codex-acp from
+      # DEFAULT_AUTH_REQUEST below.
+      - name: Select Gemini API-key auth
+        if: steps.creds.outputs.skip != 'true' && matrix.agent == 'gemini'
+        run: |
+          mkdir -p "$HOME/.gemini"
+          echo '{"security":{"auth":{"selectedType":"gemini-api-key"}}}' > "$HOME/.gemini/settings.json"
       - name: Smoke
         if: steps.creds.outputs.skip != 'true'
         # Each agent gets only its own credential, not every vendor's key.
         env:
           MAINA_AGENT_SMOKE: ${{ matrix.agent }}
+          DEFAULT_AUTH_REQUEST: ${{ matrix.agent == 'codex' && '{"methodId":"api-key"}' || '' }}
           ANTHROPIC_API_KEY: ${{ matrix.credential == 'ANTHROPIC_API_KEY' && secrets.ANTHROPIC_API_KEY || '' }}
           OPENAI_API_KEY: ${{ matrix.credential == 'OPENAI_API_KEY' && secrets.OPENAI_API_KEY || '' }}
           CURSOR_API_KEY: ${{ matrix.credential == 'CURSOR_API_KEY' && secrets.CURSOR_API_KEY || '' }}
