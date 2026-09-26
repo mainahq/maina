@@ -1,0 +1,114 @@
+# maina, self-hosted (FR-REM-4): the remote MCP service and the GitHub App
+# PR jobs, with no outbound network except GitHub.
+#
+#   cd packages/remote/deploy/compose
+#   cp .env.example .env    # then set MAINA_REMOTE_PASSWORD and friends
+#   docker compose up -d --build
+#   docker compose run --rm job verify --repo acme/widgets --pr 7 --installation 4242
+#
+# Networks: `remote` and `job` sit on `internal`, which has no route out
+# (and so no published ports). Two forwarders from the same image bridge it
+# to `edge`: `egress`, an HTTP CONNECT proxy that only tunnels to
+# MAINA_EGRESS_ALLOW (GitHub by default) and logs every attempt, and
+# `ingress`, which carries inbound requests to `remote`.
+#
+# The operator's policy file and local model artifacts are mounted
+# read-only into $HOME/.maina, where the image reads them.
+#
+# Guide: https://mainahq.com/self-host/
+
+name: maina
+
+services:
+  remote:
+    image: ${MAINA_IMAGE:-maina-remote:local}
+    build:
+      context: ../../../..
+      dockerfile: packages/remote/Dockerfile
+    entrypoint: ["bun", "packages/remote/src/main.ts"]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp
+      - /home/bun:uid=1000,gid=1000,mode=0700
+    environment:
+      MAINA_REMOTE_ISSUER: ${MAINA_REMOTE_ISSUER:-http://localhost:8787}
+      MAINA_REMOTE_OWNER: ${MAINA_REMOTE_OWNER:-owner}
+      MAINA_REMOTE_PASSWORD: ${MAINA_REMOTE_PASSWORD:-}
+      MAINA_MCP_TOOLS: ${MAINA_MCP_TOOLS:-}
+      HTTPS_PROXY: http://egress:3128
+      https_proxy: http://egress:3128
+      HTTP_PROXY: http://egress:3128
+      http_proxy: http://egress:3128
+      NO_PROXY: localhost,127.0.0.1
+      no_proxy: localhost,127.0.0.1
+    volumes:
+      - ${MAINA_WORKSPACE:-./workspace}:/workspace:ro
+      - ${MAINA_POLICY_FILE:-./policy.json}:/home/bun/.maina/policy.json:ro
+      - ${MAINA_MODEL_DIR:-./models}:/home/bun/.maina/models:ro
+    networks: [internal]
+    depends_on: [egress]
+
+  # One-shot PR jobs: `docker compose run --rm job <kind> --repo ... --pr ... --installation ...`
+  job:
+    image: ${MAINA_IMAGE:-maina-remote:local}
+    profiles: [job]
+    entrypoint: ["bun", "packages/remote/src/github/main.ts"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp
+      - /home/bun:uid=1000,gid=1000,mode=0700
+    healthcheck:
+      disable: true
+    environment:
+      MAINA_GITHUB_APP_ID: ${MAINA_GITHUB_APP_ID:-}
+      MAINA_GITHUB_APP_PRIVATE_KEY: ${MAINA_GITHUB_APP_PRIVATE_KEY:-}
+      MAINA_GITHUB_API_URL: ${MAINA_GITHUB_API_URL:-}
+      MAINA_JOBS_TMPDIR: /tmp
+      HTTPS_PROXY: http://egress:3128
+      https_proxy: http://egress:3128
+      HTTP_PROXY: http://egress:3128
+      http_proxy: http://egress:3128
+      NO_PROXY: localhost,127.0.0.1
+      no_proxy: localhost,127.0.0.1
+    volumes:
+      - ${MAINA_POLICY_FILE:-./policy.json}:/home/bun/.maina/policy.json:ro
+      - ${MAINA_MODEL_DIR:-./models}:/home/bun/.maina/models:ro
+    networks: [internal]
+    depends_on: [egress]
+
+  egress:
+    image: ${MAINA_IMAGE:-maina-remote:local}
+    entrypoint: ["bun", "packages/remote/src/edge/main.ts", "egress"]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      PORT: "3128"
+      MAINA_EGRESS_ALLOW: ${MAINA_EGRESS_ALLOW:-github.com,api.github.com}
+    networks: [internal, edge]
+
+  ingress:
+    image: ${MAINA_IMAGE:-maina-remote:local}
+    entrypoint: ["bun", "packages/remote/src/edge/main.ts", "ingress"]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      PORT: "8787"
+      MAINA_INGRESS_UPSTREAM: http://remote:8787
+    ports:
+      - "${MAINA_BIND:-127.0.0.1}:${MAINA_PORT:-8787}:8787"
+    networks: [internal, edge]
+    depends_on: [remote]
+
+networks:
+  internal:
+    internal: true
+  edge: {}

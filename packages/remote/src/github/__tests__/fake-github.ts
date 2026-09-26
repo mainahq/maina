@@ -16,7 +16,7 @@ type Recorded = Readonly<{
 	body: unknown;
 }>;
 
-type FakePull = Readonly<{
+export type FakePull = Readonly<{
 	number: number;
 	head: string;
 	base: string;
@@ -46,12 +46,19 @@ export function fakeGitHub(
 		pulls?: readonly FakePull[];
 		/** Page size the files endpoint honours at most. */
 		maxPerPage?: number;
+		/** The API origin served; default `API`. */
+		api?: string;
+		/** Whether an App JWT is good; default: exactly `APP_JWT`. */
+		acceptAppJwt?: (jwt: string) => boolean;
 	}> = {},
 ): FakeGitHub {
 	const owner = options.owner ?? "acme";
 	const repo = options.repo ?? "widgets";
 	const pulls = options.pulls ?? [];
 	const maxPerPage = options.maxPerPage ?? 100;
+	const api = options.api ?? API;
+	const acceptAppJwt =
+		options.acceptAppJwt ?? ((jwt: string) => jwt === APP_JWT);
 	const requests: Recorded[] = [];
 	const tokens = new Set<string>();
 	let minted = 0;
@@ -68,13 +75,16 @@ export function fakeGitHub(
 			authorization,
 			body: text === "" ? undefined : JSON.parse(text),
 		});
-		if (url.origin !== API) return json(404, { message: "Not Found" });
+		if (url.origin !== api) return json(404, { message: "Not Found" });
 
 		if (
 			req.method === "POST" &&
 			url.pathname === `/app/installations/${INSTALLATION_ID}/access_tokens`
 		) {
-			if (authorization !== `Bearer ${APP_JWT}`) {
+			const jwt = authorization?.startsWith("Bearer ")
+				? authorization.slice("Bearer ".length)
+				: undefined;
+			if (jwt === undefined || !acceptAppJwt(jwt)) {
 				return json(401, { message: "A JSON web token could not be decoded" });
 			}
 			minted += 1;

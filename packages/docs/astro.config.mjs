@@ -62,6 +62,7 @@ export default defineConfig({
           collapsed: true,
           items: [
             { slug: 'full-setup' },
+            { slug: 'self-host' },
           ],
         },
         {

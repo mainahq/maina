@@ -4,10 +4,21 @@
  * workspace over Streamable HTTP behind OAuth 2.1, with a single owner who
  * approves clients through HTTP Basic sign-in, and shuts down cleanly on
  * SIGINT / SIGTERM. The Dockerfile runs this file.
+ *
+ * Before serving it checks the operator's policy file and model directory
+ * under `$HOME/.maina` (`checkSelfHost`) and refuses to start on a broken
+ * or telemetry-enabling policy.
  */
 
+import { homedir } from "node:os";
+import { systemFs } from "@mainahq/core";
 import { systemRuntime } from "@mainahq/mcp";
 import { basicAuthenticator } from "./auth";
+import {
+	checkSelfHost,
+	describeSelfHost,
+	describeSelfHostError,
+} from "./selfhost";
 import { createRemoteService, readRemoteConfig } from "./server";
 
 const config = readRemoteConfig(process.env, process.cwd());
@@ -18,11 +29,19 @@ if (!config.ok) {
 	process.exit(1);
 }
 
+const home = process.env.HOME?.trim() || homedir();
+const setup = await checkSelfHost(systemFs, home);
+if (!setup.ok) {
+	process.stderr.write(`maina remote: ${describeSelfHostError(setup.error)}\n`);
+	process.exit(1);
+}
+process.stderr.write(`maina remote: ${describeSelfHost(setup.value)}\n`);
+
 const { issuer, port, root, owner, tools } = config.value;
 const service = createRemoteService({
 	issuer,
 	root,
-	runtime: systemRuntime({ cwd: root, env: process.env }),
+	runtime: systemRuntime({ cwd: root, env: process.env, home }),
 	authenticate: basicAuthenticator(owner),
 	...(tools !== undefined ? { tools } : {}),
 });

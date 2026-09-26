@@ -1,0 +1,100 @@
+---
+title: Self-hosting
+description: Run the maina remote connector and GitHub App jobs on your own infrastructure, with no outbound network except GitHub.
+---
+
+The maina remote connector (the MCP tools over Streamable HTTP behind OAuth 2.1) and the GitHub App pull request jobs ship as one container image. You can run it with Docker Compose or a Helm chart. Either way, the install reaches GitHub and nothing else.
+
+:::note
+The remote connector is part of the v1 release and is not published yet. Until it is, build the image from source.
+:::
+
+## How it is isolated
+
+- **The maina containers have no route out.** The MCP service and the PR jobs sit on a network with no route to the internet. In Compose that is an `internal` network. In Kubernetes it is a `NetworkPolicy` that only lets them reach the egress proxy and cluster DNS.
+- **One way out: the egress proxy.** It runs from the same image and tunnels HTTPS (HTTP CONNECT) only to the exact hosts in `MAINA_EGRESS_ALLOW`, which defaults to `github.com,api.github.com`. It refuses every other host, every IP address not on the list, and all plain HTTP.
+- **Every attempt is logged.** The proxy writes one JSON line per connection attempt (host, port, allowed or not) to stdout. Its log is your record of everything the install contacted.
+- **Telemetry cannot be turned on.** The service and the jobs refuse to start when the policy file opts into any telemetry.
+
+## Your policy file and model
+
+The image reads operator state from `$HOME/.maina`, the same place a local install does:
+
+| Path in the image | What | Mounted |
+|---|---|---|
+| `/home/bun/.maina/policy.json` | Your policy: the user layer of the [policy merge](/configuration/) | read-only |
+| `/home/bun/.maina/models/` | Local model artifacts | read-only |
+
+At startup both processes check these files and log one line about them, for example `policy /home/bun/.maina/policy.json (valid); model /home/bun/.maina/models (1 file: system1.onnx)`. If the policy fails to parse or validate, or opts into telemetry, the process exits instead of falling back to the defaults. A policy can route a decision to the local model (`"backend": "system1"`). Until a model runtime ships, the built-in heuristic answers those decisions, and nothing is downloaded to fill the gap.
+
+## Docker Compose
+
+```bash
+git clone https://github.com/mainahq/maina && cd maina/packages/remote/deploy/compose
+cp .env.example .env        # set MAINA_REMOTE_PASSWORD, the App id and key, paths
+docker compose up -d --build
+```
+
+This starts four services, all from the one image:
+
+| Service | Networks | Role |
+|---|---|---|
+| `remote` | internal | The MCP service |
+| `job` | internal | One-shot PR jobs (the `job` profile) |
+| `egress` | internal, edge | The GitHub-only egress proxy |
+| `ingress` | internal, edge | Forwards inbound requests to `remote` (bound to `127.0.0.1:8787` by default) |
+
+Put your TLS terminator in front of the ingress and set `MAINA_REMOTE_ISSUER` to its public origin.
+
+Run a job against a pull request:
+
+```bash
+docker compose run --rm job verify --repo acme/widgets --pr 7 --installation 4242
+```
+
+The job kinds are `verify`, `impact`, `triage`, `spec_check` and `decide`. Each one checks the pull request out into a temporary directory, runs, then deletes the directory and revokes its GitHub token.
+
+Audit the install's outbound traffic:
+
+```bash
+docker compose logs egress
+```
+
+Every container runs with a read-only root filesystem, all capabilities dropped and `no-new-privileges` set.
+
+## Helm
+
+```bash
+docker build -f packages/remote/Dockerfile -t registry.example.com/maina-remote:v1 .
+docker push registry.example.com/maina-remote:v1
+kubectl create secret generic maina --from-literal=password='a long owner password'
+helm install maina packages/remote/deploy/helm/maina-remote \
+  --set image.repository=registry.example.com/maina-remote --set image.tag=v1 \
+  --set remote.issuer=https://maina.example.com \
+  --set remote.existingSecret=maina
+```
+
+Useful values:
+
+| Value | Default | Meaning |
+|---|---|---|
+| `policy.json` | telemetry off | Your policy, mounted at `$HOME/.maina/policy.json` |
+| `model.existingClaim` | none | A PVC with model artifacts, mounted read-only at `$HOME/.maina/models` |
+| `remote.workspace.existingClaim` | none | A PVC with the repository the MCP tools act on |
+| `egress.allowedHosts` | `github.com`, `api.github.com` | Hosts the install may reach |
+| `networkPolicy.enabled` | `true` | Enforce the egress restriction |
+
+The network policies need a CNI that enforces them, such as Calico or Cilium. A pod you run for PR jobs is restricted the same way once you give it the label `maina.dev/egress: restricted`.
+
+## GitHub Enterprise
+
+Set `MAINA_GITHUB_API_URL` to your instance's API, for example `https://ghe.example.com/api/v3`. Then replace the egress allow-list with your GHE host: `MAINA_EGRESS_ALLOW=ghe.example.com` in Compose, or `egress.allowedHosts` in Helm.
+
+## Verifying the claim
+
+The deployment ships with a smoke test. It runs one PR job with a policy file and a model artifact in place, spies on every outbound connection, and fails if anything other than GitHub is contacted:
+
+```bash
+bun test packages/remote/deploy                          # the job process, with a network spy
+MAINA_DOCKER_SMOKE=1 bun test packages/remote/deploy     # plus the real image on the egress-blocked network
+```

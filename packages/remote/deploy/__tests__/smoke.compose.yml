@@ -1,0 +1,44 @@
+# Smoke-test overlay for ../compose/docker-compose.yml (smoke.test.ts,
+# MAINA_DOCKER_SMOKE=1): a fake GitHub on the internal network stands in
+# for GitHub, and the job runs against it with the network spy preloaded
+# and the fixture repository mounted as a local mirror.
+services:
+  github:
+    image: oven/bun:1.3-slim
+    working_dir: /src
+    command: ["bun", "packages/remote/deploy/__tests__/fake-github-server.ts"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ${MAINA_SMOKE_SRC:?}/packages/remote:/src/packages/remote:ro
+    environment:
+      PORT: "80"
+      FAKE_GITHUB_API: http://api.github.test
+      FAKE_GITHUB_PULL: ${MAINA_SMOKE_PULL:?}
+      FAKE_GITHUB_APP_PUBLIC_KEY: ${MAINA_SMOKE_PUBLIC_KEY:?}
+    networks:
+      internal:
+        aliases: [api.github.test]
+
+  job:
+    entrypoint:
+      - bun
+      - --preload
+      - /smoke/network-spy.ts
+      - packages/remote/src/github/main.ts
+    environment:
+      MAINA_GITHUB_APP_ID: "1"
+      MAINA_GITHUB_APP_PRIVATE_KEY: ${MAINA_SMOKE_PRIVATE_KEY:?}
+      MAINA_GITHUB_API_URL: http://api.github.test
+      NO_PROXY: api.github.test,localhost,127.0.0.1
+      no_proxy: api.github.test,localhost,127.0.0.1
+      MAINA_NETWORK_SPY_LOG: /smoke-out/network.jsonl
+      MAINA_NETWORK_SPY_ALLOW: api.github.test
+      # The mirror is owned by the host user; this marks it safe for git.
+      GIT_CONFIG_GLOBAL: /smoke/gitconfig
+    volumes:
+      - ${MAINA_SMOKE_DIR:?}/gitconfig:/smoke/gitconfig:ro
+      - ${MAINA_SMOKE_SRC:?}/packages/remote/deploy/__tests__/network-spy.ts:/smoke/network-spy.ts:ro
+      - ${MAINA_SMOKE_DIR:?}/origin:/fixture/origin:ro
+      - ${MAINA_SMOKE_DIR:?}/out:/smoke-out

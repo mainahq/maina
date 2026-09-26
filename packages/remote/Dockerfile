@@ -9,6 +9,14 @@
 #
 # Bun runs the TypeScript sources directly (tsconfig `paths` map the
 # workspace packages to their src), so there is no build step.
+#
+# The same image runs every piece of the self-hosted deployment
+# (deploy/compose, deploy/helm): the service (this CMD), the PR job
+# (src/github/main.ts) and the egress and ingress forwarders
+# (src/edge/main.ts). The operator's policy file and local model artifacts
+# are read from $HOME/.maina (/home/bun/.maina/policy.json and
+# /home/bun/.maina/models), the layout a local install uses; mount them
+# read-only.
 
 FROM oven/bun:1.3-slim AS deps
 WORKDIR /app
@@ -36,9 +44,12 @@ COPY packages/core packages/core
 COPY packages/mcp packages/mcp
 COPY packages/remote packages/remote
 ENV NODE_ENV=production \
+	HOME=/home/bun \
 	PORT=8787 \
 	MAINA_REMOTE_WORKSPACE=/workspace
-RUN mkdir -p /workspace && git config --system --add safe.directory /workspace
+RUN mkdir -p /workspace /home/bun/.maina/models \
+	&& chown -R bun:bun /home/bun \
+	&& git config --system --add safe.directory /workspace
 USER bun
 EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=3s CMD ["bun", "-e", "const r = await fetch(`http://127.0.0.1:${process.env.PORT}/healthz`); process.exit(r.ok ? 0 : 1)"]

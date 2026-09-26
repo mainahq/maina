@@ -5,8 +5,8 @@ The maina remote connector: the maina MCP tools served over
 behind OAuth 2.1, so a host such as Claude or Cursor can connect by URL.
 
 Private until release (v1, epic #365). This package is the service skeleton
-(#353) and the GitHub App jobs (#354); the self-host deployment and the
-retention review follow in #355–#356.
+(#353), the GitHub App jobs (#354) and the self-host deployment (#355); the
+retention review follows in #356.
 
 ## What it serves
 
@@ -86,3 +86,28 @@ docker run -p 8787:8787 -v "$PWD:/workspace:ro" \
 
 Clients, codes, tokens and sessions are held in memory, so a restart signs
 every client out.
+
+## Self-hosting
+
+`deploy/compose` and `deploy/helm/maina-remote` run the service and the PR
+jobs with no outbound network except GitHub (FR-REM-4); the guide is
+`packages/docs/src/content/docs/self-host.mdx`.
+
+- The maina containers sit on a network with no route out (a compose
+  `internal` network; a Kubernetes `NetworkPolicy`).
+- `src/edge/main.ts egress` is the only way out: an HTTP CONNECT proxy
+  that tunnels to the exact hosts in `MAINA_EGRESS_ALLOW` (default
+  `github.com,api.github.com`), refuses the rest and plain HTTP, and logs
+  every attempt as a JSON line.
+- `src/edge/main.ts ingress` carries inbound requests to the service in
+  compose, where the service has no published port.
+- The operator's policy file and model artifacts are mounted read-only at
+  `$HOME/.maina/policy.json` and `$HOME/.maina/models`. Both processes
+  check them at startup (`checkSelfHost`) and refuse to start on an
+  invalid policy or one that opts into telemetry; the policy is the user
+  layer of every policy merge.
+
+`deploy/__tests__/smoke.test.ts` runs one PR job with a policy file and a
+model artifact under a network spy and fails on any destination but
+GitHub; `MAINA_DOCKER_SMOKE=1` adds the real image on the egress-blocked
+compose network and a helm lint/render.

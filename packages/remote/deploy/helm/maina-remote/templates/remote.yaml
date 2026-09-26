@@ -1,0 +1,143 @@
+{{- $fullname := include "maina.fullname" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-policy
+  labels:
+    {{- include "maina.labels" . | nindent 4 }}
+data:
+  policy.json: {{ .Values.policy.json | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "maina.labels" . | nindent 4 }}
+    app.kubernetes.io/component: remote
+spec:
+  replicas: {{ .Values.remote.replicas }}
+  selector:
+    matchLabels:
+      {{- include "maina.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: remote
+  template:
+    metadata:
+      labels:
+        {{- include "maina.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: remote
+        maina.dev/egress: restricted
+      annotations:
+        checksum/policy: {{ .Values.policy.json | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: remote
+          image: {{ include "maina.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["bun", "packages/remote/src/main.ts"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: HOME
+              value: {{ .Values.home | quote }}
+            - name: PORT
+              value: "8787"
+            - name: MAINA_REMOTE_ISSUER
+              value: {{ .Values.remote.issuer | quote }}
+            - name: MAINA_REMOTE_OWNER
+              value: {{ .Values.remote.owner | quote }}
+            - name: MAINA_REMOTE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "remote.existingSecret (a Secret with the owner password) is required" .Values.remote.existingSecret }}
+                  key: {{ .Values.remote.passwordKey }}
+            {{- with .Values.remote.tools }}
+            - name: MAINA_MCP_TOOLS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- range $name := list "HTTPS_PROXY" "https_proxy" "HTTP_PROXY" "http_proxy" }}
+            - name: {{ $name }}
+              value: {{ include "maina.egressUrl" $ | quote }}
+            {{- end }}
+            {{- range $name := list "NO_PROXY" "no_proxy" }}
+            - name: {{ $name }}
+              value: "localhost,127.0.0.1"
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8787
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          volumeMounts:
+            - name: home
+              mountPath: {{ .Values.home }}
+            - name: tmp
+              mountPath: /tmp
+            - name: policy
+              mountPath: {{ .Values.home }}/.maina/policy.json
+              subPath: policy.json
+              readOnly: true
+            {{- if .Values.model.existingClaim }}
+            - name: model
+              mountPath: {{ .Values.home }}/.maina/models
+              readOnly: true
+            {{- end }}
+            - name: workspace
+              mountPath: /workspace
+              readOnly: true
+          {{- with .Values.remote.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: home
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: policy
+          configMap:
+            name: {{ $fullname }}-policy
+        {{- if .Values.model.existingClaim }}
+        - name: model
+          persistentVolumeClaim:
+            claimName: {{ .Values.model.existingClaim }}
+            readOnly: true
+        {{- end }}
+        - name: workspace
+          {{- if .Values.remote.workspace.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.remote.workspace.existingClaim }}
+            readOnly: true
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "maina.labels" . | nindent 4 }}
+    app.kubernetes.io/component: remote
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "maina.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: remote
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http

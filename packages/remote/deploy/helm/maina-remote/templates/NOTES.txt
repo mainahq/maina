@@ -1,0 +1,14 @@
+maina is serving its MCP tools at {{ .Values.remote.issuer }}/mcp
+(Service {{ include "maina.fullname" . }}, port {{ .Values.service.port }}).
+Route {{ .Values.remote.issuer }} to that Service through your Ingress or
+load balancer, terminating TLS there.
+
+Outbound traffic: only through {{ include "maina.egressUrl" . }}, which
+allows {{ join ", " .Values.egress.allowedHosts }}
+{{- if not .Values.networkPolicy.enabled }}
+WARNING: networkPolicy.enabled is false, so nothing stops a pod from
+bypassing the proxy.
+{{- end }}
+
+Audit what the install contacted:
+  kubectl logs deploy/{{ include "maina.fullname" . }}-egress
