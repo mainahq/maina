@@ -48,6 +48,19 @@ export interface Bookkeeping {
 	readonly files: ReadonlySet<string>;
 }
 
+/**
+ * The user's own data that maina keeps in `~/.maina` across installs, so it
+ * may appear or grow but never vanish:
+ *
+ * - `retention.jsonl` (#352, FR-RET-7): the local session history that
+ *   `maina stats --retention` reads. It is the user's usage record, not
+ *   install state: the standalone CLI and every host write the same file,
+ *   the day-28 window only means anything if it survives a reinstall, and
+ *   it holds no paths, repo names or code. A host-driven plugin uninstall
+ *   runs no maina code, so nothing could remove it there anyway.
+ */
+const USER_DATA: ReadonlySet<string> = new Set(["home/.maina/retention.jsonl"]);
+
 /** What install → use → uninstall left behind, as readable strings. */
 export function traces(
 	before: Snapshot,
@@ -58,6 +71,7 @@ export function traces(
 	for (const [path, what] of after) {
 		const was = before.get(path);
 		if (was === what) continue;
+		if (USER_DATA.has(path)) continue;
 		if (was === undefined && bookkeeping.dirs.has(path)) continue;
 		if (bookkeeping.files.has(path)) continue;
 		found.push(`${was === undefined ? "added" : "changed"} ${path}`);
