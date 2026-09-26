@@ -169,11 +169,15 @@ const config: KnipConfig = {
 		// MDX imports are ESM lines at column 0 outside code fences. Astro's
 		// default matcher reads any prose "import ... '...'" as one, so a
 		// generated changelog entry about imports resolved as a module.
+		// An import may span lines (`import {\n  A,\n} from '...'`) or be a
+		// bare side-effect import (`import './x.css'`).
 		mdx: (text: string) =>
-			text
-				.replace(/^(`{3,}|~{3,})[\s\S]*?^\1/gm, "")
-				.split("\n")
-				.filter((line) => /^import\s.*\sfrom\s+['"][^'"]+['"]/.test(line))
+			[
+				...text
+					.replace(/^(`{3,}|~{3,})[\s\S]*?^\1/gm, "")
+					.matchAll(/^import\s(?:[^'";]*?\sfrom\s+)?['"][^'"\n]+['"]/gm),
+			]
+				.map(([m]) => m.replace(/\s+/g, " "))
 				.join("\n"),
 	},
 	// Built artifact invoked by workflows after `bun run build`; absent in a

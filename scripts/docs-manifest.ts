@@ -169,8 +169,9 @@ const prose = (items: readonly string[]): string =>
 		? items.join("")
 		: `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 
-function telemetrySummary(on: readonly string[]): string {
+export function telemetrySummary(on: readonly string[]): string {
 	const off = TELEMETRY_CHANNELS.filter((c) => !on.includes(c));
+	if (off.length === 0) return `${prose(on)} are on by default.`;
 	const optIn = `${prose(off)} ${off.length === 1 ? "is" : "are each"} opt-in, turned on in your user policy (~/.maina/policy.json)`;
 	if (on.length === 0) return `Telemetry is off by default: ${optIn}.`;
 	return `${prose(on)} ${on.length === 1 ? "is" : "are"} on by default; ${optIn}.`;
@@ -868,10 +869,17 @@ export function scanHandWritten(text: string, facts: Facts): Hit[] {
 	]);
 	const hits: Hit[] = [];
 	const lines = text.split(/\r?\n/);
-	let fenced = false;
+	// The open fence's marker: only a fence of the same character, at least
+	// as long, closes it (as in escapeMarkdown).
+	let fence: string | null = null;
 	lines.forEach((line, i) => {
-		const isFence = /^\s*(`{3,}|~{3,})/.test(line);
-		if (isFence) fenced = !fenced;
+		const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
+		const opens = fence === null && marker !== undefined;
+		const closes = fence !== null && marker?.startsWith(fence) === true;
+		const isFence = opens || closes;
+		if (opens) fence = marker;
+		const fenced = fence !== null;
+		if (closes) fence = null;
 		if (IGNORE.test(line) || (i > 0 && IGNORE.test(lines[i - 1] ?? ""))) {
 			return;
 		}
