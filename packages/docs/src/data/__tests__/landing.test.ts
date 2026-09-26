@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { facts } from "../facts";
 import {
@@ -57,6 +57,27 @@ describe("landing copy", () => {
 		expect(HOME_FOOTER.licence).toContain(facts.licence);
 		const privacy = FAQ.items.find((i) => i.q.includes("leave my machine"));
 		expect(privacy?.a).toContain(facts.telemetry.summary);
+	});
+
+	// The header's promise, "facts are never typed in": the host list and
+	// the telemetry claim are joined from facts.ts, so adding a host or
+	// turning a channel on changes every line that states them.
+	it("never types the host list or the telemetry default in by hand", () => {
+		const typedIn = readFileSync(
+			join(import.meta.dir, "..", "landing.ts"),
+			"utf8",
+		)
+			.split("\n")
+			.filter((line) => /Claude Code, Codex|off by default/i.test(line));
+		expect(typedIn).toEqual([]);
+		const hosts = facts.hosts.slice(0, 2).join(", ");
+		expect(META.title).toContain(hosts);
+		expect(WAITLIST.messages.idle).toContain(hosts);
+		expect(HERO.trust.local).toContain(
+			facts.telemetry.onByDefault.length === 0
+				? "Telemetry is off by default."
+				: facts.telemetry.summary,
+		);
 	});
 
 	it("keeps the CLI install command for the /cloud cross-pitch", () => {

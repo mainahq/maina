@@ -5,6 +5,7 @@
  */
 
 import { beforeAll, describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { LandingProofs } from "../../packages/docs/src/data/landing-proofs";
 import { computeLandingProofs, staleLandingProofs } from "../landing-proofs";
@@ -66,5 +67,43 @@ describe("landing proofs", () => {
 
 	test("the try-the-gate lookup table covers the shell corpus", () => {
 		expect(computed.ok && computed.value.corpus.length).toBeGreaterThan(900);
+	});
+
+	// A fixture evaluated on a named branch (`git push origin HEAD` on main
+	// asks; off a protected branch it is allowed) has a verdict the viewer's
+	// bare command cannot reproduce, so it stays out of the lookup table.
+	test("the lookup table holds no verdict that depends on a fixture's branch", () => {
+		const norm = (c: string) => c.trim().replace(/\s+/g, " ");
+		const fixtures = readFileSync(
+			join(REPO_ROOT, "packages/core/src/gate/__fixtures__/commands.jsonl"),
+			"utf8",
+		)
+			.split("\n")
+			.filter((l) => l.trim() !== "")
+			.map(
+				(l) =>
+					JSON.parse(l) as {
+						kind: string;
+						action: { command?: string };
+						branch?: string;
+					},
+			)
+			.filter(
+				(f) => f.kind === "shell" && typeof f.action.command === "string",
+			);
+		const unbranched = new Set(
+			fixtures
+				.filter((f) => !f.branch)
+				.map((f) => norm(f.action.command ?? "")),
+		);
+		const branchOnly = fixtures
+			.filter((f) => f.branch)
+			.map((f) => norm(f.action.command ?? ""))
+			.filter((c) => !unbranched.has(c));
+		expect(branchOnly.length).toBeGreaterThan(0);
+		const table = new Set(
+			(computed.ok ? computed.value.corpus : []).map((r) => norm(r.c)),
+		);
+		expect(branchOnly.filter((c) => table.has(c))).toEqual([]);
 	});
 });

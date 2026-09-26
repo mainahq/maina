@@ -203,6 +203,7 @@ exports[`landing copy matches the reviewed snapshot 1`] = `
     },
     "note": "Real verdicts: the maina rules engine under the default policy, evaluated at build time. Timings are not shown because they are measured on your machine, not ours.",
     "own": {
+      "failed": "Could not load the corpus. Check again, or pick an example.",
       "hint": "Your own command is looked up in the corpus the real engine evaluated at build time. Or pick an example:",
       "label": "Try your own command",
       "loading": "Loading the corpus…",

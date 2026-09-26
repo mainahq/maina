@@ -5,14 +5,14 @@
  */
 
 import type { CorpusRow, GateRow, Verdict } from "../../data/landing-proofs";
-import { lookupCommand } from "./gate";
+import { fetchCorpus, lookupCommand } from "./gate";
 import { motionAllowed, track } from "./ui";
 
 type Copy = Readonly<{
 	rules: Readonly<{ noRule: string }>;
 	model: Readonly<{ skipped: string; answered: string }>;
 	why: Readonly<Record<Verdict, string>>;
-	own: Readonly<{ loading: string; notFound: string }>;
+	own: Readonly<{ loading: string; notFound: string; failed: string }>;
 }>;
 
 type GateData = Readonly<{
@@ -202,11 +202,13 @@ export function initPlayground(): void {
 	}
 
 	// ── Try your own ─────────────────────────────────────────────────────
-	let corpus: Promise<readonly CorpusRow[]> | null = null;
-	const loadCorpus = (): Promise<readonly CorpusRow[]> => {
-		corpus ??= fetch(data.corpusUrl)
-			.then((r) => (r.ok ? (r.json() as Promise<readonly CorpusRow[]>) : []))
-			.catch(() => []);
+	// A failed load is forgotten so the next check tries again.
+	let corpus: Promise<readonly CorpusRow[] | null> | null = null;
+	const loadCorpus = (): Promise<readonly CorpusRow[] | null> => {
+		corpus ??= fetchCorpus((url) => fetch(url), data.corpusUrl).then((rows) => {
+			if (rows === null) corpus = null;
+			return rows;
+		});
 		return corpus;
 	};
 	const input = byId<HTMLInputElement>("own-cmd");
@@ -221,6 +223,10 @@ export function initPlayground(): void {
 		track("gate_own");
 		if (o1) o1.textContent = copy.own.loading;
 		void loadCorpus().then((rows) => {
+			if (rows === null) {
+				if (o1) o1.textContent = copy.own.failed;
+				return;
+			}
 			const row = lookupCommand(rows, command);
 			show(
 				row ? { kind: "corpus", row, command } : { kind: "none", command },
