@@ -32,7 +32,7 @@ const probe = {
 	version: () => null,
 };
 
-function guarded(layout: Layout) {
+function guarded(layout: Layout, stateDir = join(layout.base, "state")) {
 	const base = policyToSandbox(
 		DEFAULT_POLICY,
 		layout.worktree,
@@ -47,7 +47,7 @@ function guarded(layout: Layout) {
 	if (!claude.ok) throw new Error(claude.error.message);
 	const installed = installClaudePreToolUse(claude.value, {
 		worktree: layout.worktree,
-		stateDir: join(layout.base, "state"),
+		stateDir,
 		policy: DEFAULT_POLICY,
 		sandbox: base.value,
 	});
@@ -108,6 +108,27 @@ describe.skipIf(SKIP_REASON !== undefined)(
 			expect(readFileSync(installed.policyPath, "utf8")).toBe(policyBefore);
 			expect(ran.stdout).not.toContain("PRIVATE-KEY-316");
 			expect(existsSync(made)).toBe(true);
+		}, 30_000);
+
+		test("the hook can read its policy snapshot in the sandbox, even under a read-denied root", async () => {
+			const layout = makeLayout();
+			// The worktrees root is read-denied (other runs' worktrees).
+			const installed = guarded(
+				layout,
+				join(layout.worktreesRoot, ".maina-state"),
+			);
+			const policyBefore = readFileSync(installed.policyPath, "utf8");
+			const wrapped = createSandboxRuntime().wrap(
+				shell(
+					`cat '${installed.policyPath}'; echo '{}' > '${installed.policyPath}'`,
+				),
+				installed.sandbox,
+			);
+			if (!wrapped.ok) throw new Error(wrapped.error.message);
+			const ran = await run(wrapped.value, layout.worktree);
+
+			expect(ran.stdout).toContain('"action_classes"');
+			expect(readFileSync(installed.policyPath, "utf8")).toBe(policyBefore);
 		}, 30_000);
 	},
 );

@@ -461,6 +461,9 @@ export function installClaudePreToolUse(
 			command,
 			sandbox: {
 				...sandbox,
+				// The hook runs in this sandbox: it must read its snapshot even
+				// when the state directory sits under a read-denied root.
+				readAllow: [...(sandbox.readAllow ?? []), policyPath],
 				writeAllow: [...sandbox.writeAllow, logPath],
 				writeDeny: [...(sandbox.writeDeny ?? []), claudeDir, policyPath],
 			},

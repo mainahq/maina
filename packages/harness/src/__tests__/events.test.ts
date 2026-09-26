@@ -211,6 +211,36 @@ describe("normaliseUpdate: every tool-call update maps to a normalised event", (
 		});
 	});
 
+	test("a search under a path outside the root reads outside; inside or pathless it is not gated", () => {
+		const outside = run([
+			toolCall("search", {
+				rawInput: { pattern: "KEY", path: "/home/dev/.ssh" },
+			}),
+		]);
+		expect(outside.events[0]).toMatchObject({
+			opaque: false,
+			gate: [
+				{
+					...BASE,
+					kind: "file.read.outside",
+					action: { path: "/home/dev/.ssh" },
+				},
+			],
+		});
+		const located = run([
+			toolCall("search", { locations: [{ path: "/etc" }] }),
+		]);
+		expect(located.events[0]).toMatchObject({
+			gate: [{ kind: "file.read.outside", action: { path: "/etc" } }],
+		});
+		const inside = run([
+			toolCall("search", { rawInput: { pattern: "x", path: "src" } }),
+		]);
+		expect(inside.events[0]).toMatchObject({ gate: [], opaque: false });
+		const pathless = run([toolCall("search", { rawInput: { pattern: "x" } })]);
+		expect(pathless.events[0]).toMatchObject({ gate: [], opaque: false });
+	});
+
 	test("a fetch is a network gate event", () => {
 		const { events } = run([
 			toolCall("fetch", { rawInput: { url: "https://example.com/x" } }),

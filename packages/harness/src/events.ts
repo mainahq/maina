@@ -10,11 +10,12 @@
  *   execute              `shell`, from `rawInput.command` (+ `cwd`)
  *   edit, delete, move   one `file.write` per path it touches (diffs,
  *                        locations, `rawInput` paths); a move writes both ends
- *   read                 `file.read.outside` per path outside the root
+ *   read, search         `file.read.outside` per path outside the root (a
+ *                        search with no path runs in the cwd: not gated)
  *   fetch                `network`, from `rawInput.url`
  *   `mcp__<server>__<tool>` names
  *                        `mcp`, whatever the kind
- *   search, think, switch_mode, other
+ *   think, switch_mode, other
  *                        not gated
  *
  * A call that acts but whose target cannot be read is `opaque`: it carries
@@ -294,7 +295,8 @@ function gateOf(call: ToolCallState, ctx: NormaliseContext): Gated {
 			});
 			return { gate, opaque: gate.length === 0 };
 		}
-		case "read": {
+		case "read":
+		case "search": {
 			const paths = pathsOf(call, input);
 			const gate = paths
 				.filter((path) => !isInside(ctx.root, path))
@@ -305,7 +307,11 @@ function gateOf(call: ToolCallState, ctx: NormaliseContext): Gated {
 						action: { path },
 					}),
 				);
-			return { gate, opaque: paths.length === 0 };
+			// A search with no path runs in the cwd: nothing outside to gate.
+			return {
+				gate,
+				opaque: call.kind === "read" && paths.length === 0,
+			};
 		}
 		case "fetch": {
 			const url = text(input.url);
@@ -315,7 +321,6 @@ function gateOf(call: ToolCallState, ctx: NormaliseContext): Gated {
 				opaque: false,
 			};
 		}
-		case "search":
 		case "think":
 		case "switch_mode":
 		case "other":

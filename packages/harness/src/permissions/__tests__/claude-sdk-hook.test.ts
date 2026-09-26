@@ -165,6 +165,49 @@ describe("answerClaudePreToolUse", () => {
 		]);
 	});
 
+	test("a Grep or Glob under a path outside the worktree is judged as a read there", () => {
+		for (const tool of ["Grep", "Glob"]) {
+			bridge.records.length = 0;
+			const out = answerClaudePreToolUse(
+				bridge,
+				ROOT,
+				payload(tool, { pattern: "BEGIN", path: "/home/dev/.ssh" }),
+			);
+			expect(out.exitCode).toBe(2);
+			expect(bridge.records[0]?.gate).toEqual([
+				expect.objectContaining({
+					kind: "file.read.outside",
+					action: { path: "/home/dev/.ssh" },
+				}),
+			]);
+			// Inside the worktree, or with no path (the cwd), nothing to gate.
+			for (const input of [
+				{ pattern: "x", path: `${ROOT}/src` },
+				{ pattern: "x" },
+			]) {
+				expect(
+					answerClaudePreToolUse(bridge, ROOT, payload(tool, input)).exitCode,
+				).toBe(0);
+			}
+		}
+	});
+
+	test("a WebSearch carries no URL for the network gate, so it is denied (fail closed)", () => {
+		bridge.records.length = 0;
+		const out = answerClaudePreToolUse(
+			bridge,
+			ROOT,
+			payload("WebSearch", { query: "maina" }),
+		);
+		expect(out.exitCode).toBe(2);
+		expect(bridge.records[0]).toMatchObject({
+			opaque: true,
+			verdict: "ask",
+			answer: "deny",
+		});
+		expect(out.stderr).toContain("nobody to ask");
+	});
+
 	test("a Bash call without a command is opaque and denied", () => {
 		const out = answerClaudePreToolUse(bridge, ROOT, payload("Bash", {}));
 		expect(out.exitCode).toBe(2);
@@ -280,6 +323,23 @@ describe("installClaudePreToolUse", () => {
 			policyPath,
 		]);
 		expect(guarded.writeAllow).toEqual([worktree, logPath]);
+	});
+
+	test("the hook, which runs in that sandbox, can still read its policy snapshot", () => {
+		const { worktree, sandbox } = setup();
+		// A state directory under a read-denied root (the worktrees root).
+		const worktreesRoot = join(worktree, "..");
+		const stateDir = join(worktreesRoot, ".maina-state");
+		const installed = installClaudePreToolUse(worker("claude"), {
+			worktree,
+			stateDir,
+			policy: DENY_PUBLISH,
+			sandbox: { ...sandbox, readDeny: [worktreesRoot], readAllow: [worktree] },
+		});
+		if (!installed.ok) throw new Error(installed.error.message);
+		const { sandbox: guarded, policyPath } = installed.value;
+		expect(guarded.readAllow).toEqual([worktree, policyPath]);
+		expect(guarded.writeDeny).toContain(policyPath);
 	});
 
 	test("existing local settings are backed up before the first write; uninstall restores them byte for byte", () => {
