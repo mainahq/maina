@@ -8,8 +8,11 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import {
 	type ExecResult,
+	parsePushRefs,
+	planPrePush,
 	produceReceipt,
 	type ReceiptPorts,
 	type VerifyOutcome,
@@ -417,5 +420,255 @@ describe("produceReceipt", () => {
 		const r = await produceReceipt({ publish: true }, f.ports);
 		expect(r.ok).toBe(true);
 		if (r.ok) expect(r.value.rerun).toBeUndefined();
+	});
+});
+
+// #514: deleting a remote branch from a detached v1/main worktree ran the
+// pre-push receipt, verified the whole v1 diff against an old master
+// merge-base and wrote a bogus "failed" receipt for the v1/main head.
+const ZERO = "0".repeat(40);
+const TIP = "f".repeat(40);
+
+describe("parsePushRefs", () => {
+	test("parses git's pre-push stdin lines and ignores blanks", () => {
+		const refs = parsePushRefs(
+			`refs/heads/v1/514-x ${HEAD} refs/heads/v1/514-x ${ZERO}\n\n(delete) ${ZERO} refs/heads/old ${TIP}\n`,
+		);
+		expect(refs).toEqual([
+			{
+				localRef: "refs/heads/v1/514-x",
+				localSha: HEAD,
+				remoteRef: "refs/heads/v1/514-x",
+				remoteSha: ZERO,
+			},
+			{
+				localRef: "(delete)",
+				localSha: ZERO,
+				remoteRef: "refs/heads/old",
+				remoteSha: TIP,
+			},
+		]);
+	});
+});
+
+describe("planPrePush", () => {
+	const attached = {
+		"git symbolic-ref -q HEAD": {
+			code: 0,
+			stdout: "refs/heads/v1/514-x\n",
+			stderr: "",
+		},
+	};
+
+	test("skips a push where every ref is a deletion", async () => {
+		const f = fake(attached);
+		const plan = await planPrePush(
+			parsePushRefs(`(delete) ${ZERO} refs/heads/old ${TIP}\n`),
+			f.ports,
+		);
+		expect(plan.skip).toContain("deletion");
+		expect(f.verifyCalls).toHaveLength(0);
+	});
+
+	test("skips on a detached HEAD", async () => {
+		const f = fake({
+			"git symbolic-ref -q HEAD": { code: 1, stdout: "", stderr: "" },
+		});
+		const plan = await planPrePush(
+			parsePushRefs(`HEAD ${HEAD} refs/heads/v1/main ${TIP}\n`),
+			f.ports,
+		);
+		expect(plan.skip).toContain("detached");
+	});
+
+	test("runs for a normal push and reports the pushed branch", async () => {
+		const f = fake(attached);
+		const plan = await planPrePush(
+			parsePushRefs(
+				`(delete) ${ZERO} refs/heads/old ${TIP}\nrefs/heads/v1/514-x ${HEAD} refs/heads/v1/514-x ${ZERO}\n`,
+			),
+			f.ports,
+		);
+		expect(plan.skip).toBeUndefined();
+		expect(plan.branch).toBe("v1/514-x");
+	});
+
+	test("runs without stdin refs (not invoked by git) as before", async () => {
+		const f = fake(attached);
+		const plan = await planPrePush([], f.ports);
+		expect(plan.skip).toBeUndefined();
+		expect(plan.branch).toBeUndefined();
+	});
+});
+
+describe("produceReceipt base resolution (#514)", () => {
+	const noPr = {
+		"gh pr view --json number,headRefOid,baseRefName,title": {
+			code: 1,
+			stdout: "",
+			stderr: "no pull requests found",
+		},
+	};
+	const UP = "c".repeat(40);
+	const upstreamIs = (up: string) => ({
+		"git rev-parse --abbrev-ref --symbolic-full-name @{upstream}": {
+			code: 0,
+			stdout: `${up}\n`,
+			stderr: "",
+		},
+	});
+
+	test("the pushed branch's PR is used, not the upstream's (stacked PRs)", async () => {
+		// v1/514-x tracks origin/v1/513-x before its first push: the upstream
+		// PR (#513) must not be mistaken for this branch's PR.
+		const f = fake({
+			...upstreamIs("origin/v1/513-x"),
+			"gh pr view v1/514-x --json number,headRefOid,baseRefName,title": {
+				code: 1,
+				stdout: "",
+				stderr: "no pull requests found",
+			},
+			"gh pr view v1/513-x --json number,headRefOid,baseRefName,title": {
+				code: 0,
+				stdout: JSON.stringify({
+					number: 513,
+					headRefOid: TIP,
+					baseRefName: "v1/main",
+					title: "x",
+				}),
+				stderr: "",
+			},
+			"git fetch --quiet origin v1/513-x": { code: 0, stdout: "", stderr: "" },
+			"git merge-base origin/v1/513-x HEAD": {
+				code: 0,
+				stdout: `${UP}\n`,
+				stderr: "",
+			},
+			[`git diff --name-only --diff-filter=d ${UP} HEAD`]: {
+				code: 0,
+				stdout: "lefthook.yml\n",
+				stderr: "",
+			},
+		});
+		const r = await produceReceipt(
+			{ publish: false, branch: "v1/514-x" },
+			f.ports,
+		);
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value.receipt.base).toBe(UP);
+		expect(f.calls).not.toContain(
+			"gh pr view v1/513-x --json number,headRefOid,baseRefName,title",
+		);
+		expect(f.calls).not.toContain("git merge-base origin/master HEAD");
+	});
+
+	test("the pushed branch's PR base wins when it has a PR", async () => {
+		const f = fake({
+			...upstreamIs("origin/v1/513-x"),
+			"gh pr view v1/514-x --json number,headRefOid,baseRefName,title": {
+				code: 0,
+				stdout: JSON.stringify({
+					number: 514,
+					headRefOid: HEAD,
+					baseRefName: "v1/main",
+					title: "x",
+				}),
+				stderr: "",
+			},
+		});
+		const r = await produceReceipt(
+			{ publish: false, branch: "v1/514-x" },
+			f.ports,
+		);
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value.receipt.base).toBe(BASE);
+		expect(f.calls).toContain("git merge-base origin/v1/main HEAD");
+	});
+
+	test("without a PR, a distinct upstream branch is the base", async () => {
+		const f = fake({
+			...noPr,
+			...upstreamIs("origin/v1/main"),
+			"gh pr view v1/main --json number,headRefOid,baseRefName,title": {
+				code: 1,
+				stdout: "",
+				stderr: "no pull requests found",
+			},
+			"git symbolic-ref --short -q HEAD": {
+				code: 0,
+				stdout: "v1/514-x\n",
+				stderr: "",
+			},
+		});
+		const r = await produceReceipt({ publish: false }, f.ports);
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value.receipt.base).toBe(BASE);
+		expect(f.calls).toContain("git merge-base origin/v1/main HEAD");
+		expect(f.calls).not.toContain("git merge-base origin/master HEAD");
+	});
+
+	test("an upstream that is the branch itself is not a base", async () => {
+		const f = fake({
+			...upstreamIs("origin/v1/514-x"),
+			"gh pr view v1/514-x --json number,headRefOid,baseRefName,title": {
+				code: 1,
+				stdout: "",
+				stderr: "no pull requests found",
+			},
+			"git fetch --quiet origin master": { code: 0, stdout: "", stderr: "" },
+			"git merge-base origin/master HEAD": {
+				code: 0,
+				stdout: `${BASE}\n`,
+				stderr: "",
+			},
+		});
+		const r = await produceReceipt(
+			{ publish: false, branch: "v1/514-x" },
+			f.ports,
+		);
+		expect(r.ok).toBe(true);
+		expect(f.calls).toContain("git merge-base origin/master HEAD");
+		expect(f.calls).not.toContain("git merge-base origin/v1/514-x HEAD");
+	});
+
+	test("an explicit --base / MAINA_BASE wins over the upstream", async () => {
+		const f = fake({
+			...upstreamIs("origin/v1/513-x"),
+			"gh pr view v1/514-x --json number,headRefOid,baseRefName,title": {
+				code: 1,
+				stdout: "",
+				stderr: "no pull requests found",
+			},
+		});
+		const r = await produceReceipt(
+			{ publish: false, branch: "v1/514-x", base: "origin/v1/main" },
+			f.ports,
+		);
+		expect(r.ok).toBe(true);
+		expect(f.calls).toContain("git merge-base origin/v1/main HEAD");
+		expect(f.calls).not.toContain("git merge-base origin/v1/513-x HEAD");
+	});
+});
+
+describe("receipt.ts --pre-push (process)", () => {
+	test("a deletion-only push exits 0 without verifying", async () => {
+		const script = join(import.meta.dir, "..", "receipt.ts");
+		const proc = Bun.spawn(
+			["bun", script, "--pre-push", "--no-publish", "--no-fail"],
+			{
+				stdin: new TextEncoder().encode(
+					`(delete) ${ZERO} refs/heads/gone-514 ${TIP}\n`,
+				),
+				stdout: "pipe",
+				stderr: "pipe",
+			},
+		);
+		const [stdout, code] = await Promise.all([
+			new Response(proc.stdout).text(),
+			proc.exited,
+		]);
+		expect(code).toBe(0);
+		expect(stdout).toContain("skipped");
+		expect(stdout).not.toContain("Maina receipt for");
 	});
 });

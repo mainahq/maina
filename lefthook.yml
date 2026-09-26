@@ -11,7 +11,10 @@ pre-push:
     maina-receipt:
       # Dogfood (#286): run maina 1.x verify on HEAD and write a local receipt.
       # Never blocks the push; `bun run dogfood:receipt` publishes it.
-      run: bun scripts/dogfood/receipt.ts --no-publish --no-fail
+      # --pre-push reads the pushed refs (stdin) to skip deletion-only pushes
+      # and detached HEADs (#514).
+      use_stdin: true
+      run: bun scripts/dogfood/receipt.ts --pre-push --no-publish --no-fail
 
 commit-msg:
   commands:

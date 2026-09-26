@@ -16,7 +16,11 @@
  * Flags:
  *   --no-publish  verify + write locally only (used by lefthook pre-push)
  *   --no-fail     always exit 0 (pre-push must never block a push)
- *   --base <ref>  diff base when there is no PR (default: $MAINA_BASE or
+ *   --pre-push    read git's pushed refs from stdin; skip deletion-only
+ *                 pushes and a detached HEAD, and look the PR up by the
+ *                 pushed branch (#514)
+ *   --base <ref>  diff base when there is no PR (default: $MAINA_BASE, then
+ *                 the upstream branch if it is a different branch, then
  *                 origin/master)
  *
  * Bootstrap scaffolding: Phase 4 replaces it.
@@ -63,6 +67,62 @@ export interface ReceiptPorts {
 export interface ReceiptOptions {
 	readonly publish: boolean;
 	readonly base?: string;
+	/**
+	 * The remote branch being pushed (pre-push). Its PR is looked up by this
+	 * name only, so a stacked branch still tracking its parent never borrows
+	 * the parent's PR.
+	 */
+	readonly branch?: string;
+}
+
+/** One line of git's pre-push stdin. */
+export interface PushRef {
+	readonly localRef: string;
+	readonly localSha: string;
+	readonly remoteRef: string;
+	readonly remoteSha: string;
+}
+
+/** `skip` set: do not verify (and say why). Otherwise verify `branch`. */
+export interface PrePushPlan {
+	readonly skip?: string;
+	readonly branch?: string;
+}
+
+const isZeroSha = (sha: string): boolean => /^0+$/.test(sha);
+
+/** Parse git's pre-push stdin: `<local ref> <local sha> <remote ref> <remote sha>`. */
+export function parsePushRefs(stdin: string): PushRef[] {
+	return stdin
+		.split("\n")
+		.map((line) => line.trim().split(/\s+/))
+		.filter((parts) => parts.length === 4)
+		.map(([localRef = "", localSha = "", remoteRef = "", remoteSha = ""]) => ({
+			localRef,
+			localSha,
+			remoteRef,
+			remoteSha,
+		}));
+}
+
+/**
+ * Decide whether the pre-push receipt should run (#514). Deletion-only
+ * pushes have nothing to verify, and a detached HEAD has no branch/PR to
+ * resolve a base from (it fell back to an old master merge-base).
+ */
+export async function planPrePush(
+	refs: readonly PushRef[],
+	ports: ReceiptPorts,
+): Promise<PrePushPlan> {
+	if (refs.length > 0 && refs.every((r) => isZeroSha(r.localSha))) {
+		return { skip: "deletion-only push" };
+	}
+	const sym = await ports.exec(["git", "symbolic-ref", "-q", "HEAD"]);
+	if (sym.code !== 0) return { skip: "detached HEAD" };
+	const pushed = refs.find(
+		(r) => !isZeroSha(r.localSha) && r.remoteRef.startsWith("refs/heads/"),
+	);
+	return pushed ? { branch: pushed.remoteRef.slice("refs/heads/".length) } : {};
 }
 
 export type ReceiptError =
@@ -129,9 +189,21 @@ async function prView(
  * local branch that tracks the PR branch under another name (worktrees)
  * still finds it.
  */
-async function currentPr(ports: ReceiptPorts): Promise<PrInfo | undefined> {
+async function currentPr(
+	ports: ReceiptPorts,
+	branch?: string,
+): Promise<PrInfo | undefined> {
+	if (branch) return prView(ports, branch);
 	const direct = await prView(ports);
 	if (direct) return direct;
+	const up = await upstreamRef(ports);
+	return up ? prView(ports, up.branch) : undefined;
+}
+
+/** `origin/v1/main` → { ref: "origin/v1/main", branch: "v1/main" }. */
+async function upstreamRef(
+	ports: ReceiptPorts,
+): Promise<{ readonly ref: string; readonly branch: string } | undefined> {
 	const up = await ports.exec([
 		"git",
 		"rev-parse",
@@ -139,10 +211,35 @@ async function currentPr(ports: ReceiptPorts): Promise<PrInfo | undefined> {
 		"--symbolic-full-name",
 		"@{upstream}",
 	]);
-	const upstream = up.code === 0 ? up.stdout.trim() : "";
-	const slash = upstream.indexOf("/");
-	if (slash <= 0) return undefined;
-	return prView(ports, upstream.slice(slash + 1));
+	const ref = up.code === 0 ? up.stdout.trim() : "";
+	const slash = ref.indexOf("/");
+	return slash > 0 ? { ref, branch: ref.slice(slash + 1) } : undefined;
+}
+
+/**
+ * Base when there is no PR: the upstream branch, if it is a different
+ * branch (a stacked branch tracking its parent, or one tracking v1/main).
+ * An upstream that is the branch itself would diff HEAD against itself.
+ */
+async function upstreamBase(
+	ports: ReceiptPorts,
+	branch?: string,
+): Promise<string | undefined> {
+	const up = await upstreamRef(ports);
+	if (!up) return undefined;
+	const self =
+		branch ??
+		(await (async () => {
+			const r = await ports.exec([
+				"git",
+				"symbolic-ref",
+				"--short",
+				"-q",
+				"HEAD",
+			]);
+			return r.code === 0 ? r.stdout.trim() : undefined;
+		})());
+	return self !== undefined && up.branch !== self ? up.ref : undefined;
 }
 
 async function mergeBase(
@@ -278,7 +375,7 @@ export async function produceReceipt(
 	if (rev.code !== 0) return fail("git", rev.stderr.trim());
 	const head = rev.stdout.trim().toLowerCase();
 
-	let pr = await currentPr(ports);
+	let pr = await currentPr(ports, opts.branch);
 	// GitHub updates the PR head a few seconds after `git push`; give it time.
 	for (
 		let attempt = 1;
@@ -289,7 +386,7 @@ export async function produceReceipt(
 		attempt++
 	) {
 		await ports.sleep(HEAD_POLL_MS);
-		pr = await currentPr(ports);
+		pr = await currentPr(ports, opts.branch);
 	}
 	if (opts.publish && !pr) {
 		return fail(
@@ -304,10 +401,13 @@ export async function produceReceipt(
 		);
 	}
 
-	// The PR's own base wins; --base / MAINA_BASE only apply without a PR.
+	// The PR's own base wins; without a PR: --base / MAINA_BASE, then a
+	// distinct upstream branch, then origin/master.
 	const baseRef = pr
 		? `origin/${pr.baseRefName}`
-		: (opts.base ?? "origin/master");
+		: (opts.base ??
+			(await upstreamBase(ports, opts.branch)) ??
+			"origin/master");
 	const mb = await mergeBase(baseRef, ports);
 	if (!mb.ok) return mb;
 	const base = mb.value;
@@ -436,8 +536,24 @@ async function main(): Promise<number> {
 		sleep: (ms) => Bun.sleep(ms),
 	};
 
+	// --pre-push: git's pushed refs arrive on stdin (lefthook use_stdin).
+	let branch: string | undefined;
+	if (argv.includes("--pre-push")) {
+		const stdin = process.stdin.isTTY ? "" : await Bun.stdin.text();
+		const plan = await planPrePush(parsePushRefs(stdin), ports);
+		if (plan.skip !== undefined) {
+			process.stdout.write(`Maina receipt skipped: ${plan.skip}.\n`);
+			return 0;
+		}
+		branch = plan.branch;
+	}
+
 	const r = await produceReceipt(
-		{ publish: !argv.includes("--no-publish"), ...(base ? { base } : {}) },
+		{
+			publish: !argv.includes("--no-publish"),
+			...(base ? { base } : {}),
+			...(branch ? { branch } : {}),
+		},
 		ports,
 	);
 	if (!r.ok) {
