@@ -67,8 +67,12 @@ export type BenchmarkReport = Readonly<{
 
 type Json = Readonly<Record<string, unknown>>;
 
-/** Text that renders as itself in MDX: no markup, braces, pipes or newlines. */
-const PLAIN = /^[A-Za-z0-9 .,:;+_\-()/@#'&]+$/;
+/**
+ * Text that renders as itself in MDX: it starts with a letter or digit (no
+ * heading or list marker), and has no markup, braces, pipes, entities,
+ * emphasis markers or newlines.
+ */
+const PLAIN = /^[A-Za-z0-9][A-Za-z0-9 .,:;+\-()/@#']*$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const COMMIT = /^[0-9a-f]{7,40}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -92,6 +96,11 @@ const rate: Check = (v) =>
 		: "must be a rate between 0 and 1";
 const count: Check = (v) =>
 	Number.isInteger(v) && (v as number) >= 0 ? null : "must be a whole number";
+/** A case count a rate is taken over: at least one, or the rate is undefined. */
+const cases: Check = (v) =>
+	Number.isInteger(v) && (v as number) > 0
+		? null
+		: "must be a whole number above zero";
 const latency: Check = (v) =>
 	typeof v === "number" && Number.isFinite(v) && v >= 0
 		? null
@@ -143,8 +152,8 @@ function reportProblem(v: unknown): string | null {
 			name: plain,
 			version: plain,
 			sha256: matches(SHA256, "a sha256 hex digest"),
-			destructive: count,
-			benign: count,
+			destructive: cases,
+			benign: cases,
 		});
 	if (nested) return nested;
 	const { systems, reproduce } = v;
@@ -246,9 +255,9 @@ function resultsSection(report: BenchmarkReport): string {
 		"",
 		"## Dataset",
 		"",
-		`${dataset.name} \`${dataset.version}\`: ${dataset.destructive} destructive and ${dataset.benign} benign actions, sha256 \`${dataset.sha256}\`.`,
+		`The dataset is ${dataset.name} \`${dataset.version}\`: ${dataset.destructive} destructive and ${dataset.benign} benign actions, sha256 \`${dataset.sha256}\`.`,
 		"",
-		`The harness, the dataset and the raw results are at [${repo.replace(/^https:\/\//, "")} @ \`${harness.commit.slice(0, 7)}\`](${repo}/tree/${harness.commit}).`,
+		`The harness, the dataset and the raw results are at [\`${repo.replace(/^https:\/\//, "")} @ ${harness.commit.slice(0, 7)}\`](${repo}/tree/${harness.commit}).`,
 	].join("\n");
 }
 
