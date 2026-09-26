@@ -545,7 +545,7 @@ describe("skills and launcher", () => {
 	}
 
 	test("skill CLI references point at the launcher's cli mode", () => {
-		const claude = fileAt("claude", "skills/tdd/SKILL.md").content;
+		const claude = fileAt("claude", "skills/verify/SKILL.md").content;
 		expect(claude).toContain(
 			`\`"\${CLAUDE_PLUGIN_ROOT}/launcher/launch.sh" cli verify\``,
 		);
@@ -553,7 +553,7 @@ describe("skills and launcher", () => {
 		// Cursor and Agent Plugins expand no plugin-root variable in a skill,
 		// so the launcher is named by its path from the skill's folder.
 		for (const host of ["cursor", "codex", "agent-plugins"] as const) {
-			const skill = fileAt(host, "skills/tdd/SKILL.md").content;
+			const skill = fileAt(host, "skills/verify/SKILL.md").content;
 			expect(skill).toContain("`../../launcher/launch.sh cli verify`");
 			expect(skill).toMatch(
 				/^---\n[\s\S]*?\n---\n\n> This plugin bundles the maina CLI: .*relative to this skill's folder\.\n/,

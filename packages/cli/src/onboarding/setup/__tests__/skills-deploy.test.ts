@@ -1,6 +1,7 @@
 /**
  * Tests for skills deployment — copies `@mainahq/skills/<name>/SKILL.md`
- * trees into `<cwd>/.maina/skills/<name>/SKILL.md`.
+ * trees into `<cwd>/.agents/skills/<name>/SKILL.md` (Agent Skills' shared
+ * project location), never into `.maina` (v1 task 9.6).
  */
 
 import { describe, expect, test } from "bun:test";
@@ -11,22 +12,20 @@ import {
 	readdirSync,
 	readFileSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deploySkills, skillsRootCandidates } from "../skills-deploy";
 
-const EXPECTED_SKILLS = [
-	"cloud-workflow",
-	"code-review",
-	"context-generation",
-	"onboarding",
-	"plan-writing",
-	"tdd",
-	"verification-workflow",
-	"wiki-workflow",
-];
+const EXPECTED_SKILLS = ["gate", "graph", "spec", "triage", "verify"];
+
+const AGENTS_SKILLS = join(".agents", "skills");
+
+/** A skill as maina ships it: front matter with maina's ownership marker. */
+const mainaSkill = (name: string, body = `Content for ${name}.`): string =>
+	`---\nname: ${name}\ndescription: The ${name} flow.\nmetadata:\n  author: mainahq\n---\n\n# ${name}\n\n${body}\n`;
 
 function tmpRepo(prefix: string): string {
 	return mkdtempSync(join(tmpdir(), `maina-${prefix}-`));
@@ -38,11 +37,7 @@ function makeFakeSkillsRoot(names: string[]): string {
 	for (const name of names) {
 		const dir = join(root, name);
 		mkdirSync(dir, { recursive: true });
-		writeFileSync(
-			join(dir, "SKILL.md"),
-			`# ${name}\n\nContent for ${name}.\n`,
-			"utf-8",
-		);
+		writeFileSync(join(dir, "SKILL.md"), mainaSkill(name), "utf-8");
 	}
 	// Drop noise so the scanner must filter.
 	writeFileSync(join(root, "README.md"), "readme", "utf-8");
@@ -51,21 +46,32 @@ function makeFakeSkillsRoot(names: string[]): string {
 }
 
 describe("deploySkills", () => {
-	test("materialises every SKILL.md under .maina/skills/<name>/", async () => {
+	test("materialises every SKILL.md under .agents/skills/<name>/", async () => {
 		const cwd = tmpRepo("skills-deploy");
 		const src = makeFakeSkillsRoot(EXPECTED_SKILLS);
 		try {
 			const res = await deploySkills({ cwd, sourceRoot: src });
 			expect(res.ok).toBe(true);
 			if (!res.ok) return;
-			expect(res.value.deployed.length).toBe(EXPECTED_SKILLS.length);
+			expect(res.value.deployed).toEqual(EXPECTED_SKILLS);
 
 			for (const name of EXPECTED_SKILLS) {
-				const target = join(cwd, ".maina/skills", name, "SKILL.md");
+				const target = join(cwd, AGENTS_SKILLS, name, "SKILL.md");
 				expect(existsSync(target)).toBe(true);
-				const content = readFileSync(target, "utf-8");
-				expect(content).toContain(`# ${name}`);
+				expect(readFileSync(target, "utf-8")).toBe(mainaSkill(name));
 			}
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+			rmSync(src, { recursive: true, force: true });
+		}
+	});
+
+	test("never writes a skills copy under .maina", async () => {
+		const cwd = tmpRepo("skills-no-maina-dir");
+		const src = makeFakeSkillsRoot(EXPECTED_SKILLS);
+		try {
+			await deploySkills({ cwd, sourceRoot: src });
+			expect(existsSync(join(cwd, ".maina", "skills"))).toBe(false);
 		} finally {
 			rmSync(cwd, { recursive: true, force: true });
 			rmSync(src, { recursive: true, force: true });
@@ -74,25 +80,80 @@ describe("deploySkills", () => {
 
 	test("idempotent: second run writes identical bytes (no duplicates)", async () => {
 		const cwd = tmpRepo("skills-idempotent");
-		const src = makeFakeSkillsRoot(["tdd", "code-review"]);
+		const src = makeFakeSkillsRoot(["verify", "gate"]);
+		const target = join(cwd, AGENTS_SKILLS, "verify", "SKILL.md");
 		try {
 			await deploySkills({ cwd, sourceRoot: src });
-			const firstTdd = readFileSync(
-				join(cwd, ".maina/skills/tdd/SKILL.md"),
-				"utf-8",
-			);
-			const firstListing = readdirSync(join(cwd, ".maina/skills")).sort();
+			const first = readFileSync(target, "utf-8");
+			const firstListing = readdirSync(join(cwd, AGENTS_SKILLS)).sort();
 
 			await deploySkills({ cwd, sourceRoot: src });
-			const secondTdd = readFileSync(
-				join(cwd, ".maina/skills/tdd/SKILL.md"),
-				"utf-8",
+			expect(readFileSync(target, "utf-8")).toBe(first);
+			expect(readdirSync(join(cwd, AGENTS_SKILLS)).sort()).toEqual(
+				firstListing,
 			);
-			const secondListing = readdirSync(join(cwd, ".maina/skills")).sort();
-			expect(secondTdd).toBe(firstTdd);
-			expect(secondListing).toEqual(firstListing);
 		} finally {
 			rmSync(cwd, { recursive: true, force: true });
+			rmSync(src, { recursive: true, force: true });
+		}
+	});
+
+	test("refreshes a stale copy maina wrote earlier", async () => {
+		const cwd = tmpRepo("skills-refresh");
+		const src = makeFakeSkillsRoot(["verify"]);
+		const target = join(cwd, AGENTS_SKILLS, "verify", "SKILL.md");
+		try {
+			mkdirSync(join(cwd, AGENTS_SKILLS, "verify"), { recursive: true });
+			writeFileSync(target, mainaSkill("verify", "An older release."));
+			const res = await deploySkills({ cwd, sourceRoot: src });
+			expect(res.ok && res.value.deployed).toEqual(["verify"]);
+			expect(readFileSync(target, "utf-8")).toBe(mainaSkill("verify"));
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+			rmSync(src, { recursive: true, force: true });
+		}
+	});
+
+	test("leaves a skill of the same name that maina did not write, with a warning", async () => {
+		const cwd = tmpRepo("skills-foreign");
+		const src = makeFakeSkillsRoot(["verify", "gate"]);
+		const target = join(cwd, AGENTS_SKILLS, "verify", "SKILL.md");
+		const mine =
+			"---\nname: verify\ndescription: Our own verify.\n---\n\nOurs.\n";
+		try {
+			mkdirSync(join(cwd, AGENTS_SKILLS, "verify"), { recursive: true });
+			writeFileSync(target, mine);
+			const res = await deploySkills({ cwd, sourceRoot: src });
+			expect(res.ok).toBe(true);
+			if (!res.ok) return;
+			expect(res.value.deployed).toEqual(["gate"]);
+			expect(res.value.warnings.join("\n")).toContain(
+				join(AGENTS_SKILLS, "verify", "SKILL.md"),
+			);
+			expect(readFileSync(target, "utf-8")).toBe(mine);
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+			rmSync(src, { recursive: true, force: true });
+		}
+	});
+
+	test("never writes through a symlinked SKILL.md, even a dangling one", async () => {
+		const cwd = tmpRepo("skills-symlink");
+		const outside = tmpRepo("skills-symlink-target");
+		const src = makeFakeSkillsRoot(["verify"]);
+		const target = join(outside, "not-a-skill.txt");
+		try {
+			mkdirSync(join(cwd, AGENTS_SKILLS, "verify"), { recursive: true });
+			symlinkSync(target, join(cwd, AGENTS_SKILLS, "verify", "SKILL.md"));
+			const res = await deploySkills({ cwd, sourceRoot: src });
+			expect(res.ok).toBe(true);
+			if (!res.ok) return;
+			expect(res.value.deployed).toEqual([]);
+			expect(res.value.warnings.join("\n")).toContain("symlink");
+			expect(existsSync(target)).toBe(false);
+		} finally {
+			rmSync(cwd, { recursive: true, force: true });
+			rmSync(outside, { recursive: true, force: true });
 			rmSync(src, { recursive: true, force: true });
 		}
 	});
@@ -109,12 +170,12 @@ describe("deploySkills", () => {
 			);
 			// Add one real skill too.
 			mkdirSync(join(src, "real"), { recursive: true });
-			writeFileSync(join(src, "real", "SKILL.md"), "# real\n", "utf-8");
+			writeFileSync(join(src, "real", "SKILL.md"), mainaSkill("real"));
 			const res = await deploySkills({ cwd, sourceRoot: src });
 			expect(res.ok).toBe(true);
 			if (!res.ok) return;
 			expect(res.value.deployed).toEqual(["real"]);
-			expect(existsSync(join(cwd, ".maina/skills/missing-skill"))).toBe(false);
+			expect(existsSync(join(cwd, AGENTS_SKILLS, "missing-skill"))).toBe(false);
 		} finally {
 			rmSync(cwd, { recursive: true, force: true });
 			rmSync(src, { recursive: true, force: true });
@@ -147,11 +208,9 @@ describe("deploySkills", () => {
 			const res = await deploySkills({ cwd });
 			expect(res.ok).toBe(true);
 			if (!res.ok) return;
-			// Should find at least one skill. We don't lock the exact count so
-			// this test stays stable when new skills ship.
-			expect(res.value.deployed.length).toBeGreaterThan(0);
+			expect(res.value.deployed).toEqual(EXPECTED_SKILLS);
 			for (const name of res.value.deployed) {
-				expect(existsSync(join(cwd, ".maina/skills", name, "SKILL.md"))).toBe(
+				expect(existsSync(join(cwd, AGENTS_SKILLS, name, "SKILL.md"))).toBe(
 					true,
 				);
 			}

@@ -145,7 +145,7 @@ The MCP server registers these tools by default (the DeepWiki-compatible wiki to
 
 Run `bun run docs:manifest` for the live tool + skill inventory.
 
-Cross-platform skills work even without the CLI installed.
+[Agent Skills](packages/skills/README.md) for the gate, verify, spec, triage and graph flows ship in the maina plugins and are copied into `.agents/skills/` by `maina setup`.
 
 | Tool | MCP | Instructions | Setup |
 |------|-----|-------------|-------|
@@ -162,7 +162,7 @@ Cross-platform skills work even without the CLI installed.
 | Codex CLI | -- | AGENTS.md | `maina setup` |
 | Aider | -- | CONVENTIONS.md | `maina setup --legacy-agents` |
 
-Run `maina setup` to auto-configure MCP and write instruction files. It is idempotent and never overwrites your files: maina only edits its own `<!-- maina-managed -->` region (or its `mcpServers.maina` key in JSON) and backs up the original to `.maina/backups/` before the first edit. The older per-tool files are opt-in with `--legacy-agents`. See the [onboarding skill](packages/skills/onboarding/SKILL.md) for per-tool details.
+Run `maina setup` to auto-configure MCP and write instruction files. It is idempotent and never overwrites your files: maina only edits its own `<!-- maina-managed -->` region (or its `mcpServers.maina` key in JSON) and backs up the original to `.maina/backups/` before the first edit. The older per-tool files are opt-in with `--legacy-agents`. See the [MCP docs](packages/docs/src/content/docs/mcp.mdx) for per-tool details.
 
 ## The Workflow
 

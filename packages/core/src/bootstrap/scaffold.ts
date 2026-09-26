@@ -32,7 +32,7 @@ export interface ScaffoldOptions {
 	 */
 	withConstitutionStub?: boolean;
 	/**
-	 * Placeholder for wave 4 — materialise `.maina/skills/<name>/SKILL.md`
+	 * Placeholder for wave 4 — materialise `.agents/skills/<name>/SKILL.md`
 	 * trees from `@mainahq/skills`. Not consumed by this scaffolder (skills
 	 * live in `setup/skills-deploy.ts`) but accepted for API symmetry so
 	 * callers don't need to branch.

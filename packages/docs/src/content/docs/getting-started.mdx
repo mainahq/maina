@@ -51,16 +51,13 @@ bunx @mainahq/cli@latest setup
    - `.mcp.json` (Claude Code)
    - `.cursor/mcp.json` (Cursor)
 
-   The eight cross-platform skills are materialised into your project so any agent can read them directly:
+   maina's skills are copied into `.agents/skills/`, where hosts that read Agent Skills (Codex, Cursor and others) discover them. A skill of the same name that maina did not write is left alone:
 
-   - `.maina/skills/onboarding/SKILL.md`
-   - `.maina/skills/verification-workflow/SKILL.md`
-   - `.maina/skills/tdd/SKILL.md`
-   - `.maina/skills/code-review/SKILL.md`
-   - `.maina/skills/plan-writing/SKILL.md`
-   - `.maina/skills/context-generation/SKILL.md`
-   - `.maina/skills/wiki-workflow/SKILL.md`
-   - `.maina/skills/cloud-workflow/SKILL.md`
+   - `.agents/skills/gate/SKILL.md`
+   - `.agents/skills/verify/SKILL.md`
+   - `.agents/skills/spec/SKILL.md`
+   - `.agents/skills/triage/SKILL.md`
+   - `.agents/skills/graph/SKILL.md`
 
    The codebase wiki is kicked off in the **background** — `maina setup` returns immediately after seeding `.maina/wiki/.progress.json`. Poll progress any time with `maina wiki status`.
 

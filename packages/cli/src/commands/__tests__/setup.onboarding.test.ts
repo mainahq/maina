@@ -126,7 +126,7 @@ describe("setupAction — single onboarding flow", () => {
 		expect(second.constitutionWritten).toBe(false);
 		// Skills deploy reports every skill it checked; onboarding files none.
 		expect(
-			second.agentFilesWritten.filter((p) => !p.startsWith(".maina/skills/")),
+			second.agentFilesWritten.filter((p) => !p.startsWith(".agents/skills/")),
 		).toEqual([]);
 	});
 

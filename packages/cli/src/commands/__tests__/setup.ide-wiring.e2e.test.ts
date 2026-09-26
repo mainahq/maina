@@ -250,7 +250,7 @@ describe("setupAction IDE-wiring e2e fixture", () => {
 		}
 	});
 
-	test("materialises .maina/skills/<name>/SKILL.md after setup", async () => {
+	test("materialises .agents/skills/<name>/SKILL.md after setup, and no .maina copy", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "maina-setup-skills-e2e-"));
 		try {
 			initGitRepo(cwd);
@@ -313,13 +313,16 @@ describe("setupAction IDE-wiring e2e fixture", () => {
 			const result = await setupAction(options);
 			expect(result.bailed).toBe(false);
 
-			// At least one SKILL.md should land in .maina/skills/<name>/.
-			expect(existsSync(join(cwd, ".maina/skills"))).toBe(true);
-			// Spot-check two known skill names.
-			expect(existsSync(join(cwd, ".maina/skills/tdd/SKILL.md"))).toBe(true);
-			expect(existsSync(join(cwd, ".maina/skills/code-review/SKILL.md"))).toBe(
-				true,
-			);
+			// Skills land where Agent Skills hosts look for project skills.
+			for (const name of ["gate", "verify"]) {
+				expect(
+					existsSync(join(cwd, ".agents", "skills", name, "SKILL.md")),
+				).toBe(true);
+				expect(result.agentFilesWritten).toContain(
+					`.agents/skills/${name}/SKILL.md`,
+				);
+			}
+			expect(existsSync(join(cwd, ".maina", "skills"))).toBe(false);
 		} finally {
 			rmSync(cwd, { recursive: true, force: true });
 		}

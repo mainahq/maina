@@ -1,94 +1,65 @@
 ---
 title: Skills
-description: Cross-platform skills that teach any AI agent Maina's verification workflow.
+description: Agent Skills that teach any AI coding agent Maina's gate, verify, spec, triage and graph flows.
 ---
 
-Maina ships a skills package alongside the CLI -- cross-platform skills that teach AI agents your team's verification workflow without requiring the CLI to be installed. Run `bun run docs:manifest` for the current skill list.
+Maina ships a skills package alongside the CLI: [Agent Skills](https://agentskills.io/specification) that teach AI coding agents the v1 flows. Run `bun run docs:manifest` for the current skill list.
 
 ## What Are Skills?
 
-Skills are structured instruction files (`SKILL.md`) that any AI agent can read and follow. They work across every major coding agent — Claude Code, Cline, Codex, Continue, Copilot, Cursor, Gemini CLI, OpenHands, Roo Code, Windsurf, Zed AI — plus any MCP-compatible client.
+A skill is a folder holding a `SKILL.md`: YAML front matter with a `name` (the folder's name) and a `description` of what the skill does and when to use it, then Markdown instructions. Hosts that support Agent Skills (Claude Code, Codex, Cursor and others) read every skill's description at the start of a session and load a skill's full instructions only when the task matches it:
 
-Each skill uses progressive disclosure:
-- **~100 tokens** when scanning (the agent reads the summary and decides if the skill is relevant)
-- **< 5,000 tokens** when activated (the agent reads the full instructions)
+- **The description** (at most 1024 characters) is what the agent scans to decide whether a skill is relevant. There are no trigger lists: the description is the match.
+- **The body** (under 5,000 tokens) is read only when the skill activates.
 
-Skills are the **knowledge layer**. The CLI is the **automation layer**. Both use the same three engines underneath.
+Skills are the **knowledge layer**. The CLI, the MCP server and the hooks are the **automation layer**: the skills tell the agent when to call them and what to do with the answers.
 
 ## Available Skills
 
 | Skill | Purpose | When it activates |
 |-------|---------|-------------------|
-| `verification-workflow` | End-to-end verification process. Guides the agent through syntax check, analysis, diff filtering, and review. | When the agent needs to verify code changes |
-| `context-generation` | Focused codebase context assembly. Teaches the agent to gather relevant context without stuffing the window. | When the agent needs to understand the codebase |
-| `plan-writing` | Structured feature planning. Guides creation of auto-numbered feature directories with spec/plan/tasks separation. | When the agent needs to plan a feature |
-| `code-review` | Two-stage review methodology. First checks spec compliance, then code quality. | When the agent needs to review code |
-| `tdd` | Test-driven development workflow. Red-green enforcement: stubs must fail before implementation, pass after. | When the agent needs to write tests |
-| `wiki-workflow` | Codebase knowledge compilation and querying. Guides wiki init, compile, query, and lint. | When the agent needs to build or search codebase knowledge |
-| `cloud-workflow` | Cloud sync, team prompts, and hosted verification. Guides login, sync, and cloud verify. | When the agent needs to use Maina Cloud features |
-| `onboarding` | First-time setup flow. Guides init, setup, doctor, and first commit. | When the agent is helping a new user get started |
+| `gate` | How maina's action gate allows, asks about or denies risky actions, and what to do (and never do) after an ask or a deny. | A tool call is stopped by the gate, or before a destructive or irreversible action |
+| `verify` | Run the verification pipeline, fix findings on changed lines, commit through maina and produce receipts. | After editing code, before committing or saying the task is done |
+| `spec` | Spec-first features: `spec.md` (what and why), `plan.md` (how) and `tasks.md`, checked with `spec_check`, then implemented test-first. | Starting a feature, or editing a feature's spec, plan or tasks |
+| `triage` | Two-stage review of a diff, triaged into blocking, advisory and info, and deciding which findings are real. | Before opening or merging a pull request, or when handed review findings |
+| `graph` | What a change can affect (callers, dependents, covering tests, blast score) and the minimal source to read, from the code graph. | Before changing code others depend on, or instead of reading whole files |
 
 ## Installation
 
-Skills live in the `packages/skills/` directory of the Maina repository:
+Skills ship in two ways, and only these two:
+
+**In the maina plugin.** The Claude Code, Cursor and Codex plugins, and the Agent Plugins package, bundle every skill under `skills/<name>/SKILL.md`, namespaced under the plugin where the host does that (for example `maina:verify` in Claude Code). The plugin's skills run the CLI through the launcher the plugin bundles, so nothing needs to be on `PATH`.
+
+**In `.agents/skills`.** `maina setup` copies every skill into `<your-repo>/.agents/skills/<name>/SKILL.md`, the project location Agent Skills hosts discover skills in. Idempotent: re-running setup only rewrites maina's own skills that changed. A skill of the same name that maina did not write (its front matter lacks `metadata.author: mainahq`) is never overwritten; setup warns and leaves it.
+
+The source lives in `packages/skills/` of the Maina repository and is published as `@mainahq/skills`:
 
 ```
 packages/skills/
-  verification-workflow/SKILL.md
-  context-generation/SKILL.md
-  plan-writing/SKILL.md
-  code-review/SKILL.md
-  tdd/SKILL.md
-  wiki-workflow/SKILL.md
-  cloud-workflow/SKILL.md
-  onboarding/SKILL.md
+  gate/SKILL.md
+  verify/SKILL.md
+  spec/SKILL.md
+  triage/SKILL.md
+  graph/SKILL.md
 ```
-
-**Materialised on `maina setup`:** the wizard copies every `SKILL.md` into `<your-repo>/.maina/skills/<name>/SKILL.md` so the files live in your tree alongside the code. Idempotent — re-running setup only writes what changed. Agents that can't resolve packages (or that run before `node_modules` is installed) read directly from there.
-
-**For Claude Code:** Skills are discovered automatically when Maina is installed. They appear as available slash commands.
-
-**For Cline / Codex / Continue / Copilot / Cursor / Gemini CLI / OpenHands / Roo Code / Windsurf / Zed AI / any MCP client:** Point the agent at `.maina/skills/` or include the files in your project's agent instructions.
-
-**Without the CLI:** Copy the SKILL.md files into your project. An AI agent with just the skills follows the verification workflow -- no CLI needed.
 
 ## How Skills Work
 
 Each skill follows the same structure:
 
-### 1. Trigger
+1. **Front matter**: `name`, `description`, `license`, `compatibility` and `metadata`, the fields the Agent Skills spec defines, and nothing else.
+2. **When to use**: the situations the skill is for, in more detail than the description.
+3. **Steps**: what to do, in order, naming the MCP tool and the CLI command for each step.
+4. **Example**: one worked case.
+5. **Notes**: limits and related skills.
 
-The skill declares when it should activate. For example, the `verification-workflow` skill triggers when the agent is about to commit or submit code for review.
-
-### 2. Context gathering
-
-The skill instructs the agent to gather relevant context:
-- Read the constitution (`.maina/constitution.md`)
-- Check the current plan (`.maina/features/*/plan.md`)
-- Look at the diff being verified
-
-### 3. Step-by-step execution
-
-The skill provides a sequence of steps. For the `verification-workflow` skill:
-1. Run syntax check (Biome)
-2. Run parallel analysis tools
-3. Filter to changed lines only
-4. Check for AI slop patterns
-5. Generate fixes if needed
-6. Review against spec, then against quality
-
-### 4. Verification
-
-Every skill ends with verification -- the agent confirms the output meets the project's standards before proceeding. This is the core Maina principle: verify before merge.
+Every skill ends in verification: the agent confirms its work passes the project's checks before moving on. This is the core Maina principle: verify before merge.
 
 ## Skills vs CLI vs MCP
 
 | Capability | CLI | MCP | Skills |
 |-----------|-----|-----|--------|
 | Runs tools directly | Yes | Yes | No (guides the agent) |
-| Works without installation | No | No | Yes |
-| Cross-platform | Terminal only | MCP-compatible IDEs (12+) | Any AI agent |
-| Requires Bun | Yes | Yes | No |
-| Uses three engines | Directly | Via delegation | Via instructions |
-
-Skills are designed for the case where you want the verification workflow but cannot or do not want to install the CLI. The agent follows the same methodology, using whatever tools are available in its environment.
+| Teaches when to use each tool | No | No | Yes |
+| Cross-platform | Terminal only | MCP-compatible IDEs | Any host that reads Agent Skills |
+| Uses the engines | Directly | Via the server | Via the CLI and MCP tools |

@@ -1,33 +1,22 @@
 # Maina Skills
 
-Drop these into your AI agent's skills directory to get maina's verification workflow.
+[Agent Skills](https://agentskills.io/specification) that teach AI coding agents maina's v1 flows.
 
-Each skill follows a standard format with frontmatter metadata (name, description, triggers) and progressive disclosure: scan the description in under 100 tokens, read the full skill in under 5000 tokens.
+Each skill is a folder holding a `SKILL.md`. Its YAML front matter has only the fields the spec defines: `name` (the folder's name), `description` (what the skill does and when to use it, at most 1024 characters), `license`, `compatibility` and `metadata`. There are no trigger lists: hosts match a skill on its description, then read the body (under 5000 tokens) when it applies.
 
 ## Available Skills
 
 | Skill | Description |
 |-------|-------------|
-| `verification-workflow` | Full verify pipeline: syntax guard, parallel tools, diff-only filter |
-| `context-generation` | 4-layer context retrieval with dynamic token budgets |
-| `plan-writing` | Spec-first planning with consistency validation |
-| `code-review` | Two-stage review: spec compliance then code quality |
-| `tdd` | Test-driven development from generated stubs |
+| `gate` | Allow, ask or deny: what to do when the gate stops an action, and asking the policy first |
+| `verify` | Run the verification pipeline, fix findings on changed lines, commit through maina, produce receipts |
+| `spec` | Spec-first features: spec, plan and tasks kept consistent, then implemented test-first |
+| `triage` | Two-stage review of a diff, triaged into blocking, advisory and info |
+| `graph` | Impact (callers, dependents, covering tests) and minimal context from the code graph |
 
 ## Installation
 
-### Claude Code
+Skills ship only two ways:
 
-Copy skill directories to your project or reference via plugin. Claude Code will detect SKILL.md files and use their triggers to activate the appropriate workflow.
-
-### Cursor
-
-Add skill content to `.cursorrules` or reference in settings. The frontmatter triggers help Cursor match user intent to the right workflow.
-
-### Codex
-
-Reference SKILL.md files in `AGENTS.md`. Codex agents will follow the step-by-step instructions when triggered.
-
-### Gemini CLI
-
-Include skill content in your project's context files. Gemini CLI reads the triggers and steps to guide its workflow.
+- **The maina plugin** for Claude Code, Cursor, Codex and Agent Plugins bundles every skill, with its CLI commands pointed at the launcher the plugin carries.
+- **`maina setup`** copies every skill into `.agents/skills/<name>/SKILL.md` in your repo, where hosts that read Agent Skills discover them. It never overwrites a skill of the same name that maina did not write (one without `metadata.author: mainahq`).

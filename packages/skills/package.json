@@ -3,7 +3,7 @@
   "version": "1.8.1",
   "type": "module",
   "license": "Apache-2.0",
-  "description": "Maina skills — cross-platform integration for Claude Code, Cursor, Cline, Codex, Continue, Copilot, Gemini CLI, OpenHands, Roo Code, Windsurf, Zed AI, and any MCP client",
+  "description": "Maina Agent Skills: the gate, verify, spec, triage and graph flows for any AI coding agent that reads Agent Skills",
   "homepage": "https://mainahq.com/",
   "repository": {
     "type": "git",
