@@ -3,7 +3,7 @@
  *
  * The committed plugin packages pin the runtime version but carry no
  * artifacts: releasing adds the signed launcher manifest and the release
- * key (`runtime-artifacts.yml`). This does the same for the e2e: it
+ * key (`release.yml`, `scripts/release/`). This does the same for the e2e: it
  * compiles the standalone runtime for this machine, signs it with a
  * throwaway key, serves it on 127.0.0.1 and writes a marketplace (the
  * repo's `.claude-plugin/marketplace.json`, `.cursor-plugin/
