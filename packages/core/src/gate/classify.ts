@@ -1920,6 +1920,7 @@ function ghClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 	const p = positional(args);
 	if (p[0] === "release" && (p[1] === "create" || p[1] === "upload"))
 		ctx.out.add("package.publish");
+	if (p[0] === "pr" && p[1] === "merge") ctx.out.add("pr.merge");
 	if (p[0] === "auth" && p[1] === "token") ctx.out.add("secrets.read");
 	if (
 		p[0] === "auth" &&

@@ -353,6 +353,22 @@ describe("pushes to a branch the gate cannot read", () => {
 	});
 });
 
+describe("merging a pull request (FR-HAR-4)", () => {
+	test("gh pr merge is pr.merge, allowed by default outside an unattended run", () => {
+		expect(classesOf("gh pr merge 12 --squash")).toContain("pr.merge");
+		expect(classesOf("sh -c 'gh pr merge --auto'")).toContain("pr.merge");
+		expect(DEFAULT_POLICY.action_classes["pr.merge"]).toEqual({
+			irreversible: false,
+			verdict: "allow",
+		});
+	});
+
+	test("other gh pr commands are not a merge", () => {
+		expect(classesOf("gh pr create --fill")).not.toContain("pr.merge");
+		expect(classesOf("gh pr view 12")).not.toContain("pr.merge");
+	});
+});
+
 describe("what the gate cannot see is opaque", () => {
 	for (const command of [
 		'eval "$CMD"',

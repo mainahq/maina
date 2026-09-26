@@ -13,6 +13,8 @@
  *   cannot be loosened at all (#513).
  * - A class a layer introduces fails closed: no verdict means `ask`.
  * - Telemetry opt-ins can only be turned on by the user layer.
+ * - Run contexts: deny lists accumulate like rules; budgets merge key by
+ *   key, but a repo layer can only lower one.
  */
 
 import { join } from "node:path";
@@ -31,7 +33,10 @@ import {
 	type PolicyLayer,
 	type PolicySource,
 	parsePolicyLayer,
+	RUN_CONTEXTS,
 	type RulePolicy,
+	type RunBudgetsPolicy,
+	type RunContext,
 	ruleKey,
 	VERDICTS,
 	type Verdict,
@@ -131,11 +136,74 @@ function unionRules(
 	];
 }
 
-function unionBranches(
+/** `base` then every id of `added` not already in it: nothing is dropped. */
+function unionIds(
 	base: readonly string[],
 	added: readonly string[] | undefined,
 ): readonly string[] {
 	return [...new Set([...base, ...(added ?? [])])];
+}
+
+type RunBudgetKey = keyof RunBudgetsPolicy;
+const RUN_BUDGET_KEYS: readonly RunBudgetKey[] = [
+	"wall_clock_minutes",
+	"max_tool_calls",
+];
+
+/**
+ * One context's budgets after `layer`: a later layer wins key by key, except
+ * that a repo policy may only lower a budget (a cloned repository must not
+ * raise what a run may spend). Raising one is an error at its path.
+ */
+function mergeBudgets(
+	context: RunContext,
+	base: RunBudgetsPolicy,
+	added: RunBudgetsPolicy | undefined,
+	layer: Layer,
+): Readonly<{ budgets: RunBudgetsPolicy; errors: readonly PolicyError[] }> {
+	const budgets: Partial<Record<RunBudgetKey, number>> = { ...base };
+	const errors: PolicyError[] = [];
+	for (const key of RUN_BUDGET_KEYS) {
+		const value = added?.[key];
+		if (value === undefined) continue;
+		const limit = base[key];
+		if (layer.source === "repo" && limit !== undefined && value > limit) {
+			errors.push({
+				kind: "invalid",
+				source: layer.source,
+				file: layer.file,
+				path: `run.${context}.budgets.${key}`,
+				message: `A repo policy can only lower a run budget: ${value} is above ${limit}`,
+			});
+			continue;
+		}
+		budgets[key] = value;
+	}
+	return { budgets, errors };
+}
+
+/** Deny lists accumulate; budgets merge per `mergeBudgets`. */
+function mergeRun(
+	base: Policy["run"],
+	layer: Layer,
+): Readonly<{ run: Policy["run"]; errors: readonly PolicyError[] }> {
+	const merged = RUN_CONTEXTS.map((context) => {
+		const spec = layer.value.run?.[context];
+		const { budgets, errors } = mergeBudgets(
+			context,
+			base[context].budgets,
+			spec?.budgets,
+			layer,
+		);
+		const deny = unionIds(base[context].deny, spec?.deny);
+		return { context, spec: { deny, budgets }, errors };
+	});
+	return {
+		run: Object.fromEntries(
+			merged.map(({ context, spec }) => [context, spec]),
+		) as Policy["run"],
+		errors: merged.flatMap(({ errors }) => errors),
+	};
 }
 
 function mergeDecisions(
@@ -175,6 +243,7 @@ function telemetryOptInErrors(base: Policy, layer: Layer): PolicyError[] {
 
 function mergeLayer(acc: Merged, layer: Layer): Merged {
 	const classes = mergeActionClasses(acc.policy, layer);
+	const run = mergeRun(acc.policy.run, layer);
 	const { value } = layer;
 	const policy: Policy = {
 		...classes.policy,
@@ -182,7 +251,7 @@ function mergeLayer(acc: Merged, layer: Layer): Merged {
 			allow: unionRules(acc.policy.rules.allow, value.rules?.allow),
 			deny: unionRules(acc.policy.rules.deny, value.rules?.deny),
 		},
-		protected_branches: unionBranches(
+		protected_branches: unionIds(
 			acc.policy.protected_branches,
 			value.protected_branches,
 		),
@@ -190,6 +259,7 @@ function mergeLayer(acc: Merged, layer: Layer): Merged {
 		drift: { ...acc.policy.drift, ...defined(value.drift) },
 		telemetry: { ...acc.policy.telemetry, ...defined(value.telemetry) },
 		log: { ...acc.policy.log, ...defined(value.log) },
+		run: run.run,
 	};
 	return {
 		policy,
@@ -197,6 +267,7 @@ function mergeLayer(acc: Merged, layer: Layer): Merged {
 			...acc.errors,
 			...classes.errors,
 			...telemetryOptInErrors(acc.policy, layer),
+			...run.errors,
 		],
 	};
 }

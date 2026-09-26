@@ -6,6 +6,10 @@ import {
 	loadWorkingContext,
 	type MainaCommand,
 } from "@mainahq/core";
+import {
+	type SessionSandbox,
+	sessionSandbox,
+} from "@mainahq/harness/src/run/context";
 import { Command } from "commander";
 import { processEnv } from "../env";
 
@@ -13,6 +17,8 @@ import { processEnv } from "../env";
 
 interface StatusActionOptions {
 	cwd?: string;
+	/** The session's environment; the process's by default. */
+	env?: EnvPort;
 }
 
 interface StatusActionResult {
@@ -25,6 +31,8 @@ interface StatusActionResult {
 	touchedFilesCount?: number;
 	contextTokens?: number;
 	contextLayers?: Array<{ name: string; tokens: number; included: boolean }>;
+	/** The agent session's sandbox; absent outside any agent (FR-SBX-6). */
+	sandbox?: SessionSandbox;
 }
 
 export interface StatusDeps {
@@ -72,15 +80,18 @@ export async function statusAction(
 	deps: StatusDeps = defaultDeps,
 ): Promise<StatusActionResult> {
 	const cwd = options.cwd ?? process.cwd();
+	const env = options.env ?? processEnv;
 	const mainaDir = join(cwd, ".maina");
 
 	// ── Step 1: Load working context ──────────────────────────────────
 	const workingCtx = await deps.loadWorkingContext(mainaDir, cwd);
 
+	const sandbox = sessionSandbox(env);
 	const result: StatusActionResult = {
 		displayed: true,
 		branch: workingCtx.branch,
 		touchedFilesCount: workingCtx.touchedFiles.length,
+		...(sandbox === undefined ? {} : { sandbox }),
 	};
 
 	// ── Step 2: Verification info ─────────────────────────────────────
@@ -97,7 +108,7 @@ export async function statusAction(
 		const ctx = await deps.assembleContext("status", {
 			repoRoot: cwd,
 			mainaDir,
-			env: processEnv,
+			env,
 		});
 		result.contextTokens = ctx.tokens;
 		result.contextLayers = ctx.layers;
@@ -108,10 +119,27 @@ export async function statusAction(
 	return result;
 }
 
+/**
+ * What status says about the session's sandbox (FR-SBX-6): on inside a
+ * `maina run` worker; off in a plugin-only session, with the `maina run`
+ * command that runs the work sandboxed; nothing outside any agent.
+ */
+export function sandboxLines(sandbox: SessionSandbox | undefined): string[] {
+	if (sandbox === undefined) return [];
+	if (sandbox.state === "on") {
+		return [`  Sandbox: on (maina run ${sandbox.runId})`];
+	}
+	return [
+		`  Sandbox: off. maina runs as a plugin in ${sandbox.host}: the gate sees what the agent asks about, but nothing sandboxes its tools.`,
+		`  To run sandboxed: ${sandbox.command}`,
+	];
+}
+
 // ── Display Helper ───────────────────────────────────────────────────────────
 
 function displayStatus(result: StatusActionResult): void {
 	log.info(`  Branch: ${result.branch}`);
+	for (const line of sandboxLines(result.sandbox)) log.info(line);
 
 	if (result.noVerificationData) {
 		log.info("  No verification data yet. Run `maina commit` first.");

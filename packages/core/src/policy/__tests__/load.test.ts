@@ -4,6 +4,7 @@ import {
 	DEFAULT_POLICY,
 	DENIED_ACTION_CLASSES,
 	IRREVERSIBLE_ACTION_CLASSES,
+	UNATTENDED_DENIED_ACTION_CLASSES,
 } from "../defaults";
 import { loadPolicy } from "../load";
 
@@ -407,6 +408,89 @@ describe("telemetry opt-ins", () => {
 		if (!optedOut.ok) return;
 		expect(optedOut.value.telemetry.usage).toBe(false);
 		expect(optedOut.value.telemetry.crash_reports).toBe(true);
+	});
+});
+
+describe("run contexts and budgets (FR-HAR-4, FR-HAR-5)", () => {
+	test("unattended runs deny merging, releasing and publishing by default", () => {
+		const denied: string[] = [...UNATTENDED_DENIED_ACTION_CLASSES];
+		expect(denied.sort()).toEqual(
+			["deploy", "git.push.protected", "package.publish", "pr.merge"].sort(),
+		);
+		expect(DEFAULT_POLICY.run.unattended.deny).toEqual([
+			...UNATTENDED_DENIED_ACTION_CLASSES,
+		]);
+		expect(DEFAULT_POLICY.run.interactive.deny).toEqual([]);
+		for (const id of UNATTENDED_DENIED_ACTION_CLASSES) {
+			expect(DEFAULT_POLICY.action_classes[id]).toBeDefined();
+		}
+	});
+
+	test("an unattended run is bounded by default; an interactive one is not", () => {
+		expect(DEFAULT_POLICY.run.unattended.budgets).toEqual({
+			wall_clock_minutes: 60,
+			max_tool_calls: 500,
+		});
+		expect(DEFAULT_POLICY.run.interactive.budgets).toEqual({});
+	});
+
+	test("deny lists accumulate: no layer can drop a denied class", async () => {
+		const result = await loadPolicy(
+			repoPolicy({ run: { unattended: { deny: ["git.push"] } } }),
+			ROOT,
+			{ run: { interactive: { deny: ["deploy"] } } },
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.run.unattended.deny).toEqual([
+			...UNATTENDED_DENIED_ACTION_CLASSES,
+			"git.push",
+		]);
+		expect(result.value.run.interactive.deny).toEqual(["deploy"]);
+	});
+
+	test("the user sets budgets; a repo can only lower them", async () => {
+		const user = { run: { unattended: { budgets: { max_tool_calls: 900 } } } };
+		const lowered = await loadPolicy(
+			repoPolicy({
+				run: { unattended: { budgets: { wall_clock_minutes: 10 } } },
+			}),
+			ROOT,
+			user,
+		);
+		expect(lowered.ok).toBe(true);
+		if (!lowered.ok) return;
+		expect(lowered.value.run.unattended.budgets).toEqual({
+			wall_clock_minutes: 10,
+			max_tool_calls: 900,
+		});
+
+		const raised = await loadPolicy(
+			repoPolicy({
+				run: {
+					unattended: { budgets: { max_tool_calls: 5000 } },
+					interactive: { budgets: { wall_clock_minutes: 5 } },
+				},
+			}),
+			ROOT,
+			user,
+		);
+		expect(raised.ok).toBe(false);
+		if (raised.ok) return;
+		expect(raised.error.map((e) => e.path)).toEqual([
+			"run.unattended.budgets.max_tool_calls",
+		]);
+	});
+
+	test("rejects a budget that is not a positive number, with its path", async () => {
+		const result = await loadPolicy(
+			repoPolicy({ run: { unattended: { budgets: { max_tool_calls: 0 } } } }),
+			ROOT,
+			undefined,
+		);
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error[0]?.path).toBe("run.unattended.budgets.max_tool_calls");
 	});
 });
 

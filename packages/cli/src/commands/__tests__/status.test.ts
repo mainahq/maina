@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { EnvPort } from "@mainahq/core";
 import type { StatusDeps } from "../status";
-import { statusAction } from "../status";
+import { sandboxLines, statusAction } from "../status";
 
 // ── Mock deps factory ──────────────────────────────────────────────────────
 
@@ -195,5 +195,54 @@ describe("statusAction", () => {
 		expect(result.displayed).toBe(true);
 		expect(result.branch).toBe("feature/003-pr-and-init");
 		expect(result.contextTokens).toBeUndefined();
+	});
+});
+
+// ── Sandbox (FR-SBX-6) ─────────────────────────────────────────────────────
+
+const envOf = (vars: Readonly<Record<string, string>>): EnvPort => ({
+	get: (name) => vars[name],
+});
+
+describe("statusAction: sandbox", () => {
+	test("a plugin-only session says the sandbox is off and prints the maina run command that turns it on", async () => {
+		const result = await statusAction(
+			{ cwd: "/my/project", env: envOf({ CLAUDECODE: "1" }) },
+			createMockDeps(),
+		);
+
+		expect(result.sandbox).toMatchObject({ state: "off", session: "plugin" });
+		const text = sandboxLines(result.sandbox).join("\n");
+		expect(text).toContain("Sandbox: off");
+		expect(text).toContain('maina run --agent claude "<task>"');
+	});
+
+	test("a session maina run started reports the sandbox on", async () => {
+		const result = await statusAction(
+			{
+				cwd: "/my/project",
+				env: envOf({
+					CLAUDECODE: "1",
+					MAINA_RUN_ID: "r-1",
+					MAINA_SANDBOX: "1",
+				}),
+			},
+			createMockDeps(),
+		);
+
+		expect(result.sandbox).toEqual({ state: "on", runId: "r-1" });
+		const text = sandboxLines(result.sandbox).join("\n");
+		expect(text).toContain("Sandbox: on");
+		expect(text).not.toContain("maina run --agent");
+	});
+
+	test("a plain terminal session prints no sandbox line", async () => {
+		const result = await statusAction(
+			{ cwd: "/my/project", env: envOf({}) },
+			createMockDeps(),
+		);
+
+		expect(result.sandbox).toBeUndefined();
+		expect(sandboxLines(result.sandbox)).toEqual([]);
 	});
 });

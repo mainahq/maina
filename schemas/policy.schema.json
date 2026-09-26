@@ -253,6 +253,77 @@
 			},
 			"additionalProperties": false,
 			"description": "What the local decision log keeps in the clear."
+		},
+		"run": {
+			"type": "object",
+			"properties": {
+				"interactive": {
+					"type": "object",
+					"properties": {
+						"deny": {
+							"type": "array",
+							"items": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+							},
+							"description": "Action classes a run in this context never performs, whatever their verdict. Lists accumulate across layers; none can be removed."
+						},
+						"budgets": {
+							"type": "object",
+							"properties": {
+								"wall_clock_minutes": {
+									"type": "number",
+									"exclusiveMinimum": 0,
+									"description": "Longest a run may take, from its first agent turn to its last review. Unset means unlimited."
+								},
+								"max_tool_calls": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991,
+									"description": "Tool calls a run may make across all its attempts; the next one stops it. Unset means unlimited."
+								}
+							},
+							"additionalProperties": false,
+							"description": "A run in this context stops, with a report, at the first budget it breaches. A repo policy can only lower a budget."
+						}
+					},
+					"additionalProperties": false
+				},
+				"unattended": {
+					"type": "object",
+					"properties": {
+						"deny": {
+							"type": "array",
+							"items": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+							},
+							"description": "Action classes a run in this context never performs, whatever their verdict. Lists accumulate across layers; none can be removed."
+						},
+						"budgets": {
+							"type": "object",
+							"properties": {
+								"wall_clock_minutes": {
+									"type": "number",
+									"exclusiveMinimum": 0,
+									"description": "Longest a run may take, from its first agent turn to its last review. Unset means unlimited."
+								},
+								"max_tool_calls": {
+									"type": "integer",
+									"exclusiveMinimum": 0,
+									"maximum": 9007199254740991,
+									"description": "Tool calls a run may make across all its attempts; the next one stops it. Unset means unlimited."
+								}
+							},
+							"additionalProperties": false,
+							"description": "A run in this context stops, with a report, at the first budget it breaches. A repo policy can only lower a budget."
+						}
+					},
+					"additionalProperties": false
+				}
+			},
+			"additionalProperties": false,
+			"description": "Per run context (maina run): classes it never performs and the budgets it stops at."
 		}
 	},
 	"additionalProperties": false,
