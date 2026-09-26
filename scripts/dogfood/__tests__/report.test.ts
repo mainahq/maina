@@ -7,6 +7,8 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
 	computeMetrics,
 	isoWeek,
@@ -153,6 +155,31 @@ describe("report", () => {
 			writeFile: () => {},
 		});
 		expect(r.ok).toBe(false);
+	});
+
+	// Golden (#350): the report moved into `packages/core/src/digest`; its
+	// output for the fixture log was captured from this script before the
+	// move and must not change by a byte.
+	test.each([
+		"2026-39",
+		"2026-40",
+	])("week %s matches the pre-move golden report", (week) => {
+		const fixtures = join(
+			import.meta.dir,
+			"../../../packages/core/src/digest/__tests__/fixtures",
+		);
+		const writes: string[] = [];
+		const r = report(week, {
+			root: "/repo",
+			readLog: () => readFileSync(join(fixtures, "gate-log.jsonl"), "utf-8"),
+			writeFile: (_path, content) => {
+				writes.push(content);
+			},
+		});
+		expect(r.ok).toBe(true);
+		expect(writes).toEqual([
+			readFileSync(join(fixtures, `dogfood-report-${week}.md`), "utf-8"),
+		]);
 	});
 
 	test("a missing log yields an empty report, not a failure", () => {
