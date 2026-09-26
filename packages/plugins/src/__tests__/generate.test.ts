@@ -297,6 +297,16 @@ describe("no bunx, npx or bare maina", () => {
 		test(host, () => {
 			const offenders = generated(host).flatMap((file) => {
 				const found: string[] = [];
+				// A Codex `.rules` file runs nothing: it names commands for
+				// Codex to refuse, runner forms included, and may only forbid.
+				if (file.path.endsWith(".rules")) {
+					for (const rule of parseRules(file.content)) {
+						const cmd = rule.pattern.join(" ");
+						const named = PACKAGE_RUNNER.test(cmd) || BARE_MAINA.test(cmd);
+						if (named && rule.decision !== "forbidden") found.push(cmd);
+					}
+					return found.map((what) => `${file.path}: ${what}`);
+				}
 				if (PACKAGE_RUNNER.test(file.content)) found.push("bunx/npx");
 				if (file.path.endsWith(".json")) {
 					for (const cmd of commandStrings(JSON.parse(file.content)))
@@ -635,6 +645,50 @@ describe("Codex rules", () => {
 			decision: "forbidden",
 			justification: expect.stringContaining("terminal"),
 		});
+	});
+
+	test("Codex forbids the override however a package runner names maina, as the gate does", () => {
+		// The runner forms the gate classifies as gate.self_override
+		// (packages/core/src/gate/__fixtures__/commands.jsonl). Without a
+		// rule of their own, a crashed hook would let each one through.
+		const forbidden = parseRules(rules().content).filter(
+			(r) => r.decision === "forbidden",
+		);
+		const blocks = (argv: readonly string[]) =>
+			forbidden.some(
+				(r) =>
+					r.pattern.length <= argv.length &&
+					r.pattern.every((word, i) => word === argv[i]),
+			);
+		for (const command of [
+			"maina allow d-1 --always",
+			"npx maina allow d-1",
+			"bunx maina allow d-1",
+			"pnpx maina allow d-1",
+			"bun x maina allow d-1",
+			"pnpm dlx maina allow d-1",
+			"pnpm exec maina allow d-1",
+			"npm exec maina allow d-1",
+			"yarn dlx maina allow d-1",
+			"yarn exec maina allow d-1",
+			"pnpm maina allow d-1",
+			"yarn maina allow d-1",
+			"npx @mainahq/cli allow d-1",
+			"bunx @mainahq/cli allow d-1",
+			"pnpm dlx @mainahq/cli allow d-1",
+		]) {
+			expect({ command, blocked: blocks(command.split(" ")) }).toEqual({
+				command,
+				blocked: true,
+			});
+		}
+		// Only the override: running maina, or a runner, stays with the hook.
+		for (const command of ["maina verify", "npx maina verify", "bunx vitest"]) {
+			expect({ command, blocked: blocks(command.split(" ")) }).toEqual({
+				command,
+				blocked: false,
+			});
+		}
 	});
 
 	test("every shell rule in the definition reaches Codex, and no other host", () => {

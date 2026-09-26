@@ -102,6 +102,39 @@ maina's hooks check risky actions before they run (shell commands, file writes o
 The ${codeList(SKILLS)} skills hold the steps for each flow.
 `;
 
+/**
+ * The ways an agent can run maina's override, `maina allow`: by name, or
+ * through a package runner, by bin or by package (the forms the gate
+ * classifies as `gate.self_override`). A binary run by its path cannot be
+ * a static prefix; the gate's hook still denies it.
+ */
+const BY_NAME = [
+	"",
+	"npx ",
+	"bunx ",
+	"pnpx ",
+	"bun x ",
+	"pnpm dlx ",
+	"pnpm exec ",
+	"npm exec ",
+	"yarn dlx ",
+	"yarn exec ",
+	"pnpm ",
+	"yarn ",
+];
+const BY_PACKAGE = [
+	"npx ",
+	"bunx ",
+	"pnpx ",
+	"bun x ",
+	"pnpm dlx ",
+	"npm exec ",
+];
+const OVERRIDE_COMMANDS: readonly string[] = [
+	...BY_NAME.map((runner) => `${runner}maina allow`),
+	...BY_PACKAGE.map((runner) => `${runner}@mainahq/cli allow`),
+];
+
 export const PLUGIN: PluginDefinition = {
 	name: "maina",
 	displayName: "Maina",
@@ -137,12 +170,10 @@ export const PLUGIN: PluginDefinition = {
 		// The gate denies an agent's own override (`gate.self_override`,
 		// #447). A host whose hooks fail open (Codex) would run it when the
 		// hook crashes, so the host's own policy forbids it too.
-		deny: [
-			{
-				match: "maina allow",
-				reason:
-					"maina overrides are the user's call, from their own terminal: an agent never runs one",
-			},
-		],
+		deny: OVERRIDE_COMMANDS.map((match) => ({
+			match,
+			reason:
+				"maina overrides are the user's call, from their own terminal: an agent never runs one",
+		})),
 	},
 };

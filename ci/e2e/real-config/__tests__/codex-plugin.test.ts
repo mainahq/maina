@@ -276,6 +276,13 @@ describe.skipIf(!runsHere)("Codex plugin (#343)", () => {
 		trustProject(w.home, w.cwd);
 		expect(loadedRules(ctx, readOrNull, listDir)).toContain(rulesFile);
 		expect(execPolicy(texts(), override)).toBe("forbidden");
+		// However a package runner names it.
+		expect(execPolicy(texts(), ["bunx", "maina", ...override.slice(1)])).toBe(
+			"forbidden",
+		);
+		expect(
+			execPolicy(texts(), ["npx", "@mainahq/cli", ...override.slice(1)]),
+		).toBe("forbidden");
 		// Nothing else is forbidden, or allowed past the hook.
 		expect(execPolicy(texts(), ["bun", "test"])).toBeUndefined();
 		expect(execPolicy(texts(), ["maina", "verify"])).toBeUndefined();

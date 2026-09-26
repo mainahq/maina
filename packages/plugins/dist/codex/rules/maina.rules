@@ -4,7 +4,109 @@
 # PreToolUse hook, which still gates each command.
 
 prefix_rule(
+    pattern = ["bun", "x", "@mainahq/cli", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["bun", "x", "maina", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["bunx", "@mainahq/cli", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["bunx", "maina", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
     pattern = ["maina", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["npm", "exec", "@mainahq/cli", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["npm", "exec", "maina", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["npx", "@mainahq/cli", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["npx", "maina", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["pnpm", "dlx", "@mainahq/cli", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["pnpm", "dlx", "maina", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["pnpm", "exec", "maina", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["pnpm", "maina", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["pnpx", "@mainahq/cli", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["pnpx", "maina", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["yarn", "dlx", "maina", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["yarn", "exec", "maina", "allow"],
+    decision = "forbidden",
+    justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
+)
+
+prefix_rule(
+    pattern = ["yarn", "maina", "allow"],
     decision = "forbidden",
     justification = "maina overrides are the user's call, from their own terminal: an agent never runs one",
 )
