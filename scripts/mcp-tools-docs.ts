@@ -132,27 +132,52 @@ function listFiles(dir: string, keep: (name: string) => boolean): string[] {
 	});
 }
 
-/** The files under `root` whose MCP tool names this script owns. */
-function targets(root: string): string[] {
-	const skills = listFiles(
-		join(root, "packages", "skills"),
-		(n) => n === "SKILL.md",
-	).filter((f) => !f.includes(`${sep}node_modules${sep}`));
-	const docs = listFiles(
-		join(root, "packages", "docs", "src", "content", "docs"),
-		(n) => n.endsWith(".md") || n.endsWith(".mdx"),
-	);
-	const agentFiles = listFiles(
-		join(root, "packages", "cli", "src", "onboarding", "setup", "agent-files"),
-		(n) => n.endsWith(".ts") && !n.endsWith(".test.ts"),
-	).filter((f) => !f.includes(`${sep}__tests__${sep}`));
-	return [
+/** The directories scanned, each with the files in it this script owns. */
+const SCANNED_DIRS: readonly Readonly<{
+	dir: readonly string[];
+	keep: (name: string) => boolean;
+	skip: string;
+}>[] = [
+	{
+		dir: ["packages", "skills"],
+		keep: (n) => n === "SKILL.md",
+		skip: `${sep}node_modules${sep}`,
+	},
+	{
+		dir: ["packages", "docs", "src", "content", "docs"],
+		keep: (n) => n.endsWith(".md") || n.endsWith(".mdx"),
+		skip: `${sep}node_modules${sep}`,
+	},
+	{
+		dir: ["packages", "cli", "src", "onboarding", "setup", "agent-files"],
+		keep: (n) => n.endsWith(".ts") && !n.endsWith(".test.ts"),
+		skip: `${sep}__tests__${sep}`,
+	},
+];
+
+/**
+ * The files under `root` whose MCP tool names this script owns. A scanned
+ * directory with no files is an error: a moved or renamed directory must
+ * fail the check, not switch it off.
+ */
+function targets(
+	root: string,
+): Readonly<{ files: string[]; errors: string[] }> {
+	const files = [
 		join(root, "README.md"),
 		join(root, ".github", "copilot-instructions.md"),
-		...skills,
-		...docs,
-		...agentFiles,
 	];
+	const errors: string[] = [];
+	for (const { dir, keep, skip } of SCANNED_DIRS) {
+		const found = listFiles(join(root, ...dir), keep).filter(
+			(f) => !f.includes(skip),
+		);
+		if (found.length === 0) {
+			errors.push(`${dir.join("/")}: no files to check (moved or renamed?)`);
+		}
+		files.push(...found);
+	}
+	return { files, errors };
 }
 
 function read(file: string): string | undefined {
@@ -165,8 +190,9 @@ function read(file: string): string | undefined {
 
 /** Stale blocks and retired tool names in the files under `root`. */
 export function checkToolDocs(root: string): CheckResult {
-	const result: CheckResult = { stale: [], retired: [], errors: [] };
-	for (const file of targets(root)) {
+	const { files, errors } = targets(root);
+	const result: CheckResult = { stale: [], retired: [], errors: [...errors] };
+	for (const file of files) {
 		const body = read(file);
 		if (body === undefined) continue;
 		const rel = relative(root, file).split(sep).join("/");
@@ -188,8 +214,8 @@ function writeToolDocs(root: string): Readonly<{
 	errors: string[];
 }> {
 	const written: string[] = [];
-	const errors: string[] = [];
-	for (const file of targets(root)) {
+	const { files, errors } = targets(root);
+	for (const file of files) {
 		const body = read(file);
 		if (body === undefined) continue;
 		const rel = relative(root, file).split(sep).join("/");

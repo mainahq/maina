@@ -78,12 +78,25 @@ describe("syncToolBlocks", () => {
 describe("checkToolDocs", () => {
 	let root: string;
 
+	const SKILLS = ["packages", "skills"];
+	const DOCS = ["packages", "docs", "src", "content", "docs"];
+	const AGENT_FILES = [
+		"packages",
+		"cli",
+		"src",
+		"onboarding",
+		"setup",
+		"agent-files",
+	];
+
 	beforeEach(() => {
 		root = mkdtempSync(join(tmpdir(), "maina-mcp-tools-docs-"));
-		mkdirSync(join(root, "packages", "skills", "demo"), { recursive: true });
-		mkdirSync(join(root, "packages", "docs", "src", "content", "docs"), {
-			recursive: true,
-		});
+		mkdirSync(join(root, ...SKILLS, "demo"), { recursive: true });
+		mkdirSync(join(root, ...DOCS), { recursive: true });
+		mkdirSync(join(root, ...AGENT_FILES), { recursive: true });
+		writeFileSync(join(root, ...SKILLS, "demo", "SKILL.md"), "# Demo\n");
+		writeFileSync(join(root, ...DOCS, "index.md"), "# Docs\n");
+		writeFileSync(join(root, ...AGENT_FILES, "demo.ts"), "export {};\n");
 	});
 
 	afterEach(() => {
@@ -110,6 +123,17 @@ describe("checkToolDocs", () => {
 		);
 		const result = checkToolDocs(root);
 		expect(result).toEqual({ stale: [], retired: [], errors: [] });
+	});
+
+	test("a scanned directory with no files is an error, not a pass", () => {
+		// A moved or renamed directory must not switch the check off.
+		rmSync(join(root, ...DOCS), { recursive: true, force: true });
+		rmSync(join(root, ...AGENT_FILES, "demo.ts"));
+		const result = checkToolDocs(root);
+		expect(result.errors).toEqual([
+			"packages/docs/src/content/docs: no files to check (moved or renamed?)",
+			"packages/cli/src/onboarding/setup/agent-files: no files to check (moved or renamed?)",
+		]);
 	});
 
 	test("the repository's docs, skills and agent files are clean", () => {
