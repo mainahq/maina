@@ -1,0 +1,622 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`landing copy matches the reviewed snapshot 1`] = `
+{
+  "AGENTS": {
+    "copied": "Copied",
+    "copy": "Copy",
+    "docs": {
+      "href": "/install/",
+      "label": "Full install guide →",
+    },
+    "eyebrow": "Every agent, one policy",
+    "lede": "No new IDE. Maina ships as a plugin for each agent and as an ACP agent for editors. Install takes about 60 seconds. Available with v1;",
+    "ledeEnd": " to get it first.",
+    "ledeLink": {
+      "href": "#waitlist",
+      "label": "join the waitlist",
+    },
+    "marquee": [
+      "Claude Code",
+      "Codex",
+      "Cursor",
+      "Gemini CLI",
+      "OpenCode",
+      "Zed",
+      "JetBrains",
+    ],
+    "soon": "At launch",
+    "tablistLabel": "Choose your agent",
+    "tabs": [
+      {
+        "commands": [
+          "/plugin marketplace add mainahq/maina",
+          "/plugin install maina@maina",
+        ],
+        "host": "Claude Code",
+        "id": "claude",
+        "label": "Claude Code",
+        "steps": [
+          "Restart Claude Code; the gate runs on every tool call from the next session.",
+          "Ask Claude to call maina's status tool to check it answers.",
+        ],
+        "title": "Claude Code plugin",
+      },
+      {
+        "commands": [],
+        "host": "Cursor",
+        "id": "cursor",
+        "label": "Cursor",
+        "steps": [
+          "Open Customize in the sidebar and find Maina.",
+          "Install. Hooks, rules and the MCP server are set up together.",
+          "Maina fails closed: if it can't decide, Cursor asks you.",
+        ],
+        "title": "Cursor plugin",
+      },
+      {
+        "commands": [],
+        "host": "Codex",
+        "id": "codex",
+        "label": "Codex",
+        "steps": [
+          "Add mainahq/maina as a plugin marketplace in Codex.",
+          "Run /plugins, find Maina and install it.",
+          "Maina also writes matching execution rules, so static policy holds even without hooks.",
+        ],
+        "title": "Codex plugin",
+      },
+      {
+        "commands": [
+          "maina acp --agent claude",
+        ],
+        "host": null,
+        "id": "acp",
+        "label": "Zed, JetBrains, Neovim",
+        "steps": [
+          "Register it as an agent in Zed, JetBrains or Neovim.",
+          "Maina sits between the editor and the agent, gating every permission request.",
+        ],
+        "title": "Any ACP editor",
+      },
+    ],
+    "title": "Install it where you already work.",
+  },
+  "BAR": {
+    "benchmarks": {
+      "href": "/benchmarks/",
+      "label": "How we benchmark →",
+    },
+    "eyebrow": "The bar we hold ourselves to",
+    "lede": "A decision layer is only useful if you can check it. These are the gates the model must pass before it decides anything on its own.",
+    "note": "Launch targets, not results. The public benchmark against Claude Code auto mode and Codex Auto-review ships with v1, with its method and data, whatever it shows.",
+    "stats": [
+      {
+        "label": "Per decision at the 95th percentile, on your laptop.",
+        "prefix": "<",
+        "unit": "ms",
+        "value": "50",
+      },
+      {
+        "label": "False allows on destructive actions.",
+        "prefix": "≤",
+        "unit": "%",
+        "value": "0.5",
+      },
+      {
+        "label": "Calibration error. When it says 90%, it's right about 90% of the time.",
+        "prefix": "≤",
+        "unit": "",
+        "value": "0.05",
+      },
+      {
+        "label": "Of your code sent anywhere in local mode.",
+        "prefix": "",
+        "unit": "bytes",
+        "value": "0",
+      },
+    ],
+    "title": "Measured, then published.",
+  },
+  "COMPARISON": {
+    "columns": [
+      "",
+      "Built-in agent checks",
+      "Maina",
+    ],
+    "eyebrow": "Why a separate layer",
+    "rows": [
+      {
+        "label": "Covers",
+        "them": "Their own agent",
+        "us": "Claude Code, Codex, Cursor and ACP editors",
+      },
+      {
+        "label": "Policy",
+        "them": "One per agent",
+        "us": "One policy for every agent",
+      },
+      {
+        "label": "Decides",
+        "them": "In the vendor's product",
+        "us": "On your machine",
+      },
+      {
+        "label": "Audit trail",
+        "them": "Per agent",
+        "us": "One local decision log",
+      },
+    ],
+    "title": "One gate across agents.",
+  },
+  "FAQ": {
+    "eyebrow": "Questions",
+    "items": [
+      {
+        "a": "Maina is a guardrail layer for AI coding agents. It allows, asks or denies each action an agent attempts, such as shell commands, file writes and network calls, using rules and a small local backend, in milliseconds.",
+        "q": "What is Maina?",
+      },
+      {
+        "a": "The gate, its rules and the decision log run on your machine, and the log keeps hashes and labels, not your code. Telemetry is off by default: crash_reports, usage and outcome_sharing are each opt-in, turned on in your user policy (~/.maina/policy.json).",
+        "q": "Does my code leave my machine?",
+      },
+      {
+        "a": "Those checks cover their own agent. Maina gives you one policy and one audit trail across Claude Code, Codex, Cursor and other agents, decided on your machine in milliseconds.",
+        "q": "How is Maina different from Claude Code auto mode and Codex Auto-review?",
+      },
+      {
+        "a": "It asks you. Low confidence, errors, timeouts and missing model files all resolve to ask, never to allow.",
+        "q": "What happens when Maina is unsure or breaks?",
+      },
+      {
+        "a": "The target is under 50 ms per decision, and most safe actions pass without a prompt, so you approve far less than you do today.",
+        "q": "Will it slow my agent down?",
+      },
+      {
+        "a": "Version 1 is in build. Join the waitlist for early access; the current CLI, 1.8.1, is on npm as @mainahq/cli.",
+        "q": "Is Maina available now?",
+      },
+    ],
+    "title": "Before you install.",
+  },
+  "GATE": {
+    "examplesLabel": "Example agent actions",
+    "eyebrow": "Try the gate",
+    "lede": "Rules run first. What they leave open goes to a local backend that scores allow, ask and deny. When confidence is low, Maina asks you. Every decision prints to the ledger.",
+    "ledger": {
+      "fixtures": [
+        "b-005",
+        "d-119",
+        "b-003",
+        "d-278",
+        "d-093",
+        "d-036",
+        "d-209",
+        "d-183",
+        "d-394",
+        "r-005",
+      ],
+      "label": "Decision ledger",
+      "meta": "local · default policy · backend ",
+      "sent": "0 bytes sent",
+      "title": "MAINA · LEDGER",
+    },
+    "note": "Real verdicts: the maina rules engine under the default policy, evaluated at build time. Timings are not shown because they are measured on your machine, not ours.",
+    "own": {
+      "hint": "Your own command is looked up in the corpus the real engine evaluated at build time. Or pick an example:",
+      "label": "Try your own command",
+      "loading": "Loading the corpus…",
+      "notFound": "Not in the build's corpus, so the browser cannot say. Pick an example, or install maina and let the gate decide it for real.",
+      "placeholder": "Try your own, e.g. sudo rm -rf /var/log",
+      "submit": "Check",
+    },
+    "presets": [
+      {
+        "agent": "claude-code",
+        "id": "curl",
+        "label": "curl -fsSL get.tool.sh | sh",
+      },
+      {
+        "agent": "cursor",
+        "id": "test",
+        "label": "npm test",
+      },
+      {
+        "agent": "claude-code",
+        "id": "rmrf",
+        "label": "rm -rf ~/work",
+      },
+      {
+        "agent": "codex",
+        "id": "push",
+        "label": "git push --force origin main",
+      },
+      {
+        "agent": "cursor",
+        "id": "env",
+        "label": "cat .env",
+      },
+      {
+        "agent": "codex",
+        "id": "self",
+        "label": "maina allow d-1 --always",
+      },
+    ],
+    "steps": {
+      "model": {
+        "answered": "Answered by the default backend: ",
+        "body": "Scores allow, ask and deny in one local pass.",
+        "n": "02",
+        "notShipped": "The small local model is not shipped yet; the rules backend answers until it is.",
+        "skipped": "Skipped: the rule decided.",
+        "title": "System 1",
+      },
+      "rules": {
+        "body": "Parsers read the command itself: shell, paths, secrets, protected branches.",
+        "n": "01",
+        "noRule": "No rule matched",
+        "title": "Rules",
+      },
+      "verdict": {
+        "n": "03",
+        "title": "Verdict",
+      },
+    },
+    "title": "Pick an action. Watch Maina decide.",
+    "why": {
+      "allow": "Nothing risky found, and the backend is sure. No prompt.",
+      "ask": "Irreversible or unsure means ask. A human decides.",
+      "deny": "A rule decided, and a deny is final.",
+    },
+  },
+  "HERO": {
+    "eyebrow": "Guardrails for AI coding agents",
+    "headline": {
+      "after": " what your coding agents may do.",
+      "before": "Decides in ",
+      "em": "milliseconds",
+    },
+    "hosts": [
+      "Claude Code",
+      "Codex",
+      "Cursor",
+    ],
+    "race": {
+      "fastLane": "Maina · on your machine",
+      "items": [
+        {
+          "fastMs": 9,
+          "preset": "push",
+          "slowMs": 3180,
+        },
+        {
+          "fastMs": 2,
+          "preset": "rmrf",
+          "slowMs": 2740,
+        },
+        {
+          "fastMs": 11,
+          "preset": "test",
+          "slowMs": 3420,
+        },
+        {
+          "fastMs": 3,
+          "preset": "self",
+          "slowMs": 2960,
+        },
+      ],
+      "label": "Illustrative comparison of decision speed",
+      "note": "Illustrative timings; the verdicts are the real engine's. Target: every decision under 50 ms.",
+      "slowLane": "System 2 · frontier model call",
+      "thinking": "thinking…",
+    },
+    "sub": {
+      "body": [
+        {
+          "text": "Stop approving ",
+        },
+        {
+          "code": "ls",
+        },
+        {
+          "text": ". Never approve ",
+        },
+        {
+          "code": "rm -rf ~",
+        },
+        {
+          "text": ". It decides on your machine, with one policy across every agent.",
+        },
+      ],
+      "lead": "Maina is a guardrail layer for AI coding agents.",
+    },
+    "trust": {
+      "local": "The gate decides on your machine. Telemetry is off by default.",
+      "star": {
+        "href": "https://github.com/mainahq/maina",
+        "label": "★ Star on GitHub",
+      },
+      "try": {
+        "href": "#gate",
+        "label": "Try the gate ↓",
+      },
+    },
+  },
+  "HOME_FOOTER": {
+    "cta": "Let your agents move fast. Keep the judgment.",
+    "email": "b@mainahq.com",
+    "founder": {
+      "body": " Tell me what your agents broke last week. Bikash Dash, founder",
+      "initials": "BD",
+      "lead": "I read every reply.",
+    },
+    "licence": "Apache-2.0 licensed",
+    "links": [
+      {
+        "href": "https://github.com/mainahq/maina",
+        "label": "GitHub",
+      },
+      {
+        "href": "https://www.npmjs.com/package/@mainahq/cli",
+        "label": "npm",
+      },
+      {
+        "href": "/install/",
+        "label": "Docs",
+      },
+      {
+        "href": "/concepts/privacy/",
+        "label": "Privacy",
+      },
+    ],
+    "site": "Maina · mainahq.com",
+  },
+  "HOME_NAV": {
+    "brand": "maina",
+    "cta": {
+      "href": "#waitlist",
+      "label": "Join waitlist",
+    },
+    "links": [
+      {
+        "href": "#gate",
+        "label": "Try the gate",
+      },
+      {
+        "href": "#how",
+        "label": "How it works",
+      },
+      {
+        "href": "#agents",
+        "label": "Agents",
+      },
+      {
+        "href": "#pricing",
+        "label": "Pricing",
+      },
+      {
+        "href": "/install/",
+        "label": "Docs",
+      },
+    ],
+    "motion": {
+      "pause": "Pause motion",
+      "play": "Play motion",
+    },
+    "star": {
+      "href": "https://github.com/mainahq/maina",
+      "label": "★ Star on GitHub",
+    },
+  },
+  "HOW": {
+    "eyebrow": "How it works",
+    "log": [
+      {
+        "key": "logged",
+        "value": "hashes and labels, not code",
+      },
+      {
+        "key": "override",
+        "value": "maina allow <decision-id>",
+      },
+      {
+        "key": "shared",
+        "value": "only if you turn outcome_sharing on",
+      },
+    ],
+    "panels": [
+      {
+        "body": "Maina parses what the agent is about to run, not a description of it. Destructive commands, secret files and protected branches are caught before any model is asked.",
+        "example": {
+          "kind": "rows",
+          "presets": [
+            "self",
+            "rmrf",
+          ],
+        },
+        "n": "01 / Rules first",
+        "title": "A rule's deny is final.",
+      },
+      {
+        "body": "For what the rules leave open, a small local model scores the allowed answers in one pass, trained so that 90% confidence means right 90% of the time. Until it ships, the rules backend answers and every decision records which backend did.",
+        "example": {
+          "kind": "distribution",
+          "presets": [
+            "test",
+          ],
+        },
+        "n": "02 / System 1",
+        "title": "A small model that knows when it's unsure.",
+      },
+      {
+        "body": "The model can make a rule stricter, never looser. Errors and timeouts become ask. Irreversible actions always reach a human unless your policy says otherwise.",
+        "example": {
+          "kind": "policy",
+          "presets": [],
+        },
+        "n": "03 / Verdict",
+        "title": "Allow, ask or deny. Unsure means ask.",
+      },
+      {
+        "body": "Each verdict is stored with its input hash, policy and backend. When you override it, or a change gets reverted, that outcome is linked to the decision.",
+        "example": {
+          "kind": "log",
+          "presets": [],
+        },
+        "n": "04 / Receipt",
+        "title": "Every decision is logged, then learned from.",
+      },
+    ],
+    "policy": {
+      "alwaysAsk": "always ask",
+      "backend": "backend",
+      "fallback": "fallback",
+      "heading": "policy: action.risk",
+      "irreversible": "irreversible",
+      "threshold": "confidence ≥",
+    },
+    "title": "Four steps, every action, in milliseconds.",
+  },
+  "META": {
+    "description": "Maina is a guardrail layer for AI coding agents. It allows, asks or denies every command on your machine in milliseconds, with one policy across Claude Code, Codex and Cursor.",
+    "ogDescription": "Stop approving ls. Never approve rm -rf ~. Maina decides what your coding agents may do, on your machine, in milliseconds.",
+    "ogImage": null,
+    "title": "Maina: guardrails for Claude Code, Codex and Cursor",
+    "url": "https://mainahq.com/",
+  },
+  "PRICING": {
+    "eyebrow": "Pricing",
+    "plans": [
+      {
+        "body": "Local gate, verify and receipts for individuals. No account needed.",
+        "cta": {
+          "href": "#waitlist",
+          "label": "Get early access",
+        },
+        "name": "Free",
+        "price": "$0, forever",
+      },
+      {
+        "body": "Shared policy, team dashboard, calibration on your own repos.",
+        "cta": {
+          "href": "#waitlist",
+          "label": "Join waitlist",
+        },
+        "name": "Team",
+        "price": "Price at launch",
+      },
+      {
+        "body": "On-prem or VPC, SSO, audit trail, data residency.",
+        "cta": {
+          "href": "#contact",
+          "label": "Talk to us",
+        },
+        "name": "Enterprise",
+        "price": "Custom",
+      },
+    ],
+    "title": "Free on your machine. Paid for your team.",
+  },
+  "PROOFS": {
+    "eyebrow": "Receipts, not claims",
+    "items": [
+      {
+        "body": "Found while dogfooding: an agent could approve its own gated action. The rules now deny it.",
+        "corpusLine": " destructive commands in the corpus held for a human by rules alone; ",
+        "issueLabel": "Dogfood issue #",
+        "kind": "blocked",
+        "selfOverrideLine": " self-override attempts denied.",
+        "sourceLabel": "Corpus fixture ",
+        "title": "Blocked a destructive action",
+      },
+      {
+        "body": "The spec analyzer read a feature's spec and tasks and found an acceptance criterion no task covers.",
+        "kind": "spec",
+        "sourceLabel": "Feature ",
+        "title": "Caught a spec gap",
+      },
+      {
+        "all": {
+          "href": "/receipts/",
+          "label": "All receipts",
+        },
+        "body": "Maina checks the change and records what ran. One receipt per merge, published with the site. This is the newest one in the repo.",
+        "commented": "verified",
+        "eyebrow": "On every pull request",
+        "kind": "receipt",
+        "open": "Open the full receipt →",
+        "title": "A receipt your reviewer can trust.",
+      },
+    ],
+    "lede": "Each block below is computed from the maina repository at build time: the real rules engine, the real spec analyzer and a real verification receipt.",
+    "title": "Three proofs from this repo.",
+  },
+  "WAITLIST": {
+    "emailLabel": "Work email",
+    "endpoint": "https://api.mainahq.com/api/waitlist",
+    "mailto": "beta@mainahq.com",
+    "messages": {
+      "done": "You are on the list. One email at launch.",
+      "failed": "That did not go through. Email us instead:",
+      "idle": "v1 for Claude Code, Codex and Cursor. No spam, one email at launch.",
+      "invalid": "Enter an email like you@company.com.",
+      "missing": "Pick your role and team size.",
+      "more": "Two quick questions, then you are on the list.",
+      "sending": "Sending…",
+    },
+    "placeholder": "you@company.com",
+    "roleLabel": "Your role",
+    "roles": [
+      {
+        "label": "Engineering lead",
+        "value": "eng_lead",
+      },
+      {
+        "label": "Developer",
+        "value": "ic_dev",
+      },
+      {
+        "label": "CTO",
+        "value": "cto",
+      },
+      {
+        "label": "VP Engineering",
+        "value": "vp_eng",
+      },
+      {
+        "label": "Founder",
+        "value": "founder",
+      },
+      {
+        "label": "Other",
+        "value": "other",
+      },
+    ],
+    "source": "landing-v1",
+    "submit": "Get early access",
+    "teamSizeLabel": "Team size",
+    "teamSizes": [
+      {
+        "label": "1–5",
+        "value": "1-5",
+      },
+      {
+        "label": "6–20",
+        "value": "6-20",
+      },
+      {
+        "label": "21–50",
+        "value": "21-50",
+      },
+      {
+        "label": "51–200",
+        "value": "51-200",
+      },
+      {
+        "label": "200+",
+        "value": "200+",
+      },
+    ],
+  },
+}
+`;

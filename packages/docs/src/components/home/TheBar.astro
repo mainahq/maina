@@ -1,0 +1,26 @@
+---
+/** The bar: the benchmark teaser. Launch targets, labelled as targets. */
+import { BAR } from '../../data/landing';
+
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+---
+
+<section class="dark section" aria-labelledby="bar-title">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">{BAR.eyebrow}</p>
+      <h2 class="h2" id="bar-title">{BAR.title}</h2>
+      <p class="lede">{BAR.lede}</p>
+    </div>
+    <div class="stats">
+      {BAR.stats.map((s) => (
+        <div class="stat">
+          <p class="num tnum">{s.prefix}{s.value}{s.unit && <small>{s.unit}</small>}</p>
+          <p>{s.label}</p>
+        </div>
+      ))}
+    </div>
+    <p class="bar-note">{BAR.note} <a class="underline" href={`${base}${BAR.benchmarks.href}`}>{BAR.benchmarks.label}</a></p>
+  </div>
+</section>

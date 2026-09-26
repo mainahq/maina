@@ -1,0 +1,43 @@
+---
+/**
+ * The third proof: the newest verification receipt committed to this repo
+ * (landing-proofs.json), with every check it ran.
+ */
+import { PROOFS } from '../../data/landing';
+import type { LandingProofs } from '../../data/landing-proofs';
+import proofsJson from '../../data/landing-proofs.json';
+
+const proofs = proofsJson as unknown as LandingProofs;
+const { receipt } = proofs.proofs;
+const copy = PROOFS.items[2];
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+const tone = (status: string): string => (status === 'passed' ? 'ok' : status === 'failed' ? 'bad' : 'skip-c');
+const day = receipt.timestamp.slice(0, 10);
+---
+
+<section class="paper-2 section" aria-labelledby="receipt-title">
+  <div class="wrap grid items-start gap-[clamp(24px,5vw,72px)] lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
+    <div class="sec-head" style="margin-bottom:0">
+      <p class="eyebrow">{copy.eyebrow}</p>
+      <h2 class="h2" id="receipt-title">{copy.title}</h2>
+      <p class="lede">{copy.body}</p>
+      <p class="font-mono text-xs"><a class="underline" href={`${base}${copy.all.href}`}>{copy.all.label}</a></p>
+    </div>
+    <article class="pr" aria-label={receipt.prTitle}>
+      <div class="pr-top"><b>maina</b> {copy.commented} <b>{receipt.prTitle}</b> · {day}</div>
+      <div class="pr-body grid gap-4 px-5 pt-5 pb-2">
+        <h3>Receipt <span class={`pill ${tone(receipt.status)}`}>{receipt.statusLabel}</span><span class="pill skip-c">{receipt.diffSummary}</span></h3>
+        <div class="rows">
+          {receipt.checks.map((c) => (
+            <div class="row">
+              <span>{c.name}</span>
+              <span class={tone(c.status)}>{c.status}{c.findings > 0 ? ` · ${c.findings} finding${c.findings === 1 ? '' : 's'}` : ''}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <p class="pr-foot">receipt {receipt.hashShort} · <a href={`${base}${receipt.href}`}>{copy.open}</a></p>
+    </article>
+  </div>
+</section>

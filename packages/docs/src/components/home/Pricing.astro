@@ -1,0 +1,23 @@
+---
+/** Pricing. */
+import { PRICING } from '../../data/landing';
+---
+
+<section class="paper section" id="pricing" aria-labelledby="pricing-title">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">{PRICING.eyebrow}</p>
+      <h2 class="h2" id="pricing-title">{PRICING.title}</h2>
+    </div>
+    <div class="plans">
+      {PRICING.plans.map((plan) => (
+        <div class="plan">
+          <h3>{plan.name}</h3>
+          <p class="price">{plan.price}</p>
+          <p>{plan.body}</p>
+          <a class="btn" href={plan.cta.href} data-event={`cta_price_${plan.name.toLowerCase()}`}>{plan.cta.label}</a>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

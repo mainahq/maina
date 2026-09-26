@@ -1,0 +1,65 @@
+---
+/**
+ * How it works: four panels. Each example is real: engine rows from
+ * landing-proofs.json, the default policy's backend and threshold, and what
+ * the decision log keeps.
+ */
+import { HOW } from '../../data/landing';
+import type { GateRow, LandingProofs } from '../../data/landing-proofs';
+import proofsJson from '../../data/landing-proofs.json';
+
+const proofs = proofsJson as unknown as LandingProofs;
+const row = (id: string): GateRow => {
+  const found = proofs.gate.presets[id];
+  if (!found) throw new Error(`landing-proofs.json has no preset ${id}`);
+  return found;
+};
+const hl = { allow: 'hl-allow', ask: 'hl-ask', deny: 'hl-deny' } as const;
+const riskClasses = (r: GateRow): string => r.classes.filter((c) => c !== 'shell.exec').join(', ') || 'no class';
+/** A newline inside <pre>, as an expression (the compiler keeps it). */
+const NL = '\n';
+---
+
+<section class="dark how" id="how" aria-labelledby="how-title">
+  <div class="wrap pt-[clamp(72px,10vw,140px)]">
+    <div class="sec-head" style="margin-bottom:0">
+      <p class="eyebrow">{HOW.eyebrow}</p>
+      <h2 class="h2" id="how-title">{HOW.title}</h2>
+    </div>
+  </div>
+  <div class="how-track" tabindex="0" aria-label={HOW.title}>
+    {HOW.panels.map((panel) => (
+      <article class="panel">
+        <span class="n">{panel.n}</span>
+        <h3>{panel.title}</h3>
+        <p>{panel.body}</p>
+        {panel.example.kind === 'rows' && (
+          <pre>{panel.example.presets.map((id) => {
+            const r = row(id);
+            return (
+              <Fragment><span class="dim"># agent: {r.agent}</span>{NL}{r.label}{NL}<span class="dim">→ {riskClasses(r)}</span>{NL}<span class={hl[r.verdict]}>{r.verdict.toUpperCase()}</span> <span class="dim">{r.backend}</span>{NL}{NL}</Fragment>
+            );
+          })}</pre>
+        )}
+        {panel.example.kind === 'distribution' && (
+          <pre>{panel.example.presets.map((id) => {
+            const r = row(id);
+            return (
+              <Fragment><span class="dim">{r.label}</span>{NL}{r.distribution.map((d) => (
+                <Fragment>{d.answer.padEnd(6)}<span class={hl[d.answer]}>{d.p.toFixed(2)}</span>{NL}</Fragment>
+              ))}<span class="dim">backend: {r.backend}</span></Fragment>
+            );
+          })}</pre>
+        )}
+        {panel.example.kind === 'policy' && (
+          <pre><span class="dim">{HOW.policy.heading}</span>{NL}{HOW.policy.backend.padEnd(13)}<span class="hl-allow">{proofs.gate.backend}</span>{NL}{HOW.policy.threshold.padEnd(13)}<span class="hl-allow">{proofs.gate.threshold}</span>{NL}{HOW.policy.fallback.padEnd(13)}<span class="hl-ask">ask</span>{NL}{HOW.policy.irreversible.padEnd(13)}<span class="hl-ask">{HOW.policy.alwaysAsk}</span></pre>
+        )}
+        {panel.example.kind === 'log' && (
+          <pre>{HOW.log.map((l) => (
+            <Fragment><span class="dim">{l.key.padEnd(9)}</span>{l.value}{NL}</Fragment>
+          ))}</pre>
+        )}
+      </article>
+    ))}
+  </div>
+</section>

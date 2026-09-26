@@ -6,6 +6,10 @@ on:
     paths:
       - 'packages/docs/**'
       - '.maina/receipts/**'
+      # The landing page's proofs are computed from these (#360).
+      - 'scripts/landing-proofs.ts'
+      - 'packages/core/src/gate/**'
+      - 'packages/core/src/policy/**'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 

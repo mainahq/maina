@@ -16,10 +16,11 @@
  * - **ast**: "AST" (or "abstract syntax tree") only on a page `AST_EVIDENCE`
  *   vouches for, citing source that loads a tree-sitter grammar.
  *
- * Scanned: the docs content and the README. Not scanned: the blog (dated
- * posts), the changelog and the roadmap (release history: what was said
- * then), and the landing copy in `src/data`, which the landing rebuild
- * (#360) replaces.
+ * Scanned: the docs content, the README and the landing page (#360): its
+ * copy in `src/data/landing.ts`, its components in `src/components/home/`
+ * and the page itself. Not scanned: the blog (dated posts), the changelog
+ * and the roadmap (release history: what was said then), and the /cloud
+ * page's copy.
  *
  *   bun scripts/docs-claims.ts    exit 1 and list every forbidden claim
  */
@@ -30,6 +31,11 @@ import { facts } from "../packages/docs/src/data/facts";
 import { prose } from "./docs-links";
 
 const CONTENT = "packages/docs/src/content/docs";
+
+/** The landing page: its copy, its components and the page (#360). */
+const LANDING_DATA = "packages/docs/src/data/landing.ts";
+const LANDING_COMPONENTS = "packages/docs/src/components/home";
+const LANDING_PAGE = "packages/docs/src/pages/index.astro";
 
 /** Content paths (relative to `CONTENT`) that record history, not claims. */
 const HISTORY: readonly RegExp[] = [
@@ -185,14 +191,24 @@ function walk(dir: string): string[] {
 }
 
 /** Files the lint reads, repo-relative. */
-function scanned(root: string): string[] {
+export function scannedFiles(root: string): string[] {
 	const content = walk(join(root, CONTENT))
 		.map((full) => posix(relative(join(root, CONTENT), full)))
 		.filter((rel) => /\.mdx?$/.test(rel))
 		.filter((rel) => !HISTORY.some((pattern) => pattern.test(rel)))
 		.map((rel) => `${CONTENT}/${rel}`)
 		.sort();
-	return ["README.md", ...content].filter((rel) => existsSync(join(root, rel)));
+	const landing = walk(join(root, LANDING_COMPONENTS))
+		.map((full) => posix(relative(root, full)))
+		.filter((rel) => rel.endsWith(".astro"))
+		.sort();
+	return [
+		"README.md",
+		...content,
+		LANDING_DATA,
+		LANDING_PAGE,
+		...landing,
+	].filter((rel) => existsSync(join(root, rel)));
 }
 
 /**
@@ -210,7 +226,7 @@ export function checkDocsClaims(
 		match: "AST_EVIDENCE",
 		reason: problem,
 	}));
-	const claims = scanned(root).flatMap((file) =>
+	const claims = scannedFiles(root).flatMap((file) =>
 		findClaims(readFileSync(join(root, file), "utf-8"), {
 			telemetryOnByDefault,
 			astAllowed: file in AST_EVIDENCE,

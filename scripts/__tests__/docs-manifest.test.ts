@@ -152,6 +152,12 @@ describe("generateDocs", () => {
 			"outcome_sharing",
 		]);
 		expect(facts.telemetry.summary).toContain("off by default");
+		// The landing's install strip builds its commands from these (#360).
+		expect(facts.plugin).toEqual({
+			name: "maina",
+			marketplace: "maina",
+			repository: "mainahq/maina",
+		});
 		const text = docs.get("packages/docs/src/data/facts.ts") ?? "";
 		expect(text).toContain(`version: "${VERSION}"`);
 		expect(text).toContain('licence: "Apache-2.0"');

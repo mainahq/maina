@@ -1,0 +1,113 @@
+---
+/**
+ * Try the gate: rules → System 1 → verdict, and the ledger tape. Every
+ * verdict, reason, class and distribution is the real engine's, computed at
+ * build time (landing-proofs.json); a typed command is looked up in the
+ * corpus table (public/gate-corpus.json, fetched on demand).
+ */
+import { GATE } from '../../data/landing';
+import type { GateRow, LandingProofs } from '../../data/landing-proofs';
+import proofsJson from '../../data/landing-proofs.json';
+
+const proofs = proofsJson as unknown as LandingProofs;
+const rawBase = import.meta.env.BASE_URL;
+const corpusUrl = `${rawBase.endsWith('/') ? rawBase : `${rawBase}/`}gate-corpus.json`;
+const rows: GateRow[] = GATE.presets.map((p) => {
+  const row = proofs.gate.presets[p.id];
+  if (!row) throw new Error(`landing-proofs.json has no preset ${p.id}`);
+  return row;
+});
+const first = rows[0];
+if (!first) throw new Error('try the gate needs a preset');
+const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+const pct = (p: number): string => `${Math.round(p * 100)}%`;
+const barColor = { allow: 'var(--color-allow-dk)', ask: 'var(--color-ask-dk)', deny: 'var(--color-deny-dk)' } as const;
+
+const data = {
+  presets: rows,
+  ledger: proofs.gate.ledger,
+  backend: proofs.gate.backend,
+  corpusUrl,
+  copy: { rules: GATE.steps.rules, model: GATE.steps.model, why: GATE.why, own: GATE.own },
+};
+const json = JSON.stringify(data).replace(/</g, '\\u003c');
+const ruleOut = (row: GateRow): string => (row.rule === 'no_rule' ? GATE.steps.rules.noRule : `${row.reason} · ${row.classes.join(', ')}`);
+---
+
+<section class="paper section" id="gate" aria-labelledby="gate-title">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">{GATE.eyebrow}</p>
+      <h2 class="h2" id="gate-title">{GATE.title}</h2>
+      <p class="lede">{GATE.lede}</p>
+    </div>
+    <div class="grid items-start gap-[clamp(24px,4vw,56px)] lg:grid-cols-[minmax(0,1.35fr)_minmax(0,.9fr)]">
+      <div>
+        <form class="own mb-3.5 flex flex-wrap gap-2" id="own">
+          <label class="sr" for="own-cmd">{GATE.own.label}</label>
+          <input id="own-cmd" placeholder={GATE.own.placeholder} autocomplete="off" spellcheck="false" />
+          <button class="act" type="submit">{GATE.own.submit}</button>
+        </form>
+        <p class="mb-4.5 font-mono text-[11px] text-mute-paper">{GATE.own.hint}</p>
+        <div class="mb-5.5 flex flex-wrap gap-2" role="group" aria-label={GATE.examplesLabel} id="actions">
+          {rows.map((row, i) => (
+            <button class="act" type="button" data-id={row.id} aria-pressed={i === 0 ? 'true' : 'false'}>{row.label}</button>
+          ))}
+        </div>
+        <div class="pipe" aria-live="polite">
+          <div class="step" id="s1">
+            <span class="step-n">{GATE.steps.rules.n}</span>
+            <div>
+              <h3>{GATE.steps.rules.title}</h3>
+              <p>{GATE.steps.rules.body}</p>
+              <p class="out" id="o1">{ruleOut(first)}</p>
+            </div>
+          </div>
+          <div class="step" id="s2">
+            <span class="step-n">{GATE.steps.model.n}</span>
+            <div>
+              <h3>{GATE.steps.model.title}</h3>
+              <p>{GATE.steps.model.body}</p>
+              <div class="mt-3 grid gap-2">
+                {first.distribution.map((d) => (
+                  <div class="dist-row">
+                    <span>{d.answer}</span>
+                    <div class="bar"><i id={`b-${d.answer}`} style={`background:${barColor[d.answer]};width:${pct(d.p)}`}></i></div>
+                    <span class="tnum" id={`p-${d.answer}`}>{d.p.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+              <p class="out" id="o2">{first.rule === 'ask' || first.rule === 'deny' ? GATE.steps.model.skipped : `${GATE.steps.model.answered}${first.backend}`}</p>
+              <p class="mt-1 font-mono text-[11px] text-mute-paper">{GATE.steps.model.notShipped}</p>
+            </div>
+          </div>
+          <div class="step" id="s3">
+            <span class="step-n">{GATE.steps.verdict.n}</span>
+            <div>
+              <h3>{GATE.steps.verdict.title}</h3>
+              <div class="mt-2.5 flex flex-wrap items-center gap-4.5">
+                <span class={`stamp big-stamp v-${first.verdict}`} id="verdict">{cap(first.verdict)}</span>
+                <p class="out" id="o3" style="margin-top:0">{GATE.why[first.verdict]}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="demo-note">{GATE.note}</p>
+      </div>
+
+      <aside class="tape-col" aria-label={GATE.ledger.label}>
+        <div class="tape">
+          <div class="tape-head"><b>{GATE.ledger.title}</b><br />{GATE.ledger.meta}{proofs.gate.backend}</div>
+          <div class="tape-lines" id="tape"></div>
+          <div class="tape-foot"><span id="tape-count" class="tnum"></span><span>{GATE.ledger.sent}</span></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+  <script is:inline type="application/json" id="gate-data" set:html={json} />
+</section>
+
+<script>
+  import { initPlayground } from '../../scripts/home/playground';
+  initPlayground();
+</script>

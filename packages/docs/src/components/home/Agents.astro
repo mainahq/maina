@@ -1,0 +1,55 @@
+---
+/**
+ * Agents: the marquee and the install strip, one tab per host plus the ACP
+ * editors. Commands are built from the generated plugin facts in landing.ts.
+ */
+import { AGENTS } from '../../data/landing';
+
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase.slice(0, -1) : rawBase;
+---
+
+<section class="paper section" id="agents" aria-labelledby="agents-title">
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee-inner">
+      {[...AGENTS.marquee, ...AGENTS.marquee].map((name) => <span>{name}</span>)}
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">{AGENTS.eyebrow}</p>
+      <h2 class="h2" id="agents-title">{AGENTS.title}</h2>
+      <p class="lede">{AGENTS.lede} <a href={AGENTS.ledeLink.href}>{AGENTS.ledeLink.label}</a>{AGENTS.ledeEnd}</p>
+    </div>
+    <div class="grid gap-[clamp(20px,4vw,56px)] md:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">
+      <div class="tablist" role="tablist" aria-label={AGENTS.tablistLabel}>
+        {AGENTS.tabs.map((tab, i) => (
+          <button
+            class="tab"
+            role="tab"
+            type="button"
+            id={`t-${tab.id}`}
+            aria-controls={`tp-${tab.id}`}
+            aria-selected={i === 0 ? 'true' : 'false'}
+            tabindex={i === 0 ? 0 : -1}
+          >{tab.label}</button>
+        ))}
+      </div>
+      <div>
+        {AGENTS.tabs.map((tab, i) => (
+          <div class="tabpanel grid content-start gap-4" role="tabpanel" id={`tp-${tab.id}`} aria-labelledby={`t-${tab.id}`} hidden={i !== 0}>
+            <h3>{tab.title}<span class="soon">{AGENTS.soon}</span></h3>
+            {tab.commands.map((cmd, j) => (
+              <div class="cmd">
+                <code id={`c-${tab.id}-${j}`}>{cmd}</code>
+                <button class="copy" type="button" data-copy={`c-${tab.id}-${j}`} data-copied={AGENTS.copied}>{AGENTS.copy}</button>
+              </div>
+            ))}
+            <ol>{tab.steps.map((s) => <li>{s}</li>)}</ol>
+          </div>
+        ))}
+        <p class="mt-6 font-mono text-xs"><a href={`${base}${AGENTS.docs.href}`}>{AGENTS.docs.label}</a></p>
+      </div>
+    </div>
+  </div>
+</section>

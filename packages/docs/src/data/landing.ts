@@ -1,43 +1,509 @@
 /**
- * Landing-page copy — single source of truth.
+ * Landing-page copy: single source of truth for `/` (#360, FR-DOC-1,
+ * FR-DOC-7).
  *
- * Every string on `/` originates here. `spec.md §Final copy (locked)` is the
- * contract: engineers do not retype these lines in markup. A CI grep check
- * (T9.5) fails the build if any locked string leaks into a component.
+ * Every string on the page comes from here, laid out after the canonical
+ * landing prototype. Facts are never typed in: hosts, licence, telemetry
+ * wording, version and plugin names come from the generated `facts.ts`, and
+ * every verdict, count and receipt the page shows comes from the generated
+ * `landing-proofs.json` (see `scripts/landing-proofs.ts`). The gate presets
+ * and ledger rows below only say *what* to evaluate; the engine says what
+ * happens.
  *
- * See `.maina/features/050-landing-revamp/spec.md` for WHY each line reads
- * the way it does.
+ * `scripts/docs-claims.ts` lints this file for forbidden claims, and the
+ * snapshot in `__tests__/landing.test.ts` pins it. Copy that embeds a fact
+ * is joined with `+`, not a template literal: the claims lint reads a
+ * backtick span as code and would skip it.
  */
 
-/** Change in one place; propagates to every install-line appearance
- *  on the page AND to the terminal demo's input frames.
- *
- *  Canonical command is `curl … | bash` (installs globally, leaves
- *  `maina` on PATH so AI agents that spawn subshells can find it —
- *  see onboarding-60s Wave 1, gap G1). `bunx @mainahq/cli@latest
- *  setup` and `bun add -g @mainahq/cli` are documented alternates
- *  in `docs/install.mdx`. */
+import { facts } from "./facts";
+
+const GITHUB = "https://github.com/mainahq/maina";
+const NPM = "https://www.npmjs.com/package/@mainahq/cli";
+
+/** The CLI installer. The /cloud page's cross-pitch shows it. */
 export const INSTALL_COMMAND =
 	"curl -fsSL https://api.mainahq.com/install | bash" as const;
 
-/** Same string, prefixed with the shell prompt — what the terminal
- *  animation echoes as its first input line. */
-export const INSTALL_PROMPT = `$ ${INSTALL_COMMAND}` as const;
+/** Ids of the page's sections, for in-page links. */
+export const SECTION_IDS = [
+	"top",
+	"waitlist",
+	"gate",
+	"how",
+	"agents",
+	"proofs",
+	"pricing",
+	"faq",
+	"contact",
+] as const;
 
 /** Meta / SEO. */
 export const META = {
-	title:
-		"Maina — your AI keeps sending the wrong context. That's why it's slopping out broken code.",
+	title: "Maina: guardrails for Claude Code, Codex and Cursor",
 	description:
-		"Maina is a verification-first developer OS. It rebuilds the context your AI should have been using, runs a 19-tool pipeline on every diff, and proves the change is correct before it merges. Works with Claude Code, Cursor, Windsurf, Copilot, Codex, Gemini CLI. Free and open source.",
-	// Set to a real path (e.g. "/og/og-landing-v2.png") once the asset
-	// is generated via scripts/generate-og.ts. Until then we skip the
-	// og:image meta tag rather than point at a 404.
-	ogImage: null as string | null,
+		"Maina is a guardrail layer for AI coding agents. It allows, asks or denies every command on your machine in milliseconds, with one policy across Claude Code, Codex and Cursor.",
+	ogDescription:
+		"Stop approving ls. Never approve rm -rf ~. Maina decides what your coding agents may do, on your machine, in milliseconds.",
 	url: "https://mainahq.com/",
+	// Set once the og image asset exists; until then no og:image tag.
+	ogImage: null as string | null,
 } as const;
 
-/** Nav labels. Keep in sync with the header rendered in index.astro. */
+/** Header of `/`. */
+export const HOME_NAV = {
+	brand: "maina",
+	links: [
+		{ label: "Try the gate", href: "#gate" },
+		{ label: "How it works", href: "#how" },
+		{ label: "Agents", href: "#agents" },
+		{ label: "Pricing", href: "#pricing" },
+		{ label: "Docs", href: "/install/" },
+	],
+	star: { label: "★ Star on GitHub", href: GITHUB },
+	cta: { label: "Join waitlist", href: "#waitlist" },
+	motion: { pause: "Pause motion", play: "Play motion" },
+} as const;
+
+/** The waitlist, posted to the maina-cloud Worker (`POST /api/waitlist`). */
+export const WAITLIST = {
+	endpoint: "https://api.mainahq.com/api/waitlist",
+	source: "landing-v1",
+	mailto: "beta@mainahq.com",
+	emailLabel: "Work email",
+	placeholder: "you@company.com",
+	submit: "Get early access",
+	// The Worker requires a role and a team size, from these closed sets.
+	roleLabel: "Your role",
+	roles: [
+		{ value: "eng_lead", label: "Engineering lead" },
+		{ value: "ic_dev", label: "Developer" },
+		{ value: "cto", label: "CTO" },
+		{ value: "vp_eng", label: "VP Engineering" },
+		{ value: "founder", label: "Founder" },
+		{ value: "other", label: "Other" },
+	],
+	teamSizeLabel: "Team size",
+	teamSizes: [
+		{ value: "1-5", label: "1–5" },
+		{ value: "6-20", label: "6–20" },
+		{ value: "21-50", label: "21–50" },
+		{ value: "51-200", label: "51–200" },
+		{ value: "200+", label: "200+" },
+	],
+	messages: {
+		idle: "v1 for Claude Code, Codex and Cursor. No spam, one email at launch.",
+		invalid: "Enter an email like you@company.com.",
+		more: "Two quick questions, then you are on the list.",
+		missing: "Pick your role and team size.",
+		sending: "Sending…",
+		done: "You are on the list. One email at launch.",
+		failed: "That did not go through. Email us instead:",
+	},
+} as const;
+
+/** Hero. */
+export const HERO = {
+	eyebrow: "Guardrails for AI coding agents",
+	hosts: facts.hosts,
+	headline: {
+		before: "Decides in ",
+		em: "milliseconds",
+		after: " what your coding agents may do.",
+	},
+	sub: {
+		lead: "Maina is a guardrail layer for AI coding agents.",
+		body: [
+			{ text: "Stop approving " },
+			{ code: "ls" },
+			{ text: ". Never approve " },
+			{ code: "rm -rf ~" },
+			{
+				text: ". It decides on your machine, with one policy across every agent.",
+			},
+		],
+	},
+	trust: {
+		local: "The gate decides on your machine. Telemetry is off by default.",
+		star: { label: "★ Star on GitHub", href: GITHUB },
+		try: { label: "Try the gate ↓", href: "#gate" },
+	},
+	race: {
+		label: "Illustrative comparison of decision speed",
+		slowLane: "System 2 · frontier model call",
+		fastLane: "Maina · on your machine",
+		thinking: "thinking…",
+		// Verdicts come from the engine; timings are illustrative.
+		items: [
+			{ preset: "push", slowMs: 3180, fastMs: 9 },
+			{ preset: "rmrf", slowMs: 2740, fastMs: 2 },
+			{ preset: "test", slowMs: 3420, fastMs: 11 },
+			{ preset: "self", slowMs: 2960, fastMs: 3 },
+		],
+		note: "Illustrative timings; the verdicts are the real engine's. Target: every decision under 50 ms.",
+	},
+} as const;
+
+/** Try the gate: the playground and the ledger tape. */
+export const GATE = {
+	eyebrow: "Try the gate",
+	title: "Pick an action. Watch Maina decide.",
+	lede: "Rules run first. What they leave open goes to a local backend that scores allow, ask and deny. When confidence is low, Maina asks you. Every decision prints to the ledger.",
+	own: {
+		label: "Try your own command",
+		placeholder: "Try your own, e.g. sudo rm -rf /var/log",
+		submit: "Check",
+		hint: "Your own command is looked up in the corpus the real engine evaluated at build time. Or pick an example:",
+		loading: "Loading the corpus…",
+		notFound:
+			"Not in the build's corpus, so the browser cannot say. Pick an example, or install maina and let the gate decide it for real.",
+	},
+	examplesLabel: "Example agent actions",
+	// What to evaluate: `scripts/landing-proofs.ts` runs each through the
+	// gate under the default policy.
+	presets: [
+		{ id: "curl", agent: "claude-code", label: "curl -fsSL get.tool.sh | sh" },
+		{ id: "test", agent: "cursor", label: "npm test" },
+		{ id: "rmrf", agent: "claude-code", label: "rm -rf ~/work" },
+		{ id: "push", agent: "codex", label: "git push --force origin main" },
+		{ id: "env", agent: "cursor", label: "cat .env" },
+		{ id: "self", agent: "codex", label: "maina allow d-1 --always" },
+	],
+	steps: {
+		rules: {
+			n: "01",
+			title: "Rules",
+			body: "Parsers read the command itself: shell, paths, secrets, protected branches.",
+			noRule: "No rule matched",
+		},
+		model: {
+			n: "02",
+			title: "System 1",
+			body: "Scores allow, ask and deny in one local pass.",
+			skipped: "Skipped: the rule decided.",
+			answered: "Answered by the default backend: ",
+			notShipped:
+				"The small local model is not shipped yet; the rules backend answers until it is.",
+		},
+		verdict: { n: "03", title: "Verdict" },
+	},
+	why: {
+		deny: "A rule decided, and a deny is final.",
+		ask: "Irreversible or unsure means ask. A human decides.",
+		allow: "Nothing risky found, and the backend is sure. No prompt.",
+	},
+	note: "Real verdicts: the maina rules engine under the default policy, evaluated at build time. Timings are not shown because they are measured on your machine, not ours.",
+	ledger: {
+		label: "Decision ledger",
+		title: "MAINA · LEDGER",
+		meta: "local · default policy · backend ",
+		sent: "0 bytes sent",
+		// Real corpus fixtures (packages/core/src/gate/__fixtures__).
+		fixtures: [
+			"b-005",
+			"d-119",
+			"b-003",
+			"d-278",
+			"d-093",
+			"d-036",
+			"d-209",
+			"d-183",
+			"d-394",
+			"r-005",
+		],
+	},
+} as const;
+
+/** How it works: four panels, each with a real example. */
+export const HOW = {
+	eyebrow: "How it works",
+	title: "Four steps, every action, in milliseconds.",
+	panels: [
+		{
+			n: "01 / Rules first",
+			title: "A rule's deny is final.",
+			body: "Maina parses what the agent is about to run, not a description of it. Destructive commands, secret files and protected branches are caught before any model is asked.",
+			example: { kind: "rows", presets: ["self", "rmrf"] },
+		},
+		{
+			n: "02 / System 1",
+			title: "A small model that knows when it's unsure.",
+			body: "For what the rules leave open, a small local model scores the allowed answers in one pass, trained so that 90% confidence means right 90% of the time. Until it ships, the rules backend answers and every decision records which backend did.",
+			example: { kind: "distribution", presets: ["test"] },
+		},
+		{
+			n: "03 / Verdict",
+			title: "Allow, ask or deny. Unsure means ask.",
+			body: "The model can make a rule stricter, never looser. Errors and timeouts become ask. Irreversible actions always reach a human unless your policy says otherwise.",
+			example: { kind: "policy", presets: [] },
+		},
+		{
+			n: "04 / Receipt",
+			title: "Every decision is logged, then learned from.",
+			body: "Each verdict is stored with its input hash, policy and backend. When you override it, or a change gets reverted, that outcome is linked to the decision.",
+			example: { kind: "log", presets: [] },
+		},
+	],
+	policy: {
+		heading: "policy: action.risk",
+		backend: "backend",
+		threshold: "confidence ≥",
+		fallback: "fallback",
+		irreversible: "irreversible",
+		alwaysAsk: "always ask",
+	},
+	log: [
+		{ key: "logged", value: "hashes and labels, not code" },
+		{ key: "override", value: "maina allow <decision-id>" },
+		{ key: "shared", value: "only if you turn outcome_sharing on" },
+	],
+} as const;
+
+/** Agents: the marquee and the install strip. */
+export const AGENTS = {
+	eyebrow: "Every agent, one policy",
+	title: "Install it where you already work.",
+	lede: "No new IDE. Maina ships as a plugin for each agent and as an ACP agent for editors. Install takes about 60 seconds. Available with v1;",
+	ledeLink: { label: "join the waitlist", href: "#waitlist" },
+	ledeEnd: " to get it first.",
+	// Hosts with a plugin, then the agents and editors `maina acp` bridges.
+	marquee: [...facts.hosts, "Gemini CLI", "OpenCode", "Zed", "JetBrains"],
+	tablistLabel: "Choose your agent",
+	soon: "At launch",
+	copy: "Copy",
+	copied: "Copied",
+	tabs: [
+		{
+			id: "claude",
+			host: "Claude Code",
+			label: "Claude Code",
+			title: "Claude Code plugin",
+			commands: [
+				"/plugin marketplace add " + facts.plugin.repository,
+				"/plugin install " + facts.plugin.name + "@" + facts.plugin.marketplace,
+			],
+			steps: [
+				"Restart Claude Code; the gate runs on every tool call from the next session.",
+				"Ask Claude to call maina's status tool to check it answers.",
+			],
+		},
+		{
+			id: "cursor",
+			host: "Cursor",
+			label: "Cursor",
+			title: "Cursor plugin",
+			commands: [],
+			steps: [
+				"Open Customize in the sidebar and find Maina.",
+				"Install. Hooks, rules and the MCP server are set up together.",
+				"Maina fails closed: if it can't decide, Cursor asks you.",
+			],
+		},
+		{
+			id: "codex",
+			host: "Codex",
+			label: "Codex",
+			title: "Codex plugin",
+			commands: [],
+			steps: [
+				"Add " + facts.plugin.repository + " as a plugin marketplace in Codex.",
+				"Run /plugins, find Maina and install it.",
+				"Maina also writes matching execution rules, so static policy holds even without hooks.",
+			],
+		},
+		{
+			id: "acp",
+			host: null,
+			label: "Zed, JetBrains, Neovim",
+			title: "Any ACP editor",
+			commands: ["maina acp --agent claude"],
+			steps: [
+				"Register it as an agent in Zed, JetBrains or Neovim.",
+				"Maina sits between the editor and the agent, gating every permission request.",
+			],
+		},
+	],
+	docs: { label: "Full install guide →", href: "/install/" },
+} as const;
+
+/** The bar: the benchmark teaser. Targets, labelled as targets. */
+export const BAR = {
+	eyebrow: "The bar we hold ourselves to",
+	title: "Measured, then published.",
+	lede: "A decision layer is only useful if you can check it. These are the gates the model must pass before it decides anything on its own.",
+	stats: [
+		{
+			prefix: "<",
+			value: "50",
+			unit: "ms",
+			label: "Per decision at the 95th percentile, on your laptop.",
+		},
+		{
+			prefix: "≤",
+			value: "0.5",
+			unit: "%",
+			label: "False allows on destructive actions.",
+		},
+		{
+			prefix: "≤",
+			value: "0.05",
+			unit: "",
+			label:
+				"Calibration error. When it says 90%, it's right about 90% of the time.",
+		},
+		{
+			prefix: "",
+			value: "0",
+			unit: "bytes",
+			label: "Of your code sent anywhere in local mode.",
+		},
+	],
+	note: "Launch targets, not results. The public benchmark against Claude Code auto mode and Codex Auto-review ships with v1, with its method and data, whatever it shows.",
+	benchmarks: { label: "How we benchmark →", href: "/benchmarks/" },
+} as const;
+
+/** Proofs: three receipts from this repo. Values come from the engines. */
+export const PROOFS = {
+	eyebrow: "Receipts, not claims",
+	title: "Three proofs from this repo.",
+	lede: "Each block below is computed from the maina repository at build time: the real rules engine, the real spec analyzer and a real verification receipt.",
+	items: [
+		{
+			kind: "blocked",
+			title: "Blocked a destructive action",
+			body: "Found while dogfooding: an agent could approve its own gated action. The rules now deny it.",
+			corpusLine:
+				" destructive commands in the corpus held for a human by rules alone; ",
+			selfOverrideLine: " self-override attempts denied.",
+			issueLabel: "Dogfood issue #",
+			sourceLabel: "Corpus fixture ",
+		},
+		{
+			kind: "spec",
+			title: "Caught a spec gap",
+			body: "The spec analyzer read a feature's spec and tasks and found an acceptance criterion no task covers.",
+			sourceLabel: "Feature ",
+		},
+		{
+			kind: "receipt",
+			eyebrow: "On every pull request",
+			title: "A receipt your reviewer can trust.",
+			body: "Maina checks the change and records what ran. One receipt per merge, published with the site. This is the newest one in the repo.",
+			commented: "verified",
+			open: "Open the full receipt →",
+			all: { label: "All receipts", href: "/receipts/" },
+		},
+	],
+} as const;
+
+/** Comparison with the checks agents ship. */
+export const COMPARISON = {
+	eyebrow: "Why a separate layer",
+	title: "One gate across agents.",
+	columns: ["", "Built-in agent checks", "Maina"],
+	rows: [
+		{
+			label: "Covers",
+			them: "Their own agent",
+			us: "Claude Code, Codex, Cursor and ACP editors",
+		},
+		{
+			label: "Policy",
+			them: "One per agent",
+			us: "One policy for every agent",
+		},
+		{
+			label: "Decides",
+			them: "In the vendor's product",
+			us: "On your machine",
+		},
+		{ label: "Audit trail", them: "Per agent", us: "One local decision log" },
+	],
+} as const;
+
+/** Pricing. The team price is announced at launch. */
+export const PRICING = {
+	eyebrow: "Pricing",
+	title: "Free on your machine. Paid for your team.",
+	plans: [
+		{
+			name: "Free",
+			price: "$0, forever",
+			body: "Local gate, verify and receipts for individuals. No account needed.",
+			cta: { label: "Get early access", href: "#waitlist" },
+		},
+		{
+			name: "Team",
+			price: "Price at launch",
+			body: "Shared policy, team dashboard, calibration on your own repos.",
+			cta: { label: "Join waitlist", href: "#waitlist" },
+		},
+		{
+			name: "Enterprise",
+			price: "Custom",
+			body: "On-prem or VPC, SSO, audit trail, data residency.",
+			cta: { label: "Talk to us", href: "#contact" },
+		},
+	],
+} as const;
+
+/** FAQ. */
+export const FAQ = {
+	eyebrow: "Questions",
+	title: "Before you install.",
+	items: [
+		{
+			q: "What is Maina?",
+			a: "Maina is a guardrail layer for AI coding agents. It allows, asks or denies each action an agent attempts, such as shell commands, file writes and network calls, using rules and a small local backend, in milliseconds.",
+		},
+		{
+			q: "Does my code leave my machine?",
+			a:
+				"The gate, its rules and the decision log run on your machine, and the log keeps hashes and labels, not your code. " +
+				facts.telemetry.summary,
+		},
+		{
+			q: "How is Maina different from Claude Code auto mode and Codex Auto-review?",
+			a: "Those checks cover their own agent. Maina gives you one policy and one audit trail across Claude Code, Codex, Cursor and other agents, decided on your machine in milliseconds.",
+		},
+		{
+			q: "What happens when Maina is unsure or breaks?",
+			a: "It asks you. Low confidence, errors, timeouts and missing model files all resolve to ask, never to allow.",
+		},
+		{
+			q: "Will it slow my agent down?",
+			a: "The target is under 50 ms per decision, and most safe actions pass without a prompt, so you approve far less than you do today.",
+		},
+		{
+			q: "Is Maina available now?",
+			a:
+				"Version 1 is in build. Join the waitlist for early access; the current CLI, " +
+				facts.version +
+				", is on npm as @mainahq/cli.",
+		},
+	],
+} as const;
+
+/** Founder CTA and footer of `/`. */
+export const HOME_FOOTER = {
+	cta: "Let your agents move fast. Keep the judgment.",
+	founder: {
+		initials: "BD",
+		lead: "I read every reply.",
+		body: " Tell me what your agents broke last week. Bikash Dash, founder",
+	},
+	site: "Maina · mainahq.com",
+	email: "b@mainahq.com",
+	licence: facts.licence + " licensed",
+	links: [
+		{ label: "GitHub", href: GITHUB },
+		{ label: "npm", href: NPM },
+		{ label: "Docs", href: "/install/" },
+		{ label: "Privacy", href: "/concepts/privacy/" },
+	],
+} as const;
+
+/** Site nav for the other marketing page (/cloud). */
 export const NAV = {
 	brand: "Maina.",
 	links: [
@@ -45,276 +511,37 @@ export const NAV = {
 		{ label: "Commands", href: "/commands" },
 		{ label: "Wiki", href: "/wiki" },
 		{ label: "Cloud", href: "/cloud" },
-		{ label: "GitHub", href: "https://github.com/mainahq/maina" },
+		{ label: "GitHub", href: GITHUB },
 	],
 } as const;
 
-/** Hero. */
-export const HERO = {
-	eyebrow:
-		"// 41% of your codebase was written by an AI that had no idea what the other 59% does.",
-	headlineLine1: "Your AI is guessing.",
-	headlineLine2:
-		"Maina gives it the context it was missing — and proves the diff is correct before it merges.",
-	sub: "Every prompt, your coding agent burns 8–12k tokens pasting files it hopes are relevant. Most of them aren't. Maina runs a 4-layer context engine over your repo — working set, PR memory, AST + PageRank, code search — and hands your agent only what matters. Then a 19-tool verification pipeline checks the diff before it merges. Run it on your repo in 60 seconds. No account, no API key, no config.",
-	installCommand: INSTALL_COMMAND,
-	affordances: [
-		{
-			kind: "scroll",
-			label: "▸ watch a 60-second run",
-			target: "#terminal",
-		},
-		{
-			kind: "link",
-			label: "★ 250+ self-verified commits on GitHub",
-			href: "https://github.com/mainahq/maina/commits/master",
-		},
-		{
-			kind: "text",
-			label: "MIT, runs locally, no telemetry by default",
-		},
-	],
-} as const;
-
-/** Pain strip — the three moments of recognition. */
-export const PAIN_STRIP = {
-	cards: [
-		{
-			label: "// 11:47pm",
-			body: "Your agent rewrote the auth handler using an API that doesn't exist in your version of the SDK.",
-		},
-		{
-			label: "// $412 last month",
-			body: "Half your Claude bill was context you pasted twice because the agent forgot it.",
-		},
-		{
-			label: "// commit e4a1f92",
-			body: 'The review bot said "LGTM." Prod said otherwise.',
-		},
-	],
-	cap: "Maina is the layer that makes those three things stop.",
-} as const;
-
-/** Full-width terminal section. */
-export const TERMINAL_SECTION = {
-	header: "60 seconds, start to finish.",
-	sub: "No edited video, no marketing demo. This is `maina setup` on a fresh clone of a real TypeScript repo, verified by the bytes you can run yourself.",
-	chapters: [
-		{ id: "context", label: "context" },
-		{ id: "constitution", label: "constitution" },
-		{ id: "verify", label: "verify" },
-		{ id: "commit-proof", label: "commit proof" },
-	],
-	reproduceLinePrefix: "▸ reproduce locally:",
-	installCommand: INSTALL_COMMAND,
-} as const;
-
-/** Engines section. Each card has prose, one hard number, and an ADR link set. */
-export const ENGINES = {
-	header: "Three engines. One honest claim each.",
-	cards: [
-		{
-			id: "context",
-			name: "Context Engine",
-			claim: "Your agent sees the files that matter. Not the ones that fit.",
-			detail:
-				"4 layers — working set, PR memory with Ebbinghaus decay, tree-sitter AST + PageRank, Zoekt-indexed code search. Token budget adapts to the task: 40% focused, 60% default, 80% explore. On our own repo, this cut average prompt size from 11.2k → 3.4k tokens without losing accuracy.",
-			proof: "Proof: ADR-0004, ADR-0017, benchmark report.",
-			proofLinks: [
-				{ label: "ADR-0004", href: "/adr/0004" },
-				{ label: "ADR-0017", href: "/adr/0017" },
-				{ label: "benchmark report", href: "/benchmarks/context-reduction" },
-			],
-		},
-		{
-			id: "prompt",
-			name: "Prompt Engine",
-			claim:
-				"Your rules, versioned, hashed, A/B tested. Not a vibes folder of scattered .cursorrules.",
-			detail:
-				"One constitution (stable project DNA, never A/B tested). Custom prompts per command. Every run is keyed on prompt version + context hash + model + input — the same query never hits the AI twice. Local cache hit rate on our team: 41%.",
-			proof: "Proof: ADR-0001.",
-			proofLinks: [{ label: "ADR-0001", href: "/adr/0001" }],
-		},
-		{
-			id: "verify",
-			name: "Verify Engine",
-			claim:
-				"Every diff runs a 19-tool pipeline before it lands. We run it on Maina itself, on every commit. There are 250+ of them.",
-			detail:
-				"Syntax guard (Biome, <500ms) → parallel deterministic tools (Semgrep, Trivy, Secretlint, SonarQube, diff-cover, Stryker, slop detector) → diff-only filter → AI fix → two-stage review: spec compliance, then code quality. Diff-only: we only report findings on the lines that changed.",
-			proof: "Proof: ADR-0002, ADR-0008, 1,167+ passing tests.",
-			proofLinks: [
-				{ label: "ADR-0002", href: "/adr/0002" },
-				{ label: "ADR-0008", href: "/adr/0008" },
-				{
-					label: "1,167+ passing tests",
-					href: "https://github.com/mainahq/maina/actions",
-				},
-			],
-		},
-	],
-} as const;
-
-/** Receipts gallery — Wave 3.2 #257. Cards render between Engines and
- * ProofStrip; data comes from `.maina/receipts/<hash>/receipt.json` at
- * build time. Heading is locked copy; per-card text is generated from
- * the receipts themselves and adheres to C2 ("passed N of M", never
- * "0 findings"). */
-export const RECEIPTS_GALLERY = {
-	heading: "Recent verifications",
-	subheading:
-		"Real receipts from this repo. Each card is a cryptographic record of a merge — diff stats, status, and the checks that ran. Click through for the signed JSON and walkthrough.",
-	emptyState:
-		"receipts ship with each merge — none recorded yet for this build",
-	allReceiptsLabel: "all receipts",
-	allReceiptsHref: "/receipts/",
-} as const;
-
-/** ProofStrip receipts. */
-export const PROOF_STRIP = {
-	stats: [
-		{
-			value: "250+",
-			label: "commits, every one self-verified by `maina commit`",
-			href: "https://github.com/mainahq/maina/commits/master",
-		},
-		{
-			value: "1,167+",
-			label: "passing tests across 7 languages",
-			href: "https://github.com/mainahq/maina/actions",
-		},
-		{
-			value: "19",
-			label: "tools in the verify pipeline",
-			href: "/adr/0002",
-		},
-		{
-			value: "41%",
-			label: "average context-token reduction on our own repo",
-			href: "/benchmarks/context-reduction",
-		},
-		{
-			value: "0",
-			label: "API keys required to try it",
-			href: "#install",
-		},
-	],
-} as const;
-
-/** StackFit — tool logos in alphabetical order (spec §7). */
-export const STACK_FIT = {
-	header: "Whatever you already use. Maina sits under it.",
-	tools: [
-		{ name: "Claude Code", tooltip: "MCP server + CLI integration" },
-		{ name: "Cline", tooltip: "MCP server" },
-		{ name: "Codex", tooltip: "MCP server" },
-		{ name: "Continue", tooltip: "MCP server" },
-		{ name: "Copilot", tooltip: "VS Code extension bridge" },
-		{ name: "Cursor", tooltip: "MCP server + rules" },
-		{ name: "Gemini CLI", tooltip: "MCP server" },
-		{ name: "OpenHands", tooltip: "MCP server" },
-		{ name: "Roo Code", tooltip: "MCP server" },
-		{ name: "Windsurf", tooltip: "MCP server" },
-		{ name: "Zed AI", tooltip: "MCP server" },
-	],
-	plus: "+ any MCP client",
-	caption:
-		"Maina ships as a CLI and as an MCP server. Your coding agent calls it. You don't change your workflow.",
-} as const;
-
-/** Comparison matrix. */
-export const COMPARISON = {
-	header: "What this replaces.",
-	columns: [
-		{ id: "diff-only", label: "Diff-only" },
-		{ id: "multi-language", label: "Multi-language" },
-		{ id: "learns-from-feedback", label: "Learns from feedback" },
-		{ id: "self-verified", label: "Self-verified" },
-		{ id: "cost", label: "Cost" },
-	],
-	rows: [
-		{
-			name: "Maina",
-			cells: ["✓", "7 languages", "✓", "✓", "Free"],
-			highlighted: true,
-		},
-		{
-			name: "CodeRabbit",
-			cells: ["Partial", "Multi-language", "✗", "✗", "$15+/mo"],
-		},
-		{
-			name: "DeepSource",
-			cells: ["Partial", "Multi-language", "✗", "✗", "$12+/mo"],
-		},
-		{
-			name: "Manual review",
-			cells: ["Human-only", "n/a", "✗", "✗", "Your time"],
-		},
-		// [NEEDS CLARIFICATION: T8.1] sign off on these cells before
-		// rendering. The row ships today with `draft: true` so the
-		// Comparison component can filter it out until reviewers agree.
-		{
-			name: "your .cursorrules folder",
-			cells: ["✗", "✗", "✗", "✗", "Free"],
-			draft: true as const,
-		},
-	],
-} as const;
-
-/** Final CTA. */
-export const FINAL_CTA = {
-	header: "Run it on your repo. Decide in 60 seconds.",
-	body: "No signup. No account. No telemetry unless you turn it on. Works on macOS, Linux, Windows (WSL). Free and open source, Apache 2.0. If it doesn't earn its place in your workflow in one minute, uninstall it and we'll have failed on our own terms.",
-	installCommand: INSTALL_COMMAND,
-	// NEEDS CLARIFICATION (plan.md open Q1): Discord link — real or cut?
-	// Until resolved the Discord entry is omitted.
-	secondaryLinks: [
-		{ label: "Read the docs", href: "/install/" },
-		{ label: "Star on GitHub", href: "https://github.com/mainahq/maina" },
-		{
-			label: "Open an issue",
-			href: "https://github.com/mainahq/maina/issues/new",
-		},
-	],
-} as const;
-
-/** FAQ — five `<details>` items. */
-export const FAQ = {
-	items: [
-		{
-			q: "Does this phone home?",
-			a: "No. Telemetry is opt-in and off by default. You can grep the source.",
-		},
-		{
-			q: "Does this work without Claude/OpenAI keys?",
-			a: "Yes, for everything except the AI-fix and AI-review steps of Verify. Everything else is deterministic.",
-		},
-		{
-			q: "Will it slow my commits down?",
-			a: "Syntax guard is <500ms. Full verify is ~12s on a typical diff. `maina commit --async` defers the report.",
-		},
-		{
-			q: "How is this different from CodeRabbit?",
-			a: "Diff-only, runs locally, rebuilds context for your agent upstream. CodeRabbit reviews after the fact. Maina fixes the input before the fact, then reviews after.",
-		},
-		{
-			q: "Is the context engine just RAG?",
-			a: "No. RAG retrieves by vector similarity. Maina uses tree-sitter AST + PageRank over the dependency graph + PR memory with Ebbinghaus decay + Zoekt code search. Similarity is one signal of four.",
-		},
-	],
-} as const;
-
-/** Footer text. */
+/** Site footer for the other marketing page (/cloud). */
 export const FOOTER = {
-	tagline: "Verification-first developer OS.",
+	tagline: "Guardrails and verification for AI coding agents.",
 	links: [
-		{ label: "Cloud", href: "/cloud" },
+		{ label: "Home", href: "/" },
 		{ label: "Docs", href: "/install/" },
-		{ label: "GitHub", href: "https://github.com/mainahq/maina" },
+		{ label: "GitHub", href: GITHUB },
 		{
-			label: "License",
-			href: "https://github.com/mainahq/maina/blob/master/LICENSE",
+			label: "Licence (" + facts.licence + ")",
+			href: GITHUB + "/blob/master/LICENSE",
 		},
 	],
+} as const;
+
+/** Everything on `/`, for the snapshot. */
+export const LANDING = {
+	META,
+	HOME_NAV,
+	WAITLIST,
+	HERO,
+	GATE,
+	HOW,
+	AGENTS,
+	BAR,
+	PROOFS,
+	COMPARISON,
+	PRICING,
+	FAQ,
+	HOME_FOOTER,
 } as const;
