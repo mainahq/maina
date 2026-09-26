@@ -19,6 +19,30 @@ function stackLine(ctx: StackContext): string {
 	return parts.join(" | ");
 }
 
+interface PmCommands {
+	readonly runCmd: string;
+	readonly installCmd: string;
+}
+
+/**
+ * Script-runner and install commands per detected JS package manager.
+ * pnpm and yarn go through `run` explicitly: `yarn check` is a yarn v1
+ * builtin that would shadow a `check` script. Anything else (empty,
+ * non-JS ecosystems, unknown) falls back to npm.
+ */
+function pmCommands(pm: string): PmCommands {
+	switch (pm) {
+		case "bun":
+			return { runCmd: "bun", installCmd: "bun install" };
+		case "pnpm":
+			return { runCmd: "pnpm run", installCmd: "pnpm install" };
+		case "yarn":
+			return { runCmd: "yarn run", installCmd: "yarn install" };
+		default:
+			return { runCmd: "npm run", installCmd: "npm install" };
+	}
+}
+
 /**
  * Generate AGENTS.md managed content — universal agent instructions
  * referencing the detected stack and the maina workflow.
@@ -27,9 +51,7 @@ export function generateAgentsMd(
 	ctx: StackContext,
 	constitutionQuickRef: string,
 ): string {
-	const pm = ctx.packageManager || "npm";
-	const runCmd = pm === "bun" ? "bun" : "npm run";
-	const installCmd = pm === "bun" ? "bun install" : "npm install";
+	const { runCmd, installCmd } = pmCommands(ctx.packageManager);
 
 	return `# AGENTS.md
 
