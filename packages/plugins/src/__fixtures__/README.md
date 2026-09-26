@@ -25,7 +25,14 @@ Each host folder has:
 `claude/schemas/marketplace.schema.json` pins the Claude Code marketplace
 listing (<https://code.claude.com/docs/en/plugin-marketplaces>) that the
 generator writes to `.claude-plugin/marketplace.json` at the repo root;
-`../__tests__/marketplace.test.ts` checks it.
+`cursor/schemas/marketplace.schema.json` pins the Cursor listing it writes
+to `.cursor-plugin/marketplace.json` (the Cursor Marketplace submission and
+the Team Marketplace import both read it). `../__tests__/marketplace.test.ts`
+checks both.
+
+A contract with `"format": "frontmatter"` checks a Markdown file's YAML
+front matter instead of JSON: `cursor/schemas/rule.schema.json` pins the
+front matter of the Cursor plugin's `rules/*.mdc`.
 
 Manifest schemas are strict (`additionalProperties: false`), so the
 generator cannot emit a key that a host ignores or warns about.

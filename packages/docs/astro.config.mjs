@@ -52,6 +52,7 @@ export default defineConfig({
             { slug: 'ci' },
             { slug: 'mcp' },
             { slug: 'skills' },
+            { slug: 'cursor' },
           ],
         },
         {

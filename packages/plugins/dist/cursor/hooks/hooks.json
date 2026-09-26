@@ -3,35 +3,35 @@
   "hooks": {
     "sessionStart": [
       {
-        "command": "./launcher/launch.sh hook --host cursor sessionStart"
+        "command": "PLUGIN_DATA=\"$PWD/data\" ./launcher/launch.sh hook --host cursor sessionStart"
       }
     ],
     "preToolUse": [
       {
-        "command": "./launcher/launch.sh hook --host cursor preToolUse",
+        "command": "PLUGIN_DATA=\"$PWD/data\" ./launcher/launch.sh hook --host cursor preToolUse",
         "failClosed": true
       }
     ],
     "beforeShellExecution": [
       {
-        "command": "./launcher/launch.sh hook --host cursor beforeShellExecution",
+        "command": "PLUGIN_DATA=\"$PWD/data\" ./launcher/launch.sh hook --host cursor beforeShellExecution",
         "failClosed": true
       }
     ],
     "beforeMCPExecution": [
       {
-        "command": "./launcher/launch.sh hook --host cursor beforeMCPExecution",
+        "command": "PLUGIN_DATA=\"$PWD/data\" ./launcher/launch.sh hook --host cursor beforeMCPExecution",
         "failClosed": true
       }
     ],
     "afterFileEdit": [
       {
-        "command": "./launcher/launch.sh hook --host cursor afterFileEdit"
+        "command": "PLUGIN_DATA=\"$PWD/data\" ./launcher/launch.sh hook --host cursor afterFileEdit"
       }
     ],
     "stop": [
       {
-        "command": "./launcher/launch.sh hook --host cursor stop"
+        "command": "PLUGIN_DATA=\"$PWD/data\" ./launcher/launch.sh hook --host cursor stop"
       }
     ]
   }

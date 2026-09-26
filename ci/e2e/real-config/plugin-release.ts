@@ -6,9 +6,10 @@
  * key (`runtime-artifacts.yml`). This does the same for the e2e: it
  * compiles the standalone runtime for this machine, signs it with a
  * throwaway key, serves it on 127.0.0.1 and writes a marketplace (the
- * repo's `.claude-plugin/marketplace.json` plus every plugin package it
- * lists) whose launchers pin that artifact. Installing from it is
- * installing a release, with the network kept local.
+ * repo's `.claude-plugin/marketplace.json` and `.cursor-plugin/
+ * marketplace.json`, plus every plugin package they list) whose launchers
+ * pin that artifact. Installing from it is installing a release, with the
+ * network kept local.
  *
  * Built once per test process; `stopPluginRelease` stops the server and
  * removes the files.
@@ -44,8 +45,11 @@ import type { Result } from "./types";
 
 const REPO_ROOT = resolve(import.meta.dir, "..", "..", "..");
 
-/** The marketplace listing, from the repo root. */
-export const MARKETPLACE_FILE = ".claude-plugin/marketplace.json";
+/** Each host's marketplace listing, from the repo root. */
+const MARKETPLACE_FILES: readonly string[] = [
+	".claude-plugin/marketplace.json",
+	".cursor-plugin/marketplace.json",
+];
 
 export interface PluginRelease {
 	/** A marketplace root to add, as a user adds the repo. */
@@ -72,11 +76,13 @@ function relativeSources(listing: unknown): readonly string[] {
 }
 
 async function stage(): Promise<Result<PluginRelease, string>> {
-	const listingPath = join(REPO_ROOT, MARKETPLACE_FILE);
-	if (!existsSync(listingPath)) {
+	const missing = MARKETPLACE_FILES.filter(
+		(file) => !existsSync(join(REPO_ROOT, file)),
+	);
+	if (missing.length > 0) {
 		return {
 			ok: false,
-			error: `no marketplace listing at ${MARKETPLACE_FILE}`,
+			error: `no marketplace listing at ${missing.join(", ")}`,
 		};
 	}
 	const root = mkdtempSync(join(tmpdir(), "maina-plugin-release-"));
@@ -87,13 +93,18 @@ async function stage(): Promise<Result<PluginRelease, string>> {
 	};
 	try {
 		const target = currentTarget();
-		const listing = readJson(listingPath);
 		const marketplace = join(root, "marketplace");
-		mkdirSync(join(marketplace, dirname(MARKETPLACE_FILE)), {
-			recursive: true,
-		});
-		cpSync(listingPath, join(marketplace, MARKETPLACE_FILE));
-		const sources = relativeSources(listing);
+		for (const file of MARKETPLACE_FILES) {
+			mkdirSync(join(marketplace, dirname(file)), { recursive: true });
+			cpSync(join(REPO_ROOT, file), join(marketplace, file));
+		}
+		const sources = [
+			...new Set(
+				MARKETPLACE_FILES.flatMap((file) =>
+					relativeSources(readJson(join(REPO_ROOT, file))),
+				),
+			),
+		];
 		const launcherManifest = (source: string) =>
 			join(marketplace, source, "launcher", "manifest.json");
 		for (const source of sources) {

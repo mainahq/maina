@@ -1,0 +1,11 @@
+{
+  "name": "maina",
+  "server": {
+    "command": "npx",
+    "args": [
+      "@mainahq/cli@1.8.1",
+      "--mcp"
+    ]
+  },
+  "deeplink": "cursor://anysphere.cursor-deeplink/mcp/install?name=maina&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyJAbWFpbmFocS9jbGlAMS44LjEiLCItLW1jcCJdfQ%3D%3D"
+}

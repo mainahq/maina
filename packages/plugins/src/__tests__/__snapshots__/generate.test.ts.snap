@@ -122,35 +122,35 @@ exports[`snapshots cursor 1`] = `
       "hooks": {
         "afterFileEdit": [
           {
-            "command": "./launcher/launch.sh hook --host cursor afterFileEdit",
+            "command": "PLUGIN_DATA="$PWD/data" ./launcher/launch.sh hook --host cursor afterFileEdit",
           },
         ],
         "beforeMCPExecution": [
           {
-            "command": "./launcher/launch.sh hook --host cursor beforeMCPExecution",
+            "command": "PLUGIN_DATA="$PWD/data" ./launcher/launch.sh hook --host cursor beforeMCPExecution",
             "failClosed": true,
           },
         ],
         "beforeShellExecution": [
           {
-            "command": "./launcher/launch.sh hook --host cursor beforeShellExecution",
+            "command": "PLUGIN_DATA="$PWD/data" ./launcher/launch.sh hook --host cursor beforeShellExecution",
             "failClosed": true,
           },
         ],
         "preToolUse": [
           {
-            "command": "./launcher/launch.sh hook --host cursor preToolUse",
+            "command": "PLUGIN_DATA="$PWD/data" ./launcher/launch.sh hook --host cursor preToolUse",
             "failClosed": true,
           },
         ],
         "sessionStart": [
           {
-            "command": "./launcher/launch.sh hook --host cursor sessionStart",
+            "command": "PLUGIN_DATA="$PWD/data" ./launcher/launch.sh hook --host cursor sessionStart",
           },
         ],
         "stop": [
           {
-            "command": "./launcher/launch.sh hook --host cursor stop",
+            "command": "PLUGIN_DATA="$PWD/data" ./launcher/launch.sh hook --host cursor stop",
           },
         ],
       },
@@ -163,6 +163,9 @@ exports[`snapshots cursor 1`] = `
             "mcp",
           ],
           "command": "\${CURSOR_PLUGIN_ROOT}/launcher/launch.sh",
+          "env": {
+            "PLUGIN_DATA": "\${CURSOR_PLUGIN_ROOT}/data",
+          },
         },
       },
     },
@@ -171,6 +174,7 @@ exports[`snapshots cursor 1`] = `
     ".cursor-plugin/plugin.json",
     "hooks/hooks.json",
     "mcp.json",
+    "rules/maina.mdc",
     "skills/gate/SKILL.md",
     "skills/verify/SKILL.md",
     "skills/spec/SKILL.md",

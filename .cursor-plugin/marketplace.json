@@ -1,0 +1,30 @@
+{
+  "name": "maina",
+  "owner": {
+    "name": "Maina"
+  },
+  "metadata": {
+    "description": "Verification-first guardrails for AI coding agents: gates risky actions, verifies changes and reviews diffs before they merge."
+  },
+  "plugins": [
+    {
+      "name": "maina",
+      "source": "./packages/plugins/dist/cursor",
+      "description": "Verification-first guardrails for AI coding agents: gates risky actions, verifies changes and reviews diffs before they merge.",
+      "author": {
+        "name": "Maina"
+      },
+      "homepage": "https://mainahq.com/",
+      "repository": "https://github.com/mainahq/maina",
+      "license": "Apache-2.0",
+      "keywords": [
+        "verification",
+        "guardrails",
+        "code-review",
+        "mcp",
+        "tdd"
+      ],
+      "category": "security"
+    }
+  ]
+}

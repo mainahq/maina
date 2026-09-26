@@ -3,12 +3,13 @@
   "source": {
     "url": "https://cursor.com/docs/reference/plugins",
     "retrieved": "2026-09-26",
-    "notes": "Manifest fields and layout from the plugins reference; hooks.json from https://cursor.com/docs/hooks. Plugin hook commands use paths relative to the plugin root, as the reference's example does. Hook event payloads are pinned by the runtime's cursor fixtures (#375)."
+    "notes": "Manifest fields, layout, rule front matter and the marketplace listing from the plugins reference; hooks.json from https://cursor.com/docs/hooks. Plugin hook commands use paths relative to the plugin root, as the reference's example does. Hook event payloads are pinned by the runtime's cursor fixtures (#375)."
   },
   "hookContracts": "cursor",
   "files": [
     { "path": ".cursor-plugin/plugin.json", "schema": "schemas/plugin.schema.json" },
     { "path": "hooks/hooks.json", "schema": "schemas/hooks.schema.json" },
-    { "path": "mcp.json", "schema": "schemas/mcp.schema.json" }
+    { "path": "mcp.json", "schema": "schemas/mcp.schema.json" },
+    { "path": "rules/maina.mdc", "schema": "schemas/rule.schema.json", "format": "frontmatter" }
   ]
 }
