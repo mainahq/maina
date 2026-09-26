@@ -199,7 +199,9 @@ export function fakeGitHub(options: { pageSize?: number } = {}): FakeGitHub {
 			if (run && req.method === "PATCH") {
 				const found = checks.find((c) => c.id === Number(run[1]));
 				if (!found) return json(404, { message: "Not Found" });
-				Object.assign(found, body);
+				// GitHub merges the PATCH; the upsert always sends these fields.
+				found.conclusion = body.conclusion;
+				found.output = body.output;
 				return json(200, found);
 			}
 			return json(404, { message: `No route for ${req.method} ${path}` });
