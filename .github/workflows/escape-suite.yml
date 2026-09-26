@@ -1,0 +1,109 @@
+name: Escape suite
+
+# Sandbox escape and hook-bypass suite (v1 task 4B.9, FR-SBX-5, spec §9.6).
+# Every case in `ci/escape/cases.ts` is run twice against the pinned sandbox
+# runtime: unsandboxed, where it must escape (so the case has teeth), and
+# sandboxed, where it must be blocked. Path traversal, symlink writes,
+# $HOME credential reads, DNS and IP network bypass, env and credential
+# exfiltration, prompt injection that disables the sandbox or the gate hook,
+# bypass-permission modes and holdout reads — at least 60 cases in all.
+#
+# Runs nightly and on every release, and is a required check on the release
+# workflow (it calls this one via `workflow_call`; see release.yml). On a
+# runner where the sandbox binary cannot run, MAINA_REQUIRE_SANDBOX=1 turns
+# the skip into a loud failure, so a broken sandbox never passes for green —
+# except in the explicit `unsandboxed-control` job, which proves the cases
+# have teeth without a sandbox at all.
+
+on:
+  schedule:
+    - cron: "40 3 * * *" # 03:40 UTC nightly
+  release:
+    types: [published]
+  workflow_dispatch:
+  workflow_call:
+  # A change to the suite or to what it guards is proven before it merges,
+  # rather than first failing as the release gate on master.
+  pull_request:
+    paths:
+      - "ci/escape/**"
+      - ".github/workflows/escape-suite.yml"
+      - "packages/harness/src/sandbox/**"
+      - "packages/harness/src/permissions/**"
+
+permissions:
+  contents: read
+
+# Keyed by event as well as ref: the nightly run and the release gate (which
+# calls this workflow from a push to master) share a ref, and one must never
+# cancel the other.
+concurrency:
+  group: escape-suite-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The floor holds: every case blocked by a real srt on both platforms.
+  sandboxed:
+    name: sandboxed (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      # srt is a Node CLI.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Linux sandbox prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap socat ripgrep
+          # Ubuntu 24.04 strips capabilities from unprivileged user
+          # namespaces, which bubblewrap needs.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      # The version comes from the adapter, its one source of truth.
+      - name: Install sandbox-runtime (pinned)
+        run: |
+          SRT="$(bun -e 'import { SANDBOX_RUNTIME as s } from "./packages/harness/src/sandbox/runtime-adapter.ts"; process.stdout.write(`${s.package}@${s.version}`)')"
+          npm install -g "$SRT"
+
+      # MAINA_REQUIRE_SANDBOX=1 fails loudly if srt is missing rather than
+      # skipping. The suite itself runs each case unsandboxed (must escape)
+      # then sandboxed (must be blocked).
+      - name: Escape suite
+        run: bun test ci/escape
+        env:
+          MAINA_REQUIRE_SANDBOX: "1"
+
+  # The teeth, on their own: every case really does escape with no sandbox.
+  # This is the one job allowed to run without the sandbox binary.
+  unsandboxed-control:
+    name: unsandboxed control
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Every case escapes an unprotected worker
+        run: bun ci/escape/runner.ts unsandboxed --allow-missing-sandbox
