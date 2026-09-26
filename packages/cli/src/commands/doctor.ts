@@ -1,5 +1,12 @@
-import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
-import { platform } from "node:os";
+import {
+	existsSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+	rmSync,
+} from "node:fs";
+import { platform, tmpdir } from "node:os";
 import { join } from "node:path";
 import { confirm, intro, log, outro, spinner } from "@clack/prompts";
 import type {
@@ -414,8 +421,12 @@ const readOnlyFs: FsPort = {
 	}),
 };
 
-function hostHealthPorts(probe: Probe): HostHealthPorts {
+function hostHealthPorts(
+	probe: Probe,
+	launchCwd: string | null,
+): HostHealthPorts {
 	return {
+		launchCwd,
 		readFile: readOrNull,
 		listDir: (path) => {
 			try {
@@ -439,26 +450,58 @@ function hostHealthPorts(probe: Probe): HostHealthPorts {
 	};
 }
 
-function checkHosts(
+/**
+ * A fresh empty directory under the OS temp dir, or null when it cannot be
+ * created (the launches that need it are then skipped, not moved into the
+ * repo).
+ */
+function makeLaunchDir(): string | null {
+	try {
+		return mkdtempSync(join(tmpdir(), "maina-doctor-launch-"));
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Launch every configured entry. Doctor's own launches start in a fresh
+ * empty directory outside the repo so a repo `bunfig.toml` preload cannot
+ * run (#432); it is removed once every probe has stopped its server.
+ */
+async function checkHosts(
 	cwd: string,
 	home: string | undefined,
 	probe: Probe,
 	launchProject: boolean,
 ): Promise<HostHealth> {
-	return checkHostHealth(
-		{
-			ctx: hostPathContext(cwd, home),
-			launchProject,
-			version: VERSION,
-			platform: platform(),
-			inheritedEnv: Object.fromEntries(
-				Object.entries(process.env).filter(
-					(kv): kv is [string, string] => kv[1] !== undefined,
+	const launchCwd = makeLaunchDir();
+	try {
+		return await checkHostHealth(
+			{
+				ctx: hostPathContext(cwd, home),
+				launchProject,
+				version: VERSION,
+				platform: platform(),
+				inheritedEnv: Object.fromEntries(
+					Object.entries(process.env).filter(
+						(kv): kv is [string, string] => kv[1] !== undefined,
+					),
 				),
-			),
-		},
-		hostHealthPorts(probe),
-	);
+			},
+			hostHealthPorts(probe, launchCwd),
+		);
+	} finally {
+		// Best effort: a launcher's grandchild can outlive the probe and keep
+		// the directory busy (Windows will not remove a process's cwd). A
+		// leftover empty temp dir must not discard the report.
+		try {
+			if (launchCwd !== null) {
+				rmSync(launchCwd, { recursive: true, force: true });
+			}
+		} catch {
+			// Left for the OS temp cleaner.
+		}
+	}
 }
 
 const MARK: Readonly<Record<CheckStatus, string>> = {
