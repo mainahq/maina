@@ -36,6 +36,7 @@ import {
 	renderRoadmap,
 	scanHandWritten,
 	staleDocs,
+	telemetrySummary,
 } from "../docs-manifest";
 
 const REPO_ROOT = join(import.meta.dir, "..", "..");
@@ -175,6 +176,26 @@ describe("generateDocs", () => {
 	});
 });
 
+describe("telemetrySummary", () => {
+	test("every channel off: each is opt-in", () => {
+		expect(telemetrySummary([])).toBe(
+			"Telemetry is off by default: crash_reports, usage and outcome_sharing are each opt-in, turned on in your user policy (~/.maina/policy.json).",
+		);
+	});
+
+	test("some channels on: the rest are opt-in", () => {
+		expect(telemetrySummary(["crash_reports"])).toBe(
+			"crash_reports is on by default; usage and outcome_sharing are each opt-in, turned on in your user policy (~/.maina/policy.json).",
+		);
+	});
+
+	test("every channel on: no dangling opt-in clause", () => {
+		expect(
+			telemetrySummary(["crash_reports", "usage", "outcome_sharing"]),
+		).toBe("crash_reports, usage and outcome_sharing are on by default.");
+	});
+});
+
 describe("changesets", () => {
 	test("parseChangeset reads the bumps and the summary", () => {
 		const parsed = parseChangeset(
@@ -272,6 +293,21 @@ describe("scanHandWritten", () => {
 		expect(hits).toEqual([
 			{ line: 1, kind: "command", match: "maina token" },
 			{ line: 4, kind: "command", match: "maina frobnicate" },
+		]);
+	});
+
+	test("a longer fence keeps shorter fence lines inside it", () => {
+		const text = [
+			"````md",
+			"```bash",
+			"maina frobnicate",
+			"```",
+			"````",
+			"",
+			"maina frobnicate is prose here",
+		].join("\n");
+		expect(scanHandWritten(text, facts)).toEqual([
+			{ line: 3, kind: "command", match: "maina frobnicate" },
 		]);
 	});
 
