@@ -16,6 +16,7 @@
 
 import { afterAll, describe, expect, test } from "bun:test";
 import {
+	cpSync,
 	existsSync,
 	mkdtempSync,
 	readdirSync,
@@ -62,6 +63,8 @@ interface FileContract {
 	readonly path: string;
 	readonly schema: string;
 	readonly pointer?: string;
+	/** `frontmatter`: the schema checks the file's YAML front matter. */
+	readonly format?: "frontmatter";
 }
 
 interface HostManifest {
@@ -91,6 +94,20 @@ const fileAt = (host: Host, path: string): GeneratedFile => {
 
 const jsonAt = (host: Host, path: string): Record<string, unknown> =>
 	JSON.parse(fileAt(host, path).content) as Record<string, unknown>;
+
+/** A Markdown file's YAML front matter, parsed; undefined without one. */
+function frontMatter(markdown: string): unknown {
+	const yaml = /^---\n([\s\S]*?)\n---\n/.exec(markdown)?.[1];
+	return yaml === undefined ? undefined : Bun.YAML.parse(yaml);
+}
+
+/** What a contract's schema checks in a generated file. */
+function contractValue(host: Host, contract: FileContract): unknown {
+	const content = fileAt(host, contract.path).content;
+	return contract.format === "frontmatter"
+		? frontMatter(content)
+		: atPointer(JSON.parse(content), contract.pointer);
+}
 
 function makeAjv(): Ajv2020 {
 	const ajv = new Ajv2020({ allErrors: true, strict: true });
@@ -175,11 +192,16 @@ const ANSWERED: Readonly<Record<string, ReadonlySet<string>>> = {
 	cursor: CURSOR_HOOK_EVENTS,
 };
 
-/** How each host's hook commands name the plugin root. */
+/**
+ * How each host's hook commands start the launcher. Cursor runs a plugin's
+ * hooks from the plugin root and gives them no data dir, so the command
+ * names one inside the plugin (see "Cursor keeps the runtime inside the
+ * plugin").
+ */
 const PLUGIN_ROOT: Readonly<Record<string, string>> = {
 	claude: `"\${CLAUDE_PLUGIN_ROOT}/launcher/launch.sh"`,
 	codex: `\${PLUGIN_ROOT}/launcher/launch.sh`,
-	cursor: "./launcher/launch.sh",
+	cursor: 'PLUGIN_DATA="$PWD/data" ./launcher/launch.sh',
 };
 
 /** Native events that gate an action; the rest observe. */
@@ -223,11 +245,7 @@ describe("host schemas (fixtures)", () => {
 					const validate = ajv.compile(
 						readJson(join(FIXTURES_DIR, host, contract.schema)) as object,
 					);
-					const value = atPointer(
-						JSON.parse(fileAt(host, contract.path).content),
-						contract.pointer,
-					);
-					const ok = validate(value);
+					const ok = validate(contractValue(host, contract));
 					expect(validate.errors ?? []).toEqual([]);
 					expect(ok).toBe(true);
 				});
@@ -283,7 +301,7 @@ describe("no bunx, npx or bare maina", () => {
 					for (const cmd of commandStrings(JSON.parse(file.content)))
 						if (BARE_MAINA.test(cmd)) found.push(cmd);
 				}
-				if (file.path.endsWith(".md")) {
+				if (file.path.endsWith(".md") || file.path.endsWith(".mdc")) {
 					for (const code of codeIn(file.content))
 						if (BARE_MAINA.test(code)) found.push(code);
 				}
@@ -442,7 +460,9 @@ describe("hooks", () => {
 		"the launcher accepts every generated hook command and fails closed without a runtime",
 		async () => {
 			for (const host of HOOKED_HOSTS) {
-				const root = join(DIST_DIR, host);
+				// A copy: a hook may write its data dir inside the plugin root.
+				const root = join(scratch, "roots", host);
+				cpSync(join(DIST_DIR, host), root, { recursive: true });
 				for (const hook of registeredHooks(host)) {
 					const proc = Bun.spawn(["/bin/sh", "-c", hook.command], {
 						cwd: root,
@@ -476,6 +496,92 @@ describe("hooks", () => {
 		},
 		30_000,
 	);
+});
+
+// ── Cursor: rules, and the runtime's data dir ─────────────────────────────
+
+describe("Cursor rules", () => {
+	const rule = () => fileAt("cursor", "rules/maina.mdc").content;
+
+	test("ships maina's rule as rules/maina.mdc, attached to every conversation", () => {
+		expect(frontMatter(rule())).toEqual({
+			description: expect.stringContaining("maina"),
+			alwaysApply: true,
+		});
+	});
+
+	test("the rule tells the agent how to work with the gate and verify", () => {
+		const body = rule().replace(/^---\n[\s\S]*?\n---\n/, "");
+		// The gate's answers, never bypassed; verify before done; the skills
+		// that hold the details.
+		expect(body).toMatch(/maina deny/);
+		expect(body).toMatch(/maina ask/);
+		expect(body).toMatch(/never .*(?:disable|bypass)/i);
+		expect(body).toContain("`verify` MCP tool");
+		for (const skill of PLUGIN.skills) expect(body).toContain(`\`${skill}\``);
+	});
+
+	test("every rule in the definition reaches Cursor, and only Cursor has a rules component", () => {
+		const definition: PluginDefinition = {
+			...PLUGIN,
+			rules: [
+				...PLUGIN.rules,
+				{
+					name: "tests",
+					description: "Test conventions",
+					globs: ["**/*.test.ts"],
+					body: "Write the test first.",
+				},
+			],
+		};
+		const cursorFiles = generate("cursor", sources, definition);
+		expect(cursorFiles.find((f) => f.path === "rules/tests.mdc")?.content).toBe(
+			'---\ndescription: Test conventions\nglobs:\n  - "**/*.test.ts"\n---\n\nWrite the test first.\n',
+		);
+		for (const host of ["claude", "codex", "agent-plugins"] as const) {
+			expect(
+				generate(host, sources, definition).some((f) =>
+					f.path.startsWith("rules/"),
+				),
+			).toBe(false);
+		}
+	});
+
+	test("front matter reads back as the definition's strings", () => {
+		for (const description of ["null", "true", "1.5", "a: b", "#x", "Plain"]) {
+			const [rule] = generate("cursor", sources, {
+				...PLUGIN,
+				rules: [{ name: "r", description, alwaysApply: true, body: "x" }],
+			}).filter((f) => f.path === "rules/r.mdc");
+			expect(frontMatter(rule?.content ?? "")).toEqual({
+				description,
+				alwaysApply: true,
+			});
+		}
+	});
+});
+
+describe("Cursor keeps the runtime inside the plugin", () => {
+	// Cursor gives a plugin no data dir (Claude Code has CLAUDE_PLUGIN_DATA,
+	// Codex PLUGIN_DATA), so the launcher would cache the runtime and run its
+	// socket under ~/.maina, which uninstalling the plugin leaves behind.
+	test("the MCP server's PLUGIN_DATA is data/ in the plugin root", () => {
+		const servers = jsonAt("cursor", "mcp.json").mcpServers as Record<
+			string,
+			{ env?: Record<string, string> }
+		>;
+		expect(servers[PLUGIN.mcpServer]?.env).toEqual({
+			PLUGIN_DATA: `\${CURSOR_PLUGIN_ROOT}/data`,
+		});
+	});
+
+	test("every hook sets the same PLUGIN_DATA, from the plugin root it runs in", () => {
+		const hooks = registeredHooks("cursor");
+		expect(hooks.length).toBeGreaterThan(0);
+		for (const hook of hooks) {
+			expect(hook.command.startsWith(`PLUGIN_DATA="$PWD/data" `)).toBe(true);
+		}
+	});
 });
 
 // ── The plugin version ────────────────────────────────────────────────────

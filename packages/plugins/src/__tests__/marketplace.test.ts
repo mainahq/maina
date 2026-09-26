@@ -1,5 +1,5 @@
 /**
- * The Claude Code marketplace (v1 task 9.2, spec §5).
+ * The Claude Code (v1 task 9.2) and Cursor (task 9.3) marketplaces, spec §5.
  *
  * `/plugin marketplace add mainahq/maina` clones this repo and reads
  * `.claude-plugin/marketplace.json` at its root; `/plugin install
@@ -23,7 +23,10 @@ import { generate } from "../generate";
 import {
 	CLAUDE_MARKETPLACE_PATH,
 	CLAUDE_PLUGIN_SOURCE,
+	CURSOR_MARKETPLACE_PATH,
+	CURSOR_PLUGIN_SOURCE,
 	claudeMarketplace,
+	cursorMarketplace,
 } from "../generate/marketplace";
 import { loadSources } from "../sources";
 
@@ -134,5 +137,77 @@ describe("Claude Code marketplace", () => {
 		const path = join(REPO_ROOT, CLAUDE_MARKETPLACE_PATH);
 		expect(existsSync(path)).toBe(true);
 		expect(readFileSync(path, "utf-8")).toBe(claudeMarketplace(PLUGIN).content);
+	});
+});
+
+// ── Cursor (v1 task 9.3) ───────────────────────────────────────────────────
+
+const CURSOR_SCHEMA = join(
+	import.meta.dir,
+	"..",
+	"__fixtures__",
+	"cursor",
+	"schemas",
+	"marketplace.schema.json",
+);
+
+const cursorListing = (): Listing =>
+	JSON.parse(cursorMarketplace(PLUGIN).content) as Listing;
+
+function cursorValidator() {
+	const ajv = new Ajv2020({ allErrors: true, strict: true });
+	ajv.addKeyword({ keyword: "x-source" });
+	return ajv.compile(readJson(CURSOR_SCHEMA) as object);
+}
+
+/**
+ * The same repo is the listing for the Cursor Marketplace submission and a
+ * Team Marketplace: Dashboard, Plugins & MCPs, Import from Repo reads
+ * `.cursor-plugin/marketplace.json` at its root.
+ */
+describe("Cursor marketplace", () => {
+	test("sits where Cursor reads it: .cursor-plugin/marketplace.json at the repo root", () => {
+		expect(CURSOR_MARKETPLACE_PATH).toBe(".cursor-plugin/marketplace.json");
+		expect(cursorMarketplace(PLUGIN).path).toBe(CURSOR_MARKETPLACE_PATH);
+	});
+
+	test("validates against the documented marketplace schema", () => {
+		const validate = cursorValidator();
+		const ok = validate(cursorListing());
+		expect(validate.errors ?? []).toEqual([]);
+		expect(ok).toBe(true);
+	});
+
+	test("lists maina, from the generated Cursor package, which is the same plugin", () => {
+		const { name, plugins } = cursorListing();
+		expect(name).toBe(PLUGIN.name);
+		expect(plugins.map((p) => p.name)).toEqual([PLUGIN.name]);
+		const [entry] = plugins;
+		expect(entry?.source).toBe(CURSOR_PLUGIN_SOURCE);
+		const dir = join(REPO_ROOT, CURSOR_PLUGIN_SOURCE);
+		const manifest = readJson(join(dir, ".cursor-plugin", "plugin.json")) as {
+			name: string;
+			description: string;
+		};
+		expect(manifest.name).toBe(entry?.name ?? "");
+		expect(entry?.description).toBe(manifest.description);
+		for (const path of [
+			"hooks/hooks.json",
+			"mcp.json",
+			"rules/maina.mdc",
+			"launcher/launch.sh",
+		]) {
+			expect(existsSync(join(dir, path))).toBe(true);
+		}
+	});
+
+	test("pins no version: the plugin's manifest is the only one", () => {
+		expect(cursorListing().plugins[0]?.version).toBeUndefined();
+	});
+
+	test("the committed listing is what the generator writes (run `bun run plugins:generate`)", () => {
+		const path = join(REPO_ROOT, CURSOR_MARKETPLACE_PATH);
+		expect(existsSync(path)).toBe(true);
+		expect(readFileSync(path, "utf-8")).toBe(cursorMarketplace(PLUGIN).content);
 	});
 });

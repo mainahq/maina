@@ -143,8 +143,9 @@ export interface KnownFailure {
 }
 
 /**
- * Only the Cursor and Codex plugin paths still fail. History of the fixed
- * entries: #341 shipped the Claude Code marketplace and plugin.
+ * Only the Codex plugin path still fails. History of the fixed entries:
+ * #341 shipped the Claude Code marketplace and plugin, #342 the Cursor
+ * plugin and its marketplace listing.
  * #288 made `maina setup` merge `mcpServers.maina` into the project
  * `.mcp.json`, so claude-code with cli-setup passes. #294 made the CLI
  * write its own runtime and entry by absolute path, which fixed P3 for
@@ -155,13 +156,8 @@ export interface KnownFailure {
  * bare `bunx` whose first-spawn download also caused P4 there.
  */
 export const KNOWN_FAILURES: readonly KnownFailure[] = [
-	// Plugins: no host package yet (plan tasks 9.3–9.4). Claude Code's
-	// marketplace + plugin shipped with #341.
-	{
-		host: "cursor",
-		installPath: "plugin",
-		fixes: { "no-plugin": 342 },
-	},
+	// Plugins: no host package yet (plan task 9.4). Claude Code's
+	// marketplace + plugin shipped with #341, Cursor's with #342.
 	{ host: "codex", installPath: "plugin", fixes: { "no-plugin": 343 } },
 ];
 

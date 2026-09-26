@@ -237,6 +237,51 @@ describe("resolveLaunch", () => {
 		if (!r.ok) expect(r.error.kind).toBe("config-not-found");
 	});
 
+	// Cursor's plugin install (#342): the installed copy under
+	// ~/.cursor/plugins and its own `mcp.json`, in which Cursor expands
+	// `${CURSOR_PLUGIN_ROOT}` (command, args, env values, cwd).
+	const cursorRoot = "/h/.cursor/plugins/local/maina";
+	const cursorPluginFiles = {
+		[`${cursorRoot}/.cursor-plugin/plugin.json`]: JSON.stringify({
+			name: "maina",
+		}),
+		[`${cursorRoot}/mcp.json`]: JSON.stringify({
+			mcpServers: {
+				maina: {
+					command: `\${CURSOR_PLUGIN_ROOT}/launcher/launch.sh`,
+					args: ["mcp"],
+					env: { PLUGIN_DATA: `\${CURSOR_PLUGIN_ROOT}/data` },
+				},
+			},
+		}),
+	};
+
+	test("cursor starts an installed plugin's server, with the plugin root expanded", () => {
+		const r = resolveLaunch("cursor", ctx, files(cursorPluginFiles));
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		expect(r.value.command).toBe(`${cursorRoot}/launcher/launch.sh`);
+		expect(r.value.args).toEqual(["mcp"]);
+		expect(r.value.source).toBe(`${cursorRoot}/mcp.json`);
+		expect(r.value.env).toEqual({ PLUGIN_DATA: `${cursorRoot}/data` });
+	});
+
+	test("cursor's own mcp.json files beat a plugin's server", () => {
+		const r = resolveLaunch(
+			"cursor",
+			ctx,
+			files({ ...cursorPluginFiles, "/h/.cursor/mcp.json": entry("global") }),
+		);
+		expect(r.ok && r.value.command).toBe("global");
+	});
+
+	test("cursor ignores a folder under plugins/local that is not a plugin", () => {
+		const { [`${cursorRoot}/.cursor-plugin/plugin.json`]: _, ...rest } =
+			cursorPluginFiles;
+		const r = resolveLaunch("cursor", ctx, files(rest));
+		expect(r.ok).toBe(false);
+	});
+
 	test("malformed config is reported, not skipped", () => {
 		const r = resolveLaunch(
 			"cursor",
@@ -565,6 +610,20 @@ describe("KNOWN_FAILURES", () => {
 		for (const env of ENV_MODES) {
 			expect(
 				expectedFailure({ host: "claude-code", installPath: "plugin", env }),
+			).toBeUndefined();
+		}
+	});
+
+	test("cursor × plugin no longer waits on #342 (Cursor plugin)", () => {
+		// A Team Marketplace import (or the Cursor Marketplace) installs the
+		// generated package; its first session onboards and its MCP server
+		// verifies.
+		for (const k of KNOWN_FAILURES) {
+			expect(Object.values(k.fixes)).not.toContain(342);
+		}
+		for (const env of ENV_MODES) {
+			expect(
+				expectedFailure({ host: "cursor", installPath: "plugin", env }),
 			).toBeUndefined();
 		}
 	});

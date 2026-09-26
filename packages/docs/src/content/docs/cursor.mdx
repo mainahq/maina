@@ -1,0 +1,48 @@
+---
+title: Cursor
+description: Install the maina Cursor plugin from the Cursor Marketplace or a Team Marketplace, or add only the MCP server with one click.
+---
+
+import install from '../../data/cursor-mcp-install.json';
+
+The maina Cursor plugin puts the gate in front of the agent's risky actions, adds the maina MCP server, a rule and the skills, and verifies what a session changed before it stops. Nothing needs to be on `PATH`: the plugin bundles a launcher that installs the pinned maina runtime on first use and checks its signature.
+
+## Install the plugin
+
+**From the Cursor Marketplace.** Open **Customize** in the sidebar, find **Maina**, select **Install** and pick the project or user scope.
+
+**From a Team Marketplace.** An admin can make maina available to the whole team straight from this repository, without waiting for the marketplace listing:
+
+1. Open the Cursor dashboard, **Plugins & MCPs**, and click **Add Marketplace**.
+2. Choose **Import from Repo** and enter `https://github.com/mainahq/maina`.
+3. Set **Marketplace Access**, and turn on **Auto Refresh** to pick up each release.
+
+Cursor reads the listing at `.cursor-plugin/marketplace.json` in the repository root, which points at the generated plugin in `packages/plugins/dist/cursor`.
+
+## What the plugin installs
+
+| Component | What it does |
+|-----------|--------------|
+| `hooks/hooks.json` | `beforeShellExecution`, `beforeMCPExecution` and `preToolUse` send each action to the gate, with `failClosed` set, so a hook that crashes or times out blocks the action instead of letting it through. `sessionStart` adds maina's context, `afterFileEdit` keeps the code graph current and `stop` verifies the files the session edited. |
+| `mcp.json` | The maina MCP server (`verify`, `review_triage`, `decide`, `impact`, `status` and the other tools). |
+| `rules/maina.mdc` | An always-on rule: what the gate's deny and ask mean, that the gate is never worked around, and verify before done. |
+| `skills/` | The `gate`, `verify`, `spec`, `triage` and `graph` skills. See [Skills](/skills/). |
+
+The runtime, its socket and its pid file live in `data/` inside the plugin folder. Uninstalling the plugin removes them, and the runtime stops on its own.
+
+Two Cursor limits to know:
+
+- Cursor runs a `preToolUse` tool even when a hook answers ask, so maina blocks the file tools (`Write`, `Delete`, `Read`, `Grep`) it would ask about. The block message names the `maina allow <decision-id> --always` command that allows it. Shell and MCP asks still prompt.
+- A command or MCP tool on Cursor's allow-list runs without maina's ask. Keep risky commands off the allow-list; a maina deny still blocks.
+
+## MCP only
+
+If your team cannot install plugins, add only the maina MCP server:
+
+<p><a href={install.deeplink}>Add the maina MCP server to Cursor</a></p>
+
+The link adds this server to Cursor's MCP settings:
+
+<pre><code>{JSON.stringify({ mcpServers: { [install.name]: install.server } }, null, 2)}</code></pre>
+
+This installs no hooks, so there is no gate, no rule and no stop check: the agent only gets the MCP tools. The link runs the CLI through `npx`, because a link cannot know where Bun or maina live on your machine. If Cursor cannot find `npx` (a GUI launch on macOS gets a short `PATH`), install the CLI and run `maina mcp add --client cursor`, which writes the same entry with absolute paths. See [MCP](/mcp/).

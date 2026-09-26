@@ -1,10 +1,11 @@
 #!/usr/bin/env bun
 /**
- * Writes every host's plugin package to `dist/<host>/` and the Claude Code
- * marketplace listing to `.claude-plugin/marketplace.json` at the repo root
- * (both committed: the marketplaces install from the repo). `--check`
- * writes nothing and exits 1 when a committed file differs from what the
- * generator produces.
+ * Writes every host's plugin package to `dist/<host>/`, the Claude Code and
+ * Cursor marketplace listings to `.claude-plugin/marketplace.json` and
+ * `.cursor-plugin/marketplace.json` at the repo root, and the Cursor MCP
+ * install link to the docs data (all committed: the marketplaces install
+ * from the repo). `--check` writes nothing and exits 1 when a committed
+ * file differs from what the generator produces.
  *
  *   bun run plugins:generate
  *   bun run plugins:check
@@ -23,7 +24,11 @@ import {
 import { dirname, join, relative, sep } from "node:path";
 import { PLUGIN } from "../src/definition";
 import { type GeneratedFile, generate, HOSTS } from "../src/generate";
-import { claudeMarketplace } from "../src/generate/marketplace";
+import { cursorMcpInstall } from "../src/generate/deeplink";
+import {
+	claudeMarketplace,
+	cursorMarketplace,
+} from "../src/generate/marketplace";
 import { loadSources } from "../src/sources";
 
 const DIST_DIR = join(import.meta.dir, "..", "dist");
@@ -71,20 +76,19 @@ function write(dir: string, files: readonly GeneratedFile[]): void {
 	}
 }
 
-/** The marketplace listing at the repo root, or why it is stale. */
-function marketplace(check: boolean): readonly string[] {
-	const listing = claudeMarketplace(PLUGIN);
-	const full = join(REPO_ROOT, listing.path);
+/** A file outside `dist/`, from the repo root, or why it is stale. */
+function repoFile(generated: GeneratedFile, check: boolean): readonly string[] {
+	const full = join(REPO_ROOT, generated.path);
 	if (!check) {
 		mkdirSync(dirname(full), { recursive: true });
-		writeFileSync(full, listing.content);
-		process.stdout.write(`${listing.path}\n`);
+		writeFileSync(full, generated.content);
+		process.stdout.write(`${generated.path}\n`);
 		return [];
 	}
-	if (!existsSync(full)) return [`missing ${listing.path}`];
-	return readFileSync(full, "utf-8") === listing.content
+	if (!existsSync(full)) return [`missing ${generated.path}`];
+	return readFileSync(full, "utf-8") === generated.content
 		? []
-		: [`changed ${listing.path}`];
+		: [`changed ${generated.path}`];
 }
 
 const check = process.argv.includes("--check");
@@ -105,7 +109,11 @@ const problems = [
 		}
 		return staleness(dir, files).map((why) => `dist/${host}: ${why}`);
 	}),
-	...marketplace(check),
+	...[
+		claudeMarketplace(PLUGIN),
+		cursorMarketplace(PLUGIN),
+		cursorMcpInstall(PLUGIN, sources.version),
+	].flatMap((f) => repoFile(f, check)),
 ];
 
 if (problems.length > 0) {

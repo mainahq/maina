@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mainahq.com/fixtures/cursor/rule.schema.json",
+  "x-source": {
+    "url": "https://cursor.com/docs/reference/plugins",
+    "retrieved": "2026-09-26"
+  },
+  "title": "Cursor plugin rule front matter (rules/*.mdc)",
+  "description": "The YAML front matter every `.mdc` rule under `rules/` requires: a `description`, and `alwaysApply` (true attaches the rule to every conversation, false makes it available on request) or `globs` (the files it applies to).",
+  "type": "object",
+  "required": ["description"],
+  "properties": {
+    "description": { "type": "string", "minLength": 1 },
+    "alwaysApply": { "type": "boolean" },
+    "globs": {
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      ]
+    }
+  },
+  "anyOf": [
+    {
+      "properties": { "alwaysApply": { "type": "boolean" } },
+      "required": ["alwaysApply"]
+    },
+    {
+      "properties": { "globs": { "$ref": "#/properties/globs" } },
+      "required": ["globs"]
+    }
+  ],
+  "additionalProperties": false
+}
