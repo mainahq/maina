@@ -1214,19 +1214,91 @@ function globMatchesGateControl(path: string): boolean {
 	const dir = path.slice(0, slash + 1);
 	const glob = path.slice(slash + 1);
 	if (!/[*?[]/.test(glob)) return false;
-	const pattern = new RegExp(
-		`^${glob
-			.replace(/[.+^${}()|\\]/g, "\\$&")
-			// An unclosed `[` is a literal, not a class the RegExp would reject.
-			.replace(/\[(?![^\]]*\])/g, "\\[")
-			.replace(/\*+/g, ".*")
-			.replace(/\?/g, ".")
-			.replace(/\[!/g, "[^")}$`,
-		"i",
-	);
+	const tokens = globTokens(glob.toLowerCase());
 	return GATE_CONTROL_NAMES.some(
-		(name) => pattern.test(name) && isGateControlFile(`${dir}${name}`),
+		(name) => globMatches(tokens, name) && isGateControlFile(`${dir}${name}`),
 	);
+}
+
+type GlobToken =
+	| Readonly<{ kind: "star" }>
+	| Readonly<{ kind: "any" }>
+	| Readonly<{ kind: "set"; negate: boolean; body: string }>
+	| Readonly<{ kind: "char"; char: string }>;
+
+/** `*`, `?`, `[…]`/`[!…]` and literal characters; an unclosed `[` is literal. */
+function globTokens(glob: string): readonly GlobToken[] {
+	const tokens: GlobToken[] = [];
+	for (let i = 0; i < glob.length; i++) {
+		const c = glob[i] as string;
+		const close = c === "[" ? glob.indexOf("]", i + 2) : -1;
+		if (c === "*") tokens.push({ kind: "star" });
+		else if (c === "?") tokens.push({ kind: "any" });
+		else if (close > 0) {
+			const negate = glob[i + 1] === "!" || glob[i + 1] === "^";
+			tokens.push({
+				kind: "set",
+				negate,
+				body: glob.slice(negate ? i + 2 : i + 1, close),
+			});
+			i = close;
+		} else tokens.push({ kind: "char", char: c });
+	}
+	return tokens;
+}
+
+function tokenMatches(token: GlobToken, ch: string): boolean {
+	switch (token.kind) {
+		case "star":
+			return false;
+		case "any":
+			return true;
+		case "char":
+			return token.char === ch;
+		case "set":
+			return setHas(token.body, ch) !== token.negate;
+		default:
+			return assertNever(token);
+	}
+}
+
+/** Whether a bracket expression's body (`a-z`, `hc`) holds `ch`. */
+function setHas(body: string, ch: string): boolean {
+	for (let i = 0; i < body.length; i++) {
+		const lo = body[i] as string;
+		const hi = body[i + 2];
+		if (body[i + 1] === "-" && hi !== undefined) {
+			if (ch >= lo && ch <= hi) return true;
+			i += 2;
+		} else if (lo === ch) return true;
+	}
+	return false;
+}
+
+/**
+ * Wildcard match without a RegExp, so an agent's glob cannot make the gate
+ * backtrack for ever: one pass that falls back to the last `*`, O(n·m).
+ */
+function globMatches(tokens: readonly GlobToken[], name: string): boolean {
+	let t = 0;
+	let s = 0;
+	let star = -1;
+	let resume = 0;
+	while (s < name.length) {
+		const token = tokens[t];
+		if (token?.kind === "star") {
+			star = t++;
+			resume = s;
+		} else if (token !== undefined && tokenMatches(token, name[s] as string)) {
+			t++;
+			s++;
+		} else if (star >= 0) {
+			t = star + 1;
+			s = ++resume;
+		} else return false;
+	}
+	while (tokens[t]?.kind === "star") t++;
+	return t === tokens.length;
 }
 
 const DEPLOY_REMOTES: ReadonlySet<string> = new Set([

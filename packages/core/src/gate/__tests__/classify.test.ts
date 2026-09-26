@@ -882,6 +882,11 @@ describe("gate.self_override: the paths the #447 review left open (#513)", () =>
 		]) {
 			expect(classesOf(command), command).not.toContain(SELF);
 		}
+		// A glob built to backtrack cannot stall the gate.
+		const started = performance.now();
+		const evil = `git restore '.claude/${"*a".repeat(60)}b'`;
+		expect(classesOf(evil)).not.toContain(SELF);
+		expect(performance.now() - started).toBeLessThan(250);
 	});
 
 	test("a symlink over a control directory, or to a control path", () => {
