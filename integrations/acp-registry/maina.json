@@ -1,0 +1,17 @@
+{
+  "id": "maina",
+  "name": "Maina",
+  "version": "1.8.1",
+  "description": "Runs your coding agent (Claude Code by default) behind maina's gate: denied actions are rejected, allowed ones pass, only real questions reach you, and every session leaves a receipt",
+  "repository": "https://github.com/mainahq/maina",
+  "website": "https://mainahq.com",
+  "authors": ["Maina"],
+  "license": "Apache-2.0",
+  "license_url": "https://github.com/mainahq/maina/blob/master/LICENSE",
+  "distribution": {
+    "npx": {
+      "package": "@mainahq/cli@1.8.1",
+      "args": ["acp"]
+    }
+  }
+}

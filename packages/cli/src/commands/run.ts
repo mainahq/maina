@@ -308,6 +308,39 @@ function permissionLog(file: string): GateBridge["log"] {
 	};
 }
 
+type GateBridgeInput = Readonly<{
+	policy: Policy;
+	context: RunContext;
+	/** Where each permission record is appended, one JSON line each. */
+	logFile: string;
+	/** The branch the agent works on, for the gate's branch rules. */
+	currentBranch?: string;
+}>;
+
+/** The real gate (rules backends, bash grammar) with a JSONL permission log. */
+export async function createGateBridge(
+	input: GateBridgeInput,
+): Promise<GateBridge> {
+	const shell = await loadShellParser();
+	return {
+		ports: {
+			clock: { now: () => performance.now() },
+			backends: DEFAULT_REGISTRY,
+			ctx: {
+				shell: shell.ok ? shell.value : null,
+				home: homedir(),
+				...(input.currentBranch === undefined
+					? {}
+					: { currentBranch: input.currentBranch }),
+			},
+			newId: randomUUID,
+		},
+		policy: input.policy,
+		log: permissionLog(input.logFile),
+		context: input.context,
+	};
+}
+
 /**
  * The real setup: resolve the worker, give it a worktree, wrap its launch
  * in the OS sandbox (a run never starts unsandboxed), and gate its
@@ -355,24 +388,17 @@ async function prepareRun(
 	});
 	if (!sandboxed.ok) return abandon(sandboxed.error);
 
-	const shell = await loadShellParser();
-	const bridge: GateBridge = {
-		ports: {
-			clock: { now: () => performance.now() },
-			backends: DEFAULT_REGISTRY,
-			ctx: {
-				shell: shell.ok ? shell.value : null,
-				home: homedir(),
-				currentBranch: worktree.branch,
-			},
-			newId: randomUUID,
-		},
+	const bridge = await createGateBridge({
 		policy: input.policy,
-		log: permissionLog(
-			join(input.root, ".maina", "runs", `${input.runId}.permissions.jsonl`),
-		),
 		context: input.context,
-	};
+		logFile: join(
+			input.root,
+			".maina",
+			"runs",
+			`${input.runId}.permissions.jsonl`,
+		),
+		currentBranch: worktree.branch,
+	});
 
 	return {
 		ok: true,
@@ -392,7 +418,8 @@ async function prepareRun(
 	};
 }
 
-async function loadRunPolicy(
+/** The repo's policy, layered over the user's. */
+export async function loadRunPolicy(
 	root: string,
 ): Promise<Result<Policy, readonly PolicyError[]>> {
 	const user = await readUserPolicy({ fs: nodeFs }, homedir());
