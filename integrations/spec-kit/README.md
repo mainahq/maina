@@ -53,7 +53,11 @@ then fails and the run stops, so the workflow fails closed.
 
 The verdict comes from the same layered policy as the gate: defaults, then
 `~/.maina/policy.json`, then `.maina/policy.json`. An action class the policy
-does not name resolves to `ask`. For the overlay's `speckit.implement`:
+does not name resolves to `ask`. The policy's confidence threshold for the
+type applies too, as in the gate: an answer below it is not acted on, so
+`action.risk` answers `ask` and any other type answers `unsure`
+(`data.belowThreshold` is then `true`, and the backend's own answer stays in
+`data.decisions`). For the overlay's `speckit.implement`:
 
 ```json
 { "action_classes": { "speckit.implement": { "irreversible": false, "verdict": "allow" } } }

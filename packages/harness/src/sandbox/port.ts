@@ -7,7 +7,8 @@
  * (ADR 0048).
  *
  * `wrap` turns the command that starts a worker into the command that
- * starts it sandboxed. It never runs anything itself.
+ * starts it sandboxed. It never runs anything itself; `dispose` cleans up
+ * after the wrapped commands have exited.
  */
 
 import type { Result } from "@mainahq/core";
@@ -89,4 +90,10 @@ export type SandboxPort = Readonly<{
 	) => Result<Command, SandboxError>;
 	/** The decisions a wrapped process's stderr records, in order. */
 	decisions: (stderr: string) => readonly SandboxDecision[];
+	/**
+	 * Removes what `wrap` left on disk for the commands it wrapped (their
+	 * settings files). Call it once those commands have exited; wrapping
+	 * again afterwards is fine.
+	 */
+	dispose: () => void;
 }>;

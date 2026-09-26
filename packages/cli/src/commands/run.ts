@@ -86,6 +86,8 @@ export type PrepareInput = Readonly<{
 export type PreparedRun = Readonly<{
 	worktree: Readonly<{ path: string; branch: string }>;
 	ports: RevisionPorts;
+	/** Cleans up what setup left behind (the sandbox's temp files) once the run ends. */
+	release?: () => Promise<void> | void;
 }>;
 
 type Failure = Readonly<{ message: string; hint?: string }>;
@@ -160,11 +162,12 @@ export async function runAction(
 		return { ok: false, error: { kind: "prepare", ...prepared.error } };
 	}
 
-	const { worktree, ports } = prepared.value;
+	const { worktree, ports, release } = prepared.value;
+	// The sandbox is torn down once the agent is done, however the run ended.
 	const receipt = await runWithRevision(
 		{ task: options.task, context, budgets },
 		ports,
-	);
+	).finally(() => release?.());
 	const receiptPath = join(root.value, ".maina", "runs", `${runId}.json`);
 	const written = await deps.writeFile(
 		receiptPath,
@@ -368,7 +371,9 @@ async function prepareRun(
 	const created = await createWorktree(input.root, input.runId);
 	if (!created.ok) return created;
 	const worktree = created.value;
+	const sandbox = createSandboxRuntime();
 	const abandon = async (error: Failure): Promise<Result<never, Failure>> => {
+		sandbox.dispose();
 		await cleanup(input.runId, { root: input.root });
 		return { ok: false, error };
 	};
@@ -383,7 +388,7 @@ async function prepareRun(
 		...configured.launch,
 		env: { ...configured.launch.env, ...runEnv(input.runId) },
 	};
-	const sandboxed = createSandboxRuntime().wrap(launch, {
+	const sandboxed = sandbox.wrap(launch, {
 		...options.value,
 		credentials: credentialsFor(input.agent, processEnv),
 	});
@@ -415,6 +420,7 @@ async function prepareRun(
 				...(input.pr ? { openPr: prOpener(worktree, input.task) } : {}),
 				now: () => Date.now(),
 			},
+			release: () => sandbox.dispose(),
 		},
 	};
 }
