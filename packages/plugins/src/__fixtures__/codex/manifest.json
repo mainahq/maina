@@ -1,0 +1,19 @@
+{
+  "host": "codex",
+  "source": {
+    "url": "https://developers.openai.com/plugins/build/plugins",
+    "retrieved": "2026-09-26",
+    "notes": "Codex reads the portable Agent Plugins 1.0 layout (root plugin.json, mcp.json, skills/) with its own data under extensions[\"com.openai\"]. plugin.schema.json and mcp.schema.json are the Agent Plugins 1.0.0 schemas, copied unchanged with only x-source added. Hooks from https://developers.openai.com/codex/hooks. Hook event payloads are pinned by the runtime's codex fixtures (#375)."
+  },
+  "hookContracts": "codex",
+  "files": [
+    { "path": "plugin.json", "schema": "schemas/plugin.schema.json" },
+    {
+      "path": "plugin.json",
+      "pointer": "/extensions/com.openai",
+      "schema": "schemas/openai-extension.schema.json"
+    },
+    { "path": "hooks/hooks.json", "schema": "schemas/hooks.schema.json" },
+    { "path": "mcp.json", "schema": "schemas/mcp.schema.json" }
+  ]
+}

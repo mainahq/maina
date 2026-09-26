@@ -39,6 +39,7 @@
 
 import type { GateDecision, GateEvent } from "../gate";
 import type { SessionEvent } from "./claude-code";
+import type { HostHookMap } from "./hook-map";
 
 type GateHookEvent = "PreToolUse" | "PermissionRequest";
 
@@ -99,18 +100,17 @@ export const CODEX_APPLY_PATCH_WARNING =
  */
 const GATED_TOOLS = "^(Bash|apply_patch|mcp__.+)$";
 
-/** The hooks maina registers; PostToolUse is ignored, so not registered. */
-const REGISTERED: readonly string[] = [
-	"SessionStart",
-	"PreToolUse",
-	"PermissionRequest",
-	"Stop",
-];
-
-const TOOL_HOOKS: ReadonlySet<string> = new Set([
-	"PreToolUse",
-	"PermissionRequest",
-]);
+/**
+ * The hooks maina registers, by lifecycle point: the tool hooks match every
+ * tool maina gates. PostToolUse is ignored, so file edits register nothing.
+ */
+export const CODEX_HOOK_MAP: HostHookMap = {
+	"session.start": [{ event: "SessionStart" }],
+	"tool.before": [{ event: "PreToolUse", matcher: GATED_TOOLS }],
+	"permission.request": [{ event: "PermissionRequest", matcher: GATED_TOOLS }],
+	"file.edited": [],
+	"session.stop": [{ event: "Stop" }],
+};
 
 /** Every Codex hook event the adapter answers; the runtime routes on it. */
 export const CODEX_HOOK_EVENTS: ReadonlySet<string> = new Set([
@@ -442,20 +442,22 @@ export function codexHooksConfig(command: string): Readonly<{
 	warnings: readonly string[];
 }> {
 	const hooks = Object.fromEntries(
-		REGISTERED.map((event): [string, readonly HookGroup[]] => {
-			const hook: HookCommand = {
-				type: "command",
-				command: `${command} --host ${HOST} ${event}`,
-			};
-			return [
-				event,
-				[
-					TOOL_HOOKS.has(event)
-						? { matcher: GATED_TOOLS, hooks: [hook] }
-						: { hooks: [hook] },
-				],
-			];
-		}),
+		Object.values(CODEX_HOOK_MAP)
+			.flat()
+			.map(({ event, matcher }): [string, readonly HookGroup[]] => {
+				const hook: HookCommand = {
+					type: "command",
+					command: `${command} --host ${HOST} ${event}`,
+				};
+				return [
+					event,
+					[
+						matcher === undefined
+							? { hooks: [hook] }
+							: { matcher, hooks: [hook] },
+					],
+				];
+			}),
 	);
 	return { config: { hooks }, warnings: [CODEX_APPLY_PATCH_WARNING] };
 }

@@ -12,6 +12,7 @@ export default {
 				"adapters",
 				"mcp",
 				"skills",
+				"plugins",
 				"docs",
 				"ci",
 			],

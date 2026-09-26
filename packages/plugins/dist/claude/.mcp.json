@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "maina": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/launcher/launch.sh",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

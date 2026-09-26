@@ -1,0 +1,12 @@
+{
+  "host": "agent-plugins",
+  "source": {
+    "url": "https://agent-plugins.org/specification",
+    "retrieved": "2026-09-26",
+    "notes": "Agent Plugins 1.0.0 (VS Code agent mode, Copilot). Both schemas copied unchanged from https://agent-plugins.org/schemas/1.0.0/ with only x-source added. The core specification defines no hooks; they belong to client extension namespaces, so this package has none."
+  },
+  "files": [
+    { "path": "plugin.json", "schema": "schemas/plugin.schema.json" },
+    { "path": "mcp.json", "schema": "schemas/mcp.schema.json" }
+  ]
+}

@@ -29,6 +29,7 @@
  */
 
 import type { GateDecision, GateEvent } from "../gate";
+import type { HostHookMap } from "./hook-map";
 
 /** A session boundary, for the session summary. */
 export type SessionEvent = Readonly<{
@@ -75,6 +76,25 @@ export type ClaudeOutput = Readonly<{
 }>;
 
 const HOST = "claude-code";
+
+/**
+ * The tools maina gates (see `mapTool`), as an anchored Claude Code matcher
+ * regex. Every other tool is ignored, so the hook need not run for it.
+ */
+const GATED_TOOLS =
+	"^(Bash|Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|WebFetch|mcp__.*)$";
+
+/**
+ * The hooks maina registers, by lifecycle point (the Claude Code plugin is
+ * generated from it). PostToolUse is ignored, so file edits register nothing.
+ */
+export const CLAUDE_HOOK_MAP: HostHookMap = {
+	"session.start": [{ event: "SessionStart" }],
+	"tool.before": [{ event: "PreToolUse", matcher: GATED_TOOLS }],
+	"permission.request": [{ event: "PermissionRequest", matcher: GATED_TOOLS }],
+	"file.edited": [],
+	"session.stop": [{ event: "Stop" }],
+};
 
 /** Every Claude Code hook event the adapter answers; the runtime routes on it. */
 export const CLAUDE_HOOK_EVENTS: ReadonlySet<string> = new Set([

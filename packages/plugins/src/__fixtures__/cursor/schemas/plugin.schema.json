@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mainahq.com/fixtures/cursor/plugin.schema.json",
+  "x-source": {
+    "url": "https://cursor.com/docs/reference/plugins",
+    "retrieved": "2026-09-26"
+  },
+  "title": "Cursor plugin manifest (.cursor-plugin/plugin.json)",
+  "description": "The documented fields. `name` is lowercase kebab-case (alphanumerics, hyphens and periods) and starts and ends with an alphanumeric character.",
+  "type": "object",
+  "required": ["name"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$"
+    },
+    "description": { "type": "string" },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "author": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "email": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "homepage": { "type": "string" },
+    "repository": { "type": "string" },
+    "license": { "type": "string" },
+    "keywords": { "type": "array", "items": { "type": "string" } },
+    "logo": { "type": "string" },
+    "rules": { "$ref": "#/$defs/paths" },
+    "agents": { "$ref": "#/$defs/paths" },
+    "skills": { "$ref": "#/$defs/paths" },
+    "commands": { "$ref": "#/$defs/paths" },
+    "hooks": { "anyOf": [{ "type": "string" }, { "type": "object" }] },
+    "mcpServers": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "object" },
+        { "type": "array" }
+      ]
+    },
+    "variables": { "type": "object" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "paths": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    }
+  }
+}

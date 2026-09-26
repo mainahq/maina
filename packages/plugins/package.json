@@ -1,0 +1,20 @@
+{
+  "name": "@mainahq/plugins",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Maina host plugins: one definition that generates the Claude Code, Cursor, Codex and Agent Plugins packages in dist/",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mainahq/runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "ajv": "^8.18.0"
+  }
+}

@@ -1,5 +1,7 @@
 node_modules/
 dist/
+# Host plugin packages are generated and committed: marketplaces install them.
+!packages/plugins/dist/
 *.tsbuildinfo
 .DS_Store
 .cursor/

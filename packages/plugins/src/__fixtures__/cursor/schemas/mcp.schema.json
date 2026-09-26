@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mainahq.com/fixtures/cursor/mcp.schema.json",
+  "x-source": {
+    "url": "https://cursor.com/docs/reference/plugins",
+    "retrieved": "2026-09-26"
+  },
+  "title": "Cursor plugin MCP servers (mcp.json)",
+  "description": "An `mcpServers` map of server name to config. Cursor expands `${CURSOR_PLUGIN_ROOT}` (and `${CLAUDE_PLUGIN_ROOT}`) to the plugin's install path in command, args, env values and cwd.",
+  "type": "object",
+  "required": ["mcpServers"],
+  "properties": {
+    "mcpServers": {
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [{ "$ref": "#/$defs/stdio" }, { "$ref": "#/$defs/remote" }]
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "stdio": {
+      "type": "object",
+      "required": ["command"],
+      "properties": {
+        "type": { "const": "stdio" },
+        "command": { "type": "string", "minLength": 1 },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "cwd": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "remote": {
+      "type": "object",
+      "required": ["url"],
+      "properties": {
+        "url": { "type": "string", "minLength": 1 },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

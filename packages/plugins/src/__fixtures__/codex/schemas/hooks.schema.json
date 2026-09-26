@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mainahq.com/fixtures/codex/hooks.schema.json",
+  "x-source": {
+    "url": "https://developers.openai.com/codex/hooks",
+    "retrieved": "2026-09-26"
+  },
+  "title": "Codex plugin hooks (hooks/hooks.json)",
+  "description": "Event, then matcher groups (regex), then command handlers. Plugin hook commands get PLUGIN_ROOT and PLUGIN_DATA. Hooks fail open: a timeout, crash or error lets the action proceed; only a PreToolUse or PermissionRequest deny (exit 2) blocks.",
+  "type": "object",
+  "required": ["hooks"],
+  "properties": {
+    "hooks": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "PreToolUse",
+          "PermissionRequest",
+          "PostToolUse",
+          "PreCompact",
+          "PostCompact",
+          "UserPromptSubmit",
+          "SubagentStop",
+          "Stop",
+          "SessionStart",
+          "SessionEnd",
+          "SubagentStart",
+          "Interrupt"
+        ]
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "#/$defs/group" }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "group": {
+      "type": "object",
+      "required": ["hooks"],
+      "properties": {
+        "matcher": { "type": "string" },
+        "hooks": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/command" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "command": {
+      "type": "object",
+      "required": ["type", "command"],
+      "properties": {
+        "type": { "const": "command" },
+        "command": { "type": "string", "minLength": 1 },
+        "timeout": { "type": "number", "exclusiveMinimum": 0 },
+        "statusMessage": { "type": "string" },
+        "additionalContextLimit": { "type": "number" },
+        "async": { "type": "boolean" },
+        "commandWindows": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
