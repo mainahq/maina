@@ -10,6 +10,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
 	ALL_TOOLS,
+	allowListNotices,
 	DEEPWIKI_TOOLS,
 	DEFAULT_TOOLS,
 	readToolsFlag,
@@ -80,6 +81,49 @@ describe("createMcpServer({ tools })", () => {
 			arguments: { root: "/repo", files: [] },
 		});
 		expect(result.isError).toBe(true);
+	});
+});
+
+describe("an allow-list with no known tool (#542)", () => {
+	test("an empty list serves tools/list with no tools", async () => {
+		expect(await listedNames([])).toEqual([]);
+	});
+
+	test("a list of unknown names serves tools/list with no tools", async () => {
+		expect(await listedNames(["list_tools", "nope"])).toEqual([]);
+	});
+
+	test("calling a tool answers a clear not-found error naming it", async () => {
+		const client = await connect(fakeRuntime().runtime, { tools: [] });
+		await expect(
+			client.callTool({ name: "verify", arguments: { root: "/repo" } }),
+		).rejects.toThrow(/verify/);
+	});
+
+	test("no prompt is served either", async () => {
+		const client = await connect(fakeRuntime().runtime, { tools: [] });
+		expect(client.getServerCapabilities()?.prompts).toBeUndefined();
+	});
+});
+
+describe("allowListNotices", () => {
+	test("the default set needs no notice", () => {
+		expect(allowListNotices(resolveAllowList({}))).toEqual([]);
+	});
+
+	test("unknown names are reported against their source", () => {
+		expect(
+			allowListNotices(resolveAllowList({ flag: "verify,list_tools" })),
+		).toEqual([
+			"maina mcp: ignoring unknown tool(s) in the --tools flag: list_tools",
+		]);
+	});
+
+	test("a list with no known tool says the server serves no tools", () => {
+		expect(allowListNotices(resolveAllowList({ env: "nope" }))).toEqual([
+			`maina mcp: ignoring unknown tool(s) in the ${TOOLS_ENV}: nope`,
+			`maina mcp: the ${TOOLS_ENV} names no known tool, so no tools are served`,
+		]);
 	});
 });
 

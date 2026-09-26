@@ -8,9 +8,11 @@
  * resolves its root through the runtime, takes explicit files, paths or a
  * query, and answers with a `{ data, error, meta }` structured result plus
  * a text summary; a tool that throws answers with a `failed` error and the
- * server keeps serving (FR-MCP-5). The server reports maina's `VERSION`.
+ * server keeps serving (FR-MCP-5). An allow-list that names no known tool
+ * serves an empty `tools/list`. The server reports maina's `VERSION`.
  * The prompts (FR-MCP-3) are registered through `registerPrompt`, each
- * only when every tool it names is registered.
+ * only when every tool it names is registered; a prompt whose render
+ * throws answers with a `failed` error, like a tool.
  *
  * `startMcp` serves a server over stdio, where stdout carries protocol
  * frames only. `startServer` is the process entry the CLI (`maina --mcp`)
@@ -24,6 +26,13 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
+	CallToolRequestSchema,
+	ErrorCode,
+	ListToolsRequestSchema,
+	McpError,
+} from "@modelcontextprotocol/sdk/types.js";
+import {
+	allowListNotices,
 	DEFAULT_TOOLS,
 	knownTools,
 	readToolsFlag,
@@ -146,13 +155,44 @@ function registerPrompt(server: McpServer, def: PromptDefinition): void {
 	server.registerPrompt(
 		def.name,
 		{ title: def.title, description: def.description, argsSchema: def.args },
-		(args: Readonly<Record<string, string | undefined>>) => ({
-			description: def.description,
-			messages: [
-				{ role: "user", content: { type: "text", text: def.render(args) } },
-			],
-		}),
+		(args: Readonly<Record<string, string | undefined>>) => {
+			// A render that throws answers like a failing tool: a `failed`
+			// error naming the prompt, and the server keeps serving. The SDK
+			// turns a thrown McpError into the JSON-RPC error response.
+			let text: string;
+			try {
+				text = def.render(args);
+			} catch (e) {
+				throw new McpError(
+					ErrorCode.InternalError,
+					`${def.name}: ${errorText(e)}`,
+					{ kind: "failed", prompt: def.name, version: VERSION },
+				);
+			}
+			return {
+				description: def.description,
+				messages: [{ role: "user", content: { type: "text", text } }],
+			};
+		},
 	);
+}
+
+/**
+ * A server with no tools still answers the tools capability it declares:
+ * `tools/list` lists none and `tools/call` names the tool it cannot find.
+ * The SDK installs both handlers on the first `registerTool`, which a
+ * server whose allow-list names no known tool never makes.
+ */
+function serveNoTools(server: McpServer): void {
+	server.server.setRequestHandler(ListToolsRequestSchema, () => ({
+		tools: [],
+	}));
+	server.server.setRequestHandler(CallToolRequestSchema, (request) => {
+		throw new McpError(
+			ErrorCode.InvalidParams,
+			`Tool ${request.params.name} not found: the allow-list names no known tool`,
+		);
+	});
 }
 
 export function createMcpServer(
@@ -170,6 +210,7 @@ export function createMcpServer(
 	for (const name of enabled) {
 		register(server, runtime, DEFINITIONS[name], enabled);
 	}
+	if (enabled.length === 0) serveNoTools(server);
 	for (const prompt of servablePrompts(enabled)) {
 		registerPrompt(server, prompt);
 	}
@@ -218,6 +259,35 @@ function writeToStderr(
 	return written;
 }
 
+type ProcessEvents = Readonly<{
+	on: (event: string, listener: (error: unknown) => void) => unknown;
+}>;
+
+/**
+ * FR-MCP-5 outside any request: a detached promise that rejects, or a
+ * timer that throws, is logged on stderr and the process keeps serving.
+ * Without a listener either one ends the process, and every open session
+ * with it. Installed by the process entry only (`startServer`).
+ */
+export function keepServingOnStrayErrors(
+	proc: ProcessEvents = process,
+	write: (line: string) => void = (line) => {
+		process.stderr.write(line);
+	},
+): void {
+	// A throw inside an `uncaughtException` listener is fatal, so the log
+	// line (stderr may be gone: EPIPE after the host closed it) never throws.
+	const log = (what: string) => (error: unknown) => {
+		try {
+			write(`maina mcp: ${what} (still serving): ${errorText(error)}\n`);
+		} catch {
+			// Nowhere left to report it; keep serving.
+		}
+	};
+	proc.on("uncaughtException", log("uncaught exception"));
+	proc.on("unhandledRejection", log("unhandled rejection"));
+}
+
 /**
  * Serves the allow-listed tools until the client disconnects, over stdio
  * unless a `transport` is given. From here on stdout belongs to the
@@ -246,20 +316,21 @@ export type StartServerInput = Readonly<{
 
 /**
  * The MCP process entry: allow-list from `--tools` or `MAINA_MCP_TOOLS`,
- * the system runtime, stdio. Unknown tool names are reported on stderr
- * (never stdout, which carries the protocol) and skipped.
+ * the system runtime, stdio. Unknown tool names, and an allow-list that
+ * names no known tool, are reported on stderr (never stdout, which
+ * carries the protocol). A stray error outside any request is logged,
+ * never fatal.
  */
 export async function startServer(input: StartServerInput): Promise<void> {
 	// Core modules stay silent on stderr while serving MCP.
 	process.env.MAINA_MCP_SERVER = "1";
+	keepServingOnStrayErrors();
 	const allow = resolveAllowList({
 		flag: readToolsFlag(input.argv),
 		env: input.env[TOOLS_ENV],
 	});
-	if (allow.unknown.length > 0) {
-		process.stderr.write(
-			`maina mcp: ignoring unknown tool(s) in the ${allow.source === "flag" ? "--tools flag" : TOOLS_ENV}: ${allow.unknown.join(", ")}\n`,
-		);
+	for (const notice of allowListNotices(allow)) {
+		process.stderr.write(`${notice}\n`);
 	}
 	const runtime = systemRuntime({
 		cwd: input.cwd,
