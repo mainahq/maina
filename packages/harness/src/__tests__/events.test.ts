@@ -8,6 +8,7 @@ import {
 	chooseOption,
 	type HarnessEvent,
 	INITIAL_STATE,
+	isVerdict,
 	type NormaliseContext,
 	type NormaliseState,
 	normalisePermission,
@@ -401,5 +402,14 @@ describe("chooseOption", () => {
 		expect(
 			chooseOption([{ optionId: "a", name: "A", kind: "allow_once" }], "deny"),
 		).toBeUndefined();
+	});
+});
+
+describe("isVerdict", () => {
+	test("only the three gate verdicts count, never a prototype key or a near miss", () => {
+		expect(["allow", "ask", "deny"].every(isVerdict)).toBe(true);
+		for (const junk of ["ALLOW", "toString", "", undefined, null, 1, {}]) {
+			expect(isVerdict(junk)).toBe(false);
+		}
 	});
 });

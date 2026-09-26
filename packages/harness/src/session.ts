@@ -24,6 +24,7 @@ import {
 	type HarnessError,
 	type HarnessEvent,
 	INITIAL_STATE,
+	isVerdict,
 	type NormaliseContext,
 	type NormaliseState,
 	normalisePermission,
@@ -63,12 +64,14 @@ const settle = <T>(promise: Promise<T>): Promise<Settled<T>> =>
 const reason = (error: unknown): string =>
 	error instanceof Error ? error.message : String(error);
 
+/** The policy's verdict; a policy that throws, rejects or answers junk denies. */
 async function judge(
 	policy: PermissionPolicy,
 	request: PermissionRequest,
 ): Promise<Verdict> {
 	const verdict = await settle(Promise.resolve().then(() => policy(request)));
-	return verdict.ok ? verdict.value : "deny";
+	// Anything but a known verdict (an untyped policy, a bad cast) denies.
+	return verdict.ok && isVerdict(verdict.value) ? verdict.value : "deny";
 }
 
 /** Runs one prompt turn to its stop reason, or the error that ended it. */

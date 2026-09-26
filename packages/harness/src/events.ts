@@ -428,6 +428,10 @@ const PREFERENCE: Readonly<Record<Verdict, readonly PermissionOptionKind[]>> = {
 	deny: ["reject_once", "reject_always"],
 };
 
+/** A known verdict: the keys of the (exhaustive) preference table. */
+export const isVerdict = (value: unknown): value is Verdict =>
+	typeof value === "string" && Object.hasOwn(PREFERENCE, value);
+
 /**
  * The option that answers a verdict, or undefined (answer `cancelled`) when
  * the agent offers none that fits. Never an allow for a deny, and never a

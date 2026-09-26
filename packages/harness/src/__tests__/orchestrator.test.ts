@@ -294,6 +294,38 @@ describe("startRun: tool calls", () => {
 			text: "permission:no",
 		});
 	});
+
+	test("a policy that answers something other than a verdict denies", async () => {
+		const events = await collect(
+			startRun(
+				options(
+					{
+						steps: [
+							{
+								permission: {
+									toolCall: { toolCallId: "t1", kind: "edit" },
+									options: [
+										{ optionId: "yes", name: "Allow", kind: "allow_once" },
+										{ optionId: "no", name: "Reject", kind: "reject_once" },
+									],
+								},
+							},
+						],
+					},
+					// An untyped policy (a JS plugin, a bad cast) is not trusted.
+					{ policy: (() => "ALLOW") as unknown as PermissionPolicy },
+				),
+			),
+		);
+		expect(events).toContainEqual({
+			type: "message",
+			role: "agent",
+			text: "permission:no",
+		});
+		expect(events).toContainEqual(
+			expect.objectContaining({ type: "permission", verdict: "deny" }),
+		);
+	});
 });
 
 describe("startRun: cancellation", () => {
