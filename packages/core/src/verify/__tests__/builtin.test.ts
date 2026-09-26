@@ -62,6 +62,33 @@ describe("checkConsoleLogs", () => {
 		const findings = checkConsoleLogs("src/app.ts", content);
 		expect(findings).toHaveLength(0);
 	});
+
+	it("skips dev-only repo scripts under scripts/ and ci/ (#380)", () => {
+		const content = `console.log("generated");\nconsole.error("failed");\n`;
+		for (const file of [
+			"scripts/generate-schemas.ts",
+			"scripts/dogfood/receipt.ts",
+			"./scripts/check-paths.ts",
+			"ci/e2e/run.ts",
+			"scripts\\generate-schemas.ts",
+		]) {
+			expect(checkConsoleLogs(file, content)).toEqual([]);
+		}
+	});
+
+	it("still flags package source whose path merely contains scripts/ or ci/", () => {
+		const content = `console.log("x");\n`;
+		for (const file of [
+			"packages/cli/src/scripts/run.ts",
+			"packages/core/src/ci/detect.ts",
+			"src/bench/timer.ts",
+			"myscripts/tool.ts",
+			// Not covered by the Biome noConsole override, so still checked.
+			"bench/run.ts",
+		]) {
+			expect(checkConsoleLogs(file, content)).toHaveLength(1);
+		}
+	});
 });
 
 // ─── checkTodoComments ───────────────────────────────────────────────────
@@ -490,5 +517,14 @@ describe("runBuiltinChecks on non-code data files", () => {
 			);
 			expect(ids).toContain("no-console-log");
 		}
+	});
+
+	it("does not report console usage in scripts/ but keeps other checks (#380)", () => {
+		const ids = runBuiltinChecks(
+			"scripts/generate-schemas.ts",
+			'console.log("wrote schema");\nconst token = "sk_live_abcdef1234567890";\n',
+		).map((f) => f.ruleId);
+		expect(ids).not.toContain("no-console-log");
+		expect(ids).toContain("hardcoded-secret");
 	});
 });
