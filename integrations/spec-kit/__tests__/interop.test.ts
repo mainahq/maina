@@ -8,7 +8,8 @@
  *    stock `speckit` workflow's `implement` step that way).
  * 2. The Spec Kit extension (`extension/`) registers the `pre_tool_use` agent
  *    event to `speckit.maina.gate`, which hands the host's hook payload to
- *    the Maina gate (`maina hook <event>`) and fails closed to `ask`.
+ *    the Maina gate (`maina hook --host <host> <event>`) and fails closed
+ *    like the runtime's `failClosedHook(host, event, cause)`.
  * 3. Maina reads Spec Kit `specs/<feature>/{spec,plan,tasks}.md` as feature
  *    input (`maina analyze`).
  *
@@ -33,7 +34,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { failClosedHook } from "../../../packages/runtime/src/standalone/hook-fallback";
+import {
+	failClosedHook,
+	type HookHost,
+} from "../../../packages/runtime/src/standalone/hook-fallback";
 
 // Spec Kit is a Python CLI: each `specify` call costs ~0.5 s to start.
 setDefaultTimeout(120_000);
@@ -104,14 +108,18 @@ type Sandbox = Readonly<{
 	env: Record<string, string>;
 }>;
 
-/** A stub `maina` that records its arguments and stdin and prints `reply`. */
-function stubMaina(reply: string, exitCode = 0): string {
+/**
+ * A stub `maina` that records its arguments and stdin, prints `reply` (and
+ * `stderr` on stderr) and exits with `exitCode`.
+ */
+function stubMaina(reply: string, exitCode = 0, stderr = ""): string {
 	return [
 		"#!/bin/sh",
 		'here=$(dirname "$0")',
 		'printf \'%s\' "$*" > "$here/args.txt"',
 		'cat > "$here/stdin.json"',
 		`printf '%s' '${reply}'`,
+		`printf '%s' '${stderr}' >&2`,
 		`exit ${exitCode}`,
 		"",
 	].join("\n");
@@ -138,7 +146,14 @@ function sandbox(
 	}
 	const env: Record<string, string> = {};
 	for (const [key, value] of Object.entries(process.env)) {
-		if (value !== undefined && !key.startsWith("SPECIFY_")) env[key] = value;
+		// CLAUDE_PROJECT_DIR marks a Claude Code hook run: tests set it.
+		if (
+			value !== undefined &&
+			!key.startsWith("SPECIFY_") &&
+			key !== "CLAUDE_PROJECT_DIR"
+		) {
+			env[key] = value;
+		}
 	}
 	Object.assign(env, {
 		PATH: `${bin}:${process.env.PATH ?? "/usr/bin:/bin"}`,
@@ -265,51 +280,93 @@ describe("Spec Kit extension manifest", () => {
 
 describe("pre_tool_use handler", () => {
 	const script = join(EXTENSION, "events", "pre-tool-use.sh");
-	const cases = [
+	/** Claude Code sets it for every hook command (Spec Kit's needs it). */
+	const inClaudeCode = { CLAUDE_PROJECT_DIR: "/home/user/project" };
+
+	/**
+	 * Which host a payload is routed to (`maina hook --host <host> <event>`),
+	 * or `undefined` when nothing names the host: a PascalCase event could be
+	 * Claude Code or Codex, so `maina hook <event>` fails closed as ambiguous.
+	 */
+	const cases: readonly Readonly<{
+		name: string;
+		fixture: readonly [string, string];
+		env: Record<string, string>;
+		host: HookHost | undefined;
+		event: string;
+	}>[] = [
 		{
-			host: "claude-code",
-			file: "pre-tool-use.bash.input.json",
+			name: "a Claude Code payload in a Claude Code hook",
+			fixture: ["claude-code", "pre-tool-use.bash.input.json"],
+			env: inClaudeCode,
+			host: "claude",
 			event: "PreToolUse",
 		},
 		{
+			name: "a Codex payload",
+			fixture: ["codex", "pre-tool-use.bash.input.json"],
+			env: {},
+			host: "codex",
+			event: "PreToolUse",
+		},
+		{
+			// A Codex payload always carries turn_id; it beats the environment.
+			name: "a Codex payload with CLAUDE_PROJECT_DIR set",
+			fixture: ["codex", "pre-tool-use.apply-patch.input.json"],
+			env: inClaudeCode,
+			host: "codex",
+			event: "PreToolUse",
+		},
+		{
+			name: "a Cursor preToolUse payload",
+			fixture: ["cursor", "pre-tool-use.shell.input.json"],
+			env: {},
 			host: "cursor",
-			file: "pre-tool-use.shell.input.json",
 			event: "preToolUse",
+		},
+		{
+			name: "a Cursor beforeShellExecution payload",
+			fixture: ["cursor", "before-shell-execution.input.json"],
+			env: {},
+			host: "cursor",
+			event: "beforeShellExecution",
+		},
+		{
+			name: "a PascalCase payload no host is known for",
+			fixture: ["claude-code", "pre-tool-use.bash.input.json"],
+			env: {},
+			host: undefined,
+			event: "PreToolUse",
 		},
 	];
 
-	for (const { host, file, event } of cases) {
-		test(`hands a ${host} payload to \`maina hook ${event}\` and prints its answer`, () => {
+	const hookArgs = (host: HookHost | undefined, event: string) =>
+		host === undefined ? `hook ${event}` : `hook --host ${host} ${event}`;
+
+	for (const { name, fixture, env, host, event } of cases) {
+		const args = hookArgs(host, event);
+
+		test(`hands ${name} to \`maina ${args}\` and prints its answer`, () => {
 			const reply = '{"decision":"from-maina"}';
 			const sb = sandbox({ maina: stubMaina(reply) });
-			const payload = hookPayload(host, file);
+			const payload = hookPayload(...fixture);
 
-			const result = run([script], sb, { stdin: payload });
+			const result = run([script], sb, { stdin: payload, env });
 
 			expect(result.code).toBe(0);
 			expect(result.stdout.trim()).toBe(reply);
-			expect(readFileSync(join(sb.bin, "args.txt"), "utf8")).toBe(
-				`hook ${event}`,
-			);
+			expect(readFileSync(join(sb.bin, "args.txt"), "utf8")).toBe(args);
 			expect(
 				JSON.parse(readFileSync(join(sb.bin, "stdin.json"), "utf8")),
 			).toEqual(JSON.parse(payload));
 		});
 
-		test(`fails closed to ask for ${host} when maina cannot answer`, () => {
-			const payload = hookPayload(host, file);
-			// The handler asks on every pre-tool event for now; per-host
-			// routing and the runtime's denies are mainahq/maina#484. Cursor's
-			// ask carries no event name, so beforeShellExecution's is the same.
-			const expected = `${
-				host === "cursor"
-					? failClosedHook("cursor", "beforeShellExecution", "gate_unavailable")
-							.line
-					: failClosedHook("claude", event, "gate_unavailable").line
-			}\n`;
+		test(`fails closed like the runtime for ${name} when maina cannot answer`, () => {
+			const payload = hookPayload(...fixture);
+			const expected = failClosedHook(host, event, "gate_unavailable");
 			const broken = [
 				sandbox({ maina: null }),
-				sandbox({ maina: stubMaina('{"x":1}', 1) }),
+				sandbox({ maina: stubMaina('{"x":1}', 1, "boom") }),
 				sandbox({ maina: stubMaina("") }),
 				// The npm CLI has no `hook` command yet: it exits non-zero.
 				sandbox(),
@@ -317,13 +374,29 @@ describe("pre_tool_use handler", () => {
 			for (const sb of broken) {
 				const result = run([script], sb, {
 					stdin: payload,
-					env: { PATH: `${sb.bin}:/usr/bin:/bin:${dirOfBun()}` },
+					env: { ...env, PATH: `${sb.bin}:/usr/bin:/bin:${dirOfBun()}` },
 				});
-				expect(result.code).toBe(0);
-				expect(result.stdout).toBe(expected);
+				expect(result.stdout).toBe(`${expected.line}\n`);
+				expect(result.stderr).toBe(expected.stderr);
+				expect(result.code).toBe(expected.exitCode);
 			}
 		});
 	}
+
+	test("passes maina's deny through with its exit code 2 and stderr", () => {
+		const deny =
+			'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"blocked by policy"}}';
+		const sb = sandbox({ maina: stubMaina(deny, 2, "blocked by policy") });
+
+		const result = run([script], sb, {
+			stdin: hookPayload("claude-code", "pre-tool-use.bash.input.json"),
+			env: inClaudeCode,
+		});
+
+		expect(result.code).toBe(2);
+		expect(result.stdout).toBe(`${deny}\n`);
+		expect(result.stderr).toBe("blocked by policy");
+	});
 
 	test("a payload without a pre-tool event name is treated as PreToolUse", () => {
 		const payloads = [
@@ -333,9 +406,9 @@ describe("pre_tool_use handler", () => {
 		];
 		for (const stdin of payloads) {
 			const sb = sandbox({ maina: stubMaina("{}") });
-			run([script], sb, { stdin });
+			run([script], sb, { stdin, env: inClaudeCode });
 			expect(readFileSync(join(sb.bin, "args.txt"), "utf8")).toBe(
-				"hook PreToolUse",
+				"hook --host claude PreToolUse",
 			);
 		}
 	});
@@ -577,7 +650,50 @@ describe("with a stock Spec Kit v1 CLI", () => {
 			expect(result.code).toBe(0);
 			expect(result.stdout.trim()).toBe(reply);
 			expect(readFileSync(join(sb.bin, "args.txt"), "utf8")).toBe(
-				"hook PreToolUse",
+				"hook --host claude PreToolUse",
+			);
+		},
+	);
+
+	live(
+		"installing the extension registers pre_tool_use with Codex and routes it to the Codex adapter",
+		() => {
+			const deny =
+				'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"no"}}';
+			const sb = sandbox({ maina: stubMaina(deny, 2, "no"), empty: true });
+			const init = specify(sb, [
+				"init",
+				"--here",
+				"--integration",
+				"codex",
+				"--script",
+				"sh",
+				"--ignore-agent-tools",
+				"--force",
+			]);
+			expect(init.code).toBe(0);
+			const added = specify(sb, ["extension", "add", "--dev", EXTENSION]);
+			expect(added.code).toBe(0);
+
+			const config = Bun.TOML.parse(
+				readFileSync(join(sb.dir, ".codex", "config.toml"), "utf8"),
+			) as { hooks: Record<string, readonly Yaml[]> };
+			const hooks = (config.hooks.PreToolUse ?? []).flatMap(
+				(entry) => entry.hooks as readonly Yaml[],
+			);
+			const gate = hooks.find((h) =>
+				String(h.command).includes("speckit.maina.gate pre_tool_use"),
+			);
+			expect(gate).toBeDefined();
+
+			// Run the hook command as Codex would: a deny keeps exit 2.
+			const result = run(["/bin/sh", "-c", String(gate?.command)], sb, {
+				stdin: hookPayload("codex", "pre-tool-use.bash.input.json"),
+			});
+			expect(result.stdout.trim()).toBe(deny);
+			expect(result.code).toBe(2);
+			expect(readFileSync(join(sb.bin, "args.txt"), "utf8")).toBe(
+				"hook --host codex PreToolUse",
 			);
 		},
 	);

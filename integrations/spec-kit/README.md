@@ -5,7 +5,7 @@ project (FR-SPEC-7, mainahq/maina#333). Three pieces, each usable alone:
 
 | Piece | What it does |
 | --- | --- |
-| `extension/` | A Spec Kit extension. Its `pre_tool_use` event runs `speckit.maina.gate` on every agent tool call, which asks the Maina gate (`maina hook <event>`) and answers `ask` when Maina cannot. `after_tasks` offers `speckit.maina.analyze`. |
+| `extension/` | A Spec Kit extension. Its `pre_tool_use` event runs `speckit.maina.gate` on every agent tool call, which asks the Maina gate (`maina hook --host <host> <event>`) and fails closed like the maina runtime when Maina cannot. `after_tasks` offers `speckit.maina.analyze`. |
 | `workflows/maina-gate-overlay.yml` | An overlay for the stock `speckit` workflow: `maina analyze` after `tasks`, then `maina decide` before `implement`, with a `switch` on the verdict (`allow` continues, `deny` fails the run, `ask` pauses at a review gate). |
 | `maina analyze` / `maina decide` | Maina reads Spec Kit's `specs/<feature>/{spec,plan,tasks}.md` as feature input, and any workflow `shell` step can route on a Maina verdict. |
 
@@ -22,10 +22,26 @@ config of the integration the project was initialised with (for Claude Code,
 a `PreToolUse` entry in `.claude/settings.json`). The handler is a POSIX
 shell script; on Windows, Spec Kit runs it with `bash` when one is installed.
 
-The gate handler calls `maina hook <event>` (override the executable with
-`MAINA_BIN`). Until the host adapters ship in the `maina` CLI
-(mainahq/maina#309 to #311), that call fails and the handler answers `ask`:
-a gate that cannot run never allows.
+The gate handler calls `maina hook --host <claude|codex|cursor> <event>`
+(override the executable with `MAINA_BIN`). Claude Code and Codex share the
+`PreToolUse` event but not its answers (Codex runs a tool whose hook asks),
+so the handler names the host from the run (mainahq/maina#484):
+
+| Run | Host |
+| --- | --- |
+| A camelCase event (`preToolUse`, `beforeShellExecution`, `beforeMCPExecution`) | `cursor` |
+| A payload with `turn_id` (every Codex payload has one) | `codex` |
+| `CLAUDE_PROJECT_DIR` set (Claude Code sets it for its hooks) | `claude` |
+| Anything else | none: `maina hook <event>` fails closed as ambiguous (deny) |
+
+When maina is missing, fails or prints nothing, the handler prints the same
+fail-closed answer as the maina runtime (`failClosedHook` in
+`packages/runtime/src/standalone/hook-fallback.ts`): `ask` for Claude Code
+`PreToolUse` and Cursor `beforeShellExecution` / `beforeMCPExecution`, and a
+deny (exit 2, the reason on stderr) for Codex, Cursor `preToolUse` and an
+unknown host, where an `ask` would not stop the tool. A deny from maina
+(exit 2) passes through with its exit code and stderr. A gate that cannot
+run never allows.
 
 ## Routing a workflow on a Maina verdict
 
@@ -78,7 +94,7 @@ the pinned host hook fixtures in `packages/runtime/src/adapters/__fixtures__`)
 and the overlay statically, then drives a stock Spec Kit CLI: a workflow
 routing on `maina decide`, the overlay on a `speckit`-shaped workflow and on
 the stock one from the catalog, and the extension installed into a Claude
-Code project. Those live cases skip when no Spec Kit v1 CLI is found
+Code project and a Codex project. Those live cases skip when no Spec Kit v1 CLI is found
 (`specify`, or `SPECIFY_BIN`), unless `MAINA_REQUIRE_SPECKIT=1`. CI installs
 Spec Kit v1.0.12 and sets it.
 
