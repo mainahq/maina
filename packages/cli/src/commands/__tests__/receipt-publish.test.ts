@@ -182,6 +182,35 @@ describe("receiptPublishAction", () => {
 		expect(body).toContain("1 blocked");
 	});
 
+	test("a url in the context file wins over the --receipt-url fallback", async () => {
+		const { http, requests } = recordingHttp();
+		const context = join(dir, "context-url.json");
+		writeFileSync(
+			context,
+			JSON.stringify({ url: "https://receipts.example.com/abc" }),
+		);
+		await receiptPublishAction(
+			{
+				receipt: receiptPath,
+				context,
+				pr: "7",
+				sha: SHA,
+				optIn: true,
+				receiptUrl: "https://github.com/acme/widgets/actions/runs/1",
+			},
+			{
+				http,
+				env: env({ GITHUB_TOKEN: "tok", GITHUB_REPOSITORY: "acme/widgets" }),
+			},
+		);
+		const comment = requests.find(
+			(r) => r.method === "POST" && r.url.endsWith("/issues/7/comments"),
+		);
+		const body = JSON.parse(comment?.body ?? "{}").body as string;
+		expect(body).toContain("[Full receipt](https://receipts.example.com/abc)");
+		expect(body).not.toContain("actions/runs/1");
+	});
+
 	test("refuses a tampered receipt before publishing", async () => {
 		const { http, requests } = recordingHttp();
 		const tampered = join(dir, "tampered.json");
@@ -261,6 +290,15 @@ describe("verify Action wiring", () => {
 		const run = step("Publish PR receipt").run ?? "";
 		expect(run).toMatch(
 			/EVENT_NAME" = "pull_request" \] && \[ "\$HEAD_REPO" != "\$GITHUB_REPOSITORY" \][\s\S]*--read-only/,
+		);
+	});
+
+	test("the scope label names the PR's own base, not the verify `base` input", () => {
+		const publish = action.runs.steps.find(
+			(s) => s.name === "Publish PR receipt",
+		) as { env?: Record<string, string> } | undefined;
+		expect(publish?.env?.BASE_REF).toContain(
+			"github.event.pull_request.base.ref",
 		);
 	});
 

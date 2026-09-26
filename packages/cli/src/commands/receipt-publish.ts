@@ -31,6 +31,7 @@ interface ReceiptPublishOptions {
 	repo?: string;
 	/** The ref the verify run diffed against. */
 	scopeBase?: string;
+	/** Fallback link to the full receipt; a `url` in `--context` wins. */
 	receiptUrl?: string;
 	optIn?: boolean;
 	readOnly?: boolean;
@@ -138,7 +139,9 @@ function loadReceipt(
 					files: receipt.diff.files,
 				}
 			: undefined);
-	const url = options.receiptUrl ?? extras.url;
+	// A url the caller put in the context is the specific one; `--receipt-url`
+	// is the fallback (the Action always passes its run URL).
+	const url = extras.url ?? options.receiptUrl;
 	return {
 		ok: true,
 		receipt: {
@@ -204,7 +207,10 @@ export function receiptPublishCommand(): Command {
 			// Not `--base`/`--json`: the parent `receipt` command owns those flags
 			// and commander hands them to it wherever they appear.
 			.option("--scope-base <ref>", "the ref the verify run diffed against")
-			.option("--receipt-url <url>", "link to the full receipt")
+			.option(
+				"--receipt-url <url>",
+				"link to the full receipt when --context gives none",
+			)
 			.option("--opt-in", "the repository opted in to PR receipts")
 			.option(
 				"--read-only",

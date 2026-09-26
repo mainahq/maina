@@ -175,7 +175,9 @@ runs:
         HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         EVENT_NAME: ${{ github.event_name }}
-        BASE_REF: ${{ inputs.base }}
+        # The PR's own base: the receipt diffs against its merge base, which
+        # need not be the verify `base` input (default main).
+        BASE_REF: ${{ github.event.pull_request.base.ref }}
         AUTHOR: ${{ inputs.comment-author }}
         DISCOVERY: ${{ inputs.discovery-line }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

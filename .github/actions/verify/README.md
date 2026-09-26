@@ -65,6 +65,9 @@ steps:
 }
 ```
 
+A `url` in the context is the comment's "Full receipt" link; without one it
+links the workflow run that uploaded the `maina-receipt` artifact.
+
 ## What it does
 
 1. Sets up Bun
