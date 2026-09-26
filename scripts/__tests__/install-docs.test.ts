@@ -12,6 +12,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { REDIRECTS, SIDEBAR } from "../../packages/docs/src/navigation";
+import { DEFAULT_TOOLS } from "../../packages/mcp/src/allowlist";
 import { PLUGIN } from "../../packages/plugins/src/definition";
 import {
 	CLAUDE_MARKETPLACE_PATH,
@@ -22,6 +23,7 @@ import {
 	cursorMarketplace,
 } from "../../packages/plugins/src/generate/marketplace";
 import { MCP_PATH } from "../../packages/remote/src/auth";
+import { REMOTE_TOOLS } from "../../packages/remote/src/tools";
 
 const REPO_ROOT = join(import.meta.dir, "..", "..");
 const DOCS = join(REPO_ROOT, "packages", "docs", "src", "content", "docs");
@@ -147,6 +149,25 @@ describe("install page", () => {
 				last: expect.stringMatching(/^\d+\.\s+\*\*Verify it works/),
 			});
 		}
+	});
+
+	test("each host's verify step calls a tool that host's server registers by default", () => {
+		const registered: ReadonlyMap<string, readonly string[]> = new Map([
+			["Claude Code", DEFAULT_TOOLS],
+			["Cursor", DEFAULT_TOOLS],
+			["Codex", DEFAULT_TOOLS],
+			["Remote", REMOTE_TOOLS],
+		]);
+		for (const [label, tools] of registered) {
+			const last = steps(tab(label)).at(-1) ?? "";
+			const tool = /call maina's `([a-z_]+)` tool/.exec(last)?.[1];
+			expect({ label, tool, registered: tools.includes(tool ?? "") }).toEqual({
+				label,
+				tool: expect.any(String),
+				registered: true,
+			});
+		}
+		expect(steps(tab("CLI")).at(-1)).toContain("`maina doctor`");
 	});
 
 	const repoSlug = new URL(PLUGIN.repository).pathname.replace(/^\/|\/$/g, "");

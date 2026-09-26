@@ -5,7 +5,9 @@
  * Every internal link on the docs site must resolve: a page (content page,
  * Astro page or redirect), a heading anchor on it, or a public file. Links
  * to files in this repository on GitHub (`/blob/` and `/tree/`) must name a
- * file that exists. Scanned: the docs content, the Astro pages and
+ * file that exists. A relative link is reported: the site serves every
+ * page with and without its trailing slash, so it would resolve to two
+ * different URLs. Every redirect must land on a page too. Scanned: the docs content, the Astro pages and
  * components, and the README's links to the site. Nothing is fetched:
  * external links other than the repository's own are left alone. The
  * landing copy in `src/data` is not scanned yet: the landing rebuild
@@ -131,6 +133,9 @@ const posix = (path: string): string => path.split(sep).join("/");
 const route = (path: string): string =>
 	path === "/" || path === "" ? "/" : `/${path.replace(/^\/|\/$/g, "")}/`;
 
+/** A URL with a scheme (`https:`, `mailto:`) or protocol-relative. */
+const EXTERNAL = /^(?:[a-z][a-z\d+.-]*:|\/\/)/i;
+
 type Site = Readonly<{
 	/** Each page's route and the anchors on it (null: not checked). */
 	pages: ReadonlyMap<string, ReadonlySet<string> | null>;
@@ -197,6 +202,10 @@ function brokenReason(
 			? null
 			: `no file ${paths[0] ?? ""} in the repository`;
 	}
+	if (!href.startsWith(SITE) && EXTERNAL.test(href)) return null;
+	if (!href.startsWith("/") && !href.startsWith(SITE)) {
+		return "relative link: use a root-relative path";
+	}
 	const local = href.startsWith(`${SITE}/`)
 		? href.slice(SITE.length)
 		: href === SITE
@@ -231,15 +240,44 @@ function scanned(root: string): string[] {
 	].filter((rel) => existsSync(join(root, rel)));
 }
 
-export type CheckOptions = Readonly<{ redirects: readonly string[] }>;
+export type CheckOptions = Readonly<{
+	/** Old route to the route it redirects to. */
+	redirects: Readonly<Record<string, string>>;
+}>;
+
+const NAVIGATION = `${DOCS_PKG}/src/navigation.ts`;
+
+/** Redirects whose target is not a page, reported against navigation.ts. */
+function brokenRedirects(
+	root: string,
+	site: Site,
+	redirects: Readonly<Record<string, string>>,
+): BrokenLink[] {
+	const lines = existsSync(join(root, NAVIGATION))
+		? readFileSync(join(root, NAVIGATION), "utf-8").split(/\r?\n/)
+		: [];
+	return Object.entries(redirects).flatMap(([from, to]) => {
+		const reason = brokenReason(root, site, to, null);
+		if (reason === null) return [];
+		const line = lines.findIndex((l) => l.includes(`"${from}"`)) + 1;
+		return [
+			{
+				file: NAVIGATION,
+				line,
+				href: to,
+				reason: `redirect ${from}: ${reason}`,
+			},
+		];
+	});
+}
 
 /** Every broken link under `root`, in file then line order. */
 export function checkDocsLinks(
 	root: string,
-	options: CheckOptions = { redirects: Object.keys(REDIRECTS) },
+	options: CheckOptions = { redirects: REDIRECTS },
 ): BrokenLink[] {
-	const site = readSite(root, options.redirects);
-	return scanned(root).flatMap((file) => {
+	const site = readSite(root, Object.keys(options.redirects));
+	const pages = scanned(root).flatMap((file) => {
 		const text = readFileSync(join(root, file), "utf-8");
 		const isPage = file.startsWith(`${CONTENT}/`);
 		const ownAnchors = isPage ? headingAnchors(text) : null;
@@ -256,6 +294,7 @@ export function checkDocsLinks(
 			return reason === null ? [] : [{ file, ...link, reason }];
 		});
 	});
+	return [...pages, ...brokenRedirects(root, site, options.redirects)];
 }
 
 // ── Entrypoint ──────────────────────────────────────────────────────────────
