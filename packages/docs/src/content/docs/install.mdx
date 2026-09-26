@@ -1,0 +1,126 @@
+---
+title: Install
+description: Install maina in Claude Code, Cursor, Codex, from the CLI or as a remote connector, in at most three steps that end by checking it works.
+---
+
+import { Tabs, TabItem, Steps, Aside } from '@astrojs/starlight/components';
+
+Pick where your agent runs. Each path takes at most three steps and ends by checking that maina answers.
+
+The Claude Code, Cursor and Codex plugins put maina's gate in front of the agent's risky actions and add the maina MCP server, its skills and a check on what a session changed before it stops. Nothing needs to be on `PATH`: each plugin bundles a launcher that installs the pinned maina runtime on first use and checks its signature, so the first call can take a few seconds.
+
+<Tabs syncKey="install-host">
+<TabItem label="Claude Code">
+
+<Steps>
+
+1. **Add the marketplace.** In Claude Code, run:
+
+   ```text
+   /plugin marketplace add mainahq/maina
+   ```
+
+2. **Install the plugin.** Run the command below, then restart Claude Code so the plugin's hooks and MCP server load:
+
+   ```text
+   /plugin install maina@maina
+   ```
+
+3. **Verify it works.** Ask Claude to call maina's `status` tool. It answers with the maina version, the enabled tools, and whether the code graph, wiki and policy are ready.
+
+</Steps>
+
+</TabItem>
+<TabItem label="Cursor">
+
+<Steps>
+
+1. **Install the plugin.** Open **Customize** in the sidebar, find **Maina**, select **Install** and pick the project or user scope. A team admin can instead import `https://github.com/mainahq/maina` as a Team Marketplace: see [Cursor](/cursor/#install-the-plugin).
+
+2. **Verify it works.** In a new agent chat, ask the agent to call maina's `status` tool. It answers with the maina version, the enabled tools, and whether the code graph, wiki and policy are ready.
+
+</Steps>
+
+Cannot install plugins? [Add only the MCP server](/cursor/#mcp-only), without the gate.
+
+</TabItem>
+<TabItem label="Codex">
+
+<Steps>
+
+1. **Add the marketplace.** Add `mainahq/maina` as a plugin marketplace in Codex.
+
+2. **Install the plugin.** Run `/plugins`, find **Maina** and install it. Trust the project when Codex asks: Codex loads the plugin's rules file only in a trusted project.
+
+3. **Verify it works.** Ask Codex to call maina's `status` tool. It answers with the maina version, the enabled tools, and whether the code graph, wiki and policy are ready.
+
+</Steps>
+
+See [Codex](/codex/) for what the plugin installs and the limits of Codex hooks.
+
+</TabItem>
+<TabItem label="CLI">
+
+<Steps>
+
+1. **Install the CLI.** The installer puts `maina` on your `PATH` and runs `maina setup` in the repository you run it from:
+
+   ```bash
+   curl -fsSL https://api.mainahq.com/install | bash
+   ```
+
+   With a package manager instead: `npm install -g @mainahq/cli` (or `bun add -g @mainahq/cli`, `pnpm add -g @mainahq/cli`).
+
+2. **Set up the repository.** Run `maina setup` in each repository. It is safe to re-run: it writes the MCP entries, agent files and skills for every host it detects, and only changes what is out of date.
+
+3. **Verify it works.** Run `maina doctor`. It launches every configured MCP entry the way its host would and reports each check, with a fix command for anything that fails.
+
+</Steps>
+
+</TabItem>
+<TabItem label="Remote">
+
+<Aside type="caution">
+The remote connector is part of the v1 release and is not published yet. Until it is, build the image from source as below.
+</Aside>
+
+<Steps>
+
+1. **Run the connector.** On the server that will host it:
+
+   ```bash
+   git clone https://github.com/mainahq/maina && cd maina/packages/remote/deploy/compose
+   cp .env.example .env   # set MAINA_REMOTE_ISSUER and MAINA_REMOTE_PASSWORD
+   docker compose up -d --build
+   ```
+
+   Put your TLS terminator in front of it and set `MAINA_REMOTE_ISSUER` to its public origin. See [Self-hosting](/self-host/).
+
+2. **Connect your host.** Add the connector's MCP endpoint, `https://maina.example.com/mcp`, by URL. In Claude Code run `claude mcp add --transport http maina https://maina.example.com/mcp`; in other hosts add it as a remote MCP server or custom connector. Sign in as the owner when the host opens the connector's page, and approve the client.
+
+3. **Verify it works.** Ask the agent to call maina's `status` tool. It answers with the maina version and the enabled tools. Remote tools act on the connector's workspace, and there is no action gate remotely.
+
+</Steps>
+
+</TabItem>
+</Tabs>
+
+## What `maina setup` changes
+
+`maina setup` detects your languages, frameworks, linters and CI from the files in the repository, and writes:
+
+- **A constitution**, `.maina/constitution.md`, tailored to the repository. It uses your host's AI when it runs inside Claude Code, Cursor or Codex, and an offline template when no AI is reachable.
+- **Agent instruction files** such as `AGENTS.md` and `CLAUDE.md`, inside a `<maina-managed>` region, so the rest of each file stays yours.
+- **MCP entries** in the project configs (`.mcp.json`, `.cursor/mcp.json`) by a keyed merge that only adds the `maina` key, and in the global config of detected hosts that have no project file.
+- **Skills** in `.agents/skills/`, where hosts that read Agent Skills find them. A skill of the same name that maina did not write is left alone.
+
+It then seeds the codebase [wiki](/wiki/) in the background and runs `maina verify` once. Useful flags:
+
+- `maina setup --update` refreshes maina's regions in the agent files after a big stack change.
+- `maina setup --reset` backs up `.maina/` and starts fresh.
+- `maina setup --agents claude,cursor` writes only those agent files.
+- `maina setup --ci` never prompts and prints one JSON object per phase, for CI and provisioning scripts.
+
+## Other MCP clients
+
+`maina mcp add` writes the maina MCP server into every supported client it detects, and [MCP](/mcp/) has the manual config for each one. An MCP entry gives the agent maina's tools but no gate: prefer a plugin where your host has one.
