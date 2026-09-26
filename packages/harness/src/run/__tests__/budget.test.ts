@@ -209,4 +209,73 @@ describe("a budget breach stops the run with a report", () => {
 			breach: { budget: "wall_clock", limit: 1000, used: 1200 },
 		});
 	});
+	test("a review that runs past the wall clock stops the run before a revision", async () => {
+		let clock = 0;
+		let attempts = 0;
+		const receipt = await runWithRevision(
+			{
+				task: "fix the bug",
+				context: "unattended",
+				budgets: { wallClockMs: 1000 },
+			},
+			{
+				attempt: async () => {
+					attempts++;
+					clock += 400;
+					return {
+						end: { type: "end", state: "completed", stopReason: "end_turn" },
+						toolCalls: 0,
+					};
+				},
+				review: async () => {
+					clock += 800;
+					return { passed: false, findings: ["lint: x"] };
+				},
+				now: () => clock,
+			},
+		);
+		expect(attempts).toBe(1);
+		expect(receipt).toMatchObject({
+			status: "stopped",
+			reason: "budget_exceeded",
+			breach: { budget: "wall_clock", limit: 1000, used: 1200 },
+		});
+		expect(receipt.reviews).toHaveLength(1);
+	});
+
+	test("a passing review that runs past the wall clock opens no PR", async () => {
+		let clock = 0;
+		let prs = 0;
+		const receipt = await runWithRevision(
+			{
+				task: "fix the bug",
+				context: "unattended",
+				budgets: { wallClockMs: 1000 },
+			},
+			{
+				attempt: async () => {
+					clock += 400;
+					return {
+						end: { type: "end", state: "completed", stopReason: "end_turn" },
+						toolCalls: 0,
+					};
+				},
+				review: async () => {
+					clock += 800;
+					return { passed: true, findings: [] };
+				},
+				openPr: async () => {
+					prs++;
+					return { ok: true, value: "https://example.test/pr/1" };
+				},
+				now: () => clock,
+			},
+		);
+		expect(prs).toBe(0);
+		expect(receipt).toMatchObject({
+			status: "stopped",
+			reason: "budget_exceeded",
+		});
+		expect(receipt.report).toContain("No PR was opened");
+	});
 });

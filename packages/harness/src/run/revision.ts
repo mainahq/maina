@@ -6,7 +6,8 @@
  * review always stops the run: it ends with a "stopped" receipt, never a
  * PR. Budgets cover the whole loop, and a breach stops it with a report,
  * as does an agent that fails, stops short or is cancelled. Only a passing
- * review opens a PR, and only when the caller gives a way to open one.
+ * review opens a PR, and only when the caller gives a way to open one. A
+ * port that throws ends the run with a "stopped" receipt too.
  *
  * Pure but for the injected ports: the agent (`attempt`), the review, the
  * PR and the clock.
@@ -50,6 +51,9 @@ export type AttemptInput = Readonly<{
 
 export type PrError = Readonly<{ message: string }>;
 
+/** A port that threw instead of answering. */
+type PortError = Readonly<{ message: string }>;
+
 export type RevisionPorts = Readonly<{
 	attempt: (input: AttemptInput) => Promise<Attempt>;
 	review: () => Promise<Review>;
@@ -71,6 +75,7 @@ export type StopReason =
 	| "agent_failed"
 	| "agent_stopped"
 	| "cancelled"
+	| "review_error"
 	| "pr_failed";
 
 type ReceiptBase = Readonly<{
@@ -91,7 +96,7 @@ export type RunReceipt = ReceiptBase &
 				status: "stopped";
 				reason: StopReason;
 				breach?: BudgetBreach;
-				error?: HarnessError | PrError;
+				error?: HarnessError | PrError | PortError;
 		  }>
 	);
 
@@ -127,6 +132,7 @@ const STOP_HEADLINES: Readonly<Record<StopReason, string>> = {
 	agent_failed: "the agent failed. No PR was opened.",
 	agent_stopped: "the agent stopped before finishing. No PR was opened.",
 	cancelled: "the run was cancelled. No PR was opened.",
+	review_error: "the review could not run. No PR was opened.",
 	pr_failed: "the review passed, but the PR could not be opened.",
 };
 
@@ -135,7 +141,7 @@ function stopped(
 	reason: StopReason,
 	extra: Readonly<{
 		breach?: BudgetBreach;
-		error?: HarnessError | PrError;
+		error?: HarnessError | PrError | PortError;
 		detail?: readonly string[];
 	}> = {},
 ): RunReceipt {
@@ -198,6 +204,20 @@ function endBreach(
 			};
 }
 
+/** `port()`, with a throw turned into an error value. */
+async function settle<T>(
+	port: () => Promise<T>,
+): Promise<Result<T, PortError>> {
+	try {
+		return { ok: true, value: await port() };
+	} catch (e) {
+		return {
+			ok: false,
+			error: { message: e instanceof Error ? e.message : String(e) },
+		};
+	}
+}
+
 export async function runWithRevision(
 	input: RunInput,
 	ports: RevisionPorts,
@@ -218,18 +238,23 @@ export async function runWithRevision(
 		const last = progress.reviews.at(-1);
 		const prompt =
 			last === undefined ? input.task : revisionPrompt(input.task, last);
-		const attempt = await ports.attempt({
-			prompt,
-			revision,
-			budgets: remainingBudgets(input.budgets, progress.usage),
-		});
+		const attempt = await settle(() =>
+			ports.attempt({
+				prompt,
+				revision,
+				budgets: remainingBudgets(input.budgets, progress.usage),
+			}),
+		);
 		progress = {
 			...progress,
 			attempts: progress.attempts + 1,
-			usage: measure(attempt.toolCalls),
+			usage: measure(attempt.ok ? attempt.value.toolCalls : 0),
 		};
+		if (!attempt.ok) {
+			return stopped(progress, "agent_failed", { error: attempt.error });
+		}
 
-		const { end } = attempt;
+		const { end } = attempt.value;
 		if (end.state === "budget_exceeded") {
 			return stopped(progress, "budget_exceeded", {
 				breach: endBreach(end, input.budgets, progress.usage),
@@ -245,18 +270,32 @@ export async function runWithRevision(
 			return stopped(progress, "budget_exceeded", { breach });
 		}
 
-		const review = await ports.review();
+		const reviewed = await settle(ports.review);
+		if (!reviewed.ok) {
+			return stopped({ ...progress, usage: measure(0) }, "review_error", {
+				error: reviewed.error,
+			});
+		}
+		const review = reviewed.value;
 		progress = {
 			...progress,
 			reviews: [...progress.reviews, review],
 			usage: measure(0),
 		};
+		// The review counts against the wall clock: past it, the run neither
+		// opens a PR nor starts a revision with nothing left.
+		const spent = breachOf(input.budgets, progress.usage);
+		if (spent !== undefined) {
+			return stopped(progress, "budget_exceeded", { breach: spent });
+		}
 		if (review.passed) {
-			if (ports.openPr === undefined) return passed(progress, undefined);
-			const pr = await ports.openPr();
-			return pr.ok
-				? passed(progress, pr.value)
-				: stopped(progress, "pr_failed", { error: pr.error });
+			const { openPr } = ports;
+			if (openPr === undefined) return passed(progress, undefined);
+			const pr = await settle(openPr);
+			const opened = pr.ok ? pr.value : pr;
+			return opened.ok
+				? passed(progress, opened.value)
+				: stopped(progress, "pr_failed", { error: opened.error });
 		}
 	}
 

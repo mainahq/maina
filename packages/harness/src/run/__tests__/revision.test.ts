@@ -221,4 +221,28 @@ describe("bounded revision", () => {
 			expect(run.reviewed()).toBe(0);
 		}
 	});
+
+	test("a port that throws still ends in a stopped receipt, never a PR", async () => {
+		const boom = async (): Promise<never> => {
+			throw new Error("boom");
+		};
+		const cases: ReadonlyArray<
+			readonly [Partial<RevisionPorts>, string, number]
+		> = [
+			[{ attempt: boom }, "agent_failed", 0],
+			[{ review: boom }, "review_error", 0],
+			[{ openPr: boom }, "pr_failed", 1],
+		];
+		for (const [override, reason, reviewed] of cases) {
+			const run = scripted({ reviews: [pass], pr: openedPr });
+			const receipt = await runWithRevision(
+				{ task: "t", context: "unattended", budgets: {} },
+				{ ...run.ports, ...override },
+			);
+			expect(receipt).toMatchObject({ status: "stopped", reason });
+			expect("pr" in receipt).toBe(false);
+			expect(receipt.report).toContain("boom");
+			expect(run.reviewed()).toBe(reviewed);
+		}
+	});
 });
