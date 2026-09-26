@@ -132,8 +132,9 @@ const config: KnipConfig = {
 			],
 		},
 		"packages/remote": {
-			// The service process: the Dockerfile runs it by path.
-			entry: ["src/main.ts!", TESTS],
+			// The service process (the Dockerfile runs it by path) and the
+			// one-shot GitHub App job process, also run by path.
+			entry: ["src/main.ts!", "src/github/main.ts!", TESTS],
 			project: ["src/**/*.ts!", "!src/**/__tests__/**!"],
 		},
 		"packages/skills": {
