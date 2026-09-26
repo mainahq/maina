@@ -1,0 +1,54 @@
+---
+/**
+ * Proofs: a destructive action the rules deny (a dogfood case) and a spec
+ * gap the analyzer behind the spec_check tool caught, both computed from
+ * this repo at build time (landing-proofs.json). The third proof, a real
+ * receipt, is PrReceipt. No routing-savings proof: there is no routing data
+ * to back one.
+ */
+import { PROOFS } from '../../data/landing';
+import type { LandingProofs } from '../../data/landing-proofs';
+import proofsJson from '../../data/landing-proofs.json';
+
+const proofs = proofsJson as unknown as LandingProofs;
+const { blocked, spec } = proofs.proofs;
+const { corpus } = proofs;
+const [blockedCopy, specCopy] = PROOFS.items;
+const GITHUB = 'https://github.com/mainahq/maina';
+const riskClasses = blocked.classes.filter((c) => c !== 'shell.exec').join(', ');
+/** A newline inside <pre>, as an expression (the compiler keeps it). */
+const NL = '\n';
+---
+
+<section class="paper section" id="proofs" aria-labelledby="proofs-title">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">{PROOFS.eyebrow}</p>
+      <h2 class="h2" id="proofs-title">{PROOFS.title}</h2>
+      <p class="lede">{PROOFS.lede}</p>
+    </div>
+    <div class="grid gap-6 md:grid-cols-2">
+      <article class="proof">
+        <h3>{blockedCopy.title}</h3>
+        <p>{blockedCopy.body}</p>
+        <pre><span class="dim"># agent › </span>{blocked.command}{NL}<span class="dim">→ {riskClasses}</span>{NL}<span class="hl-deny">{blocked.verdict.toUpperCase()}</span> <span class="dim">{blocked.reason}</span></pre>
+        <p class="tnum text-sm">
+          <b>{corpus.destructive.held} of {corpus.destructive.total}</b>{blockedCopy.corpusLine}<b>{corpus.selfOverride.denied} of {corpus.selfOverride.total}</b>{blockedCopy.selfOverrideLine}
+        </p>
+        <p class="src">
+          <a href={`${GITHUB}/issues/${blocked.issue}`}>{blockedCopy.issueLabel}{blocked.issue}</a>
+          {' · '}
+          <a href={`${GITHUB}/blob/master/${blocked.source}`}>{blockedCopy.sourceLabel}{blocked.fixture}</a>
+        </p>
+      </article>
+      <article class="proof">
+        <h3>{specCopy.title}</h3>
+        <p>{specCopy.body}</p>
+        <pre><span class="dim"># spec_check {spec.feature}</span>{NL}<span class="hl-deny">{spec.severity}</span> {spec.category}{NL}{spec.message}{NL}<span class="dim">{spec.errors} errors · {spec.warnings} warnings</span></pre>
+        <p class="src">
+          <a href={`${GITHUB}/tree/master/${spec.feature}`}>{specCopy.sourceLabel}{spec.feature}</a>
+        </p>
+      </article>
+    </div>
+  </div>
+</section>

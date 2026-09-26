@@ -1,0 +1,63 @@
+---
+/**
+ * Hero: headline, waitlist and the race panel. The race's verdicts are the
+ * real engine's (landing-proofs.json); its timings are illustrative and
+ * labelled so.
+ */
+import { HERO } from '../../data/landing';
+import type { LandingProofs } from '../../data/landing-proofs';
+import proofsJson from '../../data/landing-proofs.json';
+import WaitlistForm from './WaitlistForm.astro';
+
+const proofs = proofsJson as unknown as LandingProofs;
+const race = HERO.race.items.map((item) => {
+  const row = proofs.gate.presets[item.preset];
+  if (!row) throw new Error(`landing-proofs.json has no preset ${item.preset}`);
+  return { agent: row.agent, action: row.label, verdict: row.verdict, slow: item.slowMs, fast: item.fastMs };
+});
+const first = race[0];
+if (!first) throw new Error('the race needs at least one item');
+const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+---
+
+<section class="hero dark" aria-labelledby="hero-title">
+  <canvas id="flow" aria-hidden="true"></canvas>
+  <div class="wrap relative grid gap-[clamp(28px,4vw,48px)]">
+    <p class="eyebrow flex flex-wrap items-center gap-3.5 text-mute-ink">
+      <span>{HERO.eyebrow}</span>
+      {HERO.hosts.map((h) => <span class="inline-flex items-center gap-2"><i class="dot"></i>{h}</span>)}
+    </p>
+    <h1 id="hero-title">{HERO.headline.before}<em>{HERO.headline.em}</em>{HERO.headline.after}</h1>
+    <div class="grid items-start gap-[clamp(24px,4vw,56px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+      <div class="grid gap-7">
+        <p class="hero-sub">
+          <b>{HERO.sub.lead}</b>{' '}
+          {HERO.sub.body.map((part) => ('code' in part ? <code>{part.code}</code> : part.text))}
+        </p>
+        <div id="waitlist">
+          <WaitlistForm id="wl-hero" showIdle />
+        </div>
+        <div class="trust flex flex-wrap items-center gap-x-5.5 gap-y-2.5 text-sm text-mute-ink">
+          <span>{HERO.trust.local}</span>
+          <a href={HERO.trust.star.href} rel="noopener" data-event="star_click">{HERO.trust.star.label}</a>
+          <a href={HERO.trust.try.href} data-event="cta_try">{HERO.trust.try.label}</a>
+        </div>
+      </div>
+
+      <div class="race" aria-label={HERO.race.label} data-race={JSON.stringify(race)} data-thinking={HERO.race.thinking}>
+        <p class="race-cmd"><span class="text-mute-ink" data-race-agent>{first.agent} ›</span> <span data-race-action>{first.action}</span></p>
+        <div class="lane slow">
+          <span class="lane-label">{HERO.race.slowLane}</span>
+          <span class="lane-time tnum" data-race-slow-t>{first.slow.toLocaleString('en-US')} ms</span>
+          <div class="track"><div class="fill" data-race-slow-fill></div><span class="lane-status" data-race-status>→ {first.verdict}</span></div>
+        </div>
+        <div class="lane fast">
+          <span class="lane-label">{HERO.race.fastLane}</span>
+          <span class="lane-time tnum" data-race-fast-t>{first.fast} ms</span>
+          <div class="track"><div class="fill" data-race-fast-fill></div><span class={`stamp v-${first.verdict}`} data-race-stamp>{cap(first.verdict)}</span></div>
+        </div>
+        <p class="font-mono text-xs text-mute-ink">{HERO.race.note}</p>
+      </div>
+    </div>
+  </div>
+</section>

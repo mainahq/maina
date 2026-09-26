@@ -1,0 +1,66 @@
+---
+/**
+ * Waitlist form, posted to the maina-cloud Worker (`POST /api/waitlist`) by
+ * `scripts/home/waitlist-form.ts`, with the page's UTM parameters, referrer
+ * and path passed through. Email first; the Worker also needs a role and a
+ * team size, asked for once the email is valid. Without JS the form falls
+ * back to a mailto: with the same fields.
+ */
+import { WAITLIST } from '../../data/landing';
+
+interface Props {
+  id: string;
+  /** Show the idle line under the form. */
+  showIdle?: boolean;
+}
+
+const { id, showIdle = false } = Astro.props;
+const mailtoHref = `mailto:${WAITLIST.mailto}?subject=${encodeURIComponent('Maina waitlist')}`;
+---
+
+<div class="grid gap-2.5">
+  <form
+    class="wl"
+    id={id}
+    action={mailtoHref}
+    method="post"
+    enctype="text/plain"
+    novalidate
+    data-waitlist
+    data-endpoint={WAITLIST.endpoint}
+    data-source={WAITLIST.source}
+    data-msg-invalid={WAITLIST.messages.invalid}
+    data-msg-more={WAITLIST.messages.more}
+    data-msg-missing={WAITLIST.messages.missing}
+    data-msg-sending={WAITLIST.messages.sending}
+    data-msg-done={WAITLIST.messages.done}
+    data-msg-failed={WAITLIST.messages.failed}
+    data-mailto={WAITLIST.mailto}
+  >
+    <label class="sr" for={`${id}-email`}>{WAITLIST.emailLabel}</label>
+    <input
+      id={`${id}-email`}
+      name="email"
+      type="email"
+      placeholder={WAITLIST.placeholder}
+      autocomplete="email"
+      required
+      aria-describedby={`${id}-msg`}
+    />
+    <button class="btn btn-primary" type="submit">{WAITLIST.submit}</button>
+    <fieldset class="wl-more" data-more hidden>
+      <legend class="sr">{WAITLIST.messages.more}</legend>
+      <label class="sr" for={`${id}-role`}>{WAITLIST.roleLabel}</label>
+      <select id={`${id}-role`} name="role" required>
+        <option value="">{WAITLIST.roleLabel}</option>
+        {WAITLIST.roles.map((r) => <option value={r.value}>{r.label}</option>)}
+      </select>
+      <label class="sr" for={`${id}-team`}>{WAITLIST.teamSizeLabel}</label>
+      <select id={`${id}-team`} name="team_size" required>
+        <option value="">{WAITLIST.teamSizeLabel}</option>
+        {WAITLIST.teamSizes.map((t) => <option value={t.value}>{t.label}</option>)}
+      </select>
+    </fieldset>
+  </form>
+  <p class="wl-msg" id={`${id}-msg`} aria-live="polite">{showIdle ? WAITLIST.messages.idle : ''}</p>
+</div>

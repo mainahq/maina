@@ -1,0 +1,29 @@
+---
+/** Comparison with the checks each agent ships. */
+import { COMPARISON } from '../../data/landing';
+---
+
+<section class="paper section" style="padding-top:0" aria-labelledby="cmp-title">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">{COMPARISON.eyebrow}</p>
+      <h2 class="h2" id="cmp-title">{COMPARISON.title}</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="cmp">
+        <thead>
+          <tr>{COMPARISON.columns.map((c, i) => (i === 0 ? <td></td> : <th scope="col">{c}</th>))}</tr>
+        </thead>
+        <tbody>
+          {COMPARISON.rows.map((r) => (
+            <tr>
+              <th scope="row">{r.label}</th>
+              <td>{r.them}</td>
+              <td class="us">{r.us}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

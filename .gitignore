@@ -70,3 +70,4 @@ maina-pitchdeck.pptx
 
 # Bench fixtures (pinned third-party checkouts, see scripts/fixtures/)
 .cache/
+packages/docs/.lighthouseci/
