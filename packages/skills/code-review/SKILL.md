@@ -16,7 +16,7 @@ When changes are ready for review, before merging a PR, or when you want a struc
 
 ## Steps
 
-1. **Run the review** with `maina review` (or call the `reviewCode` MCP tool). This performs a two-stage AI-powered review on the current diff.
+1. **Run the review** with `maina review` (or call the `review_triage` MCP tool). This performs a two-stage AI-powered review on the current diff.
 2. **Stage 1 -- Spec Compliance:** The reviewer checks whether the changes fulfill the plan:
    - Do the changes implement what the spec and plan describe?
    - Are all acceptance criteria addressed?

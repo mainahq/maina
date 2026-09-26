@@ -1,7 +1,15 @@
+import {
+	DEFAULT_TOOLS,
+	renderToolList,
+	type ToolName,
+} from "@mainahq/mcp/catalog";
 import type { StackContext } from "./types";
 
 const WORKFLOW =
 	"brainstorm -> ticket -> plan -> design -> spec -> implement -> verify -> review -> fix -> commit -> review -> pr";
+
+/** A tool name as inline code; typed, so a retired name fails to compile. */
+const tool = (name: ToolName): string => `\`${name}\``;
 
 /**
  * Generate the managed content for `.github/copilot-instructions.md`.
@@ -33,11 +41,13 @@ ${parts.map((p) => `- ${p}`).join("\n")}
 \`${WORKFLOW}\`
 
 ## Step-by-step
-1. **Get context** — call \`getContext\` to understand codebase state
+1. **Get context** — call ${tool("context")} for the files or question you are working on
 2. **Write tests first** — TDD always. Failing tests → implement → passing tests
-3. **Verify your work** — call \`verify\` before requesting review
-4. **Check for slop** — call \`checkSlop\` on changed files
-5. **Review your code** — call \`reviewCode\` with your diff
+3. **Verify your work** — call ${tool("verify")} before requesting review
+4. **Review your code** — call ${tool("review_triage")} with your diff
+
+## MCP Tools
+${renderToolList(DEFAULT_TOOLS, "list")}
 
 ## Constitution Quick Reference
 ${constitutionQuickRef}

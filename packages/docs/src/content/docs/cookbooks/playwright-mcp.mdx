@@ -36,7 +36,7 @@ Maina and [Playwright MCP](https://github.com/microsoft/playwright-mcp) (`@playw
    ## Testing workflow
    1. Use Playwright MCP to navigate and interact with the app
    2. Use Maina `verify` to run the full verification pipeline
-   3. Use Maina `reviewCode` to review any changes
+   3. Use Maina `review_triage` to review any changes
    4. Capture screenshots with Playwright for visual regression
    ```
 
@@ -45,9 +45,8 @@ Maina and [Playwright MCP](https://github.com/microsoft/playwright-mcp) (`@playw
    The agent can now:
    - Navigate to `localhost:3000` via Playwright MCP
    - Fill forms, click buttons, verify page content
-   - Call Maina `verify` to check code quality
-   - Call Maina `checkSlop` on changed files
-   - Call Maina `reviewCode` with the diff
+   - Call Maina `verify` to check code quality, slop included
+   - Call Maina `review_triage` with the diff
 
 </Steps>
 
