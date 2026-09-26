@@ -106,7 +106,9 @@ describe("checkDocsLinks", () => {
 			].join("\n"),
 		);
 		write("packages/docs/src/pages/index.astro", "");
-		const hits = checkDocsLinks(root, { redirects: ["/quickstart"] });
+		const hits = checkDocsLinks(root, {
+			redirects: { "/quickstart": "/install/" },
+		});
 		expect(hits).toEqual([]);
 	});
 
@@ -120,7 +122,7 @@ describe("checkDocsLinks", () => {
 				"[ADR](https://github.com/mainahq/maina/blob/master/adr/9999-x.md)",
 			].join("\n"),
 		);
-		expect(checkDocsLinks(root, { redirects: [] })).toEqual([
+		expect(checkDocsLinks(root, { redirects: {} })).toEqual([
 			{
 				file: `${DOCS}/ci.mdx`,
 				line: 1,
@@ -154,7 +156,7 @@ describe("checkDocsLinks", () => {
 			"packages/docs/src/components/Nav.astro",
 			'<a href="/quickstart">Docs</a>\n',
 		);
-		expect(checkDocsLinks(root, { redirects: [] })).toEqual([
+		expect(checkDocsLinks(root, { redirects: {} })).toEqual([
 			{
 				file: "README.md",
 				line: 1,
@@ -166,6 +168,51 @@ describe("checkDocsLinks", () => {
 				line: 1,
 				href: "/quickstart",
 				reason: "no page",
+			},
+		]);
+	});
+
+	test("reports relative links, which resolve differently with and without the trailing slash", () => {
+		write(
+			`${DOCS}/engines/context.mdx`,
+			[
+				"[a](../install/) [b](verify/)",
+				"[c](mailto:hi@example.com) [d](//cdn.example.com/x.js)",
+			].join("\n"),
+		);
+		write(
+			"packages/docs/src/components/Nav.astro",
+			'<a href="install/">Docs</a>\n',
+		);
+		const reason = "relative link: use a root-relative path";
+		expect(checkDocsLinks(root, { redirects: {} })).toEqual([
+			{
+				file: "packages/docs/src/components/Nav.astro",
+				line: 1,
+				href: "install/",
+				reason,
+			},
+			{
+				file: `${DOCS}/engines/context.mdx`,
+				line: 1,
+				href: "../install/",
+				reason,
+			},
+			{ file: `${DOCS}/engines/context.mdx`, line: 1, href: "verify/", reason },
+		]);
+	});
+
+	test("reports a redirect whose target does not resolve", () => {
+		expect(
+			checkDocsLinks(root, {
+				redirects: { "/quickstart": "/install/", "/old": "/gone/" },
+			}),
+		).toEqual([
+			{
+				file: "packages/docs/src/navigation.ts",
+				line: 0,
+				href: "/gone/",
+				reason: "redirect /old: no page",
 			},
 		]);
 	});
