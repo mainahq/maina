@@ -6,7 +6,9 @@
  * ambiguous and fails closed; Cursor's camelCase events are its own.
  */
 
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { failClosedHook } from "../standalone/hook-fallback";
 import { routeHook } from "../standalone/hook-route";
@@ -110,8 +112,25 @@ describe("routeHook", () => {
 
 const MAIN = join(import.meta.dir, "..", "standalone", "main.ts");
 
-async function hook(args: readonly string[], stdin: string) {
+const homes: string[] = [];
+afterAll(() => {
+	for (const home of homes) rmSync(home, { recursive: true, force: true });
+});
+
+/** A temp HOME: hooks record to ~/.maina/retention.jsonl (FR-RET-7). */
+function tempHome(): string {
+	const home = mkdtempSync(join(tmpdir(), "maina-hook-home-"));
+	homes.push(home);
+	return home;
+}
+
+async function hook(
+	args: readonly string[],
+	stdin: string,
+	home: string = tempHome(),
+) {
 	const proc = Bun.spawn([process.execPath, MAIN, "hook", ...args], {
+		env: { ...process.env, HOME: home },
 		stdin: new TextEncoder().encode(stdin),
 		stdout: "pipe",
 		stderr: "pipe",
@@ -155,6 +174,22 @@ describe("maina hook", () => {
 		expect(out.stdout).toBe(`${expected.line}\n`);
 		expect(out.stderr).toBe(expected.stderr);
 		expect(out.exitCode).toBe(2);
+	});
+
+	test("a SessionStart is recorded in the local retention history", async () => {
+		const home = tempHome();
+		const start = JSON.stringify({
+			session_id: "s-352",
+			hook_event_name: "SessionStart",
+			source: "startup",
+		});
+		const out = await hook(["--host", "claude", "SessionStart"], start, home);
+		expect(out.exitCode).toBe(0);
+		const log = readFileSync(join(home, ".maina", "retention.jsonl"), "utf-8");
+		expect(JSON.parse(log)).toMatchObject({
+			kind: "session",
+			host: "claude-code",
+		});
 	});
 
 	test("an unknown host prints the fail-closed deny", async () => {

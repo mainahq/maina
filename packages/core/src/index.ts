@@ -895,6 +895,26 @@ export {
 	type SummaryOptions,
 	summarise,
 } from "./session/summary";
+// Local-first retention measurement (FR-RET-7)
+export {
+	ATTRIBUTIONS,
+	type Attribution,
+	appendRetentionEvent,
+	computeRetention,
+	type ParsedRetentionLog,
+	parseRetentionLog,
+	RETENTION_SURFACES,
+	type RetentionEvent,
+	type RetentionReport,
+	type RetentionSurface,
+	type RetentionWindow,
+	type ReturnSession,
+	readRetentionLog,
+	recordRetentionEvent,
+	retentionLogFile,
+	serializeRetentionLog,
+	type WindowStatus,
+} from "./stats/retention";
 // Stats
 export {
 	type CommitSnapshot,
@@ -966,6 +986,16 @@ export {
 	isErrorReportingEnabled,
 	reportError,
 } from "./telemetry/reporter";
+// Opt-in retention events (FR-RET-7, FR-PRIV-1)
+export {
+	buildRetentionSharePayload,
+	type RetentionShareError,
+	type RetentionShareOptions,
+	type RetentionSharePayload,
+	type RetentionSharePorts,
+	shareRetention,
+	validateRetentionSharePayload,
+} from "./telemetry/retention-share";
 export {
 	buildUsageEvent,
 	isTelemetryEnabled,

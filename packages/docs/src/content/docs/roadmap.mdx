@@ -168,6 +168,10 @@ Copilot helps write code. CodeRabbit reviews it. DeepSource lints it. Maina **ve
 - **`transformContext` hooks** — programmatic context manipulation
 - **Self-extending agent** — Maina proposes its own extensions based on usage patterns
 
+### How we decide what comes next
+
+Retention is measured locally first (`maina stats --retention`): day-7 and day-28 returns, and which surface (status line, terminal notification, weekly digest) was seen last before each return. Whether we build px0 or add another editor integration is decided from this data, from the anonymous summaries of users who opt in to `telemetry.usage` and run `maina stats --retention --share`, not from requests alone.
+
 ## Contributing
 
 Maina is open source and welcomes contributions.

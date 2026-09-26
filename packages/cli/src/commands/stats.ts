@@ -1,20 +1,37 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro } from "@clack/prompts";
-import type { CategoryByFile, Result } from "@mainahq/core";
+import type {
+	CategoryByFile,
+	EnvPort,
+	FsPort,
+	NetworkPort,
+	Result,
+	RetentionReport,
+	RetentionWindow,
+	ShareResult,
+} from "@mainahq/core";
 import {
+	ATTRIBUTIONS,
 	type ComparisonReport,
+	computeRetention,
 	getComparison,
 	getSkipRate,
 	getStats,
 	getTopCategoriesByFile,
 	getTrends,
 	type QualityScore,
+	readRetentionLog,
+	retentionLogFile,
 	type StatsReport,
 	scoreSpec,
+	shareRetention,
 	type TrendsReport,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { processEnv } from "../env";
+import { fetchNetwork, nodeFs } from "../ports";
+import { userHome } from "../retention";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -287,6 +304,152 @@ export async function statsAction(
 	};
 }
 
+// ── Retention (FR-RET-7) ────────────────────────────────────────────────────
+
+interface RetentionActionOptions {
+	/** Share the anonymous summary; still needs the `usage` opt-in. */
+	share?: boolean;
+}
+
+export type RetentionDeps = Readonly<{
+	fs: FsPort;
+	env: EnvPort;
+	/** Home directory; undefined when it cannot be found. */
+	home: string | undefined;
+	now: () => number;
+	network: NetworkPort;
+	baseUrl: string;
+	/** Repo root whose policy may opt out of sharing. */
+	root?: string;
+}>;
+
+type RetentionActionResult = Readonly<{
+	/** The local history file; undefined without a home directory. */
+	file?: string;
+	report: RetentionReport | null;
+	/** Set with `--share`: what was sent. */
+	share?: ShareResult;
+	/** Why reading the history or sharing failed, when it did. */
+	error?: string;
+}>;
+
+const RETENTION_META = { schemaVersion: "v1" } as const;
+
+/**
+ * `maina stats --retention`: day-7 and day-28 returns and surface
+ * attribution from this machine's session history. Only `--share` sends
+ * anything, and only with the `usage` opt-in.
+ */
+export async function retentionAction(
+	options: RetentionActionOptions,
+	deps: RetentionDeps,
+): Promise<RetentionActionResult> {
+	if (deps.home === undefined) {
+		return { report: null, error: "cannot find the home directory" };
+	}
+	const file = retentionLogFile(deps.home);
+	const events = await readRetentionLog(deps.fs, file);
+	if (!events.ok) {
+		return {
+			file,
+			report: null,
+			error: `cannot read ${file}: ${events.error.kind}`,
+		};
+	}
+	const report = computeRetention(events.value, deps.now());
+	if (!options.share) return { file, report };
+	const shared = await shareRetention(
+		{
+			fs: deps.fs,
+			env: deps.env,
+			network: deps.network,
+			...(deps.root === undefined ? {} : { root: deps.root }),
+		},
+		report,
+		{ baseUrl: deps.baseUrl },
+	);
+	return shared.ok
+		? { file, report, share: shared.value }
+		: { file, report, error: `share failed: ${shared.error.kind}` };
+}
+
+const isoDay = (ts: number): string => new Date(ts).toISOString().slice(0, 10);
+
+function windowLine(w: RetentionWindow): string {
+	const label = `Day ${w.day}:`.padEnd(8);
+	const first = w.sessions[0];
+	if (first !== undefined) {
+		return `  ${label}returned on ${isoDay(first.ts)} (after ${first.surface})`;
+	}
+	const span = `window ${isoDay(w.opensAt)} to ${isoDay(w.closesAt - 1)}`;
+	return `  ${label}${w.status} (${span})`;
+}
+
+/** The retention view as text, or one `{ data, error, meta }` JSON document. Pure. */
+export function formatRetention(
+	result: RetentionActionResult,
+	options: Readonly<{ json?: boolean }> = {},
+): string {
+	if (options.json) {
+		return JSON.stringify(
+			{
+				data: { report: result.report, share: result.share ?? null },
+				error:
+					result.error === undefined
+						? null
+						: { code: "retention", message: result.error },
+				meta: RETENTION_META,
+			},
+			null,
+			2,
+		);
+	}
+	const where = result.file ?? "~/.maina/retention.jsonl";
+	const r = result.report;
+	const lines: string[] =
+		r === null
+			? [
+					`No sessions recorded yet. maina records each agent session start in ${where}.`,
+				]
+			: [
+					`Retention (${where})`,
+					`  First session: ${isoDay(r.firstSessionAt)}`,
+					`  Sessions: ${r.sessions} (${r.returnSessions.length} after day 0)`,
+					windowLine(r.day7),
+					windowLine(r.day28),
+					`  Last surface before a return: ${ATTRIBUTIONS.map((a) => `${a} ${r.attribution[a]}`).join(", ")}`,
+				];
+	if (result.share === undefined) {
+		lines.push(
+			"  This stays on this machine; --share sends an anonymous summary if you opted in to telemetry.usage.",
+		);
+	} else if ("skipped" in result.share) {
+		lines.push(
+			"  Not shared: turn on telemetry.usage in ~/.maina/policy.json to share the anonymous summary.",
+		);
+	} else {
+		lines.push(
+			result.share.sent > 0
+				? "  Shared the anonymous summary."
+				: "  Nothing to share yet.",
+		);
+	}
+	if (result.error !== undefined) lines.push(`  ${result.error}`);
+	return lines.join("\n");
+}
+
+function systemRetentionDeps(): RetentionDeps {
+	return {
+		fs: nodeFs,
+		env: processEnv,
+		home: userHome(),
+		now: Date.now,
+		network: fetchNetwork,
+		baseUrl: processEnv.get("MAINA_CLOUD_URL") ?? "https://api.mainahq.com",
+		root: process.cwd(),
+	};
+}
+
 // ── Specs Display Helper ────────────────────────────────────────────────────
 
 function displaySpecs(result: SpecsResult): void {
@@ -468,7 +631,31 @@ export function statsCommand(): Command {
 		.option("--last <n>", "Number of commits to analyze", "10")
 		.option("--compare", "Show maina vs raw git comparison")
 		.option("--specs", "Show feature spec quality scores")
+		.option(
+			"--retention",
+			"Show day-7/day-28 returns from this machine's session history",
+		)
+		.option(
+			"--share",
+			"With --retention: share the anonymous summary (needs the telemetry.usage opt-in)",
+		)
 		.action(async (options) => {
+			if (options.retention) {
+				const result = await retentionAction(
+					{ share: options.share },
+					systemRetentionDeps(),
+				);
+				const text = formatRetention(result, { json: options.json });
+				if (options.json) {
+					process.stdout.write(`${text}\n`);
+				} else {
+					intro("maina stats --retention");
+					log.message(text);
+					outro("Done.");
+				}
+				if (result.error !== undefined) process.exitCode = 2;
+				return;
+			}
 			if (!options.json) intro("maina stats");
 
 			if (options.compare) {

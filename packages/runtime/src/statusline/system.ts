@@ -2,7 +2,9 @@
  * The real status line (FR-RET-1, #347): `maina statusline` over the
  * machine. The render port asks this user's resident runtime for its status
  * (never spawning one) and reads the session's summary from the decision
- * log; the settings edits go through the host config filesystem.
+ * log; the settings edits go through the host config filesystem. Each
+ * render notes the line was seen in the local retention history
+ * (`~/.maina/retention.jsonl`, FR-RET-7).
  *
  * The standalone runtime's `statusline` mode (and `cli statusline`) runs
  * `runStatuslineProcess`.
@@ -15,6 +17,7 @@ import {
 	type StatuslinePorts,
 } from "@mainahq/cli/src/commands/statusline";
 import { nodeHostFs } from "@mainahq/cli/src/hosts/apply";
+import { recordRetention } from "@mainahq/cli/src/retention";
 import { isCompiledModule } from "../lifecycle";
 import { userEndpoint } from "../registry";
 import { renderStatusline } from "./render";
@@ -54,6 +57,12 @@ async function render(
 ): Promise<string> {
 	const version = cliPackage.version;
 	const endpoint = userEndpoint(env, version);
+	// The line is a retention surface (FR-RET-7): note it was seen, locally.
+	const seen = recordRetention({
+		kind: "surface",
+		ts: Date.now(),
+		surface: "statusline",
+	});
 	const state = await readStatuslineState(parseHostInput(hostInput), {
 		probe: (sessionId) =>
 			probeRuntime({
@@ -70,6 +79,7 @@ async function render(
 			return readSessionSummary(cwd, sessionId);
 		},
 	});
+	await seen;
 	return renderStatusline(state, { color: env.NO_COLOR === undefined });
 }
 
