@@ -225,14 +225,20 @@ const pluginsDirAt = (segments: readonly string[]): number =>
 
 /**
  * A path in an installed maina plugin, its data dir or its marketplace
- * copy. Its hooks config and MCP config run the gate, every hook runs its
+ * copy, or the host's plugin registry that points at it. Its hooks config and MCP config run the gate, every hook runs its
  * launcher and the launcher runs the runtime in its data dir, so changing
  * any of them can switch the gate off.
  */
 function isInMainaPlugin(segments: readonly string[]): boolean {
 	const at = pluginsDirAt(segments);
+	if (at < 0) return false;
+	const rest = segments.slice(at + 1).filter((s) => s !== "");
+	// A file at the top of `<host>/plugins` is the host's plugin registry
+	// (Claude Code's installed_plugins.json, whose `installPath` says which
+	// tree each plugin's hooks load from), so rewriting it can swap maina's.
 	return (
-		at >= 0 && segments.slice(at + 1).some((s) => MAINA_PLUGIN_SEGMENT.test(s))
+		(rest.length === 1 && !PLUGIN_CONTAINERS.has(rest[0] ?? "")) ||
+		rest.some((s) => MAINA_PLUGIN_SEGMENT.test(s))
 	);
 }
 

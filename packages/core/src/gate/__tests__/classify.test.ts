@@ -1130,6 +1130,28 @@ describe("gate.self_override: an installed maina plugin (#533)", () => {
 		}
 	});
 
+	test("the host's plugin registry, which says where the plugin loads from", () => {
+		// Claude Code loads each enabled plugin from its `installPath` in
+		// installed_plugins.json: pointing it at another tree swaps the hooks.
+		const REGISTRY = "/home/dev/.claude/plugins/installed_plugins.json";
+		for (const path of [
+			REGISTRY,
+			"/home/dev/.claude/plugins/known_marketplaces.json",
+			"~/.cursor/plugins/installed.json",
+		]) {
+			expect(classifyAction(writeEvent(path), ctx), path).toContain(SELF);
+		}
+		for (const command of [
+			`echo '{}' > ${REGISTRY}`,
+			"rm ~/.claude/plugins/installed_plugins.json",
+			"mv ~/.claude/plugins/known_marketplaces.json /tmp/k.json",
+			"cp /tmp/evil.json ~/.claude/plugins/installed_plugins.json",
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+		expect(classesOf(`cat ${REGISTRY}`)).not.toContain(SELF);
+	});
+
 	test("MCP tools that write, move or delete the plugin", () => {
 		const cases: ReadonlyArray<
 			readonly [string, Readonly<Record<string, unknown>>]
