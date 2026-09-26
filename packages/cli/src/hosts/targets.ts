@@ -159,7 +159,7 @@ function resolveContext(ctx: PathContext): Required<PathContext> {
  * home directory (e.g. `$CODEX_HOME=/opt/codex`) is keyed by its absolute
  * path with separators flattened.
  */
-function globalBackupPath(home: string, path: string): string {
+export function globalBackupPath(home: string, path: string): string {
 	const rel = relative(home, path);
 	const inside = rel.length > 0 && !rel.startsWith("..") && !rel.includes(":");
 	const key = inside

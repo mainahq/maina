@@ -143,18 +143,62 @@ function encodeSafely(response: Response): string {
 	}
 }
 
+/** How many sessions' last gate `degraded` flag the runtime remembers. */
+const TRACKED_SESSIONS = 256;
+
+type GateHealth = Readonly<{
+	record: (event: GateEvent, degraded: boolean) => void;
+	/** A session's last flag, or the runtime's with no session; null: none yet. */
+	lastDegraded: (params: unknown) => boolean | null;
+}>;
+
+/**
+ * The `degraded` flag of the last gate decision served (#456), overall and
+ * per session, for `status` (the agent status line, FR-RET-1). A gate that
+ * failed counts as degraded: the client falls back to its degraded path.
+ */
+function createGateHealth(): GateHealth {
+	let last: boolean | null = null;
+	const sessions = new Map<string, boolean>();
+	return {
+		record: (event, degraded) => {
+			last = degraded;
+			const { sessionId } = event.input;
+			if (typeof sessionId !== "string" || sessionId === "") return;
+			// Re-inserting keeps the map in least-recently-seen order.
+			sessions.delete(sessionId);
+			sessions.set(sessionId, degraded);
+			if (sessions.size > TRACKED_SESSIONS) {
+				const oldest = sessions.keys().next().value;
+				if (oldest !== undefined) sessions.delete(oldest);
+			}
+		},
+		lastDegraded: (params) => {
+			const sessionId =
+				typeof params === "object" && params !== null && "sessionId" in params
+					? params.sessionId
+					: undefined;
+			return typeof sessionId === "string"
+				? (sessions.get(sessionId) ?? null)
+				: last;
+		},
+	};
+}
+
 async function evaluateHook(
 	ports: RuntimePorts,
 	params: unknown,
 	observe: (event: GateEvent) => void,
+	recordGate: GateHealth["record"],
 ): Promise<Outcome> {
 	const event = parseGateEvent(params);
 	if (event === null) return rpcError("bad_request", "invalid gate event");
 	observe(event);
 	if (event.kind === SESSION_STOP) return stopSession(ports.stop, event);
 	const ran = await runPort(() => ports.gate(event));
+	const decision = ran.ok ? parseGateDecision(ran.value) : null;
+	recordGate(event, decision?.degraded ?? true);
 	if (!ran.ok) return ran;
-	const decision = parseGateDecision(ran.value);
 	return decision === null
 		? rpcError("handler_failed", "gate returned an invalid decision")
 		: { ok: true, value: decision };
@@ -228,7 +272,9 @@ export function startRuntime(
 
 	const idle = createIdleTimer(idleTtlMs, () => beginStop("idle", true));
 
-	const status = () => ({
+	const gateHealth = createGateHealth();
+
+	const status = (params: unknown) => ({
 		version,
 		protocol: PROTOCOL_VERSION,
 		pid,
@@ -236,6 +282,7 @@ export function startRuntime(
 		uptimeMs: Date.now() - startedAt,
 		requests,
 		idleTtlMs,
+		lastGateDegraded: gateHealth.lastDegraded(params),
 	});
 
 	/**
@@ -262,9 +309,9 @@ export function startRuntime(
 	const dispatch = (req: Request): Promise<Outcome> => {
 		switch (req.method) {
 			case "status":
-				return Promise.resolve({ ok: true, value: status() });
+				return Promise.resolve({ ok: true, value: status(req.params) });
 			case "hook.evaluate":
-				return evaluateHook(ports, req.params, observe);
+				return evaluateHook(ports, req.params, observe, gateHealth.record);
 			case "decide":
 			case "graph.query":
 			case "verify.run": {

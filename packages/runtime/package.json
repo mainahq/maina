@@ -10,7 +10,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "bench": "bun bench/gate-roundtrip.bench.ts"
+    "bench": "bun bench/gate-roundtrip.bench.ts",
+    "bench:statusline": "bun bench/statusline.bench.ts"
   },
   "dependencies": {
     "@mainahq/cli": "workspace:*",

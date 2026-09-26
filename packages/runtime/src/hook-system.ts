@@ -19,11 +19,15 @@
  */
 
 import { existsSync } from "node:fs";
-import { homedir, tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import cliPackage from "@mainahq/cli/package.json" with { type: "json" };
 import { openDecisionDb } from "@mainahq/cli/src/decision-store";
-import { formatSessionSummary, readLogSlice, summarise } from "@mainahq/core";
+import {
+	formatSessionSummary,
+	readLogSlice,
+	type SessionSummary,
+	summarise,
+} from "@mainahq/core";
 import type { SessionEvent } from "./adapters/claude-code";
 import {
 	type ClaudeHookPorts,
@@ -36,7 +40,7 @@ import { runCodexHook } from "./codex-hook";
 import { runCursorHook } from "./cursor-hook";
 import { systemGates } from "./gate-system";
 import { daemonSpawner } from "./lifecycle";
-import { defaultRuntimeDir, resolveEndpoint } from "./registry";
+import { userEndpoint } from "./registry";
 import { gitProbe, resolveRoot } from "./root";
 
 /** How long one hook waits for the gate, runtime spawn included. */
@@ -61,25 +65,33 @@ type HookSystemOptions = Readonly<{
 	stopTimeoutMs?: number;
 }>;
 
-/** This session's summary line from the repository's decision log. */
-function sessionSummary(event: SessionEvent): string | undefined {
-	if (event.cwd === undefined) return undefined;
-	const root = resolveRoot({ cwd: event.cwd }, gitProbe);
-	if (!root.ok) return undefined;
+/**
+ * A session's gate and routing summary from the decision log of the
+ * repository around `cwd`; null when there is none (or nothing happened).
+ */
+export function readSessionSummary(
+	cwd: string,
+	sessionId: string | undefined,
+): SessionSummary | null {
+	const root = resolveRoot({ cwd }, gitProbe);
+	if (!root.ok) return null;
 	const mainaDir = join(root.value.path, ".maina");
 	// Never create a decision log just to find it empty.
-	if (!existsSync(join(mainaDir, "decisions.db"))) return undefined;
+	if (!existsSync(join(mainaDir, "decisions.db"))) return null;
 	const store = openDecisionDb(mainaDir);
-	if (!store.ok) return undefined;
+	if (!store.ok) return null;
 	try {
-		const slice = readLogSlice(
-			{ db: store.value.db },
-			{ sessionId: event.sessionId },
-		);
-		return slice.ok ? formatSessionSummary(summarise(slice.value)) : undefined;
+		const slice = readLogSlice({ db: store.value.db }, { sessionId });
+		return slice.ok ? summarise(slice.value) : null;
 	} finally {
 		store.value.close();
 	}
+}
+
+/** This session's summary line from the repository's decision log. */
+function sessionSummary(event: SessionEvent): string | undefined {
+	if (event.cwd === undefined) return undefined;
+	return formatSessionSummary(readSessionSummary(event.cwd, event.sessionId));
 }
 
 export function systemClaudeHookPorts(
@@ -87,13 +99,7 @@ export function systemClaudeHookPorts(
 ): ClaudeHookPorts {
 	const env = options.env ?? process.env;
 	const version = cliPackage.version;
-	const endpoint = resolveEndpoint({
-		platform: process.platform,
-		dir: defaultRuntimeDir(env, homedir()),
-		user: userInfo().username,
-		version,
-		tmpDir: tmpdir(),
-	});
+	const endpoint = userEndpoint(env, version);
 	const client = createHookClient({
 		endpoint,
 		version,
