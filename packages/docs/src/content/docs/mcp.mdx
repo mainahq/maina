@@ -3,7 +3,8 @@ title: MCP Server
 description: Add Maina's verification, context, and review tools to any MCP-compatible IDE.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Code, Tabs, TabItem } from '@astrojs/starlight/components';
+import { facts } from '../../data/facts';
 
 Maina includes an MCP (Model Context Protocol) server that exposes its engines to any MCP-compatible IDE -- Claude Code, Cursor, Windsurf, and others.
 
@@ -127,13 +128,11 @@ Every tool also takes an optional `root`: the absolute path of the repository to
 
 Every tool answers with a text summary for the model plus structured content in a `{ data, error, meta }` envelope, described by the tool's output schema:
 
-```json
-{
+<Code lang="json" code={`{
   "data": { "passed": true, "tools": [{ "tool": "semgrep", "status": "skipped", "findings": 0, "durationMs": 0, "reason": "semgrep is not installed" }] },
   "error": null,
-  "meta": { "tool": "verify", "root": "/repo", "version": "2.0.0", "durationMs": 812 }
-}
-```
+  "meta": { "tool": "verify", "root": "/repo", "version": "${facts.version}", "durationMs": 812 }
+}`} />
 
 A failed call sets `isError`, `data: null` and `error: { kind, message }`, where `kind` is `no_root`, `invalid_input`, `not_found` or `failed`.
 
