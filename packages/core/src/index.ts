@@ -141,9 +141,9 @@ export {
 } from "./db/decision-outcomes";
 // Gate subject migration (what a gate decision was about, FR-GATE-8)
 export { migrateGateSubjects } from "./db/gate-subjects";
-// DB
+// DB: stores are handed out as a `DbPort` only, so the published types never
+// name a bun:sqlite or drizzle type (#392).
 export type {
-	DbHandle,
 	Result,
 	SqlBinding,
 	SqlBindings,
@@ -151,8 +151,12 @@ export type {
 	SqliteDatabase,
 	SqliteStatement,
 } from "./db/index";
-export { getDecisionDb, getFeedbackDb } from "./db/index";
 export { toDbPort } from "./db/port";
+export {
+	type DbStore,
+	openDecisionStore,
+	openFeedbackStore,
+} from "./db/store";
 // Decide (typed decision interface, FR-DEC-1/2)
 export {
 	type DecidePorts,

@@ -12,11 +12,11 @@ import {
 	createCacheManager,
 	detectTools,
 	getApiKey,
-	getFeedbackDb,
 	getRepoRoot,
 	isHostMode,
 	loadConfigModule,
 	loadPolicy,
+	openFeedbackStore,
 	systemProcess,
 	VERSION,
 } from "@mainahq/core";
@@ -565,20 +565,18 @@ function checkAIStatus(cwd: string, cacheStats: CacheStats | null): AIStatus {
 	// Feedback stats
 	let feedbackTotal = 0;
 	let feedbackAcceptRate = 0;
-	const fbResult = getFeedbackDb(mainaDir);
-	if (fbResult.ok) {
-		try {
-			const row = fbResult.value.db
-				.query(
-					"SELECT COUNT(*) as total, SUM(CASE WHEN accepted = 1 THEN 1 ELSE 0 END) as accepted FROM feedback",
-				)
-				.get() as { total: number; accepted: number } | null;
-			if (row && row.total > 0) {
-				feedbackTotal = row.total;
-				feedbackAcceptRate = row.accepted / row.total;
-			}
-		} catch {
-			// Table may not exist yet
+	const store = openFeedbackStore(mainaDir);
+	if (store.ok) {
+		const rows = store.value.db.all(
+			"SELECT COUNT(*) as total, SUM(CASE WHEN accepted = 1 THEN 1 ELSE 0 END) as accepted FROM feedback",
+		);
+		store.value.close();
+		// A failed query (table not created yet) reads as no feedback.
+		const row = rows.ok ? rows.value[0] : undefined;
+		const total = Number(row?.total ?? 0);
+		if (total > 0) {
+			feedbackTotal = total;
+			feedbackAcceptRate = Number(row?.accepted ?? 0) / total;
 		}
 	}
 

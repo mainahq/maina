@@ -74,7 +74,7 @@ mock.module("@mainahq/core", () => ({
 	}),
 	getApiKey: () => mockApiKey,
 	isHostMode: () => mockHostMode,
-	getFeedbackDb: () => mockFeedbackDbResult,
+	openFeedbackStore: () => mockFeedbackDbResult,
 }));
 
 mock.module("@clack/prompts", () => ({
@@ -299,19 +299,46 @@ describe("maina doctor", () => {
 		expect(result.aiStatus.hostMode).toBe(true);
 	});
 
-	test("reports feedback stats when db available", async () => {
-		// Create a mock db with query method
+	test("reports feedback stats when db available, then closes the store", async () => {
+		// The store comes back as a DbPort (#392).
+		let closed = 0;
 		const mockDb = {
-			query: () => ({
-				get: () => ({ total: 83, accepted: 54 }),
-			}),
+			run: () => ({ ok: true, value: undefined }),
+			all: () => ({ ok: true, value: [{ total: 83, accepted: 54 }] }),
 		};
-		mockFeedbackDbResult = { ok: true, value: { db: mockDb } };
+		mockFeedbackDbResult = {
+			ok: true,
+			value: { db: mockDb, close: () => closed++ },
+		};
 
 		const result = await doctorAction({ cwd: tmpDir, home: tmpDir });
 
 		expect(result.aiStatus.feedbackTotal).toBe(83);
 		expect(result.aiStatus.feedbackAcceptRate).toBeCloseTo(54 / 83, 2);
+		expect(closed).toBe(1);
+	});
+
+	test("reports zero feedback when the feedback query fails", async () => {
+		let closed = 0;
+		mockFeedbackDbResult = {
+			ok: true,
+			value: {
+				db: {
+					run: () => ({ ok: true, value: undefined }),
+					all: () => ({
+						ok: false,
+						error: { kind: "query_failed", message: "no such table" },
+					}),
+				},
+				close: () => closed++,
+			},
+		};
+
+		const result = await doctorAction({ cwd: tmpDir, home: tmpDir });
+
+		expect(result.aiStatus.feedbackTotal).toBe(0);
+		expect(result.aiStatus.feedbackAcceptRate).toBe(0);
+		expect(closed).toBe(1);
 	});
 
 	test("reports zero feedback when db unavailable", async () => {
