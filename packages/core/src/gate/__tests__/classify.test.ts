@@ -950,3 +950,79 @@ describe("gate.self_override: the paths the #447 review left open (#513)", () =>
 		]);
 	});
 });
+
+describe("gate.self_override: maina mcp add/remove and doctor --fix (#543)", () => {
+	const SELF = "gate.self_override";
+
+	test("an agent writing Codex's config.toml through maina mcp add/remove", () => {
+		for (const command of [
+			// Auto-detect may pick Codex; the gate cannot know it will not.
+			"maina mcp add",
+			"maina mcp add --yes",
+			"maina mcp add --json",
+			"maina mcp remove",
+			"maina mcp add --client codex",
+			"maina mcp add --client=cursor,codex",
+			"maina mcp add --client ' Codex ' --scope global",
+			"maina mcp add --client cursor --client codex",
+			"maina mcp add --scope both",
+			"maina mcp add --scope project --scope global",
+			"maina mcp remove --client codex --json",
+			// An empty list means auto-detect.
+			"maina mcp add --client=",
+			// A value or subcommand the gate cannot read fails closed.
+			'maina mcp add --client "$C"',
+			'maina mcp add --scope "$S" --client codex',
+			'maina mcp "$X"',
+			// `--dry-run` after `--` is an operand, not the flag.
+			"maina mcp add -- --dry-run",
+			// Commander hands the word after a value option to it, so these
+			// set the client instead of dry-running or printing help.
+			"maina mcp add --client --dry-run --client codex",
+			"maina mcp add --client --help --client codex",
+			"maina mcp add --scope -- --client codex",
+			"bunx maina mcp add",
+			"npx -y @mainahq/cli@latest mcp add --client codex",
+			'sh -c "maina mcp remove"',
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+	});
+
+	test("an agent running maina doctor --fix, which runs maina mcp add", () => {
+		for (const command of [
+			"maina doctor --fix",
+			"maina doctor --fix --yes",
+			"maina doctor --json --fix",
+			"bunx maina doctor --fix -y",
+			"sh -c 'maina doctor --fix'",
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+	});
+
+	test("reads, dry runs and writes that cannot reach a control file pass", () => {
+		for (const command of [
+			"maina mcp",
+			"maina mcp list",
+			"maina mcp list --client codex",
+			"maina mcp help add",
+			"maina mcp add --help",
+			"maina mcp -h",
+			"maina mcp add --dry-run",
+			"maina mcp remove --client codex --dry-run",
+			"maina mcp add --client cursor",
+			"maina mcp add --client=claude,cursor --scope both",
+			"maina mcp add --scope project",
+			"maina mcp add --scope=Project",
+			// Codex has no project-scope file.
+			"maina mcp add --client codex --scope project",
+			"maina doctor",
+			"maina doctor --json",
+			"maina doctor --fix --help",
+			"maina doctor -- --fix",
+		]) {
+			expect(classesOf(command), command).not.toContain(SELF);
+		}
+	});
+});
