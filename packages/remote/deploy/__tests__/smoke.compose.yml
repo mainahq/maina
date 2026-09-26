@@ -35,7 +35,10 @@ services:
       no_proxy: api.github.test,localhost,127.0.0.1
       MAINA_NETWORK_SPY_LOG: /smoke-out/network.jsonl
       MAINA_NETWORK_SPY_ALLOW: api.github.test
+      # The mirror is owned by the host user; this marks it safe for git.
+      GIT_CONFIG_GLOBAL: /smoke/gitconfig
     volumes:
+      - ${MAINA_SMOKE_DIR:?}/gitconfig:/smoke/gitconfig:ro
       - ${MAINA_SMOKE_SRC:?}/packages/remote/deploy/__tests__/network-spy.ts:/smoke/network-spy.ts:ro
       - ${MAINA_SMOKE_DIR:?}/origin:/fixture/origin:ro
       - ${MAINA_SMOKE_DIR:?}/out:/smoke-out

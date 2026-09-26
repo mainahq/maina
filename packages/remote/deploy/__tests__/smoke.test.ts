@@ -634,6 +634,13 @@ describe.skipIf(!DOCKER)("smoke: the compose deployment in Docker", () => {
 		const out = join(fx.dir, "out");
 		mkdirSync(out);
 		chmodSync(out, 0o777);
+		// On Linux the bind-mounted mirror belongs to the host user, not the
+		// image's uid 1000, and git refuses to fetch from a repository it
+		// does not own. Mark just the mirror safe, as its owner would.
+		writeFileSync(
+			join(fx.dir, "gitconfig"),
+			"[safe]\n\tdirectory = /fixture/origin\n\tdirectory = /fixture/origin/.git\n",
+		);
 		port = await freePort();
 		env = {
 			MAINA_IMAGE: `maina-remote:smoke-${process.pid}`,
