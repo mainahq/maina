@@ -7,6 +7,8 @@
 
 import { z } from "zod";
 import type { Result } from "../db/index";
+import { EMAIL_ADDRESS } from "../digest/deliver/email";
+import { HTTPS_URL } from "../digest/deliver/webhook";
 import type { FsPort } from "../ports/fs";
 
 /** Recursively readonly view of plain data. */
@@ -134,12 +136,43 @@ const TelemetrySchema = z
 		"1.x setup telemetry opt-out (false opts out). Superseded by policy.telemetry.",
 	);
 
+const emailAddress = z
+	.string()
+	.regex(EMAIL_ADDRESS, "Expected a plain email address");
+
+const DigestSchema = z
+	.strictObject({
+		webhook: z
+			.strictObject({
+				url: z
+					.string()
+					.regex(HTTPS_URL, "Expected an https:// URL")
+					.describe(
+						'Incoming webhook that receives { "text": <card> } (Slack, Mattermost, ...).',
+					),
+			})
+			.optional(),
+		email: z
+			.strictObject({
+				to: z.array(emailAddress).describe("Recipients of the card."),
+				from: emailAddress
+					.describe("Sender address; the local user when absent.")
+					.optional(),
+			})
+			.describe("Mail the card through the local `sendmail -t`.")
+			.optional(),
+	})
+	.describe(
+		"Where `maina digest --send` delivers the weekly card. Nothing is sent unless a channel is set here.",
+	);
+
 const ConfigSchema = z.strictObject({
 	models: ModelsSchema,
 	provider: z.string().min(1),
 	budget: BudgetSchema,
 	repoAliases: RepoAliasesSchema,
 	telemetry: TelemetrySchema.optional(),
+	digest: DigestSchema.optional(),
 });
 
 /** The resolved config: defaults with every layer merged on top. */
@@ -157,6 +190,7 @@ const ConfigFileSchema = z
 		budget: BudgetSchema.partial().optional(),
 		repoAliases: RepoAliasesSchema.optional(),
 		telemetry: TelemetrySchema.optional(),
+		digest: DigestSchema.optional(),
 	})
 	.meta({
 		title: "Maina config",

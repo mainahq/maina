@@ -84,6 +84,50 @@
 		"telemetry": {
 			"type": "boolean",
 			"description": "1.x setup telemetry opt-out (false opts out). Superseded by policy.telemetry."
+		},
+		"digest": {
+			"type": "object",
+			"properties": {
+				"webhook": {
+					"type": "object",
+					"properties": {
+						"url": {
+							"type": "string",
+							"pattern": "^https:\\/\\/[\\x21-\\x7e]{1,2048}$",
+							"description": "Incoming webhook that receives { \"text\": <card> } (Slack, Mattermost, ...)."
+						}
+					},
+					"required": [
+						"url"
+					],
+					"additionalProperties": false
+				},
+				"email": {
+					"type": "object",
+					"properties": {
+						"to": {
+							"type": "array",
+							"items": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9!#$%&'*+/=?^_`{|}~.-]+@[A-Za-z0-9.-]+$"
+							},
+							"description": "Recipients of the card."
+						},
+						"from": {
+							"type": "string",
+							"pattern": "^[A-Za-z0-9!#$%&'*+/=?^_`{|}~.-]+@[A-Za-z0-9.-]+$",
+							"description": "Sender address; the local user when absent."
+						}
+					},
+					"required": [
+						"to"
+					],
+					"additionalProperties": false,
+					"description": "Mail the card through the local `sendmail -t`."
+				}
+			},
+			"additionalProperties": false,
+			"description": "Where `maina digest --send` delivers the weekly card. Nothing is sent unless a channel is set here."
 		}
 	},
 	"additionalProperties": false,

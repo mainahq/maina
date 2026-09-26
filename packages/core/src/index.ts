@@ -322,6 +322,28 @@ export {
 	type ReviewResult,
 	reviewDesign,
 } from "./design/review";
+// Weekly digest and its shareable card (FR-RET-5, FR-DOG-4)
+export {
+	buildDigest,
+	type DigestEvent,
+	type DigestSubject,
+	type DigestVerdict,
+	decisionLogEvents,
+	isoWeek,
+	isWeekKey,
+	type WeekBounds,
+	type WeeklyDigest,
+	weekBounds,
+} from "./digest/build";
+export { type CardOptions, renderDigestCard } from "./digest/card";
+export {
+	type ChannelResult,
+	type DeliveryReport,
+	type DigestDelivery,
+	deliverDigest,
+	describeChannelError,
+} from "./digest/deliver/index";
+export { renderDigest } from "./digest/render";
 // Errors
 export {
 	formatErrorForCli,

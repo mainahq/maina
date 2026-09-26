@@ -205,7 +205,8 @@ describe("maina.config JSON Schema", () => {
 		};
 		const defaults = getDefaultConfig();
 		expect(Object.keys(schema.properties).sort()).toEqual(
-			["$schema", "telemetry", ...Object.keys(defaults)].sort(),
+			// `telemetry` and `digest` are optional: no default value.
+			["$schema", "telemetry", "digest", ...Object.keys(defaults)].sort(),
 		);
 		expect(
 			Object.keys(schema.properties.models?.properties ?? {}).sort(),

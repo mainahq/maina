@@ -111,6 +111,16 @@ export type ActionClass =
 	| (typeof DENIED_ACTION_CLASSES)[number]
 	| keyof typeof REVERSIBLE_ACTION_CLASSES;
 
+/**
+ * Every built-in action class id: Maina's own vocabulary, safe to show
+ * wherever repository content is not (the shareable digest card).
+ */
+export const ACTION_CLASS_IDS: readonly ActionClass[] = [
+	...(Object.keys(REVERSIBLE_ACTION_CLASSES) as ActionClass[]),
+	...IRREVERSIBLE_ACTION_CLASSES,
+	...DENIED_ACTION_CLASSES,
+];
+
 /** Missing a risky action costs more than asking about a safe one. */
 const SAFETY_CRITICAL: ReadonlySet<DecisionType> = new Set([
 	"action.risk",

@@ -12,6 +12,7 @@ import { configureCommand } from "./commands/configure";
 import { contextCommand } from "./commands/context";
 import { decideCommand } from "./commands/decide";
 import { designCommand } from "./commands/design";
+import { digestCommand } from "./commands/digest";
 import { doctorCommand } from "./commands/doctor";
 import { explainCommand } from "./commands/explain";
 import { feedbackCommand } from "./commands/feedback";
@@ -65,6 +66,7 @@ Build & Verify:
   pr             Create pull request
   run            Run an agent in maina's sandbox, gated and budgeted
   acp            Serve an agent to your editor (Zed, JetBrains) through the gate
+  digest         Weekly gate digest and a card safe to share
 
 Wiki:
   wiki init     Compile codebase knowledge
@@ -175,6 +177,7 @@ Setup & Config:
 	// ── Gate ────────────────────────────────────────────────────────────
 	program.addCommand(allowCommand());
 	program.addCommand(decideCommand());
+	program.addCommand(digestCommand());
 
 	// ── Internals ───────────────────────────────────────────────────────
 	//
