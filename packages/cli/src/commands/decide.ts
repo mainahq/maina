@@ -11,6 +11,11 @@
  * A type with fixed options (`action.risk`: allow | ask | deny) gets one
  * default choice question; any other type needs `questions` in the input.
  *
+ * The verdict applies the policy's confidence threshold for the type, as the
+ * gate does: an answer below it is not acted on. `action.risk` then fails
+ * closed to `ask`, like the gate; any other type answers `unsure`. The
+ * backend's own answer stays in `decisions`.
+ *
  * Exit codes: 0 whenever a verdict was reached, whatever it is (the verdict
  * is data: route on it), 3 for bad input, an unknown type or an invalid
  * policy, 2 when the backend could not answer. A failure prints no verdict,
@@ -20,7 +25,9 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import {
+	type BackendRegistry,
 	type ClockPort,
+	confidenceThreshold,
 	DECISION_CATALOG,
 	DEFAULT_REGISTRY,
 	type DecideError,
@@ -59,6 +66,8 @@ type DecideDeps = Readonly<{
 	clock: ClockPort;
 	/** The repository root for `cwd`, or `""` outside a repository. */
 	repoRoot: (cwd: string) => Promise<string>;
+	/** The backends that answer; core's defaults when omitted. */
+	backends?: BackendRegistry;
 }>;
 
 type CommandError = Readonly<{
@@ -68,9 +77,16 @@ type CommandError = Readonly<{
 
 type DecideData = Readonly<{
 	type: DecisionType;
-	/** The first decision's answer as a string: what a `switch` routes on. */
+	/**
+	 * What a `switch` routes on: the first decision's answer as a string,
+	 * or, below the threshold, `ask` for `action.risk` and `unsure` otherwise.
+	 */
 	verdict: string;
 	confidence: number;
+	/** The policy's minimum confidence for acting on an answer of this type. */
+	threshold: number;
+	/** The answer was below `threshold`, so `verdict` is the fail-closed one. */
+	belowThreshold: boolean;
 	decisions: readonly Decision[];
 }>;
 
@@ -218,6 +234,28 @@ function defaultQuestions(type: DecisionType): Parsed<readonly Question[]> {
 	);
 }
 
+/** What a verdict below the threshold falls back to (#544). */
+const UNSURE_VERDICT = "unsure";
+
+/**
+ * The verdict `decision` amounts to under the threshold: its answer when
+ * confident enough, else the fail-closed one (the gate's `ask` for
+ * `action.risk`).
+ */
+function actedVerdict(
+	type: DecisionType,
+	decision: Decision,
+	threshold: number,
+): Readonly<{ verdict: string; belowThreshold: boolean }> {
+	if (decision.confidence >= threshold) {
+		return { verdict: String(decision.answer), belowThreshold: false };
+	}
+	return {
+		verdict: type === "action.risk" ? "ask" : UNSURE_VERDICT,
+		belowThreshold: true,
+	};
+}
+
 function isDecisionType(type: string): type is DecisionType {
 	return Object.hasOwn(DECISION_CATALOG, type);
 }
@@ -310,7 +348,11 @@ export async function decideAction(
 	}
 
 	const decided = decide(
-		{ clock: deps.clock, policy: policy.value, backends: DEFAULT_REGISTRY },
+		{
+			clock: deps.clock,
+			policy: policy.value,
+			backends: deps.backends ?? DEFAULT_REGISTRY,
+		},
 		{
 			type,
 			state: {
@@ -339,12 +381,16 @@ export async function decideAction(
 			EXIT_TOOL_FAILURE,
 		);
 	}
+	const threshold = confidenceThreshold(policy.value, type);
+	const { verdict, belowThreshold } = actedVerdict(type, first, threshold);
 	return {
 		output: {
 			data: {
 				type,
-				verdict: String(first.answer),
+				verdict,
 				confidence: first.confidence,
+				threshold,
+				belowThreshold,
 				decisions: decided.value,
 			},
 			error: null,
@@ -399,9 +445,13 @@ function summary(output: DecideEnvelope): string {
 	if (output.data === null) {
 		return `maina decide: ${output.error?.message ?? "no decision"}`;
 	}
-	const { verdict, confidence, decisions } = output.data;
+	const { verdict, confidence, threshold, belowThreshold, decisions } =
+		output.data;
 	const backend = decisions[0]?.backend.id ?? "unknown";
-	return `${verdict} (confidence ${confidence.toFixed(2)}, ${backend} backend)`;
+	const below = belowThreshold
+		? `, below the ${threshold.toFixed(2)} threshold`
+		: "";
+	return `${verdict} (confidence ${confidence.toFixed(2)}${below}, ${backend} backend)`;
 }
 
 export function decideCommand(): Command {

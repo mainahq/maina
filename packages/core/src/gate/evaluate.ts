@@ -30,7 +30,7 @@ import { rulesBackend } from "../decide/backends/rules";
 import { type DecidePorts, decide } from "../decide/decide";
 import { type BackendRegistry, selectBackend } from "../decide/registry";
 import type { DecideError, DecideRequest, Decision } from "../decide/types";
-import { DEFAULT_POLICY } from "../policy/defaults";
+import { confidenceThreshold, DEFAULT_POLICY } from "../policy/defaults";
 import {
 	type ActionClassPolicy,
 	GATE_EVENT_KINDS,
@@ -376,9 +376,7 @@ function judgeAnswers(
 		);
 	}
 
-	const threshold =
-		policy.decisions["action.risk"]?.thresholds.confidence ??
-		DEFAULT_POLICY.decisions["action.risk"].thresholds.confidence;
+	const threshold = confidenceThreshold(policy, "action.risk");
 	const unsure = decisions.find((d) => !(d.confidence >= threshold));
 	if (unsure !== undefined) {
 		return modelAsk(

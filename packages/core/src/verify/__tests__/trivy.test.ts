@@ -1,8 +1,6 @@
 import { describe, expect, it } from "bun:test";
+import { createFakeProcess } from "../../ports/testing";
 import { parseTrivyJson, runTrivy } from "../trivy";
-
-// Tests run from the repository; pass it as the explicit root (#290).
-const ROOT = process.cwd();
 
 // ─── parseTrivyJson ────────────────────────────────────────────────────────
 
@@ -163,32 +161,68 @@ describe("parseTrivyJson", () => {
 
 // ─── runTrivy ──────────────────────────────────────────────────────────────
 
+// The runner is driven through a scripted ProcessPort, never the real
+// binary: a real `trivy fs .` over the repository took longer than the 5s
+// test timeout (#544).
+const TRIVY_ARGV = "trivy fs --format json --scanners vuln .";
+
 describe("runTrivy", () => {
-	it("should skip when trivy is not installed", async () => {
-		const result = await runTrivy({ cwd: ROOT });
-		if (result.skipped) {
-			expect(result.findings).toEqual([]);
-			expect(result.skipped).toBe(true);
-		} else {
-			expect(Array.isArray(result.findings)).toBe(true);
-			expect(result.skipped).toBe(false);
-		}
-	});
-
-	it("should return correct result shape", async () => {
-		const result = await runTrivy({ cwd: ROOT });
-		expect(result).toHaveProperty("findings");
-		expect(result).toHaveProperty("skipped");
-		expect(Array.isArray(result.findings)).toBe(true);
-		expect(typeof result.skipped).toBe("boolean");
-	});
-
-	it("should accept options without crashing", async () => {
+	it("should skip without spawning when trivy is not installed", async () => {
+		const proc = createFakeProcess();
 		const result = await runTrivy({
-			scanType: "fs",
-			cwd: "/tmp",
+			cwd: "/repo",
+			available: false,
+			process: proc,
 		});
-		expect(result).toHaveProperty("findings");
-		expect(result).toHaveProperty("skipped");
+		expect(result).toEqual({ findings: [], skipped: true });
+		expect(proc.calls()).toEqual([]);
+	});
+
+	it("should scan the root and parse the JSON on stdout", async () => {
+		const proc = createFakeProcess({
+			[TRIVY_ARGV]: {
+				stdout: JSON.stringify({
+					Results: [
+						{
+							Target: "bun.lock",
+							Vulnerabilities: [
+								{
+									VulnerabilityID: "CVE-2024-0001",
+									PkgName: "lodash",
+									InstalledVersion: "4.17.20",
+									Severity: "HIGH",
+									Title: "Prototype pollution",
+								},
+							],
+						},
+					],
+				}),
+			},
+		});
+		const result = await runTrivy({
+			cwd: "/repo",
+			available: true,
+			process: proc,
+		});
+		expect(result.skipped).toBe(false);
+		expect(result.findings).toHaveLength(1);
+		expect(result.findings[0]?.ruleId).toBe("CVE-2024-0001");
+		expect(proc.calls()).toEqual([
+			{ argv: TRIVY_ARGV.split(" "), options: { cwd: "/repo" } },
+		]);
+	});
+
+	it("should report a failed run with no JSON as skipped with a notice", async () => {
+		const proc = createFakeProcess({
+			[TRIVY_ARGV]: { exitCode: 1, stderr: "db download failed" },
+		});
+		const result = await runTrivy({
+			cwd: "/repo",
+			available: true,
+			process: proc,
+		});
+		expect(result.skipped).toBe(true);
+		expect(result.findings).toEqual([]);
+		expect(result.notice).toContain("db download failed");
 	});
 });

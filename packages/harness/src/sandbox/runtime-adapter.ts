@@ -10,8 +10,10 @@
  *
  * `wrap` writes the worker's settings to a private temp file (paths and
  * variable names only: no secret is ever written) and returns
- * `srt --debug --settings <file> -- <command>`. The real credential values
- * travel in srt's own environment; `srt` hands the worker a stand-in.
+ * `srt --debug --settings <file> -- <command>`. `dispose` removes those
+ * files (and their `maina-sandbox-*` dirs) once the workers have exited.
+ * The real credential values travel in srt's own environment; `srt` hands
+ * the worker a stand-in.
  * `--debug` makes srt log each network decision to stderr, which
  * `decisions` reads back.
  */
@@ -21,10 +23,11 @@ import {
 	mkdtempSync,
 	readFileSync,
 	realpathSync,
+	rmSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { Result } from "@mainahq/core";
 import { type CredentialPlan, planCredentials } from "./credential-proxy";
 import type {
@@ -70,6 +73,8 @@ export type SandboxRuntimeDeps = Readonly<{
 	env: Readonly<Record<string, string | undefined>>;
 	/** Writes the settings JSON somewhere private and returns its path. */
 	writeSettings: (json: string) => Result<string, SandboxError>;
+	/** Removes a settings file `writeSettings` wrote. Never throws. */
+	removeSettings: (path: string) => void;
 }>;
 
 /**
@@ -183,10 +188,13 @@ function toSettings(
 	};
 }
 
+/** The settings file's temp directory name prefix. */
+const SETTINGS_DIR_PREFIX = "maina-sandbox-";
+
 /** A 0700 temp directory holding a 0600 settings file. */
 function writeSettingsFile(json: string): Result<string, SandboxError> {
 	try {
-		const dir = mkdtempSync(join(tmpdir(), "maina-sandbox-"));
+		const dir = mkdtempSync(join(tmpdir(), SETTINGS_DIR_PREFIX));
 		chmodSync(dir, 0o700);
 		const path = join(dir, "settings.json");
 		writeFileSync(path, json, { mode: 0o600 });
@@ -199,6 +207,21 @@ function writeSettingsFile(json: string): Result<string, SandboxError> {
 				message: `could not write the sandbox settings: ${e instanceof Error ? e.message : String(e)}`,
 			},
 		};
+	}
+}
+
+/**
+ * Removes the temp directory `writeSettingsFile` made for `path`. Only a
+ * `maina-sandbox-*` directory is removed, so a path from elsewhere never
+ * takes its parent directory with it.
+ */
+function removeSettingsFile(path: string): void {
+	const dir = dirname(path);
+	if (!basename(dir).startsWith(SETTINGS_DIR_PREFIX)) return;
+	try {
+		rmSync(dir, { recursive: true, force: true });
+	} catch {
+		// Best effort: a leftover temp dir is not worth failing a run over.
 	}
 }
 
@@ -251,6 +274,9 @@ export function createSandboxRuntime(
 	const platform = deps.platform ?? process.platform;
 	const env = deps.env ?? Bun.env;
 	const writeSettings = deps.writeSettings ?? writeSettingsFile;
+	const removeSettings = deps.removeSettings ?? removeSettingsFile;
+	/** Settings files written and not yet removed, for `dispose`. */
+	const written: string[] = [];
 
 	const wrap: SandboxPort["wrap"] = (command, options) => {
 		const runtime = detectSandboxRuntime(probe, platform);
@@ -262,6 +288,7 @@ export function createSandboxRuntime(
 			JSON.stringify(toSettings(options, plan.value), null, 2),
 		);
 		if (!settings.ok) return settings;
+		written.push(settings.value);
 		return {
 			ok: true,
 			value: {
@@ -287,5 +314,9 @@ export function createSandboxRuntime(
 		};
 	};
 
-	return { wrap, decisions: parseSandboxDecisions };
+	const dispose: SandboxPort["dispose"] = () => {
+		for (const path of written.splice(0)) removeSettings(path);
+	};
+
+	return { wrap, decisions: parseSandboxDecisions, dispose };
 }

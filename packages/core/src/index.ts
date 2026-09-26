@@ -740,6 +740,7 @@ export {
 // Policy (gate policy schema, FR-GATE-9)
 export type { ActionClass } from "./policy/defaults";
 export {
+	confidenceThreshold,
 	DEFAULT_POLICY,
 	DENIED_ACTION_CLASSES,
 	IRREVERSIBLE_ACTION_CLASSES,
