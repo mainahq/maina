@@ -18,6 +18,19 @@ export type LifecycleEvent =
 	/** The agent stops: maina verifies the session's changes. */
 	| "session.stop";
 
+/**
+ * Every lifecycle point, in order, with what maina does there. The docs'
+ * hooks reference is generated from this (#357).
+ */
+export const LIFECYCLE_EVENTS: Readonly<Record<LifecycleEvent, string>> = {
+	"session.start": "A session starts: maina adds its context.",
+	"tool.before": "Before a tool runs: the gate decides allow, ask or deny.",
+	"permission.request":
+		"The host is about to prompt for a permission: the gate decides.",
+	"file.edited": "After a file edit: the code graph observes it.",
+	"session.stop": "The agent stops: maina verifies the session's changes.",
+};
+
 /** One native hook registration: a documented event of the host. */
 export type NativeHook = Readonly<{
 	event: string;

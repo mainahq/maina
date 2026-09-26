@@ -116,6 +116,14 @@ describe("checkToolDocs", () => {
 		]);
 	});
 
+	test("a generated page may name retired tools: it records history", () => {
+		writeFileSync(
+			join(root, "packages", "docs", "src", "content", "docs", "changelog.mdx"),
+			"## 1.2.0\n\n- the `reviewCode` MCP tool\n",
+		);
+		expect(checkToolDocs(root).retired).toEqual([]);
+	});
+
 	test("a synced file with v1 names is clean", () => {
 		writeFileSync(
 			join(root, "packages", "docs", "src", "content", "docs", "mcp.mdx"),

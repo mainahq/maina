@@ -46,7 +46,7 @@ Maina is a CLI + MCP server + skills package. One tool that:
 
 ```bash
 bunx @mainahq/cli@latest setup   # Wizard: constitution + agents + wiki + verify (<60s)
-maina commit                     # Verify with 12 tools + commit.
+maina commit                     # Verify + commit.
 maina verify --visual            # Add screenshot regression.
 maina pr                         # PR with verification proof attached.
 ```
@@ -90,7 +90,7 @@ Your team's constitution (`.maina/constitution.md`) is injected into every AI ca
 
 ### Verify Engine -- proves it's correct
 
-12 tools run in parallel on every commit:
+These tools run in parallel on every commit:
 
 | Tool | What it catches |
 |------|----------------|
@@ -219,7 +219,7 @@ That's it. In under 60 seconds you have a tailored constitution, wired agents, a
 ```bash
 maina plan my-feature        # Create feature branch with structure
 # ... write code ...
-maina commit                 # Verify (12 tools) + commit
+maina commit                 # Verify + commit
 maina pr                     # PR with verification proof
 maina learn                  # Evolve prompts from feedback
 ```

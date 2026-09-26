@@ -17,6 +17,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { GENERATED_DOCS } from "../../../scripts/docs-generated";
 import { PLUGIN } from "../../plugins/src/definition";
 
 const SKILLS_DIR = join(import.meta.dir, "..");
@@ -183,9 +184,16 @@ describe("shipped only through plugins or .agents/skills", () => {
 			join(PACKAGES_DIR, "plugins", "src"),
 			join(PACKAGES_DIR, "docs", "src", "content", "docs"),
 		];
+		// Generated docs (the changelog) record the 1.x layout as history.
+		const generated = new Set(
+			GENERATED_DOCS.map((path) => path.replace(/^packages\//, "")),
+		);
 		const offenders = roots.flatMap((root) =>
 			[...new Bun.Glob("**/*.{ts,md,mdx}").scanSync({ cwd: root })]
 				.filter((path) => !path.includes("__golden__"))
+				.filter(
+					(path) => !generated.has(relative(PACKAGES_DIR, join(root, path))),
+				)
 				.filter((path) =>
 					readFileSync(join(root, path), "utf-8").includes(".maina/skills"),
 				)

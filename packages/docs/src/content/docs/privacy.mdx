@@ -3,11 +3,13 @@ title: Privacy
 description: What maina sends off your machine (nothing, unless you opt in), and what the remote connector and its GitHub App jobs keep and log.
 ---
 
+import { facts } from '../../data/facts';
+
 Maina runs on your machine and works on your repository in place. It sends nothing anywhere unless you turn a channel on.
 
 ## Telemetry
 
-There are three channels: `crash_reports`, `usage` and `outcome_sharing`. Every one is off by default, and you turn one on in your user policy (`~/.maina/policy.json`):
+{facts.telemetry.summary} For example:
 
 ```json
 { "version": 1, "telemetry": { "crash_reports": true } }
