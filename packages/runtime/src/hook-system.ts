@@ -17,6 +17,8 @@
  *   shows notifications (FR-RET-6, ADR 0049): through the hook's
  *   `terminalSequence` for Claude Code, which gives hooks no terminal, and
  *   written to the controlling terminal for Codex and Cursor.
+ * - A session start and a notification shown go into this user's local
+ *   retention history, `~/.maina/retention.jsonl` (FR-RET-7).
  *
  * `runClaudeHookProcess`, `runCursorHookProcess` and `runCodexHookProcess`
  * are the whole hook process: stdin in, the host's answer out. The
@@ -27,6 +29,7 @@ import { closeSync, constants, existsSync, openSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import cliPackage from "@mainahq/cli/package.json" with { type: "json" };
 import { openDecisionDb } from "@mainahq/cli/src/decision-store";
+import { recordRetention } from "@mainahq/cli/src/retention";
 import {
 	formatSessionSummary,
 	readLogSlice,
@@ -46,8 +49,14 @@ import { runCodexHook } from "./codex-hook";
 import { runCursorHook } from "./cursor-hook";
 import { systemGates } from "./gate-system";
 import { daemonSpawner } from "./lifecycle";
-import { type HookOutcome, notify, notifyEventOf } from "./notify/notify";
+import {
+	type HookOutcome,
+	notificationSequence,
+	notify,
+	notifyEventOf,
+} from "./notify/notify";
 import { userEndpoint } from "./registry";
+import { retentionEventsOf } from "./retention";
 import { gitProbe, resolveRoot } from "./root";
 
 /** How long one hook waits for the gate, runtime spawn included. */
@@ -142,10 +151,29 @@ export function writeTty(sequence: string, path = "/dev/tty"): void {
 	}
 }
 
-/** The run's notification on the controlling terminal, if it needs one. */
-function notifyOnTty(run: HookOutcome): void {
+/**
+ * The run's notification on the controlling terminal, if it needs one;
+ * true when one was shown.
+ */
+function notifyOnTty(run: HookOutcome): boolean {
 	const event = notifyEventOf(run);
-	if (event !== undefined) notify(event, { env: process.env, emit: writeTty });
+	return (
+		event !== undefined && notify(event, { env: process.env, emit: writeTty })
+	);
+}
+
+/**
+ * Adds the run's session start and notification to this user's local
+ * retention history (FR-RET-7). Never rejects; nothing leaves the machine.
+ */
+async function recordRun(
+	event: Parameters<typeof retentionEventsOf>[0],
+	notified: boolean,
+	host: string,
+): Promise<void> {
+	for (const e of retentionEventsOf(event, notified, host, Date.now())) {
+		await recordRetention(e);
+	}
 }
 
 /**
@@ -161,6 +189,11 @@ export async function runClaudeHookProcess(hookEvent: string): Promise<number> {
 	const output = withNotification(run, process.env);
 	process.stdout.write(output.stdout);
 	if (output.stderr !== "") process.stderr.write(output.stderr);
+	await recordRun(
+		run.event,
+		notificationSequence(notifyEventOf(run), process.env) !== null,
+		"claude-code",
+	);
 	return output.exitCode;
 }
 
@@ -174,9 +207,10 @@ export async function runCursorHookProcess(hookEvent: string): Promise<number> {
 		systemClaudeHookPorts(),
 		hookEvent,
 	);
-	notifyOnTty(run);
+	const notified = notifyOnTty(run);
 	process.stdout.write(run.output.stdout);
 	if (run.output.stderr !== "") process.stderr.write(run.output.stderr);
+	await recordRun(run.event, notified, "cursor");
 	return run.output.exitCode;
 }
 
@@ -191,8 +225,9 @@ export async function runCodexHookProcess(hookEvent: string): Promise<number> {
 		systemClaudeHookPorts(),
 		hookEvent,
 	);
-	notifyOnTty(run);
+	const notified = notifyOnTty(run);
 	process.stdout.write(run.output.stdout);
 	if (run.output.stderr !== "") process.stderr.write(run.output.stderr);
+	await recordRun(run.event, notified, "codex");
 	return run.output.exitCode;
 }

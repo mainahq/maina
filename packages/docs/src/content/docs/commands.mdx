@@ -147,7 +147,7 @@ Tune, learn, and diagnose.
 | `maina visual update` | Capture current screenshots as visual baselines for regression testing. |
 | `maina prompt edit <task>` | Open a custom prompt template in `$EDITOR`. |
 | `maina cache stats` | Show cache hit rate, total entries, tokens saved. |
-| `maina stats` | Show commit verification metrics, trends, and quality evolution. |
+| `maina stats` | Show commit verification metrics, trends, and quality evolution. `--retention` shows day-7 and day-28 returns and the surface (status line, terminal notification, weekly digest) seen last before each return, from the local history in `~/.maina/retention.jsonl`; it never leaves the machine. `--retention --share` sends an anonymous summary (window statuses and per-surface counts, no dates or hosts) only if `telemetry.usage` is on in `~/.maina/policy.json`. |
 | `maina digest` | This week's gate digest from `.maina/decisions.db` (blocked, asked, allowed, overrides, top blocked classes) plus a short card that is safe to share: numbers and Maina's action class names only, no code, paths or repo names. `--week yyyy-ww` picks another ISO week, `--card-labels` adds tool names and rules to the card, `--json` emits the `{ data, error, meta }` envelope. `--send` delivers the card to the channels in the `digest` section of `.maina/config.json` (an https `webhook.url`, or `email.to` through the local `sendmail`). Nothing is sent unless a channel is configured. |
 | `maina benchmark` | Run verification benchmarks comparing tools. |
 | `maina doctor` | Check tool installation status (19+ tools) and engine health. |

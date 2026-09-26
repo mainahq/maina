@@ -38,7 +38,8 @@ async function run(
 	stdin = "",
 ): Promise<Readonly<{ code: number; stdout: string; stderr: string }>> {
 	const proc = Bun.spawn(["bun", MAIN, ...args], {
-		env: { ...process.env, NO_COLOR: "1", ...env },
+		// A temp HOME: a render records to ~/.maina/retention.jsonl.
+		env: { ...process.env, NO_COLOR: "1", HOME: tempDir(), ...env },
 		stdin: new TextEncoder().encode(stdin),
 		stdout: "pipe",
 		stderr: "pipe",
@@ -83,6 +84,21 @@ describe("maina statusline (process)", () => {
 			'{"session_id":"s1","cwd":"/nowhere"}',
 		);
 		expect(out).toEqual({ code: 0, stdout: "Maina: off\n", stderr: "" });
+	});
+
+	test("a render notes the line was seen in the local retention history", async () => {
+		const home = tempDir();
+		const out = await run(
+			["cli", "statusline"],
+			{ HOME: home, XDG_RUNTIME_DIR: tempDir() },
+			'{"session_id":"s1","cwd":"/nowhere"}',
+		);
+		expect(out.code).toBe(0);
+		const log = readFileSync(join(home, ".maina", "retention.jsonl"), "utf-8");
+		expect(JSON.parse(log)).toMatchObject({
+			kind: "surface",
+			surface: "statusline",
+		});
 	});
 
 	test("garbage on stdin is still one line and exit 0", async () => {

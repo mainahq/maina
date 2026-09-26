@@ -40,6 +40,7 @@ import { Command } from "commander";
 import { openDecisionDb } from "../decision-store";
 import { EXIT_CONFIG_ERROR, EXIT_PASSED, EXIT_TOOL_FAILURE } from "../json";
 import { fetchNetwork, nodeFs } from "../ports";
+import { recordRetention } from "../retention";
 
 type DigestOptions = Readonly<{
 	week?: string;
@@ -60,6 +61,11 @@ export type DigestDeps = Readonly<{
 	process: ProcessPort;
 	stdout: (text: string) => void;
 	stderr: (text: string) => void;
+	/**
+	 * Notes a digest printed for a human in the local retention history
+	 * (FR-RET-7). Never rejects; absent: nothing is noted.
+	 */
+	seen?: () => Promise<void>;
 }>;
 
 const META = { schemaVersion: "v1" } as const;
@@ -122,6 +128,7 @@ export async function runDigest(
 		);
 		return exit;
 	}
+	await deps.seen?.();
 	deps.stdout(
 		`${renderDigest(digest)}\n---\n\nShareable card${options.cardLabels ? " (with tool names and rules)" : " (no code, paths or repo names)"}:\n\n${card}\n`,
 	);
@@ -213,6 +220,12 @@ export function digestCommand(): Command {
 				process: systemProcess,
 				stdout: (text) => process.stdout.write(text),
 				stderr: (text) => process.stderr.write(text),
+				seen: () =>
+					recordRetention({
+						kind: "surface",
+						ts: Date.now(),
+						surface: "digest",
+					}),
 			});
 		});
 }

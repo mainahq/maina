@@ -14,10 +14,12 @@ import {
 	createMemoryFs,
 	createNetworkSpy,
 } from "../../ports/testing";
+import { computeRetention } from "../../stats/retention";
 import { sendCliErrorReport } from "../cli-error-reporter";
 import { shareOutcomes } from "../outcome-share";
 import { createPosthogClient, type PosthogLike } from "../posthog-client";
 import { buildErrorEvent } from "../reporter";
+import { shareRetention } from "../retention-share";
 import { buildUsageEvent } from "../usage";
 
 const HOME = "/home/dev";
@@ -53,6 +55,14 @@ function context(files: Record<string, string> = {}) {
 		network: createNetworkSpy(),
 	};
 }
+
+const RETENTION = computeRetention(
+	[
+		{ kind: "session", ts: 0 },
+		{ kind: "session", ts: 8 * 86_400_000 },
+	],
+	20 * 86_400_000,
+);
 
 const DECISION: DecisionRecord = {
 	id: "dec-1",
@@ -132,6 +142,19 @@ describe("default config sends nothing", () => {
 		expect(c.network.calls()).toEqual([]);
 		expect(fetchCalls).toEqual([]);
 	});
+
+	test("retention: no POST on the port, no fetch", async () => {
+		const c = context();
+		const result = await shareRetention(c, RETENTION, {
+			baseUrl: "https://cloud.test",
+		});
+		expect(result).toEqual({
+			ok: true,
+			value: { sent: 0, skipped: "not_opted_in" },
+		});
+		expect(c.network.calls()).toEqual([]);
+		expect(fetchCalls).toEqual([]);
+	});
 });
 
 describe("opted in, every send goes through the port", () => {
@@ -169,6 +192,18 @@ describe("opted in, every send goes through the port", () => {
 		expect(result).toEqual({ ok: true, value: { sent: 1 } });
 		expect(c.network.calls().map((r) => r.url)).toEqual([
 			"https://cloud.test/v1/outcomes",
+		]);
+		expect(fetchCalls).toEqual([]);
+	});
+
+	test("retention POSTs once through the port", async () => {
+		const c = context(optedIn());
+		const result = await shareRetention(c, RETENTION, {
+			baseUrl: "https://cloud.test",
+		});
+		expect(result).toEqual({ ok: true, value: { sent: 1 } });
+		expect(c.network.calls().map((r) => r.url)).toEqual([
+			"https://cloud.test/v1/retention",
 		]);
 		expect(fetchCalls).toEqual([]);
 	});

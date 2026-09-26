@@ -197,6 +197,22 @@ describe("runDigest", () => {
 		expect(parsed.error).toBeNull();
 	});
 
+	test("a digest printed for a human is noted as a retention surface; --json is not", async () => {
+		let seen = 0;
+		const h = harness();
+		const deps = {
+			...h.deps,
+			seen: async () => {
+				seen += 1;
+			},
+		};
+		await runDigest({ week: "2026-39" }, deps);
+		expect(seen).toBe(1);
+		await runDigest({ week: "2026-39", json: true }, deps);
+		await runDigest({ week: "2026-W39" }, deps);
+		expect(seen).toBe(1);
+	});
+
 	test("a decision log that cannot be read is a failure, not an empty week", async () => {
 		const h = harness();
 		h.deps = { ...h.deps, readEvents: () => ({ ok: false, error: "corrupt" }) };
