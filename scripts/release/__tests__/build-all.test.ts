@@ -34,7 +34,12 @@ import {
 	renderRelease,
 } from "../lockstep";
 import { preparePublish } from "../publish-artifacts";
-import { readFrom, verifySignature } from "../sign";
+import {
+	readFrom,
+	signBytes,
+	verifyReleaseDir,
+	verifySignature,
+} from "../sign";
 import { untarGz } from "../tar";
 import { testKeys } from "./support";
 
@@ -278,3 +283,74 @@ describe("dry-run release fails when anything is missing", () => {
 		}
 	});
 });
+
+describe("verifying a built release", () => {
+	/** Replaces the runtime manifest with `edit` of it, validly re-signed. */
+	function resignManifest(edit: (manifest: ManifestJson) => ManifestJson) {
+		const path = join(out, "runtime", "manifest.json");
+		const manifest = JSON.parse(readFileSync(path, "utf-8")) as ManifestJson;
+		const text = `${JSON.stringify(edit(manifest), null, 2)}\n`;
+		writeFileSync(path, text);
+		writeFileSync(
+			`${path}.sig`,
+			`${signBytes(new TextEncoder().encode(text), keys.privatePem)}\n`,
+		);
+	}
+
+	test("a fresh build verifies", async () => {
+		await built();
+		expect(verifyReleaseDir(out, keys.publicPem).ok).toBe(true);
+	});
+
+	test("a signed runtime manifest at another version fails", async () => {
+		await built();
+		resignManifest((m) => ({ ...m, version: "0.0.1" }));
+		const result = verifyReleaseDir(out, keys.publicPem);
+		expect(result).toEqual({
+			ok: false,
+			error: [`runtime/manifest.json: version 0.0.1, expected ${VERSION}`],
+		});
+	});
+
+	test("a signed runtime manifest that pins other runtime bytes fails", async () => {
+		await built();
+		resignManifest((m) => ({
+			...m,
+			artifacts: {
+				...m.artifacts,
+				"linux-x64": { ...m.artifacts["linux-x64"], sha256: "0".repeat(64) },
+			},
+		}));
+		const result = verifyReleaseDir(out, keys.publicPem);
+		expect(result).toEqual({
+			ok: false,
+			error: [
+				"runtime/manifest.json: linux-x64 does not pin the released runtime",
+			],
+		});
+	});
+
+	test("a runtime manifest missing a target fails", async () => {
+		await built();
+		resignManifest((m) => {
+			const { "darwin-arm64": _, ...rest } = m.artifacts;
+			return { ...m, artifacts: rest };
+		});
+		const result = verifyReleaseDir(out, keys.publicPem);
+		expect(result).toEqual({
+			ok: false,
+			error: [
+				"runtime/manifest.json: darwin-arm64 does not pin the released runtime",
+			],
+		});
+	});
+});
+
+type ManifestJson = {
+	schema: number;
+	version: string;
+	artifacts: Record<
+		string,
+		{ url?: string; sha256?: string; signature?: string }
+	>;
+};

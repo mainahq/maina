@@ -148,6 +148,43 @@ function detachedProblem(
 		: [`${file}: bad or missing signature`];
 }
 
+/**
+ * Why the runtime manifest (what the launchers install from) does not pin
+ * this release: another version, or a target whose sha256 is not that of
+ * the released runtime artifact. Its signature alone cannot show this: a
+ * stale manifest signed by the same key verifies too.
+ */
+function manifestProblems(
+	read: (file: string) => Uint8Array | undefined,
+	release: Release,
+): readonly string[] {
+	const bytes = read(RUNTIME_MANIFEST);
+	if (bytes === undefined) return [];
+	let manifest: {
+		version?: unknown;
+		artifacts?: Record<string, { sha256?: unknown } | undefined>;
+	};
+	try {
+		manifest = JSON.parse(new TextDecoder().decode(bytes));
+	} catch {
+		return [`${RUNTIME_MANIFEST}: not JSON`];
+	}
+	const versionProblem =
+		manifest.version === release.version
+			? []
+			: [
+					`${RUNTIME_MANIFEST}: version ${String(manifest.version)}, expected ${release.version}`,
+				];
+	const pinProblems = release.artifacts
+		.filter((a) => a.kind === "runtime")
+		.flatMap((a) =>
+			manifest.artifacts?.[a.id]?.sha256 === a.sha256
+				? []
+				: [`${RUNTIME_MANIFEST}: ${a.id} does not pin the released runtime`],
+		);
+	return [...versionProblem, ...pinProblems];
+}
+
 /** Every reason the release in `dir` is not complete and signed. */
 export function verifyReleaseDir(
 	dir: string,
@@ -164,6 +201,7 @@ export function verifyReleaseDir(
 	const problems = [
 		...detachedProblem(read, "release.json", publicKeyPem),
 		...detachedProblem(read, RUNTIME_MANIFEST, publicKeyPem),
+		...manifestProblems(read, release),
 		...(checked.ok ? [] : describeProblems(checked.error)),
 	];
 	return problems.length === 0

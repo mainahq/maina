@@ -109,6 +109,40 @@ jobs:
       - name: Build packages
         run: bun run build
 
+      # changesets publishes to npm before the lockstep release is signed:
+      # refuse up front, while nothing is published, when that release could
+      # not be signed, so npm never ships a version with no runtime or plugins.
+      - name: Refuse to publish a release that cannot be signed
+        env:
+          MAINA_RUNTIME_SIGNING_KEY: ${{ secrets.MAINA_RUNTIME_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          pending=$(find .changeset -name '*.md' ! -name 'README.md' | wc -l)
+          version=$(jq -r '.version' packages/cli/package.json)
+          if [ "$pending" -ne 0 ] || npm view "@mainahq/cli@${version}" version >/dev/null 2>&1; then
+            echo "Nothing to publish this run (pending changesets, or ${version} is already on npm)"
+            exit 0
+          fi
+          if [ -z "${MAINA_RUNTIME_SIGNING_KEY}" ]; then
+            echo "changesets would publish ${version}, but MAINA_RUNTIME_SIGNING_KEY is not set: refusing to publish npm without the signed runtime and plugins" >&2
+            exit 1
+          fi
+          pinned=packages/runtime/launcher/release.pub.pem
+          if [ ! -f "$pinned" ]; then
+            echo "changesets would publish ${version}, but ${pinned} is not committed: launchers could not verify the release" >&2
+            exit 1
+          fi
+          key="$RUNNER_TEMP/preflight.key.pem"
+          umask 077
+          printf '%s\n' "$MAINA_RUNTIME_SIGNING_KEY" > "$key"
+          code=0
+          openssl pkey -in "$key" -pubout | diff -w - "$pinned" >/dev/null || code=$?
+          rm -f "$key"
+          if [ "$code" -ne 0 ]; then
+            echo "MAINA_RUNTIME_SIGNING_KEY is not the key ${pinned} pins: launchers would refuse this release" >&2
+            exit 1
+          fi
+
       - name: Create release PR or publish
         id: changesets
         uses: changesets/action@v1
@@ -177,7 +211,9 @@ jobs:
           git switch -c "$branch"
           bun scripts/release/bump-marketplaces.ts --from dist/release
           bun run plugins:check
-          git add packages/runtime/launcher/manifest.json packages/plugins/dist \
+          git add packages/runtime/launcher/manifest.json \
+            packages/runtime/launcher/release.pub.pem packages/runtime/launcher/release.pub.xml \
+            packages/plugins/dist \
             .claude-plugin/marketplace.json .cursor-plugin/marketplace.json \
             .agents/plugins/marketplace.json packages/docs/src/data/cursor-mcp-install.json
           git -c user.name="github-actions[bot]" \
