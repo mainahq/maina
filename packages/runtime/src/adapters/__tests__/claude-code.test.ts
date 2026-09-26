@@ -10,6 +10,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { formatGateMessage } from "@mainahq/core";
 import Ajv from "ajv";
 import type { GateDecision, GateEvent } from "../../gate";
 import {
@@ -299,11 +300,27 @@ describe("fromClaude", () => {
 
 // ── toClaude: the output fixtures ─────────────────────────────────────────
 
-const decision = (verdict: GateDecision["verdict"], reason: string) => ({
+const decision = (
+	verdict: GateDecision["verdict"],
+	reason: string,
+): GateDecision => ({
 	verdict,
 	reason,
 	decisionIds: [],
 	degraded: false,
+});
+
+/** A logged gate decision: an id to override by and a model confidence. */
+const logged = (
+	verdict: GateDecision["verdict"],
+	reason: string,
+	id = "d-7",
+): GateDecision => ({
+	verdict,
+	reason,
+	decisionIds: [id],
+	degraded: false,
+	confidence: 0.8,
 });
 
 /** The result each output fixture is the rendering of. */
@@ -314,14 +331,11 @@ const RESULTS: Readonly<Record<string, ClaudeResult>> = {
 	},
 	"pre-tool-use.deny.output.json": {
 		hookEvent: "PreToolUse",
-		decision: decision("deny", "Blocked by maina policy: destructive command"),
+		decision: logged("deny", "Blocked by maina policy: destructive command"),
 	},
 	"pre-tool-use.ask.output.json": {
 		hookEvent: "PreToolUse",
-		decision: decision(
-			"ask",
-			"maina: writes outside the workspace need confirmation",
-		),
+		decision: logged("ask", "writes outside the workspace need confirmation"),
 	},
 	"permission-request.deny.output.json": {
 		hookEvent: "PermissionRequest",
@@ -384,22 +398,18 @@ describe("toClaude", () => {
 		}
 	});
 
-	test("a PreToolUse deny also exits 2 with the reason on stderr", () => {
-		const out = toClaude({
-			hookEvent: "PreToolUse",
-			decision: decision("deny", "fs.delete.outside is denied"),
-		});
+	test("a PreToolUse deny also exits 2 with the gate message on stderr", () => {
+		const denied = decision("deny", "fs.delete.outside is denied");
+		const out = toClaude({ hookEvent: "PreToolUse", decision: denied });
 		expect(out.exitCode).toBe(2);
-		expect(out.stderr).toBe("fs.delete.outside is denied\n");
+		expect(out.stderr).toBe(`${formatGateMessage(denied)}\n`);
 	});
 
-	test("a PermissionRequest deny also exits 2 with the reason on stderr", () => {
-		const out = toClaude({
-			hookEvent: "PermissionRequest",
-			decision: decision("deny", "no"),
-		});
+	test("a PermissionRequest deny also exits 2 with the gate message on stderr", () => {
+		const denied = decision("deny", "no");
+		const out = toClaude({ hookEvent: "PermissionRequest", decision: denied });
 		expect(out.exitCode).toBe(2);
-		expect(out.stderr).toBe("no\n");
+		expect(out.stderr).toBe(`${formatGateMessage(denied)}\n`);
 	});
 
 	test("allow and ask exit 0 with nothing on stderr", () => {
@@ -437,6 +447,78 @@ describe("toClaude", () => {
 		expect(toClaude({ hookEvent: "PostToolUse" }).stdout).toBe("{}\n");
 		expect(toClaude({ hookEvent: "SessionStart" }).stdout).toBe("{}\n");
 		expect(toClaude({ hookEvent: "Notification" }).stdout).toBe("{}\n");
+	});
+});
+
+// #497: a gate ask or deny shows the user the one-line gate message
+// (FR-GATE-8), with the logged decision id to override by, not the bare
+// reason. The Stop output is not a gate decision and keeps its reason.
+describe("toClaude gate messages (#497)", () => {
+	const REASON = "fs.delete.outside is irreversible";
+
+	test("a PreToolUse ask or deny carries the gate message with the override id", () => {
+		for (const verdict of ["ask", "deny"] as const) {
+			const gated = logged(verdict, REASON);
+			const out = toClaude({ hookEvent: "PreToolUse", decision: gated });
+			const message = `maina ${verdict}: ${REASON} (confidence medium) | override: maina allow d-7 [--always]`;
+			expect(formatGateMessage(gated)).toBe(message);
+			expect(JSON.parse(out.stdout), verdict).toEqual({
+				hookSpecificOutput: {
+					hookEventName: "PreToolUse",
+					permissionDecision: verdict,
+					permissionDecisionReason: message,
+				},
+			});
+			expect(out.stderr, verdict).toBe(
+				verdict === "deny" ? `${message}\n` : "",
+			);
+		}
+	});
+
+	test("a PermissionRequest deny carries the gate message as its message", () => {
+		const gated = logged("deny", REASON);
+		const out = toClaude({ hookEvent: "PermissionRequest", decision: gated });
+		const message = formatGateMessage(gated);
+		expect(message).toContain("override: maina allow d-7 [--always]");
+		expect(JSON.parse(out.stdout)).toEqual({
+			hookSpecificOutput: {
+				hookEventName: "PermissionRequest",
+				decision: { behavior: "deny", message },
+			},
+		});
+		expect(out.stderr).toBe(`${message}\n`);
+	});
+
+	test("an allow keeps its reason and Stop, not a gate decision, keeps its reason", () => {
+		const allowed = toClaude({
+			hookEvent: "PreToolUse",
+			decision: logged("allow", "no rule matched"),
+		});
+		expect(
+			JSON.parse(allowed.stdout).hookSpecificOutput.permissionDecisionReason,
+		).toBe("no rule matched");
+		const stop = toClaude({
+			hookEvent: "Stop",
+			decision: logged("deny", "maina verify failed on changed lines"),
+		});
+		expect(JSON.parse(stop.stdout)).toEqual({
+			decision: "block",
+			reason: "maina verify failed on changed lines",
+		});
+	});
+
+	test("a decision id that is not a plain token is never offered as a command", () => {
+		const gated = logged("deny", REASON, "d-7; rm -rf ~");
+		const out = toClaude({ hookEvent: "PreToolUse", decision: gated });
+		const reason = JSON.parse(out.stdout).hookSpecificOutput
+			.permissionDecisionReason as string;
+		expect(reason).not.toContain("maina allow");
+		expect(reason).not.toContain("rm -rf");
+		// The id still had a model behind it: the band is its confidence's.
+		expect(reason).toBe(
+			`maina deny: ${REASON} (confidence medium) | override: change the deny rule or class in your maina policy`,
+		);
+		expect(out.stderr).toBe(`${reason}\n`);
 	});
 });
 

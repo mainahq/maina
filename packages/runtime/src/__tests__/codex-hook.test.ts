@@ -120,6 +120,45 @@ describe("runCodexHook", () => {
 		expect(run.output.exitCode).toBe(2);
 	});
 
+	test("the override id and confidence are the strictest decision's (#497)", async () => {
+		const run = await runCodexHook(
+			patch(["ok.txt", "outside.txt", "fine.txt"]),
+			ports((e) =>
+				pathOf(e) === "outside.txt"
+					? decision("ask", "outside the workspace", {
+							decisionIds: ["d2"],
+							confidence: 0.75,
+						})
+					: decision("allow", "no rule matched", {
+							decisionIds: [pathOf(e) === "ok.txt" ? "d1" : "d3"],
+							confidence: 1,
+						}),
+			),
+			"PreToolUse",
+		);
+		expect(run.decision?.decisionIds[0]).toBe("d2");
+		expect(run.decision?.confidence).toBe(0.75);
+		expect(run.output.stderr).toContain(
+			"(confidence medium) | override: maina allow d2 [--always]",
+		);
+		expect(run.output.stderr).not.toContain("maina allow d1");
+	});
+
+	test("an ask with no logged decision never names an allowed file's id (#497)", async () => {
+		const run = await runCodexHook(
+			patch(["ok.txt", "b.txt"]),
+			ports((e) =>
+				pathOf(e) === "b.txt"
+					? decision("ask", "the gate could not check it")
+					: decision("allow", "no rule matched", { decisionIds: ["d1"] }),
+			),
+			"PreToolUse",
+		);
+		expect(run.decision?.verdict).toBe("ask");
+		expect(run.decision?.decisionIds).toEqual([]);
+		expect(run.output.stderr).not.toContain("maina allow");
+	});
+
 	test("a deny on any file beats an ask on another", async () => {
 		const run = await runCodexHook(
 			patch(["a.txt", "secret.env"]),
@@ -259,5 +298,9 @@ describe("runCodexHook over the real rules-only gate", () => {
 		);
 		expect(destructive.decision?.verdict).not.toBe("allow");
 		expect(destructive.output.exitCode).toBe(2);
+		// #497: the block names the logged decision to override by.
+		expect(destructive.output.stderr).toMatch(
+			/\(confidence high\) \| override: maina allow [\w-]+ \[--always\]/,
+		);
 	});
 });

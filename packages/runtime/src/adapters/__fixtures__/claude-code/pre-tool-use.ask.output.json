@@ -2,6 +2,6 @@
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "ask",
-    "permissionDecisionReason": "maina: writes outside the workspace need confirmation"
+    "permissionDecisionReason": "maina ask: writes outside the workspace need confirmation (confidence medium) | override: maina allow d-7 [--always]"
   }
 }

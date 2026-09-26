@@ -14,7 +14,7 @@
  * PreToolUse` would print it: the gate knows this repo's protected branches
  * (`.maina/policy.json`) and the branch checked out, so its allows no
  * longer need Claude Code's own prompt behind them (mainahq/maina#459). A
- * deny also exits 2 with the reason on stderr. The settings.json command
+ * deny also exits 2 with the gate message on stderr. The settings.json command
  * falls back to `ask` if this script cannot start at all.
  *
  * Override: launch Claude Code with MAINA_DOGFOOD_OVERRIDE=1 and denies

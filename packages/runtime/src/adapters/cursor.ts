@@ -18,7 +18,9 @@
  * `toCursor` renders a result in Cursor's flat wire format, pinned by
  * `__fixtures__/cursor`:
  *
- *   permission hooks   { permission, user_message, agent_message }; a deny
+ *   permission hooks   { permission, user_message, agent_message }; an ask
+ *                      or deny's user message is the gate message, naming
+ *                      the id `maina allow` takes (#497). A deny
  *                      also exits 2, Cursor's block, whatever it makes of
  *                      stdout. An event maina ignores answers `allow`:
  *                      Cursor's own approval flow still applies, and `{}`
@@ -44,6 +46,7 @@
 
 import type { GateDecision, GateEvent } from "../gate";
 import { type SessionEvent, searchTarget } from "./claude-code";
+import { gateMessage, overrideId } from "./gate-message";
 import { type HostHookMap, nativeEvents } from "./hook-map";
 
 /** Written to the hook log on every `ask` from a shell or MCP hook. */
@@ -394,24 +397,16 @@ const blockReason = (reason: string): string =>
 		.replace(/[.\s]+$/, "");
 
 /**
- * A decision id safe to paste into a terminal. Ids arrive over the wire, so
- * one with shell metacharacters is never offered as a command.
- */
-const PLAIN_ID = /^[A-Za-z0-9_-]+$/;
-
-/**
  * A preToolUse `ask` as a deny (#469): Cursor would run the tool unasked.
  * The user message names the override; with no logged decision there is
- * none, so it says what is left.
+ * none, so it says what is left. It names `--always` outright: the retry is
+ * a new decision, which a one-time override would not reach.
  */
 function askAsDeny(decision: GateDecision): CursorOutput {
 	const reason = blockReason(decision.reason);
-	const [id] = decision.decisionIds;
+	const id = overrideId(decision);
 	const blocked = `maina: ${reason}. Cursor cannot ask for confirmation before this tool runs, so maina blocked it.`;
-	const command =
-		id !== undefined && PLAIN_ID.test(id)
-			? `maina allow ${id} --always`
-			: undefined;
+	const command = id === undefined ? undefined : `maina allow ${id} --always`;
 	const unchecked = command === undefined && UNCHECKED.test(decision.reason);
 	const user_message =
 		command !== undefined
@@ -443,24 +438,25 @@ function permission(
 	if (decision === undefined || decision.verdict === "allow") {
 		return out({ permission: "allow" });
 	}
-	const { verdict, reason } = decision;
-	if (verdict === "deny") {
+	if (decision.verdict === "deny") {
+		const message = gateMessage(decision);
 		return out(
 			{
 				permission: "deny",
-				user_message: `maina: ${reason}`,
-				agent_message: `maina blocked this action: ${reason}`,
+				user_message: message,
+				agent_message: `maina blocked this action: ${message}`,
 			},
 			2,
-			reason,
+			message,
 		);
 	}
 	if (hookEvent === "preToolUse") return askAsDeny(decision);
+	const message = gateMessage(decision);
 	return out(
 		{
 			permission: "ask",
-			user_message: `maina: ${reason}`,
-			agent_message: `maina asked the user to confirm this action: ${reason}`,
+			user_message: message,
+			agent_message: `maina asked the user to confirm this action: ${message}`,
 		},
 		0,
 		CURSOR_ALLOW_LIST_WARNING,

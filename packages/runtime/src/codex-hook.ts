@@ -44,22 +44,33 @@ const RANK: Readonly<Record<GateDecision["verdict"], number>> = {
 
 /**
  * The decisions for one action's events as one: the strictest verdict, the
- * reasons behind it, every decision id, and degraded when any part was.
+ * reasons behind it, the decision ids behind it (only those: the gate
+ * message names the first, which must be one with a gate subject to
+ * override, never a laxer file's: #497; each event was logged when it was
+ * evaluated), and degraded when any part was. The confidence is the lowest
+ * behind the verdict, absent when one of those has an id but reported none,
+ * which the gate message bands as `low`.
  */
 function strictest(decisions: readonly GateDecision[]): GateDecision {
 	const top = decisions.reduce<GateDecision["verdict"]>(
 		(v, d) => (RANK[d.verdict] > RANK[v] ? d.verdict : v),
 		"allow",
 	);
-	const reasons = [
-		...new Set(decisions.filter((d) => d.verdict === top).map((d) => d.reason)),
-	];
-	return {
+	const behind = decisions.filter((d) => d.verdict === top);
+	const reasons = [...new Set(behind.map((d) => d.reason))];
+	const logged = behind.filter((d) => d.decisionIds.length > 0);
+	const confidences = logged.flatMap((d) =>
+		d.confidence === undefined ? [] : [d.confidence],
+	);
+	const decision: GateDecision = {
 		verdict: top,
 		reason: reasons.join("; "),
-		decisionIds: decisions.flatMap((d) => d.decisionIds),
+		decisionIds: behind.flatMap((d) => d.decisionIds),
 		degraded: decisions.some((d) => d.degraded),
 	};
+	return confidences.length > 0 && confidences.length === logged.length
+		? { ...decision, confidence: Math.min(...confidences) }
+		: decision;
 }
 
 /** Each event through the gate, in order, until one denies. */

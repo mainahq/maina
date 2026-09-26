@@ -3,7 +3,7 @@
     "hookEventName": "PermissionRequest",
     "decision": {
       "behavior": "deny",
-      "message": "Blocked by maina policy"
+      "message": "maina deny: Blocked by maina policy (confidence high) | override: change the deny rule or class in your maina policy"
     }
   }
 }

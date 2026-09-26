@@ -69,7 +69,7 @@ describe("runCursorHook", () => {
 		expect(run.output.stderr).toBe(`${CURSOR_ALLOW_LIST_WARNING}\n`);
 	});
 
-	test("a deny exits 2 with the reason on stderr", async () => {
+	test("a deny exits 2 with the gate message on stderr", async () => {
 		const run = await runCursorHook(
 			raw("before-mcp-execution.stdio.input.json"),
 			ports({
@@ -83,7 +83,9 @@ describe("runCursorHook", () => {
 			"beforeMCPExecution",
 		);
 		expect(run.output.exitCode).toBe(2);
-		expect(run.output.stderr).toBe("denied by rule\n");
+		expect(run.output.stderr).toBe(
+			"maina deny: denied by rule (confidence high) | override: change the deny rule or class in your maina policy\n",
+		);
 		expect(parsed(run.output.stdout)).toMatchObject({ permission: "deny" });
 	});
 

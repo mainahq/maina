@@ -60,6 +60,12 @@ export type GateDecision = Readonly<{
 	 * model answer, no shell grammar) or the event could not be evaluated.
 	 */
 	degraded: boolean;
+	/**
+	 * Core's `confidence`: the lowest among the `action.risk` answers, in
+	 * [0, 1]. Absent when nothing was decided. The gate message's band reads
+	 * it: without it, a decision with an id bands as `low` (#497).
+	 */
+	confidence?: number;
 }>;
 
 /** The gate port: evaluates one event. May be sync or async. */
@@ -117,18 +123,24 @@ export function parseGateEvent(value: unknown): GateEvent | null {
 const isStringArray = (value: unknown): value is readonly string[] =>
 	Array.isArray(value) && value.every((v) => typeof v === "string");
 
+const isConfidence = (value: unknown): value is number =>
+	typeof value === "number" && value >= 0 && value <= 1;
+
 /**
  * A gate decision from untrusted input, or null when it has the wrong shape.
- * A missing `degraded` flag is rejected rather than read as `false`.
+ * A missing `degraded` flag is rejected rather than read as `false`; a
+ * `confidence` may be absent, but one outside [0, 1] is rejected.
  */
 export function parseGateDecision(value: unknown): GateDecision | null {
 	if (!isRecord(value)) return null;
-	const { verdict, reason, decisionIds, degraded } = value;
+	const { verdict, reason, decisionIds, degraded, confidence } = value;
 	if (!isVerdict(verdict) || typeof reason !== "string") return null;
 	if (!isStringArray(decisionIds) || typeof degraded !== "boolean") {
 		return null;
 	}
-	return { verdict, reason, decisionIds: [...decisionIds], degraded };
+	if (confidence !== undefined && !isConfidence(confidence)) return null;
+	const decision = { verdict, reason, decisionIds: [...decisionIds], degraded };
+	return confidence === undefined ? decision : { ...decision, confidence };
 }
 
 /**
@@ -242,6 +254,9 @@ export function createGateEvaluator(
 				reason: result.reason,
 				decisionIds: result.decisionIds,
 				degraded: result.degraded,
+				...(result.confidence === undefined
+					? {}
+					: { confidence: result.confidence }),
 			};
 		} catch (e) {
 			return asking(

