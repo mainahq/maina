@@ -1025,4 +1025,41 @@ describe("gate.self_override: maina mcp add/remove and doctor --fix (#543)", () 
 			expect(classesOf(command), command).not.toContain(SELF);
 		}
 	});
+
+	test("an unreadable word can be any option, so it fails closed", () => {
+		for (const command of [
+			// Commander keeps the last `--client`/`--scope`, so "$F" set to
+			// `--client=codex` or `--scope=global` overrides the earlier one.
+			'maina mcp add --client cursor "$F"',
+			'maina mcp add --scope project "$F"',
+			'maina mcp add --client cursor --client="$C"',
+			'maina mcp add --scope project --scope="$S"',
+			// Unquoted, "$S" may split into `global --client=codex`.
+			"maina mcp add --client cursor --scope $S",
+			// "$X" may be `--`, making the later flag an operand.
+			'maina mcp add "$X" --dry-run',
+			'maina mcp add --client codex "$X" --help',
+			// "$F" may be `--fix`.
+			'maina doctor "$F"',
+			'maina doctor --json "$F"',
+			'maina doctor --fix"$X"',
+			'maina doctor "$X" --help',
+			'bunx maina doctor "$F"',
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+	});
+
+	test("an unreadable word that cannot reach a write still passes", () => {
+		for (const command of [
+			'maina mcp list "$X"',
+			'maina mcp add --help "$X"',
+			'maina mcp add --dry-run "$X"',
+			'maina doctor --help "$F"',
+			'maina doctor -- "$F"',
+			'maina mcp add --client cursor -- "$X"',
+		]) {
+			expect(classesOf(command), command).not.toContain(SELF);
+		}
+	});
 });
