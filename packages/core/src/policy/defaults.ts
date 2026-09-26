@@ -67,6 +67,20 @@ export const DENIED_ACTION_CLASSES = [
 	"gate.self_override",
 ] as const;
 
+/**
+ * What an unattended run never does, whatever the policy says (FR-HAR-4):
+ * merge (`pr.merge`, a plain push to a protected branch), release
+ * (`deploy`) or publish (`package.publish`). These seed the unattended deny
+ * list, and since deny lists accumulate across layers no policy can drop
+ * them; the harness also denies them when a policy it is handed omits them.
+ */
+export const UNATTENDED_DENIED_ACTION_CLASSES = [
+	"pr.merge",
+	"git.push.protected",
+	"deploy",
+	"package.publish",
+] as const;
+
 const irreversible: ActionClassPolicy = { irreversible: true, verdict: "ask" };
 const denied: ActionClassPolicy = { irreversible: true, verdict: "deny" };
 const allowed: ActionClassPolicy = { irreversible: false, verdict: "allow" };
@@ -84,6 +98,11 @@ const REVERSIBLE_ACTION_CLASSES = {
 	"git.push": allowed,
 	/** A plain push to a protected branch (`main`, `master`, `protected_branches`). */
 	"git.push.protected": asked,
+	/**
+	 * Merging a pull request (`gh pr merge`). Allowed at a terminal; an
+	 * unattended run never merges.
+	 */
+	"pr.merge": allowed,
 	"deps.install": allowed,
 	"network.fetch": allowed,
 	"mcp.call": allowed,
@@ -132,5 +151,12 @@ export const DEFAULT_POLICY: Policy = {
 	drift: { window: 200, max_error_rate: 0.1, max_confidence_drop: 0.15 },
 	telemetry: { crash_reports: false, usage: false, outcome_sharing: false },
 	log: { paths: "hashed" },
+	run: {
+		interactive: { deny: [], budgets: {} },
+		unattended: {
+			deny: UNATTENDED_DENIED_ACTION_CLASSES,
+			budgets: { wall_clock_minutes: 60, max_tool_calls: 500 },
+		},
+	},
 	loosened: [],
 };

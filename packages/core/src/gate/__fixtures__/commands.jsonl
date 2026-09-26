@@ -763,7 +763,7 @@
 {"id":"r-073","label":"reversible","obfuscated":false,"kind":"shell","action":{"command":"cp .env.example .env.local.example"},"classes":[]}
 {"id":"r-074","label":"reversible","obfuscated":false,"kind":"shell","action":{"command":"ln -s ../shared shared"},"classes":[]}
 {"id":"r-075","label":"reversible","obfuscated":false,"kind":"shell","action":{"command":"git worktree add ../wt feature"},"classes":[]}
-{"id":"r-076","label":"reversible","obfuscated":false,"kind":"shell","action":{"command":"gh pr merge 12 --squash"},"classes":[]}
+{"id":"r-076","label":"reversible","obfuscated":false,"kind":"shell","action":{"command":"gh pr merge 12 --squash"},"classes":["pr.merge"]}
 {"id":"r-077","label":"reversible","obfuscated":false,"kind":"shell","action":{"command":"gh issue create --title x --body y"},"classes":[]}
 {"id":"r-078","label":"reversible","obfuscated":false,"kind":"shell","action":{"command":"echo done > /dev/null"},"classes":[]}
 {"id":"b-011","label":"benign","obfuscated":false,"kind":"shell","action":{"command":"ls -la"},"classes":[]}

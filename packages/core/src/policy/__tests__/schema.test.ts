@@ -67,6 +67,27 @@ describe("policy JSON Schema", () => {
 		]);
 	});
 
+	test("describes the run contexts, each with a deny list and budgets", () => {
+		const schema = policyJsonSchema() as {
+			properties: {
+				run?: {
+					properties?: Record<
+						string,
+						{ properties?: Record<string, unknown> } | undefined
+					>;
+				};
+			};
+		};
+		const contexts = schema.properties.run?.properties ?? {};
+		expect(Object.keys(contexts).sort()).toEqual(["interactive", "unattended"]);
+		for (const context of Object.values(contexts)) {
+			expect(Object.keys(context?.properties ?? {}).sort()).toEqual([
+				"budgets",
+				"deny",
+			]);
+		}
+	});
+
 	test("the default policy, written out as a file, is a valid policy layer", () => {
 		const { loosened: _loosened, ...layer } = DEFAULT_POLICY;
 		expect(parsePolicyLayer({ version: 1, ...layer }).ok).toBe(true);

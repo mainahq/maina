@@ -632,15 +632,19 @@ export {
 	DEFAULT_POLICY,
 	DENIED_ACTION_CLASSES,
 	IRREVERSIBLE_ACTION_CLASSES,
+	UNATTENDED_DENIED_ACTION_CLASSES,
 } from "./policy/defaults";
 export { loadPolicy, readUserPolicy, userPolicyFile } from "./policy/load";
 export {
+	type ActionClassPolicy,
 	type Policy,
 	type PolicyError,
 	type PolicyLayer,
 	parsePolicyLayer,
 	policyJsonSchema,
 	type RulePolicy,
+	type RunBudgetsPolicy,
+	type RunContext,
 	VERDICTS,
 	type Verdict,
 } from "./policy/schema";

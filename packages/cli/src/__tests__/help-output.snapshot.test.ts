@@ -43,6 +43,7 @@ const VISIBLE_COMMANDS = [
 	"review-design",
 	"slop",
 	"pr",
+	"run",
 	"wiki",
 	"init",
 	"setup",

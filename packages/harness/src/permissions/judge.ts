@@ -13,6 +13,10 @@
  * and a run has nobody to ask, so every bridge answers `ask` with a reject.
  * A request with no gated action (a plan, a search) is allowed: the gate
  * has no opinion, and the sandbox still holds.
+ *
+ * A bridge with a run `context` judges against the policy as that context
+ * sees it (FR-HAR-4): unattended, an `ask` is a `deny`, and merging,
+ * releasing and publishing are denied outright.
  */
 
 import {
@@ -20,9 +24,11 @@ import {
 	type GateEvent,
 	type GatePorts,
 	type Policy,
+	type RunContext,
 	VERDICTS,
 	type Verdict,
 } from "@mainahq/core";
+import { policyForContext, verdictForContext } from "../run/context";
 
 /** Which bridge a permission request came through. */
 type PermissionSource = "acp" | "claude-hook" | "codex-app-server";
@@ -52,6 +58,12 @@ export type GateBridge = Readonly<{
 	ports: GatePorts;
 	policy: Policy;
 	log: PermissionLog;
+	/**
+	 * Who is there to answer (FR-HAR-4). Unattended, every `ask` is a
+	 * `deny` and merging, releasing and publishing are denied; see
+	 * `../run/context`. Unset, the policy applies as it is.
+	 */
+	context?: RunContext;
 }>;
 
 type Judgement = Readonly<{
@@ -68,6 +80,34 @@ const strictness = (verdict: Verdict): number => VERDICTS.indexOf(verdict);
  * `evaluateGate` over each event; `ask` when the target is unreadable.
  */
 export function judgeActions(
+	bridge: GateBridge,
+	gate: readonly GateEvent[],
+	opaque: boolean,
+): Judgement {
+	const { context } = bridge;
+	if (context === undefined)
+		return judgeWith(bridge.policy, bridge, gate, opaque);
+	const judged = judgeWith(
+		policyForContext(bridge.policy, context),
+		bridge,
+		gate,
+		opaque,
+	);
+	const verdict = verdictForContext(context, judged.verdict);
+	if (verdict === judged.verdict) {
+		return verdict === "deny" && context === "unattended"
+			? { ...judged, reason: `${judged.reason} (unattended run)` }
+			: judged;
+	}
+	return {
+		...judged,
+		verdict,
+		reason: `${judged.reason}; an unattended run has nobody to ask, so it is denied`,
+	};
+}
+
+function judgeWith(
+	policy: Policy,
 	bridge: GateBridge,
 	gate: readonly GateEvent[],
 	opaque: boolean,
@@ -89,7 +129,7 @@ export function judgeActions(
 		};
 	}
 	const results = gate.map((event) =>
-		evaluateGate(bridge.ports, event, bridge.policy),
+		evaluateGate(bridge.ports, event, policy),
 	);
 	const verdict = results.reduce<Verdict>(
 		(worst, r) =>

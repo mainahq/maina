@@ -35,7 +35,9 @@
     "@mainahq/skills": "1.8.1",
     "commander": "^14.0.3"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@mainahq/harness": "workspace:*"
+  },
   "publishConfig": {
     "access": "public"
   }

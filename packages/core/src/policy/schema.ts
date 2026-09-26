@@ -165,6 +165,48 @@ const Log = z.strictObject({
 		),
 });
 
+/**
+ * Who is there when a harness run (`maina run`) acts (FR-HAR-4):
+ * `interactive`, a person at the terminal who started it; `unattended`,
+ * nobody (no terminal, CI, a background run), so every `ask` is a `deny`.
+ */
+export const RUN_CONTEXTS = ["interactive", "unattended"] as const;
+export type RunContext = (typeof RUN_CONTEXTS)[number];
+
+const RunBudgets = z.strictObject({
+	wall_clock_minutes: z
+		.number()
+		.positive()
+		.describe(
+			"Longest a run may take, from its first agent turn to its last review. Unset means unlimited.",
+		)
+		.optional(),
+	max_tool_calls: z
+		.number()
+		.int()
+		.positive()
+		.describe(
+			"Tool calls a run may make across all its attempts; the next one stops it. Unset means unlimited.",
+		)
+		.optional(),
+});
+
+const RunContextSpec = z.strictObject({
+	deny: z
+		.array(ActionClassId)
+		.describe(
+			"Action classes a run in this context never performs, whatever their verdict. Lists accumulate across layers; none can be removed.",
+		),
+	budgets: RunBudgets.describe(
+		"A run in this context stops, with a report, at the first budget it breaches. A repo policy can only lower a budget.",
+	),
+});
+
+const RunContexts = z.strictObject({
+	interactive: RunContextSpec,
+	unattended: RunContextSpec,
+});
+
 // ── Resolved policy ─────────────────────────────────────────────────────────
 
 const PolicyBody = z.strictObject({
@@ -175,6 +217,7 @@ const PolicyBody = z.strictObject({
 	drift: Drift,
 	telemetry: Telemetry,
 	log: Log,
+	run: RunContexts,
 });
 
 /**
@@ -195,6 +238,8 @@ export type Policy = DeepReadonly<z.infer<typeof PolicyBody>> &
 export type ActionClassPolicy = Policy["action_classes"][string];
 export type RulePolicy = Policy["rules"]["allow"][number];
 export type DecisionPolicy = Policy["decisions"][DecisionType];
+export type RunContextPolicy = Policy["run"][RunContext];
+export type RunBudgetsPolicy = RunContextPolicy["budgets"];
 
 /**
  * What makes two rules the same rule: kind, match and exactness. An exact
@@ -243,6 +288,15 @@ const PolicyLayerSchema = z
 			.optional(),
 		log: Log.partial()
 			.describe("What the local decision log keeps in the clear.")
+			.optional(),
+		run: z
+			.strictObject({
+				interactive: RunContextSpec.partial().optional(),
+				unattended: RunContextSpec.partial().optional(),
+			})
+			.describe(
+				"Per run context (maina run): classes it never performs and the budgets it stops at.",
+			)
 			.optional(),
 	})
 	.meta({
