@@ -12,6 +12,7 @@ import {
 	type ClaudeHookPorts,
 	runClaudeHook,
 	stopFromClient,
+	withNotification,
 } from "../claude-hook";
 import type { GateDecision, GateEvent } from "../gate";
 import { systemGates } from "../gate-system";
@@ -436,5 +437,93 @@ describe("runClaudeHook over the real rules-only gate", () => {
 		expect(
 			(await runClaudeHook(grep({ glob: "*.ts" }), real)).decision?.verdict,
 		).toBe("allow");
+	});
+});
+
+// FR-RET-6 (#351): the hook's answer carries a terminal notification for an
+// ask and for a finished verify, in a supported terminal only.
+describe("withNotification", () => {
+	const WARP = { TERM_PROGRAM: "WarpTerminal" };
+	const answer = (verdict: GateDecision["verdict"], reason: string) =>
+		ports({
+			evaluate: async () => ({
+				verdict,
+				reason,
+				decisionIds: [],
+				degraded: false,
+			}),
+		});
+	const sequence = (stdout: string): unknown =>
+		(parsed(stdout) as { terminalSequence?: unknown }).terminalSequence;
+
+	test("a gate ask in Warp notifies", async () => {
+		const run = await runClaudeHook(
+			raw("pre-tool-use.bash.input.json"),
+			answer("ask", "confirm it"),
+		);
+		expect(sequence(withNotification(run, WARP).stdout)).toBe(
+			"\u001b]777;notify;maina needs your approval;confirm it\u0007",
+		);
+	});
+
+	test("a gate allow does not", async () => {
+		const run = await runClaudeHook(
+			raw("pre-tool-use.bash.input.json"),
+			answer("allow", "ok"),
+		);
+		expect(withNotification(run, WARP)).toEqual(run.output);
+	});
+
+	test("a finished verify notifies, and the stop run says what verify said", async () => {
+		const passed = {
+			verdict: "allow" as const,
+			reason: "maina verify: passed on 2 changed files",
+			decisionIds: [],
+			degraded: false,
+		};
+		const run = await runClaudeHook(
+			raw("stop.input.json"),
+			ports({ stopVerify: async () => passed }),
+		);
+		expect(run.verify).toEqual(passed);
+		expect(sequence(withNotification(run, WARP).stdout)).toBe(
+			"\u001b]777;notify;maina verify finished;maina verify: passed on 2 changed files\u0007",
+		);
+	});
+
+	test("a failed verify notifies too", async () => {
+		const run = await runClaudeHook(
+			raw("stop.input.json"),
+			ports({
+				stopVerify: async () => ({
+					verdict: "deny",
+					reason: "maina verify failed on changed lines; fix before finishing.",
+					decisionIds: [],
+					degraded: false,
+				}),
+			}),
+		);
+		const out = parsed(withNotification(run, WARP).stdout) as Record<
+			string,
+			unknown
+		>;
+		expect(out.decision).toBe("block");
+		expect(out.terminalSequence).toBe(
+			"\u001b]777;notify;maina verify failed;maina verify failed on changed lines, fix before finishing.\u0007",
+		);
+	});
+
+	test("a stop without verify, or outside a supported terminal, is unchanged", async () => {
+		const noVerify = await runClaudeHook(raw("stop.input.json"), ports());
+		expect(noVerify.verify).toBeUndefined();
+		expect(withNotification(noVerify, WARP)).toEqual(noVerify.output);
+		const ask = await runClaudeHook(
+			raw("pre-tool-use.bash.input.json"),
+			answer("ask", "confirm it"),
+		);
+		expect(withNotification(ask, {})).toEqual(ask.output);
+		expect(withNotification(ask, { TERM_PROGRAM: "Apple_Terminal" })).toEqual(
+			ask.output,
+		);
 	});
 });
