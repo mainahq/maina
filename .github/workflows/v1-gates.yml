@@ -1,0 +1,40 @@
+name: v1 release gates
+
+# The v1 release gate check (v1 task 12.1, spec §9, FR-DOG-6). Reads the
+# evidence for every §9 item from release/v1-evidence (one JSON file per
+# item, each linking to where it came from), runs the docs check live, and
+# fails with a per-item report when anything is missing or below its
+# threshold. The report is also written to the job summary.
+#
+# On demand only: run it before cutting the 2.0.0 release (task 12.2).
+
+on:
+  workflow_dispatch:
+    inputs:
+      evidence:
+        description: "Evidence directory, relative to the repo root"
+        required: false
+        default: "release/v1-evidence"
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: v1 release gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Gate check
+        env:
+          EVIDENCE: ${{ inputs.evidence }}
+        run: bun run release:gates --evidence "$EVIDENCE" --summary "$GITHUB_STEP_SUMMARY"
