@@ -6,24 +6,25 @@ You are working on a codebase verified by [Maina](https://mainahq.com), the veri
 
 When fixing an issue or implementing a feature:
 
-1. **Get context first** — call `maina getContext` with the relevant command type to understand the codebase state
+1. **Get context first** — call the `context` tool with the files or question you are working on
 2. **Write tests first** — TDD always. Write failing tests, then implement
-3. **Verify your work** — call `maina verify` before requesting review. Fix any findings
-4. **Check for slop** — call `maina checkSlop` on files you changed. No empty bodies, no placeholder code, no console.log
-5. **Review your code** — call `maina reviewCode` with your diff to catch issues before human review
+3. **Verify your work** — call `verify` before requesting review (it includes slop detection: no empty bodies, no placeholder code, no console.log). Fix any findings
+4. **Review your code** — call `review_triage` with your diff to catch issues before human review
 
 ## Available MCP Tools
 
+<!-- maina:mcp-tools default table -->
 | Tool | When to use |
 |------|-------------|
-| `getContext` | Before starting work — understand branch state, recent changes, verification status |
-| `verify` | After making changes — run the full 16-tool verification pipeline |
-| `checkSlop` | On changed files — detect AI-generated slop patterns |
-| `reviewCode` | On your diff — two-stage review (spec compliance + code quality) |
-| `suggestTests` | When implementing features — generate TDD test stubs from plan.md |
-| `analyzeFeature` | Check spec/plan/tasks consistency for a feature |
-| `getConventions` | Understand project coding conventions |
-| `explainModule` | Understand how a module works before modifying it |
+| `verify` | Run the verification pipeline on your changes before asking for review; fix findings on changed lines. |
+| `decide` | Ask the repo's policy typed questions (e.g. `finding.real`, `diff.needs_review`) instead of guessing. |
+| `impact` | Before changing files or symbols, see what they can affect: callers, dependent files, covering tests. |
+| `context` | Get the source you need for files or a query, within a token budget, before reading whole files. |
+| `review_triage` | Two-stage review of your diff (spec compliance, then code quality), triaged into blocking, advisory and info. |
+| `spec_check` | Check a feature's spec.md, plan.md and tasks.md agree before implementing it. |
+| `receipt` | Verify maina receipt JSON files against the v1 schema and their canonical hash. |
+| `status` | Check the maina version, the enabled tools, and whether the code graph, wiki and policy are ready. |
+<!-- /maina:mcp-tools -->
 
 ## Conventions
 

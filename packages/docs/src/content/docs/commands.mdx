@@ -28,14 +28,14 @@ import Mermaid from '../../components/Mermaid.astro';
     end
     subgraph Wiki["Wiki"]
         wikiInit["maina wiki init"]
-        wikiQuery["maina wiki query"]
+        wikiAsk["maina wiki query"]
         wikiLint["maina wiki lint"]
     end
 
     brainstorm --> ticket --> plan --> design --> spec
     spec --> implement --> verify --> review --> fix
     fix --> commit --> review2 --> pr
-    pr --> wikiInit --> wikiQuery --> wikiLint
+    pr --> wikiInit --> wikiAsk --> wikiLint
 
     style Discovery fill:#1e3a5f,stroke:#3b82f6,color:#93c5fd
     style Planning fill:#3b1f5e,stroke:#8b5cf6,color:#c4b5fd

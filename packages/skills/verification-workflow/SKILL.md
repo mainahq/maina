@@ -31,7 +31,7 @@ Before committing any code change. The verification pipeline catches syntax erro
 6. **Review findings:** Each finding includes file path, line number, severity, explanation, and a suggested fix.
 7. **Fix and re-run:** Address findings, re-stage, and run `maina verify` again until clean.
 8. **Commit through maina:** Use `maina commit` instead of `git commit`. This ensures the verification pipeline ran and attaches verification metadata to the commit.
-9. **MCP alternative:** All verification commands are also available as MCP tools (`verify`, `checkSlop`, `reviewCode`) when running inside an AI coding tool. Use `npx @mainahq/cli` if `maina` is not installed globally.
+9. **MCP alternative:** Verification and review are also available as MCP tools (`verify`, which includes slop detection, and `review_triage`) when running inside an AI coding tool. Use `npx @mainahq/cli` if `maina` is not installed globally.
 
 ## Example
 

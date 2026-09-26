@@ -17,7 +17,8 @@
     "types": ["bun-types"],
     "paths": {
       "@mainahq/core": ["./packages/core/src/index.ts"],
-      "@mainahq/mcp": ["./packages/mcp/src/index.ts"]
+      "@mainahq/mcp": ["./packages/mcp/src/index.ts"],
+      "@mainahq/mcp/catalog": ["./packages/mcp/src/catalog.ts"]
     }
   }
 }

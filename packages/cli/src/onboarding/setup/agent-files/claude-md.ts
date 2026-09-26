@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Result } from "@mainahq/core";
+import { DEFAULT_TOOLS, renderToolList } from "@mainahq/mcp/catalog";
 import { mergeManaged, wrapManaged } from "./region";
 import type { StackContext } from "./types";
 
@@ -44,14 +45,7 @@ Read \`.maina/constitution.md\` for the full project DNA.
 ${constitutionQuickRef}
 
 ## MCP Tools (via .mcp.json)
-- \`getContext\` — branch state + verification status
-- \`verify\` — run the full verification pipeline
-- \`checkSlop\` — detect AI slop on changed files
-- \`reviewCode\` — two-stage review on your diff
-- \`suggestTests\` — TDD test stubs
-- \`getConventions\` — project conventions
-- \`explainModule\` — understand a module
-- \`wikiQuery\` — search codebase knowledge
+${renderToolList(DEFAULT_TOOLS, "list")}
 
 ## Rules
 - TDD always — write tests first, watch them fail, implement

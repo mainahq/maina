@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { DEFAULT_TOOLS, findRetiredTools } from "../../mcp/src/catalog";
 
 const SKILLS_DIR = join(import.meta.dir, "..");
 
@@ -138,24 +139,20 @@ describe("onboarding skill", () => {
 		}
 	});
 
-	test("lists all MCP tools", () => {
+	test("lists every default MCP tool", () => {
 		const content = readSkill("onboarding");
-		const mcpTools = [
-			"getContext",
-			"getConventions",
-			"verify",
-			"checkSlop",
-			"reviewCode",
-			"explainModule",
-			"suggestTests",
-			"analyzeFeature",
-			"wikiQuery",
-			"wikiStatus",
-		];
-		for (const tool of mcpTools) {
+		for (const tool of DEFAULT_TOOLS) {
 			expect(content).toContain(`\`${tool}\``);
 		}
 	});
+});
+
+describe("MCP tool names", () => {
+	for (const name of SKILL_NAMES) {
+		test(`${name} names no retired MCP tool`, () => {
+			expect(findRetiredTools(readSkill(name))).toEqual([]);
+		});
+	}
 });
 
 describe("universal language", () => {

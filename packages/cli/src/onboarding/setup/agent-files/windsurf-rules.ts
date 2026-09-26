@@ -1,3 +1,4 @@
+import { DEFAULT_TOOLS, renderToolList } from "@mainahq/mcp/catalog";
 import type { StackContext } from "./types";
 
 const WORKFLOW =
@@ -37,8 +38,7 @@ Read \`.maina/constitution.md\` for the full project DNA.
 ${constitutionQuickRef}
 
 ## MCP Tools
-- \`getContext\`, \`verify\`, \`checkSlop\`, \`reviewCode\`, \`suggestTests\`
-- \`wikiQuery\` — search codebase knowledge
+${renderToolList(DEFAULT_TOOLS, "list")}
 
 ## Rules
 - TDD always

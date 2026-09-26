@@ -28,8 +28,13 @@ triggers:
 
 ## MCP Tools
 
-- **wikiQuery** — Search and synthesize answers from wiki articles. Accepts a question string, returns an AI-synthesized answer with source citations.
-- **wikiStatus** — Wiki health dashboard with article counts, coverage, and compile timestamps.
+The `status` tool reports whether the wiki is ready. The DeepWiki-compatible wiki tools are off by default; enable them with the allow-list (`--tools default,ask_question,read_wiki_structure,read_wiki_contents` or `MAINA_MCP_TOOLS`):
+
+<!-- maina:mcp-tools deepwiki list -->
+- `ask_question` — Ask the maina wiki a question about the codebase; answers cite source articles.
+- `read_wiki_structure` — List the maina wiki's articles with their paths, types and titles.
+- `read_wiki_contents` — Read one maina wiki article by its path.
+<!-- /maina:mcp-tools -->
 
 ## Workflow Integration
 
@@ -76,4 +81,4 @@ maina wiki query "why did we choose JWT over sessions?"
 - Articles include PageRank scores — higher-ranked articles are more connected and important
 - Ebbinghaus decay scoring surfaces recently relevant articles over stale ones
 - The knowledge graph tracks 11 edge types across code and lifecycle artifacts
-- All commands are available as both CLI (`maina <command>` or `npx @mainahq/cli <command>`) and MCP tools (`wikiQuery`, `wikiStatus`) when running inside an AI coding tool
+- All commands are available as both CLI (`maina <command>` or `npx @mainahq/cli <command>`) and, for querying and reading the wiki, as the allow-listed DeepWiki MCP tools when running inside an AI coding tool
