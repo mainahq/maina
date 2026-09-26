@@ -61,7 +61,35 @@ type RemoteServiceOptions = Readonly<{
 	maxClients?: number;
 	/** Client registrations per peer address and window. */
 	registrationLimit?: RegistrationLimit;
+	/**
+	 * Reverse proxies in front of the service that append the address they
+	 * saw to `X-Forwarded-For` (the compose ingress is one); 0 by default,
+	 * when the header is ignored.
+	 */
+	trustedProxies?: number;
 }>;
+
+/**
+ * The caller's address: the connection's, or behind `trusted` proxies the
+ * one the outermost of them appended to `X-Forwarded-For`. Entries left of
+ * it are whatever the caller claimed and never count; a chain shorter than
+ * `trusted` falls back to its first entry, which a proxy wrote.
+ */
+function callerAddress(
+	forwardedFor: string | null,
+	socket: string | undefined,
+	trusted: number,
+): string | undefined {
+	if (trusted === 0) return socket;
+	const hops = [
+		...(forwardedFor ?? "")
+			.split(",")
+			.map((entry) => entry.trim())
+			.filter((entry) => entry !== ""),
+		...(socket !== undefined ? [socket] : []),
+	];
+	return hops[Math.max(0, hops.length - 1 - trusted)];
+}
 
 /** The MCP endpoint's methods under Streamable HTTP. */
 const MCP_METHODS = ["GET", "POST", "DELETE"] as const;
@@ -69,7 +97,11 @@ const MCP_METHODS = ["GET", "POST", "DELETE"] as const;
 export type RemoteService = Readonly<{
 	/** The tools every session registers, in catalog order. */
 	tools: readonly ToolName[];
-	/** `peer` (the connection's address) keys the registration rate limit. */
+	/**
+	 * `peer` is the connection's address. It keys the registration rate
+	 * limit, or with `trustedProxies` the address the outermost trusted
+	 * proxy appended to `X-Forwarded-For` does.
+	 */
 	fetch: (req: Request, peer?: Peer) => Promise<Response>;
 	sessionCount: () => number;
 	close: () => Promise<void>;
@@ -199,7 +231,13 @@ export function createRemoteService(
 		if (path === "/healthz") {
 			return Response.json({ status: "ok", version: VERSION });
 		}
-		const handled = await auth.handle(req, peer);
+		const handled = await auth.handle(req, {
+			address: callerAddress(
+				req.headers.get("x-forwarded-for"),
+				peer?.address,
+				options.trustedProxies ?? 0,
+			),
+		});
 		if (handled !== null) return handled;
 		if (path !== MCP_PATH) return new Response("Not found", { status: 404 });
 		return withCors(await mcp(req));
@@ -230,6 +268,7 @@ type RemoteConfig = Readonly<{
 	tools: readonly string[] | undefined;
 	maxClients: number;
 	registrationLimit: RegistrationLimit;
+	trustedProxies: number;
 }>;
 
 type ConfigError = Readonly<{
@@ -257,11 +296,15 @@ function parseIssuer(raw: string): URL | null {
 	}
 }
 
-/** A positive whole number from `raw`, `fallback` when unset. */
-function positiveInt(raw: string | undefined, fallback: number): number | null {
+/** A whole number of at least `min` from `raw`, `fallback` when unset. */
+function wholeNumber(
+	raw: string | undefined,
+	fallback: number,
+	min = 1,
+): number | null {
 	const value = raw?.trim() || String(fallback);
 	const n = Number(value);
-	return /^\d+$/.test(value) && n >= 1 && Number.isSafeInteger(n) ? n : null;
+	return /^\d+$/.test(value) && n >= min && Number.isSafeInteger(n) ? n : null;
 }
 
 /** An account's problem, or `null` when it can sign in. */
@@ -324,7 +367,9 @@ function readUsers(
  * and `MAINA_REMOTE_PASSWORD` (required), `MAINA_REMOTE_USERS` (further
  * accounts, a JSON object of username to password), `MAINA_MCP_TOOLS`
  * (allow-list), `MAINA_REMOTE_MAX_CLIENTS` (1000) and
- * `MAINA_REMOTE_REGISTRATIONS_PER_MINUTE` (20 per peer address).
+ * `MAINA_REMOTE_REGISTRATIONS_PER_MINUTE` (20 per peer address) and
+ * `MAINA_REMOTE_TRUSTED_PROXIES` (0: proxies in front that append to
+ * `X-Forwarded-For`).
  */
 export function readRemoteConfig(
 	env: Readonly<Record<string, string | undefined>>,
@@ -373,15 +418,22 @@ export function readRemoteConfig(
 	}
 	const users = readUsers(env[USERS_VAR], username);
 	if (!users.ok) return users;
-	const maxClients = positiveInt(env.MAINA_REMOTE_MAX_CLIENTS, 1000);
+	const maxClients = wholeNumber(env.MAINA_REMOTE_MAX_CLIENTS, 1000);
 	if (maxClients === null) {
 		return configError("MAINA_REMOTE_MAX_CLIENTS", "must be a positive number");
 	}
-	const perMinute = positiveInt(env.MAINA_REMOTE_REGISTRATIONS_PER_MINUTE, 20);
+	const perMinute = wholeNumber(env.MAINA_REMOTE_REGISTRATIONS_PER_MINUTE, 20);
 	if (perMinute === null) {
 		return configError(
 			"MAINA_REMOTE_REGISTRATIONS_PER_MINUTE",
 			"must be a positive number",
+		);
+	}
+	const trustedProxies = wholeNumber(env.MAINA_REMOTE_TRUSTED_PROXIES, 0, 0);
+	if (trustedProxies === null) {
+		return configError(
+			"MAINA_REMOTE_TRUSTED_PROXIES",
+			"must be a whole number (0 or more)",
 		);
 	}
 	const tools = env.MAINA_MCP_TOOLS?.trim();
@@ -396,6 +448,7 @@ export function readRemoteConfig(
 			users: users.value,
 			maxClients,
 			registrationLimit: { max: perMinute, windowSeconds: 60 },
+			trustedProxies,
 			tools: tools
 				? tools
 						.split(",")

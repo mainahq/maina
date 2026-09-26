@@ -13,6 +13,7 @@ type Seen = {
 	method: string;
 	path: string;
 	authorization: string | null;
+	forwardedFor: string | null;
 	body: string;
 };
 
@@ -33,6 +34,7 @@ function upstream(): { url: string; seen: Seen[] } {
 				method: req.method,
 				path: url.pathname + url.search,
 				authorization: req.headers.get("authorization"),
+				forwardedFor: req.headers.get("x-forwarded-for"),
 				body: await req.text(),
 			});
 			if (url.pathname === "/sse") {
@@ -82,8 +84,28 @@ describe("ingressHandler", () => {
 				method: "POST",
 				path: "/token?x=1",
 				authorization: "Bearer abc",
+				forwardedFor: null,
 				body: "grant=1",
 			},
+		]);
+	});
+
+	test("appends the connecting address to X-Forwarded-For, after any the caller sent", async () => {
+		const up = upstream();
+		const handle = ingressHandler(up.url);
+		await handle(
+			new Request("https://maina.example.com/register"),
+			"203.0.113.7",
+		);
+		await handle(
+			new Request("https://maina.example.com/register", {
+				headers: { "x-forwarded-for": "198.51.100.2" },
+			}),
+			"203.0.113.7",
+		);
+		expect(up.seen.map((s) => s.forwardedFor)).toEqual([
+			"203.0.113.7",
+			"198.51.100.2, 203.0.113.7",
 		]);
 	});
 
@@ -115,10 +137,11 @@ describe("ingressHandler", () => {
 				}),
 		});
 		servers.push(gz);
+		const forward = ingressHandler(`http://127.0.0.1:${gz.port}`);
 		const ingress = Bun.serve({
 			port: 0,
 			hostname: "127.0.0.1",
-			fetch: ingressHandler(`http://127.0.0.1:${gz.port}`),
+			fetch: (req) => forward(req),
 		});
 		servers.push(ingress);
 		const res = await fetch(`http://127.0.0.1:${ingress.port}/`, {

@@ -90,7 +90,8 @@ bun packages/remote/src/main.ts
 | `MAINA_REMOTE_PASSWORD` | required, 12+ chars | That owner's password (HTTP Basic on `/authorize`) |
 | `MAINA_REMOTE_USERS` | none | Further users of the workspace, each approving their own clients: a JSON object of username to password (12+ chars each) |
 | `MAINA_REMOTE_MAX_CLIENTS` | `1000` | Most OAuth clients registered at once |
-| `MAINA_REMOTE_REGISTRATIONS_PER_MINUTE` | `20` | Client registrations a minute per peer address (behind a proxy, all callers share its address) |
+| `MAINA_REMOTE_REGISTRATIONS_PER_MINUTE` | `20` | Client registrations a minute per caller address |
+| `MAINA_REMOTE_TRUSTED_PROXIES` | `0` | Proxies in front that append the caller's address to `X-Forwarded-For`; the rate limit then keys on the address the outermost one appended (compose sets `1` for its ingress) |
 | `MAINA_MCP_TOOLS` | the remote default set | Tool allow-list, as for the local server |
 
 Or as a container, built from the repository root:

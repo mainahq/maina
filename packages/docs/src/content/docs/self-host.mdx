@@ -52,7 +52,7 @@ When a host such as Claude or Cursor connects, it registers itself as an OAuth c
 
 The owner (`MAINA_REMOTE_OWNER`, `MAINA_REMOTE_PASSWORD`) can be joined by further users of the same workspace. Set `MAINA_REMOTE_USERS` to a JSON object of username to password, 12 or more characters each, for example `MAINA_REMOTE_USERS='{"alice": "a long password"}'`. Each user approves their own clients, and a request one user started cannot be approved by another.
 
-Client registration is open, so it is bounded. The service keeps at most `MAINA_REMOTE_MAX_CLIENTS` clients (default 1000). At the cap, the oldest client with no pending approval and no live token is dropped to make room. Each address may register `MAINA_REMOTE_REGISTRATIONS_PER_MINUTE` clients a minute (default 20) and gets `429` with `Retry-After` beyond that. Behind the ingress, every caller shares the ingress's address, so the limit applies to the whole install.
+Client registration is open, so it is bounded. The service keeps at most `MAINA_REMOTE_MAX_CLIENTS` clients (default 1000). At the cap, the oldest client with no pending approval and no live token is dropped to make room. Each caller address may register `MAINA_REMOTE_REGISTRATIONS_PER_MINUTE` clients a minute (default 20) and gets `429` with `Retry-After` beyond that. The ingress appends each caller's address to `X-Forwarded-For`, and compose sets `MAINA_REMOTE_TRUSTED_PROXIES=1` so the service reads it. If your TLS terminator in front of the ingress appends to `X-Forwarded-For` too, set it to `2`; otherwise every caller would share the terminator's address. Never count a proxy that does not append the address, or a caller could choose its own.
 
 The discovery documents, `/register`, `/token` and `/mcp` send CORS headers for any origin, so browser-based MCP clients can connect. Their credentials travel in headers, never cookies. `/authorize` sends no CORS headers.
 
@@ -94,6 +94,7 @@ Useful values:
 | `remote.usersKey` | none | A key in `remote.existingSecret` holding further users (`MAINA_REMOTE_USERS`) |
 | `remote.maxClients` | `1000` | Most OAuth clients registered at once |
 | `remote.registrationsPerMinute` | `20` | Client registrations a minute per address |
+| `remote.trustedProxies` | `0` | Proxies in front of the pod that append the caller's address to `X-Forwarded-For` |
 | `egress.allowedHosts` | `github.com`, `api.github.com` | Hosts the install may reach |
 | `networkPolicy.enabled` | `true` | Enforce the egress restriction |
 

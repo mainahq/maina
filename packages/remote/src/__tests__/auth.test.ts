@@ -396,6 +396,19 @@ describe("CORS for browser-based MCP clients", () => {
 		);
 	});
 
+	test("a browser client can read Retry-After on a limited registration", async () => {
+		const { auth } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+		});
+		await registerFrom(auth, "203.0.113.7");
+		const limited = await registerFrom(auth, "203.0.113.7");
+		expect(limited?.status).toBe(429);
+		// Retry-After is not a CORS-safelisted response header.
+		expect(limited?.headers.get("access-control-expose-headers")).toContain(
+			"retry-after",
+		);
+	});
+
 	test("the authorization endpoint is a browser navigation and sends no CORS headers", async () => {
 		const { handle } = setup();
 		const client = await register(handle);

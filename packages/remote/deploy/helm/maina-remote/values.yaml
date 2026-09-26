@@ -28,6 +28,10 @@ remote:
   # oldest unused one makes room) and registrationsPerMinute per address.
   maxClients: 1000
   registrationsPerMinute: 20
+  # Proxies in front of the pod (your ingress controller) that append the
+  # caller's address to X-Forwarded-For. 0: the header is ignored and the
+  # rate limit keys on the connection's address.
+  trustedProxies: 0
   # Tool allow-list (comma-separated); empty: the remote default set.
   tools: ""
   workspace:

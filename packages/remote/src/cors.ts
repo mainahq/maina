@@ -22,6 +22,8 @@ const EXPOSE_HEADERS = [
 	"www-authenticate",
 	"mcp-session-id",
 	"mcp-protocol-version",
+	// Not CORS-safelisted: without it a limited client cannot see when to retry.
+	"retry-after",
 ].join(", ");
 
 /** How long a browser may cache a preflight answer: one day. */

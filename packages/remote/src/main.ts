@@ -47,6 +47,7 @@ const {
 	tools,
 	maxClients,
 	registrationLimit,
+	trustedProxies,
 } = config.value;
 const service = createRemoteService({
 	issuer,
@@ -55,13 +56,14 @@ const service = createRemoteService({
 	authenticate: basicAuthenticator([owner, ...users]),
 	maxClients,
 	registrationLimit,
+	trustedProxies,
 	...(tools !== undefined ? { tools } : {}),
 });
 
 const server = Bun.serve({
 	port,
-	// The connection's address keys the client registration rate limit.
-	// Behind a proxy (the compose ingress) every caller shares the proxy's.
+	// The connection's address keys the client registration rate limit;
+	// behind trusted proxies (the compose ingress) X-Forwarded-For does.
 	fetch: (req, bun) =>
 		service.fetch(req, { address: bun.requestIP(req)?.address }),
 	// Streamable HTTP keeps SSE responses open; the session idle timeout,

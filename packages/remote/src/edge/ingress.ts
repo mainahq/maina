@@ -45,12 +45,28 @@ function endToEnd(source: Headers): Headers {
 	return headers;
 }
 
+/**
+ * `headers` with `peer` (the address the request came from) appended to
+ * `X-Forwarded-For`, so the service can tell callers apart
+ * (`MAINA_REMOTE_TRUSTED_PROXIES`).
+ */
+function forwardedFor(headers: Headers, peer: string | undefined): Headers {
+	if (peer === undefined) return headers;
+	const prior = headers.get("x-forwarded-for")?.trim();
+	headers.set("x-forwarded-for", prior ? `${prior}, ${peer}` : peer);
+	return headers;
+}
+
+/**
+ * Forwards to `upstream`. `peer` is the address the request came from,
+ * appended to `X-Forwarded-For`.
+ */
 export function ingressHandler(
 	upstream: string,
 	fetchImpl: Fetch = passThrough,
-): (req: Request) => Promise<Response> {
+): (req: Request, peer?: string) => Promise<Response> {
 	const base = new URL(upstream);
-	return async (req) => {
+	return async (req, peer) => {
 		const url = new URL(req.url);
 		const target = new URL(`${url.pathname}${url.search}`, base);
 		const hasBody = req.method !== "GET" && req.method !== "HEAD";
@@ -58,7 +74,7 @@ export function ingressHandler(
 			return await fetchImpl(
 				new Request(target, {
 					method: req.method,
-					headers: endToEnd(req.headers),
+					headers: forwardedFor(endToEnd(req.headers), peer),
 					redirect: "manual",
 					...(hasBody ? { body: req.body, duplex: "half" } : {}),
 				}),

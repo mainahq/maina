@@ -256,6 +256,11 @@ describe("compose deployment", () => {
 		});
 	});
 
+	test("the service trusts the ingress's X-Forwarded-For, so callers behind it have their own registration budget", () => {
+		const env = compose().services.remote?.environment ?? {};
+		expect(interpolationDefault(env.MAINA_REMOTE_TRUSTED_PROXIES)).toBe("1");
+	});
+
 	test("the maina containers reach out only through the egress proxy", () => {
 		const c = compose();
 		for (const name of MAINA_SERVICES) {

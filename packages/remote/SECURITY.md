@@ -110,7 +110,8 @@ results, no tokens.
 - **MCP service**: OAuth 2.1 with S256 PKCE, exact redirect matching and
   consent on every authorization by the user who signed in (only they can
   answer their request). Open client registration is rate-limited per
-  address and capped; at the cap only a client with nothing in use is
+  caller address (the one a trusted proxy appended to `X-Forwarded-For`,
+  never one the caller claims) and capped; at the cap only a client with nothing in use is
   forgotten. CORS is open (no credentials) on the metadata, `/register`,
   `/token` and `/mcp`, never on `/authorize`. Clients, codes, tokens and
   sessions are held in memory only, and only token hashes are stored.

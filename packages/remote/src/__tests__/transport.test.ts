@@ -103,6 +103,7 @@ function setup(
 		idleSeconds?: number;
 		maxSessions?: number;
 		registrationLimit?: Readonly<{ max: number; windowSeconds: number }>;
+		trustedProxies?: number;
 	}> = {},
 ): {
 	service: RemoteService;
@@ -130,6 +131,9 @@ function setup(
 			: {}),
 		...(options.registrationLimit !== undefined
 			? { registrationLimit: options.registrationLimit }
+			: {}),
+		...(options.trustedProxies !== undefined
+			? { trustedProxies: options.trustedProxies }
 			: {}),
 	});
 	open.push(service);
@@ -318,6 +322,77 @@ describe("CORS on /mcp for browser-based MCP clients", () => {
 		expect((await registerAs("203.0.113.7")).status).toBe(201);
 		expect((await registerAs("203.0.113.7")).status).toBe(429);
 		expect((await registerAs("198.51.100.2")).status).toBe(201);
+	});
+
+	/** A registration arriving from the proxy at 10.0.0.2 with `forwardedFor`. */
+	const viaProxy = (service: RemoteService, forwardedFor: string | undefined) =>
+		service.fetch(
+			new Request(`${ISSUER}/register`, {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					...(forwardedFor !== undefined
+						? { "x-forwarded-for": forwardedFor }
+						: {}),
+				},
+				body: JSON.stringify({
+					redirect_uris: [REDIRECT],
+					token_endpoint_auth_method: "none",
+				}),
+			}),
+			{ address: "10.0.0.2" },
+		);
+
+	test("behind a trusted proxy each forwarded client has its own registration budget", async () => {
+		const { service } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+			trustedProxies: 1,
+		});
+		expect((await viaProxy(service, "203.0.113.7")).status).toBe(201);
+		expect((await viaProxy(service, "203.0.113.7")).status).toBe(429);
+		// Another caller behind the same proxy is not locked out.
+		expect((await viaProxy(service, "198.51.100.2")).status).toBe(201);
+	});
+
+	test("behind a trusted proxy only the address it appended counts, not what the caller claims", async () => {
+		const { service } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+			trustedProxies: 1,
+		});
+		expect((await viaProxy(service, "1.1.1.1, 203.0.113.7")).status).toBe(201);
+		expect((await viaProxy(service, "2.2.2.2, 203.0.113.7")).status).toBe(429);
+	});
+
+	test("behind two trusted proxies the address the outer one appended counts", async () => {
+		const { service } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+			trustedProxies: 2,
+		});
+		// caller-claimed, then the TLS terminator's view, then the ingress's.
+		expect(
+			(await viaProxy(service, "1.1.1.1, 203.0.113.7, 10.0.0.9")).status,
+		).toBe(201);
+		expect(
+			(await viaProxy(service, "2.2.2.2, 203.0.113.7, 10.0.0.9")).status,
+		).toBe(429);
+		expect((await viaProxy(service, "203.0.113.8, 10.0.0.9")).status).toBe(201);
+	});
+
+	test("without trusted proxies X-Forwarded-For is ignored", async () => {
+		const { service } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+		});
+		expect((await viaProxy(service, "203.0.113.7")).status).toBe(201);
+		expect((await viaProxy(service, "198.51.100.2")).status).toBe(429);
+	});
+
+	test("a trusted proxy that sent no X-Forwarded-For falls back to the connection's address", async () => {
+		const { service } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+			trustedProxies: 1,
+		});
+		expect((await viaProxy(service, undefined)).status).toBe(201);
+		expect((await viaProxy(service, undefined)).status).toBe(429);
 	});
 });
 
@@ -591,6 +666,7 @@ describe("readRemoteConfig", () => {
 				tools: undefined,
 				maxClients: 1000,
 				registrationLimit: { max: 20, windowSeconds: 60 },
+				trustedProxies: 0,
 			},
 		});
 	});
@@ -605,10 +681,12 @@ describe("readRemoteConfig", () => {
 				}),
 				MAINA_REMOTE_MAX_CLIENTS: "50",
 				MAINA_REMOTE_REGISTRATIONS_PER_MINUTE: "5",
+				MAINA_REMOTE_TRUSTED_PROXIES: "1",
 			},
 			"/cwd",
 		);
 		expect(config.ok && config.value).toMatchObject({
+			trustedProxies: 1,
 			users: [
 				{ username: "alice", password: "alice-password-1" },
 				{ username: "bob", password: "bob-password-22" },
@@ -639,6 +717,11 @@ describe("readRemoteConfig", () => {
 		[
 			"a zero registration rate",
 			{ MAINA_REMOTE_REGISTRATIONS_PER_MINUTE: "0" },
+		],
+		["a negative trusted proxy count", { MAINA_REMOTE_TRUSTED_PROXIES: "-1" }],
+		[
+			"a non-numeric trusted proxy count",
+			{ MAINA_REMOTE_TRUSTED_PROXIES: "yes" },
 		],
 	])("refuses %s, naming the variable", (_label, extra) => {
 		const config = readRemoteConfig({ ...env, ...extra }, "/cwd");

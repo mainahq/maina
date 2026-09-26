@@ -50,9 +50,11 @@ async function ingress(): Promise<() => Promise<void>> {
 	if (!URL.canParse(upstream)) {
 		return fail("MAINA_INGRESS_UPSTREAM must be a URL");
 	}
+	const forward = ingressHandler(upstream);
 	const server = Bun.serve({
 		port: portFrom(process.env.PORT, 8787),
-		fetch: ingressHandler(upstream),
+		// The caller's address travels on in X-Forwarded-For.
+		fetch: (req, bun) => forward(req, bun.requestIP(req)?.address),
 		// SSE streams stay open; the service decides when they end.
 		idleTimeout: 0,
 	});

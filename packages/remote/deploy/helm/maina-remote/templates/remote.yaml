@@ -69,6 +69,8 @@ spec:
               value: {{ .Values.remote.maxClients | quote }}
             - name: MAINA_REMOTE_REGISTRATIONS_PER_MINUTE
               value: {{ .Values.remote.registrationsPerMinute | quote }}
+            - name: MAINA_REMOTE_TRUSTED_PROXIES
+              value: {{ .Values.remote.trustedProxies | quote }}
             {{- with .Values.remote.tools }}
             - name: MAINA_MCP_TOOLS
               value: {{ . | quote }}
