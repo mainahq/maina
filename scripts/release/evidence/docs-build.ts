@@ -18,6 +18,8 @@ export type DocsBuildEvidence = Readonly<{
 const MAX_QUOTED = 20;
 /** Astro and Vite tag their log lines; a page path is never tagged. */
 const WARNING = /\[(warn|warning|error)\]/i;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: strips ANSI colour codes
+const ANSI = /\u001b\[[0-9;]*m/g;
 
 export function docsBuildEvidence(
 	exitCode: number,
@@ -26,7 +28,7 @@ export function docsBuildEvidence(
 ): DocsBuildEvidence {
 	const warnings = log
 		.split("\n")
-		.map((l) => l.trim())
+		.map((l) => l.replace(ANSI, "").trim())
 		.filter((l) => WARNING.test(l));
 	return {
 		link,

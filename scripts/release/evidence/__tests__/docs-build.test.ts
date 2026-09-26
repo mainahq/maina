@@ -45,6 +45,14 @@ describe("docsBuildEvidence", () => {
 		expect(docsBuildEvidence(0, log, LINK).clean).toBe(true);
 	});
 
+	test("warnings are quoted without terminal colour codes", () => {
+		const log =
+			"\u001b[33m\u001b[1m20:12:15\u001b[22m [WARN] [build]\u001b[39m Could not render `/cloud`\n";
+		expect(docsBuildEvidence(0, log, LINK).warnings).toEqual([
+			"20:12:15 [WARN] [build] Could not render `/cloud`",
+		]);
+	});
+
 	test("at most 20 warnings are quoted", () => {
 		const log = Array.from({ length: 30 }, (_, i) => `[WARN] w${i}`).join("\n");
 		expect(docsBuildEvidence(0, log, LINK).warnings).toHaveLength(20);
