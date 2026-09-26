@@ -94,13 +94,22 @@ jobs:
           case $code:$out in 2:*'"permissionDecision":"deny"'*) ;; *) echo "codex hook did not fail closed" >&2; exit 1 ;; esac
           # The executable embeds tree-sitter (#526): the gate reads a Bash
           # command instead of asking for it as opaque, so wiping the host's
-          # config is denied, not asked.
+          # config is denied, not asked. The first hook spawns the resident
+          # runtime; a cold start can outrun the hook's 3s budget (seen on
+          # Windows), and the degraded answer is then an ask. The runtime it
+          # spawned stays up, so retry a few times. Without the grammar every
+          # attempt asks (shell.opaque), so a retry cannot hide a regression.
           cwd=$(pwd -W 2>/dev/null || pwd)
           input=$(printf '{"session_id":"ci","transcript_path":"%s/t.jsonl","cwd":"%s","hook_event_name":"PreToolUse","permission_mode":"default","tool_name":"Bash","tool_input":{"command":"rm -rf ~/.claude"},"tool_use_id":"toolu_ci"}' "$cwd" "$cwd")
-          code=0
-          out=$(printf '%s' "$input" | "$bin" hook --host claude PreToolUse) || code=$?
-          echo "$out"
-          case $code:$out in 2:*'"permissionDecision":"deny"'*) ;; *) echo "hook did not deny rm -rf ~/.claude (shell grammar not embedded?)" >&2; exit 1 ;; esac
+          denied=no
+          for attempt in 1 2 3 4 5; do
+            code=0
+            out=$(printf '%s' "$input" | "$bin" hook --host claude PreToolUse) || code=$?
+            echo "attempt $attempt: $out"
+            case $code:$out in 2:*'"permissionDecision":"deny"'*) denied=yes; break ;; esac
+            sleep 3
+          done
+          if [ "$denied" != yes ]; then echo "hook did not deny rm -rf ~/.claude (shell grammar not embedded?)" >&2; exit 1; fi
           init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}'
           # head exits after one line, so the server may die of SIGPIPE: ignore
           # the pipeline status and check the reply instead.
