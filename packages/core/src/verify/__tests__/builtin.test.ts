@@ -336,6 +336,43 @@ describe("checkSecrets JSON/YAML key forms (#391)", () => {
 		).toHaveLength(1);
 	});
 
+	it("does not flag env var names used as values (#491)", () => {
+		expect(
+			checkSecrets(
+				".github/workflows/x.yml",
+				"      secret: ANTHROPIC_API_KEY",
+			),
+		).toEqual([]);
+		const matrix = [
+			"matrix:",
+			"  include:",
+			"    - agent: claude",
+			"      secret: ANTHROPIC_API_KEY",
+			"    - agent: codex",
+			"      token: OPENAI_API_KEY # env var name",
+		].join("\n");
+		expect(checkSecrets(".github/workflows/x.yml", matrix)).toEqual([]);
+		expect(
+			checkSecrets("config/app.json", '{ "secret": "GITHUB_TOKEN_V2" }'),
+		).toEqual([]);
+	});
+
+	it("still flags all-caps values that are not env var names (#491)", () => {
+		// No underscore separator, or not an identifier: still a possible secret.
+		for (const value of [
+			"ZQ8VN3PL5TR7WX2YB4CD",
+			"AKIAIOSFODNN7EXAMPLE9",
+			"_ABC_DEF",
+		]) {
+			expect(checkSecrets("config/app.yml", `api_key: ${value}`)).toHaveLength(
+				1,
+			);
+		}
+		expect(
+			checkSecrets("config/app.yml", "api_key: Anthropic_Api_Key"),
+		).toHaveLength(1);
+	});
+
 	it("does not treat unquoted type annotations in code as YAML values", () => {
 		const content = "interface Cfg {\n\tapi_key: string\n\ttoken: Token\n}\n";
 		expect(checkSecrets("src/types.ts", content)).toEqual([]);

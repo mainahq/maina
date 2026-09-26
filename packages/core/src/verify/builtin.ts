@@ -271,6 +271,12 @@ const NON_SECRET_VALUES = new Set([
 	"optional",
 ]);
 
+/**
+ * SCREAMING_SNAKE_CASE identifier with at least one `_` separator: an env var
+ * or CI secret *name* (`secret: ANTHROPIC_API_KEY`), not a credential (#491).
+ */
+const ENV_VAR_NAME_PATTERN = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/;
+
 function isYamlFile(filePath: string): boolean {
 	return /\.ya?ml$/i.test(filePath);
 }
@@ -278,11 +284,15 @@ function isYamlFile(filePath: string): boolean {
 const normalizeKey = (s: string): string =>
 	s.toLowerCase().replace(/[-_]/g, "");
 
-/** Rejects fixtures, schema type names and labels echoing the key ("Password"). */
+/**
+ * Rejects fixtures, schema type names, env var names and labels echoing the
+ * key ("Password").
+ */
 function isRealSecretValue(key: string, value: string): boolean {
 	return (
 		!TEST_VALUE_PATTERN.test(value) &&
 		!NON_SECRET_VALUES.has(value.toLowerCase()) &&
+		!ENV_VAR_NAME_PATTERN.test(value) &&
 		normalizeKey(value) !== normalizeKey(key)
 	);
 }
