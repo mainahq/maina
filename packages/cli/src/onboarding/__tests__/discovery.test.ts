@@ -22,18 +22,23 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	analyzeAction,
 	computeReceiptHash,
+	DEFAULT_POLICY,
 	discoveryLineEnabled,
 	type HttpPort,
 	type HttpRequest,
+	loadShellParser,
 	parsePolicyLayer,
 	type Receipt,
 } from "@mainahq/core";
 import { receiptPublishAction } from "../../commands/receipt-publish";
 import {
+	INSTALL_CHECK_COMMAND,
 	INSTALL_HINT_HEADING,
 	installHintScript,
 	isPolicyCommitted,
+	renderInstallHint,
 } from "../discovery";
 import { type OnboardingFacts, planOnboarding } from "../plan";
 import { AGENT_FILES } from "../setup/agent-files/index";
@@ -255,6 +260,51 @@ describe("install hint in the managed region", () => {
 		expect(start).toBeGreaterThanOrEqual(0);
 		expect(hint).toBeGreaterThan(start);
 		expect(hint).toBeLessThan(end);
+	});
+});
+
+describe("install hint for a developer who has maina (and its gate)", () => {
+	/** Gate verdicts for a shell command under the default policy. */
+	async function verdicts(command: string): Promise<readonly string[]> {
+		const shell = await loadShellParser();
+		if (!shell.ok) throw new Error(shell.error.message);
+		const analysis = analyzeAction(
+			{
+				host: "claude-code",
+				sessionId: "s",
+				root: dir,
+				permissionMode: "default",
+				untrusted: [],
+				kind: "shell",
+				action: { command },
+			},
+			{
+				shell: shell.value,
+				home: join(dir, "home"),
+				protectedBranches: ["main"],
+			},
+		);
+		return analysis.classes.map(
+			(c) => DEFAULT_POLICY.action_classes[c]?.verdict ?? "ask",
+		);
+	}
+
+	test("the per-session step the agent always runs is allowed by the gate", async () => {
+		// The agent files tell every agent to run this first; only when it
+		// finds no maina does the marker-writing script run. So a developer
+		// with the gate installed is never asked about a write to ~/.maina.
+		expect(renderInstallHint()).toContain(`\`${INSTALL_CHECK_COMMAND}\``);
+		const found = await verdicts(INSTALL_CHECK_COMMAND);
+		expect(found.length).toBeGreaterThan(0);
+		for (const verdict of found) expect(verdict).toBe("allow");
+	});
+
+	test("the marker-writing script is only run when the check finds no maina", () => {
+		const hint = renderInstallHint();
+		expect(hint.indexOf(INSTALL_CHECK_COMMAND)).toBeLessThan(
+			hint.indexOf(installHintScript()),
+		);
+		expect(hint).toMatch(/only if it prints nothing/i);
 	});
 });
 

@@ -16,6 +16,14 @@ const POLICY_PATH = ".maina/policy.json";
 
 export const INSTALL_HINT_HEADING = "## Maina for teammates";
 
+/**
+ * The read-only check every agent runs first. The marker-writing script
+ * runs only when this finds no `maina`, so a developer who has Maina (and
+ * so its gate) is never asked about a write under `~/.maina/`: the gate
+ * classifies that write as `fs.write.outside`, an irreversible `ask`.
+ */
+export const INSTALL_CHECK_COMMAND = "command -v maina";
+
 const INSTALL_MESSAGE =
 	"This repo commits a Maina policy (.maina/policy.json) for agent actions and PR receipts, but maina is not installed here. Install it: npm install -g @mainahq/cli && maina setup";
 
@@ -39,7 +47,7 @@ export function renderInstallHint(): string {
 	return [
 		INSTALL_HINT_HEADING,
 		"",
-		`This repo commits a Maina policy (\`${POLICY_PATH}\`). Once per session, run this check and pass on anything it prints to the developer. It prints only when \`maina\` is not installed, and only once per developer:`,
+		`This repo commits a Maina policy (\`${POLICY_PATH}\`). Once per session, run \`${INSTALL_CHECK_COMMAND}\`. Only if it prints nothing (\`maina\` is not installed), run this and pass on anything it prints to the developer. It prints once per developer:`,
 		"",
 		"```sh",
 		installHintScript(),
