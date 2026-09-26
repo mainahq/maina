@@ -950,3 +950,116 @@ describe("gate.self_override: the paths the #447 review left open (#513)", () =>
 		]);
 	});
 });
+
+describe("gate.self_override: maina mcp add/remove and doctor --fix (#543)", () => {
+	const SELF = "gate.self_override";
+
+	test("an agent writing Codex's config.toml through maina mcp add/remove", () => {
+		for (const command of [
+			// Auto-detect may pick Codex; the gate cannot know it will not.
+			"maina mcp add",
+			"maina mcp add --yes",
+			"maina mcp add --json",
+			"maina mcp remove",
+			"maina mcp add --client codex",
+			"maina mcp add --client=cursor,codex",
+			"maina mcp add --client ' Codex ' --scope global",
+			"maina mcp add --client cursor --client codex",
+			"maina mcp add --scope both",
+			"maina mcp add --scope project --scope global",
+			"maina mcp remove --client codex --json",
+			// An empty list means auto-detect.
+			"maina mcp add --client=",
+			// A value or subcommand the gate cannot read fails closed.
+			'maina mcp add --client "$C"',
+			'maina mcp add --scope "$S" --client codex',
+			'maina mcp "$X"',
+			// `--dry-run` after `--` is an operand, not the flag.
+			"maina mcp add -- --dry-run",
+			// Commander hands the word after a value option to it, so these
+			// set the client instead of dry-running or printing help.
+			"maina mcp add --client --dry-run --client codex",
+			"maina mcp add --client --help --client codex",
+			"maina mcp add --scope -- --client codex",
+			"bunx maina mcp add",
+			"npx -y @mainahq/cli@latest mcp add --client codex",
+			'sh -c "maina mcp remove"',
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+	});
+
+	test("an agent running maina doctor --fix, which runs maina mcp add", () => {
+		for (const command of [
+			"maina doctor --fix",
+			"maina doctor --fix --yes",
+			"maina doctor --json --fix",
+			"bunx maina doctor --fix -y",
+			"sh -c 'maina doctor --fix'",
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+	});
+
+	test("reads, dry runs and writes that cannot reach a control file pass", () => {
+		for (const command of [
+			"maina mcp",
+			"maina mcp list",
+			"maina mcp list --client codex",
+			"maina mcp help add",
+			"maina mcp add --help",
+			"maina mcp -h",
+			"maina mcp add --dry-run",
+			"maina mcp remove --client codex --dry-run",
+			"maina mcp add --client cursor",
+			"maina mcp add --client=claude,cursor --scope both",
+			"maina mcp add --scope project",
+			"maina mcp add --scope=Project",
+			// Codex has no project-scope file.
+			"maina mcp add --client codex --scope project",
+			"maina doctor",
+			"maina doctor --json",
+			"maina doctor --fix --help",
+			"maina doctor -- --fix",
+		]) {
+			expect(classesOf(command), command).not.toContain(SELF);
+		}
+	});
+
+	test("an unreadable word can be any option, so it fails closed", () => {
+		for (const command of [
+			// Commander keeps the last `--client`/`--scope`, so "$F" set to
+			// `--client=codex` or `--scope=global` overrides the earlier one.
+			'maina mcp add --client cursor "$F"',
+			'maina mcp add --scope project "$F"',
+			'maina mcp add --client cursor --client="$C"',
+			'maina mcp add --scope project --scope="$S"',
+			// Unquoted, "$S" may split into `global --client=codex`.
+			"maina mcp add --client cursor --scope $S",
+			// "$X" may be `--`, making the later flag an operand.
+			'maina mcp add "$X" --dry-run',
+			'maina mcp add --client codex "$X" --help',
+			// "$F" may be `--fix`.
+			'maina doctor "$F"',
+			'maina doctor --json "$F"',
+			'maina doctor --fix"$X"',
+			'maina doctor "$X" --help',
+			'bunx maina doctor "$F"',
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+	});
+
+	test("an unreadable word that cannot reach a write still passes", () => {
+		for (const command of [
+			'maina mcp list "$X"',
+			'maina mcp add --help "$X"',
+			'maina mcp add --dry-run "$X"',
+			'maina doctor --help "$F"',
+			'maina doctor -- "$F"',
+			'maina mcp add --client cursor -- "$X"',
+		]) {
+			expect(classesOf(command), command).not.toContain(SELF);
+		}
+	});
+});
