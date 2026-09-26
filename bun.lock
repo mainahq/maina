@@ -85,6 +85,16 @@
         "zod": "^4.3.6",
       },
     },
+    "packages/plugins": {
+      "name": "@mainahq/plugins",
+      "version": "0.0.0",
+      "dependencies": {
+        "@mainahq/runtime": "workspace:*",
+      },
+      "devDependencies": {
+        "ajv": "^8.18.0",
+      },
+    },
     "packages/runtime": {
       "name": "@mainahq/runtime",
       "version": "0.0.0",
@@ -408,6 +418,8 @@
     "@mainahq/harness": ["@mainahq/harness@workspace:packages/harness"],
 
     "@mainahq/mcp": ["@mainahq/mcp@workspace:packages/mcp"],
+
+    "@mainahq/plugins": ["@mainahq/plugins@workspace:packages/plugins"],
 
     "@mainahq/runtime": ["@mainahq/runtime@workspace:packages/runtime"],
 

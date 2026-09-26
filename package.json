@@ -9,6 +9,7 @@
     "packages/harness",
     "packages/mcp",
     "packages/skills",
+    "packages/plugins",
     "packages/docs"
   ],
   "scripts": {
@@ -28,6 +29,8 @@
     "docs:tools": "bun scripts/mcp-tools-docs.ts",
     "schemas:generate": "bun scripts/generate-schemas.ts",
     "schemas:check": "bun scripts/generate-schemas.ts --check",
+    "plugins:generate": "bun packages/plugins/scripts/generate.ts",
+    "plugins:check": "bun packages/plugins/scripts/generate.ts --check",
     "e2e:onboarding": "bun ci/e2e/run-local.ts ts claude-code",
     "e2e:real-config": "bun test ci/e2e/real-config",
     "dogfood:receipt": "bun scripts/dogfood/receipt.ts",

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mainahq.com/fixtures/claude/mcp.schema.json",
+  "x-source": {
+    "url": "https://code.claude.com/docs/en/plugins-reference",
+    "retrieved": "2026-09-26"
+  },
+  "title": "Claude Code plugin MCP servers (.mcp.json)",
+  "description": "An `mcpServers` map of server name to config. `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` resolve in a stdio server's command, args and env.",
+  "type": "object",
+  "required": ["mcpServers"],
+  "properties": {
+    "mcpServers": {
+      "type": "object",
+      "additionalProperties": {
+        "anyOf": [{ "$ref": "#/$defs/stdio" }, { "$ref": "#/$defs/remote" }]
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "stdio": {
+      "type": "object",
+      "required": ["command"],
+      "properties": {
+        "type": { "const": "stdio" },
+        "command": { "type": "string", "minLength": 1 },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "remote": {
+      "type": "object",
+      "required": ["type", "url"],
+      "properties": {
+        "type": { "enum": ["http", "sse", "ws"] },
+        "url": { "type": "string", "minLength": 1 },
+        "headers": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "headersHelper": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

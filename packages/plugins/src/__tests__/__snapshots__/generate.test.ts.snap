@@ -1,0 +1,357 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`snapshots claude 1`] = `
+{
+  "config": {
+    ".claude-plugin/plugin.json": {
+      "author": {
+        "name": "Maina",
+        "url": "https://mainahq.com/",
+      },
+      "description": "Verification-first guardrails for AI coding agents: gates risky actions, verifies changes and reviews diffs before they merge.",
+      "displayName": "Maina",
+      "homepage": "https://mainahq.com/",
+      "keywords": [
+        "verification",
+        "guardrails",
+        "code-review",
+        "mcp",
+        "tdd",
+      ],
+      "license": "Apache-2.0",
+      "name": "maina",
+      "repository": "https://github.com/mainahq/maina",
+      "version": "1.8.1",
+    },
+    ".mcp.json": {
+      "mcpServers": {
+        "maina": {
+          "args": [
+            "mcp",
+          ],
+          "command": "\${CLAUDE_PLUGIN_ROOT}/launcher/launch.sh",
+        },
+      },
+    },
+    "hooks/hooks.json": {
+      "description": "Maina guardrails: every hook runs the bundled launcher, which fails closed.",
+      "hooks": {
+        "PermissionRequest": [
+          {
+            "hooks": [
+              {
+                "command": ""\${CLAUDE_PLUGIN_ROOT}/launcher/launch.sh" hook --host claude PermissionRequest",
+                "type": "command",
+              },
+            ],
+            "matcher": "^(Bash|Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|WebFetch|mcp__.*)$",
+          },
+        ],
+        "PreToolUse": [
+          {
+            "hooks": [
+              {
+                "command": ""\${CLAUDE_PLUGIN_ROOT}/launcher/launch.sh" hook --host claude PreToolUse",
+                "type": "command",
+              },
+            ],
+            "matcher": "^(Bash|Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|WebFetch|mcp__.*)$",
+          },
+        ],
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "command": ""\${CLAUDE_PLUGIN_ROOT}/launcher/launch.sh" hook --host claude SessionStart",
+                "type": "command",
+              },
+            ],
+          },
+        ],
+        "Stop": [
+          {
+            "hooks": [
+              {
+                "command": ""\${CLAUDE_PLUGIN_ROOT}/launcher/launch.sh" hook --host claude Stop",
+                "type": "command",
+              },
+            ],
+          },
+        ],
+      },
+    },
+  },
+  "paths": [
+    ".claude-plugin/plugin.json",
+    "hooks/hooks.json",
+    ".mcp.json",
+    "skills/onboarding/SKILL.md",
+    "skills/verification-workflow/SKILL.md",
+    "skills/code-review/SKILL.md",
+    "skills/tdd/SKILL.md",
+    "skills/plan-writing/SKILL.md",
+    "skills/context-generation/SKILL.md",
+    "skills/wiki-workflow/SKILL.md",
+    "skills/cloud-workflow/SKILL.md",
+    "launcher/launch.sh",
+    "launcher/launch.ps1",
+    "launcher/manifest.json",
+  ],
+}
+`;
+
+exports[`snapshots cursor 1`] = `
+{
+  "config": {
+    ".cursor-plugin/plugin.json": {
+      "author": {
+        "name": "Maina",
+      },
+      "description": "Verification-first guardrails for AI coding agents: gates risky actions, verifies changes and reviews diffs before they merge.",
+      "homepage": "https://mainahq.com/",
+      "keywords": [
+        "verification",
+        "guardrails",
+        "code-review",
+        "mcp",
+        "tdd",
+      ],
+      "license": "Apache-2.0",
+      "name": "maina",
+      "repository": "https://github.com/mainahq/maina",
+      "version": "1.8.1",
+    },
+    "hooks/hooks.json": {
+      "hooks": {
+        "afterFileEdit": [
+          {
+            "command": "./launcher/launch.sh hook --host cursor afterFileEdit",
+          },
+        ],
+        "beforeMCPExecution": [
+          {
+            "command": "./launcher/launch.sh hook --host cursor beforeMCPExecution",
+            "failClosed": true,
+          },
+        ],
+        "beforeShellExecution": [
+          {
+            "command": "./launcher/launch.sh hook --host cursor beforeShellExecution",
+            "failClosed": true,
+          },
+        ],
+        "preToolUse": [
+          {
+            "command": "./launcher/launch.sh hook --host cursor preToolUse",
+            "failClosed": true,
+          },
+        ],
+        "sessionStart": [
+          {
+            "command": "./launcher/launch.sh hook --host cursor sessionStart",
+          },
+        ],
+        "stop": [
+          {
+            "command": "./launcher/launch.sh hook --host cursor stop",
+          },
+        ],
+      },
+      "version": 1,
+    },
+    "mcp.json": {
+      "mcpServers": {
+        "maina": {
+          "args": [
+            "mcp",
+          ],
+          "command": "\${CURSOR_PLUGIN_ROOT}/launcher/launch.sh",
+        },
+      },
+    },
+  },
+  "paths": [
+    ".cursor-plugin/plugin.json",
+    "hooks/hooks.json",
+    "mcp.json",
+    "skills/onboarding/SKILL.md",
+    "skills/verification-workflow/SKILL.md",
+    "skills/code-review/SKILL.md",
+    "skills/tdd/SKILL.md",
+    "skills/plan-writing/SKILL.md",
+    "skills/context-generation/SKILL.md",
+    "skills/wiki-workflow/SKILL.md",
+    "skills/cloud-workflow/SKILL.md",
+    "launcher/launch.sh",
+    "launcher/launch.ps1",
+    "launcher/manifest.json",
+  ],
+}
+`;
+
+exports[`snapshots codex 1`] = `
+{
+  "config": {
+    "hooks/hooks.json": {
+      "hooks": {
+        "PermissionRequest": [
+          {
+            "hooks": [
+              {
+                "command": "\${PLUGIN_ROOT}/launcher/launch.sh hook --host codex PermissionRequest",
+                "type": "command",
+              },
+            ],
+            "matcher": "^(Bash|apply_patch|mcp__.+)$",
+          },
+        ],
+        "PreToolUse": [
+          {
+            "hooks": [
+              {
+                "command": "\${PLUGIN_ROOT}/launcher/launch.sh hook --host codex PreToolUse",
+                "type": "command",
+              },
+            ],
+            "matcher": "^(Bash|apply_patch|mcp__.+)$",
+          },
+        ],
+        "SessionStart": [
+          {
+            "hooks": [
+              {
+                "command": "\${PLUGIN_ROOT}/launcher/launch.sh hook --host codex SessionStart",
+                "type": "command",
+              },
+            ],
+          },
+        ],
+        "Stop": [
+          {
+            "hooks": [
+              {
+                "command": "\${PLUGIN_ROOT}/launcher/launch.sh hook --host codex Stop",
+                "type": "command",
+              },
+            ],
+          },
+        ],
+      },
+    },
+    "mcp.json": {
+      "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+      "mcpServers": {
+        "maina": {
+          "args": [
+            "mcp",
+          ],
+          "command": "./launcher/launch.sh",
+          "type": "stdio",
+        },
+      },
+    },
+    "plugin.json": {
+      "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+      "author": {
+        "name": "Maina",
+        "url": "https://mainahq.com/",
+      },
+      "description": "Verification-first guardrails for AI coding agents: gates risky actions, verifies changes and reviews diffs before they merge.",
+      "extensions": {
+        "com.openai": {
+          "hooks": "./hooks/hooks.json",
+          "interface": {
+            "category": "Productivity",
+            "developerName": "Maina",
+            "displayName": "Maina",
+            "shortDescription": "Verification-first guardrails for AI coding agents: gates risky actions, verifies changes and reviews diffs before they merge.",
+            "websiteURL": "https://mainahq.com/",
+          },
+        },
+      },
+      "homepage": "https://mainahq.com/",
+      "keywords": [
+        "verification",
+        "guardrails",
+        "code-review",
+        "mcp",
+        "tdd",
+      ],
+      "license": "Apache-2.0",
+      "name": "maina",
+      "repository": "https://github.com/mainahq/maina",
+      "version": "1.8.1",
+    },
+  },
+  "paths": [
+    "plugin.json",
+    "hooks/hooks.json",
+    "mcp.json",
+    "skills/onboarding/SKILL.md",
+    "skills/verification-workflow/SKILL.md",
+    "skills/code-review/SKILL.md",
+    "skills/tdd/SKILL.md",
+    "skills/plan-writing/SKILL.md",
+    "skills/context-generation/SKILL.md",
+    "skills/wiki-workflow/SKILL.md",
+    "skills/cloud-workflow/SKILL.md",
+    "launcher/launch.sh",
+    "launcher/launch.ps1",
+    "launcher/manifest.json",
+  ],
+}
+`;
+
+exports[`snapshots agent-plugins 1`] = `
+{
+  "config": {
+    "mcp.json": {
+      "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+      "mcpServers": {
+        "maina": {
+          "args": [
+            "mcp",
+          ],
+          "command": "./launcher/launch.sh",
+          "type": "stdio",
+        },
+      },
+    },
+    "plugin.json": {
+      "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+      "author": {
+        "name": "Maina",
+        "url": "https://mainahq.com/",
+      },
+      "description": "Verification-first guardrails for AI coding agents: gates risky actions, verifies changes and reviews diffs before they merge.",
+      "homepage": "https://mainahq.com/",
+      "keywords": [
+        "verification",
+        "guardrails",
+        "code-review",
+        "mcp",
+        "tdd",
+      ],
+      "license": "Apache-2.0",
+      "name": "maina",
+      "repository": "https://github.com/mainahq/maina",
+      "version": "1.8.1",
+    },
+  },
+  "paths": [
+    "plugin.json",
+    "mcp.json",
+    "skills/onboarding/SKILL.md",
+    "skills/verification-workflow/SKILL.md",
+    "skills/code-review/SKILL.md",
+    "skills/tdd/SKILL.md",
+    "skills/plan-writing/SKILL.md",
+    "skills/context-generation/SKILL.md",
+    "skills/wiki-workflow/SKILL.md",
+    "skills/cloud-workflow/SKILL.md",
+    "launcher/launch.sh",
+    "launcher/launch.ps1",
+    "launcher/manifest.json",
+  ],
+}
+`;

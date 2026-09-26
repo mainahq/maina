@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mainahq.com/fixtures/claude/hooks.schema.json",
+  "x-source": {
+    "url": "https://code.claude.com/docs/en/hooks",
+    "retrieved": "2026-09-26"
+  },
+  "title": "Claude Code plugin hooks (hooks/hooks.json)",
+  "description": "Event, then matcher groups, then handlers, with an optional top-level description. Claude Code has no fail-closed setting: a crash, a timeout or an exit code other than 0 and 2 lets the action proceed, and an async hook never blocks.",
+  "type": "object",
+  "required": ["hooks"],
+  "properties": {
+    "description": { "type": "string" },
+    "hooks": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "SessionStart",
+          "SessionEnd",
+          "UserPromptSubmit",
+          "Stop",
+          "StopFailure",
+          "PreToolUse",
+          "PostToolUse",
+          "PostToolUseFailure",
+          "PermissionRequest",
+          "PermissionDenied",
+          "PostToolBatch",
+          "SubagentStart",
+          "SubagentStop",
+          "TaskCreated",
+          "TaskCompleted",
+          "TeammateIdle",
+          "InstructionsLoaded",
+          "ConfigChange",
+          "CwdChanged",
+          "DirectoryAdded",
+          "FileChanged",
+          "PreCompact",
+          "PostCompact",
+          "PreModelSwitch",
+          "PostModelSwitch",
+          "Setup",
+          "UserPromptExpansion",
+          "Notification",
+          "MessageDisplay",
+          "WorktreeCreate",
+          "WorktreeRemove",
+          "Elicitation",
+          "ElicitationResult"
+        ]
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "#/$defs/group" }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "group": {
+      "type": "object",
+      "required": ["hooks"],
+      "properties": {
+        "matcher": { "type": "string" },
+        "hooks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "anyOf": [
+              { "$ref": "#/$defs/command" },
+              { "$ref": "#/$defs/otherHandler" }
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "command": {
+      "type": "object",
+      "required": ["type", "command"],
+      "properties": {
+        "type": { "const": "command" },
+        "command": { "type": "string", "minLength": 1 },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "timeout": { "type": "number", "exclusiveMinimum": 0 },
+        "shell": { "enum": ["bash", "powershell"] },
+        "async": { "type": "boolean" },
+        "asyncRewake": { "type": "boolean" },
+        "statusMessage": { "type": "string" },
+        "if": { "type": "string" },
+        "once": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "otherHandler": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["http", "mcp_tool", "prompt", "agent"] }
+      }
+    }
+  }
+}

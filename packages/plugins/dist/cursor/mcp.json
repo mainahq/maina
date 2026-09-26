@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "maina": {
+      "command": "${CURSOR_PLUGIN_ROOT}/launcher/launch.sh",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

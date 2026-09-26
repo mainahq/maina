@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mainahq.com/fixtures/cursor/hooks.schema.json",
+  "x-source": {
+    "url": "https://cursor.com/docs/hooks",
+    "retrieved": "2026-09-26"
+  },
+  "title": "Cursor hooks (hooks/hooks.json)",
+  "description": "`version` 1 and a flat list of hook definitions per event. Command hooks fail open (a crash, timeout or exit code other than 0 and 2 lets the action proceed) unless `failClosed` is true.",
+  "type": "object",
+  "required": ["version", "hooks"],
+  "properties": {
+    "version": { "const": 1 },
+    "hooks": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "sessionStart",
+          "sessionEnd",
+          "preToolUse",
+          "postToolUse",
+          "postToolUseFailure",
+          "subagentStart",
+          "subagentStop",
+          "beforeShellExecution",
+          "afterShellExecution",
+          "beforeMCPExecution",
+          "afterMCPExecution",
+          "beforeReadFile",
+          "afterFileEdit",
+          "beforeSubmitPrompt",
+          "preCompact",
+          "stop",
+          "afterAgentResponse",
+          "afterAgentThought",
+          "beforeTabFileRead",
+          "afterTabFileEdit",
+          "workspaceOpen"
+        ]
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "#/$defs/hook" }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "hook": {
+      "type": "object",
+      "required": ["command"],
+      "properties": {
+        "command": { "type": "string", "minLength": 1 },
+        "type": { "enum": ["command", "prompt"] },
+        "timeout": { "type": "number", "exclusiveMinimum": 0 },
+        "matcher": { "type": "string" },
+        "failClosed": { "type": "boolean" },
+        "loop_limit": { "type": ["number", "null"] }
+      },
+      "additionalProperties": false
+    }
+  }
+}

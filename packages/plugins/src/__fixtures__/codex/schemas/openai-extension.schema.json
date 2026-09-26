@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mainahq.com/fixtures/codex/openai-extension.schema.json",
+  "x-source": {
+    "url": "https://developers.openai.com/plugins/build/plugins",
+    "retrieved": "2026-09-26"
+  },
+  "title": "Codex overlay in an Agent Plugins manifest (extensions[\"com.openai\"])",
+  "description": "The documented fields of the `com.openai` extension namespace: `apps`, `hooks` and `interface`. Paths are relative to the plugin root.",
+  "type": "object",
+  "properties": {
+    "apps": { "$ref": "#/$defs/path" },
+    "hooks": {
+      "anyOf": [
+        { "$ref": "#/$defs/path" },
+        { "type": "array", "items": { "$ref": "#/$defs/path" } }
+      ]
+    },
+    "interface": {
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "shortDescription": { "type": "string" },
+        "longDescription": { "type": "string" },
+        "developerName": { "type": "string" },
+        "category": { "type": "string" },
+        "capabilities": { "type": "array", "items": { "type": "string" } },
+        "websiteURL": { "type": "string" },
+        "privacyPolicyURL": { "type": "string" },
+        "termsOfServiceURL": { "type": "string" },
+        "defaultPrompt": { "type": "array", "items": { "type": "string" } },
+        "brandColor": { "type": "string" },
+        "composerIcon": { "$ref": "#/$defs/path" },
+        "logo": { "$ref": "#/$defs/path" },
+        "screenshots": { "type": "array", "items": { "$ref": "#/$defs/path" } }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "path": { "type": "string", "pattern": "^\\./" }
+  }
+}

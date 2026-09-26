@@ -1,0 +1,14 @@
+{
+  "host": "claude",
+  "source": {
+    "url": "https://code.claude.com/docs/en/plugins-reference",
+    "retrieved": "2026-09-26",
+    "notes": "Manifest fields and standard layout from the plugins reference; hooks from https://code.claude.com/docs/en/hooks. Hook event payloads are pinned by the runtime's claude-code fixtures (#375)."
+  },
+  "hookContracts": "claude-code",
+  "files": [
+    { "path": ".claude-plugin/plugin.json", "schema": "schemas/plugin.schema.json" },
+    { "path": "hooks/hooks.json", "schema": "schemas/hooks.schema.json" },
+    { "path": ".mcp.json", "schema": "schemas/mcp.schema.json" }
+  ]
+}

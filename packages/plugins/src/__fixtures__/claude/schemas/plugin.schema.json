@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mainahq.com/fixtures/claude/plugin.schema.json",
+  "x-source": {
+    "url": "https://code.claude.com/docs/en/plugins-reference",
+    "retrieved": "2026-09-26"
+  },
+  "title": "Claude Code plugin manifest (.claude-plugin/plugin.json)",
+  "description": "The documented top-level fields. Claude Code strips an unknown top-level key with a warning, and `claude plugin validate --strict` turns that warning into a failure, as it does a non-kebab-case name or a missing version, description or author; this schema is that strict check.",
+  "type": "object",
+  "required": ["name", "version", "description", "author"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "displayName": { "type": "string" },
+    "version": { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "author": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "email": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "homepage": { "type": "string", "pattern": "^https?://" },
+    "repository": { "type": "string" },
+    "license": { "type": "string" },
+    "keywords": { "type": "array", "items": { "type": "string" } },
+    "metadata": { "type": "object" },
+    "defaultEnabled": { "type": "boolean" },
+    "dependencies": {
+      "type": "array",
+      "items": { "anyOf": [{ "type": "string" }, { "type": "object" }] }
+    },
+    "settings": { "type": "object" },
+    "userConfig": { "type": "object" },
+    "channels": { "type": "array", "items": { "type": "object" } },
+    "skills": { "$ref": "#/$defs/paths" },
+    "commands": {
+      "anyOf": [{ "$ref": "#/$defs/paths" }, { "type": "object" }]
+    },
+    "agents": { "$ref": "#/$defs/paths" },
+    "hooks": { "$ref": "#/$defs/pathsOrInline" },
+    "mcpServers": { "$ref": "#/$defs/pathsOrInline" },
+    "lspServers": { "$ref": "#/$defs/pathsOrInline" },
+    "outputStyles": { "$ref": "#/$defs/paths" },
+    "workflows": { "$ref": "#/$defs/paths" },
+    "experimental": { "type": "object" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "path": { "type": "string", "pattern": "^(?:\\./|\\.$|https://)" },
+    "paths": {
+      "anyOf": [
+        { "$ref": "#/$defs/path" },
+        { "type": "array", "items": { "$ref": "#/$defs/path" } }
+      ]
+    },
+    "pathsOrInline": {
+      "anyOf": [
+        { "$ref": "#/$defs/path" },
+        { "type": "object" },
+        {
+          "type": "array",
+          "items": {
+            "anyOf": [{ "$ref": "#/$defs/path" }, { "type": "object" }]
+          }
+        }
+      ]
+    }
+  }
+}

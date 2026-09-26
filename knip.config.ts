@@ -112,6 +112,16 @@ const config: KnipConfig = {
 			// Test fixtures (the fake runtime) are reachable from tests only.
 			project: ["src/**/*.ts!", "!src/**/__tests__/**!"],
 		},
+		"packages/plugins": {
+			// `scripts/generate.ts` writes dist/ (`bun run plugins:generate`).
+			entry: ["scripts/*.ts!", TESTS],
+			project: [
+				"scripts/**/*.ts!",
+				"src/**/*.ts!",
+				"!src/**/__tests__/**!",
+				"!src/__fixtures__/**!",
+			],
+		},
 		"packages/skills": {
 			entry: ["__tests__/**/*.test.ts"],
 			project: ["**/*.ts"],

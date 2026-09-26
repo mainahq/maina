@@ -44,6 +44,7 @@
 
 import type { GateDecision, GateEvent } from "../gate";
 import { type SessionEvent, searchTarget } from "./claude-code";
+import { type HostHookMap, nativeEvents } from "./hook-map";
 
 /** Written to the hook log on every `ask` from a shell or MCP hook. */
 export const CURSOR_ALLOW_LIST_WARNING =
@@ -101,25 +102,31 @@ type CursorHooksConfig = Readonly<{
 
 const HOST = "cursor";
 
-const PERMISSION_HOOKS: ReadonlySet<string> = new Set([
-	"preToolUse",
-	"beforeShellExecution",
-	"beforeMCPExecution",
-]);
+/**
+ * The hooks maina registers, by lifecycle point, in `hooks.json` order.
+ * Shell and MCP calls are gated where Cursor enforces `ask`; preToolUse
+ * covers the file tools. Cursor has no permission-request hook.
+ */
+export const CURSOR_HOOK_MAP: HostHookMap = {
+	"session.start": [{ event: "sessionStart" }],
+	"tool.before": [
+		{ event: "preToolUse" },
+		{ event: "beforeShellExecution" },
+		{ event: "beforeMCPExecution" },
+	],
+	"permission.request": [],
+	"file.edited": [{ event: "afterFileEdit" }],
+	"session.stop": [{ event: "stop" }],
+};
 
-/** The hooks maina registers, in `hooks.json` order. */
-const REGISTERED: readonly string[] = [
-	"sessionStart",
-	"preToolUse",
-	"beforeShellExecution",
-	"beforeMCPExecution",
-	"afterFileEdit",
-	"stop",
-];
+/** The permission hooks: they gate an action, so they fail closed. */
+const PERMISSION_HOOKS: ReadonlySet<string> = new Set(
+	CURSOR_HOOK_MAP["tool.before"].map((hook) => hook.event),
+);
 
 /** Every Cursor hook event the adapter answers; the runtime routes on it. */
 export const CURSOR_HOOK_EVENTS: ReadonlySet<string> = new Set([
-	...REGISTERED,
+	...nativeEvents(CURSOR_HOOK_MAP),
 	"postToolUse",
 ]);
 
@@ -497,17 +504,19 @@ export function cursorHooksConfig(command: string): Readonly<{
 	warnings: readonly string[];
 }> {
 	const hooks = Object.fromEntries(
-		REGISTERED.map((event): [string, readonly HookEntry[]] => {
-			const run = `${command} --host ${HOST} ${event}`;
-			return [
-				event,
-				[
-					PERMISSION_HOOKS.has(event)
-						? { command: run, failClosed: true }
-						: { command: run },
-				],
-			];
-		}),
+		nativeEvents(CURSOR_HOOK_MAP).map(
+			(event): [string, readonly HookEntry[]] => {
+				const run = `${command} --host ${HOST} ${event}`;
+				return [
+					event,
+					[
+						PERMISSION_HOOKS.has(event)
+							? { command: run, failClosed: true }
+							: { command: run },
+					],
+				];
+			},
+		),
 	);
 	return {
 		config: { version: 1, hooks },
