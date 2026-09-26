@@ -145,6 +145,36 @@ describe("withStatusline / withoutStatusline", () => {
 		expect(withoutStatusline(theirs).kind).toBe("refused");
 	});
 
+	test("install then remove keeps hand-formatted settings byte-identical", () => {
+		for (const text of [
+			'{\n  "permissions": { "allow": ["Bash(ls)"] },\n  "model": "opus"\n}\n',
+			'{"model":"opus","cleanupPeriodDays":30.0}',
+			'{\n  "env": {"NAME": "\\u00e9"}\n}\n',
+		]) {
+			const installed = withStatusline(text, COMMAND);
+			if (installed.kind !== "write") throw new Error(installed.kind);
+			expect(JSON.parse(installed.text).statusLine.command).toBe(COMMAND);
+			expect(
+				installed.text.startsWith(
+					text.slice(0, text.lastIndexOf("}")).trimEnd(),
+				),
+			).toBe(true);
+			const removed = withoutStatusline(installed.text);
+			if (removed.kind !== "write") throw new Error(removed.kind);
+			expect(removed.text).toBe(text);
+		}
+	});
+
+	test("removes the exact command maina installs, wherever it lives", () => {
+		const command = "/usr/local/bin/bun /src/checkout/entry.ts cli run-line";
+		const installed = withStatusline(USER_SETTINGS, command);
+		if (installed.kind !== "write") throw new Error(installed.kind);
+		expect(withoutStatusline(installed.text).kind).toBe("refused");
+		const removed = withoutStatusline(installed.text, command);
+		if (removed.kind !== "write") throw new Error(removed.kind);
+		expect(removed.text).toBe(USER_SETTINGS);
+	});
+
 	test("remove with no status line changes nothing", () => {
 		expect(withoutStatusline(USER_SETTINGS).kind).toBe("unchanged");
 		expect(withoutStatusline(null).kind).toBe("unchanged");
@@ -227,6 +257,15 @@ describe("runStatusline", () => {
 		expect(JSON.parse(f.files.get(path) ?? "").statusLine.command).toBe(
 			COMMAND,
 		);
+		expect(await runStatusline(["remove"], f.ports)).toBe(0);
+		expect(f.files.get(path)).toBe(USER_SETTINGS);
+	});
+
+	test("remove recognises the command install wrote by default", async () => {
+		const path = "/repo/.claude/settings.local.json";
+		const command = "/usr/local/bin/bun /src/checkout/entry.ts cli run-line";
+		const f = fake({ command }, new Map([[path, USER_SETTINGS]]));
+		expect(await runStatusline(["install"], f.ports)).toBe(0);
 		expect(await runStatusline(["remove"], f.ports)).toBe(0);
 		expect(f.files.get(path)).toBe(USER_SETTINGS);
 	});

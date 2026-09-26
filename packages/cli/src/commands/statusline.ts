@@ -26,6 +26,7 @@ import {
 	parseJsonObject,
 	removeJsonKey,
 } from "../onboarding/json-key";
+import { removeTopLevelKey, setTopLevelKey } from "../onboarding/json-splice";
 
 type StatuslineScope = "user" | "project" | "local";
 
@@ -49,7 +50,8 @@ type SettingsEdit =
 	| Readonly<{ kind: "unchanged" }>
 	| Readonly<{ kind: "refused"; reason: string }>;
 
-const KEY = ["statusLine"] as const;
+const KEY_NAME = "statusLine";
+const KEY = [KEY_NAME] as const;
 
 const OFF = "Maina: off";
 
@@ -135,14 +137,16 @@ export function withStatusline(
 			reason: `a status line that is not maina's is already set (${describeEntry(existing)}); remove it first`,
 		};
 	}
-	const merged = mergeJsonKey(current, KEY, {
-		type: "command",
-		command,
-		padding: 0,
-	});
+	const entry = { type: "command", command, padding: 0 };
+	const merged = mergeJsonKey(current, KEY, entry);
 	switch (merged.kind) {
 		case "merged":
-			return { kind: "write", text: merged.text };
+			// Splice when the file allows it, so a hand-formatted file keeps
+			// every other byte; the keyed merge covers the rest.
+			return {
+				kind: "write",
+				text: setTopLevelKey(current, KEY_NAME, entry) ?? merged.text,
+			};
 		case "unchanged":
 			return { kind: "unchanged" };
 		case "invalid":
@@ -154,14 +158,20 @@ export function withStatusline(
 	}
 }
 
-/** Settings `text` (null: no file) without maina's status line. */
-export function withoutStatusline(text: string | null): SettingsEdit {
+/**
+ * Settings `text` (null: no file) without maina's status line. `command` is
+ * the one maina installs, which counts as maina's wherever it lives.
+ */
+export function withoutStatusline(
+	text: string | null,
+	command?: string,
+): SettingsEdit {
 	if (text === null) return { kind: "unchanged" };
 	const parsed = parseJsonObject(text);
 	if (!parsed.ok) return { kind: "refused", reason: parsed.reason };
 	const existing = parsed.value.statusLine;
 	if (existing === undefined) return { kind: "unchanged" };
-	if (!isMainaStatusline(existing)) {
+	if (!isMainaStatusline(existing, command)) {
 		return {
 			kind: "refused",
 			reason: `the status line is not maina's (${describeEntry(existing)}); left untouched`,
@@ -169,7 +179,7 @@ export function withoutStatusline(text: string | null): SettingsEdit {
 	}
 	const removed = removeJsonKey(text, KEY);
 	return removed.kind === "merged"
-		? { kind: "write", text: removed.text }
+		? { kind: "write", text: removeTopLevelKey(text, KEY_NAME) ?? removed.text }
 		: removed.kind === "invalid"
 			? { kind: "refused", reason: removed.reason }
 			: { kind: "unchanged" };
@@ -286,7 +296,7 @@ function editSettings(
 	}
 	const edit =
 		command === null
-			? withoutStatusline(text.value)
+			? withoutStatusline(text.value, ports.command)
 			: withStatusline(text.value, command);
 	switch (edit.kind) {
 		case "refused":
