@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFakeProcess } from "../../ports/testing";
@@ -171,5 +177,29 @@ describe("SonarQube Integration", () => {
 			expect(result.notice).toContain("sonarqube");
 			expect(result.notice).toContain("server");
 		});
+
+		// Root reads a 0000 file anyway, so the unreadable report needs a non-root user.
+		it.skipIf(process.getuid?.() === 0)(
+			"should report a fresh report it cannot read as skipped with a notice, never a pass",
+			async () => {
+				writeFileSync(
+					join(root, "sonar-project.properties"),
+					"sonar.projectKey=x\n",
+				);
+				const report = join(root, ".scannerwork", "sonar-report.json");
+				mkdirSync(join(root, ".scannerwork"));
+				writeFileSync(report, '{"issues":[]}');
+				chmodSync(report, 0o000);
+				const result = await runSonar({
+					cwd: root,
+					available: true,
+					process: recording(),
+				});
+				chmodSync(report, 0o600);
+				expect(result.skipped).toBe(true);
+				expect(result.findings).toEqual([]);
+				expect(result.notice).toContain("sonarqube");
+			},
+		);
 	});
 });

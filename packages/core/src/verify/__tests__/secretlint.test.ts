@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFakeProcess } from "../../ports/testing";
@@ -254,6 +254,39 @@ describe("runSecretlint", () => {
 		});
 		expect(result.skipped).toBe(false);
 		expect(result.findings).toHaveLength(1);
+	});
+
+	it("should run when the config sits in a parent directory, as secretlint finds it", async () => {
+		// secretlint (rc-config-loader) walks up from the cwd to find its config.
+		writeFileSync(join(root, ".secretlintrc.json"), "{}");
+		const pkg = join(root, "packages", "app");
+		mkdirSync(pkg, { recursive: true });
+		const proc = scripted();
+		const result = await runSecretlint({
+			cwd: pkg,
+			files: ["src/app.ts"],
+			available: true,
+			process: proc,
+		});
+		expect(result.skipped).toBe(false);
+		expect(proc.calls()).toHaveLength(1);
+	});
+
+	it("should not count an empty secretlint field in package.json as config", async () => {
+		// secretlint ignores a falsy field and then refuses to run.
+		writeFileSync(
+			join(root, "package.json"),
+			JSON.stringify({ secretlint: null }),
+		);
+		const proc = scripted();
+		const result = await runSecretlint({
+			cwd: root,
+			files: ["src/app.ts"],
+			available: true,
+			process: proc,
+		});
+		expect(result).toEqual({ findings: [], skipped: true });
+		expect(proc.calls()).toEqual([]);
 	});
 
 	it("should not count a package.json without a secretlint field as config", async () => {
