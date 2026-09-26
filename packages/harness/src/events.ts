@@ -419,6 +419,18 @@ export function normalisePermission(
 	};
 }
 
+/**
+ * The gate events of one tool call reported whole, outside an ACP session:
+ * how the Claude hook and the Codex approval bridges put a host's own tool
+ * call through the same normalisation an ACP call gets.
+ */
+export function gateEvents(
+	update: ToolCallUpdate,
+	ctx: NormaliseContext,
+): Readonly<{ gate: readonly GateEvent[]; opaque: boolean }> {
+	return gateOf(mergeToolCall(undefined, update), ctx);
+}
+
 const PREFERENCE: Readonly<Record<Verdict, readonly PermissionOptionKind[]>> = {
 	// Only a one-off allow: a standing one would outlive this verdict and let
 	// the agent skip the policy for later calls, so none offered → cancelled.
