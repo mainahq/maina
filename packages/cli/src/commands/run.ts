@@ -18,6 +18,7 @@ import {
 	DEFAULT_REGISTRY,
 	type EnvPort,
 	type FsPort,
+	holdoutDir,
 	loadPolicy,
 	loadShellParser,
 	type Policy,
@@ -375,7 +376,7 @@ async function prepareRun(
 	const options = policyToSandbox(
 		input.policy,
 		worktree.path,
-		join(input.root, ".maina", "holdout"),
+		holdoutDir(input.root),
 	);
 	if (!options.ok) return abandon(options.error);
 	const launch = {

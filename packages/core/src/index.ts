@@ -26,6 +26,15 @@ export {
 } from "./ai/try-generate";
 // AI validation
 export { type AIValidationResult, validateAIOutput } from "./ai/validate";
+// Artifacts passed by id + hash (FR-FAC-6)
+export {
+	type ArtifactError,
+	type ArtifactRef,
+	artifactRef,
+	checkArtifact,
+	hashArtifact,
+} from "./artifacts/ref";
+export { artifactPath, getArtifact, putArtifact } from "./artifacts/store";
 export {
 	buildReport,
 	buildTier3Report,
@@ -54,6 +63,23 @@ export {
 	type ScaffoldReport,
 	scaffold,
 } from "./bootstrap/index";
+// Repo brain, gated by run context (FR-FAC-5)
+export {
+	type BrainApproval,
+	type BrainGateInput,
+	type BrainGateVerdict,
+	gateBrainWrite,
+} from "./brain/gate";
+export {
+	type BrainDraft,
+	type BrainEntry,
+	type BrainError,
+	type BrainKind,
+	type BrainWriteContext,
+	brainPath,
+	readBrain,
+	writeBrain,
+} from "./brain/store";
 // Cache
 export {
 	type CacheManager,
@@ -310,6 +336,19 @@ export {
 	generateModuleSummary,
 	type ModuleSummary,
 } from "./explain/index";
+// Acceptance criteria, holdout scenarios, satisfaction and stop outcomes (FR-FAC-2/3/4)
+export {
+	type AcceptanceCriterion,
+	type AcceptanceError,
+	type CriterionEvidence,
+	type CriterionVerdict,
+	type CriterionVerdictKind,
+	type EvidenceError,
+	isFeatureName,
+	loadAcceptanceCriteria,
+	mapEvidence,
+	parseAcceptanceCriteria,
+} from "./features/acceptance";
 // Features
 export {
 	ANALYSIS_CATEGORIES,
@@ -365,13 +404,43 @@ export {
 	type GapType,
 } from "./features/converge";
 export {
+	type HoldoutDeps,
+	type HoldoutError,
+	type HoldoutOptions,
+	type HoldoutResult,
+	holdoutDir,
+	holdoutFeatureDir,
+	runHoldout,
+	type Scenario,
+	type ScenarioJudgement,
+} from "./features/holdout";
+export {
 	createFeatureDir,
 	type DesignChoices,
 	getNextFeatureNumber,
 	scaffoldFeature,
 	scaffoldFeatureWithContext,
 } from "./features/numbering";
+export {
+	buildOutcomeReceipt,
+	type HoldoutSummary,
+	type OutcomeKind,
+	type OutcomeReceipt,
+	type OutcomeReceiptError,
+	type OutcomeReceiptInput,
+	STOP_OUTCOMES,
+	type StopOutcome,
+	verifyOutcomeReceipt,
+	type WorkItemRef,
+	type WorkOutcome,
+} from "./features/outcomes";
 export { type QualityScore, scoreSpec } from "./features/quality";
+export {
+	computeSatisfaction,
+	type Satisfaction,
+	type ScenarioRun,
+	type ScenarioSatisfaction,
+} from "./features/satisfaction";
 // Spec Kit feature input (FR-SPEC-7)
 export {
 	listSpecKitFeatures,
@@ -754,6 +823,17 @@ export {
 	comprehensiveReview,
 	type ReviewSeverity,
 } from "./review/comprehensive";
+// Independent review on another vendor (FR-FAC-1)
+export {
+	buildReviewerRequest,
+	type IndependentReview,
+	type IndependentReviewDeps,
+	type IndependentReviewError,
+	independentReview,
+	pickReviewerVendor,
+	REVIEWER_INPUT_KEYS,
+	type ReviewerInput,
+} from "./review/independent";
 // PR Review (two-stage)
 export {
 	type ReviewFinding as PrReviewFinding,
