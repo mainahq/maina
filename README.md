@@ -4,7 +4,7 @@
 
 *Observe. Learn. Verify.*
 
-[Docs](https://mainahq.com/) | [Getting Started](https://mainahq.com/getting-started/) | [Commands](https://mainahq.com/commands/) | [Roadmap](https://mainahq.com/roadmap/)
+[Docs](https://mainahq.com/) | [Install](https://mainahq.com/install/) | [Commands](https://mainahq.com/commands/) | [Roadmap](https://mainahq.com/roadmap/)
 
 ---
 
@@ -226,7 +226,7 @@ maina learn                  # Evolve prompts from feedback
 
 ### Advanced
 
-Lower-level primitives for scripting and power users — see the [Full Setup docs](https://mainahq.com/full-setup/).
+Lower-level primitives for scripting and power users — see the [install docs](https://mainahq.com/install/#what-maina-setup-changes).
 
 ```bash
 maina setup --update         # Refresh managed regions after stack changes

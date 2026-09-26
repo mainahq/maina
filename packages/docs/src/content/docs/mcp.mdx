@@ -1,12 +1,16 @@
 ---
 title: MCP Server
-description: Add Maina's verification, context, and review tools to any MCP-compatible IDE.
+description: Add maina's MCP server to any MCP client, by command or by hand, and what its answers look like.
 ---
 
 import { Code, Tabs, TabItem } from '@astrojs/starlight/components';
 import { facts } from '../../data/facts';
 
-Maina includes an MCP (Model Context Protocol) server that exposes its engines to any MCP-compatible IDE -- Claude Code, Cursor, Windsurf, and others.
+maina's MCP (Model Context Protocol) server gives any MCP client maina's verification, context and review tools.
+
+:::tip[Using Claude Code, Cursor or Codex?]
+Install the plugin instead: see [Install](/install/). The plugin adds the same MCP server plus the gate's hooks, the skills and the stop check. An MCP entry on its own gives the agent the tools and nothing else.
+:::
 
 ## Setup
 
@@ -31,7 +35,7 @@ maina mcp add --dry-run                # preview the writes without touching dis
 maina mcp list                         # show install status per client
 ```
 
-Supported clients: **Claude Code, Cline, Codex, Continue, Copilot, Cursor, Gemini CLI, OpenHands, Roo Code, Windsurf, Zed AI** (any MCP client works — those eleven are auto-detected). Each entry goes into the file the client actually reads — for Claude Code that is `~/.claude.json` (global) or `.mcp.json` (project), never `settings.json`. The command preserves all other MCP servers and unrelated keys (hooks, permissions, comments in Codex's TOML) via an atomic merge, backs the original up once under `.maina/backups/`, and is safe to run repeatedly. `maina mcp remove` restores the pre-maina file exactly when nothing else changed since, deletes a file maina created, and otherwise removes only the `maina` entry.
+Auto-detected clients: **Claude Code, Cline, Codex, Continue, Cursor, Gemini CLI, Windsurf and Zed**. Any other MCP client works with a manual entry (below). Each entry goes into the file the client actually reads — for Claude Code that is `~/.claude.json` (global) or `.mcp.json` (project), never `settings.json`. The command preserves all other MCP servers and unrelated keys (hooks, permissions, comments in Codex's TOML) via an atomic merge, backs the original up once under `.maina/backups/`, and is safe to run repeatedly. `maina mcp remove` restores the pre-maina file exactly when nothing else changed since, deletes a file maina created, and otherwise removes only the `maina` entry.
 
 The launcher is auto-detected per machine, in this priority order:
 
@@ -107,22 +111,9 @@ Or configure manually per tool:
   </TabItem>
 </Tabs>
 
-No plugins, no extensions, no separate server process.
-
 ## Tools
 
-The server registers a small default set at handshake, kept to eight tools or fewer so the capability payload every session streams to the host stays small:
-
-| Tool | What it answers | Inputs |
-|------|-----------------|--------|
-| `verify` | Runs the verification pipeline. Returns pass/fail, findings on changed lines, and each tool's status (`passed`, `failed`, `skipped`) with the reason a tool was skipped. | `files` (omit for staged files), `base` |
-| `decide` | Answers typed questions for a decision type (`finding.real`, `diff.needs_review`, ...) with the repo's policy. Each answer carries a probability distribution and its backend. | `type`, `questions`, `state` |
-| `impact` | What changing files or symbols can affect: transitive callers, dependent files, covering tests and a blast score. | `files`, `symbols`, `depth` |
-| `context` | Source snippets for files or a free-text query plus their call-graph neighbourhood, within a token budget, with the tokens saved. | `files`, `query`, `budgetTokens` |
-| `review_triage` | Two-stage review (spec compliance, then code quality) of a diff, triaged into blocking, advisory and info findings. | `diff` or `files` + `base`, `planContent` |
-| `spec_check` | Spec/plan/tasks consistency for feature directories. | `paths` |
-| `receipt` | Verifies receipt JSON files against the v1 schema and their canonical hash. | `paths` |
-| `status` | Server version, enabled tools, and whether the code graph, wiki and policy are ready. | — |
+The server registers a small default set at handshake, so the capability payload every session streams to the host stays small. The [MCP tools reference](/reference/mcp-tools/) lists every tool, generated from the server's catalog, and which ones need the allow-list.
 
 Every tool also takes an optional `root`: the absolute path of the repository to act on. Without it the server uses the root it resolves for itself, normally the repository it was started in (the standalone runtime also honours the project dir the host reports). Relative `files` and `paths` resolve against the root, and absolute ones must sit inside it.
 
@@ -147,32 +138,6 @@ MAINA_MCP_TOOLS=default,ask_question maina --mcp  # the default set plus ask_que
 
 Tools outside the list are never registered. Unknown names are skipped with a warning on stderr.
 
-**DeepWiki compat** — three tools keep wire-compatibility with DeepWiki clients. They are off by default; enable them through the allow-list:
+## How it works
 
-| DeepWiki-compat | Description |
-|------|------------|
-| `ask_question` | Ask the wiki an open-ended question; answers with source articles. |
-| `read_wiki_structure` | The wiki's article index: paths, types, titles. |
-| `read_wiki_contents` | The markdown of one wiki article, by its path inside the wiki. |
-
-## How It Works
-
-```
-IDE (Claude Code, Cursor, etc.)
-  |
-  |  MCP protocol (JSON-RPC over stdio)
-  |
-  v
-maina --mcp
-  |
-  +-- verify ---------> Verify Engine (full pipeline, per-tool status)
-  +-- decide ---------> decide (policy + backends)
-  +-- impact ---------> Code graph (callers, dependents, tests)
-  +-- context --------> Code graph (minimal context within a budget)
-  +-- review_triage --> Two-stage review
-  +-- spec_check -----> Feature analyzer (spec/plan/tasks)
-  +-- receipt --------> Receipt verifier (schema + canonical hash)
-  +-- status ---------> Runtime and repository health
-```
-
-The MCP server is a thin surface over the same capabilities the CLI uses: each tool resolves its root, calls one capability with explicit inputs, and formats the answer.
+The MCP server is a thin surface over the same capabilities the CLI uses: each tool resolves its root, calls one capability with explicit inputs, and formats the answer. It speaks JSON-RPC over stdio, started by the client as `maina --mcp`.
