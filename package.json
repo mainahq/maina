@@ -36,7 +36,8 @@
     "e2e:real-config": "bun test ci/e2e/real-config",
     "dogfood:receipt": "bun scripts/dogfood/receipt.ts",
     "dogfood:report": "bun scripts/dogfood/report.ts",
-    "bench:graph": "bun packages/core/bench/graph.bench.ts"
+    "bench:graph": "bun packages/core/bench/graph.bench.ts",
+    "release:gates": "bun scripts/release/v1-gates.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.12",
