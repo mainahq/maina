@@ -1063,3 +1063,115 @@ describe("gate.self_override: maina mcp add/remove and doctor --fix (#543)", () 
 		}
 	});
 });
+
+describe("gate.self_override: an installed maina plugin (#533)", () => {
+	const SELF = "gate.self_override";
+	// Where each host installs maina's plugin (ci/e2e/real-config/hosts).
+	const CLAUDE = "/home/dev/.claude/plugins/cache/maina/maina/1.4.0";
+	const CURSOR = "/home/dev/.cursor/plugins/local/maina";
+	const CODEX = "/home/dev/.codex/plugins/cache/maina/maina/local";
+
+	test("file.write to the plugin's hooks, MCP config, manifest or launcher", () => {
+		for (const path of [
+			`${CLAUDE}/hooks/hooks.json`,
+			`${CLAUDE}/.mcp.json`,
+			`${CLAUDE}/.claude-plugin/plugin.json`,
+			// Every hook runs the bundled launcher, so rewriting it is the same.
+			`${CLAUDE}/launcher/launch.sh`,
+			`${CURSOR}/hooks/hooks.json`,
+			`${CURSOR}/mcp.json`,
+			`${CURSOR}/launcher/manifest.json`,
+			`${CODEX}/hooks/hooks.json`,
+			`${CODEX}/mcp.json`,
+			`${CODEX}/plugin.json`,
+			// The runtime the launcher runs lives in the plugin's data dir.
+			"/home/dev/.claude/plugins/data/maina-maina/runtime/1.4.0/maina",
+			"/home/dev/.codex/plugins/data/maina-maina/runtime/1.4.0/maina",
+			// The marketplace copy a plugin update installs from.
+			"/home/dev/.claude/plugins/marketplaces/maina/packages/plugins/dist/claude/hooks/hooks.json",
+			"~/.cursor/plugins/local/maina/hooks/hooks.json",
+			"/home/dev/.Cursor/Plugins/Local/Maina/Hooks/Hooks.json",
+		]) {
+			expect(classifyAction(writeEvent(path), ctx), path).toContain(SELF);
+		}
+	});
+
+	test("shell writes, moves, links and deletes of the plugin or what holds it", () => {
+		for (const command of [
+			`echo '{}' > ${CLAUDE}/hooks/hooks.json`,
+			"echo '{}' > ~/.cursor/plugins/local/maina/hooks/hooks.json",
+			`printf 'exit 0' > ${CURSOR}/launcher/launch.sh`,
+			`sed -i 's/PreToolUse/Nope/' ${CODEX}/hooks/hooks.json`,
+			`cp /tmp/empty.json ${CURSOR}/hooks/hooks.json`,
+			`cp /tmp/hooks.json ${CURSOR}/hooks/`,
+			`chmod -x ${CLAUDE}/launcher/launch.sh`,
+			`rm ${CLAUDE}/hooks/hooks.json`,
+			"rm -rf ~/.cursor/plugins/local/maina",
+			`rm -rf ${CLAUDE}`,
+			"rm -rf ~/.claude/plugins/cache/maina",
+			"rm -rf ~/.claude/plugins",
+			"rm -rf ~/.claude/plugins/cache",
+			"rm -rf ~/.claude/plugins/cache/*",
+			"rm -rf ~/.cursor/plugins/local",
+			"rm -rf ~/.codex/plugins/cache",
+			`mv ${CODEX} /tmp/maina-off`,
+			"mv ~/.cursor/plugins /tmp/plugins-off",
+			`ln -sfn /tmp/evil ${CURSOR}`,
+			`mv /tmp/evil ${CURSOR}`,
+			"cp -r /tmp/evil/maina ~/.cursor/plugins/local/",
+			// A tree poured into, or put in place of, what holds the plugin.
+			"cp -r /tmp/evil/. ~/.cursor/plugins/local",
+			"rsync -a /tmp/evil/ ~/.claude/plugins/cache/",
+			"cp -r /tmp/plugins ~/.codex/",
+			"ln -sfn /tmp/evil ~/.cursor/plugins",
+			`cd ${CURSOR} && echo '{}' > mcp.json`,
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+	});
+
+	test("MCP tools that write, move or delete the plugin", () => {
+		const cases: ReadonlyArray<
+			readonly [string, Readonly<Record<string, unknown>>]
+		> = [
+			["write_file", { path: `${CURSOR}/hooks/hooks.json`, content: "{}" }],
+			["edit_file", { path: `${CLAUDE}/.mcp.json` }],
+			["move_file", { source: CODEX, destination: "/tmp/off" }],
+			["delete_directory", { path: "/home/dev/.claude/plugins" }],
+		];
+		for (const [tool, input] of cases) {
+			expect(classifyAction(mcpEvent("fs", tool, input), ctx), tool).toContain(
+				SELF,
+			);
+		}
+		expect(
+			classifyAction(
+				mcpEvent("fs", "read_file", { path: `${CURSOR}/hooks/hooks.json` }),
+				ctx,
+			),
+		).not.toContain(SELF);
+	});
+
+	test("other plugins, maina's plugin sources in a repo and reads are not", () => {
+		for (const path of [
+			"/home/dev/.claude/plugins/cache/acme/lint/1.0.0/hooks/hooks.json",
+			"/home/dev/.cursor/plugins/local/mainaframe/hooks/hooks.json",
+			"/home/dev/.claude/plugins/data/lint-acme/state.json",
+			"packages/plugins/dist/claude/hooks/hooks.json",
+			"packages/plugins/dist/cursor/mcp.json",
+			"/work/repo/maina/hooks/hooks.json",
+		]) {
+			expect(classifyAction(writeEvent(path), ctx), path).not.toContain(SELF);
+		}
+		for (const command of [
+			`cat ${CLAUDE}/hooks/hooks.json`,
+			`jq . ${CURSOR}/mcp.json`,
+			`cp ${CURSOR}/hooks/hooks.json /tmp/hooks.json`,
+			"ls ~/.claude/plugins",
+			"rm -rf ~/.claude/plugins/cache/acme",
+			"rm -rf packages/plugins/dist",
+		]) {
+			expect(classesOf(command), command).not.toContain(SELF);
+		}
+	});
+});

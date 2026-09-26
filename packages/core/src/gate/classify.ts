@@ -150,12 +150,13 @@ function classifyRead(
  * the repo or the user's home) and the host hook configs that run maina
  * (`.claude/settings*.json`, `.cursor/hooks.json`, `.codex/hooks.json`,
  * `.codex/config.toml`). An agent writing, moving or deleting one could
- * override its own gate, so each is `gate.self_override`. The match ignores
- * letter case: macOS and Windows file systems do, so `.Claude/Settings.json`
- * is the same file there.
+ * override its own gate, so each is `gate.self_override`. So is anything in
+ * an installed maina plugin (#533). The match ignores letter case: macOS and
+ * Windows file systems do, so `.Claude/Settings.json` is the same file there.
  */
 function isGateControlFile(path: string): boolean {
 	const segments = path.toLowerCase().split(/[\\/]+/);
+	if (isInMainaPlugin(segments)) return true;
 	const name = segments.at(-1) ?? "";
 	switch (segments.at(-2)) {
 		case ".maina":
@@ -189,9 +190,74 @@ const lastSegment = (path: string): string =>
 		.filter((s) => s !== "")
 		.at(-1) ?? "";
 
+// ── Installed maina plugins (#533) ──────────────────────────────────────────
+
+/** Host dirs that keep installed plugins in their `plugins/` dir. */
+const PLUGIN_HOSTS: ReadonlySet<string> = new Set([
+	".claude",
+	".cursor",
+	".codex",
+]);
+
+/**
+ * Dirs in `<host>/plugins` that hold every installed plugin, maina's with
+ * them: Claude Code's and Codex's `cache`, `data` and `marketplaces`,
+ * Cursor's `local`.
+ */
+const PLUGIN_CONTAINERS: ReadonlySet<string> = new Set([
+	"cache",
+	"data",
+	"local",
+	"marketplaces",
+]);
+
+/**
+ * A segment naming maina's plugin (`cache/<mkt>/maina/<v>`, `local/maina`),
+ * its data dir (`data/maina-<mkt>`) or its marketplace (`marketplaces/maina`).
+ */
+const MAINA_PLUGIN_SEGMENT = /^maina(?:hq)?(?![a-z0-9])/;
+
+/** Where `<host>/plugins` sits in lower-cased segments, or -1. */
+const pluginsDirAt = (segments: readonly string[]): number =>
+	segments.findIndex(
+		(s, i) => s === "plugins" && PLUGIN_HOSTS.has(segments[i - 1] ?? ""),
+	);
+
+/**
+ * A path in an installed maina plugin, its data dir or its marketplace
+ * copy. Its hooks config and MCP config run the gate, every hook runs its
+ * launcher and the launcher runs the runtime in its data dir, so changing
+ * any of them can switch the gate off.
+ */
+function isInMainaPlugin(segments: readonly string[]): boolean {
+	const at = pluginsDirAt(segments);
+	return (
+		at >= 0 && segments.slice(at + 1).some((s) => MAINA_PLUGIN_SEGMENT.test(s))
+	);
+}
+
+/** `<host>/plugins` or a container in it: removing one removes maina's plugin. */
+function holdsMainaPlugin(path: string): boolean {
+	const segments = path
+		.toLowerCase()
+		.split(/[\\/]+/)
+		.filter((s) => s !== "");
+	const at = pluginsDirAt(segments);
+	if (at < 0) return false;
+	const rest = segments.slice(at + 1);
+	return (
+		rest.length === 0 ||
+		(rest.length === 1 && PLUGIN_CONTAINERS.has(rest[0] ?? ""))
+	);
+}
+
+/** A dir that is, or holds, the gate's config: a control dir or a plugin container. */
+const isGateControlTree = (path: string): boolean =>
+	isGateControlDir(lastSegment(path)) || holdsMainaPlugin(path);
+
 /** Deleting or moving a path removes a control file when it is one or holds one. */
 function removesGateControl(path: string): boolean {
-	return isGateControlDir(lastSegment(path)) || isGateControlFile(path);
+	return isGateControlTree(path) || isGateControlFile(path);
 }
 
 /**
@@ -215,14 +281,14 @@ function landsOnGateControl(
 	const dest = resolvePath(destination, cwd, ctx.gate.home) ?? destination;
 	if (isScratchPath(dest)) return;
 	if (isGateControlFile(dest)) ctx.out.add("gate.self_override");
-	const intoControlDir = isGateControlDir(lastSegment(dest));
+	const intoControlDir = isGateControlTree(dest);
 	for (const source of sources) {
 		const name = source.split(/[\\/]/).at(-1) ?? "";
 		if (name === "" || name === ".") {
 			if (how.tree && intoControlDir) ctx.out.add("gate.self_override");
 		} else if (
 			isGateControlFile(`${dest}/${name}`) ||
-			(how.tree && isGateControlDir(name))
+			(how.tree && isGateControlTree(`${dest}/${name}`))
 		) {
 			ctx.out.add("gate.self_override");
 		} else if (how.tree && intoControlDir) {
@@ -247,7 +313,7 @@ function linksGateControl(args: Argv, cwd: string | null, ctx: ShellCtx): void {
 			removesGateControl(source) ||
 			removesGateControl(resolvePath(source, cwd, ctx.gate.home) ?? source),
 	);
-	if (isGateControlDir(lastSegment(dest)) || linksToControl)
+	if (isGateControlTree(dest) || linksToControl)
 		ctx.out.add("gate.self_override");
 }
 
@@ -422,8 +488,7 @@ function mcpTouchesGateControl(
 		const path = raw.replace(/^file:\/\//i, "");
 		const resolved = resolvePath(path, event.root, ctx.home) ?? path;
 		return (
-			isGateControlFile(resolved) ||
-			(replaces && isGateControlDir(lastSegment(resolved)))
+			isGateControlFile(resolved) || (replaces && isGateControlTree(resolved))
 		);
 	});
 }
