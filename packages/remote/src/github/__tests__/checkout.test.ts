@@ -7,7 +7,13 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {
+	chmodSync,
+	existsSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Result, systemProcess } from "@mainahq/core";
@@ -214,6 +220,34 @@ describe("systemWorkspaces", () => {
 		expect(await ws.remove(dir.value)).toEqual({ ok: true, value: undefined });
 		expect(await ws.exists(dir.value)).toBe(false);
 		expect(existsSync(dir.value)).toBe(false);
+	});
+
+	test("the host's global git hooks never run on the PR's checkout", async () => {
+		const hooks = join(scratch, "host-hooks");
+		const marker = join(scratch, "hook-ran");
+		await Bun.write(
+			join(hooks, "post-checkout"),
+			`#!/bin/sh\ntouch '${marker}'\n`,
+		);
+		chmodSync(join(hooks, "post-checkout"), 0o755);
+		const globalConfig = join(scratch, "host-gitconfig");
+		await Bun.write(globalConfig, `[core]\n\thooksPath = ${hooks}\n`);
+		const ws = systemWorkspaces({
+			process: systemProcess,
+			env: { ...process.env, GIT_CONFIG_GLOBAL: globalConfig },
+			tmpRoot: scratch,
+		});
+		const dir = await ws.create();
+		if (!dir.ok) throw new Error(dir.error.message);
+		const checkout = await ws.checkout(dir.value, {
+			cloneUrl: `file://${origin}`,
+			token: "ghs_fake",
+			head,
+			base,
+		});
+		await ws.remove(dir.value);
+		expect(checkout).toEqual({ ok: true, value: undefined });
+		expect(existsSync(marker)).toBe(false);
 	});
 
 	test("refuses a ref that is not a commit sha, before running git", async () => {

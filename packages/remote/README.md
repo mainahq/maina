@@ -32,18 +32,23 @@ GitHub App (FR-REM-2, FR-REM-3):
 
 | Job | Capability | Input from the PR |
 |-----|------------|-------------------|
-| `verify` | verify pipeline | changed files, diff-only against the base commit |
+| `verify` | verify pipeline | changed files, diff-only against the merge base |
 | `impact` | code graph impact | changed files |
-| `triage` | two-stage review | the diff against the base commit |
+| `triage` | two-stage review | the diff against the merge base |
 | `spec_check` | spec/plan/tasks consistency | the `.maina/features/*` directories the PR touches (or explicit paths) |
 | `decide` | decision API | an explicit decide request (the action gate's types are refused) |
 
 A job signs an App JWT, takes an installation token for the PR's
-repository, fetches exactly the PR's head and base commits into a fresh
+repository, asks GitHub where the head forked from the base branch (the
+merge base, so the base's newer commits never show up reversed in the
+diff), fetches exactly the head and that commit into a fresh
 `maina-job-*` directory, runs the capability there through the runtime,
 then deletes the directory and checks it is gone (a surviving directory
 fails the job) and revokes the token. The token reaches git through its
-environment, never argv or the checkout's config.
+environment, never argv or the checkout's config, and no host hooks run
+on the checkout. The job process drops `MAINA_GITHUB_APP_*` from its own
+environment once read, so no tool running over the PR's code inherits the
+App's key.
 
 **Read-only by default.** The App manifest (`appManifest`) and every
 installation token ask for `contents`, `metadata` and `pull_requests` read

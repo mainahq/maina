@@ -31,7 +31,7 @@ type CleanupError = Readonly<{
 	message: string;
 }>;
 
-/** Where a job's code comes from: the PR's head and base commits. */
+/** Where a job's code comes from: the PR's head and the commit it diffs against. */
 export type CheckoutSource = Readonly<{
 	cloneUrl: string;
 	/** An installation token that can read the repository. */
@@ -199,11 +199,15 @@ export function systemWorkspaces(
 				...stripRepoLocalGitEnv(options.env),
 				GIT_TERMINAL_PROMPT: "0",
 				GIT_CONFIG_NOSYSTEM: "1",
-				GIT_CONFIG_COUNT: "1",
+				GIT_CONFIG_COUNT: "2",
 				GIT_CONFIG_KEY_0: "http.extraHeader",
 				GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}`,
+				// A host-wide `core.hooksPath` (global config) would otherwise
+				// run the host's hooks on the checkout.
+				GIT_CONFIG_KEY_1: "core.hooksPath",
+				GIT_CONFIG_VALUE_1: "/dev/null",
 			};
-			// No template: the workspace gets no hooks from the host's git setup.
+			// No template either: the workspace gets no hooks from the host.
 			const steps: readonly (readonly string[])[] = [
 				["init", "-q", "--template=", "."],
 				[

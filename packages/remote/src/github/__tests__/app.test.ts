@@ -172,6 +172,32 @@ describe("REST adapter", () => {
 		expect(files.ok && files.value[4]?.status).toBe("removed");
 	});
 
+	test("finds where the head forked from the base (the PR's diff base)", async () => {
+		const FORK = "c".repeat(40);
+		const gh = fakeGitHub({ pulls: [{ ...pull, mergeBase: FORK }] });
+		const { api, token } = await tokenFor(gh);
+		expect(
+			await api.mergeBase({ token, repository: REPO, base: BASE, head: HEAD }),
+		).toEqual({ ok: true, value: FORK });
+		expect(gh.requests.at(-1)?.path).toStartWith(
+			`/repos/acme/widgets/compare/${BASE}...${HEAD}`,
+		);
+	});
+
+	test("a malformed compare answer is a github error", async () => {
+		const api = restGitHubApi({
+			fetch: async () => Response.json({ merge_base_commit: {} }),
+			baseUrl: API,
+		});
+		const found = await api.mergeBase({
+			token: "t",
+			repository: REPO,
+			base: BASE,
+			head: HEAD,
+		});
+		expect(!found.ok && found.error.kind).toBe("github");
+	});
+
 	test("a GitHub error status comes back as a github error", async () => {
 		const gh = fakeGitHub({ pulls: [pull] });
 		const { api, token } = await tokenFor(gh);

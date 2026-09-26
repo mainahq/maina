@@ -224,6 +224,61 @@ describe("supported jobs", () => {
 	}
 });
 
+describe("diff base", () => {
+	test("a job diffs against where the PR forked, not the base branch's moved tip", async () => {
+		const FORK = "c".repeat(40);
+		const gh = fakeGitHub({ pulls: [{ ...PULL, mergeBase: FORK }] });
+		for (const [request, method] of [
+			[{ ...TARGET, kind: "verify" }, "verify"],
+			[{ ...TARGET, kind: "triage" }, "review"],
+		] as const) {
+			const tracked = trackedWorkspaces();
+			const calls: Call[] = [];
+			const run = createJobRunner({
+				credentials,
+				api: restGitHubApi({ fetch: gh.fetch, baseUrl: API }),
+				workspaces: tracked.workspaces,
+				runtimeFor: (root) => recordingRuntime(root, tracked.present, calls),
+			});
+			const result = await run(request);
+			if (!result.ok) throw new Error(JSON.stringify(result.error));
+			// The fork point is fetched, and the capability diffs against it.
+			expect(tracked.checkouts).toMatchObject([{ head: HEAD, base: FORK }]);
+			expect(calls).toMatchObject([{ method, args: { base: FORK } }]);
+			expect(result.value.base).toBe(FORK);
+		}
+		expect(gh.liveTokens()).toEqual([]);
+	});
+});
+
+describe("request validation", () => {
+	for (const [label, patch] of [
+		[
+			"an owner that walks up the API path",
+			{ repository: { owner: "..", name: "x" } },
+		],
+		[
+			"a repository name with a slash",
+			{ repository: { owner: "acme", name: "a/b" } },
+		],
+		["an empty repository name", { repository: { owner: "acme", name: "" } }],
+		["a non-integer installation id", { installationId: 1.5 }],
+		["a zero installation id", { installationId: 0 }],
+	] as const) {
+		test(`${label} is refused before GitHub is contacted`, async () => {
+			const { run, gh, tracked } = setup();
+			const result = await run({
+				...TARGET,
+				...patch,
+				kind: "verify",
+			} as JobRequest);
+			expect(!result.ok && result.error.kind).toBe("invalid_request");
+			expect(gh.requests).toEqual([]);
+			expect(tracked.created).toEqual([]);
+		});
+	}
+});
+
 describe("read-only by default", () => {
 	test("the job's installation token is read-only for the PR's repository", async () => {
 		const { run, gh } = setup();

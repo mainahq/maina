@@ -4,7 +4,8 @@
  *
  * A job authenticates as the App, takes an installation token for the
  * PR's repository (read-only unless the operator widened `permissions`),
- * reads the pull request and its changed files, checks the PR out into an
+ * reads the pull request, its changed files and its merge base (the diff
+ * base, where head forked from the base branch), checks the PR out into an
  * ephemeral workspace, runs the requested capability through the runtime
  * built for that workspace, and deletes the workspace afterwards
  * (verified). The token is revoked when the job ends, however it ends.
@@ -29,7 +30,6 @@ import type {
 	GitHubApi,
 	GitHubError,
 	Permissions,
-	PullRequest,
 	RepoRef,
 } from "./app";
 import {
@@ -90,6 +90,7 @@ type JobReport = JobOutcome &
 		repository: string;
 		pullNumber: number;
 		head: string;
+		/** The merge base the job diffed against (not the base branch's tip). */
 		base: string;
 		workspace: RemovedWorkspace;
 	}>;
@@ -118,6 +119,10 @@ const invalid = (message: string): Result<never, JobError> => ({
 
 const FEATURE_DIR = /^\.maina\/features\/[^/]+(?=\/)/;
 
+/** A GitHub owner or repository name: one path segment, never `.` or `..`. */
+const segment = (name: string): boolean =>
+	/^[\w.-]+$/.test(name) && name !== "." && name !== "..";
+
 /** A repo-relative path that cannot leave the workspace. */
 const contained = (path: string): boolean =>
 	path.length > 0 &&
@@ -130,6 +135,15 @@ function checkRequest(request: JobRequest): Result<void, JobError> {
 		return invalid(
 			`unknown job kind ${JSON.stringify(request.kind)}; expected one of ${JOB_KINDS.join(", ")}`,
 		);
+	}
+	if (!segment(request.repository.owner) || !segment(request.repository.name)) {
+		return invalid("repository must be an owner and a name, one segment each");
+	}
+	if (
+		!Number.isInteger(request.installationId) ||
+		request.installationId <= 0
+	) {
+		return invalid("installationId must be a positive integer");
 	}
 	if (!Number.isInteger(request.pullNumber) || request.pullNumber <= 0) {
 		return invalid("pullNumber must be a positive integer");
@@ -161,7 +175,8 @@ async function runCapability(
 	runtime: McpRuntime,
 	root: string,
 	request: JobRequest,
-	pull: PullRequest,
+	/** The commit the PR forked from; its diffs are taken against it. */
+	base: string,
 	changed: readonly ChangedFile[],
 ): Promise<Result<JobOutcome, JobError>> {
 	const present = changed
@@ -179,7 +194,7 @@ async function runCapability(
 		case "verify":
 			return capability(
 				"verify",
-				await runtime.verify({ root, files: present, base: pull.baseSha }),
+				await runtime.verify({ root, files: present, base }),
 			);
 		case "impact":
 			return capability(
@@ -191,10 +206,7 @@ async function runCapability(
 				}),
 			);
 		case "triage":
-			return capability(
-				"triage",
-				await runtime.review({ root, base: pull.baseSha }),
-			);
+			return capability("triage", await runtime.review({ root, base }));
 		case "spec_check":
 			return capability(
 				"spec_check",
@@ -248,6 +260,13 @@ export function createJobRunner(
 			if (!pull.ok) return pull;
 			const changed = await options.api.pullRequestFiles(call);
 			if (!changed.ok) return changed;
+			const base = await options.api.mergeBase({
+				token: token.value.token,
+				repository: request.repository,
+				base: pull.value.baseSha,
+				head: pull.value.headSha,
+			});
+			if (!base.ok) return base;
 
 			const ran = await inEphemeralWorkspace(
 				options.workspaces,
@@ -255,14 +274,14 @@ export function createJobRunner(
 					cloneUrl: pull.value.cloneUrl,
 					token: token.value.token,
 					head: pull.value.headSha,
-					base: pull.value.baseSha,
+					base: base.value,
 				},
 				(dir) =>
 					runCapability(
 						remoteRuntime(options.runtimeFor(dir), dir),
 						dir,
 						request,
-						pull.value,
+						base.value,
 						changed.value,
 					),
 			);
@@ -274,7 +293,7 @@ export function createJobRunner(
 					repository: `${request.repository.owner}/${request.repository.name}`,
 					pullNumber: request.pullNumber,
 					head: pull.value.headSha,
-					base: pull.value.baseSha,
+					base: base.value,
 					workspace: ran.value.workspace,
 				},
 			};

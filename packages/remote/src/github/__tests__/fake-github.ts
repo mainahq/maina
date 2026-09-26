@@ -1,7 +1,7 @@
 /**
  * A fake GitHub REST API for the App job tests: a `fetch` handler that
  * answers the handful of endpoints the jobs use (installation tokens, pull
- * requests, their files, token revocation) from in-memory state and records
+ * requests, their files, the base/head merge base, token revocation) from in-memory state and records
  * every request, so a test can assert what the App asked GitHub for.
  */
 
@@ -21,6 +21,8 @@ type FakePull = Readonly<{
 	head: string;
 	base: string;
 	cloneUrl: string;
+	/** Where head forked from base; default: `base` (the base did not move). */
+	mergeBase?: string;
 	files: readonly Readonly<{ filename: string; status: string }>[];
 }>;
 
@@ -116,6 +118,19 @@ export function fakeGitHub(
 			);
 			const page = Number(url.searchParams.get("page") ?? "1");
 			return json(200, pull.files.slice((page - 1) * perPage, page * perPage));
+		}
+
+		const compareMatch = new RegExp(
+			`^${repoPath}/compare/([0-9a-f]+)\\.\\.\\.([0-9a-f]+)$`,
+		).exec(url.pathname);
+		if (req.method === "GET" && compareMatch !== null) {
+			const pull = pulls.find(
+				(p) => p.base === compareMatch[1] && p.head === compareMatch[2],
+			);
+			if (pull === undefined) return json(404, { message: "Not Found" });
+			return json(200, {
+				merge_base_commit: { sha: pull.mergeBase ?? pull.base },
+			});
 		}
 		return json(404, { message: "Not Found" });
 	}

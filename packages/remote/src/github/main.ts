@@ -15,10 +15,8 @@ import { systemProcess } from "@mainahq/core";
 import { systemRuntime } from "@mainahq/mcp";
 import { privateKeyCredentials, restGitHubApi } from "./app";
 import { systemWorkspaces } from "./checkout";
-import { readJobInvocation } from "./invocation";
+import { appSecretNames, readJobInvocation } from "./invocation";
 import { createJobRunner } from "./jobs";
-
-const APP_SECRET = /^MAINA_GITHUB_APP_/;
 
 const invocation = readJobInvocation(process.argv.slice(2), process.env);
 if (!invocation.ok) {
@@ -30,10 +28,12 @@ if (!invocation.ok) {
 
 const { appId, privateKey, apiUrl, request } = invocation.value;
 // The capabilities run tools over someone's pull request: the App's
-// credentials never reach those child processes.
-const childEnv = Object.fromEntries(
-	Object.entries(process.env).filter(([name]) => !APP_SECRET.test(name)),
-);
+// credentials never reach those child processes. They are dropped from
+// this process's own environment, not just from a copy, because some
+// runtime paths spawn with the inherited environment (`systemProcess`
+// without an explicit env).
+for (const name of appSecretNames(process.env)) delete process.env[name];
+const childEnv = { ...process.env };
 const run = createJobRunner({
 	credentials: privateKeyCredentials({ appId, privateKey, now: Date.now }),
 	api: restGitHubApi({

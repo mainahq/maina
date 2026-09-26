@@ -92,6 +92,19 @@ function decideRequest(raw: string | undefined): DecideRequest | undefined {
 	}
 }
 
+const APP_SECRET = /^MAINA_GITHUB_APP_/;
+
+/**
+ * The App's credential variables in `env` (`MAINA_GITHUB_APP_*`): the job
+ * process drops them from its own environment once read, so no child
+ * process running over a pull request's code inherits them.
+ */
+export function appSecretNames(
+	env: Readonly<Record<string, string | undefined>>,
+): string[] {
+	return Object.keys(env).filter((name) => APP_SECRET.test(name));
+}
+
 export function readJobInvocation(
 	argv: readonly string[],
 	env: Readonly<Record<string, string | undefined>>,

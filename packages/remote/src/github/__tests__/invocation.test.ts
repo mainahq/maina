@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { readJobInvocation } from "../invocation";
+import { appSecretNames, readJobInvocation } from "../invocation";
 
 const ENV = {
 	MAINA_GITHUB_APP_ID: "123456",
@@ -116,5 +116,22 @@ describe("readJobInvocation", () => {
 			MAINA_GITHUB_APP_ID: "1",
 		});
 		expect(!noKey.ok && noKey.error.name).toBe("MAINA_GITHUB_APP_PRIVATE_KEY");
+	});
+});
+
+describe("appSecretNames", () => {
+	test("names every MAINA_GITHUB_APP_* variable, and nothing else", () => {
+		expect(
+			appSecretNames({
+				...ENV,
+				MAINA_GITHUB_APP_WEBHOOK_SECRET: "s",
+				MAINA_GITHUB_API_URL: "https://ghe.example.com/api/v3",
+				PATH: "/usr/bin",
+			}).sort(),
+		).toEqual([
+			"MAINA_GITHUB_APP_ID",
+			"MAINA_GITHUB_APP_PRIVATE_KEY",
+			"MAINA_GITHUB_APP_WEBHOOK_SECRET",
+		]);
 	});
 });

@@ -83,6 +83,19 @@ export type GitHubApi = Readonly<{
 	pullRequestFiles: (
 		call: PullCall,
 	) => Promise<Result<readonly ChangedFile[], GitHubError>>;
+	/**
+	 * Where `head` forked from `base`: the PR's diff base. A PR's `base.sha`
+	 * is the base branch's tip, which moves on after the fork, so diffing
+	 * against it would show the base's newer commits reversed.
+	 */
+	mergeBase: (
+		call: Readonly<{
+			token: string;
+			repository: RepoRef;
+			base: string;
+			head: string;
+		}>,
+	) => Promise<Result<string, GitHubError>>;
 	/** Ends an installation token before it expires. */
 	revokeToken: (token: string) => Promise<Result<void, GitHubError>>;
 }>;
@@ -179,6 +192,11 @@ function parseFiles(body: unknown): readonly ChangedFile[] | undefined {
 		files.push({ path, status });
 	}
 	return files;
+}
+
+function parseMergeBase(body: unknown): string | undefined {
+	if (!isRecord(body) || !isRecord(body.merge_base_commit)) return undefined;
+	return str(body.merge_base_commit.sha);
 }
 
 function parseToken(body: unknown): InstallationToken | undefined {
@@ -297,6 +315,18 @@ export function restGitHubApi(
 			}
 			return { ok: true, value: files };
 		},
+
+		mergeBase: async ({ token, repository, base, head }) =>
+			decoded(
+				await call(
+					"GET",
+					// One commit per page: only the merge base is read.
+					`${repoPath(repository)}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}?per_page=1`,
+					token,
+				),
+				parseMergeBase,
+				"compare",
+			),
 
 		revokeToken: async (token) => {
 			const result = await call("DELETE", "/installation/token", token);
