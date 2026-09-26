@@ -129,6 +129,31 @@ import { z } from "zod";`;
 			expect(findings.map((f) => f.line)).toEqual([3]);
 		});
 
+		// #554 — every Vite/bundler query form, and an extensionless specifier
+		// whose query hides the extension probe (`./worker?worker` → worker.ts).
+		it("should strip ?inline, ?worker and combined queries before resolving", () => {
+			writeFixture("styles.css", "a{}\n");
+			writeFixture("worker.ts", "export {};\n");
+			writeFixture("logo.svg", "<svg/>\n");
+			const content = [
+				'import css from "./styles.css?inline";',
+				'import MyWorker from "./worker?worker";',
+				'import workerUrl from "./worker.ts?worker&url";',
+				'import logo from "./logo.svg?url&no-inline";',
+				'export { default as raw } from "./styles.css?raw";',
+				'import "./styles.css?used";',
+				'const w = require("./worker?worker");',
+				'import ghost from "./ghost?worker";',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "importer.ts"),
+				TMP_DIR,
+			);
+			expect(findings.map((f) => f.line)).toEqual([8]);
+			expect(findings[0]?.message).toContain('"./ghost?worker"');
+		});
+
 		// #399 — import-like text inside comments is not an import
 		it("should not flag an import quoted inside a JSDoc comment", () => {
 			const content = [
