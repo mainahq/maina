@@ -1,5 +1,6 @@
 import { flushTelemetry, VERSION } from "@mainahq/core";
 import { Command } from "commander";
+import { acpCommand } from "./commands/acp";
 import { allowCommand } from "./commands/allow";
 import { analyzeCommand } from "./commands/analyze";
 import { applyFixCommand } from "./commands/apply-fix";
@@ -63,6 +64,7 @@ Build & Verify:
   slop           Detect AI slop patterns
   pr             Create pull request
   run            Run an agent in maina's sandbox, gated and budgeted
+  acp            Serve an agent to your editor (Zed, JetBrains) through the gate
 
 Wiki:
   wiki init     Compile codebase knowledge
@@ -155,6 +157,7 @@ Setup & Config:
 	program.addCommand(slopCommand());
 	program.addCommand(prCommand());
 	program.addCommand(runCommand());
+	program.addCommand(acpCommand());
 
 	// ── Wiki ────────────────────────────────────────────────────────────
 	program.addCommand(wikiCommand());

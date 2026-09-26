@@ -44,6 +44,7 @@ const VISIBLE_COMMANDS = [
 	"slop",
 	"pr",
 	"run",
+	"acp",
 	"wiki",
 	"init",
 	"setup",
