@@ -698,8 +698,11 @@ describe.skipIf(!DOCKER)("smoke: the compose deployment in Docker", () => {
 			MAINA_SMOKE_PRIVATE_KEY: fx.privateKey.replaceAll("\n", "\\n"),
 			MAINA_SMOKE_PUBLIC_KEY: fx.publicKey.replaceAll("\n", "\\n"),
 		};
-		const built = await compose("build", "remote");
-		if (built.exitCode !== 0) throw new Error(built.stderr);
+		// Plain progress keeps every step's own output (the install's error,
+		// not just BuildKit's "did not complete successfully") in the failure.
+		const built = await compose("--progress=plain", "build", "remote");
+		if (built.exitCode !== 0)
+			throw new Error(`${built.stdout}\n${built.stderr}`);
 		const up = await compose(
 			"up",
 			"-d",

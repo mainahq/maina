@@ -8,7 +8,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runtimePid } from "../uninstall-traces";
+import { runtimePid, type Snapshot, traces } from "../uninstall-traces";
 
 const dirs: string[] = [];
 const runDir = (pidFile?: string): string => {
@@ -36,5 +36,44 @@ describe("runtimePid", () => {
 		for (const torn of ["", '{"pid":42', "null"]) {
 			expect(runtimePid(runDir(torn))).toBeNull();
 		}
+	});
+});
+
+describe("traces", () => {
+	const none = { dirs: new Set<string>(), files: new Set<string>() };
+	const snap = (entries: Record<string, string>): Snapshot =>
+		new Map(Object.entries(entries));
+
+	test("names every added, changed and removed path", () => {
+		const before = snap({ "home/a": "file:1", "home/b": "file:2" });
+		const after = snap({ "home/a": "file:9", "home/c": "file:3" });
+		expect(traces(before, after, none)).toEqual([
+			"added home/c",
+			"changed home/a",
+			"removed home/b",
+		]);
+	});
+
+	test("the user's retention history (#352) is user data, not install state", () => {
+		const before = snap({ "home/.maina": "dir" });
+		const added = snap({
+			"home/.maina": "dir",
+			"home/.maina/retention.jsonl": "file:1",
+		});
+		expect(traces(before, added, none)).toEqual([]);
+		const grew = snap({
+			"home/.maina": "dir",
+			"home/.maina/retention.jsonl": "file:7",
+		});
+		expect(traces(added, grew, none)).toEqual([]);
+		expect(traces(added, before, none)).toEqual([
+			"removed home/.maina/retention.jsonl",
+		]);
+	});
+
+	test("anything else maina leaves under ~/.maina is a trace", () => {
+		const before = snap({ "home/.maina": "dir" });
+		const after = snap({ "home/.maina": "dir", "home/.maina/runtime": "dir" });
+		expect(traces(before, after, none)).toEqual(["added home/.maina/runtime"]);
 	});
 });
