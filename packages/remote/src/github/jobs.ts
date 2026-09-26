@@ -84,7 +84,7 @@ type JobOutcome = {
 	[K in JobKind]: Readonly<{ kind: K; result: JobResults[K] }>;
 }[JobKind];
 
-type JobReport = JobOutcome &
+export type JobReport = JobOutcome &
 	Readonly<{
 		/** `owner/name` */
 		repository: string;
@@ -95,7 +95,7 @@ type JobReport = JobOutcome &
 		workspace: RemovedWorkspace;
 	}>;
 
-type JobError =
+export type JobError =
 	| Readonly<{ kind: "invalid_request"; message: string }>
 	| GitHubError
 	| WorkspaceError

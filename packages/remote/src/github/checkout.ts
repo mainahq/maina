@@ -63,11 +63,14 @@ const workspaceError = (message: string): Result<never, WorkspaceError> => ({
 const errorText = (e: unknown): string =>
 	e instanceof Error ? e.message : String(e);
 
+/** A directory's lifecycle: the part of `Workspaces` that is not git. */
+type Directories = Pick<Workspaces, "create" | "remove" | "exists">;
+
 /**
  * Runs `work` in a fresh checkout of `source`, then deletes the checkout
  * and confirms it is gone.
  */
-export async function inEphemeralWorkspace<T, E>(
+export function inEphemeralWorkspace<T, E>(
 	workspaces: Workspaces,
 	source: CheckoutSource,
 	work: (dir: string) => Promise<Result<T, E>>,
@@ -77,25 +80,48 @@ export async function inEphemeralWorkspace<T, E>(
 		E | WorkspaceError | CleanupError
 	>
 > {
-	const created = await workspaces.create();
+	return inRemovedDirectory(
+		workspaces,
+		async (dir): Promise<Result<T, E | WorkspaceError>> => {
+			const checkout = await workspaces.checkout(dir, source);
+			return checkout.ok ? work(dir) : checkout;
+		},
+	);
+}
+
+/**
+ * Runs `work` in a new directory from `directories`, then deletes it and
+ * confirms it is gone, whether `work` succeeded, failed or threw. A
+ * directory still present afterwards is a `cleanup_failed` error that
+ * replaces the result.
+ */
+export async function inRemovedDirectory<T, E>(
+	directories: Directories,
+	work: (dir: string) => Promise<Result<T, E>>,
+): Promise<
+	Result<
+		Readonly<{ value: T; workspace: RemovedWorkspace }>,
+		E | WorkspaceError | CleanupError
+	>
+> {
+	const created = await directories.create();
 	if (!created.ok) return created;
 	const dir = created.value;
 
 	let outcome: Result<T, E | WorkspaceError>;
 	try {
-		const checkout = await workspaces.checkout(dir, source);
-		outcome = checkout.ok ? await work(dir) : checkout;
+		outcome = await work(dir);
 	} catch (e) {
 		outcome = workspaceError(`job failed in ${dir}: ${errorText(e)}`);
 	}
 
-	const removed = await workspaces
+	const removed = await directories
 		.remove(dir)
 		.catch(
 			(e: unknown): Result<void, WorkspaceError> =>
 				workspaceError(errorText(e)),
 		);
-	const remains = await workspaces.exists(dir).catch(() => true);
+	const remains = await directories.exists(dir).catch(() => true);
 	if (!removed.ok || remains) {
 		return {
 			ok: false,

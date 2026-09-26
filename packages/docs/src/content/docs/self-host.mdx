@@ -52,7 +52,7 @@ Run a job against a pull request:
 docker compose run --rm job verify --repo acme/widgets --pr 7 --installation 4242
 ```
 
-The job kinds are `verify`, `impact`, `triage`, `spec_check` and `decide`. Each one checks the pull request out into a temporary directory, runs, then deletes the directory and revokes its GitHub token.
+The job kinds are `verify`, `impact`, `triage`, `spec_check` and `decide`. Each one checks the pull request out into a private scratch directory, runs, then deletes the directory and revokes its GitHub token. Anything its tools write stays inside that directory, so nothing of your code outlives the job. The report, or `{ "error": ... }`, is printed on stdout. The job's log on stderr is one line per job that never includes code or paths. See [Privacy](/privacy/#remote-connector).
 
 Audit the install's outbound traffic:
 
