@@ -60,6 +60,7 @@ Each file records one decision: the context, what was decided, and what it costs
 | [0046](0046-in-process-tree-sitter-wasm-parser-for-the-code-graph.md) | In-process tree-sitter (WASM) parser for the code graph | Accepted |
 | [0047](0047-ast-based-shell-parser-for-the-gate.md) | AST-based shell parsing for the gate | Accepted |
 | [0048](0048-sandbox-runtime-for-worker-sandboxing.md) | sandbox-runtime for the per-worker OS sandbox | Accepted |
+| [0049](0049-warp-and-terminal-notifications.md) | Warp and terminal notifications over documented escape sequences | Accepted |
 
 ## Renumbering (mainahq/maina#295)
 

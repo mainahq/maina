@@ -31,6 +31,8 @@ type CursorHookRun = Readonly<{
 	event: CursorEvent;
 	/** The gate's decision for a gated event (asks for a malformed one). */
 	decision?: GateDecision;
+	/** Verify's decision for a stop that ran it. */
+	verify?: GateDecision;
 	output: CursorOutput;
 }>;
 
@@ -77,11 +79,14 @@ export async function runCursorHook(
 					hookEvent: event.hookEvent,
 					decision: verified,
 				});
-				return verified === undefined ||
-					verified.verdict === "deny" ||
-					verified.reason === ""
-					? { event, output }
-					: { event, output: { ...output, stderr: `${verified.reason}\n` } };
+				if (verified === undefined) return { event, output };
+				return verified.verdict === "deny" || verified.reason === ""
+					? { event, verify: verified, output }
+					: {
+							event,
+							verify: verified,
+							output: { ...output, stderr: `${verified.reason}\n` },
+						};
 			}
 			const line = await safeSummary(ports, event.event);
 			const context = [GUARDRAILS_ACTIVE, line].filter(Boolean).join(" ");

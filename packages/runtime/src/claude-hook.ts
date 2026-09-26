@@ -15,6 +15,7 @@ import {
 	fromClaude,
 	type SessionEvent,
 	toClaude,
+	withTerminalSequence,
 } from "./adapters/claude-code";
 import {
 	failClosed,
@@ -23,6 +24,8 @@ import {
 	type GateResult,
 	parseGateDecision,
 } from "./gate";
+import type { Env } from "./notify/detect";
+import { notificationSequence, notifyEventOf } from "./notify/notify";
 import { SESSION_STOP } from "./stop-verify";
 
 export type ClaudeHookPorts = Readonly<{
@@ -42,6 +45,8 @@ export type ClaudeHookRun = Readonly<{
 	event: ClaudeEvent;
 	/** The gate's decision for a tool event (asks for a malformed one). */
 	decision?: GateDecision;
+	/** Verify's decision for a Stop that ran it. */
+	verify?: GateDecision;
 	output: ClaudeOutput;
 }>;
 
@@ -178,16 +183,34 @@ async function stopHook(
 		safeStopVerify(ports, stopGateEvent(event.event, "claude-code")),
 		safeSummary(ports, event.event),
 	]);
+	const ran = verified === undefined ? {} : { verify: verified };
 	if (verified?.verdict === "deny") {
 		return {
 			event,
 			decision: verified,
+			...ran,
 			output: toClaude({ hookEvent: event.hookEvent, decision: verified }),
 		};
 	}
 	const context =
 		[verified?.reason, line].filter(Boolean).join("\n") || undefined;
-	return { event, output: toClaude({ hookEvent: event.hookEvent, context }) };
+	return {
+		event,
+		...ran,
+		output: toClaude({ hookEvent: event.hookEvent, context }),
+	};
+}
+
+/**
+ * The run's output with a terminal notification (FR-RET-6) for an ask or a
+ * finished verify, when `env` is a terminal that shows one; otherwise the
+ * output unchanged. Pure.
+ */
+export function withNotification(run: ClaudeHookRun, env: Env): ClaudeOutput {
+	return withTerminalSequence(
+		run.output,
+		notificationSequence(notifyEventOf(run), env),
+	);
 }
 
 /**

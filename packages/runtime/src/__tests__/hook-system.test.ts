@@ -5,12 +5,12 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import cliPackage from "@mainahq/cli/package.json" with { type: "json" };
 import type { GateDecision, GateEvent } from "../gate";
-import { systemClaudeHookPorts } from "../hook-system";
+import { systemClaudeHookPorts, writeTty } from "../hook-system";
 import { resolveEndpoint } from "../registry";
 import { startRuntime } from "../server";
 import { fixedGate } from "./support";
@@ -80,5 +80,21 @@ describe("systemClaudeHookPorts stop verify", () => {
 			decisionIds: [],
 			degraded: true,
 		});
+	});
+});
+
+// #351 review: the terminal write must only ever reach an existing terminal
+// device. Opened with "w" (O_CREAT | O_TRUNC), "/dev/tty" on Windows is a
+// path on the current drive, and a missing one would be created as a file.
+describe("writeTty", () => {
+	test("never creates the file it writes to", () => {
+		const dir = mkdtempSync(join(tmpdir(), "maina-tty-"));
+		try {
+			const path = join(dir, "tty");
+			expect(() => writeTty("\u001b]9;x\u0007", path)).toThrow();
+			expect(existsSync(path)).toBe(false);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 });

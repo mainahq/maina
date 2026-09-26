@@ -417,6 +417,27 @@ function stop(result: ClaudeResult): ClaudeOutput {
 }
 
 /**
+ * `output` with a terminal notification for Claude Code to write (FR-RET-6):
+ * hooks have no controlling terminal, so the sequence rides on the hook's
+ * JSON as `terminalSequence`, which Claude Code emits itself. An exit-2 deny
+ * is left alone (Claude Code reads JSON only on exit 0), as is no sequence.
+ */
+export function withTerminalSequence(
+	output: ClaudeOutput,
+	sequence: string | null,
+): ClaudeOutput {
+	if (sequence === null || output.exitCode !== 0) return output;
+	let value: unknown;
+	try {
+		value = JSON.parse(output.stdout);
+	} catch {
+		return output;
+	}
+	if (!isRecord(value)) return output;
+	return { ...output, stdout: line({ ...value, terminalSequence: sequence }) };
+}
+
+/**
  * Renders `result` for Claude Code. An event with nothing to say, or one
  * maina does not handle, prints `{}`: the host's own flow stands.
  */

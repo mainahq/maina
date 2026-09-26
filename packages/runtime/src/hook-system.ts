@@ -13,12 +13,17 @@
  *   from the repository's decision log (`.maina/decisions.db`), when there
  *   is one; a repository without one gets no summary.
  *
+ * - An ask, and a finished verify, notify the human in a terminal that
+ *   shows notifications (FR-RET-6, ADR 0049): through the hook's
+ *   `terminalSequence` for Claude Code, which gives hooks no terminal, and
+ *   written to the controlling terminal for Codex and Cursor.
+ *
  * `runClaudeHookProcess`, `runCursorHookProcess` and `runCodexHookProcess`
  * are the whole hook process: stdin in, the host's answer out. The
  * standalone runtime's `hook` mode runs the one for the hook's host.
  */
 
-import { existsSync } from "node:fs";
+import { closeSync, constants, existsSync, openSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import cliPackage from "@mainahq/cli/package.json" with { type: "json" };
 import { openDecisionDb } from "@mainahq/cli/src/decision-store";
@@ -34,12 +39,14 @@ import {
 	type ClaudeHookRun,
 	runClaudeHook,
 	stopFromClient,
+	withNotification,
 } from "./claude-hook";
 import { createHookClient } from "./client/hook-client";
 import { runCodexHook } from "./codex-hook";
 import { runCursorHook } from "./cursor-hook";
 import { systemGates } from "./gate-system";
 import { daemonSpawner } from "./lifecycle";
+import { type HookOutcome, notify, notifyEventOf } from "./notify/notify";
 import { userEndpoint } from "./registry";
 import { gitProbe, resolveRoot } from "./root";
 
@@ -120,6 +127,28 @@ export function systemClaudeHookPorts(
 }
 
 /**
+ * Writes `sequence` to the controlling terminal, the way a host that gives
+ * its hooks one (Codex, Cursor's CLI) lets them reach it. Throws when there
+ * is none; `notify` swallows that. Opened write-only without O_CREAT or
+ * O_TRUNC, so a missing device (Windows resolves "/dev/tty" to a path on
+ * the current drive) is an error, never a new file.
+ */
+export function writeTty(sequence: string, path = "/dev/tty"): void {
+	const fd = openSync(path, constants.O_WRONLY);
+	try {
+		writeSync(fd, sequence);
+	} finally {
+		closeSync(fd);
+	}
+}
+
+/** The run's notification on the controlling terminal, if it needs one. */
+function notifyOnTty(run: HookOutcome): void {
+	const event = notifyEventOf(run);
+	if (event !== undefined) notify(event, { env: process.env, emit: writeTty });
+}
+
+/**
  * One hook process for Claude Code event `hookEvent`: reads stdin, writes
  * the host's answer and resolves to the exit code.
  */
@@ -129,9 +158,10 @@ export async function runClaudeHookProcess(hookEvent: string): Promise<number> {
 		systemClaudeHookPorts(),
 		hookEvent,
 	);
-	process.stdout.write(run.output.stdout);
-	if (run.output.stderr !== "") process.stderr.write(run.output.stderr);
-	return run.output.exitCode;
+	const output = withNotification(run, process.env);
+	process.stdout.write(output.stdout);
+	if (output.stderr !== "") process.stderr.write(output.stderr);
+	return output.exitCode;
 }
 
 /**
@@ -144,6 +174,7 @@ export async function runCursorHookProcess(hookEvent: string): Promise<number> {
 		systemClaudeHookPorts(),
 		hookEvent,
 	);
+	notifyOnTty(run);
 	process.stdout.write(run.output.stdout);
 	if (run.output.stderr !== "") process.stderr.write(run.output.stderr);
 	return run.output.exitCode;
@@ -160,6 +191,7 @@ export async function runCodexHookProcess(hookEvent: string): Promise<number> {
 		systemClaudeHookPorts(),
 		hookEvent,
 	);
+	notifyOnTty(run);
 	process.stdout.write(run.output.stdout);
 	if (run.output.stderr !== "") process.stderr.write(run.output.stderr);
 	return run.output.exitCode;

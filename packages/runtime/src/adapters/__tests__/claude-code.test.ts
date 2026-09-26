@@ -17,6 +17,7 @@ import {
 	type ClaudeResult,
 	fromClaude,
 	toClaude,
+	withTerminalSequence,
 } from "../claude-code";
 
 const DIR = join(import.meta.dir, "..", "__fixtures__", "claude-code");
@@ -436,5 +437,62 @@ describe("toClaude", () => {
 		expect(toClaude({ hookEvent: "PostToolUse" }).stdout).toBe("{}\n");
 		expect(toClaude({ hookEvent: "SessionStart" }).stdout).toBe("{}\n");
 		expect(toClaude({ hookEvent: "Notification" }).stdout).toBe("{}\n");
+	});
+});
+
+// FR-RET-6 (#351): a notification rides on the hook's JSON as
+// `terminalSequence`, which Claude Code writes to the terminal itself
+// (hooks have no controlling terminal).
+describe("withTerminalSequence", () => {
+	const SEQ = "\u001b]777;notify;maina needs your approval;why\u0007";
+
+	test("adds terminalSequence to an answer Claude Code reads", () => {
+		for (const hookEvent of ["PreToolUse", "PermissionRequest"] as const) {
+			const out = withTerminalSequence(
+				toClaude({ hookEvent, decision: decision("ask", "why") }),
+				SEQ,
+			);
+			const json = JSON.parse(out.stdout);
+			expect(json.terminalSequence, hookEvent).toBe(SEQ);
+			expect(out.exitCode).toBe(0);
+			expect(out.stdout.endsWith("\n")).toBe(true);
+			expect(validator(OUTPUT_SCHEMA[hookEvent] ?? "")(json), hookEvent).toBe(
+				true,
+			);
+		}
+		for (const verdict of ["allow", "deny"] as const) {
+			const out = withTerminalSequence(
+				toClaude({ hookEvent: "Stop", decision: decision(verdict, "v") }),
+				SEQ,
+			);
+			const json = JSON.parse(out.stdout);
+			expect(json.terminalSequence).toBe(SEQ);
+			expect(validator(OUTPUT_SCHEMA.Stop ?? "")(json), verdict).toBe(true);
+		}
+	});
+
+	test("keeps the rest of the answer as it was", () => {
+		const plain = toClaude({
+			hookEvent: "PreToolUse",
+			decision: decision("ask", "why"),
+		});
+		const { terminalSequence, ...rest } = JSON.parse(
+			withTerminalSequence(plain, SEQ).stdout,
+		);
+		expect(terminalSequence).toBe(SEQ);
+		expect(rest).toEqual(JSON.parse(plain.stdout));
+	});
+
+	test("leaves an exit-2 deny alone: Claude Code does not read its JSON", () => {
+		const deny = toClaude({
+			hookEvent: "PreToolUse",
+			decision: decision("deny", "no"),
+		});
+		expect(withTerminalSequence(deny, SEQ)).toEqual(deny);
+	});
+
+	test("no sequence, no change", () => {
+		const out = toClaude({ hookEvent: "Stop", context: "note" });
+		expect(withTerminalSequence(out, null)).toEqual(out);
 	});
 });
