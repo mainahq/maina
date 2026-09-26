@@ -112,6 +112,7 @@
         "@mainahq/cli": "workspace:*",
         "@mainahq/core": "workspace:*",
         "@mainahq/mcp": "workspace:*",
+        "@vscode/tree-sitter-wasm": "^0.3.1",
       },
       "devDependencies": {
         "ajv": "^8.18.0",

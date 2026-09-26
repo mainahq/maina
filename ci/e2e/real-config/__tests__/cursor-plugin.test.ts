@@ -204,10 +204,9 @@ describe.skipIf(!runsHere)("Cursor plugin (#342)", () => {
 		expect(rootWipe.map((a) => a.permission)).toEqual(["ask"]);
 	}, 90_000);
 
-	// #526: the standalone runtime cannot load tree-sitter, so every shell
-	// command is `shell.opaque` (ask). When that is fixed this starts
-	// passing, `test.failing` goes red: make it a plain `test`.
-	test.failing("shell commands are classified in the standalone runtime (#526)", async () => {
+	// #526: the standalone runtime embeds tree-sitter, so the gate tells shell
+	// commands apart instead of asking for every one as `shell.opaque`.
+	test("shell commands are classified in the standalone runtime (#526)", async () => {
 		if (plugin === undefined) throw new Error("cursor has no plugin");
 		const w = workspace();
 		const ctx = await install(w);

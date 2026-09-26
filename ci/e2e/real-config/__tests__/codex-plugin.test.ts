@@ -243,11 +243,10 @@ describe.skipIf(!runsHere)("Codex plugin (#343)", () => {
 		expect(rootWipe).toEqual([{ exitCode: 2, permissionDecision: "deny" }]);
 	}, 90_000);
 
-	// #526: the standalone runtime cannot load tree-sitter, so every shell
-	// command is `shell.opaque` (ask, which Codex gets as a deny). When that
-	// is fixed this starts passing, `test.failing` goes red: make it a
-	// plain `test`.
-	test.failing("Bash commands are classified in the standalone runtime (#526)", async () => {
+	// #526: the standalone runtime embeds tree-sitter, so the gate tells Bash
+	// commands apart instead of treating every one as `shell.opaque` (ask,
+	// which Codex gets as a deny).
+	test("Bash commands are classified in the standalone runtime (#526)", async () => {
 		if (plugin === undefined) throw new Error("codex has no plugin");
 		const w = workspace();
 		const ctx = await install(w);
