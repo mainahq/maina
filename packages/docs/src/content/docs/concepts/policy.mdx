@@ -62,7 +62,7 @@ For each action the gate runs three stages:
 
 ## Fail closed
 
-When the gate cannot be sure, it asks. It asks when the policy is invalid, when the backend fails, when it answers too slowly, when its confidence is below the type's threshold, when the event is malformed, and on any unexpected failure. A blocking hook that crashes or times out blocks the action.
+When the gate cannot be sure, it asks. It asks when the policy is invalid, when the backend fails, when it answers too slowly, when its confidence is below the type's threshold, when the event is malformed, and on any unexpected failure. A hook that crashes or times out is the host's call: Cursor blocks the action (maina sets `failClosed`), while Claude Code and Codex fail open and let it through. See [Harness and sandbox](/concepts/harness/#plugins-get-hooks-not-the-sandbox).
 
 The default thresholds are 0.9 for `action.risk` and `diff.sensitive`, where missing a risky change is costly, and 0.8 for every other type. The same two types count a missed problem as ten times worse than a false alarm.
 
