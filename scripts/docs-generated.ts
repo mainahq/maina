@@ -17,4 +17,5 @@ export const GENERATED_DOCS: readonly string[] = [
 	`${DOCS}/reference/decision-types.mdx`,
 	`${DOCS}/roadmap.mdx`,
 	`${DOCS}/changelog.mdx`,
+	`${DOCS}/benchmarks.mdx`,
 ];
