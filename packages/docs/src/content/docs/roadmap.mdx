@@ -85,6 +85,7 @@ What is released, and what the next release brings. The next release is read fro
 
 ### Fixes
 
+- `DECISION_BACKENDS` (`rules`, `heuristic`, `system1`) is exported from the policy schema, so the docs checks read the backend list from the code instead of repeating it. _(@mainahq/core)_
 - `maina verify` no longer reports inline type imports (`import { A, type B } from "…"`) as unused; the built-in unused-import check now strips the `type` modifier before looking for usages. _(@mainahq/core)_
 - `maina verify` no longer runs code-pattern checks on data and docs files. _(@mainahq/core)_
 - verify: built-in typecheck runs `tsc -p` per nearest tsconfig of the changed files instead of one root `tsc`, so workspace packages' own types and dependencies resolve (no more false TS2307/TS2868 on new package files). _(@mainahq/core)_

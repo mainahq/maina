@@ -241,7 +241,7 @@ maina doctor                 # Check which tools are installed
 
 | Layer | Add | Get |
 |-------|-----|-----|
-| **L0** | Git + Bun | Core commands, deterministic verification, context engine |
+| **L0** | Git + Bun | Core commands, rule-based verification, context engine |
 | **L1** | API key or Ollama | AI reviews, commit messages, explanations, fix suggestions |
 | **L2** | Semgrep, Trivy, etc. | SAST, CVE scanning, secret detection, quality gates |
 | **L3** | GitHub Issues | Sync to Linear, Huly, Plane, or any PM tool |

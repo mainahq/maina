@@ -1,0 +1,78 @@
+---
+title: Policy
+description: The policy decides what the gate allows, asks about or denies. How the layers merge, why a repository cannot loosen what you did not, and how to override a decision.
+---
+
+The policy is the part of maina you configure. It says which agent actions the gate allows, which it asks you about and which it denies; which backend answers each [decision](/concepts/decisions/); and what a [harness run](/concepts/harness/) may do. Every key is in the [policy reference](/reference/policy/).
+
+## Three layers
+
+The policy is merged from three layers, later ones on top:
+
+1. **Defaults**, built into maina.
+2. **Your user policy**, `~/.maina/policy.json`: your choices on this machine.
+3. **The repository's policy**, `.maina/policy.json`: the team's choices, committed with the code.
+
+Most keys merge the obvious way, the later layer winning. The exceptions are what keep a repository you cloned from switching your protections off:
+
+- **Rule lists accumulate.** Allow and deny rules from every layer add up; no layer can remove one.
+- **Protected branches accumulate**, on top of `main` and `master`. A layer can protect more branches, never unprotect one.
+- **Irreversible action classes can only be tightened**, unless the layer lists the class in `explicitly_allow`. Even then, a repository's loosening counts only once you have confirmed that class; until then the class goes back to `ask`.
+- **`gate.self_override` is locked.** It stays `deny` whatever any layer says, `explicitly_allow` included, so an agent cannot switch the gate off.
+- **Telemetry can only be turned on in your user policy.** A repository can turn a channel off, never on.
+
+A policy file that fails to parse or validate is never replaced by the defaults: while it is broken, the gate asks about every action, and every telemetry channel counts as off.
+
+## Verdicts and action classes
+
+The gate's answer is one of three verdicts:
+
+- `allow`: the action runs.
+- `ask`: your host asks you first.
+- `deny`: the action is refused.
+
+The gate sorts every action into an action class, such as `fs.write`, `git.push.force` or `secrets.read`, and each class has a default verdict. Reversible work (reading and writing files in the repository, running commands, committing) is allowed; anything that cannot be undone (force pushes, recursive deletes, publishing, deploying, touching secrets) asks. The [policy reference](/reference/policy/#built-in-action-classes) lists every class and its verdict.
+
+Shell commands are parsed with tree-sitter-bash before they are classified, so quoting tricks do not hide a command: `r''m`, `\rm` and `$'\x72\x6d'` all read as `rm`. A command the gate cannot read counts as opaque and asks.
+
+## Rules
+
+Rules match one command, path, tool or URL, optionally for one kind of event (`shell`, `file.write`, `file.read.outside`, `mcp`, `network`):
+
+```json
+{
+  "version": 1,
+  "rules": {
+    "allow": [{ "match": "bun test", "kind": "shell", "exact": true }],
+    "deny": [{ "match": "infra/prod/**", "kind": "file.write", "reason": "prod is applied by CI" }]
+  },
+  "protected_branches": ["release"]
+}
+```
+
+A deny rule is final. An `exact` rule matches the whole command literally, so allowing `bun test` does not allow `bun test --watch`.
+
+## How the gate decides
+
+For each action the gate runs three stages:
+
+1. **Trust.** The policy is narrowed to what you stand behind on this machine: an irreversible class counts as loosened only when your user policy, or a repository loosening you confirmed, says so.
+2. **Rules.** The rules and the action class give a verdict. A deny is final.
+3. **Decide.** `decide` answers `action.risk` with the policy's backend. Its answer can tighten the rules' verdict or settle an action no rule covers. It can never loosen a verdict.
+
+## Fail closed
+
+When the gate cannot be sure, it asks. It asks when the policy is invalid, when the backend fails, when it answers too slowly, when its confidence is below the type's threshold, when the event is malformed, and on any unexpected failure. A hook that crashes or times out is the host's call: Cursor blocks the action (maina sets `failClosed`), while Claude Code and Codex fail open and let it through. See [Harness and sandbox](/concepts/harness/#plugins-get-hooks-not-the-sandbox).
+
+The default thresholds are 0.9 for `action.risk` and `diff.sensitive`, where missing a risky change is costly, and 0.8 for every other type. The same two types count a missed problem as ten times worse than a false alarm.
+
+## Overriding a decision
+
+When the gate stops something you wanted, override it from your terminal with the decision id it printed:
+
+```bash
+maina allow <decision-id>            # this once
+maina allow <decision-id> --always   # and from now on
+```
+
+`--always` adds an exact allow rule for that command, path, tool or URL to your user policy, never to the repository's. It refuses what an allow rule should not cover: an irreversible class, a final deny, an opaque command, a wildcard. Every override is linked to the decision it overrode, so the decision's error rate learns from it (see [Calibration](/concepts/calibration/)).

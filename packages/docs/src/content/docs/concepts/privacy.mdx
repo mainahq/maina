@@ -1,9 +1,9 @@
 ---
 title: Privacy
-description: What maina sends off your machine (nothing, unless you opt in), and what the remote connector and its GitHub App jobs keep and log.
+description: What maina sends off your machine (nothing, unless you opt in), what the local decision log keeps, and what the remote connector and its GitHub App jobs keep and log.
 ---
 
-import { facts } from '../../data/facts';
+import { facts } from '../../../data/facts';
 
 Maina runs on your machine and works on your repository in place. It sends nothing anywhere unless you turn a channel on.
 
@@ -22,6 +22,21 @@ A repository's policy (`.maina/policy.json`) can turn a channel off for that rep
 - `~/.maina/telemetry.json` containing `{ "optOut": true }`
 
 If a policy file fails to parse, every channel counts as off. The 1.x opt-ins in `~/.maina/config.yml` (`errors: true` for crash reports, `telemetry: true` for usage) still turn a channel on when your user policy does not mention that channel. Your user policy, a repository's policy and the switches above all override them.
+
+## Outcome sharing
+
+`telemetry.outcome_sharing` is the channel that would help calibrate maina's decisions across repositories (see [Calibration](/concepts/calibration/)). When you turn it on, each decision and the outcome linked to it can be sent as a small payload: the decision type, the backend's model hash, the answer (only when it is a yes or no, a number or one of a type's fixed options), the confidence, what maina did with it, the latency, the host and the outcome label.
+
+It never sends ids, timestamps, the input and schema hashes, the options or the distribution (options can be file paths), the session id, or where the outcome came from. The payload is checked against that closed shape before it is sent.
+
+## The decision log
+
+The decision log, `.maina/decisions.db`, stays on your machine. Its records are hashes, maina's own labels and numbers: never code, diff text or file contents. See [Receipts and the log](/concepts/receipts-and-log/#the-decision-log).
+
+Free-form options, such as the file paths `context.select` is asked to rank, are the one place a path could appear. `log.paths` in the policy decides how they are kept:
+
+- `hashed` (the default): stored only as hashes keyed by a random per-repository salt in `.maina/private/log-salt`. The salt is created on first use, `.maina/private/` keeps itself out of version control, and the salt never leaves your machine, so a list of your repository's paths cannot be matched against the log.
+- `plain`: stored as they are.
 
 ## Remote connector
 

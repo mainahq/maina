@@ -1,0 +1,40 @@
+---
+title: System 1
+description: The local decision layer. Every quick judgement maina makes goes through one interface, answered on your machine by rules, heuristics or, later, a small local model.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+An agent session asks maina many small questions. Is this shell command risky? Is this lint finding a real problem? Does this diff need a deep review? Which files matter for this task? System 1 is the layer that answers them: fast, local and cheap enough to ask on every tool call. Your agent's model does the slow, deliberate work; System 1 does the quick checks around it.
+
+## One interface, several backends
+
+Every one of these judgements goes through `decide`, which takes a decision type, the state it is judging and the questions to answer, and returns an answer with a probability for every option. [Decisions](/concepts/decisions/) covers the interface. What answers is a backend:
+
+- `rules`: the exact rules of your [policy](/concepts/policy/). The gate's `action.risk` starts here.
+- `heuristic`: rules, keyword lists and thresholds that ship with maina. They serve every other type by default.
+- `system1`: a small local model.
+
+The policy picks the backend for each decision type:
+
+```json
+{ "version": 1, "decisions": { "finding.real": { "backend": "system1" } } }
+```
+
+<Aside type="note" title="The model is not shipped yet">
+A policy can already route a decision type to the local model. Until a model runtime ships, the type's default backend answers, and each decision records which backend did. `maina doctor` reports the model as not installed and says that heuristics serve every decision. Nothing is downloaded to fill the gap.
+</Aside>
+
+## Local by design
+
+A decision never needs the network. The rules and heuristics are code inside maina, and the local model is meant to run on your machine too. Each decision is logged to a local database that keeps hashes and labels, not your code: see [Receipts and the log](/concepts/receipts-and-log/).
+
+## What a backend is trusted with
+
+The state a decision is made over comes in two parts. The trusted part holds values maina computed or you configured: counts, flags, action classes from the policy. The untrusted part holds whatever came from the repository or the agent: diff lines, comment bodies, spec text. A model backend must never treat the untrusted part as instructions.
+
+A backend's answer is checked before anything acts on it: the probabilities must sum to 1, cover every option in order, and pick one of the most likely options. An answer that fails the check is an error, and the caller falls back to its safe default: the gate asks you.
+
+## How a backend earns a decision type
+
+A new backend does not take over a decision type because it exists. It first answers in shadow, next to the backend in use, and nothing it says is acted on. It is promoted only when the log shows it agrees often enough, errs no more often, is calibrated and is fast enough. After promotion a drift guard keeps watching and hands the type back if its error rate rises. See [Calibration](/concepts/calibration/).
