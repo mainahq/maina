@@ -82,11 +82,18 @@ export function resolveEndpoint(inputs: EndpointInputs): Endpoint {
 	};
 }
 
-/** `$XDG_RUNTIME_DIR/maina` when set, else `~/.maina/run`. */
+/**
+ * Under a host plugin, `run/` in the plugin's data dir (`PLUGIN_DATA`, else
+ * `CLAUDE_PLUGIN_DATA`, as the launcher picks it): uninstalling the plugin
+ * deletes that dir, and with it everything the runtime keeps (#341).
+ * Otherwise `$XDG_RUNTIME_DIR/maina` when set, else `~/.maina/run`.
+ */
 export function defaultRuntimeDir(
 	env: Readonly<Record<string, string | undefined>>,
 	home: string,
 ): string {
+	const pluginData = env.PLUGIN_DATA || env.CLAUDE_PLUGIN_DATA;
+	if (pluginData) return join(pluginData, "run");
 	const xdg = env.XDG_RUNTIME_DIR;
 	return xdg ? join(xdg, "maina") : join(home, ".maina", "run");
 }
@@ -310,6 +317,23 @@ export function claimPidFile(
 /** True while `pid` still holds the endpoint's pid file. */
 export function holdsPidFile(endpoint: Endpoint, pid: number): boolean {
 	return readHolder(endpoint.pidFile)?.pid === pid;
+}
+
+/**
+ * True once `pid` has certainly lost the endpoint's pid file: it is gone, or
+ * it names another process. A file that cannot be read right now (EACCES,
+ * EMFILE) is not a loss, so a transient error never stops a live runtime.
+ */
+export function lostPidFile(endpoint: Endpoint, pid: number): boolean {
+	const holder = readHolder(endpoint.pidFile);
+	if (holder !== null) return holder.pid !== pid;
+	try {
+		statSync(endpoint.pidFile);
+		return false;
+	} catch (err) {
+		const code = errorCode(err);
+		return code === "ENOENT" || code === "ENOTDIR";
+	}
 }
 
 export function releasePidFile(endpoint: Endpoint, pid: number): void {

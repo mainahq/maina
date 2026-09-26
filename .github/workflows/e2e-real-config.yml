@@ -5,6 +5,9 @@ name: E2E real-config
 # host actually reads, spawn that exact command with a GUI-launched env and
 # complete an MCP handshake plus one `verify` call.
 #
+# The plugin path installs from a local release of the checkout: the host's
+# marketplace add + plugin install, then the first session (#341).
+#
 # Known failures (P1–P4, missing plugins) are listed in
 # ci/e2e/real-config/matrix.ts `KNOWN_FAILURES`, each linked to the issue
 # that fixes it. A cell goes red when a known failure fails for a different
@@ -28,6 +31,9 @@ on:
       - "packages/core/src/setup/**"
       - "packages/mcp/src/**"
       - "packages/runtime/**"
+      - "packages/plugins/**"
+      - "packages/skills/**"
+      - ".claude-plugin/**"
       - "ci/e2e/real-config/**"
       - ".github/workflows/e2e-real-config.yml"
   push:
@@ -44,6 +50,9 @@ on:
       - "packages/core/src/setup/**"
       - "packages/mcp/src/**"
       - "packages/runtime/**"
+      - "packages/plugins/**"
+      - "packages/skills/**"
+      - ".claude-plugin/**"
       - "ci/e2e/real-config/**"
       - ".github/workflows/e2e-real-config.yml"
   schedule:

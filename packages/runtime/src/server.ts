@@ -17,7 +17,8 @@
  * sees it. Without the port a stop is let through silently.
  */
 
-import { chmodSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, rmdirSync, rmSync } from "node:fs";
+import { dirname } from "node:path";
 import type { Result } from "@mainahq/core";
 import type { Socket, UnixSocketListener } from "bun";
 import {
@@ -47,6 +48,7 @@ import {
 	type Endpoint,
 	ensureEndpointDirs,
 	holdsPidFile,
+	lostPidFile,
 	type RegistryError,
 	releasePidFile,
 } from "./registry";
@@ -80,9 +82,18 @@ type RuntimeConfig = Readonly<{
 	version: string;
 	/** Exit after this long with no request in flight. */
 	idleTtlMs: number;
+	/** How often to check the pid file is still ours; `CLAIM_CHECK_MS` by default. */
+	claimCheckMs?: number;
 }>;
 
-export type StopReason = "stopped" | "idle" | "version_mismatch";
+/**
+ * `orphaned`: the pid file is gone (a plugin uninstall deleted its data
+ * dir, #341) or another runtime took it over.
+ */
+export type StopReason = "stopped" | "idle" | "version_mismatch" | "orphaned";
+
+/** A runtime notices within this long that its claim is gone. */
+const CLAIM_CHECK_MS = 5_000;
 
 export type Runtime = Readonly<{
 	endpoint: Endpoint;
@@ -121,6 +132,15 @@ async function runPort(run: () => unknown): Promise<Outcome> {
 		return { ok: true, value: await run() };
 	} catch (err) {
 		return rpcError("handler_failed", errorMessage(err));
+	}
+}
+
+/** Removes `dir` when it is empty; anything else leaves it. */
+function removeEmptyDir(dir: string): void {
+	try {
+		rmdirSync(dir);
+	} catch {
+		// Not empty (another runtime's socket) or already gone.
 	}
 }
 
@@ -179,6 +199,7 @@ export function startRuntime(
 	config: RuntimeConfig,
 ): Result<Runtime, StartError> {
 	const { endpoint, version, idleTtlMs } = config;
+	const claimCheckMs = config.claimCheckMs ?? CLAIM_CHECK_MS;
 	const pid = process.pid;
 	const startedAt = Date.now();
 	const isPipe = process.platform === "win32";
@@ -195,6 +216,7 @@ export function startRuntime(
 	const conns = new Set<Socket<Conn>>();
 	let listener: UnixSocketListener<Conn> | null = null;
 	let graceTimer: ReturnType<typeof setTimeout> | undefined;
+	let claimTimer: ReturnType<typeof setInterval> | undefined;
 
 	const finalize = (): void => {
 		clearTimeout(graceTimer);
@@ -214,12 +236,21 @@ export function startRuntime(
 		}
 		stopping = reason;
 		idle.cancel();
+		clearInterval(claimTimer);
 		listener?.stop(false);
 		// A runtime displaced from its claim must not unlink the socket path,
-		// which now belongs to the runtime that holds the pid file. (On Linux,
-		// Bun unlinks the path itself when the listener stops.)
-		if (!isPipe && holdsPidFile(endpoint, pid)) {
+		// which now belongs to the runtime that holds the pid file. With no
+		// pid file at all the path is nobody else's. (On Linux, Bun unlinks
+		// the path itself when the listener stops.)
+		const unclaimed = !existsSync(endpoint.pidFile);
+		if (!isPipe && (unclaimed || holdsPidFile(endpoint, pid))) {
 			rmSync(endpoint.address, { force: true });
+			// A socket too deep for its runtime dir lives in a private dir
+			// under tmp; once the runtime dir is gone, nothing else removes it.
+			const socketDir = dirname(endpoint.address);
+			if (unclaimed && socketDir !== dirname(endpoint.pidFile)) {
+				removeEmptyDir(socketDir);
+			}
 		}
 		releasePidFile(endpoint, pid);
 		if (now || conns.size === 0) finalize();
@@ -354,6 +385,13 @@ export function startRuntime(
 			},
 		});
 		if (!isPipe) chmodSync(endpoint.address, 0o600);
+		// A runtime that lost its pid file stops: nothing can find it any
+		// more, and a host plugin's uninstall removed it on purpose. A pid
+		// file it cannot read for a moment is not a loss.
+		claimTimer = setInterval(() => {
+			if (lostPidFile(endpoint, pid)) beginStop("orphaned", true);
+		}, claimCheckMs);
+		claimTimer.unref();
 	} catch (err) {
 		// `chmodSync` can fail after the listener is up: take it down too.
 		idle.cancel();

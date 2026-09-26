@@ -22,6 +22,11 @@ Each host folder has:
 | `codex` | <https://developers.openai.com/plugins/build/plugins>, <https://developers.openai.com/codex/hooks>; the Agent Plugins schemas are copied unchanged |
 | `agent-plugins` | <https://agent-plugins.org/specification>; both schemas are copied unchanged |
 
+`claude/schemas/marketplace.schema.json` pins the Claude Code marketplace
+listing (<https://code.claude.com/docs/en/plugin-marketplaces>) that the
+generator writes to `.claude-plugin/marketplace.json` at the repo root;
+`../__tests__/marketplace.test.ts` checks it.
+
 Manifest schemas are strict (`additionalProperties: false`), so the
 generator cannot emit a key that a host ignores or warns about.
 

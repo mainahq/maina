@@ -18,7 +18,7 @@
  * `E2E_INSTALL_PATH` and `E2E_ENV` narrow the matrix for CI cells.
  */
 
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import {
 	chmodSync,
 	mkdtempSync,
@@ -45,6 +45,7 @@ import {
 	runCase,
 	seedsFor,
 } from "../matrix";
+import { stopPluginRelease } from "../plugin-release";
 
 // ── minimalEnv ─────────────────────────────────────────────────────────────
 
@@ -191,6 +192,49 @@ describe("resolveLaunch", () => {
 		expect(r.value.command).toBe("/bin/maina");
 		expect(r.value.args).toEqual(["--mcp"]);
 		expect(r.value.env).toEqual({ FOO: "1" });
+	});
+
+	// Claude Code's plugin install (#341): what `claude plugin install
+	// maina@maina` records, and the installed copy's own `.mcp.json`.
+	const root = "/h/.claude/plugins/cache/maina/maina/1.2.3";
+	const pluginFiles = (enabled: boolean) => ({
+		"/h/.claude/settings.json": JSON.stringify({
+			permissions: { allow: [] },
+			enabledPlugins: { "maina@maina": enabled },
+		}),
+		"/h/.claude/plugins/installed_plugins.json": JSON.stringify({
+			version: 2,
+			plugins: {
+				"maina@maina": [{ scope: "user", installPath: root, version: "1.2.3" }],
+			},
+		}),
+		[`${root}/.mcp.json`]: JSON.stringify({
+			mcpServers: {
+				maina: {
+					command: `\${CLAUDE_PLUGIN_ROOT}/launcher/launch.sh`,
+					args: ["mcp"],
+				},
+			},
+		}),
+	});
+
+	test("claude-code starts an enabled plugin's server, with the plugin variables it exports", () => {
+		const r = resolveLaunch("claude-code", ctx, files(pluginFiles(true)));
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		expect(r.value.command).toBe(`${root}/launcher/launch.sh`);
+		expect(r.value.args).toEqual(["mcp"]);
+		expect(r.value.source).toBe(`${root}/.mcp.json`);
+		expect(r.value.env).toEqual({
+			CLAUDE_PLUGIN_ROOT: root,
+			CLAUDE_PLUGIN_DATA: "/h/.claude/plugins/data/maina-maina",
+		});
+	});
+
+	test("claude-code never starts a disabled plugin's server", () => {
+		const r = resolveLaunch("claude-code", ctx, files(pluginFiles(false)));
+		expect(r.ok).toBe(false);
+		if (!r.ok) expect(r.error.kind).toBe("config-not-found");
 	});
 
 	test("malformed config is reported, not skipped", () => {
@@ -511,6 +555,20 @@ describe("KNOWN_FAILURES", () => {
 		}
 	});
 
+	test("claude-code × plugin no longer waits on #341 (marketplace + plugin)", () => {
+		// `/plugin marketplace add mainahq/maina` + `/plugin install
+		// maina@maina` installs the generated package; its first session
+		// onboards and its MCP server verifies.
+		for (const k of KNOWN_FAILURES) {
+			expect(Object.values(k.fixes)).not.toContain(341);
+		}
+		for (const env of ENV_MODES) {
+			expect(
+				expectedFailure({ host: "claude-code", installPath: "plugin", env }),
+			).toBeUndefined();
+		}
+	});
+
 	test("only latency-bound (P4-only) entries may pass", () => {
 		for (const k of KNOWN_FAILURES.filter((k) => k.mayPass === true)) {
 			expect(problemsOf(k)).toEqual(["P4"]);
@@ -601,6 +659,8 @@ const pick = <T extends string>(all: readonly T[], filter?: string) =>
 	filter ? all.filter((x) => filter.split(",").includes(x)) : all;
 
 describe.skipIf(!osResult.ok)("real-config matrix", () => {
+	// The plugin cells install from one locally staged release.
+	afterAll(stopPluginRelease);
 	const os = osResult.ok ? osResult.value : "linux";
 	for (const host of pick(HOSTS, process.env.E2E_HOST)) {
 		for (const installPath of pick(
