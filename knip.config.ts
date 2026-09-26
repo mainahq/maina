@@ -157,13 +157,20 @@ const config: KnipConfig = {
 		},
 		"packages/docs": {
 			// Starlight loads `customCss` by path, which knip cannot follow.
-			entry: ["scripts/*.ts!", "src/styles/global.css!", TESTS],
-			project: ["src/**!", "scripts/**/*.ts!"],
+			entry: ["src/styles/global.css!", TESTS],
+			project: ["src/**!"],
 		},
 	},
 	// Tailwind v4 is wired through CSS `@import`s, which knip does not parse
 	// natively; surface them as imports so the packages count as used.
 	compilers: {
+		// Astro imports sit in the frontmatter and in bundled `<script>`
+		// blocks; knip's default only reads the frontmatter, so page scripts
+		// (src/scripts/home, #360) would look unused.
+		astro: (text: string) =>
+			[...text.matchAll(/^\s*import\s(?:[^'";]*?\sfrom\s+)?['"][^'"\n]+['"]/gm)]
+				.map(([m]) => m.trim().replace(/\s+/g, " "))
+				.join("\n"),
 		css: (text: string) =>
 			[...text.matchAll(/(?<=@)import[^;]+/g)].map(([m]) => m).join("\n"),
 		// MDX imports are ESM lines at column 0 outside code fences. Astro's

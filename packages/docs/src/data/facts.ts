@@ -121,6 +121,11 @@ export const facts = {
 		],
 	},
 	hosts: ["Claude Code", "Codex", "Cursor"],
+	plugin: {
+		name: "maina",
+		marketplace: "maina",
+		repository: "mainahq/maina",
+	},
 	telemetry: {
 		channels: ["crash_reports", "usage", "outcome_sharing"],
 		onByDefault: [],

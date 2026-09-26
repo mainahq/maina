@@ -182,7 +182,9 @@ export function detectHallucinatedImports(
 		// Skip placeholder/ellipsis imports (e.g. "..." in dynamic import docs)
 		if (/^\.{2,}$/.test(importPath)) continue;
 
-		const resolvedBase = resolve(fileDir, importPath);
+		// A bundler query or hash (`./x.json?url`, `?raw`, `#x`) names the
+		// same file (#554).
+		const resolvedBase = resolve(fileDir, importPath.replace(/[?#].*$/, ""));
 
 		// Check common extensions and index files
 		const paths = [

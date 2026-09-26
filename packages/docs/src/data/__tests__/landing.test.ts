@@ -1,172 +1,204 @@
 /**
- * Landing-data invariants.
+ * Landing-data invariants (#360, FR-DOC-1, FR-DOC-7).
  *
- * Static tests over `landing.ts` and `terminal-script.ts`. These catch
- * the "copy drift" class of bugs: a locked-spec string deleted by
- * accident, a terminal frame out of time order, an install constant
- * that stops being the single source of truth.
- *
- * For rendered-HTML assertions (every locked phrase appears on /) see
- * the build step in CI — this file is the fast bun:test tier.
+ * `landing.ts` holds every string on `/`. The snapshot pins the copy so a
+ * change to it is a reviewed change; the other tests pin where the facts in
+ * it come from: hosts, licence, telemetry wording and install commands from
+ * the generated `facts.ts`, verdicts and proofs from the generated
+ * `landing-proofs.json` (the real rules engine, the real spec analyzer and
+ * the real receipts of this repo).
  */
 
 import { describe, expect, it } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { facts } from "../facts";
 import {
-	COMPARISON,
-	ENGINES,
+	AGENTS,
 	FAQ,
-	FINAL_CTA,
 	FOOTER,
+	GATE,
 	HERO,
+	HOME_FOOTER,
+	HOME_NAV,
 	INSTALL_COMMAND,
-	INSTALL_PROMPT,
+	LANDING,
 	META,
-	NAV,
-	PAIN_STRIP,
-	PROOF_STRIP,
-	STACK_FIT,
-	TERMINAL_SECTION,
+	PROOFS,
+	SECTION_IDS,
+	WAITLIST,
 } from "../landing";
-import { fullFrames, heroFrames } from "../terminal-script";
+import type { LandingProofs } from "../landing-proofs";
+import proofsJson from "../landing-proofs.json";
 
-describe("landing copy invariants", () => {
-	it("every install-line reads the shared INSTALL_COMMAND constant", () => {
-		expect(HERO.installCommand).toBe(INSTALL_COMMAND);
-		expect(TERMINAL_SECTION.installCommand).toBe(INSTALL_COMMAND);
-		expect(FINAL_CTA.installCommand).toBe(INSTALL_COMMAND);
+const proofs = proofsJson as unknown as LandingProofs;
+const REPO_ROOT = join(import.meta.dir, "..", "..", "..", "..", "..");
+
+describe("landing copy", () => {
+	it("matches the reviewed snapshot", () => {
+		expect(LANDING).toMatchSnapshot();
 	});
 
-	it("INSTALL_PROMPT wraps INSTALL_COMMAND with the shell prompt", () => {
-		expect(INSTALL_PROMPT).toBe(`$ ${INSTALL_COMMAND}`);
-	});
-
-	it("terminal frames use INSTALL_PROMPT (not a hardcoded string)", () => {
-		// Any `input` frame that runs the install command must reach it via
-		// the shared constant — no literal install lines baked into
-		// terminal-script.ts frames. Guards against both the canonical
-		// `curl … | bash` and the legacy `bunx` form in case the constant
-		// flips again in future.
-		const literals = [
-			"curl -fsSL https://api.mainahq.com/install | bash",
-			"bunx @mainahq/cli@latest setup",
-		];
-		const allFrames = [...heroFrames, ...fullFrames];
-		for (const f of allFrames) {
-			if (f.kind !== "input") continue;
-			for (const literal of literals) {
-				if (f.text.includes(literal)) {
-					expect(f.text).toBe(INSTALL_PROMPT);
-				}
-			}
-		}
-	});
-
-	it("meta title matches the verbatim spec headline (anchors the whole page tone)", () => {
-		expect(META.title).toStartWith("Maina — ");
-		expect(META.title).toContain("wrong context");
-	});
-
-	it("hero retains the eyebrow/headline/sub from spec §2", () => {
-		expect(HERO.eyebrow.startsWith("// ")).toBe(true);
-		expect(HERO.headlineLine1).toBe("Your AI is guessing.");
-		expect(HERO.headlineLine2).toContain("the context it was missing");
-		expect(HERO.sub).toContain("4-layer context engine");
-		expect(HERO.affordances.length).toBe(3);
-	});
-
-	it("pain strip has exactly three cards and the cap line", () => {
-		expect(PAIN_STRIP.cards.length).toBe(3);
-		expect(PAIN_STRIP.cap).toContain("stop");
-	});
-
-	it("engines has three cards with at least one proof link each", () => {
-		expect(ENGINES.cards.length).toBe(3);
-		for (const c of ENGINES.cards) {
-			expect(c.proofLinks.length).toBeGreaterThanOrEqual(1);
-		}
-	});
-
-	it("proof strip has the five canonical receipts", () => {
-		expect(PROOF_STRIP.stats.length).toBe(5);
-		const values = PROOF_STRIP.stats.map((s) => s.value);
-		expect(values).toContain("250+");
-		expect(values).toContain("1,167+");
-		expect(values).toContain("19");
-		expect(values).toContain("41%");
-		expect(values).toContain("0");
-	});
-
-	it("stack fit lists eleven alphabetised tools plus the any-MCP-client plus-tile", () => {
-		expect(STACK_FIT.tools.length).toBe(11);
-		const names = STACK_FIT.tools.map((t) => t.name);
-		const sorted = [...names].sort();
-		expect(names).toEqual(sorted);
-	});
-
-	it("comparison has five columns and every row supplies a cell for each", () => {
-		expect(COMPARISON.columns.length).toBe(5);
-		for (const row of COMPARISON.rows) {
-			expect(row.cells.length).toBe(COMPARISON.columns.length);
-		}
-	});
-
-	it("faq ships the five canonical questions", () => {
-		expect(FAQ.items.length).toBe(5);
-		expect(FAQ.items.some((i) => i.q.includes("phone home"))).toBe(true);
-	});
-
-	it("nav carries Docs, Commands, Wiki, Cloud, GitHub (in order)", () => {
-		const labels = NAV.links.map((l) => l.label);
-		expect(labels).toEqual(["Docs", "Commands", "Wiki", "Cloud", "GitHub"]);
-	});
-
-	it("footer is trimmed — four or fewer links", () => {
-		expect(FOOTER.links.length).toBeLessThanOrEqual(4);
-	});
-
-	it("final cta omits Discord until the sign-off lands", () => {
-		const hasDiscord = FINAL_CTA.secondaryLinks.some((l) =>
-			l.href.includes("discord"),
+	it("leads with the canonical headline", () => {
+		const { before, em, after } = HERO.headline;
+		expect(`${before}${em}${after}`).toBe(
+			"Decides in milliseconds what your coding agents may do.",
 		);
-		expect(hasDiscord).toBe(false);
+		expect(META.title).toBe(
+			"Maina: guardrails for Claude Code, Codex and Cursor",
+		);
+	});
+
+	it("names the hosts facts.ts names, in its order", () => {
+		expect(HERO.hosts).toEqual(facts.hosts);
+	});
+
+	it("takes the licence and the telemetry wording from facts.ts", () => {
+		expect(HOME_FOOTER.licence).toContain(facts.licence);
+		const privacy = FAQ.items.find((i) => i.q.includes("leave my machine"));
+		expect(privacy?.a).toContain(facts.telemetry.summary);
+	});
+
+	// The header's promise, "facts are never typed in": the host list and
+	// the telemetry claim are joined from facts.ts, so adding a host or
+	// turning a channel on changes every line that states them.
+	it("never types the host list or the telemetry default in by hand", () => {
+		const typedIn = readFileSync(
+			join(import.meta.dir, "..", "landing.ts"),
+			"utf8",
+		)
+			.split("\n")
+			.filter((line) => /Claude Code, Codex|off by default/i.test(line));
+		expect(typedIn).toEqual([]);
+		const hosts = facts.hosts.slice(0, 2).join(", ");
+		expect(META.title).toContain(hosts);
+		expect(WAITLIST.messages.idle).toContain(hosts);
+		expect(HERO.trust.local).toContain(
+			facts.telemetry.onByDefault.length === 0
+				? "Telemetry is off by default."
+				: facts.telemetry.summary,
+		);
+	});
+
+	it("keeps the CLI install command for the /cloud cross-pitch", () => {
+		expect(INSTALL_COMMAND).toBe(
+			"curl -fsSL https://api.mainahq.com/install | bash",
+		);
+		expect(FOOTER.links.length).toBeGreaterThan(0);
 	});
 });
 
-describe("terminal script invariants", () => {
-	it("hero frames are monotonic in time (non-decreasing)", () => {
-		for (let i = 1; i < heroFrames.length; i++) {
-			const prev = heroFrames[i - 1];
-			const curr = heroFrames[i];
-			if (!prev || !curr) continue;
-			expect(curr.t).toBeGreaterThanOrEqual(prev.t);
+describe("install strip", () => {
+	it("builds the Claude Code commands from the generated plugin names", () => {
+		const claude = AGENTS.tabs.find((t) => t.id === "claude");
+		expect(claude?.commands).toEqual([
+			`/plugin marketplace add ${facts.plugin.repository}`,
+			`/plugin install ${facts.plugin.name}@${facts.plugin.marketplace}`,
+		]);
+	});
+
+	it("has one tab per host plus the ACP editors, each with steps", () => {
+		const ids = AGENTS.tabs.map((t) => t.id);
+		expect(ids).toEqual(["claude", "cursor", "codex", "acp"]);
+		expect(AGENTS.tabs.slice(0, 3).map((t) => t.host)).toEqual([
+			...facts.hosts.filter((h) => h === "Claude Code"),
+			...facts.hosts.filter((h) => h === "Cursor"),
+			...facts.hosts.filter((h) => h === "Codex"),
+		]);
+		for (const tab of AGENTS.tabs) {
+			expect(tab.steps.length).toBeGreaterThan(0);
 		}
 	});
 
-	it("full frames are monotonic in time and every frame has a chapter marker", () => {
-		for (let i = 1; i < fullFrames.length; i++) {
-			const prev = fullFrames[i - 1];
-			const curr = fullFrames[i];
-			if (!prev || !curr) continue;
-			expect(curr.t).toBeGreaterThanOrEqual(prev.t);
+	it("uses only maina commands that exist", () => {
+		const acp = AGENTS.tabs.find((t) => t.id === "acp");
+		for (const cmd of acp?.commands ?? []) {
+			const sub = cmd.split(" ")[1] ?? "";
+			expect(facts.commands.names as readonly string[]).toContain(sub);
 		}
-		// Membership check — a typo like "verfiy" in one frame's chapter
-		// would previously have passed `toBeDefined`.
-		const validChapters = new Set(TERMINAL_SECTION.chapters.map((c) => c.id));
-		for (const f of fullFrames) {
-			expect(f.chapter).toBeDefined();
-			expect(validChapters.has(f.chapter as string)).toBe(true);
+	});
+});
+
+describe("waitlist", () => {
+	it("posts to the maina-cloud Worker with its closed role and team-size sets", () => {
+		expect(WAITLIST.endpoint).toBe("https://api.mainahq.com/api/waitlist");
+		expect(WAITLIST.roles.map((r) => r.value)).toEqual([
+			"eng_lead",
+			"ic_dev",
+			"cto",
+			"vp_eng",
+			"founder",
+			"other",
+		]);
+		expect(WAITLIST.teamSizes.map((t) => t.value)).toEqual([
+			"1-5",
+			"6-20",
+			"21-50",
+			"51-200",
+			"200+",
+		]);
+		expect(WAITLIST.source).toBe("landing-v1");
+	});
+});
+
+describe("try the gate", () => {
+	it("has a real engine result for every preset", () => {
+		for (const preset of GATE.presets) {
+			const row = proofs.gate.presets[preset.id];
+			expect(row, preset.id).toBeDefined();
+			expect(row?.label).toBe(preset.label);
 		}
 	});
 
-	it("hero script stays under 55 seconds so the 3-second loop pause fits", () => {
-		const last = heroFrames[heroFrames.length - 1]?.t ?? 0;
-		expect(last).toBeLessThan(55);
+	it("shows allow, ask and deny among the presets", () => {
+		const verdicts = new Set(
+			GATE.presets.map((p) => proofs.gate.presets[p.id]?.verdict),
+		);
+		expect([...verdicts].sort()).toEqual(["allow", "ask", "deny"]);
 	});
 
-	it("full-width script covers every chapter declared in TERMINAL_SECTION", () => {
-		const chapters = new Set(fullFrames.map((f) => f.chapter));
-		for (const c of TERMINAL_SECTION.chapters) {
-			expect(chapters.has(c.id)).toBe(true);
+	it("prints real corpus rows on the ledger", () => {
+		expect(proofs.gate.ledger.length).toBe(GATE.ledger.fixtures.length);
+		expect(proofs.gate.ledger.map((r) => r.id)).toEqual([
+			...GATE.ledger.fixtures,
+		]);
+	});
+});
+
+describe("proofs", () => {
+	it("are three, each backed by a real receipt from this repo", () => {
+		expect(PROOFS.items.map((p) => p.kind)).toEqual([
+			"blocked",
+			"spec",
+			"receipt",
+		]);
+		expect(proofs.proofs.blocked.verdict).toBe("deny");
+		expect(existsSync(join(REPO_ROOT, proofs.proofs.blocked.source))).toBe(
+			true,
+		);
+		expect(existsSync(join(REPO_ROOT, proofs.proofs.spec.feature))).toBe(true);
+		expect(
+			existsSync(
+				join(REPO_ROOT, ".maina/receipts", proofs.proofs.receipt.hash),
+			),
+		).toBe(true);
+	});
+
+	it("claims no routing savings: there is no routing data yet", () => {
+		const kinds: readonly string[] = PROOFS.items.map((p) => p.kind);
+		expect(kinds).not.toContain("routing");
+		expect(JSON.stringify(LANDING)).not.toMatch(/saved \$\d/i);
+	});
+});
+
+describe("navigation", () => {
+	it("points every in-page link at a section that exists", () => {
+		const anchors = HOME_NAV.links
+			.map((l) => l.href)
+			.filter((h) => h.startsWith("#"))
+			.map((h) => h.slice(1));
+		for (const a of anchors) {
+			expect(SECTION_IDS as readonly string[]).toContain(a);
 		}
 	});
 });
