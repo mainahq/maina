@@ -18,6 +18,7 @@
  * the service's workspace and refuses the action gate.
  */
 
+import { resolve } from "node:path";
 import { VERSION } from "@mainahq/core";
 import { createMcpServer, type McpRuntime, type ToolName } from "@mainahq/mcp";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
@@ -227,7 +228,8 @@ function parseIssuer(raw: string): URL | null {
 /**
  * The service configuration from the environment: `PORT` (8787),
  * `MAINA_REMOTE_ISSUER` (the public origin; https unless loopback, no
- * path), `MAINA_REMOTE_WORKSPACE` (`cwd`), `MAINA_REMOTE_OWNER` (`owner`)
+ * path), `MAINA_REMOTE_WORKSPACE` (`cwd`; a relative one resolves against
+ * it), `MAINA_REMOTE_OWNER` (`owner`, no colon)
  * and `MAINA_REMOTE_PASSWORD` (required), `MAINA_MCP_TOOLS` (allow-list).
  */
 export function readRemoteConfig(
@@ -263,6 +265,11 @@ export function readRemoteConfig(
 			"must use https (http only on loopback)",
 		);
 	}
+	const username = env.MAINA_REMOTE_OWNER?.trim() || "owner";
+	if (username.includes(":")) {
+		// HTTP Basic splits at the first colon: this owner could never sign in.
+		return configError("MAINA_REMOTE_OWNER", "must not contain a colon");
+	}
 	const password = env.MAINA_REMOTE_PASSWORD ?? "";
 	if (password.length < MIN_PASSWORD) {
 		return configError(
@@ -276,8 +283,9 @@ export function readRemoteConfig(
 		value: {
 			issuer: issuer.origin,
 			port,
-			root: env.MAINA_REMOTE_WORKSPACE?.trim() || cwd,
-			owner: { username: env.MAINA_REMOTE_OWNER?.trim() || "owner", password },
+			// Absolute: tools compare and resolve paths against the pinned root.
+			root: resolve(cwd, env.MAINA_REMOTE_WORKSPACE?.trim() || "."),
+			owner: { username, password },
 			tools: tools
 				? tools
 						.split(",")

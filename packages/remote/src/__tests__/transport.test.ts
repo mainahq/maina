@@ -23,13 +23,13 @@ import {
 } from "../server";
 import { GATE_DECISION_TYPES, REMOTE_TOOLS, remoteTools } from "../tools";
 import {
+	approve,
 	type Clock,
 	clock,
 	type Handle,
 	ISSUER,
 	issueToken,
 	OWNER,
-	ownerAuth,
 	REDIRECT,
 	RESOURCE,
 } from "./helpers";
@@ -98,7 +98,11 @@ afterEach(async () => {
 });
 
 function setup(
-	options: Readonly<{ tools?: readonly string[]; idleSeconds?: number }> = {},
+	options: Readonly<{
+		tools?: readonly string[];
+		idleSeconds?: number;
+		maxSessions?: number;
+	}> = {},
 ): {
 	service: RemoteService;
 	handle: Handle;
@@ -119,6 +123,9 @@ function setup(
 		...(options.tools !== undefined ? { tools: options.tools } : {}),
 		...(options.idleSeconds !== undefined
 			? { sessionIdleSeconds: options.idleSeconds }
+			: {}),
+		...(options.maxSessions !== undefined
+			? { maxSessions: options.maxSessions }
 			: {}),
 	});
 	open.push(service);
@@ -274,7 +281,7 @@ function memoryProvider(): OAuthClientProvider & {
 
 describe("the MCP handshake over Streamable HTTP with OAuth", () => {
 	test("the SDK client discovers, registers, authorizes and lists the remote tools", async () => {
-		const { fetchFn } = setup();
+		const { fetchFn, handle } = setup();
 		const provider = memoryProvider();
 		const first = new StreamableHTTPClientTransport(new URL(RESOURCE), {
 			authProvider: provider,
@@ -290,10 +297,9 @@ describe("the MCP handshake over Streamable HTTP with OAuth", () => {
 		expect(pending?.searchParams.get("code_challenge_method")).toBe("S256");
 		expect(pending?.searchParams.get("resource")).toBe(RESOURCE);
 
-		// The resource owner approves; the host receives the code.
-		const approved = await fetchFn(pending?.toString() ?? "", {
-			headers: { authorization: ownerAuth },
-		});
+		// The resource owner signs in and approves on the consent page; the
+		// host receives the code.
+		const approved = await approve(handle, pending?.toString() ?? "");
 		const code = new URL(
 			approved.headers.get("location") ?? "",
 		).searchParams.get("code");
@@ -447,6 +453,29 @@ describe("sessions", () => {
 		expect(service.sessionCount()).toBe(0);
 	});
 
+	test("the number of open sessions is capped", async () => {
+		const { handle, service } = setup({ maxSessions: 1 });
+		const token = await issueToken(handle);
+		const auth = { authorization: `Bearer ${token.access_token}` };
+		expect((await mcpPost(handle, INIT, auth)).status).toBe(200);
+		const over = await mcpPost(handle, INIT, auth);
+		expect(over.status).toBe(503);
+		expect(service.sessionCount()).toBe(1);
+	});
+
+	test("concurrent initializes cannot open more sessions than the cap", async () => {
+		const { handle, service } = setup({ maxSessions: 2 });
+		const token = await issueToken(handle);
+		const auth = { authorization: `Bearer ${token.access_token}` };
+		const results = await Promise.all(
+			Array.from({ length: 6 }, () => mcpPost(handle, INIT, auth)),
+		);
+		const statuses = results.map((r) => r.status);
+		expect(statuses.filter((s) => s === 200)).toHaveLength(2);
+		expect(statuses.filter((s) => s === 503)).toHaveLength(4);
+		expect(service.sessionCount()).toBe(2);
+	});
+
 	test("DELETE ends the session", async () => {
 		const { handle, fetchFn, service } = setup();
 		const token = await issueToken(handle);
@@ -496,7 +525,17 @@ describe("readRemoteConfig", () => {
 		});
 	});
 
+	test("resolves a relative workspace against the working directory", () => {
+		const config = readRemoteConfig(
+			{ ...env, MAINA_REMOTE_WORKSPACE: "repos/app/" },
+			"/cwd",
+		);
+		expect(config.ok && config.value.root).toBe("/cwd/repos/app");
+	});
+
 	test.each([
+		// HTTP Basic splits at the first colon: this owner could never sign in.
+		["an owner name with a colon", { ...env, MAINA_REMOTE_OWNER: "ops:admin" }],
 		["no owner password", { ...env, MAINA_REMOTE_PASSWORD: "" }],
 		["a short owner password", { ...env, MAINA_REMOTE_PASSWORD: "short" }],
 		["a non-numeric port", { ...env, PORT: "http" }],

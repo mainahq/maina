@@ -17,7 +17,9 @@
  *   issued from the same authorization.
  *
  * Who the resource owner is comes from the injected `authenticate` port
- * (`basicAuthenticator` for a self-hosted single owner). State is kept in
+ * (`basicAuthenticator` for a self-hosted single owner). Signing in is not
+ * consent: the owner approves every authorization request on a consent
+ * page whose one-time token only this origin can read. State is kept in
  * memory and only token hashes are stored. Nothing here throws: every
  * failure is an OAuth error response.
  */
@@ -48,6 +50,8 @@ type AuthOptions = Readonly<{
 	accessTokenTtlSeconds?: number;
 	refreshTokenTtlSeconds?: number;
 	codeTtlSeconds?: number;
+	/** How long the owner has to answer the consent page; 10 minutes. */
+	consentTtlSeconds?: number;
 }>;
 
 /** What a valid access token stands for. */
@@ -75,6 +79,8 @@ type AuthMethod = "none" | "client_secret_post" | "client_secret_basic";
 
 type Client = Readonly<{
 	id: string;
+	/** The self-declared `client_name`, shown (escaped) on the consent page. */
+	name: string | undefined;
 	secretHash: string | undefined;
 	authMethod: AuthMethod;
 	redirectUris: readonly string[];
@@ -91,6 +97,17 @@ type Code = Readonly<{
 	family: string;
 	expiresAt: number;
 	used: boolean;
+}>;
+
+/** A validated authorization request waiting for the owner's answer. */
+type Consent = Readonly<{
+	clientId: string;
+	redirectUri: string;
+	challenge: string;
+	scopes: readonly string[];
+	subject: string;
+	state: string | null;
+	expiresAt: number;
 }>;
 
 type Access = Readonly<{ grant: Grant; family: string }>;
@@ -240,8 +257,62 @@ export function basicAuthenticator(
 	};
 }
 
+const HTML_ESCAPES: Readonly<Record<string, string>> = {
+	"&": "&amp;",
+	"<": "&lt;",
+	">": "&gt;",
+	'"': "&quot;",
+	"'": "&#39;",
+};
+const escapeHtml = (value: string): string =>
+	value.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c] ?? c);
+
+/**
+ * The consent page: names the client, where the code goes and what it may
+ * do, and posts the owner's answer with the one-time `consent` token. It
+ * cannot be framed, runs no script and is never cached.
+ */
+function consentPage(
+	action: string,
+	client: Client,
+	consent: Consent,
+	token: string,
+): Response {
+	const name = escapeHtml(client.name ?? "An unnamed client");
+	const body = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Authorize ${name}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body><main>
+<h1>Authorize ${name}?</h1>
+<p>It will be able to use the maina tools on this server's workspace as you.</p>
+<dl>
+<dt>Client ID</dt><dd><code>${escapeHtml(client.id)}</code></dd>
+<dt>Redirects to</dt><dd><code>${escapeHtml(consent.redirectUri)}</code></dd>
+<dt>Scopes</dt><dd><code>${escapeHtml(consent.scopes.join(" "))}</code></dd>
+</dl>
+<p>Only approve a client you just connected yourself.</p>
+<form method="post" action="${escapeHtml(action)}">
+<input type="hidden" name="consent" value="${escapeHtml(token)}">
+<button type="submit" name="decision" value="approve">Approve</button>
+<button type="submit" name="decision" value="deny">Deny</button>
+</form>
+</main></body></html>`;
+	return new Response(body, {
+		status: 200,
+		headers: {
+			"content-type": "text/html; charset=utf-8",
+			"x-frame-options": "DENY",
+			"content-security-policy":
+				"default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+			"referrer-policy": "no-referrer",
+			"x-content-type-options": "nosniff",
+			...NO_STORE,
+		},
+	});
+}
+
 type Registration = Result<
-	Readonly<{ client: Client; secret: string | undefined; name?: string }>,
+	Readonly<{ client: Client; secret: string | undefined }>,
 	Response
 >;
 
@@ -310,15 +381,14 @@ function readRegistration(
 		value: {
 			client: {
 				id: randomBytes(16).toString("hex"),
+				name:
+					typeof meta.client_name === "string" ? meta.client_name : undefined,
 				secretHash: secret === undefined ? undefined : hashOf(secret),
 				authMethod: method as AuthMethod,
 				redirectUris: uris,
 				scopes,
 			},
 			secret,
-			...(typeof meta.client_name === "string"
-				? { name: meta.client_name }
-				: {}),
 		},
 	};
 }
@@ -335,8 +405,11 @@ export function createAuthServer(options: AuthOptions): AuthServer {
 	const accessTtlMs = (options.accessTokenTtlSeconds ?? 3600) * 1000;
 	const refreshTtlMs = (options.refreshTokenTtlSeconds ?? 30 * 86_400) * 1000;
 	const codeTtlMs = (options.codeTtlSeconds ?? 60) * 1000;
+	const consentTtlMs = (options.consentTtlSeconds ?? 600) * 1000;
 
 	const clients = new Map<string, Client>();
+	/** Authorization requests awaiting the owner's answer: token hash → request. */
+	const consents = new Map<string, Consent>();
 	const codes = new Map<string, Code>();
 	const access = new Map<string, Access>();
 	const refresh = new Map<string, Refresh>();
@@ -349,6 +422,7 @@ export function createAuthServer(options: AuthOptions): AuthServer {
 	/** Drop everything that has expired. */
 	function sweep(): void {
 		const t = now();
+		for (const [k, v] of consents) if (v.expiresAt <= t) consents.delete(k);
 		for (const [k, v] of codes) if (v.expiresAt <= t) codes.delete(k);
 		for (const [k, v] of access) if (v.grant.expiresAt <= t) access.delete(k);
 		for (const [k, v] of refresh) if (v.expiresAt <= t) refresh.delete(k);
@@ -389,7 +463,7 @@ export function createAuthServer(options: AuthOptions): AuthServer {
 		const body: unknown = await req.json().catch(() => undefined);
 		const parsed = readRegistration(body, supported);
 		if (!parsed.ok) return parsed.error;
-		const { client, secret, name } = parsed.value;
+		const { client, secret } = parsed.value;
 		clients.set(client.id, client);
 		return json(
 			{
@@ -402,7 +476,7 @@ export function createAuthServer(options: AuthOptions): AuthServer {
 				token_endpoint_auth_method: client.authMethod,
 				grant_types: [...GRANT_TYPES],
 				response_types: ["code"],
-				...(name !== undefined ? { client_name: name } : {}),
+				...(client.name !== undefined ? { client_name: client.name } : {}),
 				...(client.scopes !== undefined
 					? { scope: client.scopes.join(" ") }
 					: {}),
@@ -479,18 +553,66 @@ export function createAuthServer(options: AuthOptions): AuthServer {
 		}
 		const owner = await options.authenticate(req);
 		if (!owner.ok) return owner.error;
-		const code = newToken();
-		codes.set(hashOf(code), {
+		// Signing in is not consent: a browser replays cached credentials on
+		// any cross-site navigation, so the owner approves each request on a
+		// page only this origin can read the consent token from.
+		const token = newToken();
+		const consent: Consent = {
 			clientId: client.id,
 			redirectUri,
 			challenge,
 			scopes: ordered(scopes),
 			subject: owner.value,
+			state,
+			expiresAt: now() + consentTtlMs,
+		};
+		consents.set(hashOf(token), consent);
+		return consentPage(`${issuer}/authorize`, client, consent, token);
+	}
+
+	/** The owner's answer on the consent page: a code, or `access_denied`. */
+	async function consentAnswer(req: Request): Promise<Response> {
+		sweep();
+		const form = new URLSearchParams(await req.text().catch(() => ""));
+		const key = hashOf(form.get("consent") ?? "");
+		const consent = consents.get(key);
+		const client =
+			consent === undefined ? undefined : clients.get(consent.clientId);
+		if (consent === undefined || client === undefined) {
+			return oauthError(
+				"invalid_request",
+				"the authorization request is unknown or expired; start again",
+			);
+		}
+		const owner = await options.authenticate(req);
+		if (!owner.ok) return owner.error;
+		if (owner.value !== consent.subject) {
+			return oauthError(
+				"access_denied",
+				"another owner started this request",
+				403,
+			);
+		}
+		consents.delete(key);
+		if (form.get("decision") !== "approve") {
+			return redirectWith(consent.redirectUri, {
+				error: "access_denied",
+				error_description: "the resource owner denied the request",
+				state: consent.state,
+			});
+		}
+		const code = newToken();
+		codes.set(hashOf(code), {
+			clientId: client.id,
+			redirectUri: consent.redirectUri,
+			challenge: consent.challenge,
+			scopes: consent.scopes,
+			subject: consent.subject,
 			family: newToken(),
 			expiresAt: now() + codeTtlMs,
 			used: false,
 		});
-		return redirectWith(redirectUri, { code, state });
+		return redirectWith(consent.redirectUri, { code, state: consent.state });
 	}
 
 	function authenticateClient(
@@ -654,46 +776,47 @@ export function createAuthServer(options: AuthOptions): AuthServer {
 			: refreshGrant(client.value, params);
 	}
 
-	const routes: Readonly<
-		Record<
-			string,
-			Readonly<{
-				method: string;
-				run: (req: Request) => Promise<Response> | Response;
-			}>
-		>
-	> = {
-		"/.well-known/oauth-authorization-server": {
-			method: "GET",
-			run: () => json(asMetadata()),
-		},
-		"/.well-known/oauth-protected-resource": {
-			method: "GET",
-			run: () => json(resourceMetadata()),
-		},
-		[`/.well-known/oauth-protected-resource${MCP_PATH}`]: {
-			method: "GET",
-			run: () => json(resourceMetadata()),
-		},
-		"/register": { method: "POST", run: registerClient },
-		"/authorize": { method: "GET", run: authorizeRequest },
-		"/token": { method: "POST", run: tokenRequest },
-	};
+	type Run = (req: Request) => Promise<Response> | Response;
+	/** Path → method → handler. */
+	const routes: ReadonlyMap<string, ReadonlyMap<string, Run>> = new Map([
+		[
+			"/.well-known/oauth-authorization-server",
+			new Map([["GET", () => json(asMetadata())]]),
+		],
+		[
+			"/.well-known/oauth-protected-resource",
+			new Map([["GET", () => json(resourceMetadata())]]),
+		],
+		[
+			`/.well-known/oauth-protected-resource${MCP_PATH}`,
+			new Map([["GET", () => json(resourceMetadata())]]),
+		],
+		["/register", new Map([["POST", registerClient]])],
+		[
+			"/authorize",
+			new Map<string, Run>([
+				["GET", authorizeRequest],
+				["POST", consentAnswer],
+			]),
+		],
+		["/token", new Map([["POST", tokenRequest]])],
+	]);
 
 	return {
 		issuer,
 		resource,
 		resourceMetadataUrl,
 		handle: async (req) => {
-			const route = routes[new URL(req.url).pathname];
-			if (route === undefined) return null;
-			if (req.method !== route.method) {
+			const methods = routes.get(new URL(req.url).pathname);
+			if (methods === undefined) return null;
+			const run = methods.get(req.method);
+			if (run === undefined) {
 				return new Response(null, {
 					status: 405,
-					headers: { allow: route.method },
+					headers: { allow: [...methods.keys()].join(", ") },
 				});
 			}
-			return route.run(req);
+			return run(req);
 		},
 		verify: (token) => {
 			const key = hashOf(token);

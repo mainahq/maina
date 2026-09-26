@@ -15,7 +15,7 @@ follow in #354–#356.
 | `/.well-known/oauth-protected-resource[/mcp]` | Protected resource metadata (RFC 9728) |
 | `/.well-known/oauth-authorization-server` | Authorization server metadata (RFC 8414) |
 | `/register` | Dynamic client registration (RFC 7591) |
-| `/authorize` | Authorization code grant, S256 PKCE required |
+| `/authorize` | Authorization code grant, S256 PKCE required; the owner signs in and approves each client on a consent page |
 | `/token` | Code exchange and rotating refresh tokens |
 | `/mcp` | The MCP endpoint (bearer token with the `mcp:tools` scope) |
 | `/healthz` | Liveness |
@@ -37,8 +37,8 @@ bun packages/remote/src/main.ts
 |----------|---------|---------|
 | `PORT` | `8787` | Listen port |
 | `MAINA_REMOTE_ISSUER` | `http://localhost:$PORT` | Public origin (https unless loopback, no path) |
-| `MAINA_REMOTE_WORKSPACE` | current directory | Repository the tools act on |
-| `MAINA_REMOTE_OWNER` | `owner` | Username of the one owner who approves clients |
+| `MAINA_REMOTE_WORKSPACE` | current directory | Repository the tools act on (a relative path resolves against the current directory) |
+| `MAINA_REMOTE_OWNER` | `owner` | Username of the one owner who approves clients (no colon) |
 | `MAINA_REMOTE_PASSWORD` | required, 12+ chars | That owner's password (HTTP Basic on `/authorize`) |
 | `MAINA_MCP_TOOLS` | the remote default set | Tool allow-list, as for the local server |
 

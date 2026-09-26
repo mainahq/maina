@@ -53,6 +53,8 @@ const sameOwner = (a: SessionOwner, b: SessionOwner): boolean =>
 
 export function createSessions(options: SessionOptions): Sessions {
 	const sessions = new Map<string, Session>();
+	/** Initialize requests between the cap check and their session opening. */
+	let opening = 0;
 
 	async function end(id: string): Promise<void> {
 		const session = sessions.get(id);
@@ -83,21 +85,33 @@ export function createSessions(options: SessionOptions): Sessions {
 				"Bad Request: no valid session id; send initialize first",
 			);
 		}
-		if (sessions.size >= options.maxSessions) {
+		// Initializes still in flight count too, or concurrent ones would all
+		// pass the check before any of them registers its session.
+		if (sessions.size + opening >= options.maxSessions) {
 			return rpcError(503, -32000, "Too many open sessions; retry later");
 		}
-		const server = options.open();
-		const transport = new WebStandardStreamableHTTPServerTransport({
-			sessionIdGenerator: () => crypto.randomUUID(),
-			onsessioninitialized: (id) => {
-				sessions.set(id, { server, transport, owner, lastSeen: options.now() });
-			},
-			onsessionclosed: (id) => {
-				sessions.delete(id);
-			},
-		});
-		await server.connect(transport);
-		return transport.handleRequest(req, { parsedBody: body, authInfo });
+		opening += 1;
+		try {
+			const server = options.open();
+			const transport = new WebStandardStreamableHTTPServerTransport({
+				sessionIdGenerator: () => crypto.randomUUID(),
+				onsessioninitialized: (id) => {
+					sessions.set(id, {
+						server,
+						transport,
+						owner,
+						lastSeen: options.now(),
+					});
+				},
+				onsessionclosed: (id) => {
+					sessions.delete(id);
+				},
+			});
+			await server.connect(transport);
+			return await transport.handleRequest(req, { parsedBody: body, authInfo });
+		} finally {
+			opening -= 1;
+		}
 	}
 
 	return {

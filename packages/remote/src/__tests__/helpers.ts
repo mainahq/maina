@@ -36,7 +36,7 @@ export function pkce(): Pkce {
 export const basic = (user: string, pass: string): string =>
 	`Basic ${Buffer.from(`${user}:${pass}`).toString("base64")}`;
 
-export const ownerAuth = basic(OWNER.username, OWNER.password);
+const ownerAuth = basic(OWNER.username, OWNER.password);
 
 export type Handle = (req: Request) => Promise<Response>;
 
@@ -105,7 +105,7 @@ type AuthorizeParams = Readonly<{
 	method?: string;
 }>;
 
-function authorizeUrl(p: AuthorizeParams): string {
+export function authorizeUrl(p: AuthorizeParams): string {
 	const q = new URLSearchParams({
 		response_type: "code",
 		client_id: p.clientId,
@@ -119,16 +119,65 @@ function authorizeUrl(p: AuthorizeParams): string {
 	return `${ISSUER}/authorize?${q.toString()}`;
 }
 
+/** The raw authorization request: the consent page, an error or a challenge. */
+export function requestAuthorization(
+	handle: Handle,
+	url: string,
+	auth: string | null = ownerAuth,
+): Promise<Response> {
+	return handle(
+		new Request(url, {
+			headers: auth === null ? {} : { authorization: auth },
+		}),
+	);
+}
+
+/** The one-time consent token on a consent page; throws when it is not one. */
+export async function consentFrom(res: Response): Promise<string> {
+	const html = await res.text();
+	const match = /name="consent" value="([^"]+)"/.exec(html);
+	if (res.status !== 200 || match?.[1] === undefined) {
+		throw new Error(`expected a consent page, got ${res.status}: ${html}`);
+	}
+	return match[1];
+}
+
+/** The owner's answer on the consent page. */
+export function answerConsent(
+	handle: Handle,
+	consent: string,
+	decision: "approve" | "deny" = "approve",
+	auth: string | null = ownerAuth,
+): Promise<Response> {
+	return postForm(
+		handle,
+		"/authorize",
+		{ consent, decision },
+		auth === null ? {} : { authorization: auth },
+	);
+}
+
+/**
+ * Request authorization at `url` and, when the owner is shown the consent
+ * page, approve it: the redirect back to the client, or whatever the
+ * authorization endpoint answered instead (an error, a challenge).
+ */
+export async function approve(
+	handle: Handle,
+	url: string,
+	auth: string | null = ownerAuth,
+): Promise<Response> {
+	const res = await requestAuthorization(handle, url, auth);
+	if (res.status !== 200) return res;
+	return answerConsent(handle, await consentFrom(res), "approve", auth);
+}
+
 export function authorize(
 	handle: Handle,
 	p: AuthorizeParams,
 	auth: string | null = ownerAuth,
 ): Promise<Response> {
-	return handle(
-		new Request(authorizeUrl(p), {
-			headers: auth === null ? {} : { authorization: auth },
-		}),
-	);
+	return approve(handle, authorizeUrl(p), auth);
 }
 
 /** The `code` from an authorization redirect; throws when it is not one. */

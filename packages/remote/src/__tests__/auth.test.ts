@@ -13,11 +13,14 @@ import {
 	TOOLS_SCOPE,
 } from "../auth";
 import {
+	answerConsent,
 	authorize,
+	authorizeUrl,
 	basic,
 	type Clock,
 	clock,
 	codeFrom,
+	consentFrom,
 	type Handle,
 	ISSUER,
 	issueToken,
@@ -28,6 +31,7 @@ import {
 	REDIRECT,
 	RESOURCE,
 	register,
+	requestAuthorization,
 } from "./helpers";
 
 const JOBS_SCOPE = "jobs:read";
@@ -226,6 +230,80 @@ describe("authorization endpoint", () => {
 		expect(location.searchParams.get("code")).toBeTruthy();
 		expect(location.searchParams.get("state")).toBe("xyz");
 		expect(location.searchParams.get("iss")).toBe(ISSUER);
+	});
+
+	test("a signed-in owner is shown a consent page naming the client, never a code straight away", async () => {
+		const { handle } = setup();
+		const client = await register(handle, {
+			client_name: '<script>alert("x")</script>',
+		});
+		const res = await requestAuthorization(
+			handle,
+			authorizeUrl({ clientId: client.client_id, challenge: pkce().challenge }),
+		);
+		expect(res.status).toBe(200);
+		expect(res.headers.get("location")).toBeNull();
+		expect(res.headers.get("content-type")).toContain("text/html");
+		expect(res.headers.get("cache-control")).toBe("no-store");
+		// The page cannot be framed (clickjacking).
+		expect(res.headers.get("x-frame-options")).toBe("DENY");
+		expect(res.headers.get("content-security-policy")).toContain(
+			"frame-ancestors 'none'",
+		);
+		const html = await res.clone().text();
+		expect(html).not.toContain("<script>");
+		expect(html).toContain("&lt;script&gt;");
+		expect(html).toContain(REDIRECT);
+		expect(html).toContain(TOOLS_SCOPE);
+		expect(await consentFrom(res)).toBeTruthy();
+	});
+
+	test("approving without a consent token from the page is refused (cross-site request)", async () => {
+		const { handle } = setup();
+		await register(handle);
+		for (const consent of ["", "forged"]) {
+			const res = await answerConsent(handle, consent);
+			expect(res.status).toBe(400);
+			expect(res.headers.get("location")).toBeNull();
+		}
+	});
+
+	test("denying redirects back with access_denied and the state", async () => {
+		const { handle } = setup();
+		const client = await register(handle);
+		const page = await requestAuthorization(
+			handle,
+			authorizeUrl({
+				clientId: client.client_id,
+				challenge: pkce().challenge,
+				state: "st-deny",
+			}),
+		);
+		const res = await answerConsent(handle, await consentFrom(page), "deny");
+		expect(res.status).toBe(302);
+		const location = new URL(res.headers.get("location") ?? "");
+		expect(location.searchParams.get("error")).toBe("access_denied");
+		expect(location.searchParams.get("state")).toBe("st-deny");
+		expect(location.searchParams.get("code")).toBeNull();
+	});
+
+	test("a consent token is single use, needs the owner and expires", async () => {
+		const { handle, time } = setup();
+		const client = await register(handle);
+		const url = authorizeUrl({
+			clientId: client.client_id,
+			challenge: pkce().challenge,
+		});
+		const consent = await consentFrom(await requestAuthorization(handle, url));
+		const anonymous = await answerConsent(handle, consent, "approve", null);
+		expect(anonymous.status).toBe(401);
+		expect(anonymous.headers.get("location")).toBeNull();
+		expect(codeFrom(await answerConsent(handle, consent))).toBeTruthy();
+		expect((await answerConsent(handle, consent)).status).toBe(400);
+
+		const stale = await consentFrom(await requestAuthorization(handle, url));
+		time.advance(11 * 60 * 1000);
+		expect((await answerConsent(handle, stale)).status).toBe(400);
 	});
 
 	test("an unauthenticated resource owner is challenged, not redirected", async () => {
