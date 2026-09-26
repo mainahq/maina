@@ -1,0 +1,121 @@
+name: Dogfood weekly report
+
+# The weekly dogfood report (FR-DOG-4/6, #558): every Monday, writes
+# `docs/dogfood/<yyyy-ww>.md` for the ISO week that just ended with
+# `bun run dogfood:report`, recomputes `docs/dogfood/dogfood-weeks.json`
+# from every report plus the P0 `dogfood` issues, and opens a bot PR with
+# both. `release:gates` holds the dogfood-weeks item (spec §9.5: 4
+# consecutive clean weeks on the v1 runtime) to those reports.
+#
+# A report a maintainer already committed for the week (run locally, where
+# the dogfood hook's gate log lives) is kept, not overwritten: the runner
+# has no gate log, so a report it writes records no decisions and the week
+# does not count as on the v1 runtime.
+#
+# The PR is opened with DOGFOOD_BOT_TOKEN when that secret is set (a token
+# whose PRs trigger the required checks), else with the workflow token.
+#
+# On a pull request that changes it, it runs as a dry run: report and
+# weeks computed and shown, nothing pushed.
+
+on:
+  schedule:
+    - cron: "30 6 * * 1" # Mondays 06:30 UTC
+  workflow_dispatch:
+    inputs:
+      week:
+        description: "ISO week to report, yyyy-ww (default: the week that just ended)"
+        required: false
+        default: ""
+  pull_request:
+    paths:
+      - ".github/workflows/dogfood-report.yml"
+      - "scripts/dogfood/report.ts"
+      - "scripts/release/evidence/dogfood-weeks.ts"
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+
+concurrency:
+  group: dogfood-report-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: weekly dogfood report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          token: ${{ secrets.DOGFOOD_BOT_TOKEN || github.token }}
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Week
+        id: week
+        env:
+          WEEK_INPUT: ${{ inputs.week }}
+        run: |
+          W="${WEEK_INPUT:-$(bun scripts/release/evidence/dogfood-weeks.ts --previous-week)}"
+          case "$W" in [0-9][0-9][0-9][0-9]-[0-9][0-9]) ;; *) echo "week must be yyyy-ww, got '$W'"; exit 2;; esac
+          echo "week=$W" >> "$GITHUB_OUTPUT"
+
+      - name: Report
+        env:
+          W: ${{ steps.week.outputs.week }}
+        run: |
+          if [ -f "docs/dogfood/$W.md" ]; then
+            echo "docs/dogfood/$W.md already committed; keeping it"
+          else
+            bun run dogfood:report --week "$W"
+          fi
+
+      - name: dogfood-weeks.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun scripts/release/evidence/dogfood-weeks.ts --repo "$GITHUB_REPOSITORY" --reports docs/dogfood --out docs/dogfood/dogfood-weeks.json
+
+      - name: Summary
+        env:
+          W: ${{ steps.week.outputs.week }}
+        run: |
+          {
+            cat "docs/dogfood/$W.md"
+            echo
+            echo '```json'
+            cat docs/dogfood/dogfood-weeks.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Bot PR
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.DOGFOOD_BOT_TOKEN || github.token }}
+          W: ${{ steps.week.outputs.week }}
+          BASE: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          BRANCH="bot/dogfood-report-$W"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add docs/dogfood
+          if git diff --cached --quiet; then
+            echo "Nothing new to report for $W."
+            exit 0
+          fi
+          git commit -q -m "docs(dogfood): weekly report $W"
+          git push -q --force origin "$BRANCH"
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number -q '.[].number')" ]; then
+            gh pr create --base "$BASE" --head "$BRANCH" \
+              --title "docs(dogfood): weekly report $W" \
+              --label dogfood \
+              --body "Weekly dogfood report for ISO week $W (FR-DOG-4) and the recomputed \`docs/dogfood/dogfood-weeks.json\` (spec §9.5), from $RUN_URL."
+          fi

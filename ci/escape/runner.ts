@@ -16,6 +16,7 @@
  *
  *   bun ci/escape/runner.ts unsandboxed   # expect: all escape
  *   bun ci/escape/runner.ts sandboxed     # expect: none escape
+ *   bun ci/escape/runner.ts sandboxed --json <file>   # also write the run record
  *
  * In `sandboxed` mode a missing or wrong-version `srt` is a hard failure,
  * never a silent skip — unless `--allow-missing-sandbox` is passed, which is
@@ -59,6 +60,8 @@ const SECRET_ENV = "GITHUB_TOKEN";
 const SECRET_VALUE = "ghp_ambient_escape_322";
 const CRED_ENV = "ANTHROPIC_API_KEY";
 const CRED_VALUE = "sk-ant-real-escape-322";
+/** The worker whose gate hook the suite installs (see `buildHarness`). */
+export const SUITE_WORKER = "claude";
 
 /** A per-case sandbox setup, disposed after the case runs. */
 type Harness = Readonly<{
@@ -100,7 +103,7 @@ function buildHarness(): Harness {
 		which: (binary: string) => Bun.which(binary) ?? `/usr/local/bin/${binary}`,
 		version: () => null,
 	};
-	const claude = resolveWorker("claude", probe);
+	const claude = resolveWorker(SUITE_WORKER, probe);
 	if (!claude.ok) throw new Error(`resolveWorker: ${claude.error.message}`);
 	const installed = installClaudePreToolUse(claude.value, {
 		worktree: layout.worktree,
@@ -217,6 +220,35 @@ export async function runSuite(
 	return results;
 }
 
+/**
+ * One run of the suite as the release evidence reads it (spec §9.6,
+ * `scripts/release/evidence/escape.ts`): per OS and worker, how many cases
+ * ran and how many the sandbox blocked.
+ */
+export function runRecord(
+	mode: Mode,
+	results: readonly CaseResult[],
+	platform: string,
+	worker: string,
+): Readonly<{
+	os: string;
+	worker: string;
+	mode: Mode;
+	cases: number;
+	blocked: number;
+	escaped: readonly string[];
+}> {
+	const escaped = results.filter((r) => r.escaped).map((r) => r.id);
+	return {
+		os: platform === "darwin" ? "macos" : platform,
+		worker,
+		mode,
+		cases: results.length,
+		blocked: results.length - escaped.length,
+		escaped,
+	};
+}
+
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
 /** In `mode`, is `escaped` the outcome we want? */
@@ -229,9 +261,11 @@ async function main(): Promise<void> {
 		| Mode
 		| undefined;
 	const allowMissing = args.includes("--allow-missing-sandbox");
+	const jsonAt = args.indexOf("--json");
+	const jsonFile = jsonAt >= 0 ? args[jsonAt + 1] : undefined;
 	if (mode === undefined) {
 		process.stderr.write(
-			"usage: runner.ts <sandboxed|unsandboxed> [--allow-missing-sandbox]\n",
+			"usage: runner.ts <sandboxed|unsandboxed> [--allow-missing-sandbox] [--json <file>]\n",
 		);
 		process.exit(2);
 	}
@@ -249,6 +283,13 @@ async function main(): Promise<void> {
 	}
 
 	const results = await runSuite(mode);
+	if (jsonFile !== undefined) {
+		const { writeFileSync } = await import("node:fs");
+		writeFileSync(
+			jsonFile,
+			`${JSON.stringify(runRecord(mode, results, process.platform, SUITE_WORKER), null, "\t")}\n`,
+		);
+	}
 	const bad = results.filter((r) => !wanted(mode, r.escaped));
 	for (const r of results) {
 		const ok = wanted(mode, r.escaped);

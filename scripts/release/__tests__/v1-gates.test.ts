@@ -12,6 +12,8 @@ import {
 	GATE_ITEMS,
 	type GateContext,
 	type GateInputs,
+	parseGateArgs,
+	pickEvidenceRun,
 	renderReport,
 	runGates,
 } from "../v1-gates";
@@ -595,5 +597,84 @@ describe("runGates", () => {
 		});
 		expect(out.exitCode).toBe(0);
 		expect(out.text).toMatch(/12 of 12 pass/);
+	});
+});
+
+describe("parseGateArgs", () => {
+	test("defaults to the committed evidence directory", () => {
+		expect(parseGateArgs([])).toEqual({
+			ok: true,
+			value: {
+				source: { kind: "dir", dir: "release/v1-evidence" },
+				summary: undefined,
+			},
+		});
+	});
+
+	test("--evidence reads another directory, --summary appends the report", () => {
+		expect(
+			parseGateArgs(["--evidence", "out/ev", "--summary", "s.md"]),
+		).toEqual({
+			ok: true,
+			value: { source: { kind: "dir", dir: "out/ev" }, summary: "s.md" },
+		});
+	});
+
+	test("--run reads a release-evidence run's artifact: latest or by id", () => {
+		expect(parseGateArgs(["--run", "latest"])).toEqual({
+			ok: true,
+			value: {
+				source: { kind: "run", run: "latest", branch: undefined },
+				summary: undefined,
+			},
+		});
+		expect(parseGateArgs(["--run", "latest", "--branch", "v1/main"])).toEqual({
+			ok: true,
+			value: {
+				source: { kind: "run", run: "latest", branch: "v1/main" },
+				summary: undefined,
+			},
+		});
+		expect(parseGateArgs(["--run", "123"])).toEqual({
+			ok: true,
+			value: {
+				source: { kind: "run", run: 123, branch: undefined },
+				summary: undefined,
+			},
+		});
+	});
+
+	test("bad or conflicting flags are errors", () => {
+		expect(parseGateArgs(["--run", "abc"]).ok).toBe(false);
+		expect(parseGateArgs(["--run"]).ok).toBe(false);
+		expect(parseGateArgs(["--evidence"]).ok).toBe(false);
+		expect(parseGateArgs(["--run", "1", "--evidence", "d"]).ok).toBe(false);
+		expect(parseGateArgs(["--branch", "x"]).ok).toBe(false);
+		expect(parseGateArgs(["--run", "7", "--branch", "x"]).ok).toBe(false);
+	});
+});
+
+describe("pickEvidenceRun", () => {
+	const run = (databaseId: number, status: string, conclusion: string) => ({
+		databaseId,
+		status,
+		conclusion,
+		url: `https://github.com/mainahq/maina/actions/runs/${databaseId}`,
+	});
+
+	test("the newest finished run, whatever its jobs concluded", () => {
+		expect(
+			pickEvidenceRun([
+				run(9, "in_progress", ""),
+				run(8, "completed", "cancelled"),
+				run(7, "completed", "failure"),
+				run(6, "completed", "success"),
+			]),
+		).toEqual({ ok: true, value: run(7, "completed", "failure") });
+	});
+
+	test("no finished run is an error", () => {
+		expect(pickEvidenceRun([run(9, "queued", "")]).ok).toBe(false);
+		expect(pickEvidenceRun([]).ok).toBe(false);
 	});
 });

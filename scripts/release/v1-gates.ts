@@ -9,7 +9,14 @@
  *
  *   bun run release:gates                          # evidence from release/v1-evidence
  *   bun run release:gates --evidence <dir>         # another evidence directory
+ *   bun run release:gates --run latest             # the latest release-evidence run
+ *   bun run release:gates --run <id>               # that run [--branch <b> with latest]
  *   bun run release:gates --summary <file>         # also append the report as markdown
+ *
+ * The evidence is produced by `.github/workflows/release-evidence.yml`
+ * (nightly and on demand, producers in `scripts/release/evidence/`), which
+ * uploads it as the run's `v1-evidence` artifact; `--run` downloads that
+ * artifact with `gh` and checks it.
  *
  * Evidence is one JSON file per item in the evidence directory, each with an
  * http(s) `link` to where it came from (a CI run, a published report). The
@@ -775,6 +782,103 @@ export function renderReport(report: GateReport): string {
 	return `${[head, ...blocks].join("\n\n")}\n`;
 }
 
+// ── Arguments ──────────────────────────────────────────────────────────────
+
+/** The workflow whose runs carry the evidence as their `v1-evidence` artifact. */
+export const EVIDENCE_WORKFLOW = "release-evidence.yml";
+export const EVIDENCE_ARTIFACT = "v1-evidence";
+
+export type EvidenceSource =
+	| Readonly<{ kind: "dir"; dir: string }>
+	| Readonly<{
+			kind: "run";
+			run: "latest" | number;
+			/** With `latest`: only runs on this branch. */
+			branch: string | undefined;
+	  }>;
+
+export type GateArgs = Readonly<{
+	source: EvidenceSource;
+	summary: string | undefined;
+}>;
+
+export function parseGateArgs(
+	argv: readonly string[],
+): Result<GateArgs, string> {
+	const values = new Map<string, string>();
+	for (const name of ["--evidence", "--run", "--branch", "--summary"]) {
+		const i = argv.indexOf(name);
+		if (i < 0) continue;
+		const v = argv[i + 1];
+		if (v === undefined || v.startsWith("--")) {
+			return { ok: false, error: `${name} needs a value` };
+		}
+		values.set(name, v);
+	}
+	const evidence = { value: values.get("--evidence") };
+	const run = { value: values.get("--run") };
+	const branch = { value: values.get("--branch") };
+	const summary = { value: values.get("--summary") };
+	if (evidence.value !== undefined && run.value !== undefined) {
+		return { ok: false, error: "use --evidence or --run, not both" };
+	}
+	if (branch.value !== undefined && run.value !== "latest") {
+		return { ok: false, error: "--branch only goes with --run latest" };
+	}
+	if (run.value === undefined) {
+		return {
+			ok: true,
+			value: {
+				source: { kind: "dir", dir: evidence.value ?? "release/v1-evidence" },
+				summary: summary.value,
+			},
+		};
+	}
+	if (run.value !== "latest" && !/^\d+$/.test(run.value)) {
+		return {
+			ok: false,
+			error: `--run takes "latest" or a run id, not "${run.value}"`,
+		};
+	}
+	return {
+		ok: true,
+		value: {
+			source: {
+				kind: "run",
+				run: run.value === "latest" ? "latest" : Number(run.value),
+				branch: branch.value,
+			},
+			summary: summary.value,
+		},
+	};
+}
+
+export type WorkflowRun = Readonly<{
+	databaseId: number;
+	status: string;
+	conclusion: string;
+	url: string;
+}>;
+
+/**
+ * The newest finished run (newest first, as `gh run list` gives them).
+ * Its jobs may have failed: the evidence job runs regardless and records
+ * the failures as evidence. A cancelled run has none.
+ */
+export function pickEvidenceRun(
+	runs: readonly WorkflowRun[],
+): Result<WorkflowRun, string> {
+	const run = runs.find(
+		(r) =>
+			r.status === "completed" &&
+			r.conclusion !== "cancelled" &&
+			r.conclusion !== "skipped",
+	);
+	return run === undefined
+		? { ok: false, error: `no finished ${EVIDENCE_WORKFLOW} run` }
+		: { ok: true, value: run };
+}
+
 // ── Shell ──────────────────────────────────────────────────────────────────
 
 export type GatePorts = Readonly<{
@@ -813,13 +917,74 @@ if (import.meta.main) {
 	);
 
 	const root = resolve(import.meta.dir, "../..");
-	const argv = process.argv.slice(2);
-	const flag = (name: string) => {
-		const i = argv.indexOf(name);
-		return i >= 0 ? argv[i + 1] : undefined;
+	const args = parseGateArgs(process.argv.slice(2));
+	if (!args.ok) {
+		process.stderr.write(`release:gates: ${args.error}\n`);
+		process.exit(2);
+	}
+	const { source, summary } = args.value;
+	const gh = (cmd: readonly string[]) => {
+		const p = Bun.spawnSync(["gh", ...cmd], { cwd: root });
+		return p.exitCode === 0
+			? ({ ok: true, value: p.stdout.toString() } as const)
+			: ({ ok: false, error: p.stderr.toString().trim() } as const);
 	};
-	const dir = resolve(root, flag("--evidence") ?? "release/v1-evidence");
-	const summary = flag("--summary");
+	let dir: string;
+	let from: string;
+	if (source.kind === "dir") {
+		dir = resolve(root, source.dir);
+		from = relative(root, dir) || ".";
+	} else {
+		let runId: number;
+		let runUrl: string;
+		if (source.run === "latest") {
+			const list = gh([
+				"run",
+				"list",
+				"--workflow",
+				EVIDENCE_WORKFLOW,
+				...(source.branch ? ["--branch", source.branch] : []),
+				"--limit",
+				"20",
+				"--json",
+				"databaseId,status,conclusion,url",
+			]);
+			const picked = list.ok
+				? pickEvidenceRun(JSON.parse(list.value) as WorkflowRun[])
+				: list;
+			if (!picked.ok) {
+				process.stderr.write(`release:gates: ${picked.error}\n`);
+				process.exit(2);
+			}
+			runId = picked.value.databaseId;
+			runUrl = picked.value.url;
+		} else {
+			runId = source.run;
+			const view = gh(["run", "view", String(runId), "--json", "url"]);
+			runUrl = view.ok
+				? (JSON.parse(view.value) as { url: string }).url
+				: `run ${runId}`;
+		}
+		const { mkdtempSync } = await import("node:fs");
+		const { tmpdir } = await import("node:os");
+		dir = mkdtempSync(join(tmpdir(), "maina-v1-evidence-"));
+		const got = gh([
+			"run",
+			"download",
+			String(runId),
+			"--name",
+			EVIDENCE_ARTIFACT,
+			"--dir",
+			dir,
+		]);
+		if (!got.ok) {
+			process.stderr.write(
+				`release:gates: cannot download ${EVIDENCE_ARTIFACT} from ${runUrl}: ${got.error}\n`,
+			);
+			process.exit(2);
+		}
+		from = `${EVIDENCE_ARTIFACT} artifact of ${runUrl}`;
+	}
 	const env = process.env;
 	const runLink =
 		env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY && env.GITHUB_RUN_ID
@@ -853,7 +1018,7 @@ if (import.meta.main) {
 			return { code, stdout, stderr };
 		},
 	});
-	const text = `evidence directory: ${relative(root, dir) || "."}\n\n${out.text}`;
+	const text = `evidence: ${from}\n\n${out.text}`;
 	process.stdout.write(text);
 	if (summary !== undefined) {
 		appendFileSync(summary, `## v1 release gates\n\n\`\`\`\n${text}\`\`\`\n`);

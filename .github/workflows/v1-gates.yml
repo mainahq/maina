@@ -7,6 +7,8 @@ name: v1 release gates
 # threshold. The report is also written to the job summary.
 #
 # On demand only: run it before cutting the 2.0.0 release (task 12.2).
+# With `run` set it checks the `v1-evidence` artifact of a Release evidence
+# run (`latest`, or a run id) instead of the committed directory.
 
 on:
   workflow_dispatch:
@@ -15,9 +17,14 @@ on:
         description: "Evidence directory, relative to the repo root"
         required: false
         default: "release/v1-evidence"
+      run:
+        description: "Release evidence run to check: 'latest' or a run id (overrides evidence)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   gates:
@@ -37,4 +44,11 @@ jobs:
       - name: Gate check
         env:
           EVIDENCE: ${{ inputs.evidence }}
-        run: bun run release:gates --evidence "$EVIDENCE" --summary "$GITHUB_STEP_SUMMARY"
+          RUN: ${{ inputs.run }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -n "$RUN" ]; then
+            bun run release:gates --run "$RUN" --summary "$GITHUB_STEP_SUMMARY"
+          else
+            bun run release:gates --evidence "$EVIDENCE" --summary "$GITHUB_STEP_SUMMARY"
+          fi
