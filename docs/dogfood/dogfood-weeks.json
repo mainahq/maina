@@ -1,0 +1,16 @@
+{
+	"link": "https://github.com/mainahq/maina/actions/runs/36271024006",
+	"weeks": [
+		{
+			"week": "2026-38",
+			"onV1Runtime": false,
+			"openP0": 0,
+			"decisions": 0,
+			"p0Issues": []
+		}
+	],
+	"openP0Now": [
+		526,
+		533
+	]
+}
