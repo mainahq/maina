@@ -46,6 +46,17 @@ async function statusline(args: readonly string[]): Promise<void> {
 	}
 }
 
+/**
+ * Points core at the tree-sitter runtime and grammars embedded in this
+ * executable (#526), before the mode loads anything that parses: the gate's
+ * shell parser and the code graph. Without them every shell command is
+ * opaque and asks.
+ */
+async function embedTreeSitter(): Promise<void> {
+	const { useEmbeddedTreeSitter } = await import("./tree-sitter-assets");
+	useEmbeddedTreeSitter();
+}
+
 const [mode, ...rest] = process.argv.slice(2);
 
 switch (mode) {
@@ -53,6 +64,7 @@ switch (mode) {
 		await statusline(rest);
 		break;
 	case "mcp": {
+		await embedTreeSitter();
 		const [{ startServer }, { mcpRootResolver }] = await Promise.all([
 			import("@mainahq/mcp"),
 			import("../mcp-root"),
@@ -79,6 +91,7 @@ switch (mode) {
 			break;
 		}
 		try {
+			await embedTreeSitter();
 			const hooks = await import("../hook-system");
 			const run = {
 				claude: hooks.runClaudeHookProcess,
@@ -97,12 +110,14 @@ switch (mode) {
 			await statusline(rest.slice(1));
 			break;
 		}
+		await embedTreeSitter();
 		// The CLI reads its arguments from process.argv after the script path.
 		process.argv.splice(2, 1);
 		await import("@mainahq/cli/src/index.ts");
 		break;
 	}
 	case "runtime-daemon": {
+		await embedTreeSitter();
 		const { runDaemon } = await import("../daemon-main");
 		process.exit(await runDaemon(rest));
 		break;

@@ -206,10 +206,9 @@ describe.skipIf(!runsHere)("Claude Code plugin (#341)", () => {
 		expect(rootWipe.map((a) => a.permissionDecision)).toEqual(["ask"]);
 	}, 90_000);
 
-	// #526: the standalone runtime cannot load tree-sitter, so every Bash
-	// command is `shell.opaque` (ask). When that is fixed this starts
-	// passing, `test.failing` goes red: make it a plain `test`.
-	test.failing("Bash commands are classified in the standalone runtime (#526)", async () => {
+	// #526: the standalone runtime embeds tree-sitter, so the gate tells Bash
+	// commands apart instead of asking for every one as `shell.opaque`.
+	test("Bash commands are classified in the standalone runtime (#526)", async () => {
 		if (plugin === undefined) throw new Error("claude-code has no plugin");
 		const w = workspace();
 		const ctx = await install(w);

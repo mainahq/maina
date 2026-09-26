@@ -135,7 +135,8 @@ export function literalText(word: ShellWord): string | null {
 
 // ── Loading ─────────────────────────────────────────────────────────────────
 
-const GRAMMAR_FILE = "tree-sitter-bash.wasm";
+/** The bash grammar's file name inside `@vscode/tree-sitter-wasm/wasm/`. */
+export const SHELL_GRAMMAR_FILE = "tree-sitter-bash.wasm";
 
 const message = (e: unknown): string =>
 	e instanceof Error ? e.message : String(e);
@@ -151,7 +152,7 @@ export function loadShellParser(): Promise<
 	Result<ShellParser, ShellParserLoadError>
 > {
 	loading ??= (async (): Promise<Result<ShellParser, ShellParserLoadError>> => {
-		const grammar = await loadGrammar(GRAMMAR_FILE);
+		const grammar = await loadGrammar(SHELL_GRAMMAR_FILE);
 		if (!grammar.ok) {
 			return {
 				ok: false,

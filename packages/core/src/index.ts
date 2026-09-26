@@ -600,7 +600,7 @@ export type {
 	ShellScript,
 	ShellWord,
 } from "./gate/parsers/shell";
-export { loadShellParser } from "./gate/parsers/shell";
+export { loadShellParser, SHELL_GRAMMAR_FILE } from "./gate/parsers/shell";
 export { analyzeSql, isDestructiveSql } from "./gate/parsers/sql";
 export type { RuleResult } from "./gate/rules";
 export { evaluateRules, settleVerdict } from "./gate/rules";
@@ -668,6 +668,7 @@ export {
 	type SymbolKind,
 	type SyntaxIssue,
 } from "./graph/parse/index";
+export { GRAMMAR_FILES as GRAPH_GRAMMAR_FILES } from "./graph/parse/languages";
 // Graph — impact, minimal context and search queries (FR-GRAPH-3, FR-GRAPH-4)
 export {
 	type ContextSnippet as CodeGraphContextSnippet,
@@ -1012,6 +1013,13 @@ export {
 	type TicketOptions,
 	type TicketResult,
 } from "./ticket/index";
+// Tree-sitter — where the runtime and grammars load from (#526)
+export {
+	setTreeSitterSource,
+	type TreeSitterRuntime,
+	type TreeSitterSource,
+	type TreeSitterSourceError,
+} from "./tree-sitter";
 // Utils
 export { toKebabCase } from "./utils";
 // Verify — AI Review
