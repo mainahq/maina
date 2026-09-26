@@ -23,9 +23,12 @@ import { generate } from "../generate";
 import {
 	CLAUDE_MARKETPLACE_PATH,
 	CLAUDE_PLUGIN_SOURCE,
+	CODEX_MARKETPLACE_PATH,
+	CODEX_PLUGIN_SOURCE,
 	CURSOR_MARKETPLACE_PATH,
 	CURSOR_PLUGIN_SOURCE,
 	claudeMarketplace,
+	codexMarketplace,
 	cursorMarketplace,
 } from "../generate/marketplace";
 import { loadSources } from "../sources";
@@ -209,5 +212,118 @@ describe("Cursor marketplace", () => {
 		const path = join(REPO_ROOT, CURSOR_MARKETPLACE_PATH);
 		expect(existsSync(path)).toBe(true);
 		expect(readFileSync(path, "utf-8")).toBe(cursorMarketplace(PLUGIN).content);
+	});
+});
+
+// ── Codex (v1 task 9.4) ────────────────────────────────────────────────────
+
+const CODEX_SCHEMA = join(
+	import.meta.dir,
+	"..",
+	"__fixtures__",
+	"codex",
+	"schemas",
+	"marketplace.schema.json",
+);
+
+type CodexEntry = Readonly<{
+	name: string;
+	source: { source: string; path: string };
+	policy?: { installation?: string; authentication?: string };
+	category?: string;
+	version?: string;
+}>;
+type CodexListing = Readonly<{
+	name: string;
+	interface?: { displayName?: string };
+	plugins: readonly CodexEntry[];
+}>;
+
+const codexListing = (): CodexListing =>
+	JSON.parse(codexMarketplace(PLUGIN).content) as CodexListing;
+
+function codexValidator() {
+	const ajv = new Ajv2020({ allErrors: true, strict: true });
+	ajv.addKeyword({ keyword: "x-source" });
+	return ajv.compile(readJson(CODEX_SCHEMA) as object);
+}
+
+/**
+ * Codex reads a repo's marketplace from `.agents/plugins/marketplace.json`
+ * at its root; each entry's `source` is a local folder, relative to that
+ * root, which `/plugins` installs from.
+ */
+describe("Codex marketplace", () => {
+	test("sits where Codex reads it: .agents/plugins/marketplace.json at the repo root", () => {
+		expect(CODEX_MARKETPLACE_PATH).toBe(".agents/plugins/marketplace.json");
+		expect(codexMarketplace(PLUGIN).path).toBe(CODEX_MARKETPLACE_PATH);
+	});
+
+	test("validates against the documented marketplace schema", () => {
+		const validate = codexValidator();
+		const ok = validate(codexListing());
+		expect(validate.errors ?? []).toEqual([]);
+		expect(ok).toBe(true);
+	});
+
+	test("lists maina, from the generated Codex package, which is the same plugin", () => {
+		const { name, plugins } = codexListing();
+		expect(name).toBe(PLUGIN.name);
+		expect(plugins.map((p) => p.name)).toEqual([PLUGIN.name]);
+		const [entry] = plugins;
+		expect(entry?.source).toEqual({
+			source: "local",
+			path: CODEX_PLUGIN_SOURCE,
+		});
+		const dir = join(REPO_ROOT, CODEX_PLUGIN_SOURCE);
+		const manifest = readJson(join(dir, "plugin.json")) as {
+			name: string;
+			extensions: { "com.openai": { interface: { category: string } } };
+		};
+		expect(manifest.name).toBe(entry?.name ?? "");
+		expect(entry?.category).toBe(
+			manifest.extensions["com.openai"].interface.category,
+		);
+		// The installed copy is self-contained: hooks, MCP, the command
+		// policy and the launcher.
+		for (const path of [
+			"hooks/hooks.json",
+			"mcp.json",
+			"rules/maina.rules",
+			"launcher/launch.sh",
+		]) {
+			expect(existsSync(join(dir, path))).toBe(true);
+		}
+	});
+
+	test("users choose to install it, and it needs no sign-in", () => {
+		expect(codexListing().plugins[0]?.policy).toEqual({
+			installation: "AVAILABLE",
+			authentication: "ON_INSTALL",
+		});
+	});
+
+	test("pins no version: the plugin's manifest is the only one", () => {
+		expect(codexListing().plugins[0]?.version).toBeUndefined();
+	});
+
+	test("the schema refuses a source outside the marketplace", () => {
+		const validate = codexValidator();
+		const base = codexListing();
+		const entry = base.plugins[0] as CodexEntry;
+		for (const path of ["../elsewhere", "./a/../../b", "packages/x", "/abs"]) {
+			expect(
+				validate({
+					...base,
+					plugins: [{ ...entry, source: { source: "local", path } }],
+				}),
+			).toBe(false);
+		}
+	});
+
+	test("the committed listing is what the generator writes (run `bun run plugins:generate`)", () => {
+		const path = join(REPO_ROOT, CODEX_MARKETPLACE_PATH);
+		expect(existsSync(path)).toBe(true);
+		expect(readFileSync(path, "utf-8")).toBe(codexMarketplace(PLUGIN).content);
 	});
 });

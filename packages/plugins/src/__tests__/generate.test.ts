@@ -26,6 +26,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
+import { emitCodexRules } from "@mainahq/cli/src/hosts/codex-rules";
 import { CLAUDE_HOOK_EVENTS } from "@mainahq/runtime/src/adapters/claude-code";
 import {
 	CODEX_HOOK_EVENTS,
@@ -296,6 +297,16 @@ describe("no bunx, npx or bare maina", () => {
 		test(host, () => {
 			const offenders = generated(host).flatMap((file) => {
 				const found: string[] = [];
+				// A Codex `.rules` file runs nothing: it names commands for
+				// Codex to refuse, runner forms included, and may only forbid.
+				if (file.path.endsWith(".rules")) {
+					for (const rule of parseRules(file.content)) {
+						const cmd = rule.pattern.join(" ");
+						const named = PACKAGE_RUNNER.test(cmd) || BARE_MAINA.test(cmd);
+						if (named && rule.decision !== "forbidden") found.push(cmd);
+					}
+					return found.map((what) => `${file.path}: ${what}`);
+				}
 				if (PACKAGE_RUNNER.test(file.content)) found.push("bunx/npx");
 				if (file.path.endsWith(".json")) {
 					for (const cmd of commandStrings(JSON.parse(file.content)))
@@ -521,7 +532,7 @@ describe("Cursor rules", () => {
 		for (const skill of PLUGIN.skills) expect(body).toContain(`\`${skill}\``);
 	});
 
-	test("every rule in the definition reaches Cursor, and only Cursor has a rules component", () => {
+	test("every rule in the definition reaches Cursor, and only Cursor has a guidance rules component", () => {
 		const definition: PluginDefinition = {
 			...PLUGIN,
 			rules: [
@@ -538,13 +549,19 @@ describe("Cursor rules", () => {
 		expect(cursorFiles.find((f) => f.path === "rules/tests.mdc")?.content).toBe(
 			'---\ndescription: Test conventions\nglobs:\n  - "**/*.test.ts"\n---\n\nWrite the test first.\n',
 		);
-		for (const host of ["claude", "codex", "agent-plugins"] as const) {
+		for (const host of ["claude", "agent-plugins"] as const) {
 			expect(
 				generate(host, sources, definition).some((f) =>
 					f.path.startsWith("rules/"),
 				),
 			).toBe(false);
 		}
+		// Codex's rules/ holds its command policy, never guidance.
+		expect(
+			generate("codex", sources, definition)
+				.filter((f) => f.path.startsWith("rules/"))
+				.map((f) => f.path),
+		).toEqual(["rules/maina.rules"]);
 	});
 
 	test("front matter reads back as the definition's strings", () => {
@@ -572,6 +589,137 @@ describe("Cursor rules", () => {
 				description,
 				alwaysApply: true,
 			});
+		}
+	});
+});
+
+// ── Codex: the command policy (rules/*.rules) ─────────────────────────────
+
+type PrefixRule = Readonly<{
+	pattern: readonly string[];
+	decision: string;
+	justification?: string;
+}>;
+
+/**
+ * A strict reader for Codex's `.rules` as maina writes them (task 4.5):
+ * comments, blank lines and `prefix_rule(...)` blocks with one
+ * `key = value` per line, each value a JSON-compatible Starlark literal.
+ */
+function parseRules(text: string): readonly PrefixRule[] {
+	const rules: PrefixRule[] = [];
+	let current: Record<string, unknown> | null = null;
+	for (const line of text.split("\n")) {
+		if (current === null) {
+			if (line === "" || line.startsWith("#")) continue;
+			expect(line).toBe("prefix_rule(");
+			current = {};
+			continue;
+		}
+		if (line === ")") {
+			rules.push(current as PrefixRule);
+			current = null;
+			continue;
+		}
+		const field = /^ {4}([a-z_]+) = (.+),$/.exec(line);
+		if (field === null) throw new Error(`unparseable line: ${line}`);
+		current[field[1] as string] = JSON.parse(field[2] as string);
+	}
+	expect(current).toBeNull();
+	return rules;
+}
+
+describe("Codex rules", () => {
+	const rules = () => fileAt("codex", "rules/maina.rules");
+
+	test("ships the definition's shell rules as rules/maina.rules, the Codex rules emitter's output (task 4.5)", () => {
+		expect(rules().content).toBe(emitCodexRules({ rules: PLUGIN.shellRules }));
+		expect(rules().executable).toBe(false);
+	});
+
+	test("Codex itself forbids the agent's own gate override, even when a hook fails open", () => {
+		// Codex hooks fail open: a crashed PreToolUse hook lets the command
+		// through. A forbidden prefix rule does not depend on the hook.
+		expect(parseRules(rules().content)).toContainEqual({
+			pattern: ["maina", "allow"],
+			decision: "forbidden",
+			justification: expect.stringContaining("terminal"),
+		});
+	});
+
+	test("Codex forbids the override however a package runner names maina, as the gate does", () => {
+		// The runner forms the gate classifies as gate.self_override
+		// (packages/core/src/gate/__fixtures__/commands.jsonl). Without a
+		// rule of their own, a crashed hook would let each one through.
+		const forbidden = parseRules(rules().content).filter(
+			(r) => r.decision === "forbidden",
+		);
+		const blocks = (argv: readonly string[]) =>
+			forbidden.some(
+				(r) =>
+					r.pattern.length <= argv.length &&
+					r.pattern.every((word, i) => word === argv[i]),
+			);
+		for (const command of [
+			"maina allow d-1 --always",
+			"npx maina allow d-1",
+			"bunx maina allow d-1",
+			"pnpx maina allow d-1",
+			"bun x maina allow d-1",
+			"pnpm dlx maina allow d-1",
+			"pnpm exec maina allow d-1",
+			"npm exec maina allow d-1",
+			"yarn dlx maina allow d-1",
+			"yarn exec maina allow d-1",
+			"pnpm maina allow d-1",
+			"yarn maina allow d-1",
+			"npx @mainahq/cli allow d-1",
+			"bunx @mainahq/cli allow d-1",
+			"pnpm dlx @mainahq/cli allow d-1",
+		]) {
+			expect({ command, blocked: blocks(command.split(" ")) }).toEqual({
+				command,
+				blocked: true,
+			});
+		}
+		// Only the override: running maina, or a runner, stays with the hook.
+		for (const command of ["maina verify", "npx maina verify", "bunx vitest"]) {
+			expect({ command, blocked: blocks(command.split(" ")) }).toEqual({
+				command,
+				blocked: false,
+			});
+		}
+	});
+
+	test("every shell rule in the definition reaches Codex, and no other host", () => {
+		const definition: PluginDefinition = {
+			...PLUGIN,
+			shellRules: {
+				deny: [
+					...PLUGIN.shellRules.deny,
+					{ match: "git push --force", reason: "rewrites history" },
+				],
+				allow: [{ match: "bun test" }],
+			},
+		};
+		const [file] = generate("codex", sources, definition).filter(
+			(f) => f.path === "rules/maina.rules",
+		);
+		const parsed = parseRules(file?.content ?? "");
+		expect(parsed).toContainEqual({
+			pattern: ["git", "push", "--force"],
+			decision: "forbidden",
+			justification: "rewrites history",
+		});
+		expect(parsed).toContainEqual(
+			expect.objectContaining({ pattern: ["bun", "test"], decision: "allow" }),
+		);
+		for (const host of ["claude", "cursor", "agent-plugins"] as const) {
+			expect(
+				generate(host, sources, definition).some((f) =>
+					f.path.endsWith(".rules"),
+				),
+			).toBe(false);
 		}
 	});
 });

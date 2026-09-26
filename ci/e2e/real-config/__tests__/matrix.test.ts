@@ -282,6 +282,59 @@ describe("resolveLaunch", () => {
 		expect(r.ok).toBe(false);
 	});
 
+	// Codex's plugin install (#343): `[plugins."maina@maina"]` in
+	// config.toml, the installed copy of the local plugin under
+	// ~/.codex/plugins/cache/<marketplace>/<plugin>/local, and its own
+	// `mcp.json`, whose `./` command resolves against the plugin root. Codex
+	// exports PLUGIN_ROOT and PLUGIN_DATA to the plugin's processes.
+	const codexRoot = "/h/.codex/plugins/cache/maina/maina/local";
+	const codexPluginFiles = (enabled: boolean, config = "") => ({
+		"/h/.codex/config.toml": `${config}[plugins."maina@maina"]\nenabled = ${enabled}\n`,
+		[`${codexRoot}/plugin.json`]: JSON.stringify({ name: "maina" }),
+		[`${codexRoot}/mcp.json`]: JSON.stringify({
+			mcpServers: {
+				maina: {
+					type: "stdio",
+					command: "./launcher/launch.sh",
+					args: ["mcp"],
+				},
+			},
+		}),
+	});
+
+	test("codex starts an enabled plugin's server from the plugin root, with the plugin variables it exports", () => {
+		const r = resolveLaunch("codex", ctx, files(codexPluginFiles(true)));
+		expect(r.ok).toBe(true);
+		if (!r.ok) return;
+		expect(r.value.command).toBe(`${codexRoot}/launcher/launch.sh`);
+		expect(r.value.args).toEqual(["mcp"]);
+		expect(r.value.source).toBe(`${codexRoot}/mcp.json`);
+		expect(r.value.env).toEqual({
+			PLUGIN_ROOT: codexRoot,
+			PLUGIN_DATA: "/h/.codex/plugins/data/maina-maina",
+		});
+	});
+
+	test("codex never starts a disabled plugin's server", () => {
+		const r = resolveLaunch("codex", ctx, files(codexPluginFiles(false)));
+		expect(r.ok).toBe(false);
+		if (!r.ok) expect(r.error.kind).toBe("config-not-found");
+	});
+
+	test("codex's own [mcp_servers.maina] beats a plugin's server", () => {
+		const r = resolveLaunch(
+			"codex",
+			ctx,
+			files(
+				codexPluginFiles(
+					true,
+					'[mcp_servers.maina]\ncommand = "/bin/maina"\n\n',
+				),
+			),
+		);
+		expect(r.ok && r.value.command).toBe("/bin/maina");
+	});
+
 	test("malformed config is reported, not skipped", () => {
 		const r = resolveLaunch(
 			"cursor",
@@ -624,6 +677,21 @@ describe("KNOWN_FAILURES", () => {
 		for (const env of ENV_MODES) {
 			expect(
 				expectedFailure({ host: "cursor", installPath: "plugin", env }),
+			).toBeUndefined();
+		}
+	});
+
+	test("codex × plugin no longer waits on #343 (Codex plugin)", () => {
+		// `/plugins` installs the generated package from the repo's
+		// `.agents/plugins/marketplace.json`; its first session onboards and
+		// its MCP server verifies. No host waits on a plugin package.
+		for (const k of KNOWN_FAILURES) {
+			expect(Object.values(k.fixes)).not.toContain(343);
+			expect(problemsOf(k)).not.toContain("no-plugin");
+		}
+		for (const env of ENV_MODES) {
+			expect(
+				expectedFailure({ host: "codex", installPath: "plugin", env }),
 			).toBeUndefined();
 		}
 	});

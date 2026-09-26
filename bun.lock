@@ -89,6 +89,7 @@
       "name": "@mainahq/plugins",
       "version": "0.0.0",
       "dependencies": {
+        "@mainahq/cli": "workspace:*",
         "@mainahq/runtime": "workspace:*",
       },
       "devDependencies": {

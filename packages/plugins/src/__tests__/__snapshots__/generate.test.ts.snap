@@ -284,6 +284,7 @@ exports[`snapshots codex 1`] = `
   "paths": [
     "plugin.json",
     "hooks/hooks.json",
+    "rules/maina.rules",
     "mcp.json",
     "skills/gate/SKILL.md",
     "skills/verify/SKILL.md",

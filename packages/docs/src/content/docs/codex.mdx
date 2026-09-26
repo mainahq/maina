@@ -1,0 +1,31 @@
+---
+title: Codex
+description: Install the maina Codex plugin from this repository's plugin marketplace, and what its hooks, MCP server and rules file do.
+---
+
+The maina Codex plugin puts the gate in front of the agent's shell commands, file patches and MCP calls, adds the maina MCP server and the skills, and verifies what a session changed before it stops. Nothing needs to be on `PATH`: the plugin bundles a launcher that installs the pinned maina runtime on first use and checks its signature.
+
+## Install the plugin
+
+Codex reads a repository's plugin marketplace from `.agents/plugins/marketplace.json`. This repository's listing points at the generated plugin in `packages/plugins/dist/codex`.
+
+1. Add `mainahq/maina` as a plugin marketplace in Codex.
+2. Run `/plugins`, find **Maina** and install it.
+3. Trust the project when Codex asks. Codex loads the plugin's rules file only in a trusted project.
+
+## What the plugin installs
+
+| Component | What it does |
+|-----------|--------------|
+| `hooks/hooks.json` | `PreToolUse` and `PermissionRequest` send each `Bash`, `apply_patch` and MCP call to the gate. `SessionStart` adds maina's context and `Stop` verifies the files the session edited. |
+| `mcp.json` | The maina MCP server (`verify`, `review_triage`, `decide`, `impact`, `status` and the other tools). |
+| `rules/maina.rules` | A Codex rules file that forbids `maina allow`, the override command, whether it is run by name or through a package runner (`npx`, `bunx`, `pnpm dlx` and the like). Overrides are for you, from your own terminal. Codex checks its rules before any hook runs. |
+| `skills/` | The `gate`, `verify`, `spec`, `triage` and `graph` skills. See [Skills](/skills/). |
+
+The runtime, its socket and its pid file live in the plugin's data directory (`PLUGIN_DATA`). Uninstalling the plugin removes them, and the runtime stops on its own.
+
+Three Codex limits to know:
+
+- Codex hooks fail open: if a hook crashes, Codex runs the tool anyway. When the runtime cannot answer, the launcher denies the gated call itself. The rules file keeps `maina allow` forbidden even if a hook crashes. It matches commands by prefix, so a maina binary run by its full path is left to the hook.
+- Codex runs a tool when its `PreToolUse` hook answers ask, so maina turns an ask into a deny that says you need to confirm. The message names the `maina allow <decision-id>` command to run from your terminal.
+- Codex does not yet enforce a `PreToolUse` deny for `apply_patch` ([openai/codex#27833](https://github.com/openai/codex/issues/27833)), so a file patch maina denies is still written. `maina doctor` warns about it.

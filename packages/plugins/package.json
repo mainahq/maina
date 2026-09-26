@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mainahq/cli": "workspace:*",
     "@mainahq/runtime": "workspace:*"
   },
   "devDependencies": {

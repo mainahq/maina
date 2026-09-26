@@ -39,6 +39,9 @@ export type RuleEntry = Readonly<
 	)
 >;
 
+/** A static shell rule in maina's policy form: a command and its prefix. */
+export type ShellRule = Readonly<{ match: string; reason?: string }>;
+
 export type PluginDefinition = Readonly<{
 	/** Kebab-case identifier: every host namespaces components under it. */
 	name: string;
@@ -61,6 +64,16 @@ export type PluginDefinition = Readonly<{
 	agents: readonly MarkdownEntry[];
 	/** Shipped by hosts with a rules component (Cursor's `rules/*.mdc`). */
 	rules: readonly RuleEntry[];
+	/**
+	 * Static shell rules, shipped by hosts that enforce a command policy of
+	 * their own before any hook runs (Codex's `rules/*.rules`). maina's
+	 * gate still decides every command; these only hold where a host
+	 * would otherwise let a command through when a hook fails.
+	 */
+	shellRules: Readonly<{
+		allow: readonly ShellRule[];
+		deny: readonly ShellRule[];
+	}>;
 }>;
 
 /** The v1 flows, as `packages/skills` folders (task 9.6). */
@@ -88,6 +101,39 @@ maina's hooks check risky actions before they run (shell commands, file writes o
 
 The ${codeList(SKILLS)} skills hold the steps for each flow.
 `;
+
+/**
+ * The ways an agent can run maina's override, `maina allow`: by name, or
+ * through a package runner, by bin or by package (the forms the gate
+ * classifies as `gate.self_override`). A binary run by its path cannot be
+ * a static prefix; the gate's hook still denies it.
+ */
+const BY_NAME = [
+	"",
+	"npx ",
+	"bunx ",
+	"pnpx ",
+	"bun x ",
+	"pnpm dlx ",
+	"pnpm exec ",
+	"npm exec ",
+	"yarn dlx ",
+	"yarn exec ",
+	"pnpm ",
+	"yarn ",
+];
+const BY_PACKAGE = [
+	"npx ",
+	"bunx ",
+	"pnpx ",
+	"bun x ",
+	"pnpm dlx ",
+	"npm exec ",
+];
+const OVERRIDE_COMMANDS: readonly string[] = [
+	...BY_NAME.map((runner) => `${runner}maina allow`),
+	...BY_PACKAGE.map((runner) => `${runner}@mainahq/cli allow`),
+];
 
 export const PLUGIN: PluginDefinition = {
 	name: "maina",
@@ -119,4 +165,15 @@ export const PLUGIN: PluginDefinition = {
 			body: GUARDRAILS_RULE,
 		},
 	],
+	shellRules: {
+		allow: [],
+		// The gate denies an agent's own override (`gate.self_override`,
+		// #447). A host whose hooks fail open (Codex) would run it when the
+		// hook crashes, so the host's own policy forbids it too.
+		deny: OVERRIDE_COMMANDS.map((match) => ({
+			match,
+			reason:
+				"maina overrides are the user's call, from their own terminal: an agent never runs one",
+		})),
+	},
 };

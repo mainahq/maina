@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 /**
- * Writes every host's plugin package to `dist/<host>/`, the Claude Code and
- * Cursor marketplace listings to `.claude-plugin/marketplace.json` and
- * `.cursor-plugin/marketplace.json` at the repo root, and the Cursor MCP
+ * Writes every host's plugin package to `dist/<host>/`, the Claude Code,
+ * Cursor and Codex marketplace listings to `.claude-plugin/marketplace.json`,
+ * `.cursor-plugin/marketplace.json` and `.agents/plugins/marketplace.json`
+ * at the repo root, and the Cursor MCP
  * install link to the docs data (all committed: the marketplaces install
  * from the repo). `--check` writes nothing and exits 1 when a committed
  * file differs from what the generator produces.
@@ -27,6 +28,7 @@ import { type GeneratedFile, generate, HOSTS } from "../src/generate";
 import { cursorMcpInstall } from "../src/generate/deeplink";
 import {
 	claudeMarketplace,
+	codexMarketplace,
 	cursorMarketplace,
 } from "../src/generate/marketplace";
 import { loadSources } from "../src/sources";
@@ -112,6 +114,7 @@ const problems = [
 	...[
 		claudeMarketplace(PLUGIN),
 		cursorMarketplace(PLUGIN),
+		codexMarketplace(PLUGIN),
 		cursorMcpInstall(PLUGIN, sources.version),
 	].flatMap((f) => repoFile(f, check)),
 ];

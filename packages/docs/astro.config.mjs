@@ -53,6 +53,7 @@ export default defineConfig({
             { slug: 'mcp' },
             { slug: 'skills' },
             { slug: 'cursor' },
+            { slug: 'codex' },
           ],
         },
         {

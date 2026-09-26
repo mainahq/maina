@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mainahq.com/fixtures/codex/marketplace.schema.json",
+  "x-source": {
+    "url": "https://developers.openai.com/codex/plugins/build",
+    "retrieved": "2026-09-26"
+  },
+  "title": "Codex plugin marketplace (.agents/plugins/marketplace.json)",
+  "description": "The documented fields of a Codex marketplace listing: its name, its interface and one entry per plugin. Codex reads it from `.agents/plugins/marketplace.json` at a repo root (or `~/.agents/plugins/marketplace.json`). Only the `local` source is pinned: a folder relative to the marketplace root, which must start with `./` and stay inside it.",
+  "type": "object",
+  "properties": {
+    "name": { "$ref": "#/$defs/name" },
+    "interface": {
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "plugins": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "required": ["name", "plugins"],
+  "additionalProperties": false,
+  "$defs": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+    },
+    "entry": {
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "source": {
+          "type": "object",
+          "properties": {
+            "source": { "const": "local" },
+            "path": {
+              "type": "string",
+              "pattern": "^\\./(?!(?:.*/)?\\.\\.(?:/|$))"
+            }
+          },
+          "required": ["source", "path"],
+          "additionalProperties": false
+        },
+        "policy": {
+          "type": "object",
+          "properties": {
+            "installation": {
+              "enum": ["AVAILABLE", "INSTALLED_BY_DEFAULT", "NOT_AVAILABLE"]
+            },
+            "authentication": { "enum": ["ON_INSTALL", "ON_USE"] }
+          },
+          "additionalProperties": false
+        },
+        "category": { "type": "string" }
+      },
+      "required": ["name", "source"],
+      "additionalProperties": false
+    }
+  }
+}

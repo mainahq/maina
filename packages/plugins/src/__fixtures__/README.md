@@ -27,8 +27,14 @@ listing (<https://code.claude.com/docs/en/plugin-marketplaces>) that the
 generator writes to `.claude-plugin/marketplace.json` at the repo root;
 `cursor/schemas/marketplace.schema.json` pins the Cursor listing it writes
 to `.cursor-plugin/marketplace.json` (the Cursor Marketplace submission and
-the Team Marketplace import both read it). `../__tests__/marketplace.test.ts`
-checks both.
+the Team Marketplace import both read it); `codex/schemas/marketplace.schema.json`
+pins the Codex listing (<https://developers.openai.com/codex/plugins/build>)
+it writes to `.agents/plugins/marketplace.json`.
+`../__tests__/marketplace.test.ts` checks all three.
+
+The Codex plugin's `rules/maina.rules` is Starlark, not JSON: it is the Codex
+rules emitter's output (`packages/cli/src/hosts/codex-rules.ts`, task 4.5),
+and `../__tests__/generate.test.ts` parses it.
 
 A contract with `"format": "frontmatter"` checks a Markdown file's YAML
 front matter instead of JSON: `cursor/schemas/rule.schema.json` pins the
