@@ -1,6 +1,6 @@
 /**
- * The real Claude Code and Cursor hooks (FR-GATE-7): `runClaudeHook` and
- * `runCursorHook` over the machine.
+ * The real Claude Code, Cursor and Codex hooks (FR-GATE-7): `runClaudeHook`,
+ * `runCursorHook` and `runCodexHook` over the machine.
  *
  * - The gate is the fail-closed hook client (ADR 0044): it asks the resident
  *   runtime, spawning one when none answers, and falls back to the
@@ -13,9 +13,9 @@
  *   from the repository's decision log (`.maina/decisions.db`), when there
  *   is one; a repository without one gets no summary.
  *
- * `runClaudeHookProcess` and `runCursorHookProcess` are the whole hook
- * process: stdin in, the host's answer out. The standalone runtime's `hook`
- * mode runs them.
+ * `runClaudeHookProcess`, `runCursorHookProcess` and `runCodexHookProcess`
+ * are the whole hook process: stdin in, the host's answer out. The
+ * standalone runtime's `hook` mode runs the one for the hook's host.
  */
 
 import { existsSync } from "node:fs";
@@ -32,6 +32,7 @@ import {
 	stopFromClient,
 } from "./claude-hook";
 import { createHookClient } from "./client/hook-client";
+import { runCodexHook } from "./codex-hook";
 import { runCursorHook } from "./cursor-hook";
 import { systemGates } from "./gate-system";
 import { daemonSpawner } from "./lifecycle";
@@ -133,6 +134,22 @@ export async function runClaudeHookProcess(hookEvent: string): Promise<number> {
  */
 export async function runCursorHookProcess(hookEvent: string): Promise<number> {
 	const run = await runCursorHook(
+		await Bun.stdin.text(),
+		systemClaudeHookPorts(),
+		hookEvent,
+	);
+	process.stdout.write(run.output.stdout);
+	if (run.output.stderr !== "") process.stderr.write(run.output.stderr);
+	return run.output.exitCode;
+}
+
+/**
+ * One hook process for Codex event `hookEvent` (mainahq/maina#475): the
+ * same gate and summary as Claude Code, in Codex's wire format, where an
+ * `ask` on PreToolUse is a deny.
+ */
+export async function runCodexHookProcess(hookEvent: string): Promise<number> {
+	const run = await runCodexHook(
 		await Bun.stdin.text(),
 		systemClaudeHookPorts(),
 		hookEvent,

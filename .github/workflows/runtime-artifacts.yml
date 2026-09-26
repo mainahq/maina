@@ -90,9 +90,14 @@ jobs:
           set -euo pipefail
           bin=$(ls dist/runtime/maina-*-${{ matrix.target }}*)
           "$bin" cli --version
-          out=$("$bin" hook PreToolUse </dev/null)
+          out=$("$bin" hook --host claude PreToolUse </dev/null)
           echo "$out"
           case $out in *'"permissionDecision":"ask"'*) ;; *) echo "hook did not fail closed" >&2; exit 1 ;; esac
+          # Codex runs a tool whose PreToolUse hook asks: it must deny, exit 2.
+          code=0
+          out=$("$bin" hook --host codex PreToolUse </dev/null) || code=$?
+          echo "$out"
+          case $code:$out in 2:*'"permissionDecision":"deny"'*) ;; *) echo "codex hook did not fail closed" >&2; exit 1 ;; esac
           init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}'
           # head exits after one line, so the server may die of SIGPIPE: ignore
           # the pipeline status and check the reply instead.

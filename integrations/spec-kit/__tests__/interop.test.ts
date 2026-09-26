@@ -33,7 +33,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { failClosedHookOutput } from "../../../packages/runtime/src/standalone/hook-fallback";
+import { failClosedHook } from "../../../packages/runtime/src/standalone/hook-fallback";
 
 // Spec Kit is a Python CLI: each `specify` call costs ~0.5 s to start.
 setDefaultTimeout(120_000);
@@ -298,7 +298,15 @@ describe("pre_tool_use handler", () => {
 
 		test(`fails closed to ask for ${host} when maina cannot answer`, () => {
 			const payload = hookPayload(host, file);
-			const expected = `${failClosedHookOutput(event, "gate_unavailable")}\n`;
+			// The handler asks on every pre-tool event for now; per-host
+			// routing and the runtime's denies are mainahq/maina#484. Cursor's
+			// ask carries no event name, so beforeShellExecution's is the same.
+			const expected = `${
+				host === "cursor"
+					? failClosedHook("cursor", "beforeShellExecution", "gate_unavailable")
+							.line
+					: failClosedHook("claude", event, "gate_unavailable").line
+			}\n`;
 			const broken = [
 				sandbox({ maina: null }),
 				sandbox({ maina: stubMaina('{"x":1}', 1) }),

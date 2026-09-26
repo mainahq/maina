@@ -111,7 +111,7 @@ above then just publishes it.
 Claude Code sessions in this repo also load `.claude/settings.json`, which
 runs maina's own gate as a `PreToolUse` hook (`scripts/dogfood/hook.ts`): the
 Claude Code adapter and the fail-closed hook client from source, the same path
-as `maina hook PreToolUse`. The first call spawns the resident runtime; if it
+as `maina hook --host claude PreToolUse`. The first call spawns the resident runtime; if it
 cannot answer in time, the rules-only gate runs in process and never allows.
 The hook only tightens: `ask` and `deny` are passed on, an `allow` stays silent
 so Claude Code's own permission flow applies, and it fails closed to `ask` if

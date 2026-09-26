@@ -73,13 +73,44 @@ export type CodexResult = Readonly<{
 	context?: string;
 }>;
 
-type CodexOutput = Readonly<{
+export type CodexOutput = Readonly<{
 	exitCode: number;
 	stdout: string;
 	stderr: string;
 }>;
 
+type HookCommand = Readonly<{ type: "command"; command: string }>;
+
+type HookGroup = Readonly<{ matcher?: string; hooks: readonly HookCommand[] }>;
+
+type CodexHooksConfig = Readonly<{
+	hooks: Readonly<Record<string, readonly HookGroup[]>>;
+}>;
+
 const HOST = "codex";
+
+/** Shown to whoever installs the hooks: openai/codex#27833. */
+export const CODEX_APPLY_PATCH_WARNING =
+	"maina: Codex runs the PreToolUse hook for apply_patch but does not enforce its deny yet (openai/codex#27833), so a file edit maina blocks may still be written.";
+
+/**
+ * The tools maina gates (see `mapTool`), as a Codex matcher regex. Every
+ * other tool is ignored by the adapter, so the hook need not run for it.
+ */
+const GATED_TOOLS = "^(Bash|apply_patch|mcp__.+)$";
+
+/** The hooks maina registers; PostToolUse is ignored, so not registered. */
+const REGISTERED: readonly string[] = [
+	"SessionStart",
+	"PreToolUse",
+	"PermissionRequest",
+	"Stop",
+];
+
+const TOOL_HOOKS: ReadonlySet<string> = new Set([
+	"PreToolUse",
+	"PermissionRequest",
+]);
 
 /** Every Codex hook event the adapter answers; the runtime routes on it. */
 export const CODEX_HOOK_EVENTS: ReadonlySet<string> = new Set([
@@ -396,4 +427,35 @@ export function toCodex(result: CodexResult): CodexOutput {
 		default:
 			return ok({});
 	}
+}
+
+// ── codexHooksConfig ────────────────────────────────────────────────────────
+
+/**
+ * The Codex `hooks.json` that registers maina's hooks, each running
+ * `<command> --host codex <event>` so the runtime answers the Codex way,
+ * and the known issues to show whoever installs it. The tool hooks match
+ * every tool maina gates, `apply_patch` included (#343 installs it).
+ */
+export function codexHooksConfig(command: string): Readonly<{
+	config: CodexHooksConfig;
+	warnings: readonly string[];
+}> {
+	const hooks = Object.fromEntries(
+		REGISTERED.map((event): [string, readonly HookGroup[]] => {
+			const hook: HookCommand = {
+				type: "command",
+				command: `${command} --host ${HOST} ${event}`,
+			};
+			return [
+				event,
+				[
+					TOOL_HOOKS.has(event)
+						? { matcher: GATED_TOOLS, hooks: [hook] }
+						: { hooks: [hook] },
+				],
+			];
+		}),
+	);
+	return { config: { hooks }, warnings: [CODEX_APPLY_PATCH_WARNING] };
 }

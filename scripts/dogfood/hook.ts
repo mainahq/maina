@@ -4,8 +4,8 @@
  * (#286, FR-DOG-1/2; #309 replaced the rules-only bootstrap with this).
  *
  * Wired from the repo's `.claude/settings.json`. It runs the real hook path
- * from source, the one the standalone runtime's `maina hook PreToolUse`
- * runs: the Claude Code adapter normalises the tool call, the fail-closed
+ * from source, the one the standalone runtime's `maina hook --host claude
+ * PreToolUse` runs: the Claude Code adapter normalises the tool call, the fail-closed
  * hook client asks the resident runtime (spawning one when none answers)
  * and the gate (`evaluateGate`) decides. When the runtime cannot answer,
  * the rules-only gate runs in process and never allows.

@@ -17,7 +17,10 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { failClosedHookOutput } from "../../src/standalone/hook-fallback";
+import {
+	failClosedHook,
+	type HookHost,
+} from "../../src/standalone/hook-fallback";
 import {
 	createReleaseKey,
 	currentTarget,
@@ -159,6 +162,14 @@ for (const interp of INTERPRETERS) {
 					staged,
 				});
 				expect(hook.stdout.trim()).toBe("fake-runtime hook PreToolUse");
+				// The host the hook was registered for reaches the runtime.
+				const codex = await runLauncher(
+					["hook", "--host", "codex", "PreToolUse"],
+					{ command: interp.command(staged), staged },
+				);
+				expect(codex.stdout.trim()).toBe(
+					"fake-runtime hook --host codex PreToolUse",
+				);
 				// The cached runtime is reused: no second download.
 				expect(server.requests).toEqual([ARTIFACT_PATH]);
 			} finally {
@@ -180,13 +191,16 @@ for (const interp of INTERPRETERS) {
 						key,
 					}),
 				);
-				const out = await runLauncher(["hook", "PreToolUse"], {
-					command: interp.command(staged),
-					staged,
-				});
+				const out = await runLauncher(
+					["hook", "--host", "claude", "PreToolUse"],
+					{
+						command: interp.command(staged),
+						staged,
+					},
+				);
 				expect(out.exitCode).toBe(0);
 				expect(out.stdout.trim()).toBe(
-					failClosedHookOutput("PreToolUse", "checksum_mismatch"),
+					failClosedHook("claude", "PreToolUse", "checksum_mismatch").line,
 				);
 				expect(out.stderr).toContain("checksum_mismatch");
 				expect(existsSync(staged.cached)).toBe(false);
@@ -209,13 +223,16 @@ for (const interp of INTERPRETERS) {
 						signingKey: otherKey,
 					}),
 				);
-				const out = await runLauncher(["hook", "PreToolUse"], {
-					command: interp.command(staged),
-					staged,
-				});
+				const out = await runLauncher(
+					["hook", "--host", "claude", "PreToolUse"],
+					{
+						command: interp.command(staged),
+						staged,
+					},
+				);
 				expect(out.exitCode).toBe(0);
 				expect(out.stdout.trim()).toBe(
-					failClosedHookOutput("PreToolUse", "bad_signature"),
+					failClosedHook("claude", "PreToolUse", "bad_signature").line,
 				);
 				expect(existsSync(staged.cached)).toBe(false);
 			} finally {
@@ -235,12 +252,15 @@ for (const interp of INTERPRETERS) {
 						withoutKey: true,
 					}),
 				);
-				const out = await runLauncher(["hook", "PreToolUse"], {
-					command: interp.command(staged),
-					staged,
-				});
+				const out = await runLauncher(
+					["hook", "--host", "claude", "PreToolUse"],
+					{
+						command: interp.command(staged),
+						staged,
+					},
+				);
 				expect(out.stdout.trim()).toBe(
-					failClosedHookOutput("PreToolUse", "no_release_key"),
+					failClosedHook("claude", "PreToolUse", "no_release_key").line,
 				);
 				expect(server.requests).toEqual([]);
 				expect(existsSync(staged.cached)).toBe(false);
@@ -318,12 +338,14 @@ for (const interp of INTERPRETERS) {
 					}),
 				);
 
-			const EVENTS = [
+			const PASCAL = [
 				"PreToolUse",
 				"PermissionRequest",
 				"PostToolUse",
 				"SessionStart",
 				"Stop",
+			] as const;
+			const CAMEL = [
 				"beforeShellExecution",
 				"beforeMCPExecution",
 				"preToolUse",
@@ -331,40 +353,114 @@ for (const interp of INTERPRETERS) {
 				"sessionStart",
 				"stop",
 			] as const;
+			/** Every registration: each host's events, and each with no host. */
+			const CASES: readonly (readonly [HookHost | undefined, string])[] = [
+				...PASCAL.map((e) => ["claude", e] as const),
+				...PASCAL.map((e) => ["codex", e] as const),
+				...CAMEL.map((e) => ["cursor", e] as const),
+				...[...PASCAL, ...CAMEL].map((e) => [undefined, e] as const),
+			];
 
 			test("hook mode prints the host's fail-closed output for every event", async () => {
 				const staged = stageOffline();
-				for (const event of EVENTS) {
-					const out = await runLauncher(["hook", event], {
+				for (const [host, event] of CASES) {
+					const args =
+						host === undefined
+							? ["hook", event]
+							: ["hook", "--host", host, event];
+					const out = await runLauncher(args, {
 						command: interp.command(staged),
 						staged,
 					});
-					expect(out.exitCode).toBe(0);
-					expect(out.stdout.trim()).toBe(
-						failClosedHookOutput(event, "download_failed"),
-					);
+					const expected = failClosedHook(host, event, "download_failed");
+					expect({
+						host,
+						event,
+						stdout: out.stdout,
+						code: out.exitCode,
+					}).toEqual({
+						host,
+						event,
+						stdout: `${expected.line}\n`,
+						code: expected.exitCode,
+					});
+					expect(out.stderr.endsWith(expected.stderr)).toBe(true);
 				}
 				expect(existsSync(staged.cached)).toBe(false);
-				// One launch per event; PowerShell on Windows takes ~3 s each.
-			}, 120_000);
+				// One launch per case; PowerShell on Windows takes ~3 s each.
+			}, 180_000);
 
-			test("hook mode never allows: pre-tool events ask", async () => {
+			test("hook mode never allows: pre-tool events ask where the host enforces it, else deny", async () => {
 				const staged = stageOffline();
-				const claude = await runLauncher(["hook", "PreToolUse"], {
-					command: interp.command(staged),
-					staged,
-				});
+				const run = (args: readonly string[]) =>
+					runLauncher(args, { command: interp.command(staged), staged });
+				const claude = await run(["hook", "--host", "claude", "PreToolUse"]);
+				expect(claude.exitCode).toBe(0);
 				expect(JSON.parse(claude.stdout)).toMatchObject({
 					hookSpecificOutput: {
 						hookEventName: "PreToolUse",
 						permissionDecision: "ask",
 					},
 				});
-				const cursor = await runLauncher(["hook", "beforeShellExecution"], {
-					command: interp.command(staged),
-					staged,
-				});
-				expect(JSON.parse(cursor.stdout)).toMatchObject({ permission: "ask" });
+				// Codex runs a tool whose PreToolUse hook asks: deny, exit 2.
+				for (const args of [
+					["hook", "--host", "codex", "PreToolUse"],
+					["hook", "PreToolUse"],
+				]) {
+					const out = await run(args);
+					expect(out.exitCode).toBe(2);
+					expect(JSON.parse(out.stdout)).toMatchObject({
+						hookSpecificOutput: {
+							hookEventName: "PreToolUse",
+							permissionDecision: "deny",
+						},
+					});
+					expect(out.stderr).toContain("download_failed");
+				}
+				const shell = await run([
+					"hook",
+					"--host",
+					"cursor",
+					"beforeShellExecution",
+				]);
+				expect(JSON.parse(shell.stdout)).toMatchObject({ permission: "ask" });
+				// Cursor does not enforce ask on preToolUse (#469): deny, exit 2.
+				const pre = await run(["hook", "--host", "cursor", "preToolUse"]);
+				expect(pre.exitCode).toBe(2);
+				expect(JSON.parse(pre.stdout)).toMatchObject({ permission: "deny" });
+			});
+
+			test("an unknown host fails closed without running the runtime", async () => {
+				const server = startArtifactServer({ [ARTIFACT_PATH]: FAKE_RUNTIME });
+				try {
+					const staged = track(
+						stageLauncher({
+							target,
+							pinned: FAKE_RUNTIME,
+							url: `${server.url}${ARTIFACT_PATH}`,
+							key,
+						}),
+					);
+					const expected = failClosedHook(
+						undefined,
+						"PreToolUse",
+						"unknown_host",
+					);
+					for (const host of ["vscode", "", "Claude"]) {
+						const out = await runLauncher(
+							["hook", "--host", host, "PreToolUse"],
+							{ command: interp.command(staged), staged },
+						);
+						expect({ host, stdout: out.stdout, code: out.exitCode }).toEqual({
+							host,
+							stdout: `${expected.line}\n`,
+							code: expected.exitCode,
+						});
+					}
+					expect(server.requests).toEqual([]);
+				} finally {
+					server.stop();
+				}
 			});
 
 			test("MCP mode starts rules-only with a status notice", async () => {
@@ -501,14 +597,16 @@ for (const interp of INTERPRETERS) {
 
 				test(`${cause}: hook mode fails closed`, async () => {
 					const staged = stageBroken(manifest);
-					const out = await runLauncher(["hook", "PreToolUse"], {
-						command: interp.command(staged),
-						staged,
-					});
-					expect(out.exitCode).toBe(0);
-					expect(out.stdout.trim()).toBe(
-						failClosedHookOutput("PreToolUse", cause),
+					const out = await runLauncher(
+						["hook", "--host", "codex", "PreToolUse"],
+						{
+							command: interp.command(staged),
+							staged,
+						},
 					);
+					const expected = failClosedHook("codex", "PreToolUse", cause);
+					expect(out.exitCode).toBe(expected.exitCode);
+					expect(out.stdout).toBe(`${expected.line}\n`);
 				});
 			}
 		});

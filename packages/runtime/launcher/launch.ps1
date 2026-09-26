@@ -1,6 +1,6 @@
 # maina launcher for Windows (v1 task 2.3; ADR 0045). PowerShell 5.1+, no modules.
 #
-#   launch.ps1 mcp | hook <event> | cli [args...]
+#   launch.ps1 mcp | hook [--host <claude|codex|cursor>] <event> | cli [args...]
 #
 # Same contract as launch.sh: runs the runtime pinned by manifest.json from
 # $env:PLUGIN_DATA (or $env:CLAUDE_PLUGIN_DATA, or ~/.maina)\runtime\<version>,
@@ -20,14 +20,26 @@ function Out-Line([string]$line) { [Console]::Out.Write("$line`n"); [Console]::O
 $mode = if ($args.Count -gt 0) { [string]$args[0] } else { '' }
 $rest = @(if ($args.Count -gt 1) { $args[1..($args.Count - 1)] | ForEach-Object { [string]$_ } })
 $event = ''
+$hookHost = ''
+$badHost = $false
 switch -CaseSensitive ($mode) {
 	'mcp' { }
 	'cli' { }
-	'hook' { if ($rest.Count -gt 0) { $event = $rest[0] } }
+	'hook' {
+		$i = 0
+		if ($rest.Count -gt 0 -and $rest[0] -ceq '--host') {
+			if ($rest.Count -gt 1) { $hookHost = $rest[1] }
+			$badHost = $true
+			$i = 2
+		}
+		if ($rest.Count -gt $i) { $event = $rest[$i] }
+		# An unknown host fails closed below, like any hook maina cannot answer.
+		if ($hookHost -cin 'claude', 'codex', 'cursor') { $badHost = $false } else { $hookHost = '' }
+	}
 	default { $mode = '' }
 }
 if ($mode -eq '' -or ($mode -eq 'hook' -and $event -cnotmatch '^[A-Za-z]+$')) {
-	Say 'usage: launch.ps1 mcp | hook <event> | cli [args...]'
+	Say 'usage: launch.ps1 mcp | hook [--host <claude|codex|cursor>] <event> | cli [args...]'
 	exit 64
 }
 
@@ -37,20 +49,44 @@ $keyPath = Join-Path $here 'release.pub.xml'
 $version = ''
 
 # ── Degraded modes ──────────────────────────────────────────────────────────
-# Keep these outputs byte-identical to src/standalone/hook-fallback.ts.
+# Keep these outputs and exit codes byte-identical to
+# src/standalone/hook-fallback.ts. A deny exits 2 with its reason on stderr:
+# Codex runs a tool whose PreToolUse hook asks, Cursor does not enforce ask
+# on preToolUse, and a PascalCase event with no host could be either.
 
-function Get-FailClosed([string]$cause) {
+function Invoke-FailClosed([string]$cause) {
 	$ask = "maina could not check this action ($cause); confirm it yourself."
+	$deny = "maina could not check this action ($cause), so it blocked it; ask the user to confirm before trying another way."
 	$ctx = "maina guardrails are unavailable ($cause); risky actions will ask for confirmation."
+	$code = 0
+	$line = '{}'
 	switch -CaseSensitive ($event) {
-		'PreToolUse' { return '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"' + $ask + '"}}' }
-		'SessionStart' { return '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"' + $ctx + '"}}' }
-		{ $_ -in 'beforeShellExecution', 'beforeMCPExecution', 'preToolUse' } {
-			return '{"permission":"ask","user_message":"' + $ask + '","agent_message":"maina could not check this action; the user must confirm it."}'
+		'PreToolUse' {
+			if ($hookHost -ceq 'claude') {
+				$line = '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"' + $ask + '"}}'
+			} else {
+				$line = '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"' + $deny + '"}}'
+				$code = 2
+			}
 		}
-		'sessionStart' { return '{"additional_context":"' + $ctx + '"}' }
+		'SessionStart' { $line = '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"' + $ctx + '"}}' }
+		{ $_ -cin 'beforeShellExecution', 'beforeMCPExecution' } {
+			$line = '{"permission":"ask","user_message":"' + $ask + '","agent_message":"maina could not check this action; the user must confirm it."}'
+		}
+		'preToolUse' {
+			$line = '{"permission":"deny","user_message":"' + $deny + '","agent_message":"maina could not check this action, so it blocked it; ask the user to confirm it."}'
+			$code = 2
+		}
+		'sessionStart' { $line = '{"additional_context":"' + $ctx + '"}' }
 	}
-	return '{}'
+	Out-Line $line
+	if ($code -ne 0) { [Console]::Error.Write("$deny`n") }
+	exit $code
+}
+
+if ($badHost) {
+	Say 'unknown hook host'
+	Invoke-FailClosed 'unknown_host'
 }
 
 function Send-Rpc($id, $body) {
@@ -100,7 +136,7 @@ function Start-RulesOnlyMcp([string]$cause) {
 function Invoke-Degraded([string]$cause) {
 	Say "runtime unavailable ($cause)"
 	switch ($mode) {
-		'hook' { Out-Line (Get-FailClosed $cause); exit 0 }
+		'hook' { Invoke-FailClosed $cause }
 		'mcp' { Start-RulesOnlyMcp $cause }
 		default { Say 'maina cannot run until its runtime installs; check network access and retry.'; exit 69 }
 	}
@@ -134,7 +170,11 @@ function Format-Arg([string]$a) {
 }
 
 function Invoke-Runtime {
-	$argv = switch ($mode) { 'mcp' { @('mcp') } 'hook' { @('hook', $event) } default { @('cli') + $rest } }
+	$argv = switch ($mode) {
+		'mcp' { @('mcp') }
+		'hook' { if ($hookHost -ne '') { @('hook', '--host', $hookHost, $event) } else { @('hook', $event) } }
+		default { @('cli') + $rest }
+	}
 	$psi = New-Object System.Diagnostics.ProcessStartInfo
 	$psi.FileName = $bin
 	$psi.Arguments = ($argv | ForEach-Object { Format-Arg $_ }) -join ' '
