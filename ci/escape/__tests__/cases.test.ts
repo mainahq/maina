@@ -82,6 +82,21 @@ describe("the escape suite", () => {
 		}
 	});
 
+	// Padding the count with a copy of another case's attack under a new id
+	// adds no coverage: every case must run an attack of its own.
+	test("no two cases run the same attack", () => {
+		const ctx = fakeContext();
+		const byScript = new Map<string, string>();
+		const copies: string[] = [];
+		for (const c of ESCAPE_CASES) {
+			const script = c.script(ctx);
+			const first = byScript.get(script);
+			if (first !== undefined) copies.push(`${c.id} = ${first}`);
+			else byScript.set(script, c.id);
+		}
+		expect(copies).toEqual([]);
+	});
+
 	test("every category is a declared one", () => {
 		const declared = new Set<EscapeCase["category"]>(ESCAPE_CATEGORIES);
 		for (const c of ESCAPE_CASES) {

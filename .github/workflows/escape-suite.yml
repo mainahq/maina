@@ -22,12 +22,23 @@ on:
     types: [published]
   workflow_dispatch:
   workflow_call:
+  # A change to the suite or to what it guards is proven before it merges,
+  # rather than first failing as the release gate on master.
+  pull_request:
+    paths:
+      - "ci/escape/**"
+      - ".github/workflows/escape-suite.yml"
+      - "packages/harness/src/sandbox/**"
+      - "packages/harness/src/permissions/**"
 
 permissions:
   contents: read
 
+# Keyed by event as well as ref: the nightly run and the release gate (which
+# calls this workflow from a push to master) share a ref, and one must never
+# cancel the other.
 concurrency:
-  group: escape-suite-${{ github.ref }}
+  group: escape-suite-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

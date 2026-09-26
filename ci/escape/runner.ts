@@ -59,7 +59,6 @@ const SECRET_ENV = "GITHUB_TOKEN";
 const SECRET_VALUE = "ghp_ambient_escape_322";
 const CRED_ENV = "ANTHROPIC_API_KEY";
 const CRED_VALUE = "sk-ant-real-escape-322";
-const RUN_MS = 20_000;
 
 /** A per-case sandbox setup, disposed after the case runs. */
 type Harness = Readonly<{
