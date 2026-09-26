@@ -1,0 +1,273 @@
+name: Release evidence
+
+# Collects the evidence for the v1 release gates (spec §9, v1 task 12.1,
+# #558) and uploads it as this run's `v1-evidence` artifact, one JSON file
+# per gate item, each linking back to this run. `bun run release:gates
+# --run latest` downloads and checks it; the gate check also runs at the end
+# of this workflow and writes its report to the job summary.
+#
+#   docs-build.json        the docs site build
+#   latency.json           gate/decide, code-graph and MCP cold-start benches
+#   receipted-merges.json  every PR merged into v1/main against its receipt
+#   dogfood-weeks.json     docs/dogfood reports + P0 `dogfood` issues
+#   harness-control.json   unattended policy matrix + bounded revision tests
+#   escape-suite.json      the sandboxed escape suite on Linux and macOS
+#   e2e-matrix.json        the real-config matrix, repeated (JUnit per run)
+#   first-result.json      the plugin cells' install → first verify times
+#   uninstall.json         the plugin cells' uninstall traces
+#
+# Promotion and benchmark evidence come from the model track (#339) and
+# stay MISSING here until it lands.
+#
+# The collectors record failures as evidence rather than failing the run: a
+# red job here means the collector itself broke. Producers live in
+# scripts/release/evidence/.
+
+on:
+  schedule:
+    - cron: "15 4 * * *" # 04:15 UTC nightly
+  workflow_dispatch:
+    inputs:
+      e2e_repetitions:
+        description: "Real-config matrix repetitions per cell (72 runs each; 14 for the ≥ 1,000-run release gate)"
+        required: false
+        default: "14"
+  # A change to the collectors is proven before it merges, with one
+  # repetition.
+  pull_request:
+    paths:
+      - ".github/workflows/release-evidence.yml"
+      - "scripts/release/evidence/**"
+      - "scripts/release/v1-gates.ts"
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: release-evidence-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Nightly: 2 repetitions (144 runs); a PR: 1; on demand: the input.
+  E2E_REPETITIONS: ${{ inputs.e2e_repetitions || (github.event_name == 'schedule' && '2') || '1' }}
+
+jobs:
+  latency:
+    name: latency benches
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Build the CLI (the MCP server the hosts launch)
+        run: cd packages/cli && bun run build
+      - name: Cache pinned bench repo
+        uses: actions/cache@v4
+        with:
+          path: .cache/bench-repos
+          key: graph-bench-repo-${{ hashFiles('scripts/fixtures/fetch-100k-repo.ts') }}
+      - name: Fetch pinned bench repo
+        run: bun scripts/fixtures/fetch-100k-repo.ts
+      - name: Benches
+        run: |
+          mkdir -p raw out
+          bun packages/core/bench/gate.bench.ts 5 --json raw/gate.json || echo "::warning::gate bench over budget"
+          bun run bench:graph --json raw/graph.json || echo "::warning::graph bench over budget"
+          bun scripts/release/evidence/mcp-cold-start.ts --samples 10 --json raw/mcp.json || echo "::warning::MCP cold start failed or over budget"
+      - name: latency.json
+        run: bun scripts/release/evidence/latency.ts --gate raw/gate.json --graph raw/graph.json --mcp raw/mcp.json --out out/latency.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evidence-latency
+          path: out/
+
+  docs-build:
+    name: docs build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Build docs
+        shell: bash
+        run: |
+          set +e
+          (cd packages/docs && bun run build) 2>&1 | tee docs-build.log
+          echo "code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+        id: build
+      - name: docs-build.json
+        env:
+          CODE: ${{ steps.build.outputs.code }}
+        run: bun scripts/release/evidence/docs-build.ts --exit "$CODE" --log docs-build.log --out out/docs-build.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evidence-docs-build
+          path: out/
+
+  github:
+    name: receipts + dogfood weeks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: receipted-merges.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun scripts/release/evidence/receipts.ts --repo "$GITHUB_REPOSITORY" --base v1/main --out out/receipted-merges.json
+      # The reports on v1/main, where the weekly dogfood report lands.
+      - name: dogfood-weeks.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch -q --depth=1 origin v1/main
+          rm -rf docs/dogfood && git checkout FETCH_HEAD -- docs/dogfood 2>/dev/null || mkdir -p docs/dogfood
+          bun scripts/release/evidence/dogfood-weeks.ts --repo "$GITHUB_REPOSITORY" --reports docs/dogfood --out out/dogfood-weeks.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evidence-github
+          path: out/
+
+  harness-control:
+    name: harness control
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Policy matrix + bounded revision
+        run: |
+          mkdir -p raw
+          bun test packages/harness/src/run/__tests__/context.test.ts --reporter=junit --reporter-outfile=raw/unattended.xml || true
+          bun test packages/harness/src/run/__tests__/revision.test.ts --reporter=junit --reporter-outfile=raw/revision.xml || true
+      - name: harness-control.json
+        run: bun scripts/release/evidence/harness.ts --unattended raw/unattended.xml --revision raw/revision.xml --out out/harness-control.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evidence-harness
+          path: out/
+
+  escape:
+    name: escape suite (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - name: Linux sandbox prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap socat ripgrep
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Install sandbox-runtime (pinned)
+        run: |
+          SRT="$(bun -e 'import { SANDBOX_RUNTIME as s } from "./packages/harness/src/sandbox/runtime-adapter.ts"; process.stdout.write(`${s.package}@${s.version}`)')"
+          npm install -g "$SRT"
+      - name: Sandboxed run
+        run: |
+          mkdir -p raw
+          bun ci/escape/runner.ts sandboxed --json "raw/escape-${{ runner.os }}.json" || echo "::warning::cases escaped the sandbox (recorded)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: raw-escape-${{ matrix.os }}
+          path: raw/
+
+  e2e:
+    name: e2e ${{ matrix.os }} / ${{ matrix.host }} / ${{ matrix.path }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        host: [claude-code, cursor, codex]
+        path: [plugin, cli-setup, cli-mcp-add, install-sh]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Run the cell ${{ env.E2E_REPETITIONS }} time(s)
+        shell: bash
+        env:
+          E2E_HOST: ${{ matrix.host }}
+          E2E_INSTALL_PATH: ${{ matrix.path }}
+        run: |
+          case "$E2E_REPETITIONS" in ''|*[!0-9]*) echo "e2e_repetitions must be a number"; exit 2;; esac
+          mkdir -p raw
+          export MAINA_E2E_MEASUREMENTS="$PWD/raw/measurements.jsonl"
+          for i in $(seq 1 "$E2E_REPETITIONS"); do
+            bun test ci/e2e/real-config --reporter=junit --reporter-outfile="raw/junit-$i.xml" > "raw/run-$i.log" 2>&1 \
+              || echo "::warning::repetition $i had failures (recorded)"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: raw-e2e-${{ matrix.os }}-${{ matrix.host }}-${{ matrix.path }}
+          path: raw/
+
+  evidence:
+    name: evidence + gate check
+    needs: [latency, docs-build, github, harness-control, escape, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: evidence-*
+          path: v1-evidence
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: raw-e2e-*
+          path: raw/e2e
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: raw-escape-*
+          path: raw/escape
+      - name: e2e-matrix.json, first-result.json, uninstall.json
+        run: bun scripts/release/evidence/e2e.ts --in raw/e2e --out v1-evidence || true
+      - name: escape-suite.json
+        run: bun scripts/release/evidence/escape.ts --in raw/escape --out v1-evidence/escape-suite.json || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v1-evidence
+          path: v1-evidence/
+      # The report, not a verdict on this run: the gates stay red until the
+      # release is ready.
+      - name: Gate check
+        run: |
+          ls -l v1-evidence
+          bun run release:gates --evidence v1-evidence --summary "$GITHUB_STEP_SUMMARY" || echo "::notice::v1 release gates not met yet (see the summary)"

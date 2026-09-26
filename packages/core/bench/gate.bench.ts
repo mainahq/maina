@@ -10,10 +10,14 @@
  * every event. Prints p50/p95/p99/max per pass and exits 1 when either p95
  * is over budget. `evaluate.test.ts` holds the same budget in CI.
  *
- *   bun packages/core/bench/gate.bench.ts [rounds]
+ * It also times the `decide` calls inside those evaluations (each
+ * decision's own `latencyMs`), for the §8 decide budget (p95 <= 30 ms).
+ * `--json <file>` writes both p95s for the release evidence (#558).
+ *
+ *   bun packages/core/bench/gate.bench.ts [rounds] [--json <file>]
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { DEFAULT_REGISTRY, withBackend } from "../src/decide/registry";
 import { evaluateGate, type GatePorts } from "../src/gate/evaluate";
@@ -24,7 +28,10 @@ import type { Policy } from "../src/policy/schema";
 
 const BUDGET_P95_MS = 50;
 const WARMUP_ROUNDS = 2;
-const rounds = Number(process.argv[2] ?? 5);
+const argv = process.argv.slice(2);
+const jsonAt = argv.indexOf("--json");
+const jsonFile = jsonAt >= 0 ? argv[jsonAt + 1] : undefined;
+const rounds = Number(argv.find((a) => /^\d+$/.test(a)) ?? 5);
 const ROOT = "/work/repo";
 
 /** A corpus line: one event's kind and action (other fields are labels). */
@@ -63,7 +70,13 @@ const ports: GatePorts = {
 	newId: () => `bench-${++n}`,
 };
 
-function run(label: string, policy: Policy): boolean {
+/** Every timed evaluation's `decide` latencies, across both passes. */
+const decideSamples: number[] = [];
+
+const p = (sorted: readonly number[], q: number): number =>
+	sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] ?? 0;
+
+function run(label: string, policy: Policy): number {
 	const samples: number[] = [];
 	let degraded = 0;
 	for (let round = 0; round < WARMUP_ROUNDS + rounds; round++) {
@@ -74,11 +87,13 @@ function run(label: string, policy: Policy): boolean {
 			if (round < WARMUP_ROUNDS) continue;
 			samples.push(elapsed);
 			if (result.degraded) degraded++;
+			for (const a of result.decided?.answers ?? []) {
+				decideSamples.push(a.decision.latencyMs);
+			}
 		}
 	}
 	samples.sort((a, b) => a - b);
-	const at = (q: number): number =>
-		samples[Math.min(samples.length - 1, Math.floor(samples.length * q))] ?? 0;
+	const at = (q: number): number => p(samples, q);
 	const p95 = at(0.95);
 	process.stdout.write(
 		`evaluateGate [${label}] over ${samples.length} events: ` +
@@ -86,7 +101,7 @@ function run(label: string, policy: Policy): boolean {
 			`p99 ${at(0.99).toFixed(3)} ms, max ${at(1).toFixed(3)} ms, ` +
 			`degraded ${degraded}\n`,
 	);
-	return p95 <= BUDGET_P95_MS;
+	return p95;
 }
 
 const rules = run("rules backend", DEFAULT_POLICY);
@@ -94,4 +109,25 @@ const heuristic = run(
 	"heuristic backend",
 	withBackend(DEFAULT_POLICY, "action.risk", "heuristic"),
 );
-process.exit(rules && heuristic ? 0 : 1);
+decideSamples.sort((a, b) => a - b);
+const decideP95 = p(decideSamples, 0.95);
+process.stdout.write(
+	`decide over ${decideSamples.length} calls: p50 ${p(decideSamples, 0.5).toFixed(3)} ms, ` +
+		`p95 ${decideP95.toFixed(3)} ms, max ${p(decideSamples, 1).toFixed(3)} ms\n`,
+);
+if (jsonFile !== undefined) {
+	writeFileSync(
+		jsonFile,
+		`${JSON.stringify(
+			{
+				gateP95Ms: Math.max(rules, heuristic),
+				decideP95Ms: decideP95,
+				events: events.length,
+				decideCalls: decideSamples.length,
+			},
+			null,
+			"\t",
+		)}\n`,
+	);
+}
+process.exit(rules <= BUDGET_P95_MS && heuristic <= BUDGET_P95_MS ? 0 : 1);

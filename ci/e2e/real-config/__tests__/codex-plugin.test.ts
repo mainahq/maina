@@ -49,6 +49,7 @@ import {
 	seedsFor,
 	type Workspace,
 } from "../matrix";
+import { measureFirstResult, measureUninstall } from "../measurements";
 import {
 	type PluginRelease,
 	pluginRelease,
@@ -187,36 +188,43 @@ describe.skipIf(!runsHere)("Codex plugin (#343)", () => {
 		return ctx;
 	};
 
-	test("marketplace install on a clean machine: the first SessionStart onboards and the first verify answers within 60 s", async () => {
-		if (plugin === undefined) throw new Error("codex has no plugin");
-		const w = workspace();
-		const env = guiEnv(w);
-		const t0 = performance.now();
-		const ctx = await install(w);
+	test(
+		"marketplace install on a clean machine: the first SessionStart onboards and the first verify answers within 60 s",
+		() =>
+			measureFirstResult("codex", async () => {
+				if (plugin === undefined) throw new Error("codex has no plugin");
+				const w = workspace();
+				const env = guiEnv(w);
+				const t0 = performance.now();
+				const ctx = await install(w);
 
-		const session = await plugin.startSession(ctx, env);
-		expect(session.ok).toBe(true);
-		if (session.ok) expect(session.value).toContain(ONBOARDING);
+				const session = await plugin.startSession(ctx, env);
+				expect(session.ok).toBe(true);
+				if (session.ok) expect(session.value).toContain(ONBOARDING);
 
-		const launch = resolveLaunch("codex", ctx, readOrNull);
-		expect(launch.ok).toBe(true);
-		if (!launch.ok) return;
-		const [installed] = installedPlugins(w.home, readOrNull);
-		expect(installed?.key).toBe(CODEX_PLUGIN);
-		expect(launch.value.source).toBe(join(installed?.root ?? "", "mcp.json"));
-		// The runtime lives in the plugin's data dir, not in ~/.maina.
-		expect(launch.value.env.PLUGIN_DATA).toBe(installed?.data ?? "");
-		const verified = await probeLaunch(launch.value, env, w.cwd, {
-			coldStartBudgetMs: FIRST_VERIFY_BUDGET_MS,
-		});
-		const elapsedMs = performance.now() - t0;
-		expect(verified.error).toBeUndefined();
-		expect(verified.started).toBe(true);
-		expect(verified.toolCallOk).toBe(true);
-		expect(elapsedMs).toBeLessThanOrEqual(FIRST_VERIFY_BUDGET_MS);
-		expect(release.downloads().length).toBeGreaterThan(0);
-		expect(existsSync(join(w.home, ".maina", "runtime"))).toBe(false);
-	}, 90_000);
+				const launch = resolveLaunch("codex", ctx, readOrNull);
+				expect(launch.ok).toBe(true);
+				if (!launch.ok) return;
+				const [installed] = installedPlugins(w.home, readOrNull);
+				expect(installed?.key).toBe(CODEX_PLUGIN);
+				expect(launch.value.source).toBe(
+					join(installed?.root ?? "", "mcp.json"),
+				);
+				// The runtime lives in the plugin's data dir, not in ~/.maina.
+				expect(launch.value.env.PLUGIN_DATA).toBe(installed?.data ?? "");
+				const verified = await probeLaunch(launch.value, env, w.cwd, {
+					coldStartBudgetMs: FIRST_VERIFY_BUDGET_MS,
+				});
+				const elapsedMs = performance.now() - t0;
+				expect(verified.error).toBeUndefined();
+				expect(verified.started).toBe(true);
+				expect(verified.toolCallOk).toBe(true);
+				expect(elapsedMs).toBeLessThanOrEqual(FIRST_VERIFY_BUDGET_MS);
+				expect(release.downloads().length).toBeGreaterThan(0);
+				expect(existsSync(join(w.home, ".maina", "runtime"))).toBe(false);
+			}),
+		90_000,
+	);
 
 	test("a destructive fixture command is denied", async () => {
 		if (plugin === undefined) throw new Error("codex has no plugin");
@@ -288,47 +296,69 @@ describe.skipIf(!runsHere)("Codex plugin (#343)", () => {
 		expect(execPolicy(texts(), ["maina", "verify"])).toBeUndefined();
 	}, 90_000);
 
-	test("uninstall leaves no trace", async () => {
-		if (plugin === undefined) throw new Error("codex has no plugin");
-		const w = workspace();
-		const ctx: PathCtx = { home: w.home, cwd: w.cwd };
-		// A Codex user with their own config, before they install.
-		for (const seed of seedsFor("codex", ctx)) {
-			await Bun.write(seed.path, seed.content);
-		}
-		const before = snapshot(w.root);
+	test(
+		"uninstall leaves no trace",
+		() =>
+			measureUninstall("codex", async (report) => {
+				if (plugin === undefined) throw new Error("codex has no plugin");
+				const w = workspace();
+				const ctx: PathCtx = { home: w.home, cwd: w.cwd };
+				// A Codex user with their own config, before they install.
+				for (const seed of seedsFor("codex", ctx)) {
+					await Bun.write(seed.path, seed.content);
+				}
+				const before = snapshot(w.root);
 
-		await install(w);
-		const [installed] = installedPlugins(w.home, readOrNull);
-		if (installed === undefined) throw new Error("plugin not enabled");
-		const env = guiEnv(w);
-		expect((await plugin.startSession(ctx, env)).ok).toBe(true);
-		const launch = resolveLaunch("codex", ctx, readOrNull);
-		if (!launch.ok) throw new Error(launch.error.message);
-		expect((await probeLaunch(launch.value, env, w.cwd)).toolCallOk).toBe(true);
-		await patch(w, join(w.cwd, "notes.md"));
+				await install(w);
+				const [installed] = installedPlugins(w.home, readOrNull);
+				if (installed === undefined) throw new Error("plugin not enabled");
+				const env = guiEnv(w);
+				expect((await plugin.startSession(ctx, env)).ok).toBe(true);
+				const launch = resolveLaunch("codex", ctx, readOrNull);
+				if (!launch.ok) throw new Error(launch.error.message);
+				expect((await probeLaunch(launch.value, env, w.cwd)).toolCallOk).toBe(
+					true,
+				);
+				await patch(w, join(w.cwd, "notes.md"));
 
-		// The runtime the hooks started is running, claimed in the plugin's
-		// data dir, listening where its command line says.
-		const runDir = join(installed.data, "run");
-		expect(await waitFor(() => runtimePid(runDir) !== null, 10_000)).toBe(true);
-		const pid = runtimePid(runDir) ?? 0;
-		const socket = runtimeAddress(pid);
-		expect(socket).toBeDefined();
-		expect(
-			await waitFor(() => socket !== undefined && existsSync(socket), 10_000),
-		).toBe(true);
+				// The runtime the hooks started is running, claimed in the plugin's
+				// data dir, listening where its command line says.
+				const runDir = join(installed.data, "run");
+				expect(await waitFor(() => runtimePid(runDir) !== null, 10_000)).toBe(
+					true,
+				);
+				const pid = runtimePid(runDir) ?? 0;
+				const socket = runtimeAddress(pid);
+				expect(socket).toBeDefined();
+				expect(
+					await waitFor(
+						() => socket !== undefined && existsSync(socket),
+						10_000,
+					),
+				).toBe(true);
 
-		expect(pluginUninstall(w.home, CODEX_PLUGIN, readOrNull).ok).toBe(true);
+				expect(pluginUninstall(w.home, CODEX_PLUGIN, readOrNull).ok).toBe(true);
 
-		// No maina process outlives the plugin.
-		expect(await waitFor(() => !alive(pid), 15_000)).toBe(true);
-		// Nor its socket, wherever it had to live.
-		expect(socket !== undefined && existsSync(socket)).toBe(false);
-		expect(socket !== undefined && existsSync(dirname(socket))).toBe(false);
-		// Every file is as it was (the user's config.toml byte for byte), but
-		// for Codex's own (now empty) plugin dirs.
-		expect(checkSeeds("codex", ctx, readOrNull).ok).toBe(true);
-		expect(traces(before, snapshot(w.root), BOOKKEEPING)).toEqual([]);
-	}, 120_000);
+				// No maina process outlives the plugin, nor its socket wherever it
+				// had to live, and every file is as it was, but for the host's own
+				// (now empty) plugin bookkeeping.
+				const gone = await waitFor(() => !alive(pid), 15_000);
+				const left = [
+					...(gone ? [] : [`runtime pid ${pid} still running`]),
+					...(socket !== undefined && existsSync(socket)
+						? [`socket ${socket}`]
+						: []),
+					...(socket !== undefined && existsSync(dirname(socket))
+						? [`socket dir ${dirname(socket)}`]
+						: []),
+					...(checkSeeds("codex", ctx, readOrNull).ok
+						? []
+						: ["the user's own config changed"]),
+					...traces(before, snapshot(w.root), BOOKKEEPING),
+				];
+				report(left);
+				expect(left).toEqual([]);
+			}),
+		120_000,
+	);
 });

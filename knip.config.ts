@@ -23,6 +23,7 @@ const config: KnipConfig = {
 				"scripts/dogfood/*.ts!",
 				"scripts/fixtures/*.ts!",
 				"scripts/release/*.ts!",
+				"scripts/release/evidence/*.ts!",
 				"scripts/**/__tests__/*.test.ts",
 				"integrations/**/__tests__/*.test.ts",
 			],
