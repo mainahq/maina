@@ -319,6 +319,23 @@ export function holdsPidFile(endpoint: Endpoint, pid: number): boolean {
 	return readHolder(endpoint.pidFile)?.pid === pid;
 }
 
+/**
+ * True once `pid` has certainly lost the endpoint's pid file: it is gone, or
+ * it names another process. A file that cannot be read right now (EACCES,
+ * EMFILE) is not a loss, so a transient error never stops a live runtime.
+ */
+export function lostPidFile(endpoint: Endpoint, pid: number): boolean {
+	const holder = readHolder(endpoint.pidFile);
+	if (holder !== null) return holder.pid !== pid;
+	try {
+		statSync(endpoint.pidFile);
+		return false;
+	} catch (err) {
+		const code = errorCode(err);
+		return code === "ENOENT" || code === "ENOTDIR";
+	}
+}
+
 export function releasePidFile(endpoint: Endpoint, pid: number): void {
 	releaseExclusive(endpoint.pidFile, pid);
 }

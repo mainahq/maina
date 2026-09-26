@@ -541,6 +541,35 @@ describe("claim check (#341)", () => {
 		expect(existsSync(dirname(endpoint.address))).toBe(false);
 	});
 
+	test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+		"a pid file it cannot read for a moment is not a lost claim",
+		async () => {
+			// A transient read failure (EACCES, EMFILE under load) must not
+			// take down a runtime that still holds its claim: only a missing
+			// pid file or another holder's pid is a loss.
+			const t = temp();
+			const started = startRuntime(
+				{ gate: fixedGate("allow") },
+				{
+					endpoint: t.endpoint,
+					version: "1.0.0",
+					idleTtlMs: 60_000,
+					claimCheckMs: 50,
+				},
+			);
+			if (!started.ok) throw new Error(JSON.stringify(started.error));
+			runtimes.push(started.value);
+			chmodSync(t.endpoint.pidFile, 0o000);
+			const closed = await Promise.race([
+				started.value.closed,
+				Bun.sleep(500).then(() => "still running"),
+			]);
+			chmodSync(t.endpoint.pidFile, 0o600);
+			expect(closed).toBe("still running");
+			expect(existsSync(t.endpoint.address)).toBe(true);
+		},
+	);
+
 	test("a runtime displaced from its pid file stops, leaving the successor's claim", async () => {
 		const t = temp();
 		const started = startRuntime(

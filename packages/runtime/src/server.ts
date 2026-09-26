@@ -48,6 +48,7 @@ import {
 	type Endpoint,
 	ensureEndpointDirs,
 	holdsPidFile,
+	lostPidFile,
 	type RegistryError,
 	releasePidFile,
 } from "./registry";
@@ -385,9 +386,10 @@ export function startRuntime(
 		});
 		if (!isPipe) chmodSync(endpoint.address, 0o600);
 		// A runtime that lost its pid file stops: nothing can find it any
-		// more, and a host plugin's uninstall removed it on purpose.
+		// more, and a host plugin's uninstall removed it on purpose. A pid
+		// file it cannot read for a moment is not a loss.
 		claimTimer = setInterval(() => {
-			if (!holdsPidFile(endpoint, pid)) beginStop("orphaned", true);
+			if (lostPidFile(endpoint, pid)) beginStop("orphaned", true);
 		}, claimCheckMs);
 		claimTimer.unref();
 	} catch (err) {
