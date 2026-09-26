@@ -74,23 +74,30 @@ function printAndReport(err: unknown, origin: string): void {
 	setTimeout(() => process.exit(exitCode), 1500).unref?.();
 }
 
-process.on("uncaughtException", (err) =>
-	printAndReport(err, "uncaughtException"),
-);
-process.on("unhandledRejection", (reason) =>
-	printAndReport(reason, "unhandledRejection"),
-);
-
-// MCP server mode: `maina --mcp` starts the MCP server instead of the CLI
+// MCP server mode: `maina --mcp` starts the MCP server instead of the CLI.
+// The crash handlers below end the process, so they are for CLI commands
+// only: while serving, a stray error outside any request is logged and the
+// server keeps serving (FR-MCP-5; `startServer` installs that handler). A
+// failure to start is still reported like a CLI crash.
 if (process.argv.includes("--mcp")) {
-	const { startServer } = await import("@mainahq/mcp");
-	await startServer({
-		argv: process.argv,
-		env: process.env,
-		cwd: process.cwd(),
-		home: homedir(),
-	});
+	try {
+		const { startServer } = await import("@mainahq/mcp");
+		await startServer({
+			argv: process.argv,
+			env: process.env,
+			cwd: process.cwd(),
+			home: homedir(),
+		});
+	} catch (err) {
+		printAndReport(err, "uncaughtException");
+	}
 } else {
+	process.on("uncaughtException", (err) =>
+		printAndReport(err, "uncaughtException"),
+	);
+	process.on("unhandledRejection", (reason) =>
+		printAndReport(reason, "unhandledRejection"),
+	);
 	const { createProgram } = await import("./program");
 	const program = createProgram();
 	program.parse();
