@@ -1,7 +1,12 @@
 /**
  * Skills deployment — copies `@mainahq/skills/<name>/SKILL.md` trees into
- * `<cwd>/.maina/skills/<name>/SKILL.md` so the user's agent can discover
- * them.
+ * `<cwd>/.agents/skills/<name>/SKILL.md`, the project location Agent
+ * Skills hosts discover skills in. Besides the plugins, this is the only
+ * place maina ships skills (v1 task 9.6).
+ *
+ * Never overwrites a user's skill: an existing `SKILL.md` is refreshed only
+ * when its front matter carries maina's marker (`metadata.author: mainahq`);
+ * any other file of the same name is left alone, with a warning.
  *
  * Idempotent: running twice produces byte-identical output. The copy is a
  * best-effort operation — if the skills source root isn't resolvable,
@@ -10,6 +15,7 @@
 
 import {
 	existsSync,
+	lstatSync,
 	mkdirSync,
 	readdirSync,
 	readFileSync,
@@ -36,6 +42,41 @@ interface DeploySkillsOptions {
 	 *   3. node resolution of `@mainahq/skills` from this module
 	 */
 	sourceRoot?: string;
+}
+
+/** Where skills land, relative to the repo root. */
+const SKILLS_DIR = join(".agents", "skills");
+
+/** The `metadata.author` every maina skill carries. */
+const MAINA_AUTHOR = "mainahq";
+
+/**
+ * Whether a `SKILL.md` is one maina wrote: its YAML front matter says
+ * `metadata.author: mainahq`. Pure.
+ */
+function isMainaSkill(markdown: string): boolean {
+	const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(markdown);
+	if (!match) return false;
+	try {
+		const fm: unknown = Bun.YAML.parse(match[1] ?? "");
+		if (typeof fm !== "object" || fm === null) return false;
+		const metadata = (fm as { metadata?: unknown }).metadata;
+		return (
+			typeof metadata === "object" &&
+			metadata !== null &&
+			(metadata as { author?: unknown }).author === MAINA_AUTHOR
+		);
+	} catch {
+		return false;
+	}
+}
+
+function isSymlink(path: string): boolean {
+	try {
+		return lstatSync(path).isSymbolicLink();
+	} catch {
+		return false;
+	}
 }
 
 interface DeploySkillsReport {
@@ -75,9 +116,18 @@ export async function deploySkills(
 			const srcSkill = join(source, entry.name, "SKILL.md");
 			if (!existsSync(srcSkill)) continue;
 
-			const destDir = join(opts.cwd, ".maina/skills", entry.name);
-			const destSkill = join(destDir, "SKILL.md");
+			const relSkill = join(SKILLS_DIR, entry.name, "SKILL.md");
+			const destSkill = join(opts.cwd, relSkill);
 			const desired = readFileSync(srcSkill, "utf-8");
+
+			// A symlink (even a dangling one, which existsSync misses) could
+			// point the write outside the repo: never write through it.
+			if (isSymlink(destSkill)) {
+				warnings.push(
+					`kept ${relSkill}: it is a symlink; maina never writes through one`,
+				);
+				continue;
+			}
 
 			if (existsSync(destSkill)) {
 				const current = readFileSync(destSkill, "utf-8");
@@ -85,6 +135,12 @@ export async function deploySkills(
 					// Already up to date — still count as "deployed" so callers
 					// can display an accurate total.
 					deployed.push(entry.name);
+					continue;
+				}
+				if (!isMainaSkill(current)) {
+					warnings.push(
+						`kept ${relSkill}: not a maina skill (no metadata.author: ${MAINA_AUTHOR}); move it to install maina's`,
+					);
 					continue;
 				}
 			}

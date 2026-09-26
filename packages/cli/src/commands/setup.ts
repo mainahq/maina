@@ -925,12 +925,12 @@ export async function setupAction(
 
 	// ── Skills materialisation ──────────────────────────────────────────────
 	// Best-effort copy of `@mainahq/skills/<name>/SKILL.md` into
-	// `.maina/skills/<name>/SKILL.md`. A missing skills package is a
-	// warning, never a bail.
+	// `.agents/skills/<name>/SKILL.md`, where Agent Skills hosts look. A
+	// missing skills package is a warning, never a bail.
 	const skillsResult = await deploySkills({ cwd });
 	if (skillsResult.ok) {
 		for (const name of skillsResult.value.deployed) {
-			result.agentFilesWritten.push(`.maina/skills/${name}/SKILL.md`);
+			result.agentFilesWritten.push(`.agents/skills/${name}/SKILL.md`);
 		}
 		for (const w of skillsResult.value.warnings) {
 			result.agentFilesWarnings.push(`skills-deploy: ${w}`);

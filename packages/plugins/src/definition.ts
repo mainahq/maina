@@ -38,7 +38,10 @@ export type PluginDefinition = Readonly<{
 	repository: string;
 	license: string;
 	keywords: readonly string[];
-	/** Skill folders of `packages/skills`, each holding a `SKILL.md`. */
+	/**
+	 * Skill folders of `packages/skills`, each holding an Agent Skills
+	 * `SKILL.md`: the v1 flows (task 9.6).
+	 */
 	skills: readonly string[];
 	hooks: readonly HookSpec[];
 	/** The MCP server's name in each host's MCP config. */
@@ -57,16 +60,7 @@ export const PLUGIN: PluginDefinition = {
 	repository: "https://github.com/mainahq/maina",
 	license: "Apache-2.0",
 	keywords: ["verification", "guardrails", "code-review", "mcp", "tdd"],
-	skills: [
-		"onboarding",
-		"verification-workflow",
-		"code-review",
-		"tdd",
-		"plan-writing",
-		"context-generation",
-		"wiki-workflow",
-		"cloud-workflow",
-	],
+	skills: ["gate", "verify", "spec", "triage", "graph"],
 	hooks: [
 		{ event: "session.start", blocking: false },
 		{ event: "tool.before", blocking: true },

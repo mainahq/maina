@@ -263,7 +263,7 @@ describe.skipIf(npm === null || node === null)("packed CLI install", () => {
 		});
 		const skills = dirname(realpathSync(r.stdout));
 		expect(skills.startsWith(realpathSync(prefix))).toBe(true);
-		expect(existsSync(join(skills, "tdd", "SKILL.md"))).toBe(true);
+		expect(existsSync(join(skills, "verify", "SKILL.md"))).toBe(true);
 	});
 
 	// A host spawns the runtime by absolute path with a GUI PATH that has no
