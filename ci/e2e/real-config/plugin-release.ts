@@ -8,7 +8,8 @@
  * throwaway key, serves it on 127.0.0.1 and writes a marketplace (the
  * repo's `.claude-plugin/marketplace.json`, `.cursor-plugin/
  * marketplace.json` and `.agents/plugins/marketplace.json`, plus every
- * plugin package they list) whose launchers pin that artifact. Installing
+ * plugin package they list and the Agent Plugins package, which is
+ * installed from its directory) whose launchers pin that artifact. Installing
  * from it is installing a release, with the network kept local.
  *
  * Built once per test process; `stopPluginRelease` stops the server and
@@ -50,6 +51,14 @@ const MARKETPLACE_FILES: readonly string[] = [
 	".claude-plugin/marketplace.json",
 	".cursor-plugin/marketplace.json",
 	".agents/plugins/marketplace.json",
+];
+
+/**
+ * Plugin packages no marketplace lists, installed from their directory:
+ * the Agent Plugins package (VS Code agent mode, Copilot; #344).
+ */
+const DIRECTORY_SOURCES: readonly string[] = [
+	"./packages/plugins/dist/agent-plugins",
 ];
 
 export interface PluginRelease {
@@ -108,11 +117,12 @@ async function stage(): Promise<Result<PluginRelease, string>> {
 			cpSync(join(REPO_ROOT, file), join(marketplace, file));
 		}
 		const sources = [
-			...new Set(
-				MARKETPLACE_FILES.flatMap((file) =>
+			...new Set([
+				...MARKETPLACE_FILES.flatMap((file) =>
 					relativeSources(readJson(join(REPO_ROOT, file))),
 				),
-			),
+				...DIRECTORY_SOURCES,
+			]),
 		];
 		const launcherManifest = (source: string) =>
 			join(marketplace, source, "launcher", "manifest.json");

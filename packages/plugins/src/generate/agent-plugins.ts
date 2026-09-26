@@ -5,7 +5,9 @@
  *
  *   plugin.json   the portable manifest
  *   mcp.json      the launcher in mcp mode; a `./` command resolves against
- *                 the plugin root (the spec expands nothing in `command`)
+ *                 the plugin root (the spec expands nothing in `command`),
+ *                 which is also where it runs, so the server finds the
+ *                 project from the client's MCP roots (#344)
  *   skills/, launcher/
  *
  * The 1.0 core defines no hooks, commands or agents (they belong to client

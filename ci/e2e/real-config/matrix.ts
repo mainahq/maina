@@ -556,7 +556,9 @@ async function install(
 // ── MCP session ────────────────────────────────────────────────────────────
 
 interface RpcMessage {
-	readonly id?: number;
+	readonly id?: number | string;
+	/** Set on a request from the server (`roots/list`), not on a response. */
+	readonly method?: string;
 	readonly result?: unknown;
 	readonly error?: { readonly message?: string };
 }
@@ -585,6 +587,25 @@ function resolveCommand(
 
 export interface ProbeOptions {
 	readonly coldStartBudgetMs?: number;
+	/**
+	 * MCP roots (URIs) the client names, as an editor names its workspace
+	 * folders: the client then advertises the roots capability and answers
+	 * `roots/list` with them.
+	 */
+	readonly roots?: readonly string[];
+}
+
+/** The client's answer to a request from the server. */
+function answerServerRequest(
+	msg: RpcMessage,
+	roots: readonly string[] | undefined,
+): Record<string, unknown> {
+	return msg.method === "roots/list" && roots !== undefined
+		? { id: msg.id, result: { roots: roots.map((uri) => ({ uri })) } }
+		: {
+				id: msg.id,
+				error: { code: -32601, message: `${msg.method} not supported` },
+			};
 }
 
 /**
@@ -633,6 +654,15 @@ export async function probeLaunch(
 		code,
 	}));
 
+	const send = (msg: Record<string, unknown>): void => {
+		try {
+			proc.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", ...msg })}\n`);
+			proc.stdin.flush();
+		} catch {
+			// Child already gone (EPIPE); the `exited` race reports why.
+		}
+	};
+
 	void (async () => {
 		const decoder = new TextDecoder();
 		let buffer = "";
@@ -646,22 +676,18 @@ export async function probeLaunch(
 				if (line.length === 0) continue;
 				try {
 					const msg = JSON.parse(line) as RpcMessage;
-					if (typeof msg.id === "number") pending.get(msg.id)?.(msg);
+					if (msg.method !== undefined && msg.id !== undefined) {
+						// A request from the server; its id is the server's own.
+						send(answerServerRequest(msg, opts.roots));
+					} else if (typeof msg.id === "number") {
+						pending.get(msg.id)?.(msg);
+					}
 				} catch {
 					// Non-JSON on stdout: hosts drop it too.
 				}
 			}
 		}
 	})();
-
-	const send = (msg: Record<string, unknown>): void => {
-		try {
-			proc.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", ...msg })}\n`);
-			proc.stdin.flush();
-		} catch {
-			// Child already gone (EPIPE); the `exited` race reports why.
-		}
-	};
 
 	const request = (
 		id: number,
@@ -706,7 +732,7 @@ export async function probeLaunch(
 		"initialize",
 		{
 			protocolVersion: "2024-11-05",
-			capabilities: {},
+			capabilities: opts.roots !== undefined ? { roots: {} } : {},
 			clientInfo: { name: "maina-real-config-e2e", version: "0.0.0" },
 		},
 		HANDSHAKE_TIMEOUT_MS,

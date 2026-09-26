@@ -80,6 +80,28 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx tsc -p ci/e2e/real-config
 
+  # The Agent Plugins 1.0 package (VS Code agent mode, Copilot; #344) has no
+  # installer paths, so it is one smoke install per OS, not a matrix row.
+  agent-plugins:
+    name: ${{ matrix.os }} / agent-plugins / plugin
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Smoke install
+        env:
+          E2E_HOST: agent-plugins
+          E2E_INSTALL_PATH: plugin
+        run: bun test ci/e2e/real-config/__tests__/agent-plugins-client.test.ts ci/e2e/real-config/__tests__/agent-plugins-plugin.test.ts
+
   matrix:
     name: ${{ matrix.os }} / ${{ matrix.host }} / ${{ matrix.path }}
     runs-on: ${{ matrix.os }}

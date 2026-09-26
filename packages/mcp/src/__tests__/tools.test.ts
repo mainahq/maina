@@ -95,6 +95,42 @@ describe("verify", () => {
 		expect(argsOf(calls, "verify")).toEqual({ root: DEFAULT_ROOT, files: [] });
 	});
 
+	test("without a root, the runtime can ask the client for its MCP roots (FR-INS-3)", async () => {
+		// An Agent Plugins client starts the server in the plugin root, not
+		// the project: the editor names the project as its MCP roots.
+		const asked: (readonly string[])[] = [];
+		const { runtime, calls } = fakeRuntime({
+			resolveRoot: async (_explicit, hints) => {
+				asked.push((await hints?.mcpRoots()) ?? ["hints missing"]);
+				return { ok: true, value: "/work/app" };
+			},
+		});
+		const client = await connect(runtime, {
+			roots: ["file:///work/app", "file:///work/lib"],
+		});
+		const result = await call(client, "verify", { files: [] });
+		expectEnvelope(result, "verify", "/work/app");
+		expect(asked).toEqual([["file:///work/app", "file:///work/lib"]]);
+		expect(argsOf(calls, "verify")).toEqual({ root: "/work/app", files: [] });
+	});
+
+	test("a client without the roots capability has no MCP roots, and is not asked", async () => {
+		const asked: (readonly string[])[] = [];
+		const { runtime } = fakeRuntime({
+			resolveRoot: async (_explicit, hints) => {
+				asked.push((await hints?.mcpRoots()) ?? ["hints missing"]);
+				return { ok: true, value: DEFAULT_ROOT };
+			},
+		});
+		const client = await connect(runtime);
+		expectEnvelope(
+			await call(client, "verify", { files: [] }),
+			"verify",
+			DEFAULT_ROOT,
+		);
+		expect(asked).toEqual([[]]);
+	});
+
 	test("a file outside the root is refused before the runtime runs", async () => {
 		const { runtime, calls } = fakeRuntime();
 		const client = await connect(runtime);

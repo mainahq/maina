@@ -1,0 +1,29 @@
+---
+title: VS Code and Copilot
+description: The maina Agent Plugins 1.0 package for VS Code agent mode and GitHub Copilot, what it installs, and what it cannot do without hooks.
+---
+
+VS Code agent mode and GitHub Copilot read plugins in the [Agent Plugins 1.0](https://agent-plugins.org/specification) format. maina ships one: the maina MCP server and the skills, in a folder any Agent Plugins client can load. Nothing needs to be on `PATH`: the package bundles a launcher that installs the pinned maina runtime on first use and checks its signature.
+
+## Install the package
+
+The package is generated into `packages/plugins/dist/agent-plugins` in this repository. Install it from that folder with your client's option to add a plugin from a directory. No marketplace lists it yet.
+
+## What the package installs
+
+| Component | What it does |
+|-----------|--------------|
+| `plugin.json` | The Agent Plugins manifest: name, version (the runtime version the launcher installs), description and links. |
+| `mcp.json` | The maina MCP server (`verify`, `review_triage`, `decide`, `impact`, `status` and the other tools), started by the bundled launcher. |
+| `skills/` | The `gate`, `verify`, `spec`, `triage` and `graph` skills. See [Skills](/skills/). |
+
+The runtime lives in the data directory the client keeps for the plugin (`PLUGIN_DATA`), not in your home directory.
+
+## Which project the tools act on
+
+An Agent Plugins client starts the MCP server in the plugin's own folder, not in your project. So when a tool call passes no `root`, maina asks the client for its MCP roots (the workspace folders VS Code names) and uses the first one inside a git repository. If none is, the call fails with a `no_root` error rather than guessing. A tool call can always pass an absolute `root`.
+
+## Limits
+
+- The Agent Plugins 1.0 format has no hooks. maina cannot stop a risky action before it runs in these clients, and nothing verifies a session before it ends. The gate runs in hosts with hooks: Claude Code, [Cursor](/cursor/) and [Codex](/codex/).
+- The skills run the bundled CLI by its path from the skill's folder (`../../launcher/launch.sh cli <command>`).

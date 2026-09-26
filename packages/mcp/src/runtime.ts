@@ -35,12 +35,23 @@ export type RuntimeError =
 	| Readonly<{ kind: "failed"; message: string }>;
 
 /**
+ * What the connected client can say about where a call should act, asked
+ * only when a resolver needs it. `mcpRoots`: the client's MCP roots (URIs,
+ * normally `file://`), or none when the client has no roots capability or
+ * does not answer.
+ */
+export type RootHints = Readonly<{
+	mcpRoots: () => Promise<readonly string[]>;
+}>;
+
+/**
  * The absolute repository root for a call: `explicit` when the caller
  * passed one, else the runtime's default. An error when neither names a
  * usable repository.
  */
 export type RootResolver = (
 	explicit: string | undefined,
+	hints?: RootHints,
 ) => Promise<Result<string, RuntimeError>>;
 
 export type VerifyRequest = Readonly<{
