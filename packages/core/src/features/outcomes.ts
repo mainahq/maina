@@ -74,7 +74,11 @@ export type OutcomeReceipt = Readonly<{
 
 export type OutcomeReceiptError =
 	| Readonly<{
-			kind: "missing_evidence" | "unknown_criterion" | "unmet_criteria";
+			kind:
+				| "missing_evidence"
+				| "unknown_criterion"
+				| "duplicate_criterion"
+				| "unmet_criteria";
 			criterionIds: readonly string[];
 	  }>
 	| Readonly<{ kind: "invalid_outcome"; message: string }>
@@ -90,11 +94,20 @@ function hashOf(receipt: Unhashed): Result<string, OutcomeReceiptError> {
 		: { ok: false, error: { kind: "unhashable", message: canonical.message } };
 }
 
-/** Every criterion shown met with evidence. */
+/** Every criterion shown met with evidence. No criteria proves nothing. */
 function provenMet(
 	criteria: readonly AcceptanceCriterion[],
 	evidence: readonly CriterionEvidence[],
 ): Result<readonly CriterionEvidence[], OutcomeReceiptError> {
+	if (criteria.length === 0) {
+		return {
+			ok: false,
+			error: {
+				kind: "invalid_outcome",
+				message: "no acceptance criteria, so nothing can be shown met",
+			},
+		};
+	}
 	const mapped = mapEvidence(criteria, evidence);
 	if (!mapped.ok) return mapped;
 	const unmet = mapped.value

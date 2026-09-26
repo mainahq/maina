@@ -77,12 +77,19 @@ export type IndependentReviewError =
 
 const normalise = (vendor: string): string => vendor.trim().toLowerCase();
 
-/** The first of `available` that is not the implementer's vendor. */
+/**
+ * The first non-blank vendor of `available` that is not the implementer's.
+ * An unknown (blank) implementer vendor has no independent vendor.
+ */
 export function pickReviewerVendor(
 	implementer: string,
 	available: readonly string[],
 ): Result<string, IndependentReviewError> {
-	const pick = available.find((v) => normalise(v) !== normalise(implementer));
+	const known = normalise(implementer);
+	const pick =
+		known === ""
+			? undefined
+			: available.find((v) => normalise(v) !== "" && normalise(v) !== known);
 	return pick === undefined
 		? {
 				ok: false,
@@ -196,14 +203,21 @@ function parseReply(
 			error: { kind: "bad_response", message: reply.error.message },
 		};
 	}
-	const byId = new Map(reply.data.verdicts.map((v) => [v.id, v]));
+	// A criterion judged twice with different verdicts is unclear: the last
+	// word must not quietly override a `not_met`.
 	return {
 		ok: true,
 		value: criteria.map((c) => {
-			const v = byId.get(c.id);
-			return v === undefined
+			const judged = reply.data.verdicts.filter((v) => v.id === c.id);
+			const first = judged[0];
+			return first === undefined ||
+				judged.some((v) => v.verdict !== first.verdict)
 				? { criterionId: c.id, verdict: "unclear", evidence: "" }
-				: { criterionId: c.id, verdict: v.verdict, evidence: v.evidence };
+				: {
+						criterionId: c.id,
+						verdict: first.verdict,
+						evidence: first.evidence,
+					};
 		}),
 	};
 }
@@ -231,6 +245,15 @@ export async function independentReview(
 		};
 	}
 	const vendor = normalise(parsed.value.vendor);
+	if (vendor === "") {
+		return {
+			ok: false,
+			error: {
+				kind: "invalid_input",
+				message: "the reviewer's vendor is blank",
+			},
+		};
+	}
 	if (vendor === implementer) {
 		return { ok: false, error: { kind: "same_vendor", vendor } };
 	}

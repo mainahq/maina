@@ -144,6 +144,18 @@ describe("every acceptance criterion maps to evidence in the receipt (FR-FAC-2)"
 		});
 	});
 
+	test("completed and already_satisfied need a contract: no criteria, no receipt", () => {
+		for (const kind of ["completed", "already_satisfied"] as const) {
+			const receipt = buildOutcomeReceipt({
+				...input({ kind, evidence: [] }),
+				criteria: [],
+			});
+			expect(receipt.ok ? undefined : receipt.error.kind).toBe(
+				"invalid_outcome",
+			);
+		}
+	});
+
 	test("large evidence travels by artifact ref and holdout scores ride along", () => {
 		const ref = { id: "verify-log", hash: hashArtifact("log") };
 		const receipt = buildOutcomeReceipt({

@@ -41,7 +41,7 @@ export type AcceptanceError =
 	| Readonly<{ kind: "io"; path: string; message: string }>;
 
 export type EvidenceError = Readonly<{
-	kind: "missing_evidence" | "unknown_criterion";
+	kind: "missing_evidence" | "unknown_criterion" | "duplicate_criterion";
 	criterionIds: readonly string[];
 }>;
 
@@ -104,8 +104,9 @@ export async function loadAcceptanceCriteria(
 
 /**
  * Joins `verdicts` to `criteria`, in criteria order. Every criterion needs a
- * verdict with non-blank evidence, and no verdict may name a criterion the
- * contract does not have.
+ * verdict with non-blank evidence, no verdict may name a criterion the
+ * contract does not have, and no criterion may have two verdicts (a later
+ * `met` must not quietly override a `not_met`).
  */
 export function mapEvidence(
 	criteria: readonly AcceptanceCriterion[],
@@ -119,6 +120,18 @@ export function mapEvidence(
 		return {
 			ok: false,
 			error: { kind: "unknown_criterion", criterionIds: [...new Set(unknown)] },
+		};
+	}
+	const seen = new Set<string>();
+	const duplicates = new Set<string>();
+	for (const v of verdicts) {
+		if (seen.has(v.criterionId)) duplicates.add(v.criterionId);
+		seen.add(v.criterionId);
+	}
+	if (duplicates.size > 0) {
+		return {
+			ok: false,
+			error: { kind: "duplicate_criterion", criterionIds: [...duplicates] },
 		};
 	}
 	const byId = new Map(verdicts.map((v) => [v.criterionId, v]));

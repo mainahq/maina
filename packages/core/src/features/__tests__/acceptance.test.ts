@@ -132,4 +132,17 @@ describe("mapEvidence: every criterion maps to evidence", () => {
 			error: { kind: "unknown_criterion", criterionIds: ["AC-99"] },
 		});
 	});
+
+	test("two verdicts for one criterion are an error, so a later one can't override a not_met", () => {
+		const mapped = mapEvidence(criteria, [
+			{ criterionId: "AC-1", verdict: "not_met", evidence: "no header" },
+			{ criterionId: "AC-1", verdict: "met", evidence: "csv.test.ts:4" },
+			{ criterionId: "AC-7", verdict: "met", evidence: "b" },
+			{ criterionId: "AC-3", verdict: "met", evidence: "c" },
+		]);
+		expect(mapped).toEqual({
+			ok: false,
+			error: { kind: "duplicate_criterion", criterionIds: ["AC-1"] },
+		});
+	});
 });
