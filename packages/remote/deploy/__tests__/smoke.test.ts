@@ -374,6 +374,44 @@ describe("image", () => {
 		expect(ignore).toContain("**/__tests__");
 		expect(ignore).toContain("packages/remote/deploy");
 	});
+
+	test("copies every workspace manifest, which the frozen install needs", () => {
+		const { workspaces } = JSON.parse(
+			readFileSync(join(REPO_ROOT, "package.json"), "utf8"),
+		) as { workspaces: string[] };
+		const text = dockerfile();
+		const missing = workspaces.filter(
+			(ws) => !text.includes(`COPY ${ws}/package.json ${ws}/`),
+		);
+		expect(missing).toEqual([]);
+	});
+});
+
+describe("CI", () => {
+	type Job = {
+		"runs-on": string;
+		steps: { run?: string; env?: Record<string, string> }[];
+	};
+	const workflow = () =>
+		Bun.YAML.parse(
+			readFileSync(join(REPO_ROOT, ".github", "workflows", "ci.yml"), "utf8"),
+		) as {
+			on: { pull_request: { branches: string[] } };
+			jobs: Record<string, Job>;
+		};
+
+	test("runs the Docker layer of this smoke on a Docker-capable runner for every v1 pull request", () => {
+		const ci = workflow();
+		expect(ci.on.pull_request.branches).toContain("v1/**");
+		const job = ci.jobs["self-host"];
+		// GitHub's hosted Linux runners ship a Docker daemon; macOS and
+		// Windows ones do not run Linux containers.
+		expect(job?.["runs-on"]).toStartWith("ubuntu-");
+		const smoke = job?.steps.find((s) =>
+			s.run?.includes("bun test packages/remote/deploy"),
+		);
+		expect(smoke?.env?.MAINA_DOCKER_SMOKE).toBe("1");
+	});
 });
 
 // ── 2. The job process with a network spy ──────────────────────────────────
@@ -755,6 +793,32 @@ describe.skipIf(!DOCKER)("smoke: the compose deployment in Docker", () => {
 		expect(((await meta.json()) as { resource: string }).resource).toBe(
 			"http://localhost:8787/mcp",
 		);
+	}, 60_000);
+
+	test("a browser client can preflight and register through the ingress", async () => {
+		const preflight = await fetch(`http://127.0.0.1:${port}/register`, {
+			method: "OPTIONS",
+			headers: {
+				origin: "https://app.example",
+				"access-control-request-method": "POST",
+				"access-control-request-headers": "content-type",
+			},
+		});
+		expect(preflight.status).toBe(204);
+		expect(preflight.headers.get("access-control-allow-origin")).toBe("*");
+		const registered = await fetch(`http://127.0.0.1:${port}/register`, {
+			method: "POST",
+			headers: {
+				origin: "https://app.example",
+				"content-type": "application/json",
+			},
+			body: JSON.stringify({
+				redirect_uris: ["http://127.0.0.1:33418/callback"],
+				token_endpoint_auth_method: "none",
+			}),
+		});
+		expect(registered.status).toBe(201);
+		expect(registered.headers.get("access-control-allow-origin")).toBe("*");
 	}, 60_000);
 
 	test("the helm chart lints and renders a GitHub-only egress policy", async () => {

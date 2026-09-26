@@ -14,11 +14,18 @@ the retention and security review (#356, [SECURITY.md](./SECURITY.md)).
 |------|---------|
 | `/.well-known/oauth-protected-resource[/mcp]` | Protected resource metadata (RFC 9728) |
 | `/.well-known/oauth-authorization-server` | Authorization server metadata (RFC 8414) |
-| `/register` | Dynamic client registration (RFC 7591) |
-| `/authorize` | Authorization code grant, S256 PKCE required; the owner signs in and approves each client on a consent page |
+| `/register` | Dynamic client registration (RFC 7591), rate-limited per address, with a cap on registered clients |
+| `/authorize` | Authorization code grant, S256 PKCE required; the signed-in user approves each client on a consent page |
 | `/token` | Code exchange and rotating refresh tokens |
 | `/mcp` | The MCP endpoint (bearer token with the `mcp:tools` scope) |
 | `/healthz` | Liveness |
+
+The metadata documents, `/register`, `/token` and `/mcp` send CORS headers
+for any origin (never with credentials), so browser-based MCP clients can
+connect; `/authorize` is a browser navigation and sends none. A
+registration over the per-address limit gets `429` with `Retry-After`. At
+the client cap the oldest client with no pending consent, code or live
+token is forgotten to make room; when every client is in use, `503`.
 
 The tools are the `@mainahq/mcp` definitions minus local-only ones. Every
 call acts on the service's workspace, and a caller-supplied `root` anywhere
@@ -79,8 +86,11 @@ bun packages/remote/src/main.ts
 | `PORT` | `8787` | Listen port |
 | `MAINA_REMOTE_ISSUER` | `http://localhost:$PORT` | Public origin (https unless loopback, no path) |
 | `MAINA_REMOTE_WORKSPACE` | current directory | Repository the tools act on (a relative path resolves against the current directory) |
-| `MAINA_REMOTE_OWNER` | `owner` | Username of the one owner who approves clients (no colon) |
+| `MAINA_REMOTE_OWNER` | `owner` | Username of the owner who approves clients (no colon) |
 | `MAINA_REMOTE_PASSWORD` | required, 12+ chars | That owner's password (HTTP Basic on `/authorize`) |
+| `MAINA_REMOTE_USERS` | none | Further users of the workspace, each approving their own clients: a JSON object of username to password (12+ chars each) |
+| `MAINA_REMOTE_MAX_CLIENTS` | `1000` | Most OAuth clients registered at once |
+| `MAINA_REMOTE_REGISTRATIONS_PER_MINUTE` | `20` | Client registrations a minute per peer address (behind a proxy, all callers share its address) |
 | `MAINA_MCP_TOOLS` | the remote default set | Tool allow-list, as for the local server |
 
 Or as a container, built from the repository root:

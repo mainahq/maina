@@ -10,6 +10,7 @@ export const ISSUER = "https://remote.test";
 export const RESOURCE = `${ISSUER}/mcp`;
 export const REDIRECT = "http://127.0.0.1:33418/callback";
 export const OWNER = { username: "owner", password: "s3cret-pass" };
+export const ALICE = { username: "alice", password: "alice-pass-123" };
 
 export type Clock = { now: () => number; advance: (ms: number) => void };
 

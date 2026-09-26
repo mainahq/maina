@@ -27,6 +27,7 @@ COPY packages/core/package.json packages/core/
 COPY packages/docs/package.json packages/docs/
 COPY packages/harness/package.json packages/harness/
 COPY packages/mcp/package.json packages/mcp/
+COPY packages/plugins/package.json packages/plugins/
 COPY packages/remote/package.json packages/remote/
 COPY packages/runtime/package.json packages/runtime/
 COPY packages/skills/package.json packages/skills/

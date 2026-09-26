@@ -108,10 +108,14 @@ results, no tokens.
   refs must be full commit SHAs, clone URLs must be `https` (or `file`
   for a local mirror).
 - **MCP service**: OAuth 2.1 with S256 PKCE, exact redirect matching and
-  consent on every authorization. Clients, codes, tokens and sessions are
-  held in memory only, and only token hashes are stored. Access tokens
-  last an hour, refresh tokens rotate and a replayed one revokes its
-  family. A restart signs every client out.
+  consent on every authorization by the user who signed in (only they can
+  answer their request). Open client registration is rate-limited per
+  address and capped; at the cap only a client with nothing in use is
+  forgotten. CORS is open (no credentials) on the metadata, `/register`,
+  `/token` and `/mcp`, never on `/authorize`. Clients, codes, tokens and
+  sessions are held in memory only, and only token hashes are stored.
+  Access tokens last an hour, refresh tokens rotate and a replayed one
+  revokes its family. A restart signs every client out.
 
 ## Network
 

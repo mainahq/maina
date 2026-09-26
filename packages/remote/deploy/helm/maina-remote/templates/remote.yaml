@@ -58,6 +58,17 @@ spec:
                 secretKeyRef:
                   name: {{ required "remote.existingSecret (a Secret with the owner password) is required" .Values.remote.existingSecret }}
                   key: {{ .Values.remote.passwordKey }}
+            {{- with .Values.remote.usersKey }}
+            - name: MAINA_REMOTE_USERS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.remote.existingSecret }}
+                  key: {{ . }}
+            {{- end }}
+            - name: MAINA_REMOTE_MAX_CLIENTS
+              value: {{ .Values.remote.maxClients | quote }}
+            - name: MAINA_REMOTE_REGISTRATIONS_PER_MINUTE
+              value: {{ .Values.remote.registrationsPerMinute | quote }}
             {{- with .Values.remote.tools }}
             - name: MAINA_MCP_TOOLS
               value: {{ . | quote }}
