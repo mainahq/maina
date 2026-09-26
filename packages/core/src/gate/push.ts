@@ -186,10 +186,17 @@ const BRANCH_FIELDS: ReadonlyMap<string, keyof BranchPushConfig> = new Map([
 	["pushremote", "pushRemote"],
 ]);
 
-/** A config boolean: git's true spellings, or a key with no value. */
+/**
+ * A config boolean, read so that it never misses a true one: only git's
+ * false spellings (and an integer 0) are false. git reads any other integer
+ * as true and refuses any other word, and a key with no value is true.
+ */
 const isTrue = (value: string | undefined): boolean =>
 	value === undefined ||
-	["true", "yes", "on", "1"].includes(value.toLowerCase());
+	!(
+		["", "false", "no", "off"].includes(value.trim().toLowerCase()) ||
+		/^\s*[-+]?0+\s*$/.test(value)
+	);
 
 /**
  * `PushConfig` from `git config -z --get-regexp` output (`key\nvalue\0`

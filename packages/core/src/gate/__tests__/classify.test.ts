@@ -334,6 +334,30 @@ describe("a bare push goes where the push config says", () => {
 		expect(classesOf('git push "$R"', plain)).not.toContain(
 			"git.push.protected",
 		);
+		// `$R` may be the upstream's remote even when the default push
+		// remote is another one (pushRemote or remote.pushDefault).
+		for (const other of [
+			{
+				branches: new Map([
+					[
+						"feature",
+						{
+							remote: "origin",
+							merge: "refs/heads/master",
+							pushRemote: "fork",
+						},
+					],
+				]),
+			},
+			{ branches: tracksMaster, pushDefault: "fork" },
+		]) {
+			const c = await gateContext({
+				currentBranch: "feature",
+				push: push({ default: "upstream", ...other }),
+			});
+			expect(classesOf("git push", c)).not.toContain("git.push.protected");
+			expect(classesOf('git push "$R"', c)).toContain("git.push.protected");
+		}
 		const refspecs = await gateContext({
 			currentBranch: "feature",
 			push: push({ refspecs: new Map([["fork", ["HEAD:feature"]]]) }),

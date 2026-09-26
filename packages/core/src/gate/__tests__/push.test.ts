@@ -296,6 +296,23 @@ describe("parsePushConfig", () => {
 			"backup",
 		]);
 	});
+
+	test("a mirror value that is not false counts as true", () => {
+		// git reads any non-zero integer as true, and refuses a value it
+		// cannot read; neither may pass as a plain push.
+		const records = [
+			"remote.two.mirror\n2",
+			"remote.odd.mirror\nmaybe",
+			"remote.zero.mirror\n0",
+			"remote.empty.mirror\n",
+			"remote.no.mirror\nNo",
+			"remote.off.mirror\nOFF",
+		].join("\0");
+		expect([...parsePushConfig(`${records}\0`, "").mirrors]).toEqual([
+			"two",
+			"odd",
+		]);
+	});
 });
 
 describe("readPushConfig", () => {

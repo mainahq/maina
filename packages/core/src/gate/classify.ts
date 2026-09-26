@@ -1517,12 +1517,15 @@ function implicitTarget(
 	if (push !== undefined) {
 		if (remote !== UNKNOWN_WORD) return implicitPush(push, branch, remote);
 		// A remote the gate cannot read may be any remote: resolvable only
-		// while no remote has refspecs or mirroring of its own. The default
-		// remote is then the widest guess (it may be the upstream's).
+		// while no remote has refspecs or mirroring of its own. The
+		// upstream's remote is then the widest guess: only `upstream` depends
+		// on the remote, and it pushes nowhere to any other (#494).
 		if (push.refspecs.size > 0 || push.mirrors.size > 0) {
 			return { targets: [], unknown: true, force: false, deletes: false };
 		}
-		return implicitPush(push, branch, undefined);
+		const upstreamRemote =
+			branch === undefined ? undefined : push.branches.get(branch)?.remote;
+		return implicitPush(push, branch, upstreamRemote);
 	}
 	return {
 		targets: branch === undefined ? [] : [branch],
