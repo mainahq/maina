@@ -40,7 +40,7 @@ function hashContent(content: string): string {
 }
 
 // Bump this when detection logic changes to invalidate stale cache entries
-const SLOP_CACHE_VERSION = 3; // v3: data/docs files skipped (#372)
+const SLOP_CACHE_VERSION = 4; // v4: imports in comments/strings skipped (#399)
 
 function cacheKey(fileHash: string): string {
 	return `slop:v${SLOP_CACHE_VERSION}:${fileHash}`;
@@ -123,6 +123,149 @@ export function detectEmptyBodies(
 	return judgeCandidates("empty-body", candidates);
 }
 
+/** Lexer state carried from one line to the next. */
+type LexState = "code" | "block" | "template";
+
+interface LexedLine {
+	/** The line with comments blanked to spaces; columns are preserved. */
+	code: string;
+	/** `code` with string and template contents blanked too; quotes stay. */
+	masked: string;
+	state: LexState;
+}
+
+/** Keywords after which a `/` starts a regex literal, not a division. */
+const REGEX_AFTER_WORD =
+	/(?:^|[^\w$])(?:return|typeof|case|do|else|in|of|new|delete|void|throw|yield|await)$/;
+
+/**
+ * Whether a `/` that follows `before` (the line's code so far) opens a
+ * regex literal: at line start, after an operator or opening bracket, after
+ * `=>`, or after a keyword such as `return`. After an operand it divides.
+ */
+function slashStartsRegex(before: string): boolean {
+	const prev = before.trimEnd();
+	if (prev === "") return true;
+	if (prev.endsWith("=>")) return true;
+	if ("(,=:[!&|?{};".includes(prev[prev.length - 1] ?? "")) return true;
+	return REGEX_AFTER_WORD.test(prev);
+}
+
+/**
+ * The index just past the closing `/` of a regex literal whose opening `/`
+ * is at `start`, or -1 when the line ends first (then it is a division).
+ */
+function regexLiteralEnd(line: string, start: number): number {
+	let inClass = false;
+	for (let i = start + 1; i < line.length; i++) {
+		const ch = line[i];
+		if (ch === "\\") i++;
+		else if (ch === "[") inClass = true;
+		else if (ch === "]") inClass = false;
+		else if (ch === "/" && !inClass) return i + 1;
+	}
+	return -1;
+}
+
+/**
+ * Blank out comments (and, in `masked`, string and regex contents) on one
+ * line so import-like text in JSDoc, `//` notes or literals is not read as
+ * code (#399). Block comments and template literals carry across lines;
+ * `'`/`"` strings and regex literals end at the line break. Regex literals
+ * are skipped whole so a quote, backtick or `/*` inside one cannot flip the
+ * lexer into another state and hide the real imports after it. Backticks
+ * nested in `${…}` are not modelled; they are rare and balance out on a line.
+ */
+function lexLine(line: string, start: LexState): LexedLine {
+	let code = "";
+	let masked = "";
+	let state: LexState | "'" | '"' = start;
+	for (let i = 0; i < line.length; i++) {
+		const ch = line[i] ?? "";
+		const next = line[i + 1] ?? "";
+		if (state === "block") {
+			if (ch === "*" && next === "/") {
+				state = "code";
+				i++;
+				code += "  ";
+				masked += "  ";
+			} else {
+				code += " ";
+				masked += " ";
+			}
+			continue;
+		}
+		if (state === "code") {
+			if (ch === "/" && next === "/") break;
+			if (ch === "/" && next === "*") {
+				state = "block";
+				i++;
+				code += "  ";
+				masked += "  ";
+				continue;
+			}
+			if (ch === "/" && slashStartsRegex(code)) {
+				const end = regexLiteralEnd(line, i);
+				if (end !== -1) {
+					const body = line.slice(i, end);
+					code += body;
+					masked += `/${" ".repeat(body.length - 2)}/`;
+					i = end - 1;
+					continue;
+				}
+			}
+			if (ch === "`") state = "template";
+			else if (ch === "'" || ch === '"') state = ch;
+			code += ch;
+			masked += ch;
+			continue;
+		}
+		// Inside a string or template literal
+		const close = state === "template" ? "`" : state;
+		if (ch === "\\" && next) {
+			i++;
+			code += ch + next;
+			masked += "  ";
+		} else if (ch === close) {
+			state = "code";
+			code += ch;
+			masked += ch;
+		} else {
+			code += ch;
+			masked += " ";
+		}
+	}
+	const carried: LexState =
+		state === "block" || state === "template" ? state : "code";
+	return { code, masked, state: carried };
+}
+
+/**
+ * Import forms matched against the masked line, each ending at the opening
+ * quote of the specifier: `import … from`/`export … from` and side-effect
+ * `import` at statement position, and `require(` anywhere in code.
+ */
+const IMPORT_PREFIXES: readonly RegExp[] = [
+	/^\s*(?:import|export)\s[^'"`]*?\bfrom\s*['"]/,
+	/^\s*import\s*['"]/,
+	/\brequire\s*\(\s*['"]/,
+];
+
+/** The relative specifier a line imports, or null when it imports none. */
+function findImportPath(lexed: LexedLine): string | null {
+	for (const prefix of IMPORT_PREFIXES) {
+		const match = prefix.exec(lexed.masked);
+		if (!match) continue;
+		const quoteAt = match.index + match[0].length - 1;
+		const quote = lexed.code[quoteAt] ?? "";
+		const end = lexed.code.indexOf(quote, quoteAt + 1);
+		if (end === -1) return null;
+		const specifier = lexed.code.slice(quoteAt + 1, end);
+		return specifier.startsWith(".") ? specifier : null;
+	}
+	return null;
+}
+
 /**
  * Detect hallucinated imports — imports that reference non-existent modules.
  *
@@ -148,20 +291,13 @@ export function detectHallucinatedImports(
 	// Determine the directory of the file being checked
 	const fileDir = dirname(isAbsolute(file) ? file : resolve(cwd, file));
 
-	// Match import statements with relative paths
-	const importPattern =
-		/(?:import\s+.*\s+from\s+|import\s+|require\s*\()['"](\.[^'"]+)['"]/;
-
+	let state: LexState = "code";
 	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i] ?? "";
-		const match = importPattern.exec(line);
-		if (!match) continue;
-
-		const importPath = match[1];
+		const lexed = lexLine(lines[i] ?? "", state);
+		state = lexed.state;
+		const importPath = findImportPath(lexed);
+		// Null for non-relative specifiers (react, node:path) too
 		if (!importPath) continue;
-
-		// Only check relative imports
-		if (!importPath.startsWith(".")) continue;
 
 		// Skip placeholder/ellipsis imports (e.g. "..." in dynamic import docs)
 		if (/^\.{2,}$/.test(importPath)) continue;

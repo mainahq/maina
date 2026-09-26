@@ -112,6 +112,152 @@ import { z } from "zod";`;
 			);
 			expect(findings.length).toBe(0);
 		});
+
+		// #399 — import-like text inside comments is not an import
+		it("should not flag an import quoted inside a JSDoc comment", () => {
+			const content = [
+				"export interface ImportRecord {",
+				'\t/** Empty for a side-effect import (`import "./polyfill"`, `require("x")`). */',
+				"\tnames: string[];",
+				"}",
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "types.ts"),
+				TMP_DIR,
+			);
+			expect(findings).toHaveLength(0);
+		});
+
+		it("should not flag imports inside multi-line block comments", () => {
+			const content = [
+				"/**",
+				" * Usage:",
+				' * import { foo } from "./missing-a";',
+				'import "./missing-b";',
+				' require("./missing-c");',
+				" */",
+				"export const x = 1;",
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "doc.ts"),
+				TMP_DIR,
+			);
+			expect(findings).toHaveLength(0);
+		});
+
+		it("should not flag imports inside line comments", () => {
+			const content = [
+				'// import { foo } from "./missing-a";',
+				'const y = 1; // was: require("./missing-b")',
+				'\t// import "./missing-c";',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "line.ts"),
+				TMP_DIR,
+			);
+			expect(findings).toHaveLength(0);
+		});
+
+		it("should not flag import-like text inside string literals", () => {
+			const content = [
+				"const hint = 'Try: import { foo } from \"./missing-a\"';",
+				'const tpl = `import "./missing-b"`;',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "strings.ts"),
+				TMP_DIR,
+			);
+			expect(findings).toHaveLength(0);
+		});
+
+		it("still flags real imports next to comments", () => {
+			const content = [
+				"/* header */",
+				'import { a } from "./missing-a"; // trailing note',
+				'import "./missing-b";',
+				'const c = require("./missing-c");',
+				'/* inline */ import { d } from "./missing-d";',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "real.ts"),
+				TMP_DIR,
+			);
+			expect(findings.map((f) => f.line)).toEqual([2, 3, 4, 5]);
+		});
+
+		it("should not flag imports inside multi-line template literals", () => {
+			const content = [
+				"const scaffold = `",
+				'import { foo } from "./missing-a";',
+				'import "./missing-b";',
+				"`;",
+				'import { real } from "./missing-c";',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "scaffold.ts"),
+				TMP_DIR,
+			);
+			expect(findings.map((f) => f.line)).toEqual([5]);
+		});
+
+		// #399 review — a quote, backtick or `/*` inside a regex literal must
+		// not flip the lexer into string/template/comment state and hide the
+		// real imports that follow (fail-open).
+		it("still flags imports after regex literals holding quotes or /*", () => {
+			const content = [
+				"const TRAIL = /\\/*$/;",
+				'const a = require("./missing-a");',
+				"const QUOTES = /[`'\"]/;",
+				'const b = require("./missing-b");',
+				'const c = (s) => /\'/.test(s) && require("./missing-c");',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "regex.ts"),
+				TMP_DIR,
+			);
+			expect(findings.map((f) => f.line)).toEqual([2, 4, 5]);
+		});
+
+		it("should not flag import-like text inside a regex literal", () => {
+			const content = 'const RE = /x|require("..[/]missing-a")/;';
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "regex-text.ts"),
+				TMP_DIR,
+			);
+			expect(findings).toHaveLength(0);
+		});
+
+		it("treats a slash after an operand as division, not a regex", () => {
+			const content = [
+				'const half = total / 2; const a = require("./missing-a");',
+				'const r = (a) / (b); const b = require("./missing-b");',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "divide.ts"),
+				TMP_DIR,
+			);
+			expect(findings.map((f) => f.line)).toEqual([1, 2]);
+		});
+
+		it("flags re-exports from missing modules", () => {
+			const content =
+				'export { a } from "./missing-a";\nexport * from "./missing-b";';
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "barrel.ts"),
+				TMP_DIR,
+			);
+			expect(findings.map((f) => f.line)).toEqual([1, 2]);
+		});
 	});
 
 	// ─── Console Logs ────────────────────────────────────────────────────────
