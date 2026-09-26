@@ -39,6 +39,9 @@ export type RuleEntry = Readonly<
 	)
 >;
 
+/** A static shell rule in maina's policy form: a command and its prefix. */
+export type ShellRule = Readonly<{ match: string; reason?: string }>;
+
 export type PluginDefinition = Readonly<{
 	/** Kebab-case identifier: every host namespaces components under it. */
 	name: string;
@@ -61,6 +64,16 @@ export type PluginDefinition = Readonly<{
 	agents: readonly MarkdownEntry[];
 	/** Shipped by hosts with a rules component (Cursor's `rules/*.mdc`). */
 	rules: readonly RuleEntry[];
+	/**
+	 * Static shell rules, shipped by hosts that enforce a command policy of
+	 * their own before any hook runs (Codex's `rules/*.rules`). maina's
+	 * gate still decides every command; these only hold where a host
+	 * would otherwise let a command through when a hook fails.
+	 */
+	shellRules: Readonly<{
+		allow: readonly ShellRule[];
+		deny: readonly ShellRule[];
+	}>;
 }>;
 
 /** The v1 flows, as `packages/skills` folders (task 9.6). */
@@ -119,4 +132,17 @@ export const PLUGIN: PluginDefinition = {
 			body: GUARDRAILS_RULE,
 		},
 	],
+	shellRules: {
+		allow: [],
+		// The gate denies an agent's own override (`gate.self_override`,
+		// #447). A host whose hooks fail open (Codex) would run it when the
+		// hook crashes, so the host's own policy forbids it too.
+		deny: [
+			{
+				match: "maina allow",
+				reason:
+					"maina overrides are the user's call, from their own terminal: an agent never runs one",
+			},
+		],
+	},
 };

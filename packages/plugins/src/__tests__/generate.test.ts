@@ -26,6 +26,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
+import { emitCodexRules } from "@mainahq/cli/src/hosts/codex-rules";
 import { CLAUDE_HOOK_EVENTS } from "@mainahq/runtime/src/adapters/claude-code";
 import {
 	CODEX_HOOK_EVENTS,
@@ -521,7 +522,7 @@ describe("Cursor rules", () => {
 		for (const skill of PLUGIN.skills) expect(body).toContain(`\`${skill}\``);
 	});
 
-	test("every rule in the definition reaches Cursor, and only Cursor has a rules component", () => {
+	test("every rule in the definition reaches Cursor, and only Cursor has a guidance rules component", () => {
 		const definition: PluginDefinition = {
 			...PLUGIN,
 			rules: [
@@ -538,13 +539,19 @@ describe("Cursor rules", () => {
 		expect(cursorFiles.find((f) => f.path === "rules/tests.mdc")?.content).toBe(
 			'---\ndescription: Test conventions\nglobs:\n  - "**/*.test.ts"\n---\n\nWrite the test first.\n',
 		);
-		for (const host of ["claude", "codex", "agent-plugins"] as const) {
+		for (const host of ["claude", "agent-plugins"] as const) {
 			expect(
 				generate(host, sources, definition).some((f) =>
 					f.path.startsWith("rules/"),
 				),
 			).toBe(false);
 		}
+		// Codex's rules/ holds its command policy, never guidance.
+		expect(
+			generate("codex", sources, definition)
+				.filter((f) => f.path.startsWith("rules/"))
+				.map((f) => f.path),
+		).toEqual(["rules/maina.rules"]);
 	});
 
 	test("front matter reads back as the definition's strings", () => {
@@ -572,6 +579,93 @@ describe("Cursor rules", () => {
 				description,
 				alwaysApply: true,
 			});
+		}
+	});
+});
+
+// ── Codex: the command policy (rules/*.rules) ─────────────────────────────
+
+type PrefixRule = Readonly<{
+	pattern: readonly string[];
+	decision: string;
+	justification?: string;
+}>;
+
+/**
+ * A strict reader for Codex's `.rules` as maina writes them (task 4.5):
+ * comments, blank lines and `prefix_rule(...)` blocks with one
+ * `key = value` per line, each value a JSON-compatible Starlark literal.
+ */
+function parseRules(text: string): readonly PrefixRule[] {
+	const rules: PrefixRule[] = [];
+	let current: Record<string, unknown> | null = null;
+	for (const line of text.split("\n")) {
+		if (current === null) {
+			if (line === "" || line.startsWith("#")) continue;
+			expect(line).toBe("prefix_rule(");
+			current = {};
+			continue;
+		}
+		if (line === ")") {
+			rules.push(current as PrefixRule);
+			current = null;
+			continue;
+		}
+		const field = /^ {4}([a-z_]+) = (.+),$/.exec(line);
+		if (field === null) throw new Error(`unparseable line: ${line}`);
+		current[field[1] as string] = JSON.parse(field[2] as string);
+	}
+	expect(current).toBeNull();
+	return rules;
+}
+
+describe("Codex rules", () => {
+	const rules = () => fileAt("codex", "rules/maina.rules");
+
+	test("ships the definition's shell rules as rules/maina.rules, the Codex rules emitter's output (task 4.5)", () => {
+		expect(rules().content).toBe(emitCodexRules({ rules: PLUGIN.shellRules }));
+		expect(rules().executable).toBe(false);
+	});
+
+	test("Codex itself forbids the agent's own gate override, even when a hook fails open", () => {
+		// Codex hooks fail open: a crashed PreToolUse hook lets the command
+		// through. A forbidden prefix rule does not depend on the hook.
+		expect(parseRules(rules().content)).toContainEqual({
+			pattern: ["maina", "allow"],
+			decision: "forbidden",
+			justification: expect.stringContaining("terminal"),
+		});
+	});
+
+	test("every shell rule in the definition reaches Codex, and no other host", () => {
+		const definition: PluginDefinition = {
+			...PLUGIN,
+			shellRules: {
+				deny: [
+					...PLUGIN.shellRules.deny,
+					{ match: "git push --force", reason: "rewrites history" },
+				],
+				allow: [{ match: "bun test" }],
+			},
+		};
+		const [file] = generate("codex", sources, definition).filter(
+			(f) => f.path === "rules/maina.rules",
+		);
+		const parsed = parseRules(file?.content ?? "");
+		expect(parsed).toContainEqual({
+			pattern: ["git", "push", "--force"],
+			decision: "forbidden",
+			justification: "rewrites history",
+		});
+		expect(parsed).toContainEqual(
+			expect.objectContaining({ pattern: ["bun", "test"], decision: "allow" }),
+		);
+		for (const host of ["claude", "cursor", "agent-plugins"] as const) {
+			expect(
+				generate(host, sources, definition).some((f) =>
+					f.path.endsWith(".rules"),
+				),
+			).toBe(false);
 		}
 	});
 });

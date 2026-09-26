@@ -143,9 +143,10 @@ export interface KnownFailure {
 }
 
 /**
- * Only the Codex plugin path still fails. History of the fixed entries:
+ * Every case passes. History of the fixed entries:
  * #341 shipped the Claude Code marketplace and plugin, #342 the Cursor
- * plugin and its marketplace listing.
+ * plugin and its marketplace listing, #343 the Codex plugin and its
+ * marketplace.
  * #288 made `maina setup` merge `mcpServers.maina` into the project
  * `.mcp.json`, so claude-code with cli-setup passes. #294 made the CLI
  * write its own runtime and entry by absolute path, which fixed P3 for
@@ -155,11 +156,7 @@ export interface KnownFailure {
  * install.sh only hands over to `maina setup`, so it no longer writes the
  * bare `bunx` whose first-spawn download also caused P4 there.
  */
-export const KNOWN_FAILURES: readonly KnownFailure[] = [
-	// Plugins: no host package yet (plan task 9.4). Claude Code's
-	// marketplace + plugin shipped with #341, Cursor's with #342.
-	{ host: "codex", installPath: "plugin", fixes: { "no-plugin": 343 } },
-];
+export const KNOWN_FAILURES: readonly KnownFailure[] = [];
 
 export function problemsOf(k: KnownFailure): readonly KnownProblem[] {
 	return (Object.keys(k.fixes) as KnownProblem[]).filter(

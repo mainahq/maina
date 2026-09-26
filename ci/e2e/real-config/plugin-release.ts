@@ -6,10 +6,10 @@
  * key (`runtime-artifacts.yml`). This does the same for the e2e: it
  * compiles the standalone runtime for this machine, signs it with a
  * throwaway key, serves it on 127.0.0.1 and writes a marketplace (the
- * repo's `.claude-plugin/marketplace.json` and `.cursor-plugin/
- * marketplace.json`, plus every plugin package they list) whose launchers
- * pin that artifact. Installing from it is installing a release, with the
- * network kept local.
+ * repo's `.claude-plugin/marketplace.json`, `.cursor-plugin/
+ * marketplace.json` and `.agents/plugins/marketplace.json`, plus every
+ * plugin package they list) whose launchers pin that artifact. Installing
+ * from it is installing a release, with the network kept local.
  *
  * Built once per test process; `stopPluginRelease` stops the server and
  * removes the files.
@@ -49,6 +49,7 @@ const REPO_ROOT = resolve(import.meta.dir, "..", "..", "..");
 const MARKETPLACE_FILES: readonly string[] = [
 	".claude-plugin/marketplace.json",
 	".cursor-plugin/marketplace.json",
+	".agents/plugins/marketplace.json",
 ];
 
 export interface PluginRelease {
@@ -66,12 +67,20 @@ let cleanup: (() => void) | undefined;
 const readJson = (path: string): unknown =>
 	JSON.parse(readFileSync(path, "utf-8"));
 
-/** Relative plugin sources a marketplace lists (`./…`). */
+/**
+ * Relative plugin sources a marketplace lists (`./…`): a bare path (Claude
+ * Code, Cursor) or a `local` source's `path` (Codex).
+ */
 function relativeSources(listing: unknown): readonly string[] {
 	const plugins = (listing as { plugins?: unknown }).plugins;
 	if (!Array.isArray(plugins)) return [];
 	return plugins
-		.map((p) => (p as { source?: unknown }).source)
+		.map((p) => {
+			const source = (p as { source?: unknown }).source;
+			return typeof source === "object" && source !== null
+				? (source as { path?: unknown }).path
+				: source;
+		})
 		.filter((s): s is string => typeof s === "string" && s.startsWith("./"));
 }
 

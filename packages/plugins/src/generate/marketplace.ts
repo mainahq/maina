@@ -11,6 +11,7 @@
  */
 
 import type { PluginDefinition } from "../definition";
+import { CODEX_CATEGORY } from "./codex";
 import { file, json } from "./shared";
 import type { GeneratedFile } from "./types";
 
@@ -76,4 +77,33 @@ export function cursorMarketplace(definition: PluginDefinition): GeneratedFile {
 		],
 	};
 	return file(CURSOR_MARKETPLACE_PATH, json(listing));
+}
+
+/**
+ * The Codex listing (v1 task 9.4; https://developers.openai.com/codex/plugins/build):
+ * Codex reads a repo's marketplace from `.agents/plugins/marketplace.json`
+ * at its root, and `/plugins` installs an entry from its `local` source, a
+ * folder relative to that root. Users choose to install maina
+ * (`AVAILABLE`), and it needs no sign-in, so authentication happens, if
+ * ever, on install. Like the other listings, it pins no version.
+ */
+export const CODEX_MARKETPLACE_PATH = ".agents/plugins/marketplace.json";
+
+/** The generated Codex package, from the repo root. */
+export const CODEX_PLUGIN_SOURCE = "./packages/plugins/dist/codex";
+
+export function codexMarketplace(definition: PluginDefinition): GeneratedFile {
+	const listing = {
+		name: definition.name,
+		interface: { displayName: definition.displayName },
+		plugins: [
+			{
+				name: definition.name,
+				source: { source: "local", path: CODEX_PLUGIN_SOURCE },
+				policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
+				category: CODEX_CATEGORY,
+			},
+		],
+	};
+	return file(CODEX_MARKETPLACE_PATH, json(listing));
 }
