@@ -704,6 +704,30 @@ describe("gate.self_override: an agent changing its own gate (#447)", () => {
 		}
 	});
 
+	test("a different letter case names the same file on macOS and Windows (review of #447)", () => {
+		for (const path of [
+			".MAINA/policy.json",
+			".maina/Policy.json",
+			".Claude/Settings.json",
+			".claude/settings.LOCAL.json",
+			".Cursor/Hooks.json",
+			"/home/dev/.CODEX/Config.toml",
+		]) {
+			expect(classifyAction(writeEvent(path), ctx), path).toContain(SELF);
+		}
+		for (const command of [
+			"echo '{}' > .Claude/Settings.json",
+			"echo '{}' > .MAINA/policy.json",
+			"rm -rf .CLAUDE",
+			"mv .Maina /tmp/m",
+			"cp /tmp/settings.json .Claude/",
+			"cp -r /tmp/evil/.Claude .",
+			"sed -i 's/maina//' .Cursor/hooks.json",
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+	});
+
 	test("is irreversible and denied by default", () => {
 		expect(DEFAULT_POLICY.action_classes[SELF]).toEqual({
 			irreversible: true,

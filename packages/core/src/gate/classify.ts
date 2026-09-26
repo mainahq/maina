@@ -150,10 +150,12 @@ function classifyRead(
  * the repo or the user's home) and the host hook configs that run maina
  * (`.claude/settings*.json`, `.cursor/hooks.json`, `.codex/hooks.json`,
  * `.codex/config.toml`). An agent writing, moving or deleting one could
- * override its own gate, so each is `gate.self_override`.
+ * override its own gate, so each is `gate.self_override`. The match ignores
+ * letter case: macOS and Windows file systems do, so `.Claude/Settings.json`
+ * is the same file there.
  */
 function isGateControlFile(path: string): boolean {
-	const segments = path.split(/[\\/]+/);
+	const segments = path.toLowerCase().split(/[\\/]+/);
 	const name = segments.at(-1) ?? "";
 	switch (segments.at(-2)) {
 		case ".maina":
@@ -176,6 +178,10 @@ const GATE_CONTROL_DIRS: ReadonlySet<string> = new Set([
 	".codex",
 ]);
 
+/** Whether a path segment names a control dir, in any letter case. */
+const isGateControlDir = (segment: string): boolean =>
+	GATE_CONTROL_DIRS.has(segment.toLowerCase());
+
 /** The last path segment, ignoring a trailing slash (`~/.claude/`). */
 const lastSegment = (path: string): string =>
 	path
@@ -185,7 +191,7 @@ const lastSegment = (path: string): string =>
 
 /** Deleting or moving a path removes a control file when it is one or holds one. */
 function removesGateControl(path: string): boolean {
-	return GATE_CONTROL_DIRS.has(lastSegment(path)) || isGateControlFile(path);
+	return isGateControlDir(lastSegment(path)) || isGateControlFile(path);
 }
 
 /**
@@ -209,14 +215,14 @@ function landsOnGateControl(
 	const dest = resolvePath(destination, cwd, ctx.gate.home) ?? destination;
 	if (isScratchPath(dest)) return;
 	if (isGateControlFile(dest)) ctx.out.add("gate.self_override");
-	const intoControlDir = GATE_CONTROL_DIRS.has(lastSegment(dest));
+	const intoControlDir = isGateControlDir(lastSegment(dest));
 	for (const source of sources) {
 		const name = source.split(/[\\/]/).at(-1) ?? "";
 		if (name === "" || name === ".") {
 			if (how.tree && intoControlDir) ctx.out.add("gate.self_override");
 		} else if (
 			isGateControlFile(`${dest}/${name}`) ||
-			(how.tree && GATE_CONTROL_DIRS.has(name))
+			(how.tree && isGateControlDir(name))
 		) {
 			ctx.out.add("gate.self_override");
 		} else if (how.tree && intoControlDir) {
