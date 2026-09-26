@@ -806,6 +806,46 @@ describe("maina doctor v2 — host launch checks", () => {
 		}
 	});
 
+	test("an uncreatable launch directory skips doctor's own launches instead of failing", async () => {
+		// mkdtemp under a temp dir that does not exist throws; doctor must
+		// still report, and must not fall back to launching in the repo.
+		writeJson(join(home, ".claude.json"), {
+			mcpServers: { maina: { command: "/u/bin/maina", args: ["--mcp"] } },
+		});
+		const saved = {
+			TMPDIR: process.env.TMPDIR,
+			TMP: process.env.TMP,
+			TEMP: process.env.TEMP,
+		};
+		const missing = join(uniqueDir("no-tmp"), "missing");
+		const launched: string[] = [];
+		try {
+			process.env.TMPDIR = missing;
+			process.env.TMP = missing;
+			process.env.TEMP = missing;
+			const result = await doctorAction({
+				cwd,
+				home,
+				json: true,
+				probe: async (spec, _env, launchCwd) => {
+					launched.push(launchCwd);
+					return { kind: "not-found", command: spec.command, path: "" };
+				},
+			});
+			expect(launched).toEqual([]);
+			const row = result.hostHealth.hosts.find(
+				(h) => h.host === "claude" && h.scope === "global",
+			);
+			expect(row?.status).toBe("skipped");
+		} finally {
+			for (const [k, v] of Object.entries(saved)) {
+				if (v === undefined) delete process.env[k];
+				else process.env[k] = v;
+			}
+			rmSync(dirname(missing), { recursive: true, force: true });
+		}
+	});
+
 	test("--launch-project launches an unrecognised project command", async () => {
 		const outside = uniqueDir("sentinel");
 		const sentinel = join(outside, "pwned");

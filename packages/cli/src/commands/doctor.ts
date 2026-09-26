@@ -421,7 +421,10 @@ const readOnlyFs: FsPort = {
 	}),
 };
 
-function hostHealthPorts(probe: Probe, launchCwd: string): HostHealthPorts {
+function hostHealthPorts(
+	probe: Probe,
+	launchCwd: string | null,
+): HostHealthPorts {
 	return {
 		launchCwd,
 		readFile: readOrNull,
@@ -448,6 +451,19 @@ function hostHealthPorts(probe: Probe, launchCwd: string): HostHealthPorts {
 }
 
 /**
+ * A fresh empty directory under the OS temp dir, or null when it cannot be
+ * created (the launches that need it are then skipped, not moved into the
+ * repo).
+ */
+function makeLaunchDir(): string | null {
+	try {
+		return mkdtempSync(join(tmpdir(), "maina-doctor-launch-"));
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Launch every configured entry. Doctor's own launches start in a fresh
  * empty directory outside the repo so a repo `bunfig.toml` preload cannot
  * run (#432); it is removed once every probe has stopped its server.
@@ -458,7 +474,7 @@ async function checkHosts(
 	probe: Probe,
 	launchProject: boolean,
 ): Promise<HostHealth> {
-	const launchCwd = mkdtempSync(join(tmpdir(), "maina-doctor-launch-"));
+	const launchCwd = makeLaunchDir();
 	try {
 		return await checkHostHealth(
 			{
@@ -479,7 +495,9 @@ async function checkHosts(
 		// the directory busy (Windows will not remove a process's cwd). A
 		// leftover empty temp dir must not discard the report.
 		try {
-			rmSync(launchCwd, { recursive: true, force: true });
+			if (launchCwd !== null) {
+				rmSync(launchCwd, { recursive: true, force: true });
+			}
 		} catch {
 			// Left for the OS temp cleaner.
 		}

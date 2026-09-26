@@ -361,6 +361,10 @@ const shadowedReason = (shadow: string): string =>
 	`the repo ships ${shadow}, which can make the package runner resolve ` +
 	"something other than the published CLI; not executed";
 const LAUNCH_PROJECT_FIX = "maina doctor --launch-project";
+const NO_LAUNCH_DIR_REASON =
+	"could not create an empty launch directory outside the repo, and a " +
+	"launch in the repo would run its bunfig.toml preload; not executed";
+const NO_LAUNCH_DIR_FIX = "make the OS temp directory ($TMPDIR) writable";
 
 /** Whether absolute `path` is `dir` or below it. */
 function within(dir: string, path: string): boolean {
@@ -525,8 +529,10 @@ export interface HostHealthPorts {
 	/**
 	 * An empty directory outside the repo that doctor's own launches start
 	 * in, so no repo `bunfig.toml` preload runs (see the module comment).
+	 * Null when none could be created: those launches are then skipped,
+	 * never moved into the repo.
 	 */
-	readonly launchCwd: string;
+	readonly launchCwd: string | null;
 	readonly probe: Probe;
 }
 
@@ -535,7 +541,7 @@ interface LaunchContext {
 	/** The repo cwd; only opted-in project entries launch here. */
 	readonly cwd: string;
 	/** Where every other launch starts (`HostHealthPorts.launchCwd`). */
-	readonly launchCwd: string;
+	readonly launchCwd: string | null;
 	/** The repo's directories; a project entry must not run a file in one. */
 	readonly repoDirs: readonly string[];
 	readonly realpath: (path: string) => string;
@@ -615,11 +621,25 @@ async function hostReport(
 			],
 		};
 	}
-	const outcome = await launch.probe(
-		spec.value,
-		launch.env,
-		trusted ? launch.launchCwd : launch.cwd,
-	);
+	const launchCwd = trusted ? launch.launchCwd : launch.cwd;
+	if (launchCwd === null) {
+		return {
+			...base,
+			command,
+			handshakeMs: null,
+			status: "skipped",
+			checks: [
+				config,
+				{
+					id: "launch",
+					status: "skipped",
+					message: NO_LAUNCH_DIR_REASON,
+					fix: NO_LAUNCH_DIR_FIX,
+				},
+			],
+		};
+	}
+	const outcome = await launch.probe(spec.value, launch.env, launchCwd);
 	const checks: HealthCheck<HostCheckId>[] = [
 		config,
 		...evaluateLaunch(outcome, input.version, fix),

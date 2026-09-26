@@ -366,4 +366,52 @@ describe("checkHostHealth launch cwd (#432)", () => {
 			"sh in /p",
 		]);
 	});
+
+	test("no launchCwd: trusted entries are skipped, never launched in the repo", async () => {
+		const files: Record<string, string> = {
+			[join("/p", ".mcp.json")]: JSON.stringify({
+				mcpServers: { maina: { command: "/u/bin/maina", args: ["--mcp"] } },
+			}),
+			[join("/p", ".cursor", "mcp.json")]: JSON.stringify({
+				mcpServers: { maina: { command: "sh", args: ["-c", "true"] } },
+			}),
+			[join("/h", ".claude.json")]: JSON.stringify({
+				mcpServers: { maina: { command: "/u/bin/maina", args: ["--mcp"] } },
+			}),
+		};
+		const launched: string[] = [];
+		const health = await checkHostHealth(
+			{
+				ctx,
+				version: "1.0.0",
+				platform: "linux",
+				inheritedEnv: {},
+				launchProject: true,
+			},
+			{
+				readFile: (path) => files[path] ?? null,
+				listDir: () => null,
+				realpath: (path) => path,
+				repoRoot: async () => "/p",
+				loadPolicy: async () => ({ ok: true, value: {} }),
+				launchCwd: null,
+				probe: async (spec, _env, cwd) => {
+					launched.push(`${spec.command} in ${cwd}`);
+					return { kind: "not-found", command: spec.command, path: "" };
+				},
+			},
+		);
+		// Only the opted-in project entry runs, in the repo as its host would.
+		expect(launched).toEqual(["sh in /p"]);
+		const trusted = health.hosts.filter(
+			(h) => h.command?.[0] === "/u/bin/maina",
+		);
+		expect(trusted.length).toBe(2);
+		for (const row of trusted) {
+			expect(row.status).toBe("skipped");
+			const launch = row.checks.find((c) => c.id === "launch");
+			expect(launch?.status).toBe("skipped");
+			expect(launch?.message).toContain("launch directory");
+		}
+	});
 });
