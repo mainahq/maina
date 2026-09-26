@@ -396,8 +396,6 @@ describe("runWithoutRetention: nothing of the code outlives the job", () => {
 					return clock;
 				},
 				runnerFor: ({ scratch: dir, env: jobEnv }) => {
-					// The job's own directories exist, as `main.ts` makes them.
-					mkdirSync(jobEnv.HOME ?? "", { recursive: true });
 					return createJobRunner({
 						credentials,
 						api: restGitHubApi({ fetch: gh.fetch, baseUrl: API }),

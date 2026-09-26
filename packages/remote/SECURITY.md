@@ -51,6 +51,12 @@ Limits:
   In the self-host deployment the job container has a read-only root
   filesystem and `/tmp` and `$HOME` on tmpfs, and `docker compose run --rm`
   removes the container, which covers that case.
+- Cleanup runs when the job returns, fails or throws, not when the job
+  process itself is killed (`SIGKILL`, the OOM killer, or `SIGTERM` or
+  Ctrl-C, which it does not trap). A killed job can leave its
+  `maina-job-*` scratch directory behind. The self-host container covers
+  this too (tmpfs, `--rm`). Outside a container, point `MAINA_JOBS_TMPDIR`
+  at a tmpfs or remove stale `maina-job-*` directories under it.
 - The report on stdout carries the capability's findings, which name the
   PR's files and can quote its code. It is the caller's data: pass it on
   and do not retain it unless you mean to.

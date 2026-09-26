@@ -19,7 +19,7 @@ A repository's policy (`.maina/policy.json`) can turn a channel off for that rep
 - `MAINA_TELEMETRY=0` (or `false`, `no`, `off`)
 - `~/.maina/telemetry.json` containing `{ "optOut": true }`
 
-If a policy file fails to parse, every channel counts as off.
+If a policy file fails to parse, every channel counts as off. The 1.x opt-ins in `~/.maina/config.yml` (`errors: true` for crash reports, `telemetry: true` for usage) still turn a channel on when your user policy does not mention that channel. Your user policy, a repository's policy and the switches above all override them.
 
 ## Remote connector
 
@@ -36,7 +36,7 @@ A job (`verify`, `impact`, `triage`, `spec_check` or `decide`) works like this:
 
 Everything the job's tools write lands in the same directory: maina's own state, the code graph index, caches, temp files and tool logs. That is because the directory is the tools' temp directory, `$HOME` and XDG directories for the length of the job.
 
-- **Deleted however the job ends.** The directory goes whether the job succeeds, fails or crashes.
+- **Deleted however the job ends.** The directory goes whether the job succeeds, fails or throws an error. A job process that is killed outright (for example by the out-of-memory killer) cannot clean up after itself; in the self-hosted container its scratch directory is on a tmpfs that goes with the container.
 - **Deletion is checked.** If the directory is still there afterwards, the job fails instead of reporting success.
 - **The GitHub token is short-lived.** The job's installation token is read-only by default, covers the one repository, and is revoked when the job ends.
 - **The App's key never reaches your code.** The GitHub App's private key is dropped from the job's environment before any tool runs over the pull request.
