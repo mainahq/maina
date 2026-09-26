@@ -193,6 +193,43 @@ describe("policyToSandbox: refuses a layout it cannot isolate", () => {
 		expect(result.ok).toBe(false);
 	});
 
+	// A writable or temp directory is carved back out of the read denies and
+	// added to the write allows, so it must not reopen what the sandbox hides.
+	test.each([
+		["inside the holdout", `${HOLDOUT}/cache`],
+		["the holdout itself", HOLDOUT],
+		["another worker's worktree", `${ROOT}/run-2`],
+		["the worktrees root", ROOT],
+		["an ancestor of the worktrees root", "/work"],
+		["inside ~/.ssh", `${HOME}/.ssh/agent`],
+		["the home directory, which holds ~/.ssh", HOME],
+		["the filesystem root", "/"],
+	])("a writable directory %s", (_label, dir) => {
+		for (const context of [
+			{ home: HOME, writable: [dir] },
+			{ home: HOME, tmpDir: dir },
+		]) {
+			const result = policyToSandbox(
+				DEFAULT_POLICY,
+				WORKTREE,
+				HOLDOUT,
+				context,
+			);
+			expect(result.ok).toBe(false);
+			if (result.ok) return;
+			expect(result.error.code).toBe("invalid_options");
+		}
+	});
+
+	test("a writable directory inside the worker's own worktree is fine", () => {
+		const result = policyToSandbox(DEFAULT_POLICY, WORKTREE, HOLDOUT, {
+			home: HOME,
+			writable: [`${WORKTREE}/.cache`],
+			tmpDir: `${WORKTREE}/.tmp`,
+		});
+		expect(result.ok).toBe(true);
+	});
+
 	test("relative paths", () => {
 		const result = policyToSandbox(DEFAULT_POLICY, "run-1", HOLDOUT, {
 			home: HOME,

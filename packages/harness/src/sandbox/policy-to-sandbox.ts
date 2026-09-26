@@ -157,6 +157,28 @@ export function policyToSandbox(
 		);
 	}
 
+	// Extra writable and temp directories are write allows and read
+	// carve-outs: one that overlaps the holdout, the worktrees root or a
+	// home-directory secret would reopen it (or, as an ancestor, make other
+	// worktrees and ~/.ssh writable). Inside the worker's own worktree is fine.
+	const secrets = SENSITIVE_HOME_PATHS.map((path) => join(resolvedHome, path));
+	const hidden = [holdout, worktreesRoot, ...secrets];
+	const extras = [
+		...writable,
+		...(context.tmpDir === undefined ? [] : [context.tmpDir]),
+	];
+	for (const dir of extras.map((extra) => resolve(extra))) {
+		if (dir === wt || isInside(wt, dir)) continue;
+		const overlap = hidden.find(
+			(path) => path === dir || isInside(path, dir) || isInside(dir, path),
+		);
+		if (overlap !== undefined) {
+			return invalid(
+				`writable directory ${dir} overlaps ${overlap}, which the worker may not read or write`,
+			);
+		}
+	}
+
 	const { allow, deny } = policy.rules;
 	// The gate checks deny rules first. A deny the sandbox cannot express
 	// could cover any allowed host, so no policy host is allowed at all:
