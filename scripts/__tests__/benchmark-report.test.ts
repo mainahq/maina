@@ -129,6 +129,30 @@ describe("parseBenchmarkReport", () => {
 			json({ ...REPORT, reproduce: ["```"] }),
 		],
 		[
+			"an underscore-emphasis name",
+			json({ ...REPORT, systems: [{ ...MAINA, name: "_maina_" }] }),
+		],
+		[
+			"an HTML entity in a name",
+			json({ ...REPORT, systems: [{ ...MAINA, name: "a &lt; b" }] }),
+		],
+		[
+			"a dataset name that renders as a heading",
+			json({ ...REPORT, dataset: { ...REPORT.dataset, name: "# Big" } }),
+		],
+		[
+			"a dataset name that renders as a list item",
+			json({ ...REPORT, dataset: { ...REPORT.dataset, name: "- item" } }),
+		],
+		[
+			"no destructive cases",
+			json({ ...REPORT, dataset: { ...REPORT.dataset, destructive: 0 } }),
+		],
+		[
+			"no benign cases",
+			json({ ...REPORT, dataset: { ...REPORT.dataset, benign: 0 } }),
+		],
+		[
 			"a harness that is not https",
 			json({ ...REPORT, harness: { ...REPORT.harness, url: "http://x.y" } }),
 		],
@@ -183,6 +207,16 @@ describe("renderBenchmarksPage with a report", () => {
 			"https://github.com/mainahq/gate-bench/tree/0a1b2c3d4e5f",
 		);
 		expect(page).toContain("2026-11-02");
+	});
+
+	test("shows the harness link text as code, so URL characters stay literal", () => {
+		const underscored = renderBenchmarksPage({
+			...REPORT,
+			harness: { ...REPORT.harness, url: "https://github.com/a_b/_gate_" },
+		});
+		expect(underscored).toContain(
+			"[`github.com/a_b/_gate_ @ 0a1b2c3`](https://github.com/a_b/_gate_/tree/0a1b2c3d4e5f)",
+		);
 	});
 
 	test("lists the report's reproduce steps in a shell block", () => {
@@ -257,5 +291,26 @@ describe("the generated page", () => {
 		const page = generateDocs(REPO_ROOT).get(PAGE) ?? "";
 		expect(page).toStartWith('---\ntitle: "Benchmarks"');
 		expect(page).toEndWith(renderBenchmarksPage(read.value));
+	});
+});
+
+describe("the release-gate entrypoint", () => {
+	const SCRIPT = join(REPO_ROOT, "scripts", "benchmark-report.ts");
+	const run = (...args: string[]) =>
+		Bun.spawnSync(["bun", SCRIPT, ...args], { cwd: REPO_ROOT });
+
+	test("--require-report exits 0 only when the committed report is valid", () => {
+		const expected = requireBenchmarkReport(REPO_ROOT).ok ? 0 : 1;
+		const result = run("--require-report");
+		expect(result.exitCode).toBe(expected);
+		if (expected === 1) {
+			expect(result.stderr.toString()).toContain("benchmark report: FAIL");
+		}
+	});
+
+	test("without the flag it prints usage and exits 2", () => {
+		const result = run();
+		expect(result.exitCode).toBe(2);
+		expect(result.stderr.toString()).toContain("--require-report");
 	});
 });
