@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { DEFAULT_POLICY, type Result } from "@mainahq/core";
 import { policyToSandbox } from "../policy-to-sandbox";
 import type { Command, SandboxError, SandboxOptions } from "../port";
@@ -228,6 +228,49 @@ describe("wrap: refuses to run unsandboxed", () => {
 		expect(result.ok).toBe(false);
 		if (result.ok) return;
 		expect(result.error.code).toBe("io");
+	});
+});
+
+describe("dispose: the settings temp dirs (#544)", () => {
+	test("removes every settings file this port wrote, once", () => {
+		const removed: string[] = [];
+		let n = 0;
+		const { port } = fakeRuntime({
+			writeSettings: () => ({
+				ok: true,
+				value: `/tmp/maina-sandbox-${++n}/settings.json`,
+			}),
+			removeSettings: (path) => {
+				removed.push(path);
+			},
+		});
+		expect(port.wrap(AGENT, OPTIONS).ok).toBe(true);
+		expect(port.wrap(AGENT, OPTIONS).ok).toBe(true);
+		expect(removed).toEqual([]);
+		port.dispose();
+		expect(removed).toEqual([
+			"/tmp/maina-sandbox-1/settings.json",
+			"/tmp/maina-sandbox-2/settings.json",
+		]);
+		port.dispose();
+		expect(removed).toHaveLength(2);
+	});
+
+	test("the real writer's maina-sandbox-* dir is gone after dispose", () => {
+		const port = createSandboxRuntime({
+			probe: ALL_INSTALLED,
+			platform: "darwin",
+			env: {},
+		});
+		const result = port.wrap(AGENT, { ...OPTIONS, credentials: [] });
+		if (!result.ok) throw new Error(result.error.message);
+		const args = result.value.args ?? [];
+		const settings = String(args[args.indexOf("--settings") + 1]);
+		const dir = dirname(settings);
+		expect(basename(dir).startsWith("maina-sandbox-")).toBe(true);
+		expect(existsSync(settings)).toBe(true);
+		port.dispose();
+		expect(existsSync(dir)).toBe(false);
 	});
 });
 

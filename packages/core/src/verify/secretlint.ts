@@ -3,9 +3,12 @@
  *
  * Runs Secretlint for secrets detection in source files.
  * Parses JSON output into the unified Finding type.
- * Gracefully skips if secretlint is not installed.
+ * Gracefully skips if secretlint is not installed, or if the repository has
+ * no secretlint config: secretlint refuses to run without one.
  */
 
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import type { ProcessPort } from "../ports/process";
 import type { Finding } from "./diff-filter";
 import {
@@ -136,20 +139,68 @@ export function parseSecretlintOutput(output: string): Finding[] {
 	return findings;
 }
 
+// ─── Config ───────────────────────────────────────────────────────────────
+
+/** The config files secretlint looks for (`rc-config-loader` names). */
+const SECRETLINT_CONFIG_FILES = [
+	".secretlintrc",
+	".secretlintrc.json",
+	".secretlintrc.yaml",
+	".secretlintrc.yml",
+	".secretlintrc.js",
+	".secretlintrc.cjs",
+] as const;
+
+/** True when `dir` itself has a secretlint config file or a non-empty `secretlint` field in package.json. */
+function dirHasSecretlintConfig(dir: string): boolean {
+	if (SECRETLINT_CONFIG_FILES.some((name) => existsSync(join(dir, name)))) {
+		return true;
+	}
+	try {
+		const pkg: unknown = JSON.parse(
+			readFileSync(join(dir, "package.json"), "utf8"),
+		);
+		// rc-config-loader skips a falsy field, as secretlint then does.
+		return (
+			typeof pkg === "object" &&
+			pkg !== null &&
+			Boolean((pkg as Record<string, unknown>).secretlint)
+		);
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * True when secretlint run in `root` finds a config: in `root` or any
+ * directory above it, the way its `rc-config-loader` looks.
+ */
+function hasSecretlintConfig(root: string): boolean {
+	let dir = resolve(root);
+	for (;;) {
+		if (dirHasSecretlintConfig(dir)) return true;
+		const parent = dirname(dir);
+		if (parent === dir) return false;
+		dir = parent;
+	}
+}
+
 // ─── Runner ───────────────────────────────────────────────────────────────
 
 /**
  * Run Secretlint and return parsed findings.
  *
- * If secretlint is not installed, returns `{ findings: [], skipped: true }`.
- * Spawns the command detection resolved (it may be root-local); if it cannot
- * be started, returns `{ findings: [], skipped: true, notice }`.
+ * If secretlint is not installed, or no secretlint config is found from the root up
+ * (secretlint then exits with an error), returns
+ * `{ findings: [], skipped: true }` without spawning it. Spawns the command
+ * detection resolved (it may be root-local); if it cannot be started,
+ * returns `{ findings: [], skipped: true, notice }`.
  */
 export async function runSecretlint(
 	options: SecretlintOptions,
 ): Promise<SecretlintResult> {
 	const resolved = await resolveTool("secretlint", options);
-	if (!resolved.available) {
+	if (!resolved.available || !hasSecretlintConfig(options.cwd)) {
 		return { findings: [], skipped: true };
 	}
 

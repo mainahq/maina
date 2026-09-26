@@ -1,8 +1,6 @@
 import { describe, expect, it } from "bun:test";
+import { createFakeProcess } from "../../ports/testing";
 import { parseDiffCoverJson, runCoverage } from "../coverage";
-
-// Tests run from the repository; pass it as the explicit root (#290).
-const ROOT = process.cwd();
 
 describe("diff-cover Coverage Integration", () => {
 	describe("parseDiffCoverJson", () => {
@@ -78,9 +76,40 @@ describe("diff-cover Coverage Integration", () => {
 
 	describe("runCoverage", () => {
 		it("should skip when diff-cover is not available", async () => {
-			const result = await runCoverage({ cwd: ROOT, available: false });
+			const result = await runCoverage({ cwd: "/repo", available: false });
 			expect(result.skipped).toBe(true);
 			expect(result.findings).toHaveLength(0);
+		});
+
+		it("should ask for the JSON report on stdout with an argument (#544)", async () => {
+			// A bare --json was read as --json-report with no argument, so
+			// diff-cover exited with a usage error on every run.
+			const json = JSON.stringify({
+				src_stats: {
+					"src/app.ts": { violation_lines: [6], percent_covered: 50 },
+				},
+			});
+			const proc = createFakeProcess(() => ({
+				ok: true,
+				value: { exitCode: 0, stdout: json, stderr: "" },
+			}));
+			const result = await runCoverage({
+				cwd: "/repo",
+				baseBranch: "origin/main",
+				available: true,
+				process: proc,
+			});
+			const calls = proc.calls();
+			expect(calls).toHaveLength(1);
+			const argv = calls[0]?.argv ?? [];
+			expect(argv.slice(0, 2)).toEqual([
+				"diff-cover",
+				"coverage/cobertura-coverage.xml",
+			]);
+			expect(argv[2]).toMatch(/^--compare-branch=/);
+			expect(argv.slice(3)).toEqual(["--json-report", "-", "--quiet"]);
+			expect(result.skipped).toBe(false);
+			expect(result.findings).toHaveLength(1);
 		});
 	});
 });
