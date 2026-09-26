@@ -339,6 +339,30 @@ describe("checkAnyType", () => {
 		const findings = checkAnyType("src/app.ts", content);
 		expect(findings).toHaveLength(0);
 	});
+
+	it("does not flag identifiers ending in 'any' followed by punctuation (#461)", () => {
+		const content = [
+			"expect(clarify(SPEC, many).questions).toHaveLength(5);",
+			"const list = [company, other];",
+			"foo(botany);",
+			"const x = germany | 0;",
+			"type T = Array<Company>;",
+			"const arr = many[0];",
+		].join("\n");
+		const findings = checkAnyType("src/app.ts", content);
+		expect(findings).toHaveLength(0);
+	});
+
+	it("still flags standalone 'any' followed by punctuation", () => {
+		const content = [
+			"const m: Map<string, any> = new Map();",
+			"function f(x: string | any) { return x; }",
+			"type U = any[];",
+			"type V = [string, any];",
+		].join("\n");
+		const findings = checkAnyType("src/app.ts", content);
+		expect(findings.map((f) => f.line)).toEqual([1, 2, 3, 4]);
+	});
 });
 
 // ─── checkUnusedImports ──────────────────────────────────────────────────

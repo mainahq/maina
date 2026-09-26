@@ -385,7 +385,7 @@ export function checkAnyType(filePath: string, content: string): Finding[] {
 	// Match `: any`, `as any`, `<any>`, `any[]`, `any,`, `any)`, `any;`
 	// — basically `any` used as a type annotation, not as a substring in identifiers
 	const anyTypePattern =
-		/(?::\s*any\b|(?:as|extends|implements)\s+any\b|<any\b|any\s*[[\]>,);|&])/;
+		/(?::\s*any\b|(?:as|extends|implements)\s+any\b|<any\b|\bany\s*[[\]>,);|&])/;
 
 	for (const [i, line] of lines.entries()) {
 		// Skip comment lines
