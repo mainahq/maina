@@ -63,7 +63,7 @@ export type JobRequest = Target &
 		| Readonly<{ kind: "triage" }>
 		| Readonly<{
 				kind: "spec_check";
-				/** Feature directories; default: those the PR touches. */
+				/** Feature directories; default: those the PR touches and keeps. */
 				paths?: readonly string[];
 		  }>
 		| Readonly<{ kind: "decide"; request: DecideRequest }>
@@ -159,7 +159,11 @@ function checkRequest(request: JobRequest): Result<void, JobError> {
 	return { ok: true, value: undefined };
 }
 
-/** The feature directories a set of changed files falls in, sorted. */
+/**
+ * The feature directories a set of files falls in, sorted. Fed the files
+ * the PR leaves in place, so a directory it deletes outright (absent from
+ * the checkout) is not checked.
+ */
 const featureDirs = (files: readonly string[]): string[] =>
 	[
 		...new Set(
@@ -212,7 +216,7 @@ async function runCapability(
 				"spec_check",
 				await runtime.specCheck({
 					root,
-					paths: request.paths ?? featureDirs(changed.map((f) => f.path)),
+					paths: request.paths ?? featureDirs(present),
 				}),
 			);
 		case "decide":

@@ -251,6 +251,37 @@ describe("diff base", () => {
 	});
 });
 
+describe("spec check", () => {
+	test("by default skips a feature directory the PR deletes outright", async () => {
+		const gh = fakeGitHub({
+			pulls: [
+				{
+					...PULL,
+					files: [
+						...PULL.files,
+						{ filename: ".maina/features/003-old/spec.md", status: "removed" },
+						{ filename: ".maina/features/003-old/plan.md", status: "removed" },
+					],
+				},
+			],
+		});
+		const tracked = trackedWorkspaces();
+		const calls: Call[] = [];
+		const run = createJobRunner({
+			credentials,
+			api: restGitHubApi({ fetch: gh.fetch, baseUrl: API }),
+			workspaces: tracked.workspaces,
+			runtimeFor: (root) => recordingRuntime(root, tracked.present, calls),
+		});
+		const result = await run({ ...TARGET, kind: "spec_check" });
+		if (!result.ok) throw new Error(JSON.stringify(result.error));
+		// The deleted directory is not in the checkout; checking it would fail.
+		expect(calls).toMatchObject([
+			{ method: "specCheck", args: { paths: [".maina/features/012-login"] } },
+		]);
+	});
+});
+
 describe("request validation", () => {
 	for (const [label, patch] of [
 		[
