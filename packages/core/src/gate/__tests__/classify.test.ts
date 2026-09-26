@@ -782,6 +782,12 @@ describe("gate.self_override: the paths the #447 review left open (#513)", () =>
 			["fs", "write_files", { paths: ["notes.md", ".maina/policy.json"] }],
 			["fs", "write_file", { uri: "file:///work/repo/.codex/config.toml" }],
 			["fs", "apply", { path: ".claude/settings.json" }],
+			// A write word beside a read word is still a write.
+			["fs", "read_and_overwrite", { path: ".claude/settings.json" }],
+			["fs", "get_then_rewrite", { path: ".maina/policy.json" }],
+			["lint", "check_and_fix", { path: ".cursor/hooks.json" }],
+			["fs", "format_file", { path: ".codex/config.toml" }],
+			["maina", "verify_and_fix", { files: [".claude/settings.json"] }],
 		];
 		for (const [server, tool, input] of cases) {
 			expect(
@@ -800,6 +806,12 @@ describe("gate.self_override: the paths the #447 review left open (#513)", () =>
 			["filesystem", "write_file", { path: ".claude/commands/review.md" }],
 			["filesystem", "create_directory", { path: ".maina/prompts" }],
 			["github", "get_issue", { number: 513 }],
+			// maina's own analysis tools read the files they are given.
+			["maina", "verify", { files: [".claude/settings.json"] }],
+			["maina", "impact", { files: [".maina/policy.json"] }],
+			["maina", "review_triage", { files: [".cursor/hooks.json"] }],
+			["maina", "context", { files: [".codex/config.toml"] }],
+			["lint", "check_file", { path: ".claude/settings.json" }],
 		];
 		for (const [server, tool, input] of cases) {
 			expect(
@@ -818,6 +830,10 @@ describe("gate.self_override: the paths the #447 review left open (#513)", () =>
 			"chmod 000 ~/.cursor/hooks.json",
 			"chown nobody .codex/hooks.json",
 			"chmod u-w .Claude/Settings.json",
+			// An unresolved mode or owner is still the mode or owner.
+			'chmod "$MODE" .claude/settings.json',
+			'chown "$OWNER" .codex/hooks.json',
+			'chmod -R "$MODE" .maina',
 		]) {
 			expect(classesOf(command), command).toContain(SELF);
 		}
@@ -843,6 +859,12 @@ describe("gate.self_override: the paths the #447 review left open (#513)", () =>
 			"git rm -r --cached .claude",
 			"git mv .codex/hooks.json .codex/hooks.json.off",
 			"git checkout -- ':(top).claude/settings.json'",
+			// A glob pathspec that matches a control file in a control dir.
+			"git checkout HEAD~3 -- '.claude/*'",
+			"git restore -s HEAD~3 -- '.claude/settings*'",
+			"git checkout -- '.cursor/hooks.jso?'",
+			"git restore '.codex/[hc]*'",
+			"git checkout HEAD~1 -- ':(glob).maina/*'",
 		]) {
 			expect(classesOf(command), command).toContain(SELF);
 		}
@@ -853,6 +875,10 @@ describe("gate.self_override: the paths the #447 review left open (#513)", () =>
 			"git rm src/old.ts",
 			"git show HEAD:.claude/settings.json",
 			"git diff .claude/settings.json",
+			"git checkout -- '.claude/commands/*'",
+			"git restore '.claude/*.md'",
+			"git checkout -- 'src/*.ts'",
+			"git checkout -- '.claude/[oops'",
 		]) {
 			expect(classesOf(command), command).not.toContain(SELF);
 		}

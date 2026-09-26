@@ -313,7 +313,10 @@ function classifyMcp(
 const MCP_PATH_KEY =
 	/path|file|dir|folder|dest|target|source|src|uri|^to$|^from$/i;
 
-/** Tool-name words that only read. */
+/**
+ * Tool-name words that only read, or only analyse what they read (maina's own
+ * `verify`, `impact`, `context`, `review_triage`).
+ */
 const MCP_READ_VERBS: ReadonlySet<string> = new Set([
 	"read",
 	"get",
@@ -332,6 +335,20 @@ const MCP_READ_VERBS: ReadonlySet<string> = new Set([
 	"grep",
 	"cat",
 	"ls",
+	"verify",
+	"check",
+	"review",
+	"triage",
+	"impact",
+	"context",
+	"analyze",
+	"analyse",
+	"inspect",
+	"lint",
+	"diff",
+	"query",
+	"fetch",
+	"explain",
 ]);
 
 /** Tool-name words that change a file, overriding any read word beside them. */
@@ -352,6 +369,14 @@ const MCP_WRITE_VERBS: ReadonlySet<string> = new Set([
 	"touch",
 	"truncate",
 	"apply",
+	"overwrite",
+	"rewrite",
+	"fix",
+	"format",
+	"restore",
+	"revert",
+	"reset",
+	"clear",
 ]);
 
 /** Tool-name words that remove or replace what a path names, a directory included. */
@@ -1166,7 +1191,42 @@ function gitPathIsGateControl(
 	if (word.startsWith("-") || word === UNKNOWN_WORD) return false;
 	const path = word.replace(/^:(\([^)]*\)|\/)?/, "");
 	const resolved = resolvePath(path, cwd, ctx.gate.home) ?? path;
-	return removesGateControl(resolved);
+	return removesGateControl(resolved) || globMatchesGateControl(resolved);
+}
+
+/** Names a control dir may hold; `isGateControlFile` picks the dir's own. */
+const GATE_CONTROL_NAMES = [
+	"policy.json",
+	"settings.json",
+	"settings.local.json",
+	"hooks.json",
+	"config.toml",
+] as const;
+
+/**
+ * A pathspec whose last segment is a glob (`.claude/*`, `.claude/settings*`)
+ * that matches a control file in the control dir before it. Git globs a
+ * pathspec by default, so `git checkout HEAD~3 -- '.claude/*'` restores an
+ * older hook config as surely as naming it.
+ */
+function globMatchesGateControl(path: string): boolean {
+	const slash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+	const dir = path.slice(0, slash + 1);
+	const glob = path.slice(slash + 1);
+	if (!/[*?[]/.test(glob)) return false;
+	const pattern = new RegExp(
+		`^${glob
+			.replace(/[.+^${}()|\\]/g, "\\$&")
+			// An unclosed `[` is a literal, not a class the RegExp would reject.
+			.replace(/\[(?![^\]]*\])/g, "\\[")
+			.replace(/\*+/g, ".*")
+			.replace(/\?/g, ".")
+			.replace(/\[!/g, "[^")}$`,
+		"i",
+	);
+	return GATE_CONTROL_NAMES.some(
+		(name) => pattern.test(name) && isGateControlFile(`${dir}${name}`),
+	);
 }
 
 const DEPLOY_REMOTES: ReadonlySet<string> = new Set([
@@ -1664,14 +1724,20 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 /**
  * The files a `chmod` or `chown` changes: every operand after the mode or
  * owner (none with `--reference`). A `chmod` mode may start with `-`
- * (`chmod -r f`), so it is not mistaken for an option.
+ * (`chmod -r f`), so it is not mistaken for an option. An unresolved word
+ * still takes its place (`chmod "$MODE" f` changes `f`); as a target it is
+ * skipped, since the gate cannot read it.
  */
 function permissionTargets(args: Argv, chmod: boolean): readonly string[] {
-	const words = literalArgs(args);
+	const words = args.map((a) => a.text ?? UNKNOWN_WORD);
 	let modeSeen = words.some((w) => w.startsWith("--reference"));
 	const targets: string[] = [];
 	for (const w of words) {
 		const isMode = chmod && /^-[rwxXst]+$/.test(w);
+		if (w === UNKNOWN_WORD) {
+			modeSeen = true;
+			continue;
+		}
 		if (!modeSeen && (isMode || !w.startsWith("-"))) modeSeen = true;
 		else if (!w.startsWith("-")) targets.push(w);
 	}
