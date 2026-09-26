@@ -5,8 +5,8 @@ The maina remote connector: the maina MCP tools served over
 behind OAuth 2.1, so a host such as Claude or Cursor can connect by URL.
 
 Private until release (v1, epic #365). This package is the service skeleton
-(#353), the GitHub App jobs (#354) and the self-host deployment (#355); the
-retention review follows in #356.
+(#353), the GitHub App jobs (#354), the self-host deployment (#355) and
+the retention and security review (#356, [SECURITY.md](./SECURITY.md)).
 
 ## What it serves
 
@@ -49,6 +49,14 @@ environment, never argv or the checkout's config, and no host hooks run
 on the checkout. The job process drops `MAINA_GITHUB_APP_*` from its own
 environment once read, so no tool running over the PR's code inherits the
 App's key.
+
+**Nothing retained, nothing logged.** Each job runs in a private scratch
+directory that is also its tools' temp directory, `$HOME` and XDG
+directories, and is deleted (verified) when the job ends
+(`src/github/retention.ts`). The job process prints its report, or
+`{ "error": ... }`, on stdout and exits 0 or 1; on stderr it logs one JSON
+line per job (kind, repository, pull request, head, outcome, duration)
+that never names code or a path. See [SECURITY.md](./SECURITY.md).
 
 **Read-only by default.** The App manifest (`appManifest`) and every
 installation token ask for `contents`, `metadata` and `pull_requests` read

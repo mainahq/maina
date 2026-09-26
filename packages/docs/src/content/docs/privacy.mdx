@@ -1,0 +1,67 @@
+---
+title: Privacy
+description: What maina sends off your machine (nothing, unless you opt in), and what the remote connector and its GitHub App jobs keep and log.
+---
+
+Maina runs on your machine and works on your repository in place. It sends nothing anywhere unless you turn a channel on.
+
+## Telemetry
+
+There are three channels: `crash_reports`, `usage` and `outcome_sharing`. Every one is off by default, and you turn one on in your user policy (`~/.maina/policy.json`):
+
+```json
+{ "version": 1, "telemetry": { "crash_reports": true } }
+```
+
+A repository's policy (`.maina/policy.json`) can turn a channel off for that repository, never on. Any of these turns everything off, whatever the policies say:
+
+- `DO_NOT_TRACK=1`
+- `MAINA_TELEMETRY=0` (or `false`, `no`, `off`)
+- `~/.maina/telemetry.json` containing `{ "optOut": true }`
+
+If a policy file fails to parse, every channel counts as off. The 1.x opt-ins in `~/.maina/config.yml` (`errors: true` for crash reports, `telemetry: true` for usage) still turn a channel on when your user policy does not mention that channel. Your user policy, a repository's policy and the switches above all override them.
+
+## Remote connector
+
+The remote connector serves the maina MCP tools over HTTP and runs GitHub App jobs against pull requests. It is part of the v1 release and is not published yet. You can [self-host it](/self-host/) today.
+
+### Pull request jobs keep nothing of your code
+
+A job (`verify`, `impact`, `triage`, `spec_check` or `decide`) works like this:
+
+1. It creates a private scratch directory for itself.
+2. It fetches the pull request's head commit and merge base into that directory.
+3. It runs one capability there.
+4. It deletes the directory.
+
+Everything the job's tools write lands in the same directory: maina's own state, the code graph index, caches, temp files and tool logs. That is because the directory is the tools' temp directory, `$HOME` and XDG directories for the length of the job.
+
+- **Deleted however the job ends.** The directory goes whether the job succeeds, fails or throws an error. A job process that is killed outright (for example by the out-of-memory killer) cannot clean up after itself; in the self-hosted container its scratch directory is on a tmpfs that goes with the container.
+- **Deletion is checked.** If the directory is still there afterwards, the job fails instead of reporting success.
+- **The GitHub token is short-lived.** The job's installation token is read-only by default, covers the one repository, and is revoked when the job ends.
+- **The App's key never reaches your code.** The GitHub App's private key is dropped from the job's environment before any tool runs over the pull request.
+- **Telemetry is off for the job's tools.** They run with `DO_NOT_TRACK=1` and `MAINA_TELEMETRY=0`.
+
+The job's report goes to its standard output for whoever ran it. The report can name your files and quote your code, because that is what findings are. The job itself does not keep it.
+
+### Logs contain no code and no paths
+
+When a job ends, it logs one line:
+
+```json
+{"event":"job","kind":"verify","repository":"acme/widgets","pullNumber":7,"head":"<sha>","outcome":"ok","durationMs":8123}
+```
+
+A failed job's line gives the kind of failure, plus the HTTP status if GitHub failed or the error kind if the capability failed. It never includes an error message, a file name, a directory path or any of your code. The detailed error goes to standard output with the report instead, so the log you keep stays clean.
+
+Other logs:
+
+- **Startup.** Each process logs one line at startup about your setup: where the policy file and the model directory are, and whether they are valid. That line is about your configuration, not about pull requests.
+- **Egress proxy.** In a self-hosted install, the egress proxy logs the host and port of each connection attempt. It never logs a URL path or query, and it cannot see inside HTTPS connections.
+- **MCP service.** The service logs nothing per request: no tool arguments, no results, no tokens.
+
+### What the MCP service holds
+
+OAuth clients, authorization codes, tokens and MCP sessions are held in memory, and only the hashes of tokens are stored. Access tokens last an hour. Sessions end when the client closes them, after 30 minutes idle, or when the service restarts. A restart signs every client out. The tools act on the one repository the service is configured with.
+
+The security notes behind this section, including the limits of the guarantee, are in [`packages/remote/SECURITY.md`](https://github.com/mainahq/maina/blob/master/packages/remote/SECURITY.md).

@@ -63,6 +63,7 @@ export default defineConfig({
           items: [
             { slug: 'full-setup' },
             { slug: 'self-host' },
+            { slug: 'privacy' },
           ],
         },
         {
