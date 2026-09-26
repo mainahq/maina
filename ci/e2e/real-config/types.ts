@@ -45,12 +45,46 @@ export interface SeedFile {
 	readonly intact: (parsed: unknown) => boolean;
 }
 
+/** Reads a file; null when it is missing. */
+export type ReadFile = (path: string) => string | null;
+
+/** Environment variables, as a host passes them to what it spawns. */
+export type Env = Readonly<Record<string, string>>;
+
+/**
+ * A host's plugin install path, done the way the host's own CLI does it:
+ * the files it writes when a user adds a marketplace and installs from it,
+ * and what it runs when the next session starts.
+ */
+export interface PluginSupport {
+	/** Marketplace add + plugin install from the marketplace at `source`. */
+	readonly install: (ctx: PathCtx, source: string) => Result<void, CaseError>;
+	/**
+	 * The first session: runs the plugin's session-start hooks with `env`
+	 * and resolves to what they tell the agent, which must be maina's
+	 * onboarding rather than a degraded notice.
+	 */
+	readonly startSession: (
+		ctx: PathCtx,
+		env: Env,
+	) => Promise<Result<string, CaseError>>;
+}
+
 export interface HostSpec {
 	readonly id: HostId;
 	/** Client id for `maina mcp add --client`. */
 	readonly mcpAddClient: string;
-	/** Files the host actually reads, highest precedence first. */
-	readonly configSources: (ctx: PathCtx) => readonly ConfigSource[];
+	/**
+	 * Files the host actually reads, highest precedence first. Some depend
+	 * on others (an installed plugin's own MCP config), so `readFile` lets
+	 * a source list read what it needs.
+	 */
+	readonly configSources: (
+		ctx: PathCtx,
+		readFile: ReadFile,
+	) => readonly ConfigSource[];
+	/** The plugin install path; absent while the host has no plugin. */
+	readonly plugin?: PluginSupport;
 	/** Files installers are known to write that the host ignores. */
 	readonly strayPaths: (ctx: PathCtx) => readonly string[];
 	/**
@@ -94,6 +128,10 @@ export type CaseError =
 			readonly message: string;
 			readonly exitCode: number | null;
 			readonly stderr: string;
+	  }
+	| {
+			readonly kind: "session-start-failed";
+			readonly message: string;
 	  }
 	| {
 			readonly kind: "handshake-timeout";

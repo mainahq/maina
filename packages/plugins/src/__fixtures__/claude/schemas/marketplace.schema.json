@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mainahq.com/fixtures/claude/marketplace.schema.json",
+  "x-source": {
+    "url": "https://code.claude.com/docs/en/plugin-marketplaces",
+    "retrieved": "2026-09-26"
+  },
+  "title": "Claude Code plugin marketplace (.claude-plugin/marketplace.json)",
+  "description": "The documented marketplace fields. A plugin entry takes any plugin manifest field plus the marketplace-only `source`, `category`, `tags` and `strict`. A relative `source` resolves against the marketplace root, must start with `./` and cannot leave it; it only works for a marketplace added from git. Reserved names (Anthropic's own marketplaces) are refused.",
+  "type": "object",
+  "required": ["name", "owner", "plugins"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": { "$ref": "#/$defs/marketplaceName" },
+    "owner": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "email": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "version": { "type": "string" },
+        "pluginRoot": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "plugins": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/plugin" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "kebab": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "marketplaceName": {
+      "allOf": [
+        { "$ref": "#/$defs/kebab" },
+        {
+          "not": {
+            "enum": [
+              "claude-code-marketplace",
+              "claude-code-plugins",
+              "claude-plugins-official",
+              "anthropic-marketplace",
+              "anthropic-plugins",
+              "agent-skills",
+              "knowledge-work-plugins",
+              "life-sciences"
+            ]
+          }
+        }
+      ]
+    },
+    "relativePath": {
+      "type": "string",
+      "pattern": "^\\./(?!(?:.*/)?\\.\\.(?:/|$))"
+    },
+    "source": {
+      "anyOf": [
+        { "$ref": "#/$defs/relativePath" },
+        {
+          "type": "object",
+          "required": ["source"],
+          "properties": {
+            "source": {
+              "enum": ["github", "url", "git-subdir", "npm"]
+            }
+          }
+        }
+      ]
+    },
+    "plugin": {
+      "type": "object",
+      "required": ["name", "source"],
+      "properties": {
+        "name": { "$ref": "#/$defs/kebab" },
+        "source": { "$ref": "#/$defs/source" },
+        "category": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "strict": { "type": "boolean" },
+        "displayName": { "type": "string" },
+        "version": { "type": "string" },
+        "description": { "type": "string" },
+        "author": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "email": { "type": "string" },
+            "url": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "homepage": { "type": "string", "pattern": "^https?://" },
+        "repository": { "type": "string" },
+        "license": { "type": "string" },
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "skills": {},
+        "commands": {},
+        "agents": {},
+        "hooks": {},
+        "mcpServers": {},
+        "lspServers": {}
+      },
+      "additionalProperties": false
+    }
+  }
+}

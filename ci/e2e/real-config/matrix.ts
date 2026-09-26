@@ -11,7 +11,11 @@
  * "which file do you read, and what process do you spawn from it".
  *
  * Install paths, as a user would run them:
- *   - plugin       host plugin/marketplace package (none exists yet)
+ *   - plugin       the host's marketplace add + plugin install, from a
+ *                  local release of this checkout (`plugin-release.ts`),
+ *                  then the first session's session-start hooks, which
+ *                  install the runtime and must onboard. Hosts without a
+ *                  plugin yet fail as `no-plugin`.
  *   - cli-setup    `setup` from the CLI under test with no global `maina`
  *                  on PATH. It runs this checkout (running the published
  *                  package would test 1.x, not the change). A stable CLI
@@ -54,6 +58,7 @@ import {
 import { claudeCode } from "./hosts/claude-code";
 import { codex } from "./hosts/codex";
 import { cursor } from "./hosts/cursor";
+import { pluginRelease } from "./plugin-release";
 import type {
 	CaseError,
 	CaseResult,
@@ -138,7 +143,8 @@ export interface KnownFailure {
 }
 
 /**
- * Only the plugin path still fails. History of the fixed entries:
+ * Only the Cursor and Codex plugin paths still fail. History of the fixed
+ * entries: #341 shipped the Claude Code marketplace and plugin.
  * #288 made `maina setup` merge `mcpServers.maina` into the project
  * `.mcp.json`, so claude-code with cli-setup passes. #294 made the CLI
  * write its own runtime and entry by absolute path, which fixed P3 for
@@ -149,12 +155,8 @@ export interface KnownFailure {
  * bare `bunx` whose first-spawn download also caused P4 there.
  */
 export const KNOWN_FAILURES: readonly KnownFailure[] = [
-	// Plugins: no host package yet (plan tasks 9.2–9.4).
-	{
-		host: "claude-code",
-		installPath: "plugin",
-		fixes: { "no-plugin": 341 },
-	},
+	// Plugins: no host package yet (plan tasks 9.3–9.4). Claude Code's
+	// marketplace + plugin shipped with #341.
 	{
 		host: "cursor",
 		installPath: "plugin",
@@ -208,6 +210,7 @@ export function classifyProblem(error: CaseError): KnownProblem | undefined {
 			return "P4";
 		case "installer-failed":
 		case "config-invalid":
+		case "session-start-failed":
 		case "handshake-rejected":
 		case "tool-call-failed":
 			return undefined;
@@ -271,7 +274,7 @@ export function resolveLaunch(
 	readFile: (path: string) => string | null,
 ): Result<LaunchSpec, CaseError> {
 	const spec = HOST_SPECS[host];
-	const sources = spec.configSources(ctx);
+	const sources = spec.configSources(ctx, readFile);
 	for (const source of sources) {
 		const raw = readFile(source.path);
 		if (raw === null) continue;
@@ -496,14 +499,32 @@ async function install(
 	w: Workspace,
 ): Promise<Result<void, CaseError>> {
 	switch (installPath) {
-		case "plugin":
-			return {
-				ok: false,
-				error: {
-					kind: "installer-missing",
-					message: `no ${spec.id} plugin package exists yet`,
-				},
-			};
+		case "plugin": {
+			if (spec.plugin === undefined) {
+				return {
+					ok: false,
+					error: {
+						kind: "installer-missing",
+						message: `no ${spec.id} plugin package exists yet`,
+					},
+				};
+			}
+			const release = await pluginRelease();
+			if (!release.ok) {
+				return {
+					ok: false,
+					error: {
+						kind: "installer-failed",
+						message: `staging the plugin release failed: ${release.error}`,
+						exitCode: null,
+					},
+				};
+			}
+			return spec.plugin.install(
+				{ home: w.home, cwd: w.cwd },
+				release.value.marketplace,
+			);
+		}
 		case "cli-setup":
 			return runInstaller(
 				[
@@ -831,6 +852,13 @@ export async function runCase(spec: CaseSpec): Promise<CaseResult> {
 			home: w.home,
 			shellEnv: w.shellEnv,
 		});
+		// A plugin's first session starts before its MCP server does: the
+		// session-start hook installs the runtime, then the server starts
+		// from cache.
+		if (spec.installPath === "plugin" && host.plugin !== undefined) {
+			const session = await host.plugin.startSession(ctx, env);
+			if (!session.ok) return notStarted(session.error);
+		}
 		return await probeLaunch(launch.value, env, w.cwd);
 	} finally {
 		if (process.env.MAINA_E2E_KEEP !== "1") {

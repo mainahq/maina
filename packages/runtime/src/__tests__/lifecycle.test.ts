@@ -14,6 +14,7 @@ import {
 	existsSync,
 	mkdirSync,
 	readFileSync,
+	rmSync,
 	statSync,
 	symlinkSync,
 	utimesSync,
@@ -164,6 +165,30 @@ describe("endpoint registry", () => {
 		expect(defaultRuntimeDir({ XDG_RUNTIME_DIR: "" }, "/home/u")).toBe(
 			"/home/u/.maina/run",
 		);
+	});
+
+	test("under a host plugin, the runtime dir is inside the plugin's data dir (#341)", () => {
+		// Uninstalling a plugin deletes its data dir, so the runtime's socket
+		// and pid file go with it. Same precedence as the launcher.
+		expect(
+			defaultRuntimeDir({ CLAUDE_PLUGIN_DATA: "/d/maina" }, "/home/u"),
+		).toBe("/d/maina/run");
+		expect(
+			defaultRuntimeDir(
+				{
+					PLUGIN_DATA: "/p/maina",
+					CLAUDE_PLUGIN_DATA: "/d/maina",
+					XDG_RUNTIME_DIR: "/run/user/501",
+				},
+				"/home/u",
+			),
+		).toBe("/p/maina/run");
+		expect(
+			defaultRuntimeDir(
+				{ PLUGIN_DATA: "", CLAUDE_PLUGIN_DATA: "", XDG_RUNTIME_DIR: "/r" },
+				"/home/u",
+			),
+		).toBe("/r/maina");
 	});
 });
 
@@ -459,6 +484,89 @@ describe("idle TTL", () => {
 		expect(await waitFor(() => !isAlive(spawned.value.pid), 5000)).toBe(true);
 		expect(existsSync(t.endpoint.pidFile)).toBe(false);
 	}, 15_000);
+});
+
+describe("claim check (#341)", () => {
+	test("a runtime whose pid file is removed stops and removes its socket", async () => {
+		// A host plugin's uninstall deletes its data dir, pid file included:
+		// the runtime it started must not keep running from a deleted binary.
+		const t = temp();
+		const started = startRuntime(
+			{ gate: fixedGate("allow") },
+			{
+				endpoint: t.endpoint,
+				version: "1.0.0",
+				idleTtlMs: 60_000,
+				claimCheckMs: 50,
+			},
+		);
+		if (!started.ok) throw new Error(JSON.stringify(started.error));
+		runtimes.push(started.value);
+		rmSync(t.endpoint.pidFile);
+		const closed = await Promise.race([
+			started.value.closed,
+			Bun.sleep(2_000).then(() => "still running"),
+		]);
+		expect(closed).toBe("orphaned");
+		expect(existsSync(t.endpoint.address)).toBe(false);
+	});
+
+	test("an orphaned runtime also removes its short tmp socket dir", async () => {
+		// A plugin data dir is often too deep for a Unix socket path, so the
+		// socket falls back to a private dir under tmp that nothing else
+		// would delete.
+		const t = temp();
+		const deep = join(t.dir, "d".repeat(120));
+		const endpoint = resolveEndpoint({
+			platform: process.platform,
+			dir: deep,
+			user: "test",
+			version: "1.0.0",
+			tmpDir: tmpdir(),
+		});
+		expect(dirname(endpoint.address)).not.toBe(dirname(endpoint.pidFile));
+		const started = startRuntime(
+			{ gate: fixedGate("allow") },
+			{ endpoint, version: "1.0.0", idleTtlMs: 60_000, claimCheckMs: 50 },
+		);
+		if (!started.ok) throw new Error(JSON.stringify(started.error));
+		runtimes.push(started.value);
+		rmSync(deep, { recursive: true });
+		const closed = await Promise.race([
+			started.value.closed,
+			Bun.sleep(2_000).then(() => "still running"),
+		]);
+		expect(closed).toBe("orphaned");
+		expect(existsSync(endpoint.address)).toBe(false);
+		expect(existsSync(dirname(endpoint.address))).toBe(false);
+	});
+
+	test("a runtime displaced from its pid file stops, leaving the successor's claim", async () => {
+		const t = temp();
+		const started = startRuntime(
+			{ gate: fixedGate("allow") },
+			{
+				endpoint: t.endpoint,
+				version: "1.0.0",
+				idleTtlMs: 60_000,
+				claimCheckMs: 50,
+			},
+		);
+		if (!started.ok) throw new Error(JSON.stringify(started.error));
+		runtimes.push(started.value);
+		writeFileSync(
+			t.endpoint.pidFile,
+			JSON.stringify({ pid: process.ppid, at: Date.now() }),
+		);
+		const closed = await Promise.race([
+			started.value.closed,
+			Bun.sleep(2_000).then(() => "still running"),
+		]);
+		expect(closed).toBe("orphaned");
+		expect(JSON.parse(readFileSync(t.endpoint.pidFile, "utf8")).pid).toBe(
+			process.ppid,
+		);
+	});
 });
 
 describe("standalone runtime daemon (ADR 0045)", () => {

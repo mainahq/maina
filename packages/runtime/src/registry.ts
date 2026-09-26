@@ -82,11 +82,18 @@ export function resolveEndpoint(inputs: EndpointInputs): Endpoint {
 	};
 }
 
-/** `$XDG_RUNTIME_DIR/maina` when set, else `~/.maina/run`. */
+/**
+ * Under a host plugin, `run/` in the plugin's data dir (`PLUGIN_DATA`, else
+ * `CLAUDE_PLUGIN_DATA`, as the launcher picks it): uninstalling the plugin
+ * deletes that dir, and with it everything the runtime keeps (#341).
+ * Otherwise `$XDG_RUNTIME_DIR/maina` when set, else `~/.maina/run`.
+ */
 export function defaultRuntimeDir(
 	env: Readonly<Record<string, string | undefined>>,
 	home: string,
 ): string {
+	const pluginData = env.PLUGIN_DATA || env.CLAUDE_PLUGIN_DATA;
+	if (pluginData) return join(pluginData, "run");
 	const xdg = env.XDG_RUNTIME_DIR;
 	return xdg ? join(xdg, "maina") : join(home, ".maina", "run");
 }
