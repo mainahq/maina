@@ -611,6 +611,7 @@ export {
 export {
 	type CommentExtras as ReceiptCommentExtras,
 	type CommentReceipt,
+	discoveryLineEnabled,
 	type ExtrasError as ReceiptCommentExtrasError,
 	type GateTally as ReceiptGateTally,
 	type GitHubAuth,

@@ -19,6 +19,7 @@
  */
 
 import { projectMcpServersFiles } from "../hosts/targets";
+import { renderInstallHint } from "./discovery";
 import { createJsonKeyText, mergeJsonKey } from "./json-key";
 import { LEGACY_TARGETS } from "./legacy";
 import {
@@ -67,6 +68,11 @@ export interface OnboardingFacts {
 	readonly mcpEntry: McpEntry;
 	/** Current bytes of each existing target, keyed by repo-relative path. */
 	readonly files: ReadonlyMap<string, string>;
+	/**
+	 * `.maina/policy.json` is committed: agent instruction files then carry
+	 * the teammate install hint (./discovery.ts). Default false.
+	 */
+	readonly policyCommitted?: boolean;
 }
 
 export interface PlanOptions {
@@ -83,6 +89,7 @@ export interface RenderContext {
 	readonly quickRef: string;
 	readonly constitution: string;
 	readonly mcpEntry: McpEntry;
+	readonly policyCommitted: boolean;
 }
 
 /** One file the flow manages and how it is merged. */
@@ -123,7 +130,7 @@ function targetSpecs(options: PlanOptions): readonly TargetSpec[] {
 			(f): TargetSpec => ({
 				format: "markdown",
 				path: f.path,
-				render: (c) => f.generate(c.stack, c.quickRef),
+				render: (c) => withInstallHint(f.generate(c.stack, c.quickRef), c),
 			}),
 		),
 		...MCP_CONFIG_PATHS.map(
@@ -146,6 +153,12 @@ export function onboardingTargets(
 }
 
 // ── Planning ────────────────────────────────────────────────────────────────
+
+/** An agent file body, plus the teammate install hint when the repo has a policy. */
+function withInstallHint(body: string, ctx: RenderContext): string {
+	if (!ctx.policyCommitted) return body;
+	return `${body.replace(/\n*$/, "\n")}\n${renderInstallHint()}`;
+}
 
 /**
  * First ~10 non-empty lines of the constitution, quoted in agent files so
@@ -253,6 +266,7 @@ export function planOnboarding(
 		stack: facts.stack,
 		constitution: facts.constitution,
 		mcpEntry: facts.mcpEntry,
+		policyCommitted: facts.policyCommitted === true,
 		quickRef: buildQuickRef(
 			facts.files.get(CONSTITUTION_PATH) ?? facts.constitution,
 		),

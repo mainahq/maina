@@ -30,7 +30,7 @@ inputs:
     required: false
     default: github-actions[bot]
   discovery-line:
-    description: Add the one-line "Verified by Maina" footer to the comment
+    description: Add the one-line "Verified by Maina" footer to the comment (`discovery.receipt_line` false in .maina/policy.json also turns it off)
     required: false
     default: "true"
   receipt-context:

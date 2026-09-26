@@ -260,6 +260,7 @@ function mergeLayer(acc: Merged, layer: Layer): Merged {
 		telemetry: { ...acc.policy.telemetry, ...defined(value.telemetry) },
 		log: { ...acc.policy.log, ...defined(value.log) },
 		run: run.run,
+		discovery: { ...acc.policy.discovery, ...defined(value.discovery) },
 	};
 	return {
 		policy,
