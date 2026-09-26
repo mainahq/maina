@@ -2,15 +2,15 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import tailwindcss from '@tailwindcss/vite';
 import starlightLlmsTxt from 'starlight-llms-txt';
+import { REDIRECTS, SIDEBAR } from './src/navigation.ts';
 
 export default defineConfig({
   site: 'https://mainahq.com',
   base: '/',
   vite: { plugins: [tailwindcss()] },
-  redirects: {
-    '/quickstart': '/getting-started',
-    '/quickstart/': '/getting-started/',
-  },
+  // Sidebar and redirects live in src/navigation.ts, which the docs checks
+  // (scripts/docs-links.ts, the install-docs test) read too.
+  redirects: REDIRECTS,
   integrations: [
     starlight({
       plugins: [
@@ -35,84 +35,7 @@ export default defineConfig({
       editLink: {
         baseUrl: 'https://github.com/mainahq/maina/edit/master/packages/docs/',
       },
-      sidebar: [
-        {
-          label: 'Start Here',
-          items: [
-            { slug: 'getting-started' },
-            { slug: 'commands' },
-          ],
-        },
-        {
-          label: 'Reference',
-          items: [
-            { slug: 'configuration' },
-            { slug: 'wiki' },
-            { slug: 'cloud' },
-            { slug: 'ci' },
-            { slug: 'mcp' },
-            { slug: 'skills' },
-            { slug: 'cursor' },
-            { slug: 'codex' },
-            { slug: 'vscode' },
-          ],
-        },
-        {
-          label: 'Generated reference',
-          items: [
-            { slug: 'reference/commands' },
-            { slug: 'reference/mcp-tools' },
-            { slug: 'reference/hooks' },
-            { slug: 'reference/config' },
-            { slug: 'reference/policy' },
-            { slug: 'reference/decision-types' },
-          ],
-        },
-        {
-          label: 'Advanced',
-          collapsed: true,
-          items: [
-            { slug: 'full-setup' },
-            { slug: 'self-host' },
-            { slug: 'privacy' },
-          ],
-        },
-        {
-          label: 'Engines',
-          items: [
-            { slug: 'engines/context' },
-            { slug: 'engines/prompt' },
-            { slug: 'engines/verify' },
-          ],
-        },
-        {
-          label: 'Cookbooks',
-          items: [
-            { slug: 'cookbooks/verify-pr-in-ci' },
-            { slug: 'cookbooks/claude-code-self-check' },
-            { slug: 'cookbooks/coderabbit-integration' },
-            { slug: 'cookbooks/constitution-required-check' },
-            { slug: 'cookbooks/playwright-mcp' },
-          ],
-        },
-        {
-          label: 'Blog',
-          items: [
-            { slug: 'blog/verification-gap' },
-            { slug: 'blog/why-no-sdk' },
-            { slug: 'blog/why-not-passmark' },
-            { slug: 'blog/why-not-custom-search' },
-            { slug: 'blog/wiki-is-a-view' },
-          ],
-        },
-        {
-          label: 'Roadmap',
-          items: [
-            { slug: 'roadmap' },
-            { slug: 'changelog' },
-          ],
-        },
-      ],
+      sidebar: SIDEBAR,
       expressiveCode: {
         themes: ['github-dark', 'github-light'],
         useStarlightDarkModeSwitch: true,
