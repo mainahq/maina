@@ -269,3 +269,137 @@ describe("production wiring", () => {
 		}
 	});
 });
+
+/** A ledger with nothing spent that accepts every record. */
+const emptyLedger = {
+	spend: () => ({ ok: true, value: { todayUsd: 0, taskUsd: 0 } }) as const,
+	record: () => ({ ok: true, value: undefined }) as const,
+};
+
+const routedEntries = (logger: ReturnType<typeof createMemoryLogger>) =>
+	logger.entries().filter((e) => e.message === "model routed");
+
+describe("the budget fails open", () => {
+	test("an unreadable ledger lets the call run and logs a warning", async () => {
+		const root = repoWithBudget(
+			"{ dailyUsd: 0.02, perTaskUsd: null, onBreach: 'stop' }",
+		);
+		const logger = createMemoryLogger();
+		const result = await generate({
+			task: "commit",
+			systemPrompt: "s",
+			userPrompt: "u",
+			mainaDir: join(root, ".maina"),
+			root,
+			env: createFakeEnv({ MAINA_API_KEY: "test-key" }),
+			ledger: {
+				...emptyLedger,
+				spend: () =>
+					({
+						ok: false,
+						error: { kind: "query_failed", message: "disk I/O error" },
+					}) as const,
+			},
+			logger,
+			callModel: async () => ({ text: "ran", tokens: TYPICAL }),
+		});
+		expect(result.text).toBe("ran");
+		expect(result.budgetStop).toBeUndefined();
+		const warned = logger
+			.entries()
+			.filter((e) => e.level === "warn" && e.message.includes("ledger"));
+		expect(warned).toHaveLength(1);
+	});
+
+	test("a stats store that cannot be opened never blocks the call", async () => {
+		const root = repoWithBudget(
+			"{ dailyUsd: 5, perTaskUsd: null, onBreach: 'stop' }",
+		);
+		// `.maina` is a file, so `.maina/stats.db` can never be opened.
+		const mainaDir = join(root, ".maina");
+		writeFileSync(mainaDir, "not a directory");
+		const result = await generate({
+			task: "commit",
+			systemPrompt: "s",
+			userPrompt: "u",
+			mainaDir,
+			root,
+			env: createFakeEnv({ MAINA_API_KEY: "test-key" }),
+			callModel: async () => ({ text: "ran", tokens: TYPICAL }),
+		});
+		expect(result.text).toBe("ran");
+		expect(result.budgetStop).toBeUndefined();
+	});
+});
+
+describe("when no model runs, nothing is logged as routed", () => {
+	test("without an API key there is no routing entry and no spend", async () => {
+		const root = repoWithBudget(
+			"{ dailyUsd: 5, perTaskUsd: null, onBreach: 'stop' }",
+		);
+		const created = createSpendLedger({
+			db: createMemoryDb(),
+			clock: createFixedClock(AFTERNOON),
+		});
+		if (!created.ok) throw new Error(created.error.message);
+		const logger = createMemoryLogger();
+		const result = await generate({
+			task: "commit",
+			systemPrompt: "s",
+			userPrompt: "u",
+			mainaDir: join(root, ".maina"),
+			root,
+			env: createFakeEnv({}),
+			ledger: created.value,
+			logger,
+			callModel: async () => ({ text: "never", tokens: TYPICAL }),
+		});
+		expect(result.text).toContain("No API key found");
+		expect(routedEntries(logger)).toEqual([]);
+		expect(created.value.spend("any")).toEqual({
+			ok: true,
+			value: { todayUsd: 0, taskUsd: 0 },
+		});
+	});
+
+	test("host delegation is not logged as routed spend", async () => {
+		const root = repoWithBudget(
+			"{ dailyUsd: 5, perTaskUsd: null, onBreach: 'stop' }",
+		);
+		const logger = createMemoryLogger();
+		const result = await generate({
+			task: "commit",
+			systemPrompt: "s",
+			userPrompt: "u",
+			mainaDir: join(root, ".maina"),
+			root,
+			env: createFakeEnv({ MAINA_HOST_MODE: "true" }),
+			ledger: emptyLedger,
+			logger,
+		});
+		expect(result.model).toBe("host");
+		expect(routedEntries(logger)).toEqual([]);
+	});
+
+	test("a budget stop is still logged", async () => {
+		const root = repoWithBudget(
+			"{ dailyUsd: 0.01, perTaskUsd: null, onBreach: 'stop' }",
+		);
+		const logger = createMemoryLogger();
+		const result = await generate({
+			task: "commit",
+			systemPrompt: "s",
+			userPrompt: "u",
+			mainaDir: join(root, ".maina"),
+			root,
+			env: createFakeEnv({}),
+			ledger: emptyLedger,
+			logger,
+		});
+		expect(result.budgetStop).toBeDefined();
+		const stops = logger
+			.entries()
+			.filter((e) => e.message === "model routing stopped by budget");
+		expect(stops).toHaveLength(1);
+	});
+});

@@ -255,9 +255,10 @@ const callSdkModel: ModelCall = async ({
  * 2. Route the task to a tier and enforce the budget against the spend
  *    ledger (today's spend and the running task's); a budget stop returns
  *    its message instead of calling a model.
- * 3. If no API key, return a helpful error result (never throw).
- * 4. Call the model, record its cost in the ledger, cache the result, and
- *    return it.
+ * 3. Delegate to the host, or, with no API key, return a helpful error
+ *    result (never throw); neither is logged as routed.
+ * 4. Log the routing decision, call the model, record its cost in the
+ *    ledger, cache the result, and return it.
  */
 export async function generate(
 	options: GenerateOptions,
@@ -319,7 +320,6 @@ export async function generate(
 			const degradedHit = readCached(cache, cacheKey);
 			if (degradedHit !== undefined) return degradedHit;
 		}
-		routing.flush();
 		const ttl = getTtl(task as Parameters<typeof getTtl>[0]);
 
 		// Host delegation: when running inside Claude Code/Cursor without own API key,
@@ -349,7 +349,9 @@ export async function generate(
 			};
 		}
 
-		// Call the model
+		// Only a call that reaches a model is logged as routed: host
+		// delegation and the no-key path spend nothing on this tier.
+		routing.flush();
 		const aiResult = await (options.callModel ?? callSdkModel)({
 			modelId,
 			provider,
