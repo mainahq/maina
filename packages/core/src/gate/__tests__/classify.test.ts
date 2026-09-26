@@ -8,6 +8,7 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import { DEFAULT_POLICY } from "../../policy/defaults";
 import { classifyAction } from "../classify";
 import type { GateContext } from "../events";
+import { EMPTY_PUSH_CONFIG, type PushConfig } from "../push";
 import {
 	gateContext,
 	mcpEvent,
@@ -249,6 +250,107 @@ describe("obfuscation is caught", () => {
 		expect(classesOf("git push --force-with-lease", onFeature)).not.toContain(
 			"git.push.force",
 		);
+	});
+});
+
+// #494: git resolves a bare push's destination from config, which can name
+// a branch other than the one checked out.
+describe("a bare push goes where the push config says", () => {
+	const push = (overrides: Partial<PushConfig>): PushConfig => ({
+		...EMPTY_PUSH_CONFIG,
+		localBranches: ["feature"],
+		...overrides,
+	});
+	const tracksMaster = new Map([
+		["feature", { remote: "origin", merge: "refs/heads/master" }],
+	]);
+
+	test("push.default=upstream to a protected upstream is git.push.protected", async () => {
+		const c = await gateContext({
+			currentBranch: "feature",
+			push: push({ default: "upstream", branches: tracksMaster }),
+		});
+		expect(classesOf("git push", c)).toContain("git.push.protected");
+		expect(classesOf("git push origin", c)).toContain("git.push.protected");
+		expect(classesOf("git push -u", c)).toContain("git.push.protected");
+		expect(classesOf("git push --force-with-lease", c)).toContain(
+			"git.push.force",
+		);
+		// An explicit refspec is not resolved through the config.
+		expect(classesOf("git push origin HEAD", c)).not.toContain(
+			"git.push.protected",
+		);
+	});
+
+	test("a push refspec to a protected branch is git.push.protected", async () => {
+		const c = await gateContext({
+			currentBranch: "feature",
+			push: push({ refspecs: new Map([["origin", ["HEAD:master"]]]) }),
+		});
+		expect(classesOf("git push", c)).toContain("git.push.protected");
+		expect(classesOf("git push --repo=origin", c)).toContain(
+			"git.push.protected",
+		);
+		// Another remote's refspecs do not apply.
+		expect(classesOf("git push fork", c)).not.toContain("git.push.protected");
+	});
+
+	test("the default setup on a feature branch stays allowed", async () => {
+		const c = await gateContext({ currentBranch: "feature", push: push({}) });
+		expect(classesOf("git push", c)).not.toContain("git.push.protected");
+		expect(classesOf("git push origin", c)).not.toContain("git.push.protected");
+	});
+
+	test("a forcing refspec or a mirror remote is git.push.force", async () => {
+		const forced = await gateContext({
+			currentBranch: "feature",
+			push: push({ refspecs: new Map([["origin", ["+HEAD:feature"]]]) }),
+		});
+		expect(classesOf("git push", forced)).toContain("git.push.force");
+		const mirror = await gateContext({
+			currentBranch: "feature",
+			push: push({ mirrors: new Set(["backup"]) }),
+		});
+		expect(classesOf("git push backup", mirror)).toContain("git.push.force");
+		const deleting = await gateContext({
+			currentBranch: "feature",
+			push: push({ refspecs: new Map([["origin", [":master"]]]) }),
+		});
+		expect(classesOf("git push", deleting)).toContain("git.push.force");
+	});
+
+	test("a remote the gate cannot read resolves as widely as it can", async () => {
+		const upstream = await gateContext({
+			currentBranch: "feature",
+			push: push({ default: "upstream", branches: tracksMaster }),
+		});
+		expect(classesOf('git push "$R"', upstream)).toContain(
+			"git.push.protected",
+		);
+		const plain = await gateContext({
+			currentBranch: "feature",
+			push: push({}),
+		});
+		expect(classesOf('git push "$R"', plain)).not.toContain(
+			"git.push.protected",
+		);
+		const refspecs = await gateContext({
+			currentBranch: "feature",
+			push: push({ refspecs: new Map([["fork", ["HEAD:feature"]]]) }),
+		});
+		expect(classesOf('git push "$R"', refspecs)).toContain(
+			"git.push.protected",
+		);
+	});
+
+	test("a destination the gate cannot resolve is git.push.protected", async () => {
+		const c = await gateContext({
+			currentBranch: "feature",
+			push: push({
+				refspecs: new Map([["origin", ["refs/remotes/origin/*:refs/heads/*"]]]),
+			}),
+		});
+		expect(classesOf("git push", c)).toContain("git.push.protected");
 	});
 });
 

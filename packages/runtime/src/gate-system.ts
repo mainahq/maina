@@ -14,12 +14,15 @@ import { join } from "node:path";
 import { openDecisionDb } from "@mainahq/cli/src/decision-store";
 import { nodeFs } from "@mainahq/cli/src/ports";
 import {
+	createProcessGit,
 	type GateContext,
 	loadLogSalt,
 	loadPolicy,
 	loadShellParser,
 	type Result,
+	readPushConfig,
 	readUserPolicy,
+	systemProcess,
 } from "@mainahq/core";
 import {
 	createGateEvaluator,
@@ -28,6 +31,9 @@ import {
 	type GateLog,
 } from "./gate";
 import { checkedOutBranch, gitProbe, resolveRoot } from "./root";
+
+/** Git reads for the gate: repo-local `GIT_*` variables are dropped. */
+const git = createProcessGit(systemProcess);
 
 /** Working directories whose root is remembered; the cache resets past this. */
 const MAX_CACHED_ROOTS = 256;
@@ -69,6 +75,9 @@ function systemDeps(options: SystemOptions): GateEvaluatorDeps {
 			return context;
 		},
 		branchOf: branchCache(checkedOutBranch),
+		// Re-read per event like the branch: a `git config` or `git branch -u`
+		// just before a push must reach it.
+		pushConfigOf: branchCache((root) => readPushConfig(git, root)),
 		clock: { now: () => performance.now() },
 		newId: () => randomUUID(),
 		logFor: decisionLogs(),

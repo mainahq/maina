@@ -602,11 +602,15 @@ export type {
 } from "./gate/parsers/shell";
 export { loadShellParser } from "./gate/parsers/shell";
 export { analyzeSql, isDestructiveSql } from "./gate/parsers/sql";
+// Implicit push destinations (#494)
+export type { PushConfig } from "./gate/push";
+export { EMPTY_PUSH_CONFIG, readPushConfig } from "./gate/push";
 export type { RuleResult } from "./gate/rules";
 export { evaluateRules, settleVerdict } from "./gate/rules";
 // Git
 export {
 	type Commit,
+	createProcessGit,
 	type DiffStats,
 	type GetDiffStatsOptions,
 	getBranchName,

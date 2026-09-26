@@ -27,6 +27,7 @@ import {
 	DEFAULT_POLICY,
 	DEFAULT_REGISTRY,
 	type DecisionRecord,
+	EMPTY_PUSH_CONFIG,
 	evaluateGate,
 	findGateSubject,
 	type GateContext,
@@ -363,6 +364,72 @@ describe("createGateEvaluator", () => {
 		expect(decision.verdict).toBe("ask");
 		expect(decision.degraded).toBe(true);
 		expect(decision.reason).toContain("checked-out branch");
+	});
+
+	test("a bare push resolves against the root's push config (#494)", async () => {
+		const seen: string[] = [];
+		const gate = createGateEvaluator(
+			deps({
+				rootOf: (cwd) => `${cwd}/..`,
+				branchOf: async () => ({ ok: true, value: "feature" }),
+				pushConfigOf: async (root) => {
+					seen.push(root);
+					return {
+						ok: true,
+						value: {
+							...EMPTY_PUSH_CONFIG,
+							default: "upstream",
+							branches: new Map([
+								["feature", { remote: "origin", merge: "refs/heads/master" }],
+							]),
+						},
+					};
+				},
+			}),
+		);
+		const decision = await gate(shell("git push", "/w/r/sub"));
+		expect(decision.verdict).toBe("ask");
+		expect(decision.reason).toContain("git.push.protected");
+		expect(seen).toEqual(["/w/r/sub/.."]);
+	});
+
+	test("the push config is read only for shell events (#494)", async () => {
+		let reads = 0;
+		const gate = createGateEvaluator(
+			deps({
+				pushConfigOf: async () => {
+					reads++;
+					return { ok: true, value: EMPTY_PUSH_CONFIG };
+				},
+			}),
+		);
+		await gate({
+			kind: "file.write",
+			input: { file_path: "src/a.ts", content: "x" },
+			cwd: ROOT,
+		});
+		expect(reads).toBe(0);
+	});
+
+	test("a push config that cannot be read asks, never allows (#494)", async () => {
+		for (const pushConfigOf of [
+			async () => ({
+				ok: false as const,
+				error: { kind: "failed", exitCode: 128, stderr: "fatal" },
+			}),
+			() => Promise.reject(new Error("git gone")),
+		]) {
+			const gate = createGateEvaluator(
+				deps({
+					branchOf: async () => ({ ok: true, value: "feature" }),
+					pushConfigOf,
+				}),
+			);
+			const decision = await gate(shell("git push"));
+			expect(decision.verdict).toBe("ask");
+			expect(decision.degraded).toBe(true);
+			expect(decision.reason).toContain("push configuration");
+		}
 	});
 
 	test("full mode consults the policy's model backend", async () => {
@@ -916,6 +983,60 @@ describe("systemGates", () => {
 					)
 				).verdict,
 			).toBe("ask");
+		});
+
+		// #494: git resolves a bare push's destination from config.
+		describe("the push config (#494)", () => {
+			let pushRepo = "";
+			const bare = (dir: string) => shell("git push", dir);
+			beforeAll(() => {
+				pushRepo = realpathSync(
+					mkdtempSync(join(tmpdir(), "maina-gate-push-")),
+				);
+				run(pushRepo, "init", "-q", "-b", "feature");
+			});
+			afterAll(() => rmSync(pushRepo, { recursive: true, force: true }));
+
+			test("with git's defaults a bare push from a feature branch is allowed", async () => {
+				expect((await systemGates().runtime(bare(pushRepo))).verdict).toBe(
+					"allow",
+				);
+			});
+
+			test("push.default=upstream tracking a protected branch asks", async () => {
+				run(pushRepo, "config", "push.default", "upstream");
+				run(pushRepo, "config", "branch.feature.remote", "origin");
+				run(pushRepo, "config", "branch.feature.merge", "refs/heads/master");
+				try {
+					const decided = await systemGates().runtime(bare(pushRepo));
+					expect(decided.verdict).toBe("ask");
+					expect(decided.reason).toContain("git.push.protected");
+					expect(
+						(await systemGates().runtime(shell("git push origin", pushRepo)))
+							.verdict,
+					).toBe("ask");
+					expect((await systemGates().fallback(bare(pushRepo))).verdict).toBe(
+						"ask",
+					);
+				} finally {
+					run(pushRepo, "config", "--unset", "push.default");
+					run(pushRepo, "config", "--remove-section", "branch.feature");
+				}
+			});
+
+			test("a push refspec to a protected branch asks", async () => {
+				run(pushRepo, "config", "remote.origin.push", "HEAD:master");
+				try {
+					const decided = await systemGates().runtime(bare(pushRepo));
+					expect(decided.verdict).toBe("ask");
+					expect(decided.reason).toContain("git.push.protected");
+				} finally {
+					run(pushRepo, "config", "--unset", "remote.origin.push");
+				}
+				expect((await systemGates().runtime(bare(pushRepo))).verdict).toBe(
+					"allow",
+				);
+			});
 		});
 	});
 

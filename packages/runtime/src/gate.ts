@@ -25,6 +25,7 @@ import {
 	logPrivacy,
 	type PermissionMode,
 	type Policy,
+	type PushConfig,
 	type Result,
 	recordGateSubject,
 	VERDICTS,
@@ -159,6 +160,13 @@ export type GateEvaluatorDeps = Readonly<{
 	 * protected branch through. Absent: no current branch is known.
 	 */
 	branchOf?: (root: string) => Promise<Result<string | null, unknown>>;
+	/**
+	 * A root's push config (core `readPushConfig`), for pushes with no
+	 * refspec, which git sends where it says (#494). Read for shell events
+	 * only; an error (or a rejection) makes the event ask. Absent: such a
+	 * push goes to the checked-out branch.
+	 */
+	pushConfigOf?: (root: string) => Promise<Result<PushConfig, unknown>>;
 	clock: ClockPort;
 	newId: () => string;
 	/** Defaults to core's `DEFAULT_REGISTRY`. */
@@ -213,7 +221,9 @@ export function createGateEvaluator(
 			if (!policy.ok) return asking(`the policy for ${root} is invalid`);
 			const ctx = await contextFor(deps, core);
 			if (!ctx.ok) {
-				return asking(`the checked-out branch in ${root} could not be read`);
+				return asking(
+					`the ${UNREADABLE[ctx.error.kind]} in ${root} could not be read`,
+				);
 			}
 			const effective =
 				mode === "rules_only"
@@ -251,27 +261,53 @@ export function createGateEvaluator(
 	};
 }
 
+/** A classification context that could not be built: what was unreadable. */
+type ContextError = Readonly<{ kind: "branch_unreadable" | "push_unreadable" }>;
+
+/** What each `ContextError` could not read, for the gate's reason. */
+const UNREADABLE: Readonly<Record<ContextError["kind"], string>> = {
+	branch_unreadable: "checked-out branch",
+	push_unreadable: "push configuration",
+};
+
 /**
- * The classification context for `event`: the shared one, plus the branch
- * checked out in the event's root when a shell command may push to it. An
- * error when the branch could not be read.
+ * The classification context for `event`: the shared one, plus, when a
+ * shell command may push, the branch checked out in the event's root and
+ * its push config (read concurrently). An error names what could not be
+ * read.
  */
 async function contextFor(
 	deps: GateEvaluatorDeps,
 	event: CoreGateEvent,
-): Promise<Result<GateContext, unknown>> {
+): Promise<Result<GateContext, ContextError>> {
 	const ctx = await deps.context();
-	if (event.kind !== "shell" || deps.branchOf === undefined) {
-		return { ok: true, value: ctx };
+	if (event.kind !== "shell") return { ok: true, value: ctx };
+	const { branchOf, pushConfigOf } = deps;
+	const [branch, push] = await Promise.all([
+		branchOf === undefined ? undefined : settle(branchOf(event.root)),
+		pushConfigOf === undefined ? undefined : settle(pushConfigOf(event.root)),
+	]);
+	if (branch !== undefined && !branch.ok) {
+		return { ok: false, error: { kind: "branch_unreadable" } };
 	}
-	const branch = await deps.branchOf(event.root);
-	if (!branch.ok) return branch;
+	if (push !== undefined && !push.ok) {
+		return { ok: false, error: { kind: "push_unreadable" } };
+	}
 	return {
 		ok: true,
-		value:
-			branch.value === null ? ctx : { ...ctx, currentBranch: branch.value },
+		value: {
+			...ctx,
+			...(branch?.value == null ? {} : { currentBranch: branch.value }),
+			...(push === undefined ? {} : { push: push.value }),
+		},
 	};
 }
+
+/** A lookup's result, with a rejection as an error. */
+const settle = <T>(
+	lookup: Promise<Result<T, unknown>>,
+): Promise<Result<T, unknown>> =>
+	lookup.catch((e: unknown) => ({ ok: false as const, error: e }));
 
 /** One evaluated event, as the log needs it. */
 type Evaluated = Readonly<{

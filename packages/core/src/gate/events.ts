@@ -9,6 +9,7 @@
 
 import type { GATE_EVENT_KINDS } from "../policy/schema";
 import type { ShellParser } from "./parsers/shell";
+import type { PushConfig } from "./push";
 
 export type GateEventKind = (typeof GATE_EVENT_KINDS)[number];
 
@@ -80,4 +81,10 @@ export type GateContext = Readonly<{
 	protectedBranches?: readonly string[];
 	/** Branch checked out in the workspace, for pushes with an implicit target. */
 	currentBranch?: string;
+	/**
+	 * The workspace's push config, for pushes with no refspec (`git push`,
+	 * `git push <remote>`): git sends them where it says, which may not be
+	 * `currentBranch` (#494). Absent: they go to `currentBranch`.
+	 */
+	push?: PushConfig;
 }>;
