@@ -5,8 +5,8 @@ The maina remote connector: the maina MCP tools served over
 behind OAuth 2.1, so a host such as Claude or Cursor can connect by URL.
 
 Private until release (v1, epic #365). This package is the service skeleton
-(#353); GitHub App jobs, the self-host deployment and the retention review
-follow in #354–#356.
+(#353) and the GitHub App jobs (#354); the self-host deployment and the
+retention review follow in #355–#356.
 
 ## What it serves
 
@@ -24,6 +24,34 @@ The tools are the `@mainahq/mcp` definitions minus local-only ones. Every
 call acts on the service's workspace, and a caller-supplied `root` anywhere
 else is refused. There is no action gate remotely: `decide` refuses the
 gate's decision types (`action.risk`).
+
+## GitHub App jobs
+
+`src/github` runs one maina capability against one pull request as a
+GitHub App (FR-REM-2, FR-REM-3):
+
+| Job | Capability | Input from the PR |
+|-----|------------|-------------------|
+| `verify` | verify pipeline | changed files, diff-only against the base commit |
+| `impact` | code graph impact | changed files |
+| `triage` | two-stage review | the diff against the base commit |
+| `spec_check` | spec/plan/tasks consistency | the `.maina/features/*` directories the PR touches (or explicit paths) |
+| `decide` | decision API | an explicit decide request (the action gate's types are refused) |
+
+A job signs an App JWT, takes an installation token for the PR's
+repository, fetches exactly the PR's head and base commits into a fresh
+`maina-job-*` directory, runs the capability there through the runtime,
+then deletes the directory and checks it is gone (a surviving directory
+fails the job) and revokes the token. The token reaches git through its
+environment, never argv or the checkout's config.
+
+**Read-only by default.** The App manifest (`appManifest`) and every
+installation token ask for `contents`, `metadata` and `pull_requests` read
+only; wider permissions must be passed explicitly.
+
+Registering the App on GitHub is a manual step: create it from
+`appManifest(...)` (GitHub's manifest flow), then give the service the App
+id and private key.
 
 ## Running it
 
