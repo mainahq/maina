@@ -17,13 +17,15 @@ const config: KnipConfig = {
 		".": {
 			entry: [
 				"ci/e2e/simulate-agent.ts!",
+				"ci/escape/cases.ts!",
+				"ci/escape/**/__tests__/*.test.ts",
 				"scripts/*.ts!",
 				"scripts/dogfood/*.ts!",
 				"scripts/fixtures/*.ts!",
 				"scripts/**/__tests__/*.test.ts",
 				"integrations/**/__tests__/*.test.ts",
 			],
-			project: ["ci/e2e/*.ts!", "scripts/**/*.ts!"],
+			project: ["ci/e2e/*.ts!", "ci/escape/*.ts!", "scripts/**/*.ts!"],
 		},
 		"packages/cli": {
 			// The bin entry: package.json points at the compiled dist/ (#294).

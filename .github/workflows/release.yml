@@ -9,7 +9,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Required release check (v1 task 4B.9, FR-SBX-5): the sandbox escape and
+  # hook-bypass suite must be green on both platforms before anything ships.
+  escape-suite:
+    uses: ./.github/workflows/escape-suite.yml
+
   release:
+    needs: escape-suite
     runs-on: ubuntu-latest
     permissions:
       contents: write

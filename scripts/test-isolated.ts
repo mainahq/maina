@@ -25,6 +25,8 @@ const testGlobs = [
 	new Glob("scripts/**/__tests__/**/*.test.ts"),
 	// Third-party integrations (Spec Kit extension and workflow overlay).
 	new Glob("integrations/**/__tests__/**/*.test.ts"),
+	// Sandbox escape and hook-bypass suite (integration cases skip without srt).
+	new Glob("ci/escape/**/__tests__/**/*.test.ts"),
 ];
 const testFiles: string[] = [];
 
