@@ -8,10 +8,10 @@ name: Runtime artifacts
 #   (launch.sh on macOS/Linux, launch.ps1 wherever PowerShell is installed).
 # - build: compiles each target on a runner that can run it where one
 #   exists, and smoke-tests the executable.
-# - release (manual or a `runtime-v*` tag): signs every artifact with the
-#   release key, writes manifest.json and publishes a GitHub release.
-#   Refuses to run without the MAINA_RUNTIME_SIGNING_KEY secret: launchers
-#   reject unsigned artifacts.
+#
+# Signing and publishing moved to the lockstep release (release.yml, v1 task
+# 9.7): the runtime ships with the CLI packages and the plugins, at one
+# version, in one signed `runtime-v<version>` release.
 
 on:
   pull_request:
@@ -25,16 +25,10 @@ on:
       - ".github/workflows/runtime-artifacts.yml"
   push:
     branches: ["v1/main"]
-    tags: ["runtime-v*"]
     paths:
       - "packages/runtime/**"
       - ".github/workflows/runtime-artifacts.yml"
   workflow_dispatch:
-    inputs:
-      release:
-        description: "Sign and publish a runtime release for the CLI version"
-        type: boolean
-        default: false
 
 concurrency:
   group: runtime-artifacts-${{ github.ref }}
@@ -110,51 +104,3 @@ jobs:
           path: dist/runtime/maina-*
           if-no-files-found: error
 
-  release:
-    name: sign and publish
-    if: startsWith(github.ref, 'refs/tags/runtime-v') || (github.event_name == 'workflow_dispatch' && inputs.release)
-    needs: [launcher, build]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: runtime-*
-          path: dist/runtime
-          merge-multiple: true
-      - name: Sign and write manifest
-        env:
-          MAINA_RUNTIME_SIGNING_KEY: ${{ secrets.MAINA_RUNTIME_SIGNING_KEY }}
-        run: |
-          set -euo pipefail
-          if [ -z "${MAINA_RUNTIME_SIGNING_KEY}" ]; then
-            echo "MAINA_RUNTIME_SIGNING_KEY is not set: refusing to publish unsigned artifacts" >&2
-            exit 1
-          fi
-          key="$RUNNER_TEMP/release.key.pem"
-          umask 077
-          printf '%s\n' "$MAINA_RUNTIME_SIGNING_KEY" > "$key"
-          bun packages/runtime/build/standalone.ts --out dist/runtime --prebuilt --signing-key "$key"
-          rm -f "$key"
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          version=$(jq -r '.version' dist/runtime/manifest.json)
-          # The CLI package pins the version: a tag that names another one
-          # would publish a release under a name nobody asked for.
-          if [ "${GITHUB_REF_TYPE}" = tag ] && [ "${GITHUB_REF_NAME}" != "runtime-v${version}" ]; then
-            echo "tag ${GITHUB_REF_NAME} does not match the CLI version ${version} (expected runtime-v${version})" >&2
-            exit 1
-          fi
-          gh release create "runtime-v${version}" dist/runtime/* \
-            --title "maina runtime ${version}" \
-            --notes "Standalone maina runtime ${version}. Verify with the launcher's pinned key (ADR 0045)."

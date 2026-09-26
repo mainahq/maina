@@ -1,12 +1,13 @@
 /**
  * The files the generators package, read from the repo (the I/O edge of
  * `generate`): the skills from `packages/skills`, and the launcher from
- * `packages/runtime/launcher` (task 2.3). The plugin's version is the
+ * `packages/runtime/launcher` (task 2.3), with the release key once it is
+ * committed. The plugin's version is the
  * runtime version the launcher pins, so a plugin release and the runtime it
  * installs move together.
  */
 
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { PLUGIN, type PluginDefinition } from "./definition";
 import type { GeneratedFile, Sources } from "./generate";
@@ -19,12 +20,20 @@ const PACKAGES_DIR = join(import.meta.dir, "..", "..");
 const SKILLS_DIR = join(PACKAGES_DIR, "skills");
 const LAUNCHER_DIR = join(PACKAGES_DIR, "runtime", "launcher");
 
-/** The launcher files a plugin bundles; release keys are added at release. */
+/** The launcher files a plugin bundles. */
 const LAUNCHER_FILES: readonly string[] = [
 	"launch.sh",
 	"launch.ps1",
 	"manifest.json",
 ];
+
+/**
+ * The release key the launchers pin, bundled once committed: the release's
+ * marketplace bump (`scripts/release/bump-marketplaces.ts`) commits it next
+ * to the signed manifest, and until the real key exists (mainahq/maina#424)
+ * the launcher refuses to install (`no_release_key`).
+ */
+const KEY_FILES: readonly string[] = ["release.pub.pem", "release.pub.xml"];
 
 /** A semantic version, as every host's manifest schema wants it. */
 const SEMVER = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?$/;
@@ -68,7 +77,10 @@ export function pluginVersion(manifestContent: string): Result<string> {
 export function loadSources(
 	definition: PluginDefinition = PLUGIN,
 ): Result<Sources> {
-	const launcher = LAUNCHER_FILES.map(launcherFile);
+	const launcher = [
+		...LAUNCHER_FILES,
+		...KEY_FILES.filter((name) => existsSync(join(LAUNCHER_DIR, name))),
+	].map(launcherFile);
 	const manifest = launcher.find((f) => f.path === "manifest.json");
 	const version = pluginVersion(manifest?.content ?? "");
 	if (!version.ok) return version;

@@ -62,6 +62,8 @@ RSA was chosen because it is the only scheme that both `/usr/bin/openssl` and Wi
 
 The `release` job in `.github/workflows/runtime-artifacts.yml` signs the artifacts. It runs on a `runtime-v*` tag or a manual dispatch, reads the private key from the `MAINA_RUNTIME_SIGNING_KEY` secret, and refuses to publish without it. The build jobs never see the key.
 
+*Update (mainahq/maina#346):* signing and publishing moved to the lockstep release in `.github/workflows/release.yml` (`scripts/release/`). The runtime is released with the CLI packages and the host plugins at one version, in one `runtime-v<version>` release, with the same key and scheme; `runtime-artifacts.yml` now only builds and smoke-tests.
+
 ## Consequences
 
 ### Positive

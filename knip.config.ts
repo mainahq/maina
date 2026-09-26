@@ -22,10 +22,17 @@ const config: KnipConfig = {
 				"scripts/*.ts!",
 				"scripts/dogfood/*.ts!",
 				"scripts/fixtures/*.ts!",
+				"scripts/release/*.ts!",
 				"scripts/**/__tests__/*.test.ts",
 				"integrations/**/__tests__/*.test.ts",
 			],
-			project: ["ci/e2e/*.ts!", "ci/escape/*.ts!", "scripts/**/*.ts!"],
+			// Test helpers are reachable from tests only.
+			project: [
+				"ci/e2e/*.ts!",
+				"ci/escape/*.ts!",
+				"scripts/**/*.ts!",
+				"!scripts/**/__tests__/**!",
+			],
 		},
 		"packages/cli": {
 			// The bin entry: package.json points at the compiled dist/ (#294).

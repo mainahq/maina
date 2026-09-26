@@ -1,22 +1,96 @@
 name: Release
 
+# Lockstep signed release (v1 task 9.7, FR-INS-2, spec §8): the CLI packages,
+# the standalone runtime for every OS/arch, the host plugins and the
+# marketplace bumps ship together, at one version, every artifact signed with
+# the release key (scripts/release/).
+#
+# - dry-run (pull requests, manual): builds everything with a throwaway key
+#   and fails if any artifact is missing, at another version or unsigned.
+# - release (push to master): changesets versions and publishes the npm
+#   packages; once they are published, the same run builds and signs the
+#   lockstep release, publishes it as the `runtime-v<version>` GitHub release
+#   and opens the marketplace bump pull request. Refuses to run without the
+#   MAINA_RUNTIME_SIGNING_KEY secret (mainahq/maina#424): launchers reject
+#   unsigned artifacts.
+
 on:
   push:
     branches: [master]
+  pull_request:
+    branches: [master, "v1/**"]
+    paths:
+      - "scripts/release/**"
+      - "packages/runtime/build/**"
+      - "packages/runtime/launcher/**"
+      - "packages/plugins/**"
+      - ".changeset/config.json"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
 
 concurrency:
-  group: release
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'push' && 'release' || format('release-dry-run-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
   # Required release check (v1 task 4B.9, FR-SBX-5): the sandbox escape and
   # hook-bypass suite must be green on both platforms before anything ships.
+  # Only a real release needs it; escape-suite.yml proves itself on its own
+  # pull requests.
   escape-suite:
+    if: github.event_name == 'push'
     uses: ./.github/workflows/escape-suite.yml
+
+  dry-run:
+    name: lockstep dry run
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build packages
+        run: bun run build
+
+      - name: Build and sign every artifact with a throwaway key
+        run: bun scripts/release/build-all.ts --out dist/release --dry-run
+
+      - name: Check the release is complete, at one version and signed
+        run: bun scripts/release/sign.ts --dir dist/release --public-key dist/release/test-key.pub.pem
+
+      - name: Plan the publish (prints, publishes nothing)
+        run: bun scripts/release/publish-artifacts.ts --dir dist/release --public-key dist/release/test-key.pub.pem --dry-run --npm
+
+      - name: The marketplace bump applies and keeps the plugins in sync
+        run: |
+          set -euo pipefail
+          bun scripts/release/bump-marketplaces.ts --from dist/release
+          bun run plugins:check
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lockstep-dry-run
+          path: |
+            dist/release/release.json
+            dist/release/runtime/manifest.json
+            dist/release/plugins/
+          if-no-files-found: error
+          retention-days: 7
 
   release:
     needs: escape-suite
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: write
       pull-requests: write
@@ -64,9 +138,52 @@ jobs:
             packages/mcp/dist/**/*.map
           retention-days: 90
 
-      - name: Create GitHub release with source maps
+      - name: Build and sign the lockstep release
         if: steps.changesets.outputs.published == 'true'
+        env:
+          MAINA_RUNTIME_SIGNING_KEY: ${{ secrets.MAINA_RUNTIME_SIGNING_KEY }}
         run: |
-          VERSION=${{ steps.version.outputs.version }}
-          echo "Published version: $VERSION"
-          echo "Source maps uploaded as artifact: sourcemaps-$VERSION"
+          set -euo pipefail
+          if [ -z "${MAINA_RUNTIME_SIGNING_KEY}" ]; then
+            echo "MAINA_RUNTIME_SIGNING_KEY is not set: refusing to publish unsigned artifacts" >&2
+            exit 1
+          fi
+          key="$RUNNER_TEMP/release.key.pem"
+          umask 077
+          printf '%s\n' "$MAINA_RUNTIME_SIGNING_KEY" > "$key"
+          code=0
+          bun scripts/release/build-all.ts --out dist/release --signing-key "$key" || code=$?
+          rm -f "$key"
+          exit "$code"
+
+      - name: Check the release against the key the launcher pins
+        if: steps.changesets.outputs.published == 'true'
+        run: bun scripts/release/sign.ts --dir dist/release --public-key packages/runtime/launcher/release.pub.pem
+
+      - name: Publish the GitHub release
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bun scripts/release/publish-artifacts.ts --dir dist/release --public-key packages/runtime/launcher/release.pub.pem
+
+      - name: Open the marketplace bump pull request
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(jq -r '.version' dist/release/release.json)
+          branch="release/marketplaces-v${version}"
+          git switch -c "$branch"
+          bun scripts/release/bump-marketplaces.ts --from dist/release
+          bun run plugins:check
+          git add packages/runtime/launcher/manifest.json packages/plugins/dist \
+            .claude-plugin/marketplace.json .cursor-plugin/marketplace.json \
+            .agents/plugins/marketplace.json packages/docs/src/data/cursor-mcp-install.json
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "chore(release): bump marketplaces to ${version}"
+          git push origin "$branch"
+          gh pr create --base master --head "$branch" \
+            --title "chore(release): bump marketplaces to ${version}" \
+            --body "Pins the launcher and every host plugin at ${version}, the signed runtime-v${version} release. Generated by scripts/release/bump-marketplaces.ts."
