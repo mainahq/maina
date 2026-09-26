@@ -1,9 +1,10 @@
 /**
  * The remote connector process: reads its configuration from the
  * environment (`readRemoteConfig`), serves the maina MCP tools for one
- * workspace over Streamable HTTP behind OAuth 2.1, with a single owner who
- * approves clients through HTTP Basic sign-in, and shuts down cleanly on
- * SIGINT / SIGTERM. The Dockerfile runs this file.
+ * workspace over Streamable HTTP behind OAuth 2.1, with an owner (and any
+ * further users) who approve clients on a consent page after HTTP Basic
+ * sign-in, and shuts down cleanly on SIGINT / SIGTERM. The Dockerfile runs
+ * this file.
  *
  * Before serving it checks the operator's policy file and model directory
  * under `$HOME/.maina` (`checkSelfHost`) and refuses to start on a broken
@@ -37,18 +38,34 @@ if (!setup.ok) {
 }
 process.stderr.write(`maina remote: ${describeSelfHost(setup.value)}\n`);
 
-const { issuer, port, root, owner, tools } = config.value;
+const {
+	issuer,
+	port,
+	root,
+	owner,
+	users,
+	tools,
+	maxClients,
+	registrationLimit,
+	trustedProxies,
+} = config.value;
 const service = createRemoteService({
 	issuer,
 	root,
 	runtime: systemRuntime({ cwd: root, env: process.env, home }),
-	authenticate: basicAuthenticator(owner),
+	authenticate: basicAuthenticator([owner, ...users]),
+	maxClients,
+	registrationLimit,
+	trustedProxies,
 	...(tools !== undefined ? { tools } : {}),
 });
 
 const server = Bun.serve({
 	port,
-	fetch: service.fetch,
+	// The connection's address keys the client registration rate limit;
+	// behind trusted proxies (the compose ingress) X-Forwarded-For does.
+	fetch: (req, bun) =>
+		service.fetch(req, { address: bun.requestIP(req)?.address }),
 	// Streamable HTTP keeps SSE responses open; the session idle timeout,
 	// not the socket's, decides when a quiet client is dropped.
 	idleTimeout: 0,

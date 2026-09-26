@@ -20,6 +20,18 @@ remote:
   # Required: kubectl create secret generic maina --from-literal=password=...
   existingSecret: ""
   passwordKey: password
+  # Optional key in the same Secret holding further users of the workspace,
+  # each approving their own clients: a JSON object of username to password
+  # (12+ characters each). Empty: the owner alone.
+  usersKey: ""
+  # Open client registration is bounded: at most maxClients at once (the
+  # oldest unused one makes room) and registrationsPerMinute per address.
+  maxClients: 1000
+  registrationsPerMinute: 20
+  # Proxies in front of the pod (your ingress controller) that append the
+  # caller's address to X-Forwarded-For. 0: the header is ignored and the
+  # rate limit keys on the connection's address.
+  trustedProxies: 0
   # Tool allow-list (comma-separated); empty: the remote default set.
   tools: ""
   workspace:

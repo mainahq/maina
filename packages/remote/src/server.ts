@@ -10,7 +10,9 @@
  * - `/mcp`, the MCP endpoint: every request carries a bearer token that is
  *   verified (unexpired, bound to this resource) and must hold the tools
  *   scope, else 401 / 403 with a `WWW-Authenticate` challenge that points
- *   at the protected resource metadata, as the MCP authorization spec asks;
+ *   at the protected resource metadata, as the MCP authorization spec asks.
+ *   It answers any origin (CORS preflight without a token, the challenge
+ *   and session id readable), so a browser-based client can connect;
  * - `/healthz`.
  *
  * Tools are the `packages/mcp` definitions (`createMcpServer`), limited to
@@ -23,13 +25,17 @@ import { VERSION } from "@mainahq/core";
 import { createMcpServer, type McpRuntime, type ToolName } from "@mainahq/mcp";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import {
+	type Account,
 	type Authenticate,
 	type AuthServer,
 	createAuthServer,
 	type Grant,
 	MCP_PATH,
+	type Peer,
+	type RegistrationLimit,
 	TOOLS_SCOPE,
 } from "./auth";
+import { preflight, withCors } from "./cors";
 import { createSessions } from "./session";
 import { REMOTE_TOOLS, remoteRuntime, remoteTools } from "./tools";
 
@@ -51,12 +57,52 @@ type RemoteServiceOptions = Readonly<{
 	/** Idle time after which a session ends; 30 minutes by default. */
 	sessionIdleSeconds?: number;
 	maxSessions?: number;
+	/** Most OAuth clients registered at once. */
+	maxClients?: number;
+	/** Client registrations per peer address and window. */
+	registrationLimit?: RegistrationLimit;
+	/**
+	 * Reverse proxies in front of the service that append the address they
+	 * saw to `X-Forwarded-For` (the compose ingress is one); 0 by default,
+	 * when the header is ignored.
+	 */
+	trustedProxies?: number;
 }>;
+
+/**
+ * The caller's address: the connection's, or behind `trusted` proxies the
+ * one the outermost of them appended to `X-Forwarded-For`. Entries left of
+ * it are whatever the caller claimed and never count; a chain shorter than
+ * `trusted` falls back to its first entry, which a proxy wrote.
+ */
+function callerAddress(
+	forwardedFor: string | null,
+	socket: string | undefined,
+	trusted: number,
+): string | undefined {
+	if (trusted === 0) return socket;
+	const hops = [
+		...(forwardedFor ?? "")
+			.split(",")
+			.map((entry) => entry.trim())
+			.filter((entry) => entry !== ""),
+		...(socket !== undefined ? [socket] : []),
+	];
+	return hops[Math.max(0, hops.length - 1 - trusted)];
+}
+
+/** The MCP endpoint's methods under Streamable HTTP. */
+const MCP_METHODS = ["GET", "POST", "DELETE"] as const;
 
 export type RemoteService = Readonly<{
 	/** The tools every session registers, in catalog order. */
 	tools: readonly ToolName[];
-	fetch: (req: Request) => Promise<Response>;
+	/**
+	 * `peer` is the connection's address. It keys the registration rate
+	 * limit, or with `trustedProxies` the address the outermost trusted
+	 * proxy appended to `X-Forwarded-For` does.
+	 */
+	fetch: (req: Request, peer?: Peer) => Promise<Response>;
 	sessionCount: () => number;
 	close: () => Promise<void>;
 }>;
@@ -147,6 +193,12 @@ export function createRemoteService(
 		...(options.refreshTokenTtlSeconds !== undefined
 			? { refreshTokenTtlSeconds: options.refreshTokenTtlSeconds }
 			: {}),
+		...(options.maxClients !== undefined
+			? { maxClients: options.maxClients }
+			: {}),
+		...(options.registrationLimit !== undefined
+			? { registrationLimit: options.registrationLimit }
+			: {}),
 	});
 	const tools =
 		options.tools === undefined
@@ -160,14 +212,8 @@ export function createRemoteService(
 		maxSessions: options.maxSessions ?? 256,
 	});
 
-	async function route(req: Request): Promise<Response> {
-		const path = new URL(req.url).pathname;
-		if (path === "/healthz") {
-			return Response.json({ status: "ok", version: VERSION });
-		}
-		const handled = await auth.handle(req);
-		if (handled !== null) return handled;
-		if (path !== MCP_PATH) return new Response("Not found", { status: 404 });
+	async function mcp(req: Request): Promise<Response> {
+		if (req.method === "OPTIONS") return preflight(MCP_METHODS);
 		const bearer = checkBearer(auth, req);
 		if (!bearer.ok) return bearer.response;
 		return sessions.handle(
@@ -177,12 +223,32 @@ export function createRemoteService(
 		);
 	}
 
+	async function route(
+		req: Request,
+		peer: Peer | undefined,
+	): Promise<Response> {
+		const path = new URL(req.url).pathname;
+		if (path === "/healthz") {
+			return Response.json({ status: "ok", version: VERSION });
+		}
+		const handled = await auth.handle(req, {
+			address: callerAddress(
+				req.headers.get("x-forwarded-for"),
+				peer?.address,
+				options.trustedProxies ?? 0,
+			),
+		});
+		if (handled !== null) return handled;
+		if (path !== MCP_PATH) return new Response("Not found", { status: 404 });
+		return withCors(await mcp(req));
+	}
+
 	return {
 		tools,
-		fetch: async (req) => {
+		fetch: async (req, peer) => {
 			// Whatever a dependency throws answers 500; the service keeps serving.
 			try {
-				return await route(req);
+				return await route(req, peer);
 			} catch {
 				return Response.json({ error: "server_error" }, { status: 500 });
 			}
@@ -196,8 +262,13 @@ type RemoteConfig = Readonly<{
 	issuer: string;
 	port: number;
 	root: string;
-	owner: Readonly<{ username: string; password: string }>;
+	owner: Account;
+	/** Further accounts on the same workspace, each approving as themselves. */
+	users: readonly Account[];
 	tools: readonly string[] | undefined;
+	maxClients: number;
+	registrationLimit: RegistrationLimit;
+	trustedProxies: number;
 }>;
 
 type ConfigError = Readonly<{
@@ -225,12 +296,80 @@ function parseIssuer(raw: string): URL | null {
 	}
 }
 
+/** A whole number of at least `min` from `raw`, `fallback` when unset. */
+function wholeNumber(
+	raw: string | undefined,
+	fallback: number,
+	min = 1,
+): number | null {
+	const value = raw?.trim() || String(fallback);
+	const n = Number(value);
+	return /^\d+$/.test(value) && n >= min && Number.isSafeInteger(n) ? n : null;
+}
+
+/** An account's problem, or `null` when it can sign in. */
+function accountProblem(username: string, password: string): string | null {
+	if (username.length === 0) return "a username must not be empty";
+	// HTTP Basic splits at the first colon: this user could never sign in.
+	if (username.includes(":")) return "a username must not contain a colon";
+	if (password.length < MIN_PASSWORD) {
+		return `every password needs at least ${MIN_PASSWORD} characters`;
+	}
+	return null;
+}
+
+const USERS_VAR = "MAINA_REMOTE_USERS";
+
+/** `MAINA_REMOTE_USERS`: a JSON object of username → password. */
+function readUsers(
+	raw: string | undefined,
+	owner: string,
+): { ok: true; value: readonly Account[] } | { ok: false; error: ConfigError } {
+	if (raw === undefined || raw.trim() === "") return { ok: true, value: [] };
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		parsed = undefined;
+	}
+	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+		return configError(
+			USERS_VAR,
+			'must be a JSON object of username to password, e.g. {"alice": "..."}',
+		);
+	}
+	const users: Account[] = [];
+	for (const [username, password] of Object.entries(parsed)) {
+		if (typeof password !== "string") {
+			return configError(
+				USERS_VAR,
+				`the password for ${username} must be a string`,
+			);
+		}
+		const problem = accountProblem(username, password);
+		if (problem !== null) return configError(USERS_VAR, problem);
+		if (username === owner) {
+			return configError(
+				USERS_VAR,
+				`${username} is the owner (MAINA_REMOTE_OWNER) already`,
+			);
+		}
+		users.push({ username, password });
+	}
+	return { ok: true, value: users };
+}
+
 /**
  * The service configuration from the environment: `PORT` (8787),
  * `MAINA_REMOTE_ISSUER` (the public origin; https unless loopback, no
  * path), `MAINA_REMOTE_WORKSPACE` (`cwd`; a relative one resolves against
  * it), `MAINA_REMOTE_OWNER` (`owner`, no colon)
- * and `MAINA_REMOTE_PASSWORD` (required), `MAINA_MCP_TOOLS` (allow-list).
+ * and `MAINA_REMOTE_PASSWORD` (required), `MAINA_REMOTE_USERS` (further
+ * accounts, a JSON object of username to password), `MAINA_MCP_TOOLS`
+ * (allow-list), `MAINA_REMOTE_MAX_CLIENTS` (1000) and
+ * `MAINA_REMOTE_REGISTRATIONS_PER_MINUTE` (20 per peer address) and
+ * `MAINA_REMOTE_TRUSTED_PROXIES` (0: proxies in front that append to
+ * `X-Forwarded-For`).
  */
 export function readRemoteConfig(
 	env: Readonly<Record<string, string | undefined>>,
@@ -277,6 +416,26 @@ export function readRemoteConfig(
 			`the owner password is required, at least ${MIN_PASSWORD} characters`,
 		);
 	}
+	const users = readUsers(env[USERS_VAR], username);
+	if (!users.ok) return users;
+	const maxClients = wholeNumber(env.MAINA_REMOTE_MAX_CLIENTS, 1000);
+	if (maxClients === null) {
+		return configError("MAINA_REMOTE_MAX_CLIENTS", "must be a positive number");
+	}
+	const perMinute = wholeNumber(env.MAINA_REMOTE_REGISTRATIONS_PER_MINUTE, 20);
+	if (perMinute === null) {
+		return configError(
+			"MAINA_REMOTE_REGISTRATIONS_PER_MINUTE",
+			"must be a positive number",
+		);
+	}
+	const trustedProxies = wholeNumber(env.MAINA_REMOTE_TRUSTED_PROXIES, 0, 0);
+	if (trustedProxies === null) {
+		return configError(
+			"MAINA_REMOTE_TRUSTED_PROXIES",
+			"must be a whole number (0 or more)",
+		);
+	}
 	const tools = env.MAINA_MCP_TOOLS?.trim();
 	return {
 		ok: true,
@@ -286,6 +445,10 @@ export function readRemoteConfig(
 			// Absolute: tools compare and resolve paths against the pinned root.
 			root: resolve(cwd, env.MAINA_REMOTE_WORKSPACE?.trim() || "."),
 			owner: { username, password },
+			users: users.value,
+			maxClients,
+			registrationLimit: { max: perMinute, windowSeconds: 60 },
+			trustedProxies,
 			tools: tools
 				? tools
 						.split(",")

@@ -7,12 +7,14 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+	type Authenticate,
 	type AuthServer,
 	basicAuthenticator,
 	createAuthServer,
 	TOOLS_SCOPE,
 } from "../auth";
 import {
+	ALICE,
 	answerConsent,
 	authorize,
 	authorizeUrl,
@@ -41,6 +43,9 @@ function setup(
 		accessTokenTtlSeconds?: number;
 		refreshTokenTtlSeconds?: number;
 		codeTtlSeconds?: number;
+		maxClients?: number;
+		registrationLimit?: Readonly<{ max: number; windowSeconds: number }>;
+		authenticate?: Authenticate;
 	}> = {},
 ): { auth: AuthServer; handle: Handle; time: Clock } {
 	const time = clock();
@@ -212,6 +217,217 @@ describe("dynamic client registration", () => {
 			],
 		});
 		expect(client.redirect_uris).toHaveLength(3);
+	});
+});
+
+/** A registration as a browser or host sends it, from `address` when set. */
+function registerFrom(
+	auth: AuthServer,
+	address?: string,
+	metadata: Record<string, unknown> = {},
+): Promise<Response | null> {
+	return auth.handle(
+		new Request(`${ISSUER}/register`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				redirect_uris: [REDIRECT],
+				token_endpoint_auth_method: "none",
+				...metadata,
+			}),
+		}),
+		address === undefined ? undefined : { address },
+	);
+}
+
+describe("dynamic client registration limits", () => {
+	test("registrations beyond the rate limit from one address are 429 with Retry-After until the window passes", async () => {
+		const { auth, time } = setup({
+			registrationLimit: { max: 2, windowSeconds: 60 },
+		});
+		expect((await registerFrom(auth, "203.0.113.7"))?.status).toBe(201);
+		time.advance(10_000);
+		expect((await registerFrom(auth, "203.0.113.7"))?.status).toBe(201);
+		const limited = await registerFrom(auth, "203.0.113.7");
+		expect(limited?.status).toBe(429);
+		expect(limited?.headers.get("retry-after")).toBe("50");
+		expect(((await limited?.json()) as { error: string }).error).toBe(
+			"too_many_requests",
+		);
+		// Another address has its own budget.
+		expect((await registerFrom(auth, "198.51.100.2"))?.status).toBe(201);
+		// The first registration leaves the window after 60 seconds.
+		time.advance(50_000);
+		expect((await registerFrom(auth, "203.0.113.7"))?.status).toBe(201);
+		expect((await registerFrom(auth, "203.0.113.7"))?.status).toBe(429);
+	});
+
+	test("rejected registrations count against the limit too", async () => {
+		const { auth } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+		});
+		const bad = await registerFrom(auth, "203.0.113.7", { redirect_uris: [] });
+		expect(bad?.status).toBe(400);
+		expect((await registerFrom(auth, "203.0.113.7"))?.status).toBe(429);
+	});
+
+	test("without a peer address every registration shares one budget", async () => {
+		const { auth } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+		});
+		expect((await registerFrom(auth))?.status).toBe(201);
+		expect((await registerFrom(auth))?.status).toBe(429);
+	});
+
+	test("the default limit lets a host register a handful of clients in a row", async () => {
+		const { handle } = setup();
+		for (let i = 0; i < 10; i++) await register(handle);
+	});
+
+	test("at the client cap the oldest client with no grant in use is forgotten", async () => {
+		const { handle } = setup({ maxClients: 2 });
+		const first = await register(handle);
+		const second = await register(handle);
+		const third = await register(handle);
+		// The first client is gone: its authorization requests are refused.
+		const gone = await requestAuthorization(
+			handle,
+			authorizeUrl({ clientId: first.client_id, challenge: pkce().challenge }),
+		);
+		expect(gone.status).toBe(400);
+		for (const kept of [second, third]) {
+			const page = await requestAuthorization(
+				handle,
+				authorizeUrl({ clientId: kept.client_id, challenge: pkce().challenge }),
+			);
+			expect(page.status).toBe(200);
+		}
+	});
+
+	test("a client with live tokens or a pending consent keeps its slot; a full house is 503", async () => {
+		const { handle } = setup({ maxClients: 2 });
+		const token = await issueToken(handle);
+		const pending = await register(handle);
+		await consentFrom(
+			await requestAuthorization(
+				handle,
+				authorizeUrl({
+					clientId: pending.client_id,
+					challenge: pkce().challenge,
+				}),
+			),
+		);
+		const res = await postJson(handle, "/register", {
+			redirect_uris: [REDIRECT],
+			token_endpoint_auth_method: "none",
+		});
+		expect(res.status).toBe(503);
+		expect(res.headers.get("retry-after")).toBeTruthy();
+		expect(((await res.json()) as { error: string }).error).toBe(
+			"temporarily_unavailable",
+		);
+		const refreshed = await exchange(handle, {
+			grant_type: "refresh_token",
+			refresh_token: token.refresh_token,
+			client_id: token.client_id,
+		});
+		expect(refreshed.status).toBe(200);
+	});
+
+	test("a client whose tokens have all expired frees its slot", async () => {
+		const { handle, time } = setup({
+			maxClients: 1,
+			refreshTokenTtlSeconds: 3600,
+		});
+		await issueToken(handle);
+		time.advance(3_600_000);
+		expect((await register(handle)).client_id).toBeTruthy();
+	});
+});
+
+describe("CORS for browser-based MCP clients", () => {
+	const CORS_PATHS = [
+		["GET", "/.well-known/oauth-authorization-server"],
+		["GET", "/.well-known/oauth-protected-resource"],
+		["GET", "/.well-known/oauth-protected-resource/mcp"],
+		["POST", "/register"],
+		["POST", "/token"],
+	] as const;
+
+	test.each(
+		CORS_PATHS,
+	)("%s %s answers any origin, errors included", async (method, path) => {
+		const { handle } = setup();
+		const res = await handle(
+			new Request(`${ISSUER}${path}`, {
+				method,
+				headers: { origin: "https://app.example" },
+				...(method === "POST" ? { body: "not valid" } : {}),
+			}),
+		);
+		expect(res.headers.get("access-control-allow-origin")).toBe("*");
+		// Bearer and client credentials travel in headers, never cookies.
+		expect(res.headers.get("access-control-allow-credentials")).toBeNull();
+	});
+
+	test.each(
+		CORS_PATHS,
+	)("a preflight for %s %s is 204 with the methods and headers a browser client sends", async (method, path) => {
+		const { handle } = setup();
+		const res = await handle(
+			new Request(`${ISSUER}${path}`, {
+				method: "OPTIONS",
+				headers: {
+					origin: "https://app.example",
+					"access-control-request-method": method,
+					"access-control-request-headers": "authorization, content-type",
+				},
+			}),
+		);
+		expect(res.status).toBe(204);
+		expect(res.headers.get("access-control-allow-origin")).toBe("*");
+		expect(res.headers.get("access-control-allow-methods")).toContain(method);
+		const allowed = res.headers.get("access-control-allow-headers") ?? "";
+		expect(allowed).toContain("authorization");
+		expect(allowed).toContain("content-type");
+		expect(allowed).toContain("mcp-protocol-version");
+		expect(Number(res.headers.get("access-control-max-age"))).toBeGreaterThan(
+			0,
+		);
+	});
+
+	test("a browser client can read Retry-After on a limited registration", async () => {
+		const { auth } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+		});
+		await registerFrom(auth, "203.0.113.7");
+		const limited = await registerFrom(auth, "203.0.113.7");
+		expect(limited?.status).toBe(429);
+		// Retry-After is not a CORS-safelisted response header.
+		expect(limited?.headers.get("access-control-expose-headers")).toContain(
+			"retry-after",
+		);
+	});
+
+	test("the authorization endpoint is a browser navigation and sends no CORS headers", async () => {
+		const { handle } = setup();
+		const client = await register(handle);
+		const page = await requestAuthorization(
+			handle,
+			authorizeUrl({ clientId: client.client_id, challenge: pkce().challenge }),
+		);
+		expect(page.headers.get("access-control-allow-origin")).toBeNull();
+		const preflight = await handle(
+			new Request(`${ISSUER}/authorize`, {
+				method: "OPTIONS",
+				headers: {
+					origin: "https://evil.example",
+					"access-control-request-method": "POST",
+				},
+			}),
+		);
+		expect(preflight.status).toBe(405);
+		expect(preflight.headers.get("access-control-allow-origin")).toBeNull();
 	});
 });
 
@@ -693,5 +909,101 @@ describe("basicAuthenticator", () => {
 		expect(result.error.headers.get("www-authenticate")).toBe(
 			'Basic realm="maina remote", charset="UTF-8"',
 		);
+	});
+
+	test("several accounts each authenticate as themselves, and only with their own password", async () => {
+		const multi = basicAuthenticator([OWNER, ALICE]);
+		const as = (user: string, pass: string) =>
+			multi(
+				new Request(ISSUER, { headers: { authorization: basic(user, pass) } }),
+			);
+		expect(await as(OWNER.username, OWNER.password)).toEqual({
+			ok: true,
+			value: OWNER.username,
+		});
+		expect(await as(ALICE.username, ALICE.password)).toEqual({
+			ok: true,
+			value: ALICE.username,
+		});
+		expect((await as(ALICE.username, OWNER.password)).ok).toBe(false);
+		expect((await as(OWNER.username, ALICE.password)).ok).toBe(false);
+	});
+
+	test("no accounts authenticate nobody", async () => {
+		const none = basicAuthenticator([]);
+		const result = await none(
+			new Request(ISSUER, {
+				headers: { authorization: basic(OWNER.username, OWNER.password) },
+			}),
+		);
+		expect(result.ok).toBe(false);
+	});
+});
+
+describe("consent with several users", () => {
+	const aliceAuth = basic(ALICE.username, ALICE.password);
+
+	test("the consent page names the signed-in user", async () => {
+		const { handle } = setup({
+			authenticate: basicAuthenticator([OWNER, ALICE]),
+		});
+		const client = await register(handle);
+		const page = await requestAuthorization(
+			handle,
+			authorizeUrl({ clientId: client.client_id, challenge: pkce().challenge }),
+			aliceAuth,
+		);
+		expect(page.status).toBe(200);
+		expect(await page.text()).toContain(
+			`Signed in as <strong>${ALICE.username}</strong>`,
+		);
+	});
+
+	test("each user approves their own requests and gets tokens as themselves", async () => {
+		const { auth, handle } = setup({
+			authenticate: basicAuthenticator([OWNER, ALICE]),
+		});
+		const client = await register(handle);
+		const pair = pkce();
+		const code = codeFrom(
+			await authorize(
+				handle,
+				{ clientId: client.client_id, challenge: pair.challenge },
+				aliceAuth,
+			),
+		);
+		const token = await exchange(handle, {
+			grant_type: "authorization_code",
+			code,
+			redirect_uri: REDIRECT,
+			client_id: client.client_id,
+			code_verifier: pair.verifier,
+		});
+		const grant = auth.verify(token.body.access_token as string);
+		expect(grant.ok && grant.value.subject).toBe(ALICE.username);
+	});
+
+	test("a request one user started cannot be approved by another", async () => {
+		const { handle } = setup({
+			authenticate: basicAuthenticator([OWNER, ALICE]),
+		});
+		const client = await register(handle);
+		const consent = await consentFrom(
+			await requestAuthorization(
+				handle,
+				authorizeUrl({
+					clientId: client.client_id,
+					challenge: pkce().challenge,
+				}),
+				aliceAuth,
+			),
+		);
+		const hijack = await answerConsent(handle, consent, "approve");
+		expect(hijack.status).toBe(403);
+		expect(hijack.headers.get("location")).toBeNull();
+		// Alice can still answer her own request.
+		expect(
+			codeFrom(await answerConsent(handle, consent, "approve", aliceAuth)),
+		).toBeTruthy();
 	});
 });

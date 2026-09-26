@@ -16,16 +16,27 @@
  *   refresh tokens. A replayed code or refresh token revokes every token
  *   issued from the same authorization.
  *
+ * Registration is open, so it is bounded: a sliding-window rate limit per
+ * peer address (429 with `Retry-After`) and a cap on registered clients.
+ * At the cap the oldest client with nothing in use (no pending consent,
+ * code or live token) is forgotten; when every client is in use a new
+ * registration is refused (503). The discovery documents, `/register` and
+ * `/token` answer any origin (CORS, `cors.ts`) so a browser-based MCP
+ * client can connect; `/authorize` is a browser navigation and never does.
+ *
  * Who the resource owner is comes from the injected `authenticate` port
- * (`basicAuthenticator` for a self-hosted single owner). Signing in is not
- * consent: the owner approves every authorization request on a consent
- * page whose one-time token only this origin can read. State is kept in
- * memory and only token hashes are stored. Nothing here throws: every
- * failure is an OAuth error response.
+ * (`basicAuthenticator` for self-hosted accounts: one owner, or several
+ * users of the same workspace). Signing in is not consent: the signed-in
+ * user approves every authorization request on a consent page whose
+ * one-time token only this origin can read, and only the user who started
+ * a request can answer it. State is kept in memory and only token hashes
+ * are stored. Nothing here throws: every failure is an OAuth error
+ * response.
  */
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Result } from "@mainahq/core";
+import { preflight, withCors } from "./cors";
 
 /** The scope an access token needs to call the MCP tools. */
 export const TOOLS_SCOPE = "mcp:tools";
@@ -52,7 +63,22 @@ type AuthOptions = Readonly<{
 	codeTtlSeconds?: number;
 	/** How long the owner has to answer the consent page; 10 minutes. */
 	consentTtlSeconds?: number;
+	/** Most clients registered at once; 1000. */
+	maxClients?: number;
+	/** Registrations one peer address may make per window; 20 a minute. */
+	registrationLimit?: RegistrationLimit;
 }>;
+
+export type RegistrationLimit = Readonly<{
+	max: number;
+	windowSeconds: number;
+}>;
+
+/**
+ * Who is on the other end of the connection. Without an address every
+ * caller shares one registration budget.
+ */
+export type Peer = Readonly<{ address?: string | undefined }>;
 
 /** What a valid access token stands for. */
 export type Grant = Readonly<{
@@ -71,7 +97,7 @@ export type AuthServer = Readonly<{
 	/** Where the protected resource metadata for `resource` is served. */
 	resourceMetadataUrl: string;
 	/** Answers an auth route; `null` when `req` is not one. */
-	handle: (req: Request) => Promise<Response | null>;
+	handle: (req: Request, peer?: Peer) => Promise<Response | null>;
 	verify: (token: string) => Result<Grant, "invalid_token">;
 }>;
 
@@ -87,6 +113,9 @@ type Client = Readonly<{
 	/** The scopes it registered for; any supported scope when unset. */
 	scopes: readonly string[] | undefined;
 }>;
+
+/** A self-hosted account: HTTP Basic credentials. */
+export type Account = Readonly<{ username: string; password: string }>;
 
 type Code = Readonly<{
 	clientId: string;
@@ -227,13 +256,19 @@ function readBasic(
 	return { user: decoded.slice(0, colon), pass: decoded.slice(colon + 1) };
 }
 
-/** A single self-hosted owner, authenticated with HTTP Basic credentials. */
+/**
+ * Self-hosted accounts, authenticated with HTTP Basic credentials: one
+ * owner, or several users of the same workspace. Each signs in as their
+ * own subject.
+ */
 export function basicAuthenticator(
-	owner: Readonly<{ username: string; password: string }>,
+	accounts: Account | readonly Account[],
 ): Authenticate {
+	const list: readonly Account[] =
+		"username" in accounts ? [accounts] : accounts;
 	const challenge = () =>
 		new Response(
-			"Sign in as the maina remote owner to authorize this client.",
+			"Sign in with your maina remote account to authorize this client.",
 			{
 				status: 401,
 				headers: {
@@ -244,15 +279,17 @@ export function basicAuthenticator(
 		);
 	return async (req) => {
 		const creds = readBasic(req.headers.get("authorization"));
-		const valid =
-			creds !== null &&
-			// Both compared, so a wrong user costs the same as a wrong password.
+		if (creds === null) return { ok: false, error: challenge() };
+		// Every account and both fields are compared, so neither which names
+		// exist nor which field was wrong shows in the timing.
+		const match = list.filter((account) =>
 			[
-				sameSecret(creds.user, owner.username),
-				sameSecret(creds.pass, owner.password),
-			].every(Boolean);
-		return valid
-			? { ok: true, value: owner.username }
+				sameSecret(creds.user, account.username),
+				sameSecret(creds.pass, account.password),
+			].every(Boolean),
+		)[0];
+		return match !== undefined
+			? { ok: true, value: match.username }
 			: { ok: false, error: challenge() };
 	};
 }
@@ -284,6 +321,7 @@ function consentPage(
 <meta name="viewport" content="width=device-width, initial-scale=1"></head>
 <body><main>
 <h1>Authorize ${name}?</h1>
+<p>Signed in as <strong>${escapeHtml(consent.subject)}</strong>.</p>
 <p>It will be able to use the maina tools on this server's workspace as you.</p>
 <dl>
 <dt>Client ID</dt><dd><code>${escapeHtml(client.id)}</code></dd>
@@ -406,8 +444,14 @@ export function createAuthServer(options: AuthOptions): AuthServer {
 	const refreshTtlMs = (options.refreshTokenTtlSeconds ?? 30 * 86_400) * 1000;
 	const codeTtlMs = (options.codeTtlSeconds ?? 60) * 1000;
 	const consentTtlMs = (options.consentTtlSeconds ?? 600) * 1000;
+	const maxClients = options.maxClients ?? 1000;
+	const limit = options.registrationLimit ?? { max: 20, windowSeconds: 60 };
+	const windowMs = limit.windowSeconds * 1000;
 
+	/** Registered clients, oldest first (a Map keeps insertion order). */
 	const clients = new Map<string, Client>();
+	/** Recent registration times per peer address, oldest first. */
+	const registrations = new Map<string, readonly number[]>();
 	/** Authorization requests awaiting the owner's answer: token hash → request. */
 	const consents = new Map<string, Consent>();
 	const codes = new Map<string, Code>();
@@ -427,6 +471,50 @@ export function createAuthServer(options: AuthOptions): AuthServer {
 		for (const [k, v] of access) if (v.grant.expiresAt <= t) access.delete(k);
 		for (const [k, v] of refresh) if (v.expiresAt <= t) refresh.delete(k);
 		for (const [k, v] of retired) if (v.expiresAt <= t) retired.delete(k);
+		for (const [k, v] of registrations) {
+			if (v.every((at) => at <= t - windowMs)) registrations.delete(k);
+		}
+	}
+
+	/**
+	 * Count a registration from `peer`: the seconds until it may try again
+	 * when it is over the limit, else `null`.
+	 */
+	function overLimit(peer: Peer | undefined): number | null {
+		const key = peer?.address ?? "";
+		const t = now();
+		const recent = (registrations.get(key) ?? []).filter(
+			(at) => at > t - windowMs,
+		);
+		const oldest = recent[0];
+		if (oldest !== undefined && recent.length >= limit.max) {
+			registrations.set(key, recent);
+			return Math.max(1, Math.ceil((oldest + windowMs - t) / 1000));
+		}
+		registrations.set(key, [...recent, t]);
+		return null;
+	}
+
+	/**
+	 * Room for one more client: at the cap, forget the oldest one with no
+	 * pending consent, code or live token. `false` when every client is in
+	 * use.
+	 */
+	function makeRoom(): boolean {
+		if (clients.size < maxClients) return true;
+		const inUse = new Set([
+			...[...consents.values()].map((c) => c.clientId),
+			...[...codes.values()].map((c) => c.clientId),
+			...[...access.values()].map((a) => a.grant.clientId),
+			...[...refresh.values()].map((r) => r.clientId),
+		]);
+		for (const id of clients.keys()) {
+			if (!inUse.has(id)) {
+				clients.delete(id);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	function revokeFamily(family: string): void {
@@ -459,10 +547,36 @@ export function createAuthServer(options: AuthOptions): AuthServer {
 		resource_name: "maina",
 	});
 
-	async function registerClient(req: Request): Promise<Response> {
+	async function registerClient(
+		req: Request,
+		peer: Peer | undefined,
+	): Promise<Response> {
+		sweep();
+		const retryAfter = overLimit(peer);
+		if (retryAfter !== null) {
+			return json(
+				{
+					error: "too_many_requests",
+					error_description: "too many client registrations; try again later",
+				},
+				429,
+				{ ...NO_STORE, "retry-after": String(retryAfter) },
+			);
+		}
 		const body: unknown = await req.json().catch(() => undefined);
 		const parsed = readRegistration(body, supported);
 		if (!parsed.ok) return parsed.error;
+		if (!makeRoom()) {
+			return json(
+				{
+					error: "temporarily_unavailable",
+					error_description:
+						"the server holds as many clients as it can; try again later",
+				},
+				503,
+				{ ...NO_STORE, "retry-after": String(limit.windowSeconds) },
+			);
+		}
 		const { client, secret } = parsed.value;
 		clients.set(client.id, client);
 		return json(
@@ -776,47 +890,61 @@ export function createAuthServer(options: AuthOptions): AuthServer {
 			: refreshGrant(client.value, params);
 	}
 
-	type Run = (req: Request) => Promise<Response> | Response;
-	/** Path → method → handler. */
-	const routes: ReadonlyMap<string, ReadonlyMap<string, Run>> = new Map([
+	type Run = (
+		req: Request,
+		peer: Peer | undefined,
+	) => Promise<Response> | Response;
+	/** Method → handler, and whether other origins may call it (CORS). */
+	type Route = Readonly<{ methods: ReadonlyMap<string, Run>; cors: boolean }>;
+	const crossOrigin = (method: string, run: Run): Route => ({
+		methods: new Map([[method, run]]),
+		cors: true,
+	});
+	const routes: ReadonlyMap<string, Route> = new Map([
 		[
 			"/.well-known/oauth-authorization-server",
-			new Map([["GET", () => json(asMetadata())]]),
+			crossOrigin("GET", () => json(asMetadata())),
 		],
 		[
 			"/.well-known/oauth-protected-resource",
-			new Map([["GET", () => json(resourceMetadata())]]),
+			crossOrigin("GET", () => json(resourceMetadata())),
 		],
 		[
 			`/.well-known/oauth-protected-resource${MCP_PATH}`,
-			new Map([["GET", () => json(resourceMetadata())]]),
+			crossOrigin("GET", () => json(resourceMetadata())),
 		],
-		["/register", new Map([["POST", registerClient]])],
+		["/register", crossOrigin("POST", registerClient)],
 		[
 			"/authorize",
-			new Map<string, Run>([
-				["GET", authorizeRequest],
-				["POST", consentAnswer],
-			]),
+			{
+				methods: new Map<string, Run>([
+					["GET", authorizeRequest],
+					["POST", consentAnswer],
+				]),
+				cors: false,
+			},
 		],
-		["/token", new Map([["POST", tokenRequest]])],
+		["/token", crossOrigin("POST", tokenRequest)],
 	]);
 
 	return {
 		issuer,
 		resource,
 		resourceMetadataUrl,
-		handle: async (req) => {
-			const methods = routes.get(new URL(req.url).pathname);
-			if (methods === undefined) return null;
-			const run = methods.get(req.method);
-			if (run === undefined) {
-				return new Response(null, {
-					status: 405,
-					headers: { allow: [...methods.keys()].join(", ") },
-				});
-			}
-			return run(req);
+		handle: async (req, peer) => {
+			const route = routes.get(new URL(req.url).pathname);
+			if (route === undefined) return null;
+			const methods = [...route.methods.keys()];
+			if (route.cors && req.method === "OPTIONS") return preflight(methods);
+			const run = route.methods.get(req.method);
+			const res =
+				run === undefined
+					? new Response(null, {
+							status: 405,
+							headers: { allow: methods.join(", ") },
+						})
+					: await run(req, peer);
+			return route.cors ? withCors(res) : res;
 		},
 		verify: (token) => {
 			const key = hashOf(token);

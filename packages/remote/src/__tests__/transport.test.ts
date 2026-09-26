@@ -102,6 +102,8 @@ function setup(
 		tools?: readonly string[];
 		idleSeconds?: number;
 		maxSessions?: number;
+		registrationLimit?: Readonly<{ max: number; windowSeconds: number }>;
+		trustedProxies?: number;
 	}> = {},
 ): {
 	service: RemoteService;
@@ -126,6 +128,12 @@ function setup(
 			: {}),
 		...(options.maxSessions !== undefined
 			? { maxSessions: options.maxSessions }
+			: {}),
+		...(options.registrationLimit !== undefined
+			? { registrationLimit: options.registrationLimit }
+			: {}),
+		...(options.trustedProxies !== undefined
+			? { trustedProxies: options.trustedProxies }
 			: {}),
 	});
 	open.push(service);
@@ -236,6 +244,155 @@ describe("bearer protection on /mcp", () => {
 			).status,
 		).toBe(200);
 		expect((await handle(new Request(`${ISSUER}/nope`))).status).toBe(404);
+	});
+});
+
+describe("CORS on /mcp for browser-based MCP clients", () => {
+	test("a preflight is 204 without a token and allows the MCP headers", async () => {
+		const { handle } = setup();
+		const res = await handle(
+			new Request(RESOURCE, {
+				method: "OPTIONS",
+				headers: {
+					origin: "https://app.example",
+					"access-control-request-method": "POST",
+					"access-control-request-headers":
+						"authorization, content-type, mcp-session-id, mcp-protocol-version",
+				},
+			}),
+		);
+		expect(res.status).toBe(204);
+		expect(res.headers.get("access-control-allow-origin")).toBe("*");
+		const methods = res.headers.get("access-control-allow-methods") ?? "";
+		for (const m of ["GET", "POST", "DELETE"]) expect(methods).toContain(m);
+		const allowed = res.headers.get("access-control-allow-headers") ?? "";
+		for (const h of [
+			"authorization",
+			"content-type",
+			"mcp-session-id",
+			"mcp-protocol-version",
+			"last-event-id",
+		]) {
+			expect(allowed).toContain(h);
+		}
+	});
+
+	test("the 401 challenge is readable cross-origin, so a browser client can discover the metadata", async () => {
+		const { handle } = setup();
+		const res = await mcpPost(handle, INIT, { origin: "https://app.example" });
+		expect(res.status).toBe(401);
+		expect(res.headers.get("access-control-allow-origin")).toBe("*");
+		expect(res.headers.get("access-control-expose-headers")).toContain(
+			"www-authenticate",
+		);
+	});
+
+	test("an initialize response exposes the session id", async () => {
+		const { handle } = setup();
+		const token = await issueToken(handle);
+		const res = await mcpPost(handle, INIT, {
+			origin: "https://app.example",
+			authorization: `Bearer ${token.access_token}`,
+		});
+		expect(res.status).toBe(200);
+		expect(res.headers.get("mcp-session-id")).toBeTruthy();
+		expect(res.headers.get("access-control-allow-origin")).toBe("*");
+		expect(res.headers.get("access-control-expose-headers")).toContain(
+			"mcp-session-id",
+		);
+		await res.body?.cancel();
+	});
+
+	test("the peer address reaches the registration rate limit", async () => {
+		const { service } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+		});
+		const registerAs = (address: string) =>
+			service.fetch(
+				new Request(`${ISSUER}/register`, {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						redirect_uris: [REDIRECT],
+						token_endpoint_auth_method: "none",
+					}),
+				}),
+				{ address },
+			);
+		expect((await registerAs("203.0.113.7")).status).toBe(201);
+		expect((await registerAs("203.0.113.7")).status).toBe(429);
+		expect((await registerAs("198.51.100.2")).status).toBe(201);
+	});
+
+	/** A registration arriving from the proxy at 10.0.0.2 with `forwardedFor`. */
+	const viaProxy = (service: RemoteService, forwardedFor: string | undefined) =>
+		service.fetch(
+			new Request(`${ISSUER}/register`, {
+				method: "POST",
+				headers: {
+					"content-type": "application/json",
+					...(forwardedFor !== undefined
+						? { "x-forwarded-for": forwardedFor }
+						: {}),
+				},
+				body: JSON.stringify({
+					redirect_uris: [REDIRECT],
+					token_endpoint_auth_method: "none",
+				}),
+			}),
+			{ address: "10.0.0.2" },
+		);
+
+	test("behind a trusted proxy each forwarded client has its own registration budget", async () => {
+		const { service } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+			trustedProxies: 1,
+		});
+		expect((await viaProxy(service, "203.0.113.7")).status).toBe(201);
+		expect((await viaProxy(service, "203.0.113.7")).status).toBe(429);
+		// Another caller behind the same proxy is not locked out.
+		expect((await viaProxy(service, "198.51.100.2")).status).toBe(201);
+	});
+
+	test("behind a trusted proxy only the address it appended counts, not what the caller claims", async () => {
+		const { service } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+			trustedProxies: 1,
+		});
+		expect((await viaProxy(service, "1.1.1.1, 203.0.113.7")).status).toBe(201);
+		expect((await viaProxy(service, "2.2.2.2, 203.0.113.7")).status).toBe(429);
+	});
+
+	test("behind two trusted proxies the address the outer one appended counts", async () => {
+		const { service } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+			trustedProxies: 2,
+		});
+		// caller-claimed, then the TLS terminator's view, then the ingress's.
+		expect(
+			(await viaProxy(service, "1.1.1.1, 203.0.113.7, 10.0.0.9")).status,
+		).toBe(201);
+		expect(
+			(await viaProxy(service, "2.2.2.2, 203.0.113.7, 10.0.0.9")).status,
+		).toBe(429);
+		expect((await viaProxy(service, "203.0.113.8, 10.0.0.9")).status).toBe(201);
+	});
+
+	test("without trusted proxies X-Forwarded-For is ignored", async () => {
+		const { service } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+		});
+		expect((await viaProxy(service, "203.0.113.7")).status).toBe(201);
+		expect((await viaProxy(service, "198.51.100.2")).status).toBe(429);
+	});
+
+	test("a trusted proxy that sent no X-Forwarded-For falls back to the connection's address", async () => {
+		const { service } = setup({
+			registrationLimit: { max: 1, windowSeconds: 60 },
+			trustedProxies: 1,
+		});
+		expect((await viaProxy(service, undefined)).status).toBe(201);
+		expect((await viaProxy(service, undefined)).status).toBe(429);
 	});
 });
 
@@ -505,9 +662,72 @@ describe("readRemoteConfig", () => {
 				port: 9000,
 				root: "/repo",
 				owner: { username: "ops", password: "a-long-password-123" },
+				users: [],
 				tools: undefined,
+				maxClients: 1000,
+				registrationLimit: { max: 20, windowSeconds: 60 },
+				trustedProxies: 0,
 			},
 		});
+	});
+
+	test("reads extra users, the client cap and the registration rate", () => {
+		const config = readRemoteConfig(
+			{
+				...env,
+				MAINA_REMOTE_USERS: JSON.stringify({
+					alice: "alice-password-1",
+					bob: "bob-password-22",
+				}),
+				MAINA_REMOTE_MAX_CLIENTS: "50",
+				MAINA_REMOTE_REGISTRATIONS_PER_MINUTE: "5",
+				MAINA_REMOTE_TRUSTED_PROXIES: "1",
+			},
+			"/cwd",
+		);
+		expect(config.ok && config.value).toMatchObject({
+			trustedProxies: 1,
+			users: [
+				{ username: "alice", password: "alice-password-1" },
+				{ username: "bob", password: "bob-password-22" },
+			],
+			maxClients: 50,
+			registrationLimit: { max: 5, windowSeconds: 60 },
+		});
+	});
+
+	test.each([
+		["users that are not JSON", { MAINA_REMOTE_USERS: "alice:pw" }],
+		["users that are a JSON array", { MAINA_REMOTE_USERS: '["alice"]' }],
+		[
+			"a user password that is not a string",
+			{ MAINA_REMOTE_USERS: '{"alice": 12345678901234}' },
+		],
+		["a short user password", { MAINA_REMOTE_USERS: '{"alice": "short"}' }],
+		[
+			"a user name with a colon",
+			{ MAINA_REMOTE_USERS: '{"al:ice": "a-long-password-1"}' },
+		],
+		[
+			"a user who is the owner again",
+			{ MAINA_REMOTE_USERS: '{"ops": "a-long-password-1"}' },
+		],
+		["a zero client cap", { MAINA_REMOTE_MAX_CLIENTS: "0" }],
+		["a non-numeric client cap", { MAINA_REMOTE_MAX_CLIENTS: "many" }],
+		[
+			"a zero registration rate",
+			{ MAINA_REMOTE_REGISTRATIONS_PER_MINUTE: "0" },
+		],
+		["a negative trusted proxy count", { MAINA_REMOTE_TRUSTED_PROXIES: "-1" }],
+		[
+			"a non-numeric trusted proxy count",
+			{ MAINA_REMOTE_TRUSTED_PROXIES: "yes" },
+		],
+	])("refuses %s, naming the variable", (_label, extra) => {
+		const config = readRemoteConfig({ ...env, ...extra }, "/cwd");
+		expect(config.ok).toBe(false);
+		if (config.ok) return;
+		expect(config.error.variable).toBe(Object.keys(extra)[0] ?? "");
 	});
 
 	test("defaults the port, workspace and issuer to local ones", () => {
