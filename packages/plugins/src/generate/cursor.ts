@@ -16,6 +16,7 @@
 import { CURSOR_HOOK_MAP } from "@mainahq/runtime/src/adapters/cursor";
 import type { PluginDefinition } from "../definition";
 import {
+	byEvent,
 	commandAndAgentFiles,
 	file,
 	hookCommand,
@@ -46,16 +47,14 @@ export function cursor(
 	};
 	const hooks = {
 		version: 1,
-		hooks: Object.fromEntries(
-			nativeHooks(definition, CURSOR_HOOK_MAP).map(
-				({ event, blocking }): [string, readonly HookEntry[]] => {
-					const command = hookCommand(`./${LAUNCHER}`, "cursor", event);
-					return [
-						event,
-						[blocking ? { command, failClosed: true } : { command }],
-					];
-				},
-			),
+		hooks: byEvent(
+			nativeHooks(definition, CURSOR_HOOK_MAP).map(({ event, blocking }) => {
+				const command = hookCommand(`./${LAUNCHER}`, "cursor", event);
+				const entry: HookEntry = blocking
+					? { command, failClosed: true }
+					: { command };
+				return { event, entry };
+			}),
 		),
 	};
 	const mcp = {

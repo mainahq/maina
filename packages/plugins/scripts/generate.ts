@@ -67,7 +67,12 @@ function write(dir: string, files: readonly GeneratedFile[]): void {
 }
 
 const check = process.argv.includes("--check");
-const sources = loadSources();
+const loaded = loadSources();
+if (!loaded.ok) {
+	process.stderr.write(`${loaded.error}\n`);
+	process.exit(1);
+}
+const sources = loaded.value;
 const problems = HOSTS.flatMap((host) => {
 	const dir = join(DIST_DIR, host);
 	const files = generate(host, sources);

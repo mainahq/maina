@@ -43,7 +43,8 @@ import {
 	type Host,
 	type Sources,
 } from "../generate";
-import { loadSources } from "../sources";
+import { matcherGroups } from "../generate/shared";
+import { loadSources, pluginVersion } from "../sources";
 
 const PACKAGE_DIR = join(import.meta.dir, "..", "..");
 const FIXTURES_DIR = join(import.meta.dir, "..", "__fixtures__");
@@ -76,7 +77,9 @@ const readJson = (path: string): unknown =>
 const manifestOf = (host: Host): HostManifest =>
 	readJson(join(FIXTURES_DIR, host, "manifest.json")) as HostManifest;
 
-const sources: Sources = loadSources();
+const loaded = loadSources();
+if (!loaded.ok) throw new Error(loaded.error);
+const sources: Sources = loaded.value;
 const generated = (host: Host): readonly GeneratedFile[] =>
 	generate(host, sources);
 
@@ -409,6 +412,22 @@ describe("hooks", () => {
 		}
 	});
 
+	test("two lifecycle points on one native event keep both registrations", () => {
+		// A gate that silently overwrote another would fail open.
+		const map = {
+			"session.start": [],
+			"tool.before": [{ event: "PreToolUse", matcher: "^Bash$" }],
+			"permission.request": [{ event: "PreToolUse", matcher: "^Write$" }],
+			"file.edited": [],
+			"session.stop": [],
+		} as const;
+		const groups = matcherGroups(PLUGIN, map, "./launch.sh", "claude");
+		expect(groups.PreToolUse?.map((g) => g.matcher)).toEqual([
+			"^Bash$",
+			"^Write$",
+		]);
+	});
+
 	test("Agent Plugins has no hooks: the 1.0 core defines none", () => {
 		expect(registeredHooks("agent-plugins")).toEqual([]);
 		expect(
@@ -457,6 +476,31 @@ describe("hooks", () => {
 		},
 		30_000,
 	);
+});
+
+// ── The plugin version ────────────────────────────────────────────────────
+
+describe("plugin version", () => {
+	test("is the runtime version the launcher pins", () => {
+		expect(pluginVersion('{"schema":1,"version":"1.8.1"}')).toEqual({
+			ok: true,
+			value: "1.8.1",
+		});
+		expect(sources.version).toMatch(/^\d+\.\d+\.\d+/);
+	});
+
+	test("refuses a launcher manifest without a usable version", () => {
+		// A silent fallback would publish every host package as 0.0.0.
+		for (const content of [
+			"{}",
+			'{"version":7}',
+			'{"version":""}',
+			'{"version":"latest"}',
+			"not json",
+		]) {
+			expect(pluginVersion(content).ok).toBe(false);
+		}
+	});
 });
 
 // ── MCP, skills, launcher ─────────────────────────────────────────────────

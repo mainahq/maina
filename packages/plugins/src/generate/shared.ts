@@ -52,6 +52,22 @@ export const nativeHooks = (
 		map[spec.event].map((native) => ({ ...native, blocking: spec.blocking })),
 	);
 
+/**
+ * Entries keyed by native event, in first-seen order. Two lifecycle points
+ * on one native event keep both entries: overwriting one would drop a gate.
+ */
+export function byEvent<T>(
+	entries: readonly Readonly<{ event: string; entry: T }>[],
+): Readonly<Record<string, readonly T[]>> {
+	const events = [...new Set(entries.map((e) => e.event))];
+	return Object.fromEntries(
+		events.map((event) => [
+			event,
+			entries.filter((e) => e.event === event).map((e) => e.entry),
+		]),
+	);
+}
+
 type CommandHook = Readonly<{ type: "command"; command: string }>;
 type MatcherGroup = Readonly<{
 	matcher?: string;
@@ -69,12 +85,14 @@ export function matcherGroups(
 	launcher: string,
 	host: string,
 ): Readonly<Record<string, readonly MatcherGroup[]>> {
-	return Object.fromEntries(
+	return byEvent(
 		nativeHooks(definition, map).map(({ event, matcher }) => {
 			const hooks: readonly CommandHook[] = [
 				{ type: "command", command: hookCommand(launcher, host, event) },
 			];
-			return [event, [matcher === undefined ? { hooks } : { matcher, hooks }]];
+			const entry: MatcherGroup =
+				matcher === undefined ? { hooks } : { matcher, hooks };
+			return { event, entry };
 		}),
 	);
 }
