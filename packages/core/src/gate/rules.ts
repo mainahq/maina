@@ -18,7 +18,12 @@
  */
 
 import { DEFAULT_POLICY } from "../policy/defaults";
-import type { Policy, RulePolicy, Verdict } from "../policy/schema";
+import {
+	isLockedClass,
+	type Policy,
+	type RulePolicy,
+	type Verdict,
+} from "../policy/schema";
 import { analyzeAction } from "./classify";
 import type { GateContext, GateEvent, GateEventKind } from "./events";
 
@@ -53,10 +58,13 @@ export function evaluateRules(
 	const analysis = analyzeAction(event, ctx);
 	const classes = analysis.classes;
 	// A class the policy does not list keeps its built-in spec, so a partial
-	// policy can never make an irreversible class disappear (fail closed).
+	// policy can never make an irreversible class disappear (fail closed). A
+	// locked class always keeps it: no policy loosens it (#513).
 	const specs = classes.map((c) => ({
 		id: c,
-		spec: policy.action_classes[c] ?? DEFAULT_POLICY.action_classes[c],
+		spec: isLockedClass(c)
+			? DEFAULT_POLICY.action_classes[c]
+			: (policy.action_classes[c] ?? DEFAULT_POLICY.action_classes[c]),
 	}));
 
 	// 1. A deny rule is final and beats everything.

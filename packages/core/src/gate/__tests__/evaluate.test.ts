@@ -996,17 +996,43 @@ describe("gate.self_override (#447)", () => {
 		expect(result.reason).toContain("gate.self_override");
 	});
 
-	test("an unconfirmed repo explicitly_allow leaves it denied", async () => {
-		const policy = await layered(undefined, {
-			explicitly_allow: ["gate.self_override"],
-			action_classes: { "gate.self_override": { verdict: "allow" } },
-		});
-		const result = evaluateGate(
-			gatePorts(),
-			writeEvent(".claude/settings.json"),
-			policy,
+	test("the loader refuses a policy that lists it in explicitly_allow (#513)", async () => {
+		const loaded = await loadPolicy(
+			{
+				fs: createMemoryFs({
+					[`${ROOT}/.maina/policy.json`]: JSON.stringify({
+						explicitly_allow: ["gate.self_override"],
+						action_classes: { "gate.self_override": { verdict: "allow" } },
+					}),
+				}),
+			},
+			ROOT,
+			undefined,
 		);
-		expect(result.verdict).toBe("deny");
+		expect(loaded.ok).toBe(false);
+	});
+
+	test.each([
+		["user", []],
+		["repo", []],
+		["repo", ["gate.self_override"]],
+	] as const)("a %s loosening confirmed for %j still denies it (#513)", (source, confirmed) => {
+		// Built by hand, past the loader: the evaluator ignores it on its own.
+		const policy = loosen("gate.self_override", source);
+		for (const event of [
+			writeEvent(".claude/settings.json"),
+			shellEvent("maina allow d-1 --always"),
+		]) {
+			const result = evaluateGate(
+				withModel(() => ({ verdict: "allow", p: 0.99 }), {
+					confirmedLoosenings: confirmed,
+				}),
+				event,
+				modelPolicy(policy),
+			);
+			expect(result.verdict).toBe("deny");
+			expect(result.reason).toContain("gate.self_override");
+		}
 	});
 
 	test("a policy that omits the class still denies it", () => {

@@ -7,7 +7,9 @@
  *                 the user layer's `explicitly_allow` lists it, or a repo
  *                 layer's does and the user confirmed that class. Any other
  *                 irreversible class goes back to `ask` (or stays `deny`),
- *                 whatever the policy says.
+ *                 whatever the policy says. A locked class
+ *                 (`gate.self_override`) keeps its built-in deny: no layer
+ *                 and no confirmation loosens it (#513).
  *   2. rules    — `evaluateRules` over the narrowed policy. A deny is final.
  *                 The policy's `protected_branches` join the context's.
  *   3. decide   — `decide("action.risk")` with the policy's backend. Its
@@ -32,6 +34,7 @@ import { DEFAULT_POLICY } from "../policy/defaults";
 import {
 	type ActionClassPolicy,
 	GATE_EVENT_KINDS,
+	isLockedClass,
 	type Policy,
 	VERDICTS,
 	type Verdict,
@@ -237,13 +240,18 @@ function isIrreversible(id: string, policy: Policy): boolean {
  */
 function trustPolicy(policy: Policy, confirmed: readonly string[]): Narrowed {
 	const confirmedSet = new Set(confirmed);
+	// No layer and no confirmation stands behind loosening a locked class.
 	const trusted = new Set(
 		policy.loosened
 			.filter((l) => l.source === "user" || confirmedSet.has(l.actionClass))
-			.map((l) => l.actionClass),
+			.map((l) => l.actionClass)
+			.filter((id) => !isLockedClass(id)),
 	);
+	// A locked class is not waiting on a confirmation, so it is not listed.
 	const ignored = new Set(
-		policy.loosened.map((l) => l.actionClass).filter((id) => !trusted.has(id)),
+		policy.loosened
+			.map((l) => l.actionClass)
+			.filter((id) => !trusted.has(id) && !isLockedClass(id)),
 	);
 	const classes: Record<string, ActionClassPolicy> = {
 		...policy.action_classes,
@@ -253,6 +261,11 @@ function trustPolicy(policy: Policy, confirmed: readonly string[]): Narrowed {
 		...Object.keys(policy.action_classes),
 	]);
 	for (const id of ids) {
+		const builtIn = DEFAULT_POLICY.action_classes[id];
+		if (isLockedClass(id) && builtIn !== undefined) {
+			classes[id] = builtIn;
+			continue;
+		}
 		if (trusted.has(id) || !isIrreversible(id, policy)) continue;
 		// A class the policy omits keeps its built-in verdict, so a partial
 		// policy cannot drop a default deny to `ask`.

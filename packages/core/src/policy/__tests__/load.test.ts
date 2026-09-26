@@ -256,6 +256,70 @@ describe("irreversible action classes", () => {
 		expect(result.ok).toBe(false);
 	});
 
+	describe("gate.self_override cannot be loosened by any layer (#513)", () => {
+		const unlock = {
+			explicitly_allow: ["gate.self_override"],
+			action_classes: { "gate.self_override": { verdict: "allow" } },
+		};
+
+		test("a repo layer listing it in explicitly_allow is rejected", async () => {
+			const result = await loadPolicy(repoPolicy(unlock), ROOT, undefined);
+			expect(result.ok).toBe(false);
+			if (result.ok) return;
+			expect(result.error).toContainEqual(
+				expect.objectContaining({
+					kind: "invalid",
+					source: "repo",
+					path: "explicitly_allow[0]",
+					message: expect.stringContaining("maina allow in a terminal"),
+				}),
+			);
+		});
+
+		test("the user layer listing it in explicitly_allow is rejected too", async () => {
+			const result = await loadPolicy(portsWith(), ROOT, unlock);
+			expect(result.ok).toBe(false);
+			if (result.ok) return;
+			expect(result.error).toContainEqual(
+				expect.objectContaining({
+					kind: "invalid",
+					source: "user",
+					path: "explicitly_allow[0]",
+				}),
+			);
+		});
+
+		test.each([
+			[{ verdict: "ask" }, "verdict"],
+			[{ irreversible: false }, "irreversible"],
+		] as const)("loosening it to %j is a loosening error", async (spec, field) => {
+			const result = await loadPolicy(
+				repoPolicy({ action_classes: { "gate.self_override": spec } }),
+				ROOT,
+				undefined,
+			);
+			expect(result.ok).toBe(false);
+			if (result.ok) return;
+			expect(result.error).toEqual([
+				expect.objectContaining({
+					kind: "loosening",
+					path: `action_classes.gate.self_override.${field}`,
+				}),
+			]);
+		});
+
+		test("restating its deny is fine", async () => {
+			const result = await loadPolicy(
+				repoPolicy({
+					action_classes: { "gate.self_override": { verdict: "deny" } },
+				}),
+				ROOT,
+				undefined,
+			);
+			expect(result.ok).toBe(true);
+		});
+	});
+
 	test("a class a layer introduces without a verdict fails closed to ask", async () => {
 		const result = await loadPolicy(
 			repoPolicy({

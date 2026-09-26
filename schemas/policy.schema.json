@@ -13,9 +13,14 @@
 			"type": "array",
 			"items": {
 				"type": "string",
-				"pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+				"pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+				"not": {
+					"enum": [
+						"gate.self_override"
+					]
+				}
 			},
-			"description": "Irreversible action classes this layer is allowed to loosen. Anything else it tries to loosen is an error."
+			"description": "Irreversible action classes this layer is allowed to loosen. Anything else it tries to loosen is an error. gate.self_override can never be listed."
 		},
 		"action_classes": {
 			"type": "object",

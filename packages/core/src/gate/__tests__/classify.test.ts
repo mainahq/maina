@@ -667,11 +667,8 @@ describe("gate.self_override: an agent changing its own gate (#447)", () => {
 	});
 
 	test("a tree moved or copied into a control directory asks", () => {
-		for (const command of [
-			"mv /tmp/evil .claude",
-			"cp -r /tmp/evil .codex",
-			"ln -s /tmp/evil .claude",
-		]) {
+		// A symlink over a control dir is `gate.self_override` (#513).
+		for (const command of ["mv /tmp/evil .claude", "cp -r /tmp/evil .codex"]) {
 			const classes = classesOf(command);
 			expect(classes, command).toContain("shell.opaque");
 			expect(classes, command).not.toContain(SELF);
@@ -733,5 +730,207 @@ describe("gate.self_override: an agent changing its own gate (#447)", () => {
 			irreversible: true,
 			verdict: "deny",
 		});
+	});
+});
+
+describe("gate.self_override: the paths the #447 review left open (#513)", () => {
+	const SELF = "gate.self_override";
+	type McpCase = readonly [string, string, Readonly<Record<string, unknown>>];
+
+	test("an agent running maina setup or init, which rewrite hook configs", () => {
+		for (const command of [
+			"maina setup",
+			"maina setup --yes",
+			"maina setup --reset --ci",
+			"maina init",
+			"maina init --force",
+			"bunx maina setup --yes",
+			"npx -y @mainahq/cli@latest setup",
+			"bun packages/cli/dist/index.js init",
+			'sh -c "maina setup --yes"',
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+		for (const command of ["maina setup --help", "maina init -h"]) {
+			expect(classesOf(command), command).not.toContain(SELF);
+		}
+	});
+
+	test("an MCP filesystem write, move or delete of a control file", () => {
+		const cases: readonly McpCase[] = [
+			["filesystem", "write_file", { path: ".claude/settings.json" }],
+			[
+				"filesystem",
+				"write_file",
+				{ path: "/work/repo/.maina/policy.json", content: "{}" },
+			],
+			["filesystem", "edit_file", { path: ".cursor/hooks.json", edits: [] }],
+			[
+				"filesystem",
+				"move_file",
+				{ source: ".claude/settings.json", destination: "/tmp/s.json" },
+			],
+			[
+				"filesystem",
+				"move_file",
+				{ source: "/tmp/open.json", destination: ".maina/policy.json" },
+			],
+			["fs", "delete_file", { file_path: "~/.codex/hooks.json" }],
+			["fs", "writeFile", { filePath: ".Claude/Settings.local.json" }],
+			["fs", "remove", { path: ".claude" }],
+			["fs", "create_symlink", { target: "/tmp/evil", path: ".claude" }],
+			["fs", "write_files", { paths: ["notes.md", ".maina/policy.json"] }],
+			["fs", "write_file", { uri: "file:///work/repo/.codex/config.toml" }],
+			["fs", "apply", { path: ".claude/settings.json" }],
+			// A write word beside a read word is still a write.
+			["fs", "read_and_overwrite", { path: ".claude/settings.json" }],
+			["fs", "get_then_rewrite", { path: ".maina/policy.json" }],
+			["lint", "check_and_fix", { path: ".cursor/hooks.json" }],
+			["fs", "format_file", { path: ".codex/config.toml" }],
+			["maina", "verify_and_fix", { files: [".claude/settings.json"] }],
+		];
+		for (const [server, tool, input] of cases) {
+			expect(
+				classifyAction(mcpEvent(server, tool, input), ctx),
+				`${tool} ${JSON.stringify(input)}`,
+			).toContain(SELF);
+		}
+	});
+
+	test("an MCP read of a control file, or a write beside one, is not", () => {
+		const cases: readonly McpCase[] = [
+			["filesystem", "read_file", { path: ".claude/settings.json" }],
+			["filesystem", "read_text_file", { path: ".maina/policy.json" }],
+			["filesystem", "get_file_info", { path: ".cursor/hooks.json" }],
+			["filesystem", "list_directory", { path: ".claude" }],
+			["filesystem", "write_file", { path: ".claude/commands/review.md" }],
+			["filesystem", "create_directory", { path: ".maina/prompts" }],
+			["github", "get_issue", { number: 513 }],
+			// maina's own analysis tools read the files they are given.
+			["maina", "verify", { files: [".claude/settings.json"] }],
+			["maina", "impact", { files: [".maina/policy.json"] }],
+			["maina", "review_triage", { files: [".cursor/hooks.json"] }],
+			["maina", "context", { files: [".codex/config.toml"] }],
+			["lint", "check_file", { path: ".claude/settings.json" }],
+		];
+		for (const [server, tool, input] of cases) {
+			expect(
+				classifyAction(mcpEvent(server, tool, input), ctx),
+				`${tool} ${JSON.stringify(input)}`,
+			).toEqual(["mcp.call"]);
+		}
+	});
+
+	test("chmod or chown of a control file or directory", () => {
+		for (const command of [
+			"chmod 000 .claude/settings.json",
+			"chmod -r .claude/settings.json",
+			"chmod a-r .maina/policy.json",
+			"chmod -R 000 .claude",
+			"chmod 000 ~/.cursor/hooks.json",
+			"chown nobody .codex/hooks.json",
+			"chmod u-w .Claude/Settings.json",
+			// An unresolved mode or owner is still the mode or owner.
+			'chmod "$MODE" .claude/settings.json',
+			'chown "$OWNER" .codex/hooks.json',
+			'chmod -R "$MODE" .maina',
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+		for (const command of [
+			"chmod +x scripts/build.sh",
+			"chmod -R u+w .claude/commands",
+		]) {
+			expect(classesOf(command), command).not.toContain(SELF);
+		}
+	});
+
+	test("git checkout, restore, rm or mv of a hook config or policy", () => {
+		for (const command of [
+			"git checkout -- .claude/settings.json",
+			"git checkout HEAD~3 -- .claude/settings.json",
+			"git checkout main .maina/policy.json",
+			"git checkout .claude",
+			"git restore .claude/settings.json",
+			"git restore --source=HEAD~2 .cursor/hooks.json",
+			"git restore --staged --worktree .maina/policy.json",
+			"git -C packages/app restore .maina/policy.json",
+			"git rm .claude/settings.json",
+			"git rm -r --cached .claude",
+			"git mv .codex/hooks.json .codex/hooks.json.off",
+			"git checkout -- ':(top).claude/settings.json'",
+			// A glob pathspec that matches a control file in a control dir.
+			"git checkout HEAD~3 -- '.claude/*'",
+			"git restore -s HEAD~3 -- '.claude/settings*'",
+			"git checkout -- '.cursor/hooks.jso?'",
+			"git restore '.codex/[hc]*'",
+			"git checkout HEAD~1 -- ':(glob).maina/*'",
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+		for (const command of [
+			"git checkout main",
+			"git checkout -- src/index.ts",
+			"git restore --staged src/index.ts",
+			"git rm src/old.ts",
+			"git show HEAD:.claude/settings.json",
+			"git diff .claude/settings.json",
+			"git checkout -- '.claude/commands/*'",
+			"git restore '.claude/*.md'",
+			"git checkout -- 'src/*.ts'",
+			"git checkout -- '.claude/[oops'",
+		]) {
+			expect(classesOf(command), command).not.toContain(SELF);
+		}
+		// A glob built to backtrack cannot stall the gate.
+		const started = performance.now();
+		const evil = `git restore '.claude/${"*a".repeat(60)}b'`;
+		expect(classesOf(evil)).not.toContain(SELF);
+		expect(performance.now() - started).toBeLessThan(250);
+	});
+
+	test("a symlink over a control directory, or to a control path", () => {
+		for (const command of [
+			"ln -s /tmp/evil .claude",
+			"ln -sfn /tmp/evil .claude",
+			"ln -sfn /tmp/evil ~/.claude/",
+			"ln -s /tmp/evil .MAINA",
+			// A link to a control path lets a later write reach it unseen.
+			"ln -s .claude/settings.json /tmp/s.json",
+			"ln -s ../.maina/policy.json /tmp/p.json",
+			"ln -s /work/repo/.claude /tmp/c",
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+		for (const command of [
+			"ln -s ../shared/review.md .claude/commands/review.md",
+			"ln -s dist/cli.js bin/maina",
+		]) {
+			expect(classesOf(command), command).not.toContain(SELF);
+		}
+	});
+
+	test("script runs its command as shell", () => {
+		for (const command of [
+			"script -q -c 'maina allow d-1' /dev/null",
+			"script -qc 'rm .claude/settings.json' /dev/null",
+			"script --command='maina allow d-1' /dev/null",
+			"script --command 'maina allow d-1' /dev/null",
+			"script /dev/null -c 'maina allow d-1'",
+			// BSD/macOS form: the command follows the log file.
+			"script -q /dev/null maina allow d-1",
+			"script -q /dev/null sh -c 'maina allow d-1'",
+		]) {
+			expect(classesOf(command), command).toContain(SELF);
+		}
+		expect(classesOf("script -q -c 'rm -rf /' /dev/null")).toEqual(
+			expect.arrayContaining(["fs.delete.recursive", "fs.delete.outside"]),
+		);
+		expect(classesOf('script -q -c "$CMD" /dev/null')).toContain(
+			"shell.opaque",
+		);
+		expect(classesOf("script -q -c 'bun test' /dev/null")).toEqual([
+			"shell.exec",
+		]);
 	});
 });

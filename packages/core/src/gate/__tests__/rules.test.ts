@@ -295,6 +295,8 @@ describe("deny rules are final", () => {
 			"/usr/local/bin/terraform destroy -auto-approve",
 			"sudo terraform destroy",
 			"echo 'terraform destroy' | bash",
+			"script -q -c 'terraform destroy' /dev/null",
+			"script -q /dev/null terraform destroy",
 		]) {
 			expect(evaluateRules(shellEvent(command), policy, ctx).kind).toBe("deny");
 		}
@@ -499,6 +501,25 @@ describe("an agent cannot override its own gate (#447)", () => {
 		).toBe("deny");
 	});
 
+	test("no policy layer can loosen it, explicitly_allow included (#513)", async () => {
+		const loaded = await loadPolicy(
+			{
+				fs: createMemoryFs({
+					[`${ROOT}/.maina/policy.json`]: JSON.stringify({
+						explicitly_allow: ["gate.self_override"],
+						action_classes: { "gate.self_override": { verdict: "allow" } },
+					}),
+				}),
+			},
+			ROOT,
+			{
+				explicitly_allow: ["gate.self_override"],
+				action_classes: { "gate.self_override": { verdict: "allow" } },
+			},
+		);
+		expect(loaded.ok).toBe(false);
+	});
+
 	test("a repo policy cannot loosen it without explicitly_allow", async () => {
 		const loaded = await loadPolicy(
 			{
@@ -521,5 +542,30 @@ describe("an agent cannot override its own gate (#447)", () => {
 		expect(
 			evaluateRules(writeEvent(".maina/policy.json"), policy, ctx).kind,
 		).toBe("deny");
+	});
+
+	test.each([
+		"allow",
+		"ask",
+	] as const)("a policy that says %s for it, even one recorded as explicitly allowed, still denies it (#513)", (verdict) => {
+		// A policy built by hand, past the loader's checks.
+		const policy: Policy = {
+			...DEFAULT_POLICY,
+			action_classes: {
+				...DEFAULT_POLICY.action_classes,
+				"gate.self_override": { irreversible: false, verdict },
+			},
+			loosened: [
+				{ actionClass: "gate.self_override", source: "user", before: "deny" },
+			],
+		};
+		for (const event of [
+			shellEvent("maina allow d-1 --always"),
+			writeEvent(".claude/settings.json"),
+		]) {
+			const result = evaluateRules(event, policy, ctx);
+			expect(result.kind).toBe("deny");
+			expect(result.classes).toContain("gate.self_override");
+		}
 	});
 });
