@@ -11,7 +11,9 @@ import {
 	type OpenedGraph,
 	type OpenGraphError,
 	openCodeGraph,
+	systemFs,
 } from "../graph/system";
+import type { ClockPort } from "../ports/clock";
 import type { EnvPort } from "../ports/env";
 import {
 	assembleBudget,
@@ -27,6 +29,10 @@ import {
 	type EpisodicEntry,
 	getEntries,
 } from "./episodic";
+import {
+	DEFAULT_CLOUD_EPISODIC_TIMEOUT_MS,
+	loadCloudEpisodicEntries,
+} from "./episodic-cloud";
 import {
 	assembleRetrievalText,
 	type RetrievalOptions,
@@ -71,6 +77,12 @@ export interface ContextOptions {
 	modelContextWindow?: number; // override default 200K token context window
 	/** Code-graph store ports; defaults to the store under `mainaDir`. */
 	graph?: GraphStorePorts;
+	/** Directory holding the cloud `auth.json`; defaults to `~/.maina`. */
+	authDir?: string;
+	/** Ceiling on the team episodic fetch from the cloud (default 1.5s). */
+	cloudTimeoutMs?: number;
+	/** Clock for the cloud episodic cache's freshness; wall clock by default. */
+	clock?: ClockPort;
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -234,7 +246,7 @@ async function buildWorkingLayer(
  */
 function deduplicateCloudEntries(
 	localEntries: EpisodicEntry[],
-	cloudEntries: CloudEpisodicEntry[],
+	cloudEntries: readonly CloudEpisodicEntry[],
 ): EpisodicEntry[] {
 	const localHashes = new Set(
 		localEntries.map((e) => {
@@ -263,17 +275,61 @@ function deduplicateCloudEntries(
 
 const DEFAULT_CLOUD_URL = "https://api.mainahq.com";
 
+const systemClock: ClockPort = { now: () => Date.now() };
+
+type EpisodicLayerRequest = Readonly<{
+	mainaDir: string;
+	repoRoot: string;
+	cloudUrl: string;
+	/** Where the cloud `auth.json` lives; `~/.maina` when absent. */
+	authDir?: string;
+	cloudTimeoutMs: number;
+	clock: ClockPort;
+	filter?: string[];
+}>;
+
+/**
+ * The team's episodic entries from the cloud, or none when not logged in.
+ * Bounded and cached (#439): a slow or unreachable cloud costs at most one
+ * `cloudTimeoutMs` per cache window, never the client's full retry budget.
+ */
+async function loadTeamEpisodicEntries(
+	request: EpisodicLayerRequest,
+): Promise<readonly CloudEpisodicEntry[]> {
+	const auth = loadAuthConfig(request.authDir);
+	if (!auth.ok || !auth.value.accessToken) return [];
+	const client = createCloudClient({
+		baseUrl: request.cloudUrl,
+		token: auth.value.accessToken,
+		timeoutMs: request.cloudTimeoutMs,
+		maxRetries: 0,
+	});
+	const repo = await getRepoSlug(request.repoRoot);
+	// A fingerprint of the token keeps one account's cached team entries from
+	// being served after logging in as another.
+	const account = createHash("sha256")
+		.update(auth.value.accessToken)
+		.digest("hex")
+		.slice(0, 12);
+	return loadCloudEpisodicEntries({
+		mainaDir: request.mainaDir,
+		fs: systemFs,
+		key: `${request.cloudUrl}|${repo}|${account}`,
+		fetch: () => client.getEpisodicEntries(repo),
+		timeoutMs: request.cloudTimeoutMs,
+		now: () => request.clock.now(),
+	});
+}
+
 /**
  * Build the episodic layer content. Never throws.
- * When the user is logged into the cloud, also fetches team episodic entries
- * and merges them (deduplicated by title+summary hash) with local entries.
+ * When the user is logged into the cloud, also merges the team's episodic
+ * entries (deduplicated by title+summary hash) with local entries.
  */
 async function buildEpisodicLayer(
-	mainaDir: string,
-	repoRoot: string,
-	cloudUrl: string,
-	filter?: string[],
+	request: EpisodicLayerRequest,
 ): Promise<LayerContent> {
+	const { mainaDir, filter } = request;
 	try {
 		decayAllEntries(mainaDir);
 
@@ -294,23 +350,12 @@ async function buildEpisodicLayer(
 
 		// Merge cloud episodic entries if logged in
 		try {
-			const auth = loadAuthConfig();
-			if (auth.ok && auth.value.accessToken) {
-				const client = createCloudClient({
-					baseUrl: cloudUrl,
-					token: auth.value.accessToken,
-				});
-				const repo = await getRepoSlug(repoRoot);
-				const cloudResult = await client.getEpisodicEntries(repo);
-				if (cloudResult.ok && cloudResult.value.length > 0) {
-					const uniqueCloud = deduplicateCloudEntries(
-						entries,
-						cloudResult.value,
-					);
-					entries = [...entries, ...uniqueCloud];
-					// Re-sort by relevance descending after merging
-					entries.sort((a, b) => b.relevance - a.relevance);
-				}
+			const cloudEntries = await loadTeamEpisodicEntries(request);
+			if (cloudEntries.length > 0) {
+				const uniqueCloud = deduplicateCloudEntries(entries, cloudEntries);
+				entries = [...entries, ...uniqueCloud];
+				// Re-sort by relevance descending after merging
+				entries.sort((a, b) => b.relevance - a.relevance);
 			}
 		} catch {
 			// Cloud fetch failure is silent — local entries are still available
@@ -422,7 +467,16 @@ export async function assembleContext(
 			? needs.episodic
 			: undefined;
 		layerPromises.push(
-			buildEpisodicLayer(mainaDir, repoRoot, cloudUrl, episodicFilter),
+			buildEpisodicLayer({
+				mainaDir,
+				repoRoot,
+				cloudUrl,
+				authDir: options.authDir,
+				cloudTimeoutMs:
+					options.cloudTimeoutMs ?? DEFAULT_CLOUD_EPISODIC_TIMEOUT_MS,
+				clock: options.clock ?? systemClock,
+				filter: episodicFilter,
+			}),
 		);
 	}
 
