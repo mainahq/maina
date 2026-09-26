@@ -73,9 +73,11 @@ const config: KnipConfig = {
 		"packages/harness": {
 			// Private until release: the orchestrator, the worker registry,
 			// the sandbox (adapter + inner-sandbox configuration) and the
-			// session manager (parallel runs, cleanup, PTYs) are the entries.
-			// The fake ACP agent is spawned by path from the orchestrator
-			// tests, the crashing session owner from the cleanup tests.
+			// session manager (parallel runs, cleanup, PTYs) and the permission
+			// bridges (ACP, the Claude hook and its process, Codex approvals)
+			// are the entries. The fake ACP agent is spawned by path from the
+			// orchestrator tests, the crashing session owner from the cleanup
+			// tests.
 			entry: [
 				"src/orchestrator.ts!",
 				"src/workers/registry.ts!",
@@ -84,6 +86,10 @@ const config: KnipConfig = {
 				"src/sessions/parallel.ts!",
 				"src/sessions/cleanup.ts!",
 				"src/sessions/pty.ts!",
+				"src/permissions/acp-bridge.ts!",
+				"src/permissions/claude-sdk-hook.ts!",
+				"src/permissions/claude-hook-main.ts!",
+				"src/permissions/codex-app-server.ts!",
 				TESTS,
 				"src/__fixtures__/*.ts",
 			],
