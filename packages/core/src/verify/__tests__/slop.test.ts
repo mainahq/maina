@@ -113,6 +113,22 @@ import { z } from "zod";`;
 			expect(findings.length).toBe(0);
 		});
 
+		// Bundler query suffixes (`?url`, `?raw`, `#hash`) name the same file.
+		it("should resolve an import with a Vite query suffix to its file", () => {
+			writeFixture("table.json", "[]\n");
+			const content = [
+				'import tableUrl from "./table.json?url";',
+				'import raw from "./table.json?raw#x";',
+				'import gone from "./missing.json?url";',
+			].join("\n");
+			const findings = detectHallucinatedImports(
+				content,
+				join(TMP_DIR, "importer.ts"),
+				TMP_DIR,
+			);
+			expect(findings.map((f) => f.line)).toEqual([3]);
+		});
+
 		// #399 — import-like text inside comments is not an import
 		it("should not flag an import quoted inside a JSDoc comment", () => {
 			const content = [
