@@ -99,8 +99,8 @@ What is released, and what the next release brings. The next release is read fro
 - Context commands that use the episodic layer (such as `review` and `verify`) no longer hang for about 43 seconds when maina cloud is slow or unreachable. _(@mainahq/core)_
 - The built-in `no-any-type` check no longer flags identifiers that end in `any` when they are followed by punctuation, such as `many)`, `company,` or `Array<Company>`. _(@mainahq/core)_
 - The `hardcoded-secret` check no longer flags an environment variable or CI secret name used as a value, such as `secret: ANTHROPIC_API_KEY` in a GitHub Actions matrix. _(@mainahq/core)_
-- The standalone `maina` runtime that host plugins run now embeds the tree-sitter runtime and the grammars it uses (bash for the gate, plus the code-graph languages). _(@mainahq/core)_
 - Agent hooks now show the gate message for an ask or deny in Claude Code, Codex and Cursor: the verdict, the reason, a confidence band and the override (`maina allow <id> [--always]`), in place of the bare reason. _(@mainahq/cli)_
+- The standalone `maina` runtime that host plugins run now embeds the tree-sitter runtime and the grammars it uses (bash for the gate, plus the code-graph languages). _(@mainahq/core)_
 - Quieter, more honest verify tools, and `maina decide` now applies the policy's confidence threshold. _(@mainahq/cli, @mainahq/core)_
 - `maina verify` no longer reports a bundler query import such as `./table.json?url` or `./icon.svg?raw` as a hallucinated import: the slop check resolves the file without its `?…` or `#…` suffix (#554). _(@mainahq/core)_
 - Add golden fixtures that pin the current output of every heuristic decision site (plan checklist, cross-artifact analyzer, spec quality, two-stage review, external-review categorisation, false-positive preferences, slop detector, AI output validation, wiki consult, relevance scoring, model tiers). _(@mainahq/core)_
