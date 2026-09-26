@@ -41,6 +41,7 @@ import { buildMainaEntry } from "../hosts/entry";
 import { hostPathContext, runSetupHosts } from "../hosts/index";
 import { EXIT_CONFIG_ERROR, EXIT_PASSED } from "../json";
 import { applyOps, snapshotFiles } from "../onboarding/apply";
+import { isPolicyCommitted } from "../onboarding/discovery";
 import {
 	describeMigrationChange,
 	type MigrationReport,
@@ -864,6 +865,7 @@ export async function setupAction(
 			constitution: constitutionText,
 			mcpEntry,
 			files: snapshotFiles(onboardingFs, onboardingTargets(planOptions)),
+			policyCommitted: await isPolicyCommitted(cwd),
 		},
 		planOptions,
 	);

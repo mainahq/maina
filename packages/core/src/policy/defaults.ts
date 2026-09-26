@@ -155,5 +155,6 @@ export const DEFAULT_POLICY: Policy = {
 			budgets: { wall_clock_minutes: 60, max_tool_calls: 500 },
 		},
 	},
+	discovery: { receipt_line: true },
 	loosened: [],
 };

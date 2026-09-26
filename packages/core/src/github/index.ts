@@ -12,6 +12,7 @@ export {
 } from "./publish";
 export {
 	type CommentReceipt,
+	discoveryLineEnabled,
 	type GateTally,
 	type ReceiptCriterion,
 	renderReceiptComment,

@@ -324,6 +324,17 @@
 			},
 			"additionalProperties": false,
 			"description": "Per run context (maina run): classes it never performs and the budgets it stops at."
+		},
+		"discovery": {
+			"type": "object",
+			"properties": {
+				"receipt_line": {
+					"type": "boolean",
+					"description": "Show the one-line Maina footer on PR receipt comments (default true). `maina receipt publish` reads it from the repo policy."
+				}
+			},
+			"additionalProperties": false,
+			"description": "How teammates who do not use Maina find it (FR-RET-4)."
 		}
 	},
 	"additionalProperties": false,

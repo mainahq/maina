@@ -604,6 +604,23 @@ describe("log privacy (policy.log.paths)", () => {
 	});
 });
 
+describe("teammate discovery (policy.discovery)", () => {
+	test("the receipt line shows by default", () => {
+		expect(DEFAULT_POLICY.discovery).toEqual({ receipt_line: true });
+	});
+
+	test("a repo layer turns it off", async () => {
+		const result = await loadPolicy(
+			repoPolicy({ discovery: { receipt_line: false } }),
+			ROOT,
+			undefined,
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.value.discovery.receipt_line).toBe(false);
+	});
+});
+
 describe("validation", () => {
 	test("returns every error from every layer with its source and path", async () => {
 		const result = await loadPolicy(

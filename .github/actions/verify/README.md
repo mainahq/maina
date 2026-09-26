@@ -21,7 +21,7 @@ A GitHub Actions composite action that runs the maina verification pipeline and 
 | `pr-comment` | Opt in to the PR receipt: one sticky comment and one `maina/receipt` check run | `false` |
 | `github-token` | Token for the comment and check run (pull-requests + checks write) | `${{ github.token }}` |
 | `comment-author` | Login whose sticky comment is updated; change it with a custom token | `github-actions[bot]` |
-| `discovery-line` | Add the one-line "Verified by Maina" footer | `true` |
+| `discovery-line` | Add the one-line "Verified by Maina" footer (the repo policy's `discovery.receipt_line: false` also turns it off) | `true` |
 | `receipt-context` | JSON file with acceptance criteria, verify scope and gate counts | _(none)_ |
 
 ## PR receipt (opt-in)

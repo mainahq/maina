@@ -5,11 +5,14 @@
  * PR (`--read-only`), writes the receipt to the job summary instead.
  */
 
-import { appendFileSync, readFileSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import { isAbsolute, join, resolve } from "node:path";
 import {
 	type CommentReceipt,
+	discoveryLineEnabled,
 	type HttpPort,
+	type PolicyLayer,
+	parsePolicyLayer,
 	parseReceiptCommentExtras,
 	publishReceipt,
 	type ReceiptCommentExtras,
@@ -91,7 +94,10 @@ export async function receiptPublishAction(
 		},
 		http: deps.http,
 		optIn,
-		discoveryLine: options.discoveryLine !== false,
+		discoveryLine: discoveryLineEnabled({
+			flag: options.discoveryLine,
+			policy: readRepoPolicy(cwd),
+		}),
 		...(options.author ? { author: options.author } : {}),
 	});
 	if (!published.ok) {
@@ -151,6 +157,27 @@ function loadReceipt(
 			...(url ? { url } : {}),
 		},
 	};
+}
+
+/**
+ * The repo policy layer (`.maina/policy.json`), for its `discovery` switch.
+ * Publishing a receipt never fails over the policy (the gate reports an
+ * invalid one on its own): a file with an error elsewhere still has its
+ * `discovery` section honoured, and an unreadable file reads as no policy.
+ */
+function readRepoPolicy(cwd: string): PolicyLayer | undefined {
+	const file = join(cwd, ".maina", "policy.json");
+	if (!existsSync(file)) return undefined;
+	const raw = readJson(cwd, file);
+	if (!raw.ok) return undefined;
+	const whole = parsePolicyLayer(raw.value, "repo", file);
+	if (whole.ok) return whole.value;
+	const discovery =
+		typeof raw.value === "object" && raw.value !== null
+			? (raw.value as { discovery?: unknown }).discovery
+			: undefined;
+	const section = parsePolicyLayer({ discovery }, "repo", file);
+	return section.ok ? section.value : undefined;
 }
 
 function readJson(
@@ -216,7 +243,10 @@ export function receiptPublishCommand(): Command {
 				"--read-only",
 				"the token cannot write (fork PR): use the job summary",
 			)
-			.option("--no-discovery-line", "leave out the one-line Maina footer")
+			.option(
+				"--no-discovery-line",
+				"leave out the one-line Maina footer (the repo policy's discovery.receipt_line: false also does)",
+			)
 			.option("--author <login>", "only update a sticky comment by this login")
 			.option(
 				"--summary-file <path>",

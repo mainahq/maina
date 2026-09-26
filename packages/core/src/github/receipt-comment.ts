@@ -12,6 +12,7 @@
  * break the table, inject HTML or @-mention anyone.
  */
 
+import type { PolicyLayer } from "../policy/schema";
 import type { Check, Receipt } from "../receipt/types";
 import type { VerifyScopeKind } from "../verify/pipeline";
 
@@ -100,6 +101,20 @@ export function renderReceiptComment(
 		...(options.discoveryLine ? ["", DISCOVERY_LINE] : []),
 	];
 	return `${lines.join("\n")}\n`;
+}
+
+/**
+ * Whether the comment carries the discovery line (FR-RET-4). It shows by
+ * default; the repo policy (`discovery.receipt_line: false`) or the caller
+ * (`--no-discovery-line`) turns it off, and neither can turn the other's
+ * "off" back on.
+ */
+export function discoveryLineEnabled(
+	options: Readonly<{ flag?: boolean; policy?: PolicyLayer }>,
+): boolean {
+	return (
+		options.flag !== false && options.policy?.discovery?.receipt_line !== false
+	);
 }
 
 /** The one-line result, also the check-run title (no markdown). */

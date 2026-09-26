@@ -220,6 +220,14 @@ const RunContexts = z.strictObject({
 	unattended: RunContextSpec,
 });
 
+const Discovery = z.strictObject({
+	receipt_line: z
+		.boolean()
+		.describe(
+			"Show the one-line Maina footer on PR receipt comments (default true). `maina receipt publish` reads it from the repo policy.",
+		),
+});
+
 // ── Resolved policy ─────────────────────────────────────────────────────────
 
 const PolicyBody = z.strictObject({
@@ -231,6 +239,7 @@ const PolicyBody = z.strictObject({
 	telemetry: Telemetry,
 	log: Log,
 	run: RunContexts,
+	discovery: Discovery,
 });
 
 /**
@@ -315,6 +324,9 @@ const PolicyLayerSchema = z
 			.describe(
 				"Per run context (maina run): classes it never performs and the budgets it stops at.",
 			)
+			.optional(),
+		discovery: Discovery.partial()
+			.describe("How teammates who do not use Maina find it (FR-RET-4).")
 			.optional(),
 	})
 	.meta({
