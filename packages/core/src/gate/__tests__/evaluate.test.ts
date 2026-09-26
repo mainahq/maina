@@ -33,6 +33,7 @@ import {
 import { createMemoryFs } from "../../ports/testing";
 import { evaluateGate, type GatePorts } from "../evaluate";
 import type { GateContext, GateEvent } from "../events";
+import { formatGateMessage } from "../messages";
 import { evaluateRules } from "../rules";
 import {
 	gateContext,
@@ -947,15 +948,24 @@ describe("the action.risk answers behind a verdict, for the log", () => {
 		expect(record.ok).toBe(true);
 	});
 
-	test("a rule's allow has no decision, so allowed actions are not logged", () => {
+	// #480: every evaluation is logged, so the session summary counts allows.
+	test("a rule's own allow is a decision too, so allowed actions are logged", () => {
 		const result = evaluateGate(
 			gatePorts(),
 			shellEvent("git push origin main"),
 			withRules({ allow: [{ match: "git push" }] }),
 		);
 		expect(result.verdict).toBe("allow");
-		expect(result.decisionIds).toEqual([]);
-		expect(result.decided).toBeUndefined();
+		expect(result.decisionIds.length).toBe(1);
+		expect(result.confidence).toBe(1);
+		const [answer] = result.decided?.answers ?? [];
+		expect(answer?.decision).toMatchObject({
+			id: result.decisionIds[0] as string,
+			answer: "allow",
+			confidence: 1,
+			backend: { id: "rules" },
+		});
+		expect(formatGateMessage(result)).toContain("(confidence high)");
 	});
 
 	test("a second order that fails still reports the first answer", () => {

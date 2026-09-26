@@ -156,6 +156,56 @@ describe("runCursorHook", () => {
 		expect(run.output.stdout).toBe("{}\n");
 	});
 
+	// #480: Cursor's stop runs verify too; a failed one is a follow-up.
+	test("stop sends session.stop to verify and follows up on a failure", async () => {
+		const sent: GateEvent[] = [];
+		const reason =
+			"maina verify failed on changed lines; fix before finishing.";
+		const run = await runCursorHook(
+			raw("stop.input.json"),
+			ports({
+				stopVerify: async (event) => {
+					sent.push(event);
+					return { verdict: "deny", reason, decisionIds: [], degraded: false };
+				},
+			}),
+			"stop",
+		);
+		expect(sent).toEqual([
+			{
+				kind: "session.stop",
+				input: {
+					host: "cursor",
+					sessionId: "668320d2-2fd8-4888-b33c-2a466fec86e7",
+				},
+				cwd: "/home/user/project",
+			},
+		]);
+		expect(parsed(run.output.stdout)).toEqual({ followup_message: reason });
+	});
+
+	test("a stop verify notice goes to stderr, which Cursor's stop output cannot carry", async () => {
+		const notice =
+			"maina verify did not finish within 120 s, so this session's changes were not verified; run maina verify yourself.";
+		const run = await runCursorHook(
+			raw("stop.input.json"),
+			ports({
+				stopVerify: async () => ({
+					verdict: "allow",
+					reason: notice,
+					decisionIds: [],
+					degraded: true,
+				}),
+			}),
+			"stop",
+		);
+		expect(run.output).toEqual({
+			exitCode: 0,
+			stdout: "{}\n",
+			stderr: `${notice}\n`,
+		});
+	});
+
 	test("stop and afterFileEdit print {} and never fail", async () => {
 		const stop = await runCursorHook(
 			raw("stop.input.json"),

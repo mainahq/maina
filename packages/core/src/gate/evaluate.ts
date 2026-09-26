@@ -66,10 +66,11 @@ export type GateResult = Readonly<{
 	verdict: Verdict;
 	reason: string;
 	/**
-	 * Ids of the `action.risk` decisions behind the verdict, for the log. An
-	 * ask or deny a rule reached alone has one too, answered as the rules
-	 * backend, so every rule-decided ask or deny can be overridden by id; a
-	 * rule's allow has none, so allowed actions are not logged.
+	 * Ids of the `action.risk` decisions behind the verdict, for the log. A
+	 * verdict a rule reached alone has one too, answered as the rules
+	 * backend: every rule-decided ask or deny can be overridden by id, and
+	 * every evaluation, allows included, is logged (#480). Empty only when
+	 * the gate could not evaluate the event at all.
 	 */
 	decisionIds: readonly string[];
 	/** The gate could not run in full (no model answer, no shell grammar). */
@@ -160,10 +161,9 @@ function evaluate(
 			: consultModel(ports, event, rules, narrowed.policy, highRisk);
 	if (model === null) {
 		const verdict = settleVerdict(rules, undefined);
-		const settled = { verdict, reason, decisionIds: [], degraded: blind };
-		if (verdict === "allow") return settled;
-		// An ask or a deny the rules reached alone is still a decision: it gets
-		// an id and a log record, so `maina allow <id>` can override it (#448).
+		// A verdict the rules reached alone is still a decision: it gets an id
+		// and a log record, so `maina allow <id>` can override an ask or a
+		// deny (#448) and the session summary counts an allow (#480).
 		const answer = ruleAnswer(
 			riskRequest(
 				event,
@@ -176,7 +176,9 @@ function evaluate(
 			verdict,
 		);
 		return {
-			...settled,
+			verdict,
+			reason,
+			degraded: blind,
 			decisionIds: [answer.decision.id],
 			confidence: answer.decision.confidence,
 			decided: { policy: narrowed.policy, answers: [answer] },
