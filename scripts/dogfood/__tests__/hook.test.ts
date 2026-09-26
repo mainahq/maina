@@ -101,16 +101,20 @@ describe("runDogfoodHook", () => {
 			hookSpecificOutput: {
 				hookEventName: "PreToolUse",
 				permissionDecision: "ask",
-				permissionDecisionReason: "irreversible",
+				// The adapter's gate message (#497), as `maina hook` prints it.
+				permissionDecisionReason:
+					"maina ask: irreversible (confidence high) | override: approve it at the prompt",
 			},
 		});
 		expect(logged[0]?.verdict).toBe("ask");
 	});
 
-	test("a deny exits 2 with the reason on stderr", async () => {
+	test("a deny exits 2 with the gate message on stderr (#497)", async () => {
 		const { out, logged } = await run(bash("npm publish"), gate("deny", "no"));
 		expect(out.exitCode).toBe(2);
-		expect(out.stderr).toBe("no\n");
+		expect(out.stderr).toBe(
+			"maina deny: no (confidence high) | override: change the deny rule or class in your maina policy\n",
+		);
 		expect(JSON.parse(out.stdout).hookSpecificOutput.permissionDecision).toBe(
 			"deny",
 		);
