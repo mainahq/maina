@@ -67,6 +67,39 @@ describe("MCP tool names", () => {
 	});
 });
 
+// The skills must describe calls the tools accept and answer usefully.
+describe("MCP calls the skills teach", () => {
+	test("verify: the MCP tool without `files` checks the working tree, not the staged files", () => {
+		// packages/mcp/src/tools/verify.ts: "Omit to verify the working tree
+		// (staged, unstaged and untracked changes vs the base)".
+		const verify = readSkill("verify");
+		expect(verify).not.toMatch(/without `files` it checks the staged/);
+		expect(verify).toContain("without `files` it checks the working tree");
+	});
+
+	test("every `decide` call a skill teaches names its questions", () => {
+		// The MCP `decide` tool requires `questions`.
+		for (const name of SKILL_NAMES) {
+			const content = readSkill(name);
+			if (!content.includes("`decide` MCP tool")) continue;
+			expect({ name, names: /question/.test(content) }).toEqual({
+				name,
+				names: true,
+			});
+		}
+	});
+
+	test("gate: action.risk is asked by action class", () => {
+		// The rules backend answers action.risk from `state.trusted.actionClass`
+		// alone; without one it always answers ask.
+		const gate = readSkill("gate");
+		expect(gate).toContain("`state.trusted.actionClass`");
+		expect(gate).toContain(
+			"`maina decide --type action.risk --trusted actionClass=",
+		);
+	});
+});
+
 describe("universal language", () => {
 	const TOOL_SPECIFIC_PATTERNS = [
 		/\buse the Read tool\b/i,

@@ -17,7 +17,7 @@ metadata:
 
 ## Steps
 
-1. **Run the pipeline.** Run `maina verify` (the working tree against the base branch), or call the `verify` MCP tool with the `files` you changed (without `files` it checks the staged files). It runs the syntax guard first, then the deterministic tools in parallel (linters, type checker, secret and security scanners, slop detection), and keeps only findings on the lines you changed.
+1. **Run the pipeline.** Run `maina verify` (the working tree against the base branch), or call the `verify` MCP tool with the `files` you changed (without `files` it checks the working tree: staged, unstaged and untracked changes against the base). It runs the syntax guard first, then the deterministic tools in parallel (linters, type checker, secret and security scanners, slop detection), and keeps only findings on the lines you changed.
 2. **Read every tool's status.** Each tool reports `passed`, `failed` or `skipped` with the reason it was skipped. A skipped tool is not a pass: say which ones did not run.
 3. **Fix the findings.** Fix the cause, not the message. Never silence a finding with an ignore comment, never weaken a check, and never pass a skip flag to get past it. If a finding is wrong, say why and let the user decide.
 4. **Re-run until clean.** Repeat steps 1 to 3 until verify passes.
