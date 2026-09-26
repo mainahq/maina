@@ -11,9 +11,10 @@ import { join } from "node:path";
 import { VERSION } from "@mainahq/core";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { PROMPTS } from "../prompts";
-import { keepServingOnStrayErrors, startMcp } from "../server";
+import { keepServingOnStrayErrors, startMcp, startServer } from "../server";
 import { call, connect, expectEnvelope, fakeRuntime, text } from "./fixtures";
 
 const boom = (): never => {
@@ -186,6 +187,50 @@ describe("keepServingOnStrayErrors (#542, FR-MCP-5)", () => {
 		expect(() =>
 			proc.emit("uncaughtException", new Error("detached throw")),
 		).not.toThrow();
+	});
+
+	test("the returned stop removes both listeners", () => {
+		const proc = new EventEmitter();
+		const stop = keepServingOnStrayErrors(proc, () => {});
+		expect(proc.listenerCount("uncaughtException")).toBe(1);
+		expect(proc.listenerCount("unhandledRejection")).toBe(1);
+		stop();
+		expect(proc.listenerCount("uncaughtException")).toBe(0);
+		expect(proc.listenerCount("unhandledRejection")).toBe(0);
+	});
+});
+
+describe("startServer that fails to start (#542)", () => {
+	// startServer reroutes console and marks the process as serving; put
+	// both back.
+	const saved = { ...console };
+	const savedFlag = process.env.MAINA_MCP_SERVER;
+	afterEach(() => {
+		Object.assign(console, saved);
+		if (savedFlag === undefined) delete process.env.MAINA_MCP_SERVER;
+		else process.env.MAINA_MCP_SERVER = savedFlag;
+	});
+
+	test("rejects and leaves no keep-serving listener behind", async () => {
+		// A startup failure must stay fatal: with the stray-error listener
+		// still installed, the entry's rejection would be logged as
+		// "still serving" and the process would exit 0 with no server.
+		const before = {
+			exception: process.listenerCount("uncaughtException"),
+			rejection: process.listenerCount("unhandledRejection"),
+		};
+		const connectSpy = spyOn(McpServer.prototype, "connect").mockRejectedValue(
+			new Error("transport refused"),
+		);
+		try {
+			await expect(
+				startServer({ argv: [], env: {}, cwd: "/repo" }),
+			).rejects.toThrow("transport refused");
+		} finally {
+			connectSpy.mockRestore();
+		}
+		expect(process.listenerCount("uncaughtException")).toBe(before.exception);
+		expect(process.listenerCount("unhandledRejection")).toBe(before.rejection);
 	});
 });
 

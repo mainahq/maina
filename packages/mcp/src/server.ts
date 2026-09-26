@@ -261,20 +261,23 @@ function writeToStderr(
 
 type ProcessEvents = Readonly<{
 	on: (event: string, listener: (error: unknown) => void) => unknown;
+	off: (event: string, listener: (error: unknown) => void) => unknown;
 }>;
 
 /**
  * FR-MCP-5 outside any request: a detached promise that rejects, or a
  * timer that throws, is logged on stderr and the process keeps serving.
  * Without a listener either one ends the process, and every open session
- * with it. Installed by the process entry only (`startServer`).
+ * with it. Installed by the process entry only (`startServer`), which
+ * removes it again with the returned stop when the server fails to start,
+ * so a startup failure stays fatal.
  */
 export function keepServingOnStrayErrors(
 	proc: ProcessEvents = process,
 	write: (line: string) => void = (line) => {
 		process.stderr.write(line);
 	},
-): void {
+): () => void {
 	// A throw inside an `uncaughtException` listener is fatal, so the log
 	// line (stderr may be gone: EPIPE after the host closed it) never throws.
 	const log = (what: string) => (error: unknown) => {
@@ -284,8 +287,14 @@ export function keepServingOnStrayErrors(
 			// Nowhere left to report it; keep serving.
 		}
 	};
-	proc.on("uncaughtException", log("uncaught exception"));
-	proc.on("unhandledRejection", log("unhandled rejection"));
+	const onException = log("uncaught exception");
+	const onRejection = log("unhandled rejection");
+	proc.on("uncaughtException", onException);
+	proc.on("unhandledRejection", onRejection);
+	return () => {
+		proc.off("uncaughtException", onException);
+		proc.off("unhandledRejection", onRejection);
+	};
 }
 
 /**
@@ -319,12 +328,24 @@ export type StartServerInput = Readonly<{
  * the system runtime, stdio. Unknown tool names, and an allow-list that
  * names no known tool, are reported on stderr (never stdout, which
  * carries the protocol). A stray error outside any request is logged,
- * never fatal.
+ * never fatal; a failure to start rejects, with the stray-error listener
+ * removed again.
  */
 export async function startServer(input: StartServerInput): Promise<void> {
 	// Core modules stay silent on stderr while serving MCP.
 	process.env.MAINA_MCP_SERVER = "1";
-	keepServingOnStrayErrors();
+	const stopKeepServing = keepServingOnStrayErrors();
+	try {
+		await serve(input);
+	} catch (error) {
+		// Not serving after all: a startup failure is fatal, never logged
+		// as "still serving" behind a process that then exits 0.
+		stopKeepServing();
+		throw error;
+	}
+}
+
+async function serve(input: StartServerInput): Promise<void> {
 	const allow = resolveAllowList({
 		flag: readToolsFlag(input.argv),
 		env: input.env[TOOLS_ENV],
