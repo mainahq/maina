@@ -493,6 +493,30 @@ describe("planPrePush", () => {
 		expect(plan.branch).toBe("v1/514-x");
 	});
 
+	test("reports the pushed branch that carries HEAD, not the first one", async () => {
+		const f = fake(attached);
+		const plan = await planPrePush(
+			parsePushRefs(
+				`refs/heads/other ${TIP} refs/heads/other ${ZERO}\nHEAD ${HEAD} refs/heads/v1/514-x ${ZERO}\n`,
+			),
+			f.ports,
+		);
+		expect(plan.skip).toBeUndefined();
+		expect(plan.branch).toBe("v1/514-x");
+	});
+
+	test("skips when HEAD is not among the pushed branches", async () => {
+		// `git push origin other` while on v1/514-x: verifying HEAD against
+		// other's PR base would attest a commit that is not being pushed.
+		const f = fake(attached);
+		const plan = await planPrePush(
+			parsePushRefs(`refs/heads/other ${TIP} refs/heads/other ${ZERO}\n`),
+			f.ports,
+		);
+		expect(plan.skip).toContain("HEAD");
+		expect(plan.branch).toBeUndefined();
+	});
+
 	test("runs without stdin refs (not invoked by git) as before", async () => {
 		const f = fake(attached);
 		const plan = await planPrePush([], f.ports);
@@ -585,26 +609,53 @@ describe("produceReceipt base resolution (#514)", () => {
 		expect(f.calls).toContain("git merge-base origin/v1/main HEAD");
 	});
 
-	test("without a PR, a distinct upstream branch is the base", async () => {
+	test("without a PR, a distinct upstream of the pushed branch is the base", async () => {
+		const f = fake({
+			...upstreamIs("origin/v1/main"),
+			"gh pr view v1/514-x --json number,headRefOid,baseRefName,title": {
+				code: 1,
+				stdout: "",
+				stderr: "no pull requests found",
+			},
+		});
+		const r = await produceReceipt(
+			{ publish: false, branch: "v1/514-x" },
+			f.ports,
+		);
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.value.receipt.base).toBe(BASE);
+		expect(f.calls).toContain("git merge-base origin/v1/main HEAD");
+		expect(f.calls).not.toContain("git merge-base origin/master HEAD");
+	});
+
+	test("without a pushed branch, the upstream is never the base (worktree self-tracking)", async () => {
+		// A review worktree's local `review-514` tracks origin/v1/514-x (the
+		// branch itself, under another name). Using it as the base would diff
+		// HEAD against its own remote and attest a near-empty diff.
 		const f = fake({
 			...noPr,
-			...upstreamIs("origin/v1/main"),
-			"gh pr view v1/main --json number,headRefOid,baseRefName,title": {
+			...upstreamIs("origin/v1/514-x"),
+			"gh pr view v1/514-x --json number,headRefOid,baseRefName,title": {
 				code: 1,
 				stdout: "",
 				stderr: "no pull requests found",
 			},
 			"git symbolic-ref --short -q HEAD": {
 				code: 0,
-				stdout: "v1/514-x\n",
+				stdout: "review-514\n",
+				stderr: "",
+			},
+			"git fetch --quiet origin master": { code: 0, stdout: "", stderr: "" },
+			"git merge-base origin/master HEAD": {
+				code: 0,
+				stdout: `${BASE}\n`,
 				stderr: "",
 			},
 		});
 		const r = await produceReceipt({ publish: false }, f.ports);
 		expect(r.ok).toBe(true);
-		if (r.ok) expect(r.value.receipt.base).toBe(BASE);
-		expect(f.calls).toContain("git merge-base origin/v1/main HEAD");
-		expect(f.calls).not.toContain("git merge-base origin/master HEAD");
+		expect(f.calls).toContain("git merge-base origin/master HEAD");
+		expect(f.calls).not.toContain("git merge-base origin/v1/514-x HEAD");
 	});
 
 	test("an upstream that is the branch itself is not a base", async () => {

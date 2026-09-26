@@ -17,11 +17,11 @@
  *   --no-publish  verify + write locally only (used by lefthook pre-push)
  *   --no-fail     always exit 0 (pre-push must never block a push)
  *   --pre-push    read git's pushed refs from stdin; skip deletion-only
- *                 pushes and a detached HEAD, and look the PR up by the
- *                 pushed branch (#514)
+ *                 pushes, a detached HEAD and pushes that do not carry
+ *                 HEAD, and look the PR up by the pushed branch (#514)
  *   --base <ref>  diff base when there is no PR (default: $MAINA_BASE, then
- *                 the upstream branch if it is a different branch, then
- *                 origin/master)
+ *                 (--pre-push only) the upstream branch if it is not the
+ *                 pushed branch, then origin/master)
  *
  * Bootstrap scaffolding: Phase 4 replaces it.
  */
@@ -119,10 +119,18 @@ export async function planPrePush(
 	}
 	const sym = await ports.exec(["git", "symbolic-ref", "-q", "HEAD"]);
 	if (sym.code !== 0) return { skip: "detached HEAD" };
+	if (refs.length === 0) return {};
+	// The receipt attests HEAD, so it belongs to the branch that carries it.
+	const rev = await ports.exec(["git", "rev-parse", "HEAD"]);
+	const head = rev.code === 0 ? rev.stdout.trim().toLowerCase() : "";
 	const pushed = refs.find(
-		(r) => !isZeroSha(r.localSha) && r.remoteRef.startsWith("refs/heads/"),
+		(r) =>
+			r.localSha.toLowerCase() === head &&
+			r.remoteRef.startsWith("refs/heads/"),
 	);
-	return pushed ? { branch: pushed.remoteRef.slice("refs/heads/".length) } : {};
+	return pushed
+		? { branch: pushed.remoteRef.slice("refs/heads/".length) }
+		: { skip: "HEAD is not among the pushed branches" };
 }
 
 export type ReceiptError =
@@ -218,28 +226,19 @@ async function upstreamRef(
 
 /**
  * Base when there is no PR: the upstream branch, if it is a different
- * branch (a stacked branch tracking its parent, or one tracking v1/main).
- * An upstream that is the branch itself would diff HEAD against itself.
+ * branch from the one being pushed (a stacked branch tracking its parent,
+ * or one tracking v1/main). An upstream that is the branch itself would
+ * diff HEAD against itself. Only the pre-push `branch` can tell those
+ * apart: a local name proves nothing, since a worktree's `review-514` may
+ * track origin/v1/514-x itself, so without it the upstream is not used.
  */
 async function upstreamBase(
 	ports: ReceiptPorts,
-	branch?: string,
+	branch: string | undefined,
 ): Promise<string | undefined> {
+	if (branch === undefined) return undefined;
 	const up = await upstreamRef(ports);
-	if (!up) return undefined;
-	const self =
-		branch ??
-		(await (async () => {
-			const r = await ports.exec([
-				"git",
-				"symbolic-ref",
-				"--short",
-				"-q",
-				"HEAD",
-			]);
-			return r.code === 0 ? r.stdout.trim() : undefined;
-		})());
-	return self !== undefined && up.branch !== self ? up.ref : undefined;
+	return up && up.branch !== branch ? up.ref : undefined;
 }
 
 async function mergeBase(
@@ -402,7 +401,7 @@ export async function produceReceipt(
 	}
 
 	// The PR's own base wins; without a PR: --base / MAINA_BASE, then a
-	// distinct upstream branch, then origin/master.
+	// (pre-push) upstream that is not the pushed branch, then origin/master.
 	const baseRef = pr
 		? `origin/${pr.baseRefName}`
 		: (opts.base ??
