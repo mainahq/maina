@@ -5,7 +5,8 @@ name: Runtime artifacts
 # launcher (packages/runtime/launcher) that host plugins run.
 #
 # - launcher: the launcher tests under a GUI-like PATH on every OS
-#   (launch.sh on macOS/Linux, launch.ps1 wherever PowerShell is installed).
+#   (launch.sh on macOS/Linux, launch.ps1 wherever PowerShell is installed),
+#   and the standalone entry's embedded tree-sitter (#526).
 # - build: compiles each target on a runner that can run it where one
 #   exists, and smoke-tests the executable.
 #
@@ -53,6 +54,9 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun test packages/runtime/launcher packages/runtime/build
+      # The compiled executable's embedded tree-sitter (#526) on every OS,
+      # in process: the gate and the code graph, without the resident runtime.
+      - run: bun test packages/runtime/src/standalone
 
   build:
     name: build / ${{ matrix.target }}
