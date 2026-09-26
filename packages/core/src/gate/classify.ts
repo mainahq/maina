@@ -974,27 +974,116 @@ const POLICY_READS: ReadonlySet<string> = new Set([
  */
 const MAINA_REWRITES: ReadonlySet<string> = new Set(["setup", "init"]);
 
+/** `maina mcp` subcommands that only read. */
+const MCP_READS: ReadonlySet<string> = new Set(["list", "help"]);
+
+interface McpOptions {
+	readonly help: boolean;
+	readonly dryRun: boolean;
+	readonly clients: readonly string[];
+	readonly scopes: readonly string[];
+}
+
+/**
+ * The options of `maina mcp …`, read the way Commander reads them: a value
+ * option takes the next word whatever it is (`--client --dry-run` sets the
+ * client, not the dry run), and a bare `--` ends the options.
+ */
+function scanMcpOptions(words: readonly string[]): McpOptions {
+	let help = false;
+	let dryRun = false;
+	const clients: string[] = [];
+	const scopes: string[] = [];
+	for (let i = 0; i < words.length; i++) {
+		const w = words[i] ?? "";
+		if (w === "--") break;
+		const eq = w.indexOf("=");
+		const name = eq < 0 ? w : w.slice(0, eq);
+		const into =
+			name === "--client" ? clients : name === "--scope" ? scopes : null;
+		if (into !== null) {
+			if (eq >= 0) into.push(w.slice(eq + 1));
+			else {
+				i++;
+				into.push(words[i] ?? "");
+			}
+		} else if (w === "--dry-run") dryRun = true;
+		else if (w === "--help" || w === "-h") help = true;
+	}
+	return { help, dryRun, clients, scopes };
+}
+
+/**
+ * Whether `maina mcp add|remove` may write Codex's `config.toml`, a gate
+ * control file, from inside the CLI (#543). Codex has only a global file,
+ * so a dry run, a project-only scope or a client list without Codex stays
+ * clear of it. With no `--client` the CLI auto-detects, and the gate cannot
+ * know Codex is absent; an empty or unreadable value fails closed too.
+ */
+function mcpWritesControlFile(opts: McpOptions): boolean {
+	if (opts.dryRun) return false;
+	const { scopes, clients } = opts;
+	if (scopes.length > 0 && scopes.every((s) => s.toLowerCase() === "project"))
+		return false;
+	if (clients.length === 0) return true;
+	return clients.some((value) => {
+		const list = value
+			.split(",")
+			.map((c) => c.trim().toLowerCase())
+			.filter((c) => c !== "");
+		return (
+			list.length === 0 ||
+			list.some((c) => c === "codex" || c.includes(UNKNOWN_WORD))
+		);
+	});
+}
+
+/** `maina mcp <action> …`: help and reads pass; anything else may write. */
+function mcpOverridesGate(
+	action: string | undefined,
+	words: readonly string[],
+): boolean {
+	const opts = scanMcpOptions(words);
+	if (opts.help || action === undefined || MCP_READS.has(action)) return false;
+	return mcpWritesControlFile(opts);
+}
+
+/**
+ * Whether `maina <sub> <action> …` overrides the gate: `allow`, a `policy`
+ * mutation, `setup`/`init`, or `doctor --fix`, which runs `maina mcp add`
+ * fixes that may write Codex's config.
+ */
+function mainaOverridesGate(
+	sub: string | undefined,
+	action: string | undefined,
+	options: readonly string[],
+): boolean {
+	if (sub === "allow" || MAINA_REWRITES.has(sub ?? "")) return true;
+	if (sub === "policy")
+		return action !== undefined && !POLICY_READS.has(action);
+	return sub === "doctor" && options.includes("--fix");
+}
+
 /**
  * `maina allow` and `maina policy` mutations change what the gate lets
- * through, so an agent running one is overriding its own gate (#447), as does
- * `maina setup`/`init`. Help is harmless; a subcommand the gate cannot read
- * asks.
+ * through, so an agent running one is overriding its own gate (#447), as do
+ * `maina setup`/`init`, `maina mcp add|remove` and `maina doctor --fix`,
+ * which write host configs from inside the CLI (#513, #543). Help is
+ * harmless; a subcommand the gate cannot read asks.
  */
 function mainaClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 	const words = args.map((a) => a.text ?? UNKNOWN_WORD);
-	// A help flag after `--` is an operand, not help.
+	const [sub, action] = words.filter((w) => !w.startsWith("-"));
+	if (sub === "mcp") {
+		if (mcpOverridesGate(action, words)) ctx.out.add("gate.self_override");
+		return;
+	}
+	// A flag after `--` is an operand, not an option.
 	const end = words.indexOf("--");
 	const options = end < 0 ? words : words.slice(0, end);
 	if (options.includes("--help") || options.includes("-h")) return;
-	const [sub, action] = words.filter((w) => !w.startsWith("-"));
 	if (sub === UNKNOWN_WORD) ctx.out.add("shell.opaque");
-	else if (sub === "allow" || MAINA_REWRITES.has(sub ?? ""))
-		ctx.out.add("gate.self_override");
-	else if (
-		sub === "policy" &&
-		action !== undefined &&
-		!POLICY_READS.has(action)
-	)
+	else if (mainaOverridesGate(sub, action, options))
 		ctx.out.add("gate.self_override");
 }
 

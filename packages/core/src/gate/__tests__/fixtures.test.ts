@@ -170,7 +170,7 @@ describe("rules alone", () => {
 				verdict: evaluateRules(eventOf(f), DEFAULT_POLICY, base).kind,
 			}),
 		);
-		expect(outcomes.length).toBeGreaterThanOrEqual(60);
+		expect(outcomes.length).toBeGreaterThanOrEqual(80);
 		expect(
 			outcomes
 				.filter(
