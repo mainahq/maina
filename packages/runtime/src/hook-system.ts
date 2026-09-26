@@ -23,7 +23,7 @@
  * standalone runtime's `hook` mode runs the one for the hook's host.
  */
 
-import { closeSync, existsSync, openSync, writeSync } from "node:fs";
+import { closeSync, constants, existsSync, openSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import cliPackage from "@mainahq/cli/package.json" with { type: "json" };
 import { openDecisionDb } from "@mainahq/cli/src/decision-store";
@@ -129,10 +129,12 @@ export function systemClaudeHookPorts(
 /**
  * Writes `sequence` to the controlling terminal, the way a host that gives
  * its hooks one (Codex, Cursor's CLI) lets them reach it. Throws when there
- * is none; `notify` swallows that.
+ * is none; `notify` swallows that. Opened write-only without O_CREAT or
+ * O_TRUNC, so a missing device (Windows resolves "/dev/tty" to a path on
+ * the current drive) is an error, never a new file.
  */
-function writeTty(sequence: string): void {
-	const fd = openSync("/dev/tty", "w");
+export function writeTty(sequence: string, path = "/dev/tty"): void {
+	const fd = openSync(path, constants.O_WRONLY);
 	try {
 		writeSync(fd, sequence);
 	} finally {
