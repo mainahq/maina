@@ -16,7 +16,7 @@
  *  `maina` on PATH so AI agents that spawn subshells can find it —
  *  see onboarding-60s Wave 1, gap G1). `bunx @mainahq/cli@latest
  *  setup` and `bun add -g @mainahq/cli` are documented alternates
- *  in `docs/getting-started.mdx`. */
+ *  in `docs/install.mdx`. */
 export const INSTALL_COMMAND =
 	"curl -fsSL https://api.mainahq.com/install | bash" as const;
 
@@ -41,7 +41,7 @@ export const META = {
 export const NAV = {
 	brand: "Maina.",
 	links: [
-		{ label: "Docs", href: "/quickstart" },
+		{ label: "Docs", href: "/install/" },
 		{ label: "Commands", href: "/commands" },
 		{ label: "Wiki", href: "/wiki" },
 		{ label: "Cloud", href: "/cloud" },
@@ -270,7 +270,7 @@ export const FINAL_CTA = {
 	// NEEDS CLARIFICATION (plan.md open Q1): Discord link — real or cut?
 	// Until resolved the Discord entry is omitted.
 	secondaryLinks: [
-		{ label: "Read the docs", href: "/quickstart" },
+		{ label: "Read the docs", href: "/install/" },
 		{ label: "Star on GitHub", href: "https://github.com/mainahq/maina" },
 		{
 			label: "Open an issue",
@@ -310,7 +310,7 @@ export const FOOTER = {
 	tagline: "Verification-first developer OS.",
 	links: [
 		{ label: "Cloud", href: "/cloud" },
-		{ label: "Docs", href: "/quickstart" },
+		{ label: "Docs", href: "/install/" },
 		{ label: "GitHub", href: "https://github.com/mainahq/maina" },
 		{
 			label: "License",
