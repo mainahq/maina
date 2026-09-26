@@ -85,6 +85,9 @@ command -v "$maina" >/dev/null 2>&1 || fail_closed gate_unavailable
 # maina's stderr matters only for a deny; anything else it says is dropped.
 errors=$(mktemp "${TMPDIR:-/tmp}/maina-hook.XXXXXX" 2>/dev/null) || errors=
 trap '[ -z "$errors" ] || rm -f "$errors"' EXIT
+# dash runs no EXIT trap on a signal (a host timing the hook out kills it),
+# so leave through exit, which runs it; 2 is a deny in every host.
+trap 'exit 2' HUP INT TERM
 
 if [ -n "$host" ]; then
 	answer=$(printf '%s\n' "$payload" | "$maina" hook --host "$host" "$event" 2>"${errors:-/dev/null}")

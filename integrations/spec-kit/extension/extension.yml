@@ -3,10 +3,10 @@
 #   specify extension add --dev <path-to>/integrations/spec-kit/extension
 #
 # - `pre_tool_use` (an agent runtime event) runs `speckit.maina.gate`, which
-#   hands every tool call to the Maina gate (`maina hook --host <host>
-#   <event>`). Spec Kit
-#   writes it into the host's native hook config (Claude Code, Codex,
-#   Cursor, ...) for the integration the project was initialised with.
+#   hands every tool call to the Maina gate
+#   (`maina hook --host <host> <event>`). Spec Kit writes it into the
+#   host's native hook config (Claude Code, Codex, Cursor, ...) for the
+#   integration the project was initialised with.
 # - `after_tasks` offers `speckit.maina.analyze`: Maina's cross-artifact
 #   check over the feature's spec.md, plan.md and tasks.md.
 schema_version: "1.0"

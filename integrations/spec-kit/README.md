@@ -94,9 +94,9 @@ the pinned host hook fixtures in `packages/runtime/src/adapters/__fixtures__`)
 and the overlay statically, then drives a stock Spec Kit CLI: a workflow
 routing on `maina decide`, the overlay on a `speckit`-shaped workflow and on
 the stock one from the catalog, and the extension installed into a Claude
-Code project and a Codex project. Those live cases skip when no Spec Kit v1 CLI is found
-(`specify`, or `SPECIFY_BIN`), unless `MAINA_REQUIRE_SPECKIT=1`. CI installs
-Spec Kit v1.0.12 and sets it.
+Code project and a Codex project. Those live cases skip when no Spec Kit v1
+CLI is found (`specify`, or `SPECIFY_BIN`), unless `MAINA_REQUIRE_SPECKIT=1`.
+CI installs Spec Kit v1.0.12 and sets it.
 
 Publishing the extension to the Spec Kit community catalog is planned for
 Phase 9.

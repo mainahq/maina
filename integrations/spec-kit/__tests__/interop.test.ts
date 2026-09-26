@@ -26,6 +26,7 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	realpathSync,
 	rmSync,
@@ -332,6 +333,13 @@ describe("pre_tool_use handler", () => {
 			event: "beforeShellExecution",
 		},
 		{
+			name: "a Cursor beforeMCPExecution payload",
+			fixture: ["cursor", "before-mcp-execution.stdio.input.json"],
+			env: {},
+			host: "cursor",
+			event: "beforeMCPExecution",
+		},
+		{
 			name: "a PascalCase payload no host is known for",
 			fixture: ["claude-code", "pre-tool-use.bash.input.json"],
 			env: {},
@@ -387,16 +395,55 @@ describe("pre_tool_use handler", () => {
 		const deny =
 			'{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"blocked by policy"}}';
 		const sb = sandbox({ maina: stubMaina(deny, 2, "blocked by policy") });
+		const tmp = join(sb.home, "tmp");
+		mkdirSync(tmp);
 
 		const result = run([script], sb, {
 			stdin: hookPayload("claude-code", "pre-tool-use.bash.input.json"),
-			env: inClaudeCode,
+			env: { ...inClaudeCode, TMPDIR: tmp },
 		});
 
 		expect(result.code).toBe(2);
 		expect(result.stdout).toBe(`${deny}\n`);
 		expect(result.stderr).toBe("blocked by policy");
+		// The file that held maina's stderr is gone.
+		expect(readdirSync(tmp)).toEqual([]);
 	});
+
+	// A host that times a hook out kills it. dash (Debian's and Ubuntu's
+	// /bin/sh) skips the EXIT trap on a signal, so the handler traps them.
+	const shells = [
+		"/bin/sh",
+		...(Bun.which("dash") ? [Bun.which("dash") as string] : []),
+	];
+	for (const shell of shells) {
+		test(`removes its temp file when the host kills it (${shell})`, async () => {
+			const sb = sandbox({
+				maina: "#!/bin/sh\ncat >/dev/null\nsleep 1\nprintf '{}'\n",
+			});
+			const tmp = join(sb.home, "tmp");
+			mkdirSync(tmp);
+			const proc = Bun.spawn([shell, script], {
+				cwd: sb.dir,
+				env: { ...sb.env, TMPDIR: tmp },
+				stdin: new TextEncoder().encode(
+					hookPayload("cursor", "pre-tool-use.shell.input.json"),
+				),
+				stdout: "ignore",
+				stderr: "ignore",
+			});
+			// Wait until the handler has made its temp file, then kill it.
+			const started = Date.now();
+			while (readdirSync(tmp).length === 0 && Date.now() - started < 5000) {
+				await Bun.sleep(20);
+			}
+			expect(readdirSync(tmp)).toHaveLength(1);
+			proc.kill("SIGTERM");
+			await proc.exited;
+
+			expect(readdirSync(tmp)).toEqual([]);
+		});
+	}
 
 	test("a payload without a pre-tool event name is treated as PreToolUse", () => {
 		const payloads = [
