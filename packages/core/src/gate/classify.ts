@@ -978,6 +978,8 @@ const MAINA_REWRITES: ReadonlySet<string> = new Set(["setup", "init"]);
 const MCP_READS: ReadonlySet<string> = new Set(["list", "help"]);
 
 interface McpOptions {
+	/** A word the gate cannot read, which may be any option or `--`. */
+	readonly opaque: boolean;
 	readonly help: boolean;
 	readonly dryRun: boolean;
 	readonly clients: readonly string[];
@@ -987,9 +989,12 @@ interface McpOptions {
 /**
  * The options of `maina mcp …`, read the way Commander reads them: a value
  * option takes the next word whatever it is (`--client --dry-run` sets the
- * client, not the dry run), and a bare `--` ends the options.
+ * client, not the dry run), and a bare `--` ends the options. An unreadable
+ * word may be `--client=codex`, `--scope=global` or `--`, so it marks the
+ * scan opaque, and a `--dry-run` or help flag after it does not count.
  */
 function scanMcpOptions(words: readonly string[]): McpOptions {
+	let opaque = false;
 	let help = false;
 	let dryRun = false;
 	const clients: string[] = [];
@@ -997,6 +1002,7 @@ function scanMcpOptions(words: readonly string[]): McpOptions {
 	for (let i = 0; i < words.length; i++) {
 		const w = words[i] ?? "";
 		if (w === "--") break;
+		if (w === UNKNOWN_WORD) opaque = true;
 		const eq = w.indexOf("=");
 		const name = eq < 0 ? w : w.slice(0, eq);
 		const into =
@@ -1005,12 +1011,14 @@ function scanMcpOptions(words: readonly string[]): McpOptions {
 			if (eq >= 0) into.push(w.slice(eq + 1));
 			else {
 				i++;
-				into.push(words[i] ?? "");
+				const value = words[i] ?? "";
+				if (value === UNKNOWN_WORD) opaque = true;
+				into.push(value);
 			}
-		} else if (w === "--dry-run") dryRun = true;
-		else if (w === "--help" || w === "-h") help = true;
+		} else if (w === "--dry-run") dryRun ||= !opaque;
+		else if (w === "--help" || w === "-h") help ||= !opaque;
 	}
-	return { help, dryRun, clients, scopes };
+	return { opaque, help, dryRun, clients, scopes };
 }
 
 /**
@@ -1018,10 +1026,11 @@ function scanMcpOptions(words: readonly string[]): McpOptions {
  * control file, from inside the CLI (#543). Codex has only a global file,
  * so a dry run, a project-only scope or a client list without Codex stays
  * clear of it. With no `--client` the CLI auto-detects, and the gate cannot
- * know Codex is absent; an empty or unreadable value fails closed too.
+ * know Codex is absent; an empty or unreadable word fails closed too.
  */
 function mcpWritesControlFile(opts: McpOptions): boolean {
 	if (opts.dryRun) return false;
+	if (opts.opaque) return true;
 	const { scopes, clients } = opts;
 	if (scopes.length > 0 && scopes.every((s) => s.toLowerCase() === "project"))
 		return false;
@@ -1061,7 +1070,11 @@ function mainaOverridesGate(
 	if (sub === "allow" || MAINA_REWRITES.has(sub ?? "")) return true;
 	if (sub === "policy")
 		return action !== undefined && !POLICY_READS.has(action);
-	return sub === "doctor" && options.includes("--fix");
+	// An unreadable word may be `--fix`.
+	return (
+		sub === "doctor" &&
+		(options.includes("--fix") || options.includes(UNKNOWN_WORD))
+	);
 }
 
 /**
@@ -1081,7 +1094,10 @@ function mainaClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 	// A flag after `--` is an operand, not an option.
 	const end = words.indexOf("--");
 	const options = end < 0 ? words : words.slice(0, end);
-	if (options.includes("--help") || options.includes("-h")) return;
+	// An unreadable word may be `--`, so a help flag after it is not help.
+	const opaqueAt = options.indexOf(UNKNOWN_WORD);
+	const readable = opaqueAt < 0 ? options : options.slice(0, opaqueAt);
+	if (readable.includes("--help") || readable.includes("-h")) return;
 	if (sub === UNKNOWN_WORD) ctx.out.add("shell.opaque");
 	else if (mainaOverridesGate(sub, action, options))
 		ctx.out.add("gate.self_override");
