@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/__tests__
+**/__golden__
+**/bench
+**/*.test.ts
+.git
+.maina

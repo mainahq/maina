@@ -131,6 +131,11 @@ const config: KnipConfig = {
 				"!src/__fixtures__/**!",
 			],
 		},
+		"packages/remote": {
+			// The service process: the Dockerfile runs it by path.
+			entry: ["src/main.ts!", TESTS],
+			project: ["src/**/*.ts!", "!src/**/__tests__/**!"],
+		},
 		"packages/skills": {
 			entry: ["__tests__/**/*.test.ts"],
 			project: ["**/*.ts"],

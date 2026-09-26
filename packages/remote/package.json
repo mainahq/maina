@@ -1,0 +1,19 @@
+{
+  "name": "@mainahq/remote",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Maina remote connector: the MCP tools over Streamable HTTP behind OAuth 2.1",
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mainahq/core": "workspace:*",
+    "@mainahq/mcp": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  }
+}

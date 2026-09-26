@@ -8,6 +8,7 @@
     "packages/runtime",
     "packages/harness",
     "packages/mcp",
+    "packages/remote",
     "packages/skills",
     "packages/plugins",
     "packages/docs"
