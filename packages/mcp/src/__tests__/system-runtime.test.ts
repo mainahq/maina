@@ -9,8 +9,9 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { currentSpendTask } from "@mainahq/core";
 import type { McpRuntime } from "../runtime";
-import { systemRuntime } from "../system-runtime";
+import { guard, systemRuntime } from "../system-runtime";
 import { call, connect, expectEnvelope } from "./fixtures";
 
 describe("systemRuntime works from an explicit root, not the process cwd", () => {
@@ -88,5 +89,26 @@ describe("systemRuntime works from an explicit root, not the process cwd", () =>
 		const result = await call(client, "status", {});
 		expect(result.isError).toBe(true);
 		expect(result.structuredContent?.error?.kind).toBe("no_root");
+	});
+});
+
+// #463: the MCP server is one long-lived process, so the per-task budget
+// cap must see one tool call's spend, not the whole session's.
+describe("each capability call is its own spend task", () => {
+	test("calls get distinct task ids, none of them the process's", async () => {
+		const outside = currentSpendTask();
+		const seen: string[] = [];
+		const record = async () => {
+			seen.push(currentSpendTask());
+			await Promise.resolve();
+			seen.push(currentSpendTask());
+			return { ok: true as const, value: undefined };
+		};
+		await guard(record);
+		await guard(record);
+		expect(seen[0]).toBe(seen[1]);
+		expect(seen[2]).toBe(seen[3]);
+		expect(seen[0]).not.toBe(seen[2]);
+		expect(seen).not.toContain(outside);
 	});
 });
