@@ -207,6 +207,16 @@ describe.skipIf(!runsHere)("Cursor plugin (#342)", () => {
 		expect(wipe.map((a) => a.permission)).toEqual(["deny"]);
 		expect(wipe.map((a) => a.exitCode)).toEqual([2]);
 
+		// So is overwriting the installed plugin's own hooks (#533), which
+		// used to be an ordinary write outside the workspace.
+		const [installed] = installedPlugins(w.home, readOrNull);
+		const own = await write(
+			w,
+			join(installed?.root ?? "", "hooks", "hooks.json"),
+		);
+		expect(own.map((a) => a.permission)).toEqual(["deny"]);
+		expect(own.map((a) => a.exitCode)).toEqual([2]);
+
 		// Irreversible commands the user may still approve are never allowed.
 		const rootWipe = await shell(w, "rm -rf /");
 		expect(rootWipe.map((a) => a.permission)).toEqual(["ask"]);
