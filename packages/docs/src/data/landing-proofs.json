@@ -439,19 +439,19 @@
   },
   "corpus": {
     "destructive": {
-      "total": 906,
-      "held": 901
+      "total": 935,
+      "held": 930
     },
     "obfuscated": {
-      "total": 388,
-      "held": 388
+      "total": 400,
+      "held": 400
     },
     "selfOverride": {
       "total": 117,
       "denied": 117
     },
     "benign": {
-      "total": 284,
+      "total": 300,
       "flagged": 1
     }
   },

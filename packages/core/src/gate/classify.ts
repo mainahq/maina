@@ -36,6 +36,7 @@ import {
 	resolvePath,
 } from "./paths";
 import { type ImplicitPush, implicitPush } from "./push";
+import { type Indirection, parseRsync, parseScp, quoteWord } from "./remote";
 import {
 	containsSecret,
 	isCredentialStorePath,
@@ -896,10 +897,33 @@ function sshClasses(
 ): void {
 	const ssh = parseSsh(args.map((a) => a.text));
 	if (ssh.remote || (stdin && ssh.shellOnStdin)) ctx.out.add("remote.exec");
-	for (const local of ssh.local) {
+	classifyLocal(ssh.local, cwd, ctx);
+}
+
+/** Shell text another program runs on this machine; `null` is unreadable. */
+function classifyLocal(
+	commands: readonly (string | null)[],
+	cwd: string,
+	ctx: ShellCtx,
+): void {
+	for (const local of commands) {
 		if (local === null) ctx.out.add("shell.opaque");
 		else classifyShell(local, cwd, ctx.event, ctx.gate, ctx.out);
 	}
+}
+
+/**
+ * An rsync, scp or sftp that runs a command on the remote host is
+ * `remote.exec`; the program it runs here in place of ssh (`-e`, `-S`,
+ * `ProxyCommand`) is classified as shell (#622).
+ */
+function indirectionClasses(
+	inv: Indirection,
+	cwd: string | null,
+	ctx: ShellCtx,
+): void {
+	if (inv.remote) ctx.out.add("remote.exec");
+	classifyLocal(inv.local, cwd ?? ctx.event.root, ctx);
 }
 
 /**
@@ -1355,6 +1379,12 @@ function indexOfArg(args: Argv, text: string): number {
 	return args.findIndex((a) => a.text === text);
 }
 
+/** The words before `--`: the command's own, not those it passes on. */
+function beforeDashDash(args: Argv): Argv {
+	const end = indexOfArg(args, "--");
+	return end < 0 ? args : args.slice(0, end);
+}
+
 function isOpaque(args: Argv): boolean {
 	return args.some((a) => a.text === null);
 }
@@ -1424,6 +1454,20 @@ function findClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
 	const literals = literalArgs(args);
 	const deletes = literals.includes("-delete") || hasExecRemoval(literals);
 	if (deletes) ctx.out.add("fs.delete.recursive");
+	// Each `-exec … ;` is a command of its own (`-exec ssh h cmd {} \;`, #622).
+	// An unresolved word keeps its source text, so it stays unresolved.
+	for (const clause of findExecClauses(args)) {
+		const text = clause.map((a) =>
+			a.text === null ? a.raw : quoteWord(a.text),
+		);
+		classifyShell(
+			text.join(" "),
+			cwd ?? ctx.event.root,
+			ctx.event,
+			ctx.gate,
+			ctx.out,
+		);
+	}
 	// `find / …` or `find ~ …` reaches outside.
 	for (const root of positional(args).slice(0, 1)) {
 		const resolved = resolvePath(root, cwd, ctx.gate.home);
@@ -2111,6 +2155,7 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 	},
 	docker: dockerClassifier,
 	podman: dockerClassifier,
+	nerdctl: dockerClassifier,
 	"docker-compose": (args, _cwd, ctx) => {
 		for (const c of classifyCompose(args.map((a) => a.text))) ctx.out.add(c);
 	},
@@ -2140,7 +2185,11 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 	rsync: (args, cwd, ctx) => {
 		if (literalArgs(args).includes("--delete"))
 			ctx.out.add("fs.delete.recursive");
-		for (const t of positional(args).slice(0, -1)) readTargets(t, cwd, ctx);
+		const rsync = parseRsync(args);
+		indirectionClasses(rsync, cwd, ctx);
+		// The value of `-e 'ssh -i ~/.ssh/key'` is a command, not a source.
+		const operands = args.filter((_, i) => !rsync.values.has(i));
+		for (const t of positional(operands).slice(0, -1)) readTargets(t, cwd, ctx);
 		landsOnGateControl(args, cwd, ctx, {
 			tree: copiesTree(args),
 			targetOption: false,
@@ -2258,7 +2307,9 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 	},
 	scp: (args, cwd, ctx) => {
 		for (const t of positional(args)) readTargets(t, cwd, ctx);
+		indirectionClasses(parseScp(args, false), cwd, ctx);
 	},
+	sftp: (args, cwd, ctx) => indirectionClasses(parseScp(args, true), cwd, ctx),
 	// Deploys.
 	vercel: deployClassifier,
 	netlify: deployClassifier,
@@ -2528,6 +2579,10 @@ function kubectlClassifier(
 	_cwd: string | null,
 	ctx: ShellCtx,
 ): void {
+	// `kubectl exec POD -- CMD` runs in a live container (#622).
+	const [verb] = commandWords(args, KUBECTL_VALUE_OPTIONS, 1);
+	if (verb === "exec" && !asksForHelp(beforeDashDash(args)))
+		ctx.out.add("remote.exec");
 	const s = positional(args)[0];
 	if (
 		[
@@ -2577,6 +2632,7 @@ function gcloudClassifier(
 	if (p[0] === "run" && p[1] === "deploy") ctx.out.add("deploy");
 	if (p[0] === "auth" && p[1] === "print-access-token")
 		ctx.out.add("secrets.read");
+	if (gcloudSshRuns(args)) ctx.out.add("remote.exec");
 	const [first, second] = commandWords(args, GCLOUD_VALUE_OPTIONS, 2);
 	const group = first === "alpha" || first === "beta" ? second : first;
 	const deletes =
@@ -2584,6 +2640,42 @@ function gcloudClassifier(
 	if (deletes && !GCLOUD_LOCAL_GROUPS.has(group ?? "") && !asksForHelp(args))
 		ctx.out.add(cloudDeleteClass(GCLOUD_DATA_GROUPS.has(group ?? "")));
 }
+
+/**
+ * `gcloud compute ssh VM --command CMD`, or a command after `--`, which
+ * gcloud hands to ssh after the host (#622); the same for `tpu-vm ssh` and
+ * `cloud-shell ssh`. A login or a tunnel (`-- -L 8080:localhost:80`) is not.
+ */
+function gcloudSshRuns(args: Argv): boolean {
+	const own = beforeDashDash(args);
+	if (!positional(own).includes("ssh") || asksForHelp(own)) return false;
+	if (
+		own.some((a) => a.text === "--command" || a.text?.startsWith("--command="))
+	)
+		return true;
+	const passed = args.slice(own.length + 1).map((a) => a.text);
+	return own.length < args.length && parseSsh(["host", ...passed]).remote;
+}
+
+/** kubectl global options that take the next word as their value. */
+const KUBECTL_VALUE_OPTIONS: ReadonlySet<string> = new Set([
+	"-n",
+	"--namespace",
+	"--context",
+	"--kubeconfig",
+	"--cluster",
+	"--user",
+	"-s",
+	"--server",
+	"--token",
+	"--as",
+	"--as-group",
+	"--request-timeout",
+	"--certificate-authority",
+	"--client-certificate",
+	"--client-key",
+	"--tls-server-name",
+]);
 
 /** A `--help` or `-h` anywhere: the command only prints its usage. */
 const asksForHelp = (args: Argv): boolean =>
@@ -2714,6 +2806,7 @@ function awsClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 	if (service === "configure" && op === "export-credentials")
 		ctx.out.add("secrets.read");
 	if (service === undefined || op === undefined || operand === "help") return;
+	if (awsRunsCommand(service, op, args)) ctx.out.add("remote.exec");
 	if (literalArgs(args).includes("--dry-run")) return;
 	const deletes =
 		(/^(delete|terminate|purge)-/.test(op) && !AWS_ROUTINE_DELETES.has(op)) ||
@@ -2721,6 +2814,31 @@ function awsClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 			(op === "rb" ||
 				(op === "rm" && literalArgs(args).includes("--recursive"))));
 	if (deletes) ctx.out.add(cloudDeleteClass(AWS_DATA_SERVICES.has(service)));
+}
+
+/**
+ * `aws ssm send-command` and `aws ecs execute-command` run a command on an
+ * instance or in a task (#622), as does an `ssm start-session` whose
+ * document runs one (`AWS-StartInteractiveCommand`); a plain session is a
+ * login and a port-forwarding one a tunnel. An unresolved document could
+ * be either, so it counts.
+ */
+function awsRunsCommand(service: string, op: string, args: Argv): boolean {
+	if (service === "ssm" && op === "send-command") return true;
+	if (service === "ecs" && op === "execute-command") return true;
+	if (service !== "ssm" || op !== "start-session") return false;
+	for (let i = 0; i < args.length; i++) {
+		const a = args[i]?.text;
+		const doc =
+			a === "--document-name"
+				? (args[i + 1]?.text ?? null)
+				: a?.startsWith("--document-name=")
+					? a.slice("--document-name=".length)
+					: undefined;
+		if (doc === null) return true;
+		if (doc !== undefined) return /Command/i.test(doc);
+	}
+	return false;
 }
 
 /** az global options that take the next word as their value. */
@@ -3024,18 +3142,18 @@ function walkPipeline(
 	for (const [index, stage] of stages.entries()) {
 		const view = commandView(stage, cwd, scope, ctx);
 		if (view === null) {
+			// `… | (ssh h)`, `… | { sh; }`: the pipe feeds the commands inside (#622).
+			if (index > 0) {
+				for (const node of stdinReaders(stage)) {
+					const reader = commandView(node, cwd, scope, ctx);
+					if (reader !== null) readsPipe(reader, carry, fetched, cwd, ctx);
+				}
+			}
 			carry = null;
 			continue;
 		}
 		const { cmd } = view;
-		// Text piped into a bare `ssh host` is a script for the remote shell (#614).
-		if (
-			cmd === "ssh" &&
-			index > 0 &&
-			parseSsh(view.args.map((a) => a.text)).shellOnStdin
-		) {
-			ctx.out.add("remote.exec");
-		}
+		if (index > 0) readsPipe(view, carry, fetched, cwd, ctx);
 		if (FETCHERS.has(cmd)) {
 			fetched = true;
 			carry = null;
@@ -3052,21 +3170,6 @@ function walkPipeline(
 			carry = catText(view, scope, carry);
 		} else if (PASSTHROUGH.has(cmd)) {
 			// gunzip, zcat, tee, gzip -d: the payload flows on unchanged enough.
-		} else if (isShellConsumer(cmd)) {
-			if (fetched) ctx.out.add("remote.exec");
-			else if (carry != null) {
-				classifyShell(
-					carry,
-					cwd ?? ctx.event.root,
-					ctx.event,
-					ctx.gate,
-					ctx.out,
-				);
-			} else if (carry === null) {
-				// Unknown text executed as a shell (`echo $PAYLOAD | sh`).
-				ctx.out.add("shell.opaque");
-			}
-			carry = null;
 		} else if (isSqlTool(cmd)) {
 			if (carry != null && isDestructiveSql(carry))
 				ctx.out.add("db.destructive");
@@ -3077,6 +3180,54 @@ function walkPipeline(
 	}
 	// Each stage is also a command in its own right.
 	for (const stage of stages) walkNode(stage, cwd, scope, ctx);
+}
+
+/**
+ * A command reading the previous stage's output: a bare `ssh host` runs it
+ * as a remote script (#614); a shell runs it here, so a fetched payload is
+ * `remote.exec`, a known one is classified, an unknown one is opaque.
+ */
+function readsPipe(
+	view: CommandView,
+	carry: string | null | undefined,
+	fetched: boolean,
+	cwd: string | null,
+	ctx: ShellCtx,
+): void {
+	if (
+		view.cmd === "ssh" &&
+		parseSsh(view.args.map((a) => a.text)).shellOnStdin
+	) {
+		ctx.out.add("remote.exec");
+	}
+	if (!isShellConsumer(view.cmd)) return;
+	if (fetched) ctx.out.add("remote.exec");
+	else if (carry != null)
+		classifyShell(carry, cwd ?? ctx.event.root, ctx.event, ctx.gate, ctx.out);
+	// Unknown text executed as a shell (`echo $PAYLOAD | sh`).
+	else if (carry === null) ctx.out.add("shell.opaque");
+}
+
+/**
+ * The commands of a pipeline stage that can read the pipe: every command of
+ * a subshell, group or loop (the gate cannot tell which one reads first),
+ * and the first stage of a pipeline nested in one.
+ */
+function stdinReaders(
+	node: ShellNode,
+): readonly Extract<ShellNode, { kind: "command" }>[] {
+	switch (node.kind) {
+		case "command":
+			return [node];
+		case "sequence":
+			return node.nodes.flatMap(stdinReaders);
+		case "pipeline":
+			return node.stages.slice(0, 1).flatMap(stdinReaders);
+		case "loop":
+			return stdinReaders(node.body);
+		default:
+			return [];
+	}
 }
 
 const PASSTHROUGH: ReadonlySet<string> = new Set([
@@ -3375,7 +3526,7 @@ function quoteArgv(args: Argv): string | null {
 	const words: string[] = [];
 	for (const a of args) {
 		if (a.text === null) return null;
-		words.push(`'${a.text.replace(/'/g, "'\\''")}'`);
+		words.push(quoteWord(a.text));
 	}
 	return words.join(" ");
 }
@@ -3722,9 +3873,22 @@ function collectRedirects(
 	}
 }
 
-/** The command a `find -exec`/`-execdir`/`-ok`/`-okdir` runs, up to `;` or `+`. */
+/** The commands a `find -exec`/`-execdir`/`-ok`/`-okdir` runs, for rule matching. */
 function findExecCommands(args: Argv): readonly string[] {
 	const found: string[] = [];
+	for (const clause of findExecClauses(args)) {
+		const [exe, ...rest] = stripWrappersPure(clause);
+		if (exe !== undefined) {
+			const name = exe.text === null ? exe.raw : baseCommand(exe.text);
+			found.push([name, ...rest.map((a) => a.text ?? a.raw)].join(" "));
+		}
+	}
+	return found;
+}
+
+/** The argv of each `find -exec`/`-execdir`/`-ok`/`-okdir`, up to `;` or `+`. */
+function findExecClauses(args: Argv): readonly Argv[] {
+	const found: Argv[] = [];
 	for (let i = 0; i < args.length; i++) {
 		const flag = args[i]?.text;
 		if (
@@ -3742,11 +3906,7 @@ function findExecCommands(args: Argv): readonly string[] {
 			if (t === ";" || t === "+") break;
 			words.push(args[j] as Arg);
 		}
-		const [exe, ...rest] = stripWrappersPure(words);
-		if (exe !== undefined) {
-			const name = exe.text === null ? exe.raw : baseCommand(exe.text);
-			found.push([name, ...rest.map((a) => a.text ?? a.raw)].join(" "));
-		}
+		if (words.length > 0) found.push(words);
 		i = j;
 	}
 	return found;
