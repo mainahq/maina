@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "name": "maina-system1",
+  "version": "0.1.0",
+  "dryRun": true,
+  "encodingVersion": "1",
+  "maina": {
+    "repo": "mainahq/maina",
+    "commit": "0000000000000000000000000000000000000000"
+  },
+  "dataset": {
+    "version": "fixture",
+    "manifestHash": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "base": {
+    "id": "fixture-encoder",
+    "revision": "fixture",
+    "license": "MIT"
+  },
+  "runtime": {
+    "format": "onnx",
+    "opset": 17,
+    "quantisation": "int8-dynamic",
+    "minRuntime": "1.20.0",
+    "engines": [
+      "onnxruntime-node",
+      "onnxruntime-web"
+    ]
+  },
+  "calibration": {
+    "file": "calibration.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "artifacts": []
+}
