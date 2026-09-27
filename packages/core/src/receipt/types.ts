@@ -82,9 +82,16 @@ export interface FeedbackEntry {
  * judged whether the diff needed a deep review.
  */
 export interface Triage {
-	/** The decision's id (its question id, as the decision log keys it). */
+	/**
+	 * The decision's id (its question id, as the decision log keys it): the
+	 * `diff.needs_review` decision, or the `diff.sensitive` one when only it
+	 * asked for the deep review (#585).
+	 */
 	decisionId: string;
-	/** True when the deep review was warranted (a yes, or an unsure no). */
+	/**
+	 * True when the deep review was warranted: a yes, or an unsure no, from
+	 * `diff.needs_review` or from `diff.sensitive` (#585).
+	 */
 	needsReview: boolean;
 	/** Probability (0..1) of the decision's answer. */
 	confidence: number;

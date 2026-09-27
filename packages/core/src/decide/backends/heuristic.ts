@@ -4,9 +4,10 @@
  * `__golden__/decisions` exactly (FR-DEC-6). How it derives distributions
  * and confidence is documented in `./distribution.ts`.
  *
- * `action.risk` and `diff.sensitive` have no heuristic; a request for them
- * is an `unsupported` error rather than a guess. `diff.needs_review` and
- * `finding.severity` are v1 rules for the verify triage (#329).
+ * `action.risk` has no heuristic (the rules backend serves it); a request
+ * for it is an `unsupported` error rather than a guess. `diff.needs_review`,
+ * `diff.sensitive` and `finding.severity` are v1 rules for the verify
+ * triage (#329, #585).
  */
 
 import type { Result } from "../../db/index";
@@ -30,7 +31,11 @@ import {
 	specOrphan,
 	specQuality,
 } from "./heuristics/spec";
-import { diffNeedsReview, findingSeverity } from "./heuristics/triage";
+import {
+	diffNeedsReview,
+	diffSensitive,
+	findingSeverity,
+} from "./heuristics/triage";
 
 type Heuristic = (
 	state: DecisionState,
@@ -39,7 +44,7 @@ type Heuristic = (
 
 const HEURISTICS: Readonly<Record<DecisionType, Heuristic | undefined>> = {
 	"action.risk": undefined,
-	"diff.sensitive": undefined,
+	"diff.sensitive": diffSensitive,
 	"diff.needs_review": diffNeedsReview,
 	"task.tier": taskTier,
 	"finding.real": findingReal,

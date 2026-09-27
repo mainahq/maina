@@ -33,6 +33,8 @@ A decision never needs the network. The rules and heuristics are code inside mai
 
 The state a decision is made over comes in two parts. The trusted part holds values maina computed or you configured: counts, flags, action classes from the policy. The untrusted part holds whatever came from the repository or the agent: diff lines, comment bodies, spec text. A model backend must never treat the untrusted part as instructions.
 
+For example, `maina verify` asks two questions about the diff, and each one is a single yes or no for the whole diff. Both get the trusted counts `additions`, `deletions` and `files`, and the untrusted `paths`: every path the diff touches, sorted, with both sides of a rename. `diff.needs_review` gets only these. `diff.sensitive` also gets `patch`, the diff's changed lines without context. It keeps each file's `diff --git` line and gives each run of changed lines its own `@@ -a,b +c,d @@` header, in the form `git diff -U0` uses. Past 6,000 code points the patch is cut and ends with a line holding `…`. A yes or an unsure no to either question sends the diff to the deep review.
+
 A backend's answer is checked before anything acts on it: the probabilities must sum to 1, cover every option in order, and pick one of the most likely options. An answer that fails the check is an error, and the caller falls back to its safe default: the gate asks you.
 
 ## How a backend earns a decision type
