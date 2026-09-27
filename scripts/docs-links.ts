@@ -7,11 +7,12 @@
  * to files in this repository on GitHub (`/blob/` and `/tree/`) must name a
  * file that exists. A relative link is reported: the site serves every
  * page with and without its trailing slash, so it would resolve to two
- * different URLs. Every redirect must land on a page too. Scanned: the docs content, the Astro pages and
- * components, and the README's links to the site. Nothing is fetched:
- * external links other than the repository's own are left alone. The
- * landing copy in `src/data` is not scanned yet: the landing rebuild
- * (#360) replaces it.
+ * different URLs. Every redirect must land on a page too, and no content
+ * page may share its route with an Astro page (#568). Scanned: the docs
+ * content, the Astro pages and components, and the README's links to the
+ * site. Nothing is fetched: external links other than the repository's
+ * own are left alone. The landing copy in `src/data` is not scanned yet:
+ * the landing rebuild (#360) replaces it.
  *
  *   bun scripts/docs-links.ts    exit 1 and list every broken link
  */
@@ -140,22 +141,38 @@ type Site = Readonly<{
 	/** Each page's route and the anchors on it (null: not checked). */
 	pages: ReadonlyMap<string, ReadonlySet<string> | null>;
 	files: ReadonlySet<string>;
+	/** Content pages whose route an Astro page also serves, repo-relative. */
+	conflicts: readonly RouteConflict[];
+}>;
+
+type RouteConflict = Readonly<{
+	content: string;
+	astro: string;
+	route: string;
 }>;
 
 function readSite(root: string, redirects: readonly string[]): Site {
 	const pages = new Map<string, ReadonlySet<string> | null>();
+	const contentFiles = new Map<string, string>();
 	for (const full of walk(join(root, CONTENT))) {
 		const rel = posix(relative(join(root, CONTENT), full));
 		if (!/\.mdx?$/.test(rel)) continue;
 		const slug = rel.replace(/\.mdx?$/, "").replace(/(^|\/)index$/, "");
 		pages.set(route(slug), headingAnchors(readFileSync(full, "utf-8")));
+		contentFiles.set(route(slug), `${CONTENT}/${rel}`);
 	}
+	const conflicts: RouteConflict[] = [];
 	for (const full of walk(join(root, PAGES))) {
 		const rel = posix(relative(join(root, PAGES), full));
 		if (!rel.endsWith(".astro") || rel.includes("[")) continue;
 		const slug = rel.replace(/\.astro$/, "").replace(/(^|\/)index$/, "");
-		// An Astro page outranks a content page on the same route, and its
-		// anchors are not read.
+		// A content page on the same route collides with Starlight's
+		// `/[...slug]` route: Astro warns and serves the Astro page (#568).
+		const content = contentFiles.get(route(slug));
+		if (content !== undefined) {
+			conflicts.push({ content, astro: `${PAGES}/${rel}`, route: route(slug) });
+		}
+		// An Astro page's anchors are not read.
 		pages.set(route(slug), null);
 	}
 	for (const from of redirects) pages.set(route(from), null);
@@ -164,7 +181,7 @@ function readSite(root: string, redirects: readonly string[]): Site {
 			(full) => `/${posix(relative(join(root, PUBLIC), full))}`,
 		),
 	);
-	return { pages, files };
+	return { pages, files, conflicts };
 }
 
 // ── Check ───────────────────────────────────────────────────────────────────
@@ -294,7 +311,17 @@ export function checkDocsLinks(
 			return reason === null ? [] : [{ file, ...link, reason }];
 		});
 	});
-	return [...pages, ...brokenRedirects(root, site, options.redirects)];
+	const conflicts = site.conflicts.map((c) => ({
+		file: c.content,
+		line: 1,
+		href: c.route,
+		reason: `route conflict: ${c.astro} serves ${c.route} too`,
+	}));
+	return [
+		...conflicts,
+		...pages,
+		...brokenRedirects(root, site, options.redirects),
+	];
 }
 
 // ── Entrypoint ──────────────────────────────────────────────────────────────
