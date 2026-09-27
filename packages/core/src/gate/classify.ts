@@ -470,7 +470,8 @@ const MCP_LIVE_NOUNS: ReadonlySet<string> = new Set([
  * `rds_delete_db_instance`, `delete_namespace`. The name must end on the
  * resource, so `remove_repository_collaborator` or `delete_file` is not one.
  */
-function mcpDeletedResource(words: readonly string[]): ActionClass | undefined {
+function mcpDeletedResource(tool: readonly string[]): ActionClass | undefined {
+	const words = mcpResourceWords(tool);
 	const verb = words.findIndex((w) => MCP_DESTROY_VERBS.has(w));
 	const last = words.at(-1) ?? "";
 	if (verb < 0 || verb === words.length - 1) return undefined;
@@ -484,6 +485,32 @@ function mcpDeletedResource(words: readonly string[]): ActionClass | undefined {
 	if (object.some((w) => MCP_REPO_NOUNS.has(w))) return "git.discard";
 	if (object.some((w) => MCP_DATA_NOUNS.has(w))) return "db.destructive";
 	return "deploy";
+}
+
+/** Words that open a qualifier on the resource (`delete_table_by_name`, `drop_table_if_exists`). */
+const MCP_QUALIFIER_STARTS: ReadonlySet<string> = new Set([
+	"by",
+	"if",
+	"with",
+	"for",
+]);
+
+/** Trailing words that say how, not what (`delete_repo_permanently`). */
+const MCP_MANNER_WORDS: ReadonlySet<string> = new Set([
+	"permanently",
+	"force",
+	"forced",
+	"hard",
+	"now",
+	"async",
+]);
+
+/** A tool name's words up to the resource it acts on, qualifiers dropped. */
+function mcpResourceWords(words: readonly string[]): readonly string[] {
+	const cut = words.findIndex((w, i) => i > 0 && MCP_QUALIFIER_STARTS.has(w));
+	const kept = cut < 0 ? [...words] : words.slice(0, cut);
+	while (kept.length > 0 && MCP_MANNER_WORDS.has(kept.at(-1) ?? "")) kept.pop();
+	return kept;
 }
 
 /** Input keys an MCP filesystem tool names a path with (`path`, `file_path`, `destination`, `uri`). */
@@ -760,7 +787,9 @@ function isForkBomb(name: string, body: ShellNode): boolean {
 function recordAssignment(a: Assignment, scope: Scope, ctx: ShellCtx): void {
 	// Substitutions in the value still run.
 	if (a.value) scanWordSubstitutions(a.value, scope, ctx);
-	scope.set(a.name, a.value === null ? null : resolveWord(a.value, scope));
+	const value = a.value === null ? null : resolveWord(a.value, scope);
+	scope.set(a.name, value);
+	gitConfigEnvAssignment(a.name, value, ctx);
 }
 
 function walkCommand(
@@ -1405,6 +1434,12 @@ function gitClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
 		} else if (a === "-c") {
 			gitConfigParameter(args[i + 1], ctx);
 			i += 2;
+		} else if (a === "--config-env") {
+			gitConfigEnvParameter(literals[i + 1], ctx);
+			i += 2;
+		} else if (a.startsWith("--config-env=")) {
+			gitConfigEnvParameter(a.slice("--config-env=".length), ctx);
+			i++;
 		} else if (a === "--git-dir" || a === "--work-tree") i += 2;
 		else if (a.startsWith("-")) i++;
 		else break;
@@ -1575,9 +1610,45 @@ function gitConfigParameter(arg: Arg | undefined, ctx: ShellCtx): void {
 }
 
 /**
- * A `core.hooksPath` value where no repo hook runs: empty, a device, or a
- * dir outside the workspace (a temp dir included). A relative value is
- * relative to the workspace root, where git runs hooks.
+ * `git --config-env <key>=<ENVVAR>`: the value comes from the environment,
+ * so setting the hooks path this way is as opaque as `-c core.hooksPath=$X`.
+ */
+function gitConfigEnvParameter(param: string | undefined, ctx: ShellCtx): void {
+	if (param === undefined) return;
+	if (param.startsWith(UNKNOWN_WORD)) {
+		ctx.out.add("shell.opaque");
+		return;
+	}
+	const eq = param.indexOf("=");
+	if (isHooksPathKey(eq < 0 ? param : param.slice(0, eq)))
+		ctx.out.add("gate.self_override");
+}
+
+/**
+ * Git's config-through-environment variables (`GIT_CONFIG_KEY_<n>`,
+ * `GIT_CONFIG_PARAMETERS`), set on a command or exported: naming
+ * `core.hooksPath` there moves the hooks for every git run that follows.
+ * `value` is null when the gate cannot read it.
+ */
+function gitConfigEnvAssignment(
+	name: string,
+	value: string | null,
+	ctx: ShellCtx,
+): void {
+	if (/^GIT_CONFIG_KEY_\d+$/.test(name)) {
+		if (value === null) ctx.out.add("shell.opaque");
+		else if (isHooksPathKey(value.trim())) ctx.out.add("gate.self_override");
+	} else if (name === "GIT_CONFIG_PARAMETERS") {
+		if (value === null) ctx.out.add("shell.opaque");
+		else if (/core\.hookspath/i.test(value)) ctx.out.add("gate.self_override");
+	}
+}
+
+/**
+ * A `core.hooksPath` value where no repo hook runs: empty, a device, a dir
+ * outside the workspace (a temp dir included), or a dir inside `.git` other
+ * than `.git/hooks` (nothing there is versioned, so it holds no repo hook).
+ * A relative value is relative to the workspace root, where git runs hooks.
  */
 function hooksPathValue(value: string, ctx: ShellCtx): void {
 	if (value === UNKNOWN_WORD) {
@@ -1586,12 +1657,14 @@ function hooksPathValue(value: string, ctx: ShellCtx): void {
 	}
 	const root = ctx.event.root;
 	const resolved = resolvePath(value.trim(), root, ctx.gate.home);
+	const gitDir = `${root.endsWith("/") ? root.slice(0, -1) : root}/.git`;
 	if (
 		value.trim() === "" ||
 		/^nul$/i.test(value.trim()) ||
 		resolved === null ||
 		resolved.startsWith("/dev/") ||
-		!isInside(resolved, root)
+		!isInside(resolved, root) ||
+		(isInside(resolved, gitDir) && !isInside(resolved, `${gitDir}/hooks`))
 	)
 		ctx.out.add("gate.self_override");
 }
@@ -2361,12 +2434,33 @@ function ghClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 	// Deleting a hosted repository takes every ref, issue and release with it (#579).
 	if (p[0] === "repo" && p[1] === "delete" && !asksForHelp(args))
 		ctx.out.add("git.discard");
+	if (p[0] === "api" && ghApiDeletesRepo(literalArgs(args)))
+		ctx.out.add("git.discard");
 	if (
 		p[0] === "auth" &&
 		p[1] === "status" &&
 		literalArgs(args).includes("--show-token")
 	)
 		ctx.out.add("secrets.read");
+}
+
+/** `repos/<owner>/<repo>` itself, optionally as a full API URL: the repository, not a sub-resource. */
+const GH_REPO_ENDPOINT =
+	/^(?:https?:\/\/[^/]+(?:\/api\/v3)?)?\/?repos\/[^/\s]+\/[^/\s]+\/?$/;
+
+/** `gh api -X DELETE repos/<owner>/<repo>`: `gh repo delete` through the REST API (#579). */
+function ghApiDeletesRepo(words: readonly string[]): boolean {
+	let method: string | undefined;
+	for (let i = 0; i < words.length; i++) {
+		const w = words[i] as string;
+		if (w === "-X" || w === "--method") method = words[i + 1];
+		else if (w.startsWith("--method=")) method = w.slice("--method=".length);
+		else if (/^-X./.test(w)) method = w.slice(2);
+	}
+	return (
+		method?.toUpperCase() === "DELETE" &&
+		words.some((w) => GH_REPO_ENDPOINT.test(w))
+	);
 }
 
 function deployClassifier(
@@ -2444,7 +2538,8 @@ function gcloudClassifier(
 	if (p[0] === "run" && p[1] === "deploy") ctx.out.add("deploy");
 	if (p[0] === "auth" && p[1] === "print-access-token")
 		ctx.out.add("secrets.read");
-	const group = p[0] === "alpha" || p[0] === "beta" ? p[1] : p[0];
+	const [first, second] = commandWords(args, GCLOUD_VALUE_OPTIONS, 2);
+	const group = first === "alpha" || first === "beta" ? second : first;
 	const deletes =
 		p.includes("delete") || (p.includes("rm") && recursiveFlag(args));
 	if (deletes && !GCLOUD_LOCAL_GROUPS.has(group ?? "") && !asksForHelp(args))
@@ -2466,6 +2561,20 @@ const recursiveFlag = (args: Argv): boolean =>
  */
 const cloudDeleteClass = (data: boolean): ActionClass =>
 	data ? "db.destructive" : "deploy";
+
+/** gcloud global options that take the next word as their value. */
+const GCLOUD_VALUE_OPTIONS: ReadonlySet<string> = new Set([
+	"--project",
+	"--account",
+	"--configuration",
+	"--billing-project",
+	"--impersonate-service-account",
+	"--verbosity",
+	"--format",
+	"--flags-file",
+	"--trace-token",
+	"--access-token-file",
+]);
 
 /** gcloud groups whose deletes touch only the local CLI's own state. */
 const GCLOUD_LOCAL_GROUPS: ReadonlySet<string> = new Set([
@@ -2503,16 +2612,24 @@ const AWS_VALUE_OPTIONS: ReadonlySet<string> = new Set([
 	"--cli-binary-format",
 ]);
 
-/** The service, operation and first operand of an `aws` command, global options skipped. */
-function awsWords(args: Argv): readonly string[] {
+/** The first `max` non-option words of a CLI command, the values of `valueOptions` skipped. */
+function commandWords(
+	args: Argv,
+	valueOptions: ReadonlySet<string>,
+	max: number,
+): readonly string[] {
 	const words: string[] = [];
-	for (let i = 0; i < args.length && words.length < 3; i++) {
+	for (let i = 0; i < args.length && words.length < max; i++) {
 		const a = args[i]?.text ?? UNKNOWN_WORD;
-		if (AWS_VALUE_OPTIONS.has(a)) i++;
+		if (valueOptions.has(a)) i++;
 		else if (!a.startsWith("-")) words.push(a);
 	}
 	return words;
 }
+
+/** The service, operation and first operand of an `aws` command, global options skipped. */
+const awsWords = (args: Argv): readonly string[] =>
+	commandWords(args, AWS_VALUE_OPTIONS, 3);
 
 const AWS_DATA_SERVICES: ReadonlySet<string> = new Set([
 	"rds",
@@ -2567,6 +2684,14 @@ function awsClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 	if (deletes) ctx.out.add(cloudDeleteClass(AWS_DATA_SERVICES.has(service)));
 }
 
+/** az global options that take the next word as their value. */
+const AZ_VALUE_OPTIONS: ReadonlySet<string> = new Set([
+	"--subscription",
+	"--output",
+	"-o",
+	"--query",
+]);
+
 /** az groups whose deletes touch only the local CLI's own state. */
 const AZ_LOCAL_GROUPS: ReadonlySet<string> = new Set([
 	"config",
@@ -2591,7 +2716,7 @@ function azClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 	const p = positional(args);
 	if (p[0] === "account" && p[1] === "get-access-token")
 		ctx.out.add("secrets.read");
-	const group = p[0] ?? "";
+	const group = commandWords(args, AZ_VALUE_OPTIONS, 1)[0] ?? "";
 	if (
 		(p.includes("delete") || p.includes("purge")) &&
 		!AZ_LOCAL_GROUPS.has(group) &&
@@ -2608,7 +2733,13 @@ function herokuClassifier(
 	const cmd = positional(args)[0];
 	if (cmd?.startsWith("auth:")) ctx.out.add("secrets.read");
 	if (asksForHelp(args)) return;
-	if (cmd === "apps:destroy" || cmd === "destroy") ctx.out.add("deploy");
+	if (
+		cmd === "apps:destroy" ||
+		cmd === "destroy" ||
+		cmd === "addons:destroy" ||
+		cmd === "addons:remove"
+	)
+		ctx.out.add("deploy");
 	if (cmd === "pg:reset") ctx.out.add("db.destructive");
 }
 
@@ -2618,6 +2749,7 @@ function gsutilClassifier(
 	ctx: ShellCtx,
 ): void {
 	const cmd = positional(args)[0];
+	if (asksForHelp(args)) return;
 	if (cmd === "rb" || (cmd === "rm" && recursiveFlag(args)))
 		ctx.out.add("db.destructive");
 }
@@ -2983,7 +3115,18 @@ function stripWrappers(
 			ctx.out.add("privilege.escalate");
 			args = skipSudoOptions(args.slice(1));
 		} else if (cmd === "env") {
-			args = skipEnvPrefix(args.slice(1));
+			const rest = skipEnvPrefix(args.slice(1));
+			// `env NAME=VALUE … cmd` sets the environment like a prefix assignment.
+			for (const a of args.slice(1, args.length - rest.length)) {
+				const m = /^([A-Za-z_][A-Za-z0-9_]*)=/.exec(a.text ?? a.raw);
+				if (m?.[1] !== undefined)
+					gitConfigEnvAssignment(
+						m[1],
+						a.text === null ? null : a.text.slice(m[0].length),
+						ctx,
+					);
+			}
+			args = rest;
 			// Bare `env` (nothing left to run) prints the environment.
 			if (args.length === 0) ctx.out.add("secrets.read");
 		} else if (cmd === "xargs") {

@@ -1488,3 +1488,106 @@ describe("destructive cloud, repo and hook actions the default gate allowed (#57
 		}
 	});
 });
+
+describe("#579 review: other spellings of the same destructive actions", () => {
+	const verdictOf = (event: Parameters<typeof classifyAction>[0]): string =>
+		evaluateRules(event, DEFAULT_POLICY, ctx).kind;
+	const GATED: readonly string[] = ["ask", "deny"];
+
+	test("core.hooksPath set through --config-env or GIT_CONFIG_* env overrides the gate", () => {
+		for (const command of [
+			"git --config-env=core.hooksPath=EMPTY commit -m wip",
+			"git --config-env core.hooksPath=EMPTY commit -m wip",
+			"GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git commit -m wip",
+			"export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hookspath GIT_CONFIG_VALUE_0=/dev/null; git commit -m wip",
+			"env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git commit -m wip",
+			"GIT_CONFIG_PARAMETERS=\"'core.hooksPath'='/dev/null'\" git commit -m wip",
+		]) {
+			expect(classesOf(command), command).toContain("gate.self_override");
+			expect(verdictOf(shellEvent(command)), command).toBe("deny");
+		}
+		// A key the gate cannot read may be the hooks path.
+		expect(classesOf("git --config-env=$K=V commit -m wip")).toContain(
+			"shell.opaque",
+		);
+		expect(
+			classesOf("GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=$K git commit -m wip"),
+		).toContain("shell.opaque");
+		// Other config through the environment stays allowed.
+		expect(GATED).not.toContain(
+			verdictOf(
+				shellEvent(
+					"GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=bot git log",
+				),
+			),
+		);
+	});
+
+	test("a core.hooksPath inside .git, other than .git/hooks, runs no repo hook", () => {
+		expect(classesOf("git config core.hooksPath .git/nohooks")).toContain(
+			"gate.self_override",
+		);
+		expect(
+			verdictOf(shellEvent("git config core.hooksPath .git/hooks")),
+		).not.toBe("deny");
+	});
+
+	test("gh api DELETE of a repository discards it", () => {
+		for (const command of [
+			"gh api -X DELETE repos/acme/api",
+			"gh api --method DELETE /repos/acme/api",
+			"gh api --method=delete repos/{owner}/{repo}",
+			"gh api -XDELETE https://api.github.com/repos/acme/api",
+		]) {
+			expect(classesOf(command), command).toContain("git.discard");
+			expect(verdictOf(shellEvent(command)), command).toBe("ask");
+		}
+		for (const command of [
+			"gh api repos/acme/api",
+			"gh api -X DELETE repos/acme/api/branches/x/protection",
+			"gh api -X GET repos/acme/api",
+		]) {
+			expect(classesOf(command), command).not.toContain("git.discard");
+		}
+	});
+
+	test("MCP delete tools with a trailing qualifier still name the resource", () => {
+		for (const [tool, cls] of [
+			["delete_table_by_name", "db.destructive"],
+			["delete_database_by_id", "db.destructive"],
+			["drop_table_if_exists", "db.destructive"],
+			["delete_repo_permanently", "git.discard"],
+			["deleteRepositoryById", "git.discard"],
+		] as const) {
+			expect(classifyAction(mcpEvent("x", tool, {}), ctx), tool).toContain(cls);
+		}
+		for (const tool of [
+			"delete_access_for_repository",
+			"delete_bucket_objects",
+			"delete_file_by_path",
+		]) {
+			expect(GATED, tool).not.toContain(verdictOf(mcpEvent("x", tool, {})));
+		}
+	});
+
+	test("gcloud and az global options before the group keep its class", () => {
+		expect(
+			classesOf("gcloud --project prod sql instances delete db"),
+		).toContain("db.destructive");
+		expect(
+			classesOf("az --subscription prod sql db delete -n app -s s -g rg"),
+		).toContain("db.destructive");
+		expect(GATED).not.toContain(
+			verdictOf(
+				shellEvent("gcloud --project prod config configurations delete old"),
+			),
+		);
+	});
+
+	test("heroku addons:destroy takes a live resource down; --help only prints usage", () => {
+		expect(
+			classesOf("heroku addons:destroy heroku-postgresql -a app"),
+		).toContain("deploy");
+		expect(GATED).not.toContain(verdictOf(shellEvent("gsutil rb --help")));
+	});
+});
