@@ -190,6 +190,8 @@ export {
 	type Precomputed,
 	precomputedBackend,
 } from "./decide/backends/precomputed";
+// System 1 adapter: delegates what the model cannot answer to rules or the heuristic (#586)
+export { system1Backend } from "./decide/backends/system1";
 export {
 	type DecidePorts,
 	decide,

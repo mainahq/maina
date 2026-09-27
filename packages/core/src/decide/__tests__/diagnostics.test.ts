@@ -29,10 +29,10 @@ const RISK: DecideRequest = {
 	],
 };
 
-const SLOP: DecideRequest = {
-	type: "slop",
-	state: { trusted: {}, untrusted: { text: "console.log(1)" } },
-	questions: [{ kind: "bool", id: "ai-console" }],
+const REVIEW: DecideRequest = {
+	type: "diff.needs_review",
+	state: { trusted: {}, untrusted: {} },
+	questions: [{ kind: "bool", id: "needs_review" }],
 };
 
 const ALLOW: BackendAnswer = {
@@ -44,7 +44,7 @@ const ALLOW: BackendAnswer = {
 	],
 };
 
-const NOT_SLOP: BackendAnswer = {
+const NO_REVIEW: BackendAnswer = {
 	answer: false,
 	distribution: [
 		{ answer: true, p: 0.1 },
@@ -124,14 +124,14 @@ describe("decide carries a backend's diagnostics onto the decision", () => {
 	});
 
 	test("a backend without diagnostics gives a decision without them", () => {
-		const decision = decideOne(SLOP, NOT_SLOP);
+		const decision = decideOne(REVIEW, NO_REVIEW);
 		expect(decision).not.toHaveProperty("diagnostics");
 		expect(decision).not.toHaveProperty("escalated");
 	});
 
 	test("fields outside the contract are dropped, so no raw content rides along", () => {
-		const decision = decideOne(SLOP, {
-			...NOT_SLOP,
+		const decision = decideOne(REVIEW, {
+			...NO_REVIEW,
 			diagnostics: { windows: 2, reason: "the diff says console.log" },
 		});
 		expect(decision.diagnostics).toEqual({ windows: 2 });
@@ -278,18 +278,18 @@ describe("escalate maps to ask for action.risk", () => {
 
 describe("escalate marks a shadow type's decision not acted", () => {
 	test("the answer stands, but no threshold lets it act", () => {
-		// slop costs FP 1, FN 1: the cutoff is 0.5.
-		const decision = decideOne(SLOP, {
-			...NOT_SLOP,
+		// diff.needs_review costs FP 1, FN 1: the cutoff is 0.5.
+		const decision = decideOne(REVIEW, {
+			...NO_REVIEW,
 			diagnostics: { escalate: 0.6 },
 		});
 		expect(decision.answer).toBe(false);
-		expect(decision.distribution).toEqual(NOT_SLOP.distribution);
+		expect(decision.distribution).toEqual(NO_REVIEW.distribution);
 		expect(decision.escalated).toBe(true);
 		expect(
 			confidenceThreshold(
 				DEFAULT_POLICY,
-				"slop",
+				"diff.needs_review",
 				decision.backend,
 				decision.escalated,
 			),
@@ -299,20 +299,25 @@ describe("escalate marks a shadow type's decision not acted", () => {
 			...DEFAULT_POLICY,
 			decisions: {
 				...DEFAULT_POLICY.decisions,
-				slop: {
-					...DEFAULT_POLICY.decisions.slop,
+				"diff.needs_review": {
+					...DEFAULT_POLICY.decisions["diff.needs_review"],
 					thresholds: { confidence: 0 },
 				},
 			},
 		};
-		expect(confidenceThreshold(anything, "slop", decision.backend, true)).toBe(
-			Number.POSITIVE_INFINITY,
-		);
+		expect(
+			confidenceThreshold(
+				anything,
+				"diff.needs_review",
+				decision.backend,
+				true,
+			),
+		).toBe(Number.POSITIVE_INFINITY);
 	});
 
 	test("under the cutoff it is acted on as usual", () => {
-		const decision = decideOne(SLOP, {
-			...NOT_SLOP,
+		const decision = decideOne(REVIEW, {
+			...NO_REVIEW,
 			diagnostics: { escalate: 0.4 },
 		});
 		expect(decision).not.toHaveProperty("escalated");
@@ -320,17 +325,20 @@ describe("escalate marks a shadow type's decision not acted", () => {
 
 	test("judgeEach reports which candidates escalated", () => {
 		const judged = judgeEach(
-			ports("slop", model({ ...NOT_SLOP, diagnostics: { escalate: 0.7 } })),
+			ports(
+				"diff.needs_review",
+				model({ ...NO_REVIEW, diagnostics: { escalate: 0.7 } }),
+			),
 			{
-				type: "slop",
-				check: "ai-console",
+				type: "diff.needs_review",
+				check: "needs_review",
 				untrusted: [{ text: "a" }, { text: "b" }],
 			},
 		);
 		expect(judged.map((j) => j.escalated)).toEqual([true, true]);
-		const calm = judgeEach(ports("slop", model(NOT_SLOP)), {
-			type: "slop",
-			check: "ai-console",
+		const calm = judgeEach(ports("diff.needs_review", model(NO_REVIEW)), {
+			type: "diff.needs_review",
+			check: "needs_review",
 			untrusted: [{ text: "a" }],
 		});
 		expect(calm[0]).not.toHaveProperty("escalated");

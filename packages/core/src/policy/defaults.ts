@@ -8,6 +8,7 @@ import { DEFAULT_PROTECTED_BRANCHES } from "../gate/events";
 import {
 	type ActionClassPolicy,
 	DECISION_TYPES,
+	type DecisionBackend,
 	type DecisionPolicy,
 	type DecisionType,
 	LOCKED_ACTION_CLASSES,
@@ -130,12 +131,23 @@ const SAFETY_CRITICAL: ReadonlySet<DecisionType> = new Set([
 ]);
 
 /**
+ * Types promoted to a backend other than their catalog default (FR-DEC-8).
+ * Promoting `action.risk` to the model (8.8, #339) adds
+ * `"action.risk": "system1"` here, and never changes the catalog's
+ * `defaultBackend`: that stays the built-in backend the registry falls back
+ * to when the model is not installed or disabled itself, and the one the
+ * `system1` adapter delegates to when the model cannot answer (#586).
+ * Empty until a promotion passes its gates.
+ */
+const PROMOTED: Readonly<Partial<Record<DecisionType, DecisionBackend>>> = {};
+
+/**
  * No threshold is set here: an unset one resolves by the backend that
  * answers (`confidenceThreshold`), so a user or repo value can be told apart
  * from the default.
  */
 function defaultDecision(type: DecisionType): DecisionPolicy {
-	const backend = DECISION_CATALOG[type].defaultBackend;
+	const backend = PROMOTED[type] ?? DECISION_CATALOG[type].defaultBackend;
 	return SAFETY_CRITICAL.has(type)
 		? {
 				backend,

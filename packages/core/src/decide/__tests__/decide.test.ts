@@ -312,6 +312,12 @@ describe("backend selection follows the policy", () => {
 		state: { trusted: {}, untrusted: { text: "console.log(1)" } },
 		questions: [{ kind: "bool", id: "ai-console" }],
 	};
+	/** A type the model covers (#586), unlike `slop`. */
+	const needsReview: DecideRequest = {
+		type: "diff.needs_review",
+		state: EMPTY_STATE,
+		questions: [{ kind: "bool", id: "needs_review" }],
+	};
 
 	test("uses the default policy's backend for each type", () => {
 		const [risk] = decisionsOf(decide(ports(), SAMPLES[0] as DecideRequest));
@@ -321,13 +327,15 @@ describe("backend selection follows the policy", () => {
 	});
 
 	test("uses the backend the policy names when it is registered", () => {
-		const policy = withBackend(DEFAULT_POLICY, "slop", "system1");
+		const policy = withBackend(DEFAULT_POLICY, "diff.needs_review", "system1");
 		const backends = createRegistry([
 			rulesBackend,
 			heuristicBackend,
 			fakeSystem1,
 		]);
-		const [decision] = decisionsOf(decide(ports({ policy, backends }), slop));
+		const [decision] = decisionsOf(
+			decide(ports({ policy, backends }), needsReview),
+		);
 		expect(decision).toMatchObject({
 			answer: false,
 			confidence: 0.7,
@@ -338,15 +346,17 @@ describe("backend selection follows the policy", () => {
 	test("a calibrated backend's calibration rides on the decision (#576)", () => {
 		const calibration = {
 			sha256: "c".repeat(64),
-			thresholds: { slop: { confidence: 0.65 } },
+			thresholds: { "diff.needs_review": { confidence: 0.65 } },
 		};
-		const policy = withBackend(DEFAULT_POLICY, "slop", "system1");
+		const policy = withBackend(DEFAULT_POLICY, "diff.needs_review", "system1");
 		const backends = createRegistry([
 			rulesBackend,
 			heuristicBackend,
 			{ ...fakeSystem1, calibration },
 		]);
-		const [decision] = decisionsOf(decide(ports({ policy, backends }), slop));
+		const [decision] = decisionsOf(
+			decide(ports({ policy, backends }), needsReview),
+		);
 		expect(decision?.backend).toEqual({
 			id: "system1",
 			version: "test-1",
@@ -354,6 +364,18 @@ describe("backend selection follows the policy", () => {
 		});
 		const [plain] = decisionsOf(decide(ports(), slop));
 		expect(plain?.backend).not.toHaveProperty("calibration");
+	});
+
+	test("a system1 backend never serves a type the model does not cover (#586)", () => {
+		const policy = withBackend(DEFAULT_POLICY, "slop", "system1");
+		const backends = createRegistry([
+			rulesBackend,
+			heuristicBackend,
+			fakeSystem1,
+		]);
+		const [decision] = decisionsOf(decide(ports({ policy, backends }), slop));
+		expect(decision?.backend.id).toBe("heuristic");
+		expect(decision?.answer).toBe(true);
 	});
 
 	test("falls back to the catalog default when the named backend is not registered", () => {
