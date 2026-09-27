@@ -5,6 +5,14 @@
  * checks an open one (`scripts/dogfood/receipt-check.ts`): a receipt
  * comment from a trusted author, for the head that was merged, `passed`.
  *
+ * Counted from receipt enforcement (#570): receipts became required with
+ * the merge of #371 (`RECEIPTS_ENFORCED_BY`), which added the receipt
+ * tooling and the Dogfood check. A PR opened before that merge could not
+ * have carried a receipt, so it is listed under `exempt` and not counted.
+ * No PR can be opened in the past, so the exempt set is closed: every PR
+ * opened since must carry one. When #371 is not among the merges (another
+ * repository or base), every merge counts.
+ *
  *   bun scripts/release/evidence/receipts.ts --out <file> [--base v1/main] [--repo o/r]
  */
 
@@ -14,27 +22,45 @@ import {
 	selectReceipt,
 } from "../../dogfood/receipt-check";
 
+/** The PR whose merge made receipts required on v1/main. */
+export const RECEIPTS_ENFORCED_BY = 371;
+
 export type MergedPr = Readonly<{
 	number: number;
 	headRefOid: string;
 	comments: readonly PrComment[];
+	/** ISO timestamps, as `gh pr list --json createdAt,mergedAt` gives them. */
+	createdAt: string;
+	mergedAt: string;
 }>;
 
 export type ReceiptedMergesEvidence = Readonly<{
 	link: string;
+	/** `#<pr> (merged <ts>)`: the enforcement merge counted from; null: all. */
+	since: string | null;
+	/** Merges counted: every merge since enforcement. */
 	merges: number;
 	receipted: number;
 	/** `#<pr> (<why>)`, in PR order. */
 	unreceipted: readonly string[];
+	/** `#<pr>` of PRs opened before enforcement, in PR order; not counted. */
+	exempt: readonly string[];
 }>;
 
 export function receiptedMergesEvidence(
 	prs: readonly MergedPr[],
 	link: string,
 ): ReceiptedMergesEvidence {
+	const enforcement = prs.find((pr) => pr.number === RECEIPTS_ENFORCED_BY);
+	const enforcedAt =
+		enforcement === undefined ? Number.NaN : Date.parse(enforcement.mergedAt);
+	const isExempt = (pr: MergedPr): boolean =>
+		pr !== enforcement && Date.parse(pr.createdAt) < enforcedAt;
+	const sorted = [...prs].sort((a, b) => a.number - b.number);
+	const counted = sorted.filter((pr) => !isExempt(pr));
 	const unreceipted: string[] = [];
 	let receipted = 0;
-	for (const pr of [...prs].sort((a, b) => a.number - b.number)) {
+	for (const pr of counted) {
 		const check = receiptCheck(
 			pr.headRefOid,
 			selectReceipt(pr.comments, pr.headRefOid),
@@ -42,7 +68,17 @@ export function receiptedMergesEvidence(
 		if (check.ok) receipted++;
 		else unreceipted.push(`#${pr.number} (${check.error.code})`);
 	}
-	return { link, merges: prs.length, receipted, unreceipted };
+	return {
+		link,
+		since:
+			enforcement === undefined
+				? null
+				: `#${enforcement.number} (merged ${enforcement.mergedAt})`,
+		merges: counted.length,
+		receipted,
+		unreceipted,
+		exempt: sorted.filter(isExempt).map((pr) => `#${pr.number}`),
+	};
 }
 
 // ── CLI (imperative shell) ────────────────────────────────────────────────
@@ -65,7 +101,7 @@ if (import.meta.main) {
 			"--limit",
 			"2000",
 			"--json",
-			"number,headRefOid,comments",
+			"number,headRefOid,comments,createdAt,mergedAt",
 		],
 		{ stdout: "pipe", stderr: "pipe" },
 	);

@@ -16,10 +16,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { parseGateLog } from "../../../packages/core/src/digest/build";
 import type { ClaudeHookPorts } from "../../../packages/runtime/src/claude-hook";
 import { systemGates } from "../../../packages/runtime/src/gate-system";
 import { type LogRecord, runDogfoodHook } from "../hook";
-import { parseLog } from "../report";
 
 const ROOT = resolve(import.meta.dir, "../../..");
 const NOW = "2026-09-25T10:00:00.000Z";
@@ -240,10 +240,10 @@ describe("runDogfoodHook", () => {
 		expect(logged[0]?.action.endsWith("...")).toBe(true);
 	});
 
-	test("records are what the weekly report reads", async () => {
+	test("records parse back as the gate log", async () => {
 		const { logged } = await run(bash("ls"), gate("ask"));
 		const text = logged.map((r) => JSON.stringify(r)).join("\n");
-		expect(parseLog(text)).toEqual({ records: logged, malformed: 0 });
+		expect(parseGateLog(text)).toEqual({ records: logged, malformed: 0 });
 	});
 
 	test("a tool maina does not gate is left alone and not logged", async () => {

@@ -116,10 +116,25 @@ cannot answer in time, the rules-only gate runs in process and never allows.
 The hook only tightens: `ask` and `deny` are passed on, an `allow` stays silent
 so Claude Code's own permission flow applies, and it fails closed to `ask` if
 it cannot run. To override a deny, start Claude Code with
-`MAINA_DOGFOOD_OVERRIDE=1` (denies become `ask`). Decisions are logged to
-`.maina/dogfood/log.jsonl`; `bun run dogfood:report` writes the weekly summary
-to `docs/dogfood/<yyyy-ww>.md`. Report friction with the **Dogfood friction**
-issue template.
+`MAINA_DOGFOOD_OVERRIDE=1` (denies become `ask`). The runtime appends its
+gate decisions to the decision log, `.maina/decisions.db` (hashes and labels
+only); the hook also keeps a local trail with the command text in
+`.maina/dogfood/log.jsonl`. Both are gitignored. The hook only runs when
+Claude Code is started in a v1 checkout (project settings load from the
+directory Claude Code starts in, not from a worktree under it).
+
+The weekly dogfood report comes from the decision log. Commit the week that
+just ended from the checkout where the gate ran:
+
+```bash
+maina digest --dogfood --commit     # or: bun run dogfood:report, then commit
+```
+
+It writes `docs/dogfood/<yyyy-ww>.md` and commits that file alone; it
+refuses to commit a week with no gate decisions, which would not count. The
+Monday workflow keeps a committed report and opens a bot PR with the
+recomputed `docs/dogfood/dogfood-weeks.json`, publishing the bot head's own
+receipt. Report friction with the **Dogfood friction** issue template.
 
 ## Getting Help
 

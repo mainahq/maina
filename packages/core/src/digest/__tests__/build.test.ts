@@ -12,6 +12,7 @@ import type { OutcomeRecord } from "../../decide/outcomes/types";
 import {
 	buildDigest,
 	decisionLogEvents,
+	type GateLogRecord,
 	gateLogEvents,
 	isoWeek,
 	isWeekKey,
@@ -73,6 +74,54 @@ describe("parseGateLog", () => {
 		expect(records).toHaveLength(14);
 		// An unparseable date, an unknown verdict and a non-JSON line.
 		expect(malformed).toBe(3);
+	});
+
+	// #584: the dogfood hook logs where and how each call was gated. Lines
+	// written before that (no such fields) still count.
+	const line = (o: Record<string, unknown>): string => JSON.stringify(o);
+	const BASE: GateLogRecord = {
+		ts: "2026-09-25T10:00:00.000Z",
+		tool: "Bash",
+		action: "ls",
+		verdict: "allow",
+		reason: "no rule matched",
+	};
+	const CONTEXT: Partial<GateLogRecord> = {
+		root: "/work/maina",
+		host: "claude-code",
+		permissionMode: "accept_edits",
+		decisionIds: ["d-1", "d-1:reversed"],
+	};
+
+	test("reads the root, host, permission mode and decision ids (#584)", () => {
+		const { records, malformed } = parseGateLog(line({ ...BASE, ...CONTEXT }));
+		expect(malformed).toBe(0);
+		expect(records).toEqual([{ ...BASE, ...CONTEXT }]);
+		const [r] = records;
+		expect(r?.root).toBe("/work/maina");
+		expect(r?.host).toBe("claude-code");
+		expect(r?.permissionMode).toBe("accept_edits");
+		expect(r?.decisionIds).toEqual(["d-1", "d-1:reversed"]);
+	});
+
+	test("lines written before #584 still parse", () => {
+		const { records, malformed } = parseGateLog(line(BASE));
+		expect(malformed).toBe(0);
+		expect(records).toEqual([BASE]);
+	});
+
+	test.each([
+		["root", { root: 7 }],
+		["host", { host: null }],
+		["permissionMode", { permissionMode: "yolo" }],
+		["decisionIds (not a list)", { decisionIds: "d-1" }],
+		["decisionIds (not strings)", { decisionIds: ["d-1", 2] }],
+	])("a line with a bad %s is malformed (#584)", (_name, bad) => {
+		const { records, malformed } = parseGateLog(
+			line({ ...BASE, ...CONTEXT, ...bad }),
+		);
+		expect(records).toEqual([]);
+		expect(malformed).toBe(1);
 	});
 });
 

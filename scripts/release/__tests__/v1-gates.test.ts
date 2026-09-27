@@ -517,6 +517,39 @@ describe("evaluateGates", () => {
 		expect(r.details.join("\n")).toMatch(/orderFlips.*missing/);
 	});
 
+	// #570: receipts became required with the merge of #371; merges of PRs
+	// opened before it are exempt, and the report says so.
+	test("receipted-merges counts from receipt enforcement and names the exempt merges", () => {
+		const report = evaluateGates(
+			inputs({
+				"receipted-merges.json": {
+					link: link("receipts"),
+					since: "#371 (merged 2026-09-25T03:58:50Z)",
+					merges: 129,
+					receipted: 129,
+					unreceipted: [],
+					exempt: ["#366", "#367"],
+				},
+			}),
+		);
+		const r = result(report, "receipted-merges");
+		expect(r.status).toBe("pass");
+		const details = r.details.join("\n");
+		expect(details).toContain(
+			"129 of 129 v1/main merges since #371 (merged 2026-09-25T03:58:50Z) carry a valid receipt",
+		);
+		expect(details).toContain(
+			"exempt (opened before receipt enforcement): #366, #367",
+		);
+	});
+
+	test("receipted-merges is titled from receipt enforcement (#371)", () => {
+		const item = GATE_ITEMS.find((i) => i.id === "receipted-merges");
+		expect(item?.title).toBe(
+			"100% of v1/main merges since receipt enforcement (#371) carry a valid receipt",
+		);
+	});
+
 	test("evidence without an http(s) link fails", () => {
 		const report = evaluateGates(
 			inputs({ "e2e-matrix.json": { runs: 1000, passed: 1000 } }),

@@ -24,10 +24,12 @@
  * Every gated decision is appended to `.maina/dogfood/log.jsonl`
  * (gitignored; `MAINA_DOGFOOD_LOG` overrides the path) as
  * `{ ts, tool, action, verdict, reason, override?, root, host,
- * permissionMode, decisionIds }` and summarised weekly by
- * `bun run dogfood:report`. `root`, `host`, `permissionMode` and
- * `decisionIds` (#584) let an exporter rebuild the gate event under its
- * workspace root and join the record to the decision log's outcomes.
+ * permissionMode, decisionIds }`: a local trail with the command text, for
+ * friction reports. `root`, `host`, `permissionMode` and `decisionIds`
+ * (#584) let an exporter rebuild the gate event under its workspace root and
+ * join the record to the decision log's outcomes. The weekly report reads
+ * the decision log instead (`.maina/decisions.db`, #570), which the runtime
+ * this hook asks appends its gate decisions to, as hashes and labels only.
  */
 
 import {
