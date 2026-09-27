@@ -1,7 +1,7 @@
 {
 	"schema": "maina/encoding-parity@1",
 	"encodingVersion": 1,
-	"reference": "mainahq/maina-model docs/handoff/encoding.md steps 2-4 (model/encoding.py canonicalize, js_json, scrub) and contracts/buckets.py (length_bucket, approx_tokens)",
+	"reference": "mainahq/maina-model docs/handoff/encoding.md steps 2-4 (model/encoding.py canonicalize, js_json, scrub) and contracts/buckets.py (length_bucket, approx_tokens) over the request with every question id at its base (one trailing :reversed stripped)",
 	"forbidden": [
 		"<|endoftext|>",
 		"<|padding|>",
