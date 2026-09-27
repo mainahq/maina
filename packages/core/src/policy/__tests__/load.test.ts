@@ -2,12 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { createMemoryFs } from "../../ports/testing";
 import {
 	confidenceThreshold,
+	DEFAULT_ERROR_COSTS,
 	DEFAULT_POLICY,
 	DENIED_ACTION_CLASSES,
 	IRREVERSIBLE_ACTION_CLASSES,
 	UNATTENDED_DENIED_ACTION_CLASSES,
 } from "../defaults";
 import { loadPolicy } from "../load";
+import { DECISION_TYPES } from "../schema";
 
 const ROOT = "/repo";
 const POLICY_PATH = "/repo/.maina/policy.json";
@@ -75,6 +77,36 @@ describe("default policy", () => {
 			ok: true,
 			value: DEFAULT_POLICY,
 		});
+	});
+});
+
+describe("DEFAULT_ERROR_COSTS (#588)", () => {
+	test("prices a miss ten times a false alarm for safety-critical types only", () => {
+		expect(Object.keys(DEFAULT_ERROR_COSTS)).toEqual([...DECISION_TYPES]);
+		for (const type of DECISION_TYPES) {
+			const safetyCritical =
+				type === "action.risk" || type === "diff.sensitive";
+			expect(DEFAULT_ERROR_COSTS[type]).toEqual(
+				safetyCritical
+					? { false_positive: 1, false_negative: 10 }
+					: { false_positive: 1, false_negative: 1 },
+			);
+		}
+	});
+
+	test("is what the default policy carries per type", () => {
+		for (const type of DECISION_TYPES) {
+			expect(DEFAULT_POLICY.decisions[type]?.error_costs).toEqual(
+				DEFAULT_ERROR_COSTS[type],
+			);
+		}
+	});
+
+	test("is frozen, entries included", () => {
+		expect(Object.isFrozen(DEFAULT_ERROR_COSTS)).toBe(true);
+		for (const type of DECISION_TYPES) {
+			expect(Object.isFrozen(DEFAULT_ERROR_COSTS[type])).toBe(true);
+		}
 	});
 });
 
