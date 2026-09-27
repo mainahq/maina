@@ -124,6 +124,35 @@ describe("hashes are stable across runs", () => {
 		);
 	});
 
+	test("an uncalibrated backend's model hash is unchanged (pinned)", () => {
+		expect(hashModel({ id: "system1", version: "0.1.0" })).toBe(
+			"sha256:9a8e6daf43e0d0f0209714c9ddef2183c0d803544b00626321fdb1c7672fcf06",
+		);
+	});
+
+	test("the calibration sha is part of the model and policy hashes (#576)", () => {
+		const calibrated = (sha: string) => ({
+			id: "system1" as const,
+			version: "0.1.0",
+			calibration: { sha256: sha, thresholds: {} },
+		});
+		const a = calibrated("a".repeat(64));
+		const b = calibrated("b".repeat(64));
+		expect(hashModel(a)).not.toBe(hashModel(b));
+		expect(hashModel(a)).not.toBe(
+			hashModel({ id: "system1", version: "0.1.0" }),
+		);
+		expect(hashPolicy(DEFAULT_POLICY, a.calibration.sha256)).not.toBe(
+			hashPolicy(DEFAULT_POLICY, b.calibration.sha256),
+		);
+		expect(hashPolicy(DEFAULT_POLICY, a.calibration.sha256)).not.toBe(
+			hashPolicy(DEFAULT_POLICY),
+		);
+		expect(hashPolicy(DEFAULT_POLICY, undefined)).toBe(
+			hashPolicy(DEFAULT_POLICY),
+		);
+	});
+
 	test("different inputs hash differently", () => {
 		const state = { trusted: {}, untrusted: { text: "a" } };
 		expect(hashInput("slop", state, "q1")).not.toBe(

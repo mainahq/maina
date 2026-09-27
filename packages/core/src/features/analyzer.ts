@@ -30,6 +30,8 @@ import {
 	type JudgedAnswer,
 	judgeEach,
 } from "../decide/decide";
+import type { BackendRef } from "../decide/types";
+import { confidenceThreshold } from "../policy/defaults";
 import type { DecisionType } from "../policy/schema";
 import { extractAcceptanceCriteria, STOP_WORDS } from "../utils";
 
@@ -87,6 +89,8 @@ type JudgedFinding = AnalysisFinding & {
 	decisionType?: DecisionType;
 	/** False when `decide` failed and the finding is its fallback. */
 	decided?: boolean;
+	/** The backend that answered, whose default threshold applies. */
+	backend?: BackendRef;
 };
 
 /**
@@ -247,11 +251,23 @@ function flagged<T>(
 	candidates: readonly T[],
 	judged: readonly JudgedAnswer[],
 	want: boolean,
-): Array<{ item: T; confidence: number; decided: boolean }> {
+): Array<{
+	item: T;
+	confidence: number;
+	decided: boolean;
+	backend?: BackendRef;
+}> {
 	return candidates.flatMap((item, i) => {
 		const j = judged[i];
 		return j !== undefined && j.answer === want
-			? [{ item, confidence: j.confidence, decided: j.decided }]
+			? [
+					{
+						item,
+						confidence: j.confidence,
+						decided: j.decided,
+						backend: j.backend,
+					},
+				]
 			: [];
 	});
 }
@@ -543,12 +559,13 @@ export function analyzeArtifacts(
 			confidence,
 			decisionType,
 			decided = true,
+			backend,
 			...finding
 		}): CalibratedFinding => {
 			const threshold =
 				decisionType === undefined
 					? 0
-					: ports.policy.decisions[decisionType].thresholds.confidence;
+					: confidenceThreshold(ports.policy, decisionType, backend);
 			const severity =
 				!decided || confidence >= threshold
 					? finding.severity
@@ -591,7 +608,13 @@ export function analyze(featureDir: string): Result<AnalysisReport, string> {
 		readOptionalFile(join(featureDir, "plan.md")),
 		readOptionalFile(join(featureDir, "tasks.md")),
 	).map(
-		({ confidence: _c, decisionType: _t, decided: _d, ...finding }) => finding,
+		({
+			confidence: _c,
+			decisionType: _t,
+			decided: _d,
+			backend: _b,
+			...finding
+		}) => finding,
 	);
 
 	return {

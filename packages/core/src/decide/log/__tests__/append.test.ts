@@ -4,6 +4,7 @@ import { DEFAULT_POLICY } from "../../../policy/defaults";
 import { createMemoryDb } from "../../../ports/testing";
 import * as appendModule from "../append";
 import { appendDecision, buildDecisionRecord } from "../append";
+import { hashModel, hashPolicy } from "../hash";
 import * as queryModule from "../query";
 import { queryDecisions } from "../query";
 import type { DecisionRecord, DecisionRecordField } from "../schema";
@@ -123,6 +124,45 @@ describe("buildDecisionRecord", () => {
 		expect(record.latencyMs).toBe(decision.latencyMs);
 		expect(record.host).toBe("claude-code");
 		expect(record.sessionId).toBe("s-1");
+	});
+
+	test("a calibrated decision's policy and model hashes carry the calibration sha (#576)", () => {
+		const decision = decideOne(SLOP_REQUEST);
+		const recordWith = (sha: string | undefined) =>
+			unwrap(
+				buildDecisionRecord({
+					id: "r1",
+					ts: 5,
+					request: SLOP_REQUEST,
+					decision: {
+						...decision,
+						backend:
+							sha === undefined
+								? decision.backend
+								: {
+										...decision.backend,
+										calibration: { sha256: sha, thresholds: {} },
+									},
+					},
+					policy: DEFAULT_POLICY,
+					finalAction: "flag",
+				}),
+			);
+		const plain = recordWith(undefined);
+		const a = recordWith("a".repeat(64));
+		const b = recordWith("b".repeat(64));
+		expect(a.policyHash).toBe(hashPolicy(DEFAULT_POLICY, "a".repeat(64)));
+		expect(a.modelHash).toBe(
+			hashModel({
+				...decision.backend,
+				calibration: { sha256: "a".repeat(64), thresholds: {} },
+			}),
+		);
+		expect(plain.policyHash).toBe(hashPolicy(DEFAULT_POLICY));
+		expect(new Set([plain.policyHash, a.policyHash, b.policyHash]).size).toBe(
+			3,
+		);
+		expect(new Set([plain.modelHash, a.modelHash, b.modelHash]).size).toBe(3);
 	});
 
 	test("a bool question's option order is [true, false]", () => {

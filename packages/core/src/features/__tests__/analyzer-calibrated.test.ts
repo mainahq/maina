@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { type DecidePorts, defaultDecidePorts } from "../../decide/decide";
+import { createRegistry, DEFAULT_REGISTRY } from "../../decide/registry";
+import type { Backend, BackendCalibration } from "../../decide/types";
 import { DEFAULT_POLICY } from "../../policy/defaults";
 import type { Policy } from "../../policy/schema";
 import { ANALYSIS_CATEGORIES, analyzeArtifacts } from "../analyzer";
@@ -141,6 +143,58 @@ describe("analyzeArtifacts", () => {
 		expect(coverage?.severity).toBe("error");
 		expect(coverage?.blocking).toBe(true);
 		expect(report.blocking).toBe(true);
+	});
+
+	test("a calibrated system1 answer is judged against its calibrated threshold (#576)", () => {
+		// Delegates to the heuristic, so the answer (0.75 not covered) is the
+		// same; only the backend that answered, and its calibration, differ.
+		const system1With = (calibration: BackendCalibration): DecidePorts => {
+			const heuristic = DEFAULT_REGISTRY.get("heuristic");
+			if (heuristic === undefined) throw new Error("no heuristic backend");
+			const system1: Backend = {
+				...heuristic,
+				id: "system1",
+				version: "test-1",
+				calibration,
+			};
+			const policy: Policy = {
+				...DEFAULT_POLICY,
+				decisions: {
+					...DEFAULT_POLICY.decisions,
+					"spec.coverage": {
+						...DEFAULT_POLICY.decisions["spec.coverage"],
+						backend: "system1",
+					},
+				},
+			};
+			return {
+				...defaultDecidePorts,
+				policy,
+				backends: createRegistry([...DEFAULT_REGISTRY.values(), system1]),
+			};
+		};
+		const coverageOf = (ports: DecidePorts) =>
+			analyzeArtifacts(SPEC, PLAN, TASKS, ports).findings.find(
+				(f) => f.category === "spec-coverage",
+			);
+		const lenient = coverageOf(
+			system1With({
+				sha256: "a".repeat(64),
+				thresholds: { "spec.coverage": { confidence: 0.7 } },
+			}),
+		);
+		expect(lenient?.threshold).toBe(0.7);
+		expect(lenient?.severity).toBe("error");
+		expect(lenient?.blocking).toBe(true);
+
+		const never = coverageOf(
+			system1With({
+				sha256: "b".repeat(64),
+				thresholds: { "spec.coverage": { confidence: null } },
+			}),
+		);
+		expect(never?.severity).toBe("warning");
+		expect(never?.blocking).toBe(false);
 	});
 
 	test("reads tasks written in the shipped template format", () => {

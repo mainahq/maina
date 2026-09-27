@@ -176,7 +176,7 @@
 								"type": "number",
 								"minimum": 0,
 								"maximum": 1,
-								"description": "Minimum confidence at which the backend's answer is acted on."
+								"description": "Minimum confidence at which the backend's answer is acted on. Unset, it depends on the backend that answers: rules and heuristic use 0.9 for action.risk and diff.sensitive and 0.8 otherwise; system1 uses 0 for action.risk (its calibrated thresholds are already applied) and its calibrated threshold for other types."
 							}
 						},
 						"additionalProperties": false

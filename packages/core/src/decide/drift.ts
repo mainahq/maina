@@ -22,7 +22,7 @@ import {
 import { hashModel } from "./log/hash";
 import type { DecisionRecord } from "./log/schema";
 import { withBackend } from "./registry";
-import type { DecisionBackend, DecisionType } from "./types";
+import type { BackendRef, DecisionBackend, DecisionType } from "./types";
 import { DECISION_CATALOG } from "./types-catalog";
 
 /** Labelled decisions needed before the guard judges, by default. */
@@ -31,7 +31,7 @@ const DEFAULT_MIN_SAMPLES = 20;
 export type DriftThresholds = Readonly<{
 	type: DecisionType;
 	/** The backend serving `type`: the one the guard may demote. */
-	backend: Readonly<{ id: DecisionBackend; version: string }>;
+	backend: BackendRef;
 	/**
 	 * The backend `backend` was promoted from, which a breach demotes to
 	 * (FR-DEC-8). Defaults to the type's catalog default backend.

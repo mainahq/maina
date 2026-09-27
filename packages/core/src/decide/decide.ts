@@ -17,6 +17,7 @@ import {
 import type {
 	Backend,
 	BackendAnswer,
+	BackendRef,
 	DecideError,
 	DecideRequest,
 	Decision,
@@ -125,6 +126,14 @@ export function answerProblem(
 	return chosen.p === max
 		? undefined
 		: "answer is not a mode of its distribution";
+}
+
+/** The `Decision.backend` for `backend`: id, version and any calibration. */
+function backendRef(backend: Backend): BackendRef {
+	const { id, version, calibration } = backend;
+	return calibration === undefined
+		? { id, version }
+		: { id, version, calibration };
 }
 
 function backendFailed(
@@ -247,7 +256,7 @@ export function decide(
 			answer: answer.answer,
 			distribution: answer.distribution,
 			confidence: Math.max(...answer.distribution.map((e) => e.p)),
-			backend: { id: backend.id, version: backend.version },
+			backend: backendRef(backend),
 			latencyMs,
 		});
 	}
@@ -304,6 +313,8 @@ export type JudgedAnswer = Readonly<{
 	answer: boolean;
 	confidence: number;
 	decided: boolean;
+	/** The backend that answered; absent when `decide` failed. */
+	backend?: BackendRef;
 }>;
 
 /**
@@ -360,6 +371,7 @@ export function judgeEach(
 		answer: d.answer === true,
 		confidence: d.confidence,
 		decided: true,
+		backend: d.backend,
 	}));
 }
 

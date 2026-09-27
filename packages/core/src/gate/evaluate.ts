@@ -486,13 +486,14 @@ function judgeAnswers(
 		);
 	}
 
-	const threshold = confidenceThreshold(policy, "action.risk");
-	const unsure = decisions.find((d) => !(d.confidence >= threshold));
+	const thresholdOf = (d: Decision): number =>
+		confidenceThreshold(policy, "action.risk", d.backend);
+	const unsure = decisions.find((d) => !(d.confidence >= thresholdOf(d)));
 	if (unsure !== undefined) {
 		return modelAsk(
 			ids,
 			false,
-			`action.risk confidence ${unsure.confidence} is below the ${threshold} threshold`,
+			`action.risk confidence ${unsure.confidence} is below the ${thresholdOf(unsure)} threshold`,
 		);
 	}
 

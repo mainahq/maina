@@ -45,6 +45,7 @@ What is released, and what the next release brings. The next release is read fro
 - Terminal notifications for agent hooks: when the gate asks about an agent's action, or verify on session stop finishes, maina raises a desktop notification in the terminal the agent runs in. _(@mainahq/cli)_
 - Local-first retention measurement: agent session starts (Claude Code, Cursor, Codex), the status line, terminal notifications and the weekly digest are noted in `~/.maina/retention.jsonl` on this machine. _(@mainahq/cli, @mainahq/core)_
 - `budget.dailyUsd` and `budget.perTaskUsd` are now enforced across calls. _(@mainahq/core, @mainahq/mcp)_
+- Policy confidence thresholds now resolve per backend. _(@mainahq/cli, @mainahq/core)_
 - Add the functional-core ports boundary: `CorePorts` (`fs`, `git`, `db`, `clock`, `logger`, `model`, `env`) and their typed errors are exported from `@mainahq/core`, with in-memory fakes in `ports/testing.ts`. _(@mainahq/core)_
 - Validated config and policy schema (#293). _(@mainahq/core)_
 - `maina doctor` v2 (FR-INS-6): doctor now launches every configured maina MCP entry exactly as configured, under the host's minimal GUI environment (the `PATH` a Dock-launched host gets, plus `HOME`), and checks the entry, that the command resolves, the MCP `initialize` handshake, and which maina version answered. _(@mainahq/cli)_

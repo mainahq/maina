@@ -1,7 +1,7 @@
 import type { Config } from "../config/schema";
 import { type DecidePorts, decide, defaultDecidePorts } from "../decide/decide";
 import { MODEL_TIERS } from "../decide/types-catalog";
-import { DEFAULT_POLICY } from "../policy/defaults";
+import { confidenceThreshold } from "../policy/defaults";
 
 export type ModelTier = "mechanical" | "standard" | "architectural";
 
@@ -35,15 +35,17 @@ export type TierChoice = Readonly<{
  * goes to the top tier, so doubt costs money rather than quality.
  */
 export function chooseTier(ports: DecidePorts, task: string): TierChoice {
-	const threshold =
-		ports.policy.decisions["task.tier"]?.thresholds.confidence ??
-		DEFAULT_POLICY.decisions["task.tier"].thresholds.confidence;
 	const result = decide(ports, {
 		type: "task.tier",
 		state: { trusted: { task }, untrusted: {} },
 		questions: [{ kind: "choice", id: "tier", options: MODEL_TIERS }],
 	});
 	const decision = result.ok ? result.value[0] : undefined;
+	const threshold = confidenceThreshold(
+		ports.policy,
+		"task.tier",
+		decision?.backend,
+	);
 	const decidedTier = MODEL_TIERS.find((t) => t === decision?.answer);
 	const confidence =
 		decidedTier === undefined ? 0 : (decision?.confidence ?? 0);

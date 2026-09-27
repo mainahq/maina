@@ -127,7 +127,10 @@ export function buildDecisionRecord(
 			),
 			schemaHash: hashSchema(request.type, question, privacy.salt),
 			optionOrder: optionsOf(question).map(redact),
-			policyHash: hashPolicy(input.policy),
+			policyHash: hashPolicy(
+				input.policy,
+				decision.backend.calibration?.sha256,
+			),
 			modelHash: hashModel(decision.backend),
 			distribution: decision.distribution.map((e) => ({
 				answer: redact(e.answer),

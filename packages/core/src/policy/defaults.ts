@@ -2,6 +2,7 @@
  * Built-in policy: the base layer every user and repo policy merges onto.
  */
 
+import type { BackendRef } from "../decide/types";
 import { DECISION_CATALOG } from "../decide/types-catalog";
 import { DEFAULT_PROTECTED_BRANCHES } from "../gate/events";
 import {
@@ -128,17 +129,22 @@ const SAFETY_CRITICAL: ReadonlySet<DecisionType> = new Set([
 	"diff.sensitive",
 ]);
 
+/**
+ * No threshold is set here: an unset one resolves by the backend that
+ * answers (`confidenceThreshold`), so a user or repo value can be told apart
+ * from the default.
+ */
 function defaultDecision(type: DecisionType): DecisionPolicy {
 	const backend = DECISION_CATALOG[type].defaultBackend;
 	return SAFETY_CRITICAL.has(type)
 		? {
 				backend,
-				thresholds: { confidence: 0.9 },
+				thresholds: {},
 				error_costs: { false_positive: 1, false_negative: 10 },
 			}
 		: {
 				backend,
-				thresholds: { confidence: 0.8 },
+				thresholds: {},
 				error_costs: { false_positive: 1, false_negative: 1 },
 			};
 }
@@ -170,17 +176,62 @@ export const DEFAULT_POLICY: Policy = {
 	loosened: [],
 };
 
+/** The rules and heuristic backends' threshold for `type`. */
+const builtInThreshold = (type: DecisionType): number =>
+	SAFETY_CRITICAL.has(type) ? 0.9 : 0.8;
+
+/** What resolving a threshold needs of a `Decision.backend`. */
+type ThresholdBackend = Pick<BackendRef, "id" | "calibration">;
+
 /**
- * The confidence below which `policy` does not act on a `type` answer: the
- * policy's own threshold, else the built-in one. The gate and
+ * The threshold `backend` gets when the policy sets none. `system1` applies
+ * its calibrated `action.risk` thresholds before answering, so nothing more
+ * is needed there (0); its other types default to the calibrated threshold,
+ * where a `null` (or malformed) one means never act. Rules, heuristic and
+ * any type the calibration does not cover keep the built-in thresholds.
+ */
+function backendDefault(type: DecisionType, backend: ThresholdBackend): number {
+	switch (backend.id) {
+		case "rules":
+		case "heuristic":
+			return builtInThreshold(type);
+		case "system1": {
+			if (type === "action.risk") return 0;
+			const calibrated: unknown =
+				backend.calibration?.thresholds[type]?.confidence;
+			if (calibrated === undefined) return builtInThreshold(type);
+			// `null`, or anything that is not a probability, means never act.
+			return typeof calibrated === "number" &&
+				calibrated >= 0 &&
+				calibrated <= 1
+				? calibrated
+				: Number.POSITIVE_INFINITY;
+		}
+		default: {
+			const unreachable: never = backend.id;
+			return unreachable;
+		}
+	}
+}
+
+/**
+ * The confidence below which `policy` does not act on a `type` answer from
+ * `backend` (a `Decision.backend`): the policy's own threshold, else that
+ * backend's default. Without a backend it is the built-in threshold, never
+ * system1's: the configured backend is not proof of who answered, since the
+ * registry falls back when it is not installed (fail closed). The gate and
  * `maina decide` both read it here, so they agree on what "unsure" means.
  */
 export function confidenceThreshold(
 	policy: Policy,
 	type: DecisionType,
+	backend?: BackendRef,
 ): number {
+	const spec = policy.decisions[type] ?? DEFAULT_POLICY.decisions[type];
 	return (
-		policy.decisions[type]?.thresholds.confidence ??
-		DEFAULT_POLICY.decisions[type].thresholds.confidence
+		spec.thresholds.confidence ??
+		(backend === undefined
+			? builtInThreshold(type)
+			: backendDefault(type, backend))
 	);
 }
