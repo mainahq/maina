@@ -595,6 +595,29 @@ describe("diff.sensitive: the caller and its state (#585)", () => {
 		expect(result.ok && result.value.needsReview).toBe(true);
 	});
 
+	test("the triage cites the decision that asked for the deep review", () => {
+		// diff.needs_review says a confident no (confidence 1) to this diff.
+		const diff = diffOf("src/app.ts", 5);
+		// Only diff.sensitive says yes: the receipt must not cite the "no".
+		const yes = triageDiff(sensitivePorts(0.95).ports, diff);
+		expect(yes.ok).toBe(true);
+		if (!yes.ok) return;
+		expect(yes.value.needsReview).toBe(true);
+		expect(yes.value.decisionId).toMatch(/^sensitive:[0-9a-f]{16}$/);
+		expect(yes.value.confidence).toBeCloseTo(0.95, 10);
+		// An unsure diff.sensitive no is cited the same way.
+		const unsure = triageDiff(sensitivePorts(0.3).ports, diff);
+		expect(unsure.ok && unsure.value.decisionId).toMatch(/^sensitive:/);
+		expect(unsure.ok && unsure.value.confidence).toBeCloseTo(0.7, 10);
+		// Both confident no: diff.needs_review's decision, as before #585.
+		const no = triageDiff(sensitivePorts(0.05).ports, diff);
+		expect(no.ok && no.value.decisionId).toMatch(/^needs_review:/);
+		expect(no.ok && no.value.confidence).toBe(1);
+		// diff.needs_review says yes: its decision is cited.
+		const big = triageDiff(sensitivePorts(0.95).ports, diffOf("src/a.ts", 900));
+		expect(big.ok && big.value.decisionId).toMatch(/^needs_review:/);
+	});
+
 	test("an unsure diff.sensitive no still asks for the deep review", () => {
 		// The policy's diff.sensitive threshold is 0.9: 0.7 is unsure.
 		const unsure = triageDiff(sensitivePorts(0.3).ports, diffOf("src/a.ts", 5));

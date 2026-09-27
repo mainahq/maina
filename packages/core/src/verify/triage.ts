@@ -408,8 +408,9 @@ function decideDiff(
  * `diff.sensitive` on: changing it needs a coordinated change there.
  *
  * Either one's yes, or unsure no, asks for the deep review. The result
- * carries `diff.needs_review`'s decision; a failure of either is an error,
- * which `runsDeepReview` fails closed on.
+ * carries the decision that asked for it: `diff.needs_review`'s when it did
+ * (or when neither did), else `diff.sensitive`'s. A failure of either is an
+ * error, which `runsDeepReview` fails closed on.
  */
 export function triageDiff(
 	ports: DecidePorts,
@@ -439,12 +440,18 @@ export function triageDiff(
 		},
 	});
 	if (!sensitive.ok) return sensitive;
+	// Cite the decision that asked for the deep review, so a receipt never
+	// shows "deep review warranted" next to a confident `diff.needs_review` no.
+	const cited =
+		review.value.yesOrUnsure || !sensitive.value.yesOrUnsure
+			? review.value
+			: sensitive.value;
 	return {
 		ok: true,
 		value: {
-			decisionId: review.value.decisionId,
+			decisionId: cited.decisionId,
 			needsReview: review.value.yesOrUnsure || sensitive.value.yesOrUnsure,
-			confidence: review.value.confidence,
+			confidence: cited.confidence,
 		},
 	};
 }
