@@ -20,6 +20,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	modelCacheFallbacks,
 	modelCacheRoot,
 	modelReleaseDir,
 	pullModel,
@@ -84,6 +85,13 @@ describe("the model cache", () => {
 		expect(modelCacheRoot({ CLAUDE_PLUGIN_DATA: "" }, "/home/u")).toBe(
 			join("/home/u", ".maina", "models"),
 		);
+	});
+
+	test("falls back to ~/.maina/models from inside the plugin, and only then (#620)", () => {
+		expect(
+			modelCacheFallbacks({ CLAUDE_PLUGIN_DATA: "/p" }, "/home/u"),
+		).toEqual([join("/home/u", ".maina", "models")]);
+		expect(modelCacheFallbacks({}, "/home/u")).toEqual([]);
 	});
 
 	test("keys a release on its name and version", () => {
@@ -243,5 +251,40 @@ describe("verifyCachedModel", () => {
 				`model ${S1_VERSION} failed verification (model int8: sha256 mismatch)`,
 			);
 		}
+	});
+
+	test("finds a release pulled outside the plugin, in ~/.maina/models (#620)", async () => {
+		const home = freshRoot();
+		const plugin = freshRoot();
+		const { host, input } = source(home);
+		const pulled = await pullModel(input);
+		if (!pulled.ok) throw new Error(pulled.error.message);
+		const asked = host.requests.length;
+		const inside = { ...input, root: plugin, fallbackRoots: [home] };
+		const cached = verifyCachedModel(inside);
+		if (!cached.ok) throw new Error(cached.error.message);
+		expect(cached.value.dir).toBe(pulled.value.dir);
+		// A pull from inside the plugin downloads nothing again.
+		const again = await pullModel(inside);
+		if (!again.ok) throw new Error(again.error.message);
+		expect(again.value.downloaded).toBe(false);
+		expect(again.value.dir).toBe(pulled.value.dir);
+		expect(host.requests.length).toBe(asked);
+		expect(existsSync(plugin)).toBe(false);
+	});
+
+	test("a tampered fallback copy is reported, not hidden as not installed (#620)", async () => {
+		const home = freshRoot();
+		const { input } = source(home);
+		const pulled = await pullModel(input);
+		if (!pulled.ok) throw new Error(pulled.error.message);
+		writeFileSync(join(pulled.value.dir, "metadata.json"), "{}");
+		const cached = verifyCachedModel({
+			...input,
+			root: freshRoot(),
+			fallbackRoots: [home],
+		});
+		expect(cached.ok).toBe(false);
+		if (!cached.ok) expect(cached.error.kind).toBe("unverified");
 	});
 });

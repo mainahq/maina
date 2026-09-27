@@ -29,6 +29,7 @@ import type { Result } from "@mainahq/core";
 import { hostTarget } from "../../build/standalone";
 import { engineSupport } from "./engine";
 import {
+	modelCacheFallbacks,
 	modelCacheRoot,
 	modelReleaseDir,
 	pullModel,
@@ -81,6 +82,8 @@ function systemSource() {
 	return {
 		pin: SHIPPED_PIN.ok ? SHIPPED_PIN.value : UNPINNED,
 		root: modelCacheRoot(process.env, homedir()),
+		// A release pulled from a terminal, outside the plugin, is found too.
+		fallbackRoots: modelCacheFallbacks(process.env, homedir()),
 		target: hostTarget(process.platform, process.arch, isMusl()) ?? "unknown",
 		verifySignature: releaseSignatureCheck,
 	};
@@ -114,7 +117,9 @@ async function status(): Promise<ModelStatus> {
 		engine,
 	};
 	const cached = verifyCachedModel(source);
-	if (cached.ok) return { ...base, state: { kind: "verified" } };
+	if (cached.ok) {
+		return { ...base, dir: cached.value.dir, state: { kind: "verified" } };
+	}
 	const { kind, message } = cached.error;
 	return {
 		...base,

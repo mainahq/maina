@@ -10,7 +10,9 @@
  *
  * The cache is the host plugin's data dir (`PLUGIN_DATA`, else
  * `CLAUDE_PLUGIN_DATA`, as the launcher picks it), so uninstalling the
- * plugin removes the model; otherwise `~/.maina/models`. The runtime never
+ * plugin removes the model; otherwise `~/.maina/models`. Inside the plugin,
+ * a release already in `~/.maina/models` (pulled from a terminal, which has
+ * no plugin data dir) is used too, verified like any other. The runtime never
  * downloads on its own: `maina model pull` does. This file is the
  * imperative shell (network, filesystem); nothing here throws.
  */
@@ -46,8 +48,13 @@ type FetchPort = (url: string) => Promise<Response>;
 /** Where the pinned release is cached, and how it is checked. */
 type CacheInput = Readonly<{
 	pin: ModelPinFile;
-	/** The cache root (`modelCacheRoot`). */
+	/** The cache root (`modelCacheRoot`): where a pull writes. */
 	root: string;
+	/**
+	 * Roots a release may already be cached in (`modelCacheFallbacks`),
+	 * looked in after `root`; each copy is verified in full like any other.
+	 */
+	fallbackRoots?: readonly string[];
 	/** The runtime target, e.g. `darwin-arm64`. */
 	target: string;
 	verifySignature: SignatureCheck;
@@ -95,6 +102,16 @@ export function modelCacheRoot(env: Env, home: string): string {
 		: join(home, ".maina", "models");
 }
 
+/**
+ * Where else a release may already be cached: `~/.maina/models`, for a
+ * process inside the plugin, when `maina model pull` ran outside it (a
+ * terminal has no plugin data dir). Empty when that is the root already.
+ */
+export function modelCacheFallbacks(env: Env, home: string): readonly string[] {
+	const homeRoot = join(home, ".maina", "models");
+	return modelCacheRoot(env, home) === homeRoot ? [] : [homeRoot];
+}
+
 /** Where `pin`'s release is cached under `root`. */
 export function modelReleaseDir(root: string, pin: ModelPin): string {
 	return join(root, pin.name, pin.version);
@@ -137,16 +154,13 @@ function verifyDir(
 		: failure("unverified", verified.error.message);
 }
 
-/**
- * The cached release, verified again in full (every hash and signature),
- * or why it cannot be used.
- */
-export function verifyCachedModel(
+/** The release cached under one `root`, verified, or why not. */
+function verifyRoot(
 	input: CacheInput,
+	pin: ModelPin,
+	root: string,
 ): Result<CachedModel, ModelCacheError> {
-	const { pin } = input;
-	if (pin.version === null) return unpinned(pin);
-	const dir = modelReleaseDir(input.root, pin);
+	const dir = modelReleaseDir(root, pin);
 	if (dirReader(dir)("manifest.json") === undefined) {
 		return failure(
 			"not_installed",
@@ -154,6 +168,26 @@ export function verifyCachedModel(
 		);
 	}
 	return verifyDir(input, pin, dir);
+}
+
+/**
+ * The cached release, verified again in full (every hash and signature),
+ * from `root` or else a fallback root, or why it cannot be used. A copy
+ * that is there but fails verification is reported over one that is not
+ * there at all.
+ */
+export function verifyCachedModel(
+	input: CacheInput,
+): Result<CachedModel, ModelCacheError> {
+	const { pin } = input;
+	if (pin.version === null) return unpinned(pin);
+	let result = verifyRoot(input, pin, input.root);
+	for (const root of input.fallbackRoots ?? []) {
+		if (result.ok) break;
+		const found = verifyRoot(input, pin, root);
+		if (found.ok || result.error.kind === "not_installed") result = found;
+	}
+	return result;
 }
 
 /** The body of `url`, or why it could not be fetched. */

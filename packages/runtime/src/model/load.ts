@@ -81,6 +81,8 @@ type SessionOpener = (
 type LoadInput = Readonly<{
 	pin: ModelPinFile;
 	root: string;
+	/** Other cache roots to look in (`fetch.ts` `modelCacheFallbacks`). */
+	fallbackRoots?: readonly string[];
 	target: string;
 	verifySignature: SignatureCheck;
 	/** Absent: onnxruntime-node from `ort/<target>/`, or onnxruntime-web. */

@@ -103,6 +103,22 @@ describe("loadModel", () => {
 		}
 	});
 
+	test(
+		"loads a release pulled into a fallback root (#620)",
+		async () => {
+			const { input } = cached(buildSystem1Release(key.privatePem));
+			const loaded = await loadModel({
+				...input,
+				root: join(scratch, "plugin-without-models"),
+				fallbackRoots: [input.root],
+				target: MUSL,
+			});
+			if (!loaded.ok) throw new Error(loaded.error.notice);
+			await loaded.value.session.dispose();
+		},
+		LOAD_TIMEOUT,
+	);
+
 	test("a release that was never pulled is not installed", async () => {
 		const { input } = cached(buildSystem1Release(key.privatePem));
 		const loaded = await loadModel({
