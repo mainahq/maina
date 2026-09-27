@@ -11,6 +11,7 @@
  */
 
 import type { ActionClass } from "../policy/defaults";
+import { classifyCompose, classifyDocker } from "./docker";
 import {
 	DEFAULT_PROTECTED_BRANCHES,
 	type GateContext,
@@ -41,6 +42,7 @@ import {
 	isSecretPath,
 	isSecretVarName,
 } from "./secrets";
+import { parseSsh } from "./ssh";
 
 export type ActionAnalysis = Readonly<{
 	classes: readonly ActionClass[];
@@ -854,6 +856,7 @@ function walkCommand(
 		}
 		return cwd;
 	}
+	if (cmd === "ssh") sshClasses(args, feedsStdin(node.redirects), runFrom, ctx);
 	// Inline code in another interpreter is beyond the gate's sight.
 	if (INLINE_INTERPRETERS.has(cmd) && hasInlineCode(args)) {
 		ctx.out.add("shell.opaque");
@@ -878,6 +881,35 @@ function walkCommand(
 
 	classifyCommand(cmd, args, cwd, scope, ctx, bulk);
 	return cwd;
+}
+
+/**
+ * `ssh host cmd`, or a script fed to the login shell on its stdin, runs on
+ * another machine whose paths and services the gate cannot see, so it is
+ * `remote.exec` (#614). A `ProxyCommand` or `LocalCommand` runs here, as shell.
+ */
+function sshClasses(
+	args: Argv,
+	stdin: boolean,
+	cwd: string,
+	ctx: ShellCtx,
+): void {
+	const ssh = parseSsh(args.map((a) => a.text));
+	if (ssh.remote || (stdin && ssh.shellOnStdin)) ctx.out.add("remote.exec");
+	for (const local of ssh.local) {
+		if (local === null) ctx.out.add("shell.opaque");
+		else classifyShell(local, cwd, ctx.event, ctx.gate, ctx.out);
+	}
+}
+
+/** Whether a redirect feeds the command's stdin: a heredoc, herestring or `< file`. */
+function feedsStdin(redirects: readonly Redirect[]): boolean {
+	return redirects.some(
+		(r) =>
+			r.kind === "heredoc" ||
+			r.kind === "herestring" ||
+			(r.kind === "file" && r.op === "<" && (r.fd === null || r.fd === 0)),
+	);
 }
 
 /** Reader commands whose path arguments could expose a secret file. */
@@ -2070,8 +2102,9 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 		if (positional(args).includes("deploy")) ctx.out.add("package.publish");
 	},
 	docker: dockerClassifier,
-	podman: (args, _cwd, ctx) => {
-		if (positional(args)[0] === "push") ctx.out.add("package.publish");
+	podman: dockerClassifier,
+	"docker-compose": (args, _cwd, ctx) => {
+		for (const c of classifyCompose(args.map((a) => a.text))) ctx.out.add(c);
 	},
 	gh: ghClassifier,
 	sudo: (_args, _cwd, ctx) => ctx.out.add("privilege.escalate"),
@@ -2420,9 +2453,7 @@ function dockerClassifier(
 	_cwd: string | null,
 	ctx: ShellCtx,
 ): void {
-	const p = positional(args);
-	if (p[0] === "push") ctx.out.add("package.publish");
-	if (p[0] === "stack" && p[1] === "deploy") ctx.out.add("deploy");
+	for (const c of classifyDocker(args.map((a) => a.text))) ctx.out.add(c);
 }
 
 function ghClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
@@ -2982,13 +3013,21 @@ function walkPipeline(
 ): void {
 	let carry: string | null | undefined;
 	let fetched = false;
-	for (const stage of stages) {
+	for (const [index, stage] of stages.entries()) {
 		const view = commandView(stage, cwd, scope, ctx);
 		if (view === null) {
 			carry = null;
 			continue;
 		}
 		const { cmd } = view;
+		// Text piped into a bare `ssh host` is a script for the remote shell (#614).
+		if (
+			cmd === "ssh" &&
+			index > 0 &&
+			parseSsh(view.args.map((a) => a.text)).shellOnStdin
+		) {
+			ctx.out.add("remote.exec");
+		}
 		if (FETCHERS.has(cmd)) {
 			fetched = true;
 			carry = null;
@@ -3139,6 +3178,9 @@ function stripWrappers(
 		} else if (cmd === "watch") {
 			// `watch [opts] CMD …`; `-n`/`--interval` take a value.
 			args = skipWatchOptions(args.slice(1));
+		} else if (cmd === "sshpass") {
+			// `sshpass [-p PW | -f FILE | -d FD | -e] ssh …` (#614).
+			args = skipSshpassOptions(args.slice(1));
 		} else if (WRAPPERS.has(cmd)) {
 			args = args.slice(1);
 		} else break;
@@ -3150,6 +3192,19 @@ function stripWrappers(
 function skipLeadingOptions(args: Argv): Argv {
 	let i = 0;
 	while (i < args.length && (args[i]?.text?.startsWith("-") ?? false)) i++;
+	return args.slice(i);
+}
+
+/** sshpass options that take a separate value. */
+const SSHPASS_OPERAND: ReadonlySet<string> = new Set(["-p", "-f", "-d", "-P"]);
+
+function skipSshpassOptions(args: Argv): Argv {
+	let i = 0;
+	while (i < args.length) {
+		const t = args[i]?.text;
+		if (t == null || !t.startsWith("-")) break;
+		i += SSHPASS_OPERAND.has(t) ? 2 : 1;
+	}
 	return args.slice(i);
 }
 

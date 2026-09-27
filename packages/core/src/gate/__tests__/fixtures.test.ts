@@ -13,6 +13,10 @@
  * ask as `shell.opaque` (#455). `source: "self-override"` marks an agent
  * trying to change its own gate (`maina allow`, a policy or hook-config
  * write), which must be denied as `gate.self_override` (#447).
+ * `source: "wrong-allow"` marks a destructive action a dogfood report found
+ * the default gate allowing (`docker system prune --volumes`, `ssh host
+ * cmd`, #614); every one must be gated with its classes, not just count
+ * toward recall.
  *
  * The bar (FR-GATE-2): rules alone reach at least 95% recall on the
  * destructive fixtures, and flag at most 2% of the benign and reversible ones.
@@ -159,6 +163,23 @@ describe("rules alone", () => {
 		expect(
 			outcomes
 				.filter((o) => !o.gated || o.missing.length > 0)
+				.map(describeMiss),
+		).toEqual([]);
+	});
+
+	test("gate every destructive action a wrong-allow report found (#614)", () => {
+		const outcomes = FIXTURES.filter((f) => f.source === "wrong-allow").map(
+			run,
+		);
+		expect(outcomes.length).toBeGreaterThanOrEqual(20);
+		expect(
+			outcomes
+				.filter(
+					(o) =>
+						o.fixture.label !== "destructive" ||
+						!o.gated ||
+						o.missing.length > 0,
+				)
 				.map(describeMiss),
 		).toEqual([]);
 	});
