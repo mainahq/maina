@@ -90,8 +90,10 @@ describe("pinGateConfig", () => {
 			permissions: { allow: [], deny: [] },
 		});
 		expect(JSON.parse(pinned("gemini"))).toEqual({
-			tools: { autoAccept: false },
+			general: { defaultApprovalMode: "default" },
+			tools: { autoAccept: false, allowed: [] },
 			security: { disableYoloMode: true },
+			policyPaths: [],
 		});
 		expect(JSON.parse(pinned("opencode"))).toEqual({
 			permission: { edit: "ask", bash: "ask", webfetch: "ask" },
@@ -109,9 +111,76 @@ describe("pinGateConfig", () => {
 		if (!r.ok) throw new Error(r.error.message);
 		expect(JSON.parse(r.value)).toEqual({
 			mcpServers: { docs: { command: "docs-mcp" } },
-			tools: { autoAccept: false, exclude: ["web_fetch"] },
+			general: { defaultApprovalMode: "default" },
+			tools: { autoAccept: false, allowed: [], exclude: ["web_fetch"] },
 			security: { disableYoloMode: true },
+			policyPaths: [],
 		});
+	});
+
+	test("Gemini settings that skip the ask (an allow list, auto_edit, policy files) are pinned", () => {
+		const r = pinGateConfig(
+			"gemini",
+			JSON.stringify({
+				general: { defaultApprovalMode: "auto_edit", vimMode: true },
+				tools: { allowed: ["run_shell_command"] },
+				policyPaths: ["./allow-all.toml"],
+			}),
+		);
+		if (!r.ok) throw new Error(r.error.message);
+		const pinned = JSON.parse(r.value);
+		expect(pinned.general).toEqual({
+			defaultApprovalMode: "default",
+			vimMode: true,
+		});
+		expect(pinned.tools.allowed).toEqual([]);
+		expect(pinned.policyPaths).toEqual([]);
+	});
+
+	test("an OpenCode agent's own permissions, which win over the global ones, are pinned too", () => {
+		const r = pinGateConfig(
+			"opencode",
+			JSON.stringify({
+				permission: "allow",
+				agent: {
+					build: { model: "m", permission: { bash: "allow", read: "deny" } },
+					plan: { permission: "allow" },
+				},
+				mode: { build: { permission: { edit: "allow" } } },
+			}),
+		);
+		if (!r.ok) throw new Error(r.error.message);
+		const ask = { edit: "ask", bash: "ask", webfetch: "ask" };
+		expect(JSON.parse(r.value)).toEqual({
+			permission: ask,
+			agent: {
+				build: { model: "m", permission: { ...ask, read: "deny" } },
+				plan: { permission: ask },
+			},
+			mode: { build: { permission: ask } },
+		});
+	});
+
+	test("a quoted Codex approval key is replaced too, and an array value is not a table", () => {
+		const r = pinGateConfig(
+			"codex",
+			[
+				"matrix = [",
+				"  [1, 2],",
+				"]",
+				'"approval_policy" = "never"',
+				"'profile' = \"yolo\"",
+				"[tui]",
+				"",
+			].join("\n"),
+		);
+		if (!r.ok) throw new Error(r.error.message);
+		const lines = r.value.split("\n");
+		const topLevel = lines.slice(0, lines.indexOf("[tui]"));
+		expect(topLevel.filter((l) => /approval_policy|profile/.test(l))).toEqual([
+			'approval_policy = "untrusted"',
+		]);
+		expect(topLevel).toContain("  [1, 2],");
 	});
 
 	test("a Cursor allow list, which would skip the ask, is emptied; its denies stay", () => {
@@ -266,6 +335,37 @@ describe("installWorkerGate", () => {
 		if (!installed.ok) throw new Error(installed.error.message);
 		expect(uninstallWorkerGate(worker("cursor"), worktree).ok).toBe(true);
 		expect(existsSync(installed.value.configPath)).toBe(false);
+	});
+
+	test("a repo config that already reads exactly like maina's is restored, not deleted", () => {
+		const { worktree, stateDir, sandbox } = setup();
+		const fresh = pinGateConfig("cursor", undefined);
+		if (!fresh.ok) throw new Error(fresh.error.message);
+		mkdirSync(join(worktree, ".cursor"));
+		const configPath = join(worktree, ".cursor", "cli.json");
+		writeFileSync(configPath, fresh.value);
+		const options = { worktree, stateDir, policy: DENY_PUBLISH, sandbox };
+		for (let i = 0; i < 2; i++) {
+			const installed = installWorkerGate(worker("cursor"), options);
+			if (!installed.ok) throw new Error(installed.error.message);
+		}
+		expect(uninstallWorkerGate(worker("cursor"), worktree).ok).toBe(true);
+		expect(readFileSync(configPath, "utf8")).toBe(fresh.value);
+	});
+
+	test("installing twice over a config maina created still leaves nothing behind", () => {
+		const { worktree, stateDir, sandbox } = setup();
+		const options = { worktree, stateDir, policy: DENY_PUBLISH, sandbox };
+		let configPath = "";
+		for (let i = 0; i < 2; i++) {
+			const installed = installWorkerGate(worker("codex"), options);
+			if (!installed.ok) throw new Error(installed.error.message);
+			configPath = installed.value.configPath;
+		}
+		expect(uninstallWorkerGate(worker("codex"), worktree).ok).toBe(true);
+		expect(existsSync(configPath)).toBe(false);
+		expect(existsSync(`${configPath}.maina-backup`)).toBe(false);
+		expect(existsSync(`${configPath}.maina-created`)).toBe(false);
 	});
 
 	test("unreadable repo config is an error, never overwritten", () => {

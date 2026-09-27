@@ -71,14 +71,21 @@ export const GATE_CONFIGS: Readonly<Record<AcpWorker, GateConfig>> = {
 	opencode: { dir: ".opencode", file: "opencode.json" },
 };
 
+/** OpenCode's asking permissions, globally and for every agent. */
+const OPENCODE_ASK: Json = { edit: "ask", bash: "ask", webfetch: "ask" };
+
 /** JSON configs: the keys pinned over whatever the repo has. */
 const JSON_PINS: Readonly<Record<Exclude<AcpWorker, "codex">, Json>> = {
 	cursor: { permissions: { allow: [] } },
+	// Each of these skips the ask: `auto_edit` for edits, an allow list or
+	// a policy file's `allow` rule for the tools it names, YOLO for all.
 	gemini: {
-		tools: { autoAccept: false },
+		general: { defaultApprovalMode: "default" },
+		tools: { autoAccept: false, allowed: [] },
 		security: { disableYoloMode: true },
+		policyPaths: [],
 	},
-	opencode: { permission: { edit: "ask", bash: "ask", webfetch: "ask" } },
+	opencode: { permission: OPENCODE_ASK },
 };
 
 /** JSON configs: what a missing key starts as, under the repo's own. */
@@ -90,8 +97,18 @@ const JSON_DEFAULTS: Readonly<Record<Exclude<AcpWorker, "codex">, Json>> = {
 
 const CODEX_PIN = 'approval_policy = "untrusted"';
 
-/** Top-level Codex keys that would choose an approval policy other than the pin. */
-const CODEX_UNPINNED = /^\s*(approval_policy|profile)\s*=/;
+/**
+ * Top-level Codex keys that would choose an approval policy other than the
+ * pin, bare or quoted (`"approval_policy" = ...` is the same key in TOML).
+ */
+const CODEX_UNPINNED = /^\s*(["']?)(approval_policy|profile)\1\s*=/;
+
+/**
+ * A TOML table header (`[name]`, `[[name]]`, maybe a trailing comment), as
+ * opposed to a line of a multi-line array value that happens to open with
+ * `[`: the top level ends at the first header.
+ */
+const TOML_TABLE = /^\s*\[\[?[^[\],=]+\]\]?\s*(#.*)?$/;
 
 const fail = (
 	code: PermissionSetupError["code"],
@@ -114,9 +131,33 @@ function merge(base: Json, over: Json): Json {
 	return out;
 }
 
+/**
+ * OpenCode merges an agent's own `permission` over the global one, the
+ * agent's rules winning (`agent.<name>`, and the older `mode.<name>`), so
+ * each is pinned to asking as well; its other rules stay.
+ */
+function pinOpencodeAgents(config: Json): Json {
+	const out: Record<string, unknown> = { ...config };
+	for (const key of ["agent", "mode"] as const) {
+		const agents = config[key];
+		if (!isJson(agents)) continue;
+		const pinned: Record<string, unknown> = {};
+		for (const [name, agent] of Object.entries(agents)) {
+			if (!isJson(agent)) {
+				pinned[name] = agent;
+				continue;
+			}
+			const own = isJson(agent.permission) ? agent.permission : {};
+			pinned[name] = { ...agent, permission: merge(own, OPENCODE_ASK) };
+		}
+		out[key] = pinned;
+	}
+	return out;
+}
+
 function pinCodex(existing: string | undefined): string {
 	const lines = existing === undefined ? [] : existing.split("\n");
-	const firstTable = lines.findIndex((line) => /^\s*\[/.test(line));
+	const firstTable = lines.findIndex((line) => TOML_TABLE.test(line));
 	const split = firstTable === -1 ? lines.length : firstTable;
 	const topLevel = lines
 		.slice(0, split)
@@ -149,14 +190,12 @@ export function pinGateConfig(
 			);
 		}
 	}
-	const pinned = merge(merge(JSON_DEFAULTS[worker], repo), JSON_PINS[worker]);
+	const base = merge(JSON_DEFAULTS[worker], repo);
+	const pinned = merge(
+		worker === "opencode" ? pinOpencodeAgents(base) : base,
+		JSON_PINS[worker],
+	);
 	return { ok: true, value: `${JSON.stringify(pinned, null, 2)}\n` };
-}
-
-/** The config maina writes where the repo has none. */
-function freshConfig(worker: AcpWorker): string {
-	const pinned = pinGateConfig(worker, undefined);
-	return pinned.ok ? pinned.value : "";
 }
 
 // ── installing it ───────────────────────────────────────────────────────────
@@ -175,6 +214,9 @@ export type WorkerGateInstall = Readonly<{
 }>;
 
 const backupOf = (configPath: string): string => `${configPath}.maina-backup`;
+/** Beside a config maina created (the repo had none), so uninstall removes it. */
+const createdMarkerOf = (configPath: string): string =>
+	`${configPath}.maina-created`;
 
 /** The ACP agent a worker drives, or undefined for Claude and headless ones. */
 function acpAgent(worker: WorkerSpec): AcpWorker | undefined {
@@ -210,13 +252,13 @@ function installAcpGate(
 		mkdirSync(stateDir, { recursive: true, mode: 0o700 });
 		writeFileSync(policyPath, JSON.stringify(options.policy), { mode: 0o600 });
 		mkdirSync(configDir, { recursive: true });
-		// The repo's own config, once, before maina first writes over it.
-		if (
-			existing !== undefined &&
-			existing !== freshConfig(agent) &&
-			!existsSync(backupPath)
-		) {
-			copyFileSync(configPath, backupPath);
+		// The repo's own config, once, before maina first writes over it; or,
+		// where there is none, a note that maina made it. A second install
+		// finds one or the other and leaves both alone.
+		const createdPath = createdMarkerOf(configPath);
+		if (!existsSync(backupPath) && !existsSync(createdPath)) {
+			if (existing !== undefined) copyFileSync(configPath, backupPath);
+			else writeFileSync(createdPath, "");
 		}
 		writeFileSync(configPath, pinned.value);
 	} catch (e) {
@@ -302,12 +344,14 @@ export function uninstallWorkerGate(
 	const { dir, file } = GATE_CONFIGS[agent];
 	const configPath = join(worktree, dir, file);
 	const backupPath = backupOf(configPath);
+	const createdPath = createdMarkerOf(configPath);
 	try {
 		if (existsSync(backupPath)) {
 			renameSync(backupPath, configPath);
-		} else if (readText(configPath) === freshConfig(agent)) {
-			rmSync(configPath);
+		} else if (existsSync(createdPath)) {
+			rmSync(configPath, { force: true });
 		}
+		rmSync(createdPath, { force: true });
 		return { ok: true, value: undefined };
 	} catch (e) {
 		return fail(
