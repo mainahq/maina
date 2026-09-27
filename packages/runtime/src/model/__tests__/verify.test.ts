@@ -449,6 +449,69 @@ describe("verifyModelRelease: step 2, the files", () => {
 	});
 });
 
+describe("verifyModelRelease: ports that throw", () => {
+	const boom = (): never => {
+		throw new Error("EACCES");
+	};
+
+	test("a read that throws on a file is that file missing, never a throw", () => {
+		const built = buildRelease(KEY.privatePem);
+		const result = verifyModelRelease({
+			pin: pinOn(built.manifestBytes),
+			read: (file) =>
+				file === "metadata.json" ? boom() : built.files.get(file),
+			verifySignature: check,
+			target: "linux-x64",
+		});
+		expect(problemsOf(result)).toEqual([
+			{
+				kind: "missing_file",
+				artifact: "metadata",
+				id: "metadata",
+				file: "metadata.json",
+			},
+		]);
+	});
+
+	test("a read that throws on the manifest is the manifest missing", () => {
+		const built = buildRelease(KEY.privatePem);
+		const result = verifyModelRelease({
+			pin: pinOn(built.manifestBytes),
+			read: (file) =>
+				file === "manifest.json" ? boom() : built.files.get(file),
+			verifySignature: check,
+			target: "linux-x64",
+		});
+		expect(kindsOf(result)).toEqual(["manifest_missing"]);
+	});
+
+	test("a signature check that throws is a bad signature, never a throw", () => {
+		const built = buildRelease(KEY.privatePem);
+		const result = verifyModelRelease({
+			pin: pinOn(built.manifestBytes),
+			read: (file) => built.files.get(file),
+			verifySignature: boom,
+			target: "linux-x64",
+		});
+		expect(kindsOf(result)).toEqual(["manifest_signature"]);
+	});
+
+	test("a signature check that throws on one file refuses only that file", () => {
+		const built = buildRelease(KEY.privatePem);
+		const tokenizer = built.files.get("tokenizer.json");
+		const result = verifyModelRelease({
+			pin: pinOn(built.manifestBytes),
+			read: (file) => built.files.get(file),
+			verifySignature: (bytes, signature) =>
+				bytes === tokenizer ? boom() : check(bytes, signature),
+			target: "linux-x64",
+		});
+		expect(problemsOf(result)).toEqual([
+			{ kind: "bad_signature", artifact: "tokenizer", id: "tokenizer" },
+		]);
+	});
+});
+
 describe("describeModelProblem", () => {
 	test("names the artifact the way maina-model's verifier does", () => {
 		expect(

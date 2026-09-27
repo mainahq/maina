@@ -416,13 +416,39 @@ function refuse(
 }
 
 /**
+ * The ports, failing closed: a read that throws is a missing file, and a
+ * signature check that throws is a bad signature. The verifier never throws.
+ */
+function closedPorts(input: VerifyInput): VerifyInput {
+	return {
+		...input,
+		read: (file) => {
+			try {
+				return input.read(file);
+			} catch {
+				return undefined;
+			}
+		},
+		verifySignature: (bytes, signature) => {
+			try {
+				return input.verifySignature(bytes, signature) === true;
+			} catch {
+				return false;
+			}
+		},
+	};
+}
+
+/**
  * The release `read` serves, if it is the pinned release, signed, and
  * complete for `target`; otherwise every problem found. Pure: bytes come
  * in through `read` and the signature check through `verifySignature`.
+ * Never throws: a port that throws counts against the release.
  */
 export function verifyModelRelease(
-	input: VerifyInput,
+	raw: VerifyInput,
 ): Result<VerifiedModelRelease, ModelRefusal> {
+	const input = closedPorts(raw);
 	const trusted = manifestProblems(input);
 	if (!trusted.ok) return refuse(input.pin.version, trusted.error);
 	const manifest = trusted.value;
