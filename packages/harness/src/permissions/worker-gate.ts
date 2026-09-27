@@ -13,12 +13,21 @@
  *   or YOLO mode, OpenCode `permission`). The install pins that config to
  *   asking, keeping the rest of a repo's own settings, and records the
  *   run's policy beside the bridge's permission log, outside the worktree.
+ *   What a repo ships beside that config and the agent loads over it
+ *   (OpenCode markdown agents and modes with their own `permission`,
+ *   plugins that answer its asks, a second `.jsonc` config; Gemini
+ *   workspace policy files with `allow` rules) is there before the run, so
+ *   the write-deny below cannot stop it: the install moves it aside, whole,
+ *   into a quarantine inside the same guarded directory, and the uninstall
+ *   puts it back. Moving is chosen over refusing the run so a repo that
+ *   ships such files can still be worked on, gated.
  *
  * The returned sandbox denies writes to the config's directory, the policy
  * record and the log, so a prompt-injected agent cannot switch its own
  * asking off, plant another config beside the pinned one, or rewrite the
  * gate's record. A repo's existing config is backed up before the first
- * write and restored by `uninstallWorkerGate`.
+ * write and restored by `uninstallWorkerGate`, as is what was moved aside;
+ * neither ever overwrites a file that has since taken its place.
  *
  * `GATE_CONFIGS` and `pinGateConfig` are pure; the install and uninstall
  * are the imperative shell.
@@ -27,9 +36,12 @@
 import {
 	copyFileSync,
 	existsSync,
+	lstatSync,
 	mkdirSync,
+	readdirSync,
 	readFileSync,
 	renameSync,
+	rmdirSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
@@ -54,21 +66,41 @@ type GateConfig = Readonly<{
 	dir: string;
 	/** The config file inside `dir`. */
 	file: string;
+	/**
+	 * Entries a repo can ship in `dir` that the agent loads over `file` and
+	 * that can skip the ask; the install moves each aside.
+	 */
+	overrides: readonly string[];
 }>;
 
 export const GATE_CONFIGS: Readonly<Record<AcpWorker, GateConfig>> = {
 	// Project-scoped Codex config; `untrusted` asks before anything that is
 	// not a known-safe read.
-	codex: { dir: ".codex", file: "config.toml" },
+	codex: { dir: ".codex", file: "config.toml", overrides: [] },
 	// The Cursor CLI's project config (permissions only): an allow entry
 	// runs without asking.
-	cursor: { dir: ".cursor", file: "cli.json" },
+	cursor: { dir: ".cursor", file: "cli.json", overrides: [] },
 	// Gemini CLI project settings: `autoAccept` skips the ask for tools it
-	// deems safe, YOLO mode for everything.
-	gemini: { dir: ".gemini", file: "settings.json" },
+	// deems safe, YOLO mode for everything. It also loads the workspace's
+	// policy files, whose `allow` rules skip it for the tools they match.
+	gemini: { dir: ".gemini", file: "settings.json", overrides: ["policies"] },
 	// OpenCode merges `.opencode/opencode.json` over the root config, and
-	// loads plugins (which can answer its asks) from the same directory.
-	opencode: { dir: ".opencode", file: "opencode.json" },
+	// loads plugins (which can answer its asks) from the same directory,
+	// as well as markdown agents and modes whose own `permission` wins over
+	// the global one, and an `opencode.jsonc` merged beside the `.json`.
+	opencode: {
+		dir: ".opencode",
+		file: "opencode.json",
+		overrides: [
+			"agent",
+			"agents",
+			"mode",
+			"modes",
+			"plugin",
+			"plugins",
+			"opencode.jsonc",
+		],
+	},
 };
 
 /** OpenCode's asking permissions, globally and for every agent. */
@@ -85,7 +117,8 @@ const JSON_PINS: Readonly<Record<Exclude<AcpWorker, "codex">, Json>> = {
 		security: { disableYoloMode: true },
 		policyPaths: [],
 	},
-	opencode: { permission: OPENCODE_ASK },
+	// A plugin the config lists can answer `permission.ask` itself.
+	opencode: { permission: OPENCODE_ASK, plugin: [] },
 };
 
 /** JSON configs: what a missing key starts as, under the repo's own. */
@@ -205,6 +238,11 @@ export type WorkerGateInstall = Readonly<{
 	configDir: string;
 	/** The config the install wrote inside it. */
 	configPath: string;
+	/**
+	 * Inside `configDir`: where the repo's overrides of that config were
+	 * moved aside (it exists only when there were some).
+	 */
+	quarantineDir: string;
 	/** The run's policy, recorded outside the worktree. */
 	policyPath: string;
 	/** Where the gate's permission records go (JSON lines). */
@@ -214,6 +252,16 @@ export type WorkerGateInstall = Readonly<{
 }>;
 
 const backupOf = (configPath: string): string => `${configPath}.maina-backup`;
+
+/**
+ * Inside the guarded config directory, and matching none of the globs the
+ * agents load from (`{agent,agents,mode,modes}/**` and `{plugin,plugins}/*`
+ * are relative to `.opencode`, `policies/*.toml` to `.gemini`).
+ */
+const QUARANTINE = ".maina-quarantine";
+/** What maina moved into the quarantine, so only that is ever put back. */
+const MOVED = "moved.json";
+const quarantineOf = (configDir: string): string => join(configDir, QUARANTINE);
 /** Beside a config maina created (the repo had none), so uninstall removes it. */
 const createdMarkerOf = (configPath: string): string =>
 	`${configPath}.maina-created`;
@@ -232,12 +280,116 @@ function readText(path: string): string | undefined {
 	return existsSync(path) ? readFileSync(path, "utf8") : undefined;
 }
 
+/** Anything at `path`, a dangling symlink included (`existsSync` follows it). */
+function present(path: string): boolean {
+	try {
+		lstatSync(path);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * The entries maina recorded moving aside, kept to the worker's own
+ * override names so a record can never point outside the directory.
+ */
+function readMoved(
+	manifestPath: string,
+	overrides: readonly string[],
+): Result<string[], PermissionSetupError> {
+	if (!present(manifestPath)) return { ok: true, value: [] };
+	try {
+		const parsed: unknown = JSON.parse(readFileSync(manifestPath, "utf8"));
+		if (!Array.isArray(parsed)) {
+			return fail("invalid_settings", `${manifestPath}: not a JSON array`);
+		}
+		return {
+			ok: true,
+			value: overrides.filter((entry) => parsed.includes(entry)),
+		};
+	} catch (e) {
+		return fail(
+			"invalid_settings",
+			`${manifestPath}: ${e instanceof Error ? e.message : String(e)}`,
+		);
+	}
+}
+
+/**
+ * Moves each of the repo's overrides out of `configDir` into its
+ * quarantine, recording each move as it happens so an install that stops
+ * part way is still undone by the uninstall. One that is already there,
+ * moved by an earlier install or the repo's own, stops the install
+ * (fail closed) rather than being overwritten.
+ */
+function quarantineOverrides(
+	configDir: string,
+	overrides: readonly string[],
+): Result<void, PermissionSetupError> {
+	const quarantineDir = quarantineOf(configDir);
+	const manifestPath = join(quarantineDir, MOVED);
+	const recorded = readMoved(manifestPath, overrides);
+	if (!recorded.ok) return recorded;
+	const moved = recorded.value;
+	for (const entry of overrides) {
+		const from = join(configDir, entry);
+		if (!present(from)) continue;
+		const to = join(quarantineDir, entry);
+		if (present(to)) {
+			return fail(
+				"invalid_settings",
+				`${from} would skip the gate's asks, and ${to} already holds one moved aside: remove one of them`,
+			);
+		}
+		mkdirSync(quarantineDir, { recursive: true });
+		renameSync(from, to);
+		if (!moved.includes(entry)) moved.push(entry);
+		writeFileSync(manifestPath, JSON.stringify(moved));
+	}
+	return { ok: true, value: undefined };
+}
+
+/**
+ * Puts back what `quarantineOverrides` moved aside. An entry whose place
+ * has been taken since stays in the quarantine, still recorded, and the
+ * result is an error naming it: nothing is overwritten.
+ */
+function restoreOverrides(
+	configDir: string,
+	overrides: readonly string[],
+): Result<void, PermissionSetupError> {
+	const quarantineDir = quarantineOf(configDir);
+	const manifestPath = join(quarantineDir, MOVED);
+	if (!present(manifestPath)) return { ok: true, value: undefined };
+	const recorded = readMoved(manifestPath, overrides);
+	if (!recorded.ok) return recorded;
+	const blocked: string[] = [];
+	for (const entry of recorded.value) {
+		const from = join(quarantineDir, entry);
+		const to = join(configDir, entry);
+		if (!present(from)) continue;
+		if (present(to)) blocked.push(entry);
+		else renameSync(from, to);
+	}
+	if (blocked.length > 0) {
+		writeFileSync(manifestPath, JSON.stringify(blocked));
+		return fail(
+			"io",
+			`${blocked.map((entry) => join(configDir, entry)).join(", ")} came back while maina held the repo's own in ${quarantineDir}; left both in place`,
+		);
+	}
+	rmSync(manifestPath, { force: true });
+	if (readdirSync(quarantineDir).length === 0) rmdirSync(quarantineDir);
+	return { ok: true, value: undefined };
+}
+
 function installAcpGate(
 	agent: AcpWorker,
 	options: ClaudeHookOptions,
 ): Result<WorkerGateInstall, PermissionSetupError> {
 	const { worktree, stateDir, sandbox } = options;
-	const { dir, file } = GATE_CONFIGS[agent];
+	const { dir, file, overrides } = GATE_CONFIGS[agent];
 	const configDir = join(worktree, dir);
 	const configPath = join(configDir, file);
 	const policyPath = join(stateDir, `${agent}-gate-policy.json`);
@@ -252,6 +404,8 @@ function installAcpGate(
 		mkdirSync(stateDir, { recursive: true, mode: 0o700 });
 		writeFileSync(policyPath, JSON.stringify(options.policy), { mode: 0o600 });
 		mkdirSync(configDir, { recursive: true });
+		const moved = quarantineOverrides(configDir, overrides);
+		if (!moved.ok) return moved;
 		// The repo's own config, once, before maina first writes over it; or,
 		// where there is none, a note that maina made it. A second install
 		// finds one or the other and leaves both alone.
@@ -272,6 +426,7 @@ function installAcpGate(
 		value: {
 			configDir,
 			configPath,
+			quarantineDir: quarantineOf(configDir),
 			policyPath,
 			logPath,
 			sandbox: {
@@ -308,11 +463,13 @@ export function installWorkerGate(
 		const hook = installClaudePreToolUse(worker, options);
 		if (!hook.ok) return hook;
 		const { settingsPath, policyPath, logPath, sandbox } = hook.value;
+		const configDir = join(options.worktree, ".claude");
 		return {
 			ok: true,
 			value: {
-				configDir: join(options.worktree, ".claude"),
+				configDir,
 				configPath: settingsPath,
+				quarantineDir: quarantineOf(configDir),
 				policyPath,
 				logPath,
 				sandbox,
@@ -332,7 +489,8 @@ export function installWorkerGate(
 /**
  * Takes `worker`'s gate integration out of `worktree`: a repo's config
  * comes back byte for byte from the backup, or, when maina created it, it
- * goes. A worktree maina never touched is left as it is.
+ * goes, and what the install moved aside is put back. A worktree maina
+ * never touched is left as it is.
  */
 export function uninstallWorkerGate(
 	worker: WorkerSpec,
@@ -341,7 +499,7 @@ export function uninstallWorkerGate(
 	if (isClaude(worker)) return uninstallClaudePreToolUse(worktree);
 	const agent = acpAgent(worker);
 	if (agent === undefined) return { ok: true, value: undefined };
-	const { dir, file } = GATE_CONFIGS[agent];
+	const { dir, file, overrides } = GATE_CONFIGS[agent];
 	const configPath = join(worktree, dir, file);
 	const backupPath = backupOf(configPath);
 	const createdPath = createdMarkerOf(configPath);
@@ -352,7 +510,7 @@ export function uninstallWorkerGate(
 			rmSync(configPath, { force: true });
 		}
 		rmSync(createdPath, { force: true });
-		return { ok: true, value: undefined };
+		return restoreOverrides(join(worktree, dir), overrides);
 	} catch (e) {
 		return fail(
 			"io",
