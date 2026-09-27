@@ -22,7 +22,10 @@
  * runs before it: the runtime plans the inputs with `gateModelInputs`,
  * infers them in one pass and registers a `precomputedBackend` over the
  * outputs, reporting the time as `preInferenceMs`, which counts against the
- * budget (#572).
+ * budget (#572). A candidate model runs in shadow after the gate has
+ * answered: `gateShadowRequests` lists both orders of an evaluated event's
+ * request, keyed by its decision ids, for the runtime to log beside the
+ * gate's own records (#578).
  *
  * Fail closed: a backend error, an answer slower than the budget, one below
  * the policy's confidence threshold, a two-order disagreement, a malformed
@@ -216,6 +219,26 @@ export function gateModelInputs(
 	} catch {
 		return [];
 	}
+}
+
+/**
+ * The `action.risk` requests a shadow backend answers for an evaluated
+ * event (#578): both orders of the two-order check, whatever the gate
+ * itself asked, so a candidate's order stability shows in the log. The
+ * question ids are the gate's decision ids (`<id>`, `<id>:reversed`), so a
+ * shadow record logged as `<question id>:shadow` pairs with the gate's own
+ * record and the outcomes linked to it. An order the gate asked is reused
+ * as is; the reversed order of a single-order event is built the way the
+ * gate would ask it, and has no gate record to pair with. Empty when the
+ * gate decided nothing (an unknown event kind, a model that failed before
+ * answering). Pure; never throws.
+ */
+export function gateShadowRequests(
+	result: GateResult,
+): readonly DecideRequest[] {
+	const [forward, reversed] = result.decided?.answers ?? [];
+	if (forward === undefined) return [];
+	return [forward.request, reversed?.request ?? reverseOrder(forward.request)];
 }
 
 function evaluate(
@@ -517,12 +540,12 @@ function riskRequest(
 	);
 	const actionClass = strictestClass(classes, policy);
 	const mode = PERMISSION_MODES.find((m) => m === event.permissionMode);
-	return {
+	const forward: DecideRequest = {
 		type: "action.risk",
 		state: {
 			trusted: {
 				...(actionClass === undefined ? {} : { actionClass }),
-				classes: reversed ? [...classes].reverse() : classes,
+				classes,
 				eventKind: event.kind,
 				rule: rules.kind,
 				highRisk,
@@ -537,13 +560,37 @@ function riskRequest(
 				...(rules.kind === "no_rule" ? {} : { ruleReason: rules.reason }),
 			},
 		},
-		questions: [
-			{
-				kind: "choice",
-				id: reversed ? `${id}${REVERSED_SUFFIX}` : id,
-				options: reversed ? [...VERDICTS].reverse() : [...VERDICTS],
+		questions: [{ kind: "choice", id, options: [...VERDICTS] }],
+	};
+	return reversed ? reverseOrder(forward) : forward;
+}
+
+/**
+ * The second half of the two-order check for a forward `action.risk`
+ * request: the classes and the options in reverse order, each question id
+ * suffixed with `REVERSED_SUFFIX`. Every key keeps its place, so the same
+ * event always serialises to the same reversed request.
+ */
+function reverseOrder(request: DecideRequest): DecideRequest {
+	const { classes } = request.state.trusted;
+	return {
+		...request,
+		state: {
+			...request.state,
+			trusted: {
+				...request.state.trusted,
+				classes: Array.isArray(classes) ? [...classes].reverse() : classes,
 			},
-		],
+		},
+		questions: request.questions.map((q) =>
+			q.kind === "choice"
+				? {
+						kind: "choice",
+						id: `${q.id}${REVERSED_SUFFIX}`,
+						options: [...q.options].reverse(),
+					}
+				: q,
+		),
 	};
 }
 

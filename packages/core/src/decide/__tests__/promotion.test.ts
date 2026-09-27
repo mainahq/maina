@@ -5,7 +5,11 @@ import type { DbPort } from "../../ports/db";
 import { createFixedClock, createMemoryDb } from "../../ports/testing";
 import { type DecidePorts, decide } from "../decide";
 import { readLogSlice, SHADOW_ACTION } from "../evidence";
-import type { DecisionLogPorts } from "../log/append";
+import {
+	appendDecision,
+	buildDecisionRecord,
+	type DecisionLogPorts,
+} from "../log/append";
 import { hashModel } from "../log/hash";
 import { queryDecisions } from "../log/query";
 import type { DecisionRecord } from "../log/schema";
@@ -13,12 +17,14 @@ import { linkOutcome } from "../outcomes/link";
 import type { OutcomeRecord } from "../outcomes/types";
 import {
 	evaluatePromotion,
+	logShadow,
 	PROMOTION_METRICS,
 	type PromotionGates,
+	shadowInput,
 	shadowRun,
 } from "../promotion";
 import { createRegistry, DEFAULT_REGISTRY } from "../registry";
-import type { Backend, DecideRequest, Decision } from "../types";
+import type { Backend, BackendInput, DecideRequest, Decision } from "../types";
 import {
 	boolRecord,
 	HEURISTIC,
@@ -695,5 +701,108 @@ describe("readLogSlice", () => {
 		const report = evaluatePromotion(slice, GATES);
 		expect(report.entries[0]?.metrics.samples).toBe(2);
 		expect(report.entries[0]?.metrics.labelled).toBe(1);
+	});
+});
+
+// ── Shadowing a decision already made (#578) ────────────────────────────────
+
+describe("logShadow", () => {
+	/** Logs `request`'s primary decisions under their question ids, as the gate does. */
+	function logPrimary(db: DbPort, request: DecideRequest): readonly Decision[] {
+		const decisions = unwrap(decide(primaryPorts(), request));
+		for (const decision of decisions) {
+			const record = unwrap(
+				buildDecisionRecord({
+					id: decision.id,
+					ts: 10,
+					request,
+					decision,
+					policy: DEFAULT_POLICY,
+					finalAction: "flag",
+				}),
+			);
+			unwrap(appendDecision({ db }, record));
+		}
+		return decisions;
+	}
+
+	test("logs each shadow answer under its question id, paired with the primary", () => {
+		const db = migratedDb();
+		const [first] = logPrimary(db, REQUEST);
+		const records = unwrap(
+			logShadow(
+				{
+					clock: createFixedClock(1_000),
+					shadow: contrarian(false),
+					log: { db },
+				},
+				{ ts: 10, request: REQUEST, policy: DEFAULT_POLICY },
+			),
+		);
+		expect(records.map((r) => [r.id, r.finalAction, r.answer])).toEqual([
+			["ai-console:shadow", SHADOW_ACTION, false],
+			["ai-todo:shadow", SHADOW_ACTION, false],
+		]);
+		for (const r of records) expect(r.modelHash).toBe(hashModel(SYSTEM1));
+
+		// An outcome on the primary's id labels the pair.
+		unwrap(
+			linkOutcome({ db, clock: createFixedClock(2_000) }, first?.id ?? "", {
+				kind: "accepted",
+				source: "gate",
+			}),
+		);
+		const report = evaluatePromotion(
+			unwrap(readLogSlice({ db }, { type: "slop" })),
+			GATES,
+		);
+		expect(report.entries.map((e) => e.candidate)).toEqual([
+			hashModel(SYSTEM1),
+		]);
+		expect(report.entries[0]?.metrics.samples).toBe(2);
+		expect(report.entries[0]?.metrics.labelled).toBe(1);
+	});
+
+	test("the input it plans is the one the shadow backend is handed", () => {
+		const seen: BackendInput[] = [];
+		const spy: Backend = {
+			...contrarian(true),
+			answer: (input) => {
+				seen.push(input);
+				return contrarian(true).answer(input);
+			},
+		};
+		unwrap(
+			logShadow(
+				{ clock: createFixedClock(0), shadow: spy, log: { db: migratedDb() } },
+				{ ts: 1, request: REQUEST, policy: DEFAULT_POLICY },
+			),
+		);
+		expect(seen).toEqual([shadowInput(DEFAULT_POLICY, REQUEST, "system1")]);
+	});
+
+	test("a failing shadow logs nothing and says why", () => {
+		const db = migratedDb();
+		const result = logShadow(
+			{
+				clock: createFixedClock(0),
+				shadow: {
+					id: "system1",
+					version: "0.1.0",
+					answer: () => ({
+						ok: false,
+						error: {
+							kind: "unsupported",
+							questionId: undefined,
+							message: "no",
+						},
+					}),
+				},
+				log: { db },
+			},
+			{ ts: 1, request: REQUEST, policy: DEFAULT_POLICY },
+		);
+		expect(result.ok).toBe(false);
+		expect(unwrap(queryDecisions({ db }))).toEqual([]);
 	});
 });
