@@ -205,6 +205,40 @@ describe("noise filter: finding.real probabilities at the policy threshold", () 
 		expect(escalated.suppressed).toBe(0);
 	});
 
+	test("an escalated severity answer is not acted on: the reported severity stays (#577)", () => {
+		// A System 1 stand-in for finding.severity that downgrades to info.
+		const downgrade = (escalate: number): Backend => ({
+			id: "system1",
+			version: "test",
+			answer: ({ questions }) => ({
+				ok: true,
+				value: questions.map(() => ({
+					answer: "info",
+					distribution: [
+						{ answer: "error", p: 0.05 },
+						{ answer: "warning", p: 0.05 },
+						{ answer: "info", p: 0.9 },
+					],
+					diagnostics: { escalate },
+				})),
+			}),
+		});
+		const ports = (escalate: number): DecidePorts => ({
+			...defaultDecidePorts,
+			policy: withBackend(DEFAULT_POLICY, "finding.severity", "system1"),
+			backends: createRegistry([
+				...defaultDecidePorts.backends.values(),
+				downgrade(escalate),
+			]),
+		});
+		const input = [finding({ ruleId: undefined, severity: "error" })];
+		// finding.severity costs FP 1, FN 1 by default: the cutoff is 0.5.
+		const calm = triageFindings(ports(0.1), input, prefs({}));
+		expect(calm.kept[0]?.severity).toBe("info");
+		const escalated = triageFindings(ports(0.9), input, prefs({}));
+		expect(escalated.kept[0]?.severity).toBe("error");
+	});
+
 	test("an escalated 'no review needed' still asks for a review (#577)", () => {
 		const escalated = triageDiff(
 			system1Ports("diff.needs_review", 0.1, 0.9),

@@ -116,9 +116,11 @@ function severities(
 		})),
 	});
 	if (!result.ok) return undefined;
+	// An escalated answer (#577) is not acted on: the finding keeps its
+	// reported severity.
 	return result.value.map(
 		(d, i) =>
-			SEVERITIES.find((s) => s === d.answer) ??
+			(d.escalated ? undefined : SEVERITIES.find((s) => s === d.answer)) ??
 			findings[i]?.severity ??
 			"warning",
 	);
