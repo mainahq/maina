@@ -125,12 +125,16 @@ describe("runDogfoodHook", () => {
 		});
 	});
 
-	test("the root falls back to the host's directory outside a repository (#584)", async () => {
+	// Outside a repository the gate has no root: it asks without evaluating.
+	// The log claims none either; the host's directory would be a guess the
+	// exporter then rebuilds the event under.
+	test("the root is empty outside a repository (#584)", async () => {
 		const { logged } = await run(bash("ls", "/tmp/scratch"), gate("allow"));
-		expect(logged[0]?.root).toBe("/tmp/scratch");
+		expect(logged).toHaveLength(1);
+		expect(logged[0]?.root).toBe("");
 	});
 
-	test("a root lookup that throws falls back to the host's directory (#584)", async () => {
+	test("a root lookup that throws leaves the root empty (#584)", async () => {
 		const { logged } = await run(
 			bash("ls", "/work/maina/scripts"),
 			gate("allow"),
@@ -140,7 +144,7 @@ describe("runDogfoodHook", () => {
 			},
 		);
 		expect(logged).toHaveLength(1);
-		expect(logged[0]?.root).toBe("/work/maina/scripts");
+		expect(logged[0]?.root).toBe("");
 	});
 
 	test("an unknown permission mode is logged as unknown (#584)", async () => {

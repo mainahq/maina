@@ -56,7 +56,8 @@ export interface LogRecord {
 	readonly override?: true;
 	/**
 	 * Workspace root the call was gated under: the git root of the host's
-	 * directory, that directory outside a repository, empty when unknown.
+	 * directory. Empty when there is none (outside a repository, a failed
+	 * lookup, a malformed call), as the gate then had no root either.
 	 */
 	readonly root: string;
 	/** Host that made the call. */
@@ -74,7 +75,8 @@ export interface DogfoodDeps {
 	readonly now: () => string;
 	/**
 	 * The workspace root for a directory, or null outside a repository; the
-	 * lookup the runtime's gate makes. Best-effort: a throw counts as null.
+	 * lookup the runtime's gate makes. Best-effort: a throw counts as null,
+	 * and null is logged as an empty root.
 	 */
 	readonly rootOf: (cwd: string) => string | null;
 	/** Appends one record; best-effort, never changes the decision. */
@@ -103,12 +105,16 @@ function actionOf(run: ClaudeHookRun): string {
 
 const MODES: ReadonlySet<string> = new Set(PERMISSION_MODES);
 
-/** The git root of `cwd`, `cwd` itself when there is none or the lookup fails. */
+/**
+ * The git root of `cwd`; empty when there is none or the lookup fails. The
+ * gate has no root then either (it asks without evaluating), so `cwd` would
+ * be a guess.
+ */
 function rootFor(cwd: string, rootOf: DogfoodDeps["rootOf"]): string {
 	try {
-		return rootOf(cwd) ?? cwd;
+		return rootOf(cwd) ?? "";
 	} catch {
-		return cwd;
+		return "";
 	}
 }
 
