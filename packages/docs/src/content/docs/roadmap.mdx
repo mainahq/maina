@@ -127,6 +127,7 @@ What is released, and what the next release brings. The next release is read fro
 - MCP server hardening (#542): an allow-list that names no known tool now serves an empty `tools/list` (with a stderr notice) instead of answering method-not-found; `maina --mcp` and `maina mcp` log a stray async throw or unhandled rejection on stderr and keep serving instead of exiting (a failure to start stays fatal); a prompt whose render throws answers a `failed` error naming the prompt, like a tool. _(@mainahq/cli, @mainahq/mcp)_
 - The gate now classes two more CLI commands as `gate.self_override` when an agent runs them, because they write Codex's `config.toml` (a gate control file) from inside the CLI, where the gate cannot see the write: _(@mainahq/core)_
 - Core now has the TypeScript side of the System 1 input contract (encoding v1), so the future `system1` backend sends the model the same text it was trained on: _(@mainahq/core)_
+- The weekly digest's gate-log parser now reads the dogfood hook's new per-call fields: `root`, `host`, `permissionMode` and `decisionIds`. _(@mainahq/core)_
 
 
 ## Contributing
