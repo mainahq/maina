@@ -1,12 +1,39 @@
 import { describe, expect, test } from "bun:test";
 import { createFixedClock } from "../../ports/testing";
-import { readLogSlice, verdictOf } from "../evidence";
+import { confidenceOf, readLogSlice, verdictOf } from "../evidence";
 import {
 	logDecision,
 	outcomePorts,
 	unwrap,
 } from "../outcomes/__tests__/fixtures";
 import { linkOutcome } from "../outcomes/link";
+import { riskRecord, SYSTEM1 } from "./slice-fixtures";
+
+describe("confidenceOf", () => {
+	test("the largest logged probability without diagnostics", () => {
+		const record = riskRecord({
+			id: "a",
+			model: SYSTEM1,
+			answer: "deny",
+			p: 0.7,
+		});
+		expect(confidenceOf(record)).toBe(0.7);
+	});
+
+	test("the calibrated probability of the answer when the log has one (#577)", () => {
+		const calibrated = [0.55, 0.25, 0.2];
+		const ask = {
+			...riskRecord({ id: "a", model: SYSTEM1, answer: "ask", p: 1 }),
+			diagnostics: { calibrated },
+		};
+		expect(confidenceOf(ask)).toBe(0.25);
+		const allow = {
+			...riskRecord({ id: "b", model: SYSTEM1, answer: "allow", p: 0.55 }),
+			diagnostics: { calibrated },
+		};
+		expect(confidenceOf(allow)).toBe(0.55);
+	});
+});
 
 describe("readLogSlice", () => {
 	test("keeps only the outcomes of decisions in the slice", () => {

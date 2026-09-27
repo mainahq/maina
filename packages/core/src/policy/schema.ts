@@ -72,10 +72,13 @@ export const isLockedClass = (id: string): boolean => LOCKED.has(id);
 
 // ── Building blocks ─────────────────────────────────────────────────────────
 
+/** An action class id: dotted lower-case words, such as `package.publish`. */
+export const ACTION_CLASS_ID_PATTERN = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/;
+
 const ActionClassId = z
 	.string()
 	.regex(
-		/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/,
+		ACTION_CLASS_ID_PATTERN,
 		"Expected a dotted lower-case id such as package.publish",
 	);
 

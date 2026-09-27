@@ -248,6 +248,16 @@ describe("appendDecision validates records", () => {
 		["latencyMs", { latencyMs: Number.NaN }],
 		["host", { host: "/Users/me/project" }],
 		["sessionId", { sessionId: "a b" }],
+		["diagnostics", { diagnostics: "raw" }],
+		["diagnostics", { diagnostics: { escalate: 2 } }],
+		["diagnostics", { diagnostics: { calibrated: [1] } }],
+		["diagnostics", { diagnostics: { calibrated: ["src/a.ts", 1] } }],
+		["diagnostics", { diagnostics: { windows: -1 } }],
+		["diagnostics", { diagnostics: { truncated: "yes" } }],
+		[
+			"diagnostics",
+			{ diagnostics: { actionClassProbs: { "src/secret.ts": 0.5 } } },
+		],
 		["distribution", { distribution: [{ answer: true, p: 2 }] }],
 		["distribution", { distribution: "nope" }],
 		["optionOrder", { optionOrder: [{}] }],
@@ -312,4 +322,140 @@ describe("appendDecision validates records", () => {
 			expect(unwrap(queryDecisions({ db }, {}))).toEqual([]);
 		});
 	}
+});
+
+describe("decision diagnostics in the log (#577)", () => {
+	const DIAGNOSTICS = {
+		calibrated: [0.2, 0.8],
+		escalate: 0.25,
+		truncated: true,
+		windows: 3,
+		actionClassProbs: { "fs.write": 0.6 },
+	} as const;
+
+	function diagnosed(id = "dec-1"): DecisionRecord {
+		const decision = decideOne(SLOP_REQUEST);
+		return unwrap(
+			buildDecisionRecord({
+				id,
+				ts: 5,
+				request: SLOP_REQUEST,
+				decision: { ...decision, diagnostics: DIAGNOSTICS },
+				policy: DEFAULT_POLICY,
+				finalAction: "flag",
+			}),
+		);
+	}
+
+	test("buildDecisionRecord copies a decision's diagnostics", () => {
+		expect(diagnosed().diagnostics).toEqual(DIAGNOSTICS);
+		expect(recordFor(SLOP_REQUEST)).not.toHaveProperty("diagnostics");
+	});
+
+	test("diagnostics round-trip through append and query", () => {
+		const db = migratedDb();
+		const withDiagnostics = diagnosed("a");
+		const without = recordFor(SLOP_REQUEST, { id: "b" });
+		unwrap(appendDecision({ db }, withDiagnostics));
+		unwrap(appendDecision({ db }, without));
+		expect(unwrap(queryDecisions({ db }, {}))).toEqual([
+			withDiagnostics,
+			without,
+		]);
+	});
+
+	test("each field is a nullable column holding numbers only", () => {
+		const db = migratedDb();
+		unwrap(appendDecision({ db }, diagnosed("a")));
+		unwrap(appendDecision({ db }, recordFor(SLOP_REQUEST, { id: "b" })));
+		const rows = unwrap(
+			db.all(
+				"SELECT calibrated, escalate, truncated, windows, action_class_probs FROM decision_log ORDER BY seq",
+			),
+		);
+		expect(rows).toEqual([
+			{
+				calibrated: "[0.2,0.8]",
+				escalate: 0.25,
+				truncated: 1,
+				windows: 3,
+				action_class_probs: '{"fs.write":0.6}',
+			},
+			{
+				calibrated: null,
+				escalate: null,
+				truncated: null,
+				windows: null,
+				action_class_probs: null,
+			},
+		]);
+	});
+
+	test("the migration adds the columns to a log created before them", () => {
+		const db = createMemoryDb();
+		// The decision_log table as #310 shipped it, with one entry.
+		unwrap(
+			db.run(`CREATE TABLE decision_log (
+				seq INTEGER PRIMARY KEY AUTOINCREMENT,
+				id TEXT NOT NULL UNIQUE,
+				ts INTEGER NOT NULL,
+				type TEXT NOT NULL,
+				input_hash TEXT NOT NULL,
+				schema_hash TEXT NOT NULL,
+				option_order TEXT NOT NULL,
+				policy_hash TEXT NOT NULL,
+				model_hash TEXT NOT NULL,
+				distribution TEXT NOT NULL,
+				answer TEXT NOT NULL,
+				final_action TEXT NOT NULL,
+				latency_ms REAL NOT NULL,
+				host TEXT,
+				session_id TEXT
+			)`),
+		);
+		const old = recordFor(SLOP_REQUEST, { id: "old" });
+		unwrap(
+			db.run(
+				`INSERT INTO decision_log (id, ts, type, input_hash, schema_hash, option_order, policy_hash, model_hash, distribution, answer, final_action, latency_ms)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				[
+					old.id,
+					old.ts,
+					old.type,
+					old.inputHash,
+					old.schemaHash,
+					JSON.stringify(old.optionOrder),
+					old.policyHash,
+					old.modelHash,
+					JSON.stringify(old.distribution),
+					JSON.stringify(old.answer),
+					old.finalAction,
+					old.latencyMs,
+				],
+			),
+		);
+		unwrap(migrateDecisionLog(db));
+		unwrap(migrateDecisionLog(db));
+		const fresh = diagnosed("new");
+		unwrap(appendDecision({ db }, fresh));
+		expect(unwrap(queryDecisions({ db }, {}))).toEqual([old, fresh]);
+		// Still append-only after the migration.
+		expect(db.run("UPDATE decision_log SET escalate = 0").ok).toBe(false);
+		expect(db.run("DELETE FROM decision_log").ok).toBe(false);
+	});
+
+	test("a row with a corrupt diagnostics column is reported, not thrown", () => {
+		const db = migratedDb();
+		const record = recordFor(SLOP_REQUEST);
+		unwrap(appendDecision({ db }, record));
+		unwrap(
+			db.run(
+				`INSERT INTO decision_log (id, ts, type, input_hash, schema_hash, option_order, policy_hash, model_hash, distribution, answer, final_action, latency_ms, calibrated)
+				SELECT 'bad', ts, type, input_hash, schema_hash, option_order, policy_hash, model_hash, distribution, answer, final_action, latency_ms, 'not json' FROM decision_log`,
+			),
+		);
+		const result = queryDecisions({ db }, {});
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.kind).toBe("corrupt_row");
+	});
 });

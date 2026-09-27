@@ -197,6 +197,60 @@ describe("analyzeArtifacts", () => {
 		expect(never?.blocking).toBe(false);
 	});
 
+	test("an escalated system1 answer is not acted on: its finding does not block (#577)", () => {
+		// The heuristic's answer (0.75 not covered), with an escalate signal:
+		// spec.coverage costs FP 1, FN 1, so the cutoff is 0.5.
+		const withEscalate = (escalate: number): DecidePorts => {
+			const heuristic = DEFAULT_REGISTRY.get("heuristic");
+			if (heuristic === undefined) throw new Error("no heuristic backend");
+			const system1: Backend = {
+				id: "system1",
+				version: "test-1",
+				answer: (input) => {
+					const answered = heuristic.answer(input);
+					return answered.ok
+						? {
+								ok: true,
+								value: answered.value.map((a) => ({
+									...a,
+									diagnostics: { escalate },
+								})),
+							}
+						: answered;
+				},
+			};
+			// A policy threshold of 0.7 would act on the 0.75 answer.
+			const policy: Policy = {
+				...DEFAULT_POLICY,
+				decisions: {
+					...DEFAULT_POLICY.decisions,
+					"spec.coverage": {
+						...DEFAULT_POLICY.decisions["spec.coverage"],
+						backend: "system1",
+						thresholds: { confidence: 0.7 },
+					},
+				},
+			};
+			return {
+				...defaultDecidePorts,
+				policy,
+				backends: createRegistry([...DEFAULT_REGISTRY.values(), system1]),
+			};
+		};
+		const coverageOf = (ports: DecidePorts) =>
+			analyzeArtifacts(SPEC, PLAN, TASKS, ports).findings.find(
+				(f) => f.category === "spec-coverage",
+			);
+		const calm = coverageOf(withEscalate(0.1));
+		expect(calm?.severity).toBe("error");
+		expect(calm?.blocking).toBe(true);
+
+		const escalated = coverageOf(withEscalate(0.9));
+		expect(escalated?.confidence).toBeCloseTo(0.75, 5);
+		expect(escalated?.severity).toBe("warning");
+		expect(escalated?.blocking).toBe(false);
+	});
+
 	test("reads tasks written in the shipped template format", () => {
 		const tasks = `# Verification Tasks: Export
 

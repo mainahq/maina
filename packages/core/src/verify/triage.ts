@@ -29,9 +29,17 @@ export type { Triage } from "../receipt/types";
 
 const SEVERITIES = ["error", "warning", "info"] as const;
 
-/** The policy's confidence threshold for `decision`, by the backend that answered. */
+/**
+ * The policy's confidence threshold for `decision`, by the backend that
+ * answered; infinite when it escalated, so it is never acted on.
+ */
 function thresholdOf(ports: DecidePorts, decision: Decision): number {
-	return confidenceThreshold(ports.policy, decision.type, decision.backend);
+	return confidenceThreshold(
+		ports.policy,
+		decision.type,
+		decision.backend,
+		decision.escalated,
+	);
 }
 
 /** P(true) of a bool decision. */

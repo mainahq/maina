@@ -8,8 +8,14 @@
 
 import type { Result } from "../../db/index";
 import { DECISION_TYPES } from "../../policy/schema";
-import { SUM_EPSILON } from "../decide";
-import type { Answer, DecisionType, DistributionEntry } from "../types";
+import { validateDiagnostics } from "../diagnostics";
+import {
+	type Answer,
+	type DecisionDiagnostics,
+	type DecisionType,
+	type DistributionEntry,
+	SUM_EPSILON,
+} from "../types";
 import { DECISION_CATALOG } from "../types-catalog";
 import { isHash } from "./hash";
 
@@ -35,6 +41,12 @@ export type DecisionRecord = Readonly<{
 	/** The agent host, as a label (`claude-code`, `cursor`, ...). */
 	host?: string;
 	sessionId?: string;
+	/**
+	 * The backend's diagnostics (#577), numbers only: the pre-threshold
+	 * calibrated distribution in `optionOrder` order, the escalate
+	 * probability, truncation, window count and action-class probabilities.
+	 */
+	diagnostics?: DecisionDiagnostics;
 }>;
 
 /**
@@ -261,6 +273,11 @@ export function validateRecord(
 			"sessionId must be 1-128 characters of [A-Za-z0-9_.:-]",
 		);
 	}
+	const diagnostics = validateDiagnostics(
+		r.diagnostics,
+		(r.optionOrder as readonly Answer[]).length,
+	);
+	if (!diagnostics.ok) return invalid("diagnostics", diagnostics.error);
 	const record: DecisionRecord = {
 		id: r.id,
 		ts: r.ts,
@@ -279,6 +296,9 @@ export function validateRecord(
 		latencyMs: r.latencyMs,
 		...(r.host === undefined ? {} : { host: r.host }),
 		...(r.sessionId === undefined ? {} : { sessionId: r.sessionId }),
+		...(diagnostics.value === undefined
+			? {}
+			: { diagnostics: diagnostics.value }),
 	};
 	return { ok: true, value: record };
 }

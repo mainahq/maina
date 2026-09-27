@@ -74,8 +74,11 @@ function portsWith(policy: Policy, backends = defaultDecidePorts.backends) {
 	return { ...defaultDecidePorts, policy, backends } satisfies DecidePorts;
 }
 
-/** A System 1 stand-in that answers every bool question with `pTrue`. */
-function fixedBoolBackend(pTrue: number): Backend {
+/**
+ * A System 1 stand-in that answers every bool question with `pTrue`, and
+ * reports `escalate` as its escalate probability when given.
+ */
+function fixedBoolBackend(pTrue: number, escalate?: number): Backend {
 	return {
 		id: "system1",
 		version: "test",
@@ -87,6 +90,7 @@ function fixedBoolBackend(pTrue: number): Backend {
 					{ answer: true, p: pTrue },
 					{ answer: false, p: 1 - pTrue },
 				],
+				...(escalate === undefined ? {} : { diagnostics: { escalate } }),
 			})),
 		}),
 	};
@@ -95,13 +99,14 @@ function fixedBoolBackend(pTrue: number): Backend {
 function system1Ports(
 	type: "finding.real" | "diff.needs_review",
 	pTrue: number,
+	escalate?: number,
 ): DecidePorts {
 	return {
 		...defaultDecidePorts,
 		policy: withBackend(DEFAULT_POLICY, type, "system1"),
 		backends: createRegistry([
 			...defaultDecidePorts.backends.values(),
-			fixedBoolBackend(pTrue),
+			fixedBoolBackend(pTrue, escalate),
 		]),
 	};
 }
@@ -182,6 +187,30 @@ describe("noise filter: finding.real probabilities at the policy threshold", () 
 			severity: "error",
 			realProbability: 0.9,
 		});
+	});
+
+	test("an escalated 'noise' answer is not acted on: the finding stays (#577)", () => {
+		// finding.real costs FP 1, FN 1 by default: the cutoff is 0.5.
+		const calm = triageFindings(
+			system1Ports("finding.real", 0.05, 0.2),
+			[finding()],
+			prefs({ "slop/console-log": [0, 10] }),
+		);
+		expect(calm.suppressed).toBe(1);
+		const escalated = triageFindings(
+			system1Ports("finding.real", 0.05, 0.8),
+			[finding()],
+			prefs({ "slop/console-log": [0, 10] }),
+		);
+		expect(escalated.suppressed).toBe(0);
+	});
+
+	test("an escalated 'no review needed' still asks for a review (#577)", () => {
+		const escalated = triageDiff(
+			system1Ports("diff.needs_review", 0.1, 0.9),
+			diffOf("src/app.ts", 5),
+		);
+		expect(escalated.ok && escalated.value.needsReview).toBe(true);
 	});
 
 	test("a finding without recorded outcomes is kept as reported at an even probability", () => {
