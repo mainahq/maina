@@ -221,12 +221,17 @@ function backendDefault(type: DecisionType, backend: ThresholdBackend): number {
  * system1's: the configured backend is not proof of who answered, since the
  * registry falls back when it is not installed (fail closed). The gate and
  * `maina decide` both read it here, so they agree on what "unsure" means.
+ * An `escalated` decision (`Decision.escalated`) is never acted on, whatever
+ * the policy says, except for `action.risk`, whose answer escalation has
+ * already turned into `ask`.
  */
 export function confidenceThreshold(
 	policy: Policy,
 	type: DecisionType,
 	backend?: BackendRef,
+	escalated = false,
 ): number {
+	if (escalated && type !== "action.risk") return Number.POSITIVE_INFINITY;
 	const spec = policy.decisions[type] ?? DEFAULT_POLICY.decisions[type];
 	return (
 		spec.thresholds.confidence ??

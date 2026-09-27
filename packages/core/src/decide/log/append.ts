@@ -141,6 +141,7 @@ export function buildDecisionRecord(
 			latencyMs: decision.latencyMs,
 			host: input.host,
 			sessionId: input.sessionId,
+			diagnostics: decision.diagnostics,
 		},
 		privacy,
 	);
@@ -148,8 +149,13 @@ export function buildDecisionRecord(
 
 const INSERT = `INSERT INTO decision_log (
 	id, ts, type, input_hash, schema_hash, option_order, policy_hash,
-	model_hash, distribution, answer, final_action, latency_ms, host, session_id
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+	model_hash, distribution, answer, final_action, latency_ms, host, session_id,
+	calibrated, escalate, truncated, windows, action_class_probs
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+/** A JSON column, or `null` when the value is absent. */
+const jsonOrNull = (value: unknown): string | null =>
+	value === undefined ? null : JSON.stringify(value);
 
 /**
  * Validates `record` and appends it. Returns the stored record. An id that
@@ -162,6 +168,7 @@ export function appendDecision(
 	const valid = validateRecord(record, ports.privacy ?? DEFAULT_LOG_PRIVACY);
 	if (!valid.ok) return valid;
 	const r = valid.value;
+	const d = r.diagnostics;
 	const inserted = ports.db.run(INSERT, [
 		r.id,
 		r.ts,
@@ -177,6 +184,11 @@ export function appendDecision(
 		r.latencyMs,
 		r.host ?? null,
 		r.sessionId ?? null,
+		jsonOrNull(d?.calibrated),
+		d?.escalate ?? null,
+		d?.truncated === undefined ? null : Number(d.truncated),
+		d?.windows ?? null,
+		jsonOrNull(d?.actionClassProbs),
 	]);
 	return inserted.ok
 		? { ok: true, value: r }

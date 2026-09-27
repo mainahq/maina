@@ -48,11 +48,42 @@ export const DECISION_LOG_MIGRATION: readonly string[] = [
 		BEGIN ${APPEND_ONLY} END`,
 ];
 
-/** Creates the decision log table, its indexes and its append-only guards. */
+/**
+ * Columns added after the table shipped, in order: decision diagnostics
+ * (#577), numbers only, `NULL` on every row logged before them. Adding a
+ * nullable column rewrites no row, so the log stays append-only. Only ever
+ * append to this list.
+ */
+const DECISION_LOG_ADDED_COLUMNS: readonly (readonly [
+	name: string,
+	type: "TEXT" | "REAL" | "INTEGER",
+])[] = [
+	// JSON list of probabilities, in `option_order` order.
+	["calibrated", "TEXT"],
+	["escalate", "REAL"],
+	// 0 or 1.
+	["truncated", "INTEGER"],
+	["windows", "INTEGER"],
+	// JSON object: action class id -> probability.
+	["action_class_probs", "TEXT"],
+];
+
+/**
+ * Creates the decision log table, its indexes and its append-only guards,
+ * and adds any of `DECISION_LOG_ADDED_COLUMNS` the table lacks. Idempotent.
+ */
 export function migrateDecisionLog(db: DbPort): Result<void, DbError> {
 	for (const statement of DECISION_LOG_MIGRATION) {
 		const applied = db.run(statement);
 		if (!applied.ok) return applied;
+	}
+	const columns = db.all("PRAGMA table_info(decision_log)");
+	if (!columns.ok) return columns;
+	const present = new Set(columns.value.map((c) => c.name));
+	for (const [name, type] of DECISION_LOG_ADDED_COLUMNS) {
+		if (present.has(name)) continue;
+		const added = db.run(`ALTER TABLE decision_log ADD COLUMN ${name} ${type}`);
+		if (!added.ok) return added;
 	}
 	return { ok: true, value: undefined };
 }

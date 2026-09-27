@@ -806,3 +806,34 @@ describe("logShadow", () => {
 		expect(unwrap(queryDecisions({ db }))).toEqual([]);
 	});
 });
+
+describe("promotion reads calibrated probabilities (#577)", () => {
+	test("a thresholded ask logged at p=1 is scored at its calibrated probability", () => {
+		const decisions: DecisionRecord[] = [];
+		const outcomes: OutcomeRecord[] = [];
+		for (let i = 0; i < 4; i++) {
+			const id = `r${i}`;
+			decisions.push(riskRecord({ id, model: HEURISTIC, answer: "ask" }));
+			// The model's calibrated belief put 0.3 on ask; it answered ask
+			// only because no threshold was met (or it escalated), so the
+			// logged distribution is degenerate on ask.
+			decisions.push({
+				...riskRecord({
+					id: `${id}:shadow`,
+					model: SYSTEM1,
+					answer: "ask",
+					p: 1,
+					finalAction: SHADOW_ACTION,
+				}),
+				diagnostics: { calibrated: [0.6, 0.3, 0.1] },
+			});
+			outcomes.push(outcome(id, "accepted"));
+		}
+		const [entry] = evaluatePromotion({ decisions, outcomes }, GATES).entries;
+		expect(entry?.metrics["candidate.mean_confidence"]).toBeCloseTo(0.3);
+		// All four were right at a stated 0.3: the calibration error is 0.7,
+		// not the 0 a p=1 reading would claim.
+		expect(entry?.metrics["candidate.calibration_error"]).toBeCloseTo(0.7);
+		expect(entry?.metrics["incumbent.mean_confidence"]).toBeCloseTo(0.8);
+	});
+});

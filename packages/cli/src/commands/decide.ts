@@ -381,7 +381,12 @@ export async function decideAction(
 			EXIT_TOOL_FAILURE,
 		);
 	}
-	const threshold = confidenceThreshold(policy.value, type, first.backend);
+	const threshold = confidenceThreshold(
+		policy.value,
+		type,
+		first.backend,
+		first.escalated,
+	);
 	const { verdict, belowThreshold } = actedVerdict(type, first, threshold);
 	return {
 		output: {

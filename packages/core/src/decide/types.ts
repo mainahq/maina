@@ -39,6 +39,9 @@ export type QuestionKind = Question["kind"];
 /** The most a choice question may offer (FR-DEC-1). */
 export const MAX_CHOICE_OPTIONS = 255;
 
+/** Tolerance for a distribution's sum, to absorb floating-point rounding. */
+export const SUM_EPSILON = 1e-9;
+
 // ── State ───────────────────────────────────────────────────────────────────
 
 /**
@@ -66,6 +69,33 @@ export type Answer = string | number | boolean;
 export type DistributionEntry = Readonly<{ answer: Answer; p: number }>;
 
 /**
+ * What a model backend (System 1) reports beside an answer, for the
+ * decision log and for acting on it. Numbers only: nothing here can carry
+ * content from the repository. Every field is optional.
+ */
+export type DecisionDiagnostics = Readonly<{
+	/**
+	 * The calibrated distribution before any threshold, one probability per
+	 * option in option order (summing to 1). A thresholded answer (an `ask`
+	 * no threshold let through) is degenerate in `distribution`; this keeps
+	 * what the model believed. Not for score questions.
+	 */
+	calibrated?: readonly number[];
+	/**
+	 * The probability that the answer is wrong (System 1's escalate head,
+	 * converted to P(wrong)). At or over the type's cutoff, `decide`
+	 * escalates: `ask` for `action.risk`, not acted for other types.
+	 */
+	escalate?: number;
+	/** Whether the input was cut to fit the model. */
+	truncated?: boolean;
+	/** How many encoder windows the input took (a positive integer). */
+	windows?: number;
+	/** Per action class, the model's probability of it (multi-label). */
+	actionClassProbs?: Readonly<Record<string, number>>;
+}>;
+
+/**
  * A backend's answer to one question. `distribution` has one entry per
  * option in option order (`[true, false]` for a bool question), or a single
  * point-mass entry for a score question; it sums to 1 and `answer` is one of
@@ -74,6 +104,7 @@ export type DistributionEntry = Readonly<{ answer: Answer; p: number }>;
 export type BackendAnswer = Readonly<{
 	answer: Answer;
 	distribution: readonly DistributionEntry[];
+	diagnostics?: DecisionDiagnostics;
 }>;
 
 /**
@@ -107,6 +138,14 @@ export type Decision = Readonly<{
 	confidence: number;
 	backend: BackendRef;
 	latencyMs: number;
+	/** The backend's diagnostics, validated; absent when it gave none. */
+	diagnostics?: DecisionDiagnostics;
+	/**
+	 * Set when the backend's escalate probability reached the type's cutoff.
+	 * An `action.risk` answer is then already `ask`; any other type's answer
+	 * stands but is never acted on (`confidenceThreshold` is infinite).
+	 */
+	escalated?: true;
 }>;
 
 // ── Backends ────────────────────────────────────────────────────────────────

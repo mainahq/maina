@@ -91,6 +91,8 @@ type JudgedFinding = AnalysisFinding & {
 	decided?: boolean;
 	/** The backend that answered, whose default threshold applies. */
 	backend?: BackendRef;
+	/** Set when the answer escalated: its finding is then downgraded. */
+	escalated?: true;
 };
 
 /**
@@ -256,6 +258,7 @@ function flagged<T>(
 	confidence: number;
 	decided: boolean;
 	backend?: BackendRef;
+	escalated?: true;
 }> {
 	return candidates.flatMap((item, i) => {
 		const j = judged[i];
@@ -266,6 +269,7 @@ function flagged<T>(
 						confidence: j.confidence,
 						decided: j.decided,
 						backend: j.backend,
+						...(j.escalated ? { escalated: true as const } : {}),
 					},
 				]
 			: [];
@@ -560,12 +564,13 @@ export function analyzeArtifacts(
 			decisionType,
 			decided = true,
 			backend,
+			escalated,
 			...finding
 		}): CalibratedFinding => {
 			const threshold =
 				decisionType === undefined
 					? 0
-					: confidenceThreshold(ports.policy, decisionType, backend);
+					: confidenceThreshold(ports.policy, decisionType, backend, escalated);
 			const severity =
 				!decided || confidence >= threshold
 					? finding.severity
@@ -613,6 +618,7 @@ export function analyze(featureDir: string): Result<AnalysisReport, string> {
 			decisionType: _t,
 			decided: _d,
 			backend: _b,
+			escalated: _e,
 			...finding
 		}) => finding,
 	);

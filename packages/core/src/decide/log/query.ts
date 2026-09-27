@@ -54,6 +54,45 @@ function parseJson(text: DbValue | undefined): Result<unknown, string> {
 	}
 }
 
+/** A nullable JSON column: `undefined` for SQL `NULL` (or no column). */
+function parseOptionalJson(text: DbValue | undefined): Result<unknown, string> {
+	return text === null || text === undefined
+		? { ok: true, value: undefined }
+		: parseJson(text);
+}
+
+/** A nullable number column: `undefined` for SQL `NULL` (or no column). */
+const optional = (value: DbValue | undefined): DbValue | undefined =>
+	value ?? undefined;
+
+/**
+ * The diagnostics columns (#577) as the record field, left for
+ * `validateRecord` to check; `undefined` when every column is `NULL`, as
+ * in rows logged before the columns existed.
+ */
+function diagnosticsOf(row: DbRow): Result<unknown, string> {
+	const calibrated = parseOptionalJson(row.calibrated);
+	if (!calibrated.ok)
+		return { ok: false, error: `calibrated: ${calibrated.error}` };
+	const probs = parseOptionalJson(row.action_class_probs);
+	if (!probs.ok) {
+		return { ok: false, error: `action_class_probs: ${probs.error}` };
+	}
+	const truncated = optional(row.truncated);
+	const fields = Object.entries({
+		calibrated: calibrated.value,
+		escalate: optional(row.escalate),
+		// SQLite has no boolean: 0 and 1 are the only values appended.
+		truncated: truncated === 0 ? false : truncated === 1 ? true : truncated,
+		windows: optional(row.windows),
+		actionClassProbs: probs.value,
+	}).filter(([, value]) => value !== undefined);
+	return {
+		ok: true,
+		value: fields.length === 0 ? undefined : Object.fromEntries(fields),
+	};
+}
+
 function toRecord(row: DbRow): Result<DecisionRecord, DecisionLogError> {
 	const id = typeof row.id === "string" ? row.id : String(row.id);
 	const corrupt = (message: string): Result<never, DecisionLogError> => ({
@@ -66,6 +105,8 @@ function toRecord(row: DbRow): Result<DecisionRecord, DecisionLogError> {
 	if (!distribution.ok) return corrupt(`distribution: ${distribution.error}`);
 	const answer = parseJson(row.answer);
 	if (!answer.ok) return corrupt(`answer: ${answer.error}`);
+	const diagnostics = diagnosticsOf(row);
+	if (!diagnostics.ok) return corrupt(diagnostics.error);
 	const valid = validateRecord(
 		{
 			id: row.id,
@@ -82,6 +123,7 @@ function toRecord(row: DbRow): Result<DecisionRecord, DecisionLogError> {
 			latencyMs: row.latency_ms,
 			host: row.host ?? undefined,
 			sessionId: row.session_id ?? undefined,
+			diagnostics: diagnostics.value,
 		},
 		READ_PRIVACY,
 	);

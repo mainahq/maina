@@ -9,21 +9,23 @@ import type { Result } from "../db/index";
 import { DEFAULT_POLICY } from "../policy/defaults";
 import type { Policy } from "../policy/schema";
 import type { ClockPort } from "../ports/clock";
+import { applyEscalation, validateDiagnostics } from "./diagnostics";
 import {
 	type BackendRegistry,
 	DEFAULT_REGISTRY,
 	selectBackend,
 } from "./registry";
-import type {
-	Backend,
-	BackendAnswer,
-	BackendRef,
-	DecideError,
-	DecideRequest,
-	Decision,
-	DecisionType,
-	DistributionEntry,
-	Question,
+import {
+	type Backend,
+	type BackendAnswer,
+	type BackendRef,
+	type DecideError,
+	type DecideRequest,
+	type Decision,
+	type DecisionType,
+	type DistributionEntry,
+	type Question,
+	SUM_EPSILON,
 } from "./types";
 import { validateQuestions } from "./types-catalog";
 
@@ -44,9 +46,6 @@ export const defaultDecidePorts: DecidePorts = {
 	policy: DEFAULT_POLICY,
 	backends: DEFAULT_REGISTRY,
 };
-
-/** Tolerance for a distribution's sum, to absorb floating-point rounding. */
-export const SUM_EPSILON = 1e-9;
 
 function expectedOptions(question: Question): readonly unknown[] | undefined {
 	switch (question.kind) {
@@ -250,14 +249,30 @@ export function decide(
 		if (problem !== undefined || answer === undefined) {
 			return invalidAnswer(question.id, problem ?? "answer is missing");
 		}
+		const diagnostics = validateDiagnostics(
+			answer.diagnostics,
+			expectedOptions(question)?.length ?? 0,
+		);
+		if (!diagnostics.ok) {
+			return invalidAnswer(question.id, diagnostics.error);
+		}
+		const acted = applyEscalation(ports.policy, type, question.kind, {
+			answer: answer.answer,
+			distribution: answer.distribution,
+			diagnostics: diagnostics.value,
+		});
 		decisions.push({
 			id: question.id,
 			type,
-			answer: answer.answer,
-			distribution: answer.distribution,
-			confidence: Math.max(...answer.distribution.map((e) => e.p)),
+			answer: acted.answer,
+			distribution: acted.distribution,
+			confidence: Math.max(...acted.distribution.map((e) => e.p)),
 			backend: backendRef(backend),
 			latencyMs,
+			...(acted.diagnostics === undefined
+				? {}
+				: { diagnostics: acted.diagnostics }),
+			...(acted.escalated ? { escalated: true } : {}),
 		});
 	}
 	return { ok: true, value: decisions };
@@ -315,6 +330,8 @@ export type JudgedAnswer = Readonly<{
 	decided: boolean;
 	/** The backend that answered; absent when `decide` failed. */
 	backend?: BackendRef;
+	/** Set when the answer escalated: it is then never acted on. */
+	escalated?: true;
 }>;
 
 /**
@@ -372,6 +389,7 @@ export function judgeEach(
 		confidence: d.confidence,
 		decided: true,
 		backend: d.backend,
+		...(d.escalated ? { escalated: true } : {}),
 	}));
 }
 

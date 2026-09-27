@@ -292,6 +292,13 @@ export {
 	DEFAULT_REGISTRY,
 	withBackend,
 } from "./decide/registry";
+// System 1 backend version (<manifest>+<model sha12>+<cal sha12>/<engine>)
+export {
+	SYSTEM1_ENGINES,
+	type System1Engine,
+	type System1VersionParts,
+	system1Version,
+} from "./decide/system1-version";
 export {
 	type Answer,
 	type Backend,
@@ -304,6 +311,7 @@ export {
 	type DecideRequest,
 	type Decision,
 	type DecisionBackend,
+	type DecisionDiagnostics,
 	type DecisionState,
 	type DecisionType,
 	type DistributionEntry,

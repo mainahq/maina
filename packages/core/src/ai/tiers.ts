@@ -45,6 +45,7 @@ export function chooseTier(ports: DecidePorts, task: string): TierChoice {
 		ports.policy,
 		"task.tier",
 		decision?.backend,
+		decision?.escalated,
 	);
 	const decidedTier = MODEL_TIERS.find((t) => t === decision?.answer);
 	const confidence =

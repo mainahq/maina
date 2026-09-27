@@ -92,9 +92,17 @@ export function verdictOf(outcomes: readonly Outcome[] | undefined): Verdict {
 	return errors.length === 0 ? { kind: "right" } : { kind: "wrong", errors };
 }
 
-/** The probability of a record's answer: its largest distribution entry. */
+/**
+ * The probability of a record's answer: its calibrated probability when the
+ * backend logged a calibrated distribution (#577), else the largest
+ * distribution entry. A thresholded or escalated answer (an `ask` logged at
+ * p = 1) is then scored at what the model believed, not at 1.
+ */
 export function confidenceOf(record: DecisionRecord): number {
-	return Math.max(...record.distribution.map((e) => e.p));
+	const calibrated = record.diagnostics?.calibrated;
+	const index = record.optionOrder.indexOf(record.answer);
+	const p = index < 0 ? undefined : calibrated?.[index];
+	return p ?? Math.max(...record.distribution.map((e) => e.p));
 }
 
 export function mean(values: readonly number[]): number | null {
