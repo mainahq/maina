@@ -14,6 +14,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { precomputedBackend } from "../../decide/backends/precomputed";
 import { buildDecisionRecord } from "../../decide/log/append";
 import {
 	createRegistry,
@@ -31,7 +32,7 @@ import {
 	type Verdict,
 } from "../../policy/schema";
 import { createMemoryFs } from "../../ports/testing";
-import { evaluateGate, type GatePorts } from "../evaluate";
+import { evaluateGate, type GatePorts, gateModelInputs } from "../evaluate";
 import type { GateContext, GateEvent } from "../events";
 import { formatGateMessage } from "../messages";
 import { evaluateRules } from "../rules";
@@ -1114,5 +1115,200 @@ describe("protected branches come from the policy (#459)", () => {
 		);
 		expect(result.verdict).toBe("deny");
 		expect(result.reason).toContain("git.push.force");
+	});
+});
+
+// ── Async model pre-inference (#572, option b) ─────────────────────────────
+
+describe("async model pre-inference (#572)", () => {
+	const provenance = { untrusted: ["web page"] };
+
+	/** `inputs` answered ahead by a synchronous stand-in, as a runtime would. */
+	function answeredAhead(inputs: readonly BackendInput[]): Backend {
+		const sync = modelBackend(() => ({ verdict: "allow", p: 0.99 }));
+		return precomputedBackend(
+			{ id: "system1", version: "onnx" },
+			{
+				ok: true,
+				value: inputs.map((input) => {
+					const answered = sync.answer(input);
+					return { input, answers: answered.ok ? answered.value : [] };
+				}),
+			},
+		);
+	}
+
+	test("a high-risk event plans both orders for the model, in one list", () => {
+		const inputs = gateModelInputs(
+			gatePorts(),
+			shellEvent("ls -la", provenance),
+			modelPolicy(),
+			"system1",
+		);
+		expect(inputs.length).toBe(2);
+		const options = inputs.map((i) =>
+			i.questions.map((q) => (q.kind === "choice" ? q.options : [])),
+		);
+		expect(options).toEqual([[[...VERDICTS]], [[...VERDICTS].reverse()]]);
+		for (const input of inputs) {
+			expect(input.type).toBe("action.risk");
+			expect(input.state.trusted.highRisk).toBe(true);
+			expect(input.policy.decisions["action.risk"]?.backend).toBe("system1");
+		}
+	});
+
+	test("a low-risk event plans one order", () => {
+		const inputs = gateModelInputs(
+			gatePorts(),
+			shellEvent("ls -la"),
+			modelPolicy(),
+			"system1",
+		);
+		expect(inputs.length).toBe(1);
+	});
+
+	test("nothing is planned when the model would not be asked", () => {
+		const plan = (event: GateEvent, policy: Policy) =>
+			gateModelInputs(gatePorts(), event, policy, "system1");
+		// A deny rule is final.
+		expect(
+			plan(
+				shellEvent("ls -la"),
+				modelPolicy(withRules({ deny: [{ match: "ls -la" }] })),
+			),
+		).toEqual([]);
+		// The policy names another backend.
+		expect(plan(shellEvent("ls -la"), DEFAULT_POLICY)).toEqual([]);
+		// An unknown event kind asks before any backend.
+		expect(
+			plan({ ...shellEvent("ls"), kind: "bogus" } as never, modelPolicy()),
+		).toEqual([]);
+	});
+
+	test("planned inputs answered ahead feed the synchronous gate", () => {
+		const event = shellEvent("ls -la", provenance);
+		const policy = modelPolicy();
+		const backend = answeredAhead(
+			gateModelInputs(gatePorts(), event, policy, "system1"),
+		);
+		const result = evaluateGate(
+			gatePorts({
+				backends: createRegistry([...DEFAULT_REGISTRY.values(), backend]),
+			}),
+			event,
+			policy,
+		);
+		expect(result.verdict).toBe("allow");
+		expect(result.decisionIds).toEqual(["d1", "d1:reversed"]);
+		expect(
+			result.decided?.answers.map((a) => a.decision.backend.version),
+		).toEqual(["onnx", "onnx"]);
+	});
+
+	test("a gate evaluation that mints different ids still reads the plan", () => {
+		const event = shellEvent("ls -la");
+		const policy = modelPolicy();
+		const backend = answeredAhead(
+			gateModelInputs(
+				gatePorts({ newId: () => "planned" }),
+				event,
+				policy,
+				"system1",
+			),
+		);
+		const result = evaluateGate(
+			gatePorts({
+				backends: createRegistry([...DEFAULT_REGISTRY.values(), backend]),
+				newId: () => "gate-id",
+			}),
+			event,
+			policy,
+		);
+		expect(result.verdict).toBe("allow");
+		expect(result.decisionIds).toEqual(["gate-id"]);
+	});
+
+	test("pre-inference time over the budget asks, degraded", () => {
+		const result = evaluateGate(
+			withModel(() => ({ verdict: "allow", p: 1 }), {
+				budgetMs: 250,
+				preInferenceMs: 300,
+			}),
+			shellEvent("ls -la"),
+			modelPolicy(),
+		);
+		expect(result.verdict).toBe("ask");
+		expect(result.degraded).toBe(true);
+		expect(result.reason).toContain("300 ms, over the 250 ms budget");
+	});
+
+	test("pre-inference and the decide stage share one budget", () => {
+		let now = 0;
+		const result = evaluateGate(
+			withModel(() => ({ verdict: "allow", p: 1 }), {
+				clock: {
+					now: () => {
+						now += 50;
+						return now;
+					},
+				},
+				budgetMs: 250,
+				preInferenceMs: 200,
+			}),
+			shellEvent("ls -la"),
+			modelPolicy(),
+		);
+		expect(result.verdict).toBe("ask");
+		expect(result.reason).toContain("budget");
+	});
+
+	test("pre-inference within the budget lets the answer stand", () => {
+		const result = evaluateGate(
+			withModel(() => ({ verdict: "allow", p: 1 }), {
+				budgetMs: 250,
+				preInferenceMs: 100,
+			}),
+			shellEvent("ls -la"),
+			modelPolicy(),
+		);
+		expect(result.verdict).toBe("allow");
+	});
+
+	test("a negative pre-inference time earns no budget credit", () => {
+		// A clock that stepped back during pre-inference must not pay for a
+		// slow decide stage.
+		let now = 0;
+		const result = evaluateGate(
+			withModel(() => ({ verdict: "allow", p: 1 }), {
+				clock: {
+					now: () => {
+						now += 200;
+						return now;
+					},
+				},
+				budgetMs: 250,
+				preInferenceMs: -1000,
+			}),
+			shellEvent("ls -la"),
+			modelPolicy(),
+		);
+		expect(result.verdict).toBe("ask");
+		expect(result.degraded).toBe(true);
+		expect(result.reason).toContain("over the 250 ms budget");
+	});
+
+	test("a non-finite pre-inference time asks, degraded", () => {
+		for (const preInferenceMs of [Number.NaN, Number.POSITIVE_INFINITY]) {
+			const result = evaluateGate(
+				withModel(() => ({ verdict: "allow", p: 1 }), {
+					budgetMs: 250,
+					preInferenceMs,
+				}),
+				shellEvent("ls -la"),
+				modelPolicy(),
+			);
+			expect(result.verdict).toBe("ask");
+			expect(result.degraded).toBe(true);
+		}
 	});
 });

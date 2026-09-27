@@ -185,6 +185,11 @@ export {
 	openFeedbackStore,
 } from "./db/store";
 // Decide (typed decision interface, FR-DEC-1/2)
+// Precomputed backend: an async model infers first, sync decide reads it (#572)
+export {
+	type Precomputed,
+	precomputedBackend,
+} from "./decide/backends/precomputed";
 export {
 	type DecidePorts,
 	decide,
@@ -563,6 +568,7 @@ export {
 	evaluateGate,
 	type GatePorts,
 	type GateResult as GateEvaluation,
+	gateModelInputs,
 } from "./gate/evaluate";
 export type {
 	FileReadAction,

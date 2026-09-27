@@ -791,6 +791,7 @@ articles`. When no entity/architecture article matched, the compiler now
   `script -c '<cmd>'` and the BSD form `script <file> <cmd…>` are now classified by the command they run, not as a plain `shell.exec`.
 
   `gate.self_override` can no longer be loosened by any policy layer. The schema rejects it in `explicitly_allow`. The loader reports any attempt to loosen it. The evaluator ignores any policy that still says otherwise, whether the user confirmed it or not. The only way past it is the user running `maina allow` in a terminal.
+- The gate can now take `action.risk` answers from an async model, such as a System 1 model on onnxruntime, whose `run()` is async only. `decide` and `evaluateGate` stay synchronous. The runtime runs the model first: `gateModelInputs` lists the inputs the gate will ask, the model answers them in one pass (both orders of the two-order check), and `precomputedBackend` serves those answers to the gate. The new `GatePorts.preInferenceMs` counts the pre-inference time against the 250 ms gate budget. The gate asks when the model fails, runs past the budget or has no answer for an input.
 
 #### Patch Changes
 
