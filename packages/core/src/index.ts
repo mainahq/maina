@@ -221,10 +221,12 @@ export {
 } from "./decide/encoding";
 export {
 	approxTokens,
+	type ErrorKind,
 	LENGTH_BUCKETS,
 	type LengthBucket,
 	type LogSlice,
 	lengthBucket,
+	OUTCOME_ERROR,
 	readLogSlice,
 	SHADOW_ACTION,
 } from "./decide/evidence";
@@ -782,6 +784,7 @@ export {
 export type { ActionClass } from "./policy/defaults";
 export {
 	confidenceThreshold,
+	DEFAULT_ERROR_COSTS,
 	DEFAULT_POLICY,
 	DENIED_ACTION_CLASSES,
 	IRREVERSIBLE_ACTION_CLASSES,

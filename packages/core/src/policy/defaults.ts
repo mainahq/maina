@@ -130,6 +130,30 @@ const SAFETY_CRITICAL: ReadonlySet<DecisionType> = new Set([
 	"diff.sensitive",
 ]);
 
+type ErrorCosts = DecisionPolicy["error_costs"];
+
+/**
+ * The default `error_costs` of every decision type, in `DECISION_TYPES`
+ * order: a missed risky action costs ten false alarms on the safety-critical
+ * types, and the two errors cost the same elsewhere. Exported (and frozen)
+ * so the model catalog generator reads it instead of keeping a hand mirror
+ * (#588).
+ */
+export const DEFAULT_ERROR_COSTS: Readonly<
+	Record<DecisionType, Readonly<ErrorCosts>>
+> = Object.freeze(
+	Object.fromEntries(
+		DECISION_TYPES.map((type) => [
+			type,
+			Object.freeze(
+				SAFETY_CRITICAL.has(type)
+					? { false_positive: 1, false_negative: 10 }
+					: { false_positive: 1, false_negative: 1 },
+			),
+		]),
+	) as Record<DecisionType, Readonly<ErrorCosts>>,
+);
+
 /**
  * Types promoted to a backend other than their catalog default (FR-DEC-8).
  * Promoting `action.risk` to the model (8.8, #339) adds
@@ -147,18 +171,11 @@ const PROMOTED: Readonly<Partial<Record<DecisionType, DecisionBackend>>> = {};
  * from the default.
  */
 function defaultDecision(type: DecisionType): DecisionPolicy {
-	const backend = PROMOTED[type] ?? DECISION_CATALOG[type].defaultBackend;
-	return SAFETY_CRITICAL.has(type)
-		? {
-				backend,
-				thresholds: {},
-				error_costs: { false_positive: 1, false_negative: 10 },
-			}
-		: {
-				backend,
-				thresholds: {},
-				error_costs: { false_positive: 1, false_negative: 1 },
-			};
+	return {
+		backend: PROMOTED[type] ?? DECISION_CATALOG[type].defaultBackend,
+		thresholds: {},
+		error_costs: { ...DEFAULT_ERROR_COSTS[type] },
+	};
 }
 
 export const DEFAULT_POLICY: Policy = {

@@ -51,16 +51,20 @@ export type ErrorKind = "false_positive" | "false_negative";
  * confirmation, else the kind of error. Overridden, dismissed or rejected
  * decisions acted when they should not have; reverted, hotfixed or
  * test-failing ones let through what they should have stopped.
+ *
+ * Exported (and frozen) so the model catalog generator reads it instead of
+ * keeping a hand mirror (#588).
  */
-const OUTCOME_ERROR: Readonly<Record<Outcome, ErrorKind | null>> = {
-	accepted: null,
-	override: "false_positive",
-	dismissed: "false_positive",
-	rejected: "false_positive",
-	reverted: "false_negative",
-	hotfixed: "false_negative",
-	test_failed_after_allow: "false_negative",
-};
+export const OUTCOME_ERROR: Readonly<Record<Outcome, ErrorKind | null>> =
+	Object.freeze({
+		accepted: null,
+		override: "false_positive",
+		dismissed: "false_positive",
+		rejected: "false_positive",
+		reverted: "false_negative",
+		hotfixed: "false_negative",
+		test_failed_after_allow: "false_negative",
+	});
 
 /**
  * A decision's verdict from its outcomes: unlabelled, right, or wrong with

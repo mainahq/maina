@@ -8,6 +8,7 @@ import {
 	confidenceOf,
 	LENGTH_BUCKETS,
 	lengthBucket,
+	OUTCOME_ERROR,
 	readLogSlice,
 	verdictOf,
 } from "../evidence";
@@ -17,6 +18,7 @@ import {
 	unwrap,
 } from "../outcomes/__tests__/fixtures";
 import { linkOutcome } from "../outcomes/link";
+import { OUTCOMES } from "../outcomes/types";
 import type { DecideRequest } from "../types";
 import { riskRecord, SYSTEM1 } from "./slice-fixtures";
 
@@ -64,6 +66,34 @@ describe("readLogSlice", () => {
 		const slice = unwrap(readLogSlice({ db }, { type: "slop", limit: 2 }));
 		expect(slice.decisions.map((r) => r.id)).toEqual(["a", "b"]);
 		expect(slice.outcomes.map((o) => o.decisionId)).toEqual(["a", "b"]);
+	});
+});
+
+describe("OUTCOME_ERROR (#588)", () => {
+	test("is exported with the error kind of every outcome", () => {
+		expect(Object.keys(OUTCOME_ERROR).sort()).toEqual([...OUTCOMES].sort());
+		expect(OUTCOME_ERROR).toEqual({
+			accepted: null,
+			override: "false_positive",
+			dismissed: "false_positive",
+			rejected: "false_positive",
+			reverted: "false_negative",
+			hotfixed: "false_negative",
+			test_failed_after_allow: "false_negative",
+		});
+	});
+
+	test("is frozen, so an importer cannot change what verdictOf reads", () => {
+		expect(Object.isFrozen(OUTCOME_ERROR)).toBe(true);
+	});
+
+	test("is the table verdictOf reads", () => {
+		for (const outcome of OUTCOMES) {
+			const kind = OUTCOME_ERROR[outcome];
+			expect(verdictOf([outcome])).toEqual(
+				kind === null ? { kind: "right" } : { kind: "wrong", errors: [kind] },
+			);
+		}
 	});
 });
 
