@@ -1951,6 +1951,35 @@ describe("remote and indirect execution paths the gate did not read (#622)", () 
 		]);
 	});
 
+	test("#622 review: global options and unresolved values do not hide a remote run", () => {
+		for (const command of [
+			"kubectl --cache-dir /tmp/k exec api -- rm -rf /data",
+			"kubectl -v 6 exec api -- rm -rf /data",
+			"kubectl --v 6 exec api -- rm -rf /data",
+			"kubectl --log-file k.log exec api -- sh",
+			"kubectl --username admin --password hunter2 exec api -- sh",
+			"kubectl --profile cpu --profile-output p.out exec api -- sh",
+			"kubectl --as-uid 1000 exec api -- sh",
+			"gcloud compute ssh prod-1 --command=$CMD",
+			'gcloud compute ssh prod-1 --command="$CMD"',
+			'gcloud compute ssh prod-1 "--command=$CMD"',
+			"aws ssm start-session --target i-0abc --document-name=$DOC",
+			'aws ssm start-session --target i-0abc "--document-name=$DOC"',
+		]) {
+			expect(classesOf(command), command).toContain("remote.exec");
+			expect(verdictOf(command), command).toBe("ask");
+		}
+	});
+
+	test("#622 review: a volume flag set to false keeps the volumes", () => {
+		for (const command of [
+			"docker rm -v=false db",
+			"docker rm --volumes=false db",
+		]) {
+			expect(classesOf(command), command).not.toContain("system.destructive");
+		}
+	});
+
 	test("removing a container with its anonymous volumes wipes data", () => {
 		for (const command of [
 			"docker rm -v db",

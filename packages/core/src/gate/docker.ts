@@ -212,7 +212,9 @@ function removesVolumes(args: readonly Word[]): readonly DockerClass[] {
 	const drops = options.some(
 		(a) =>
 			a !== null &&
-			(/^-[a-z]*v/.test(a) || a === "--volumes" || a === "--volumes=true"),
+			(/^-[a-z]*v(?!=false$)/.test(a) ||
+				a === "--volumes" ||
+				a === "--volumes=true"),
 	);
 	return drops ? ["system.destructive"] : [];
 }

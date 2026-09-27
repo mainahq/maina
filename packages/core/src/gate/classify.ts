@@ -2649,8 +2649,12 @@ function gcloudClassifier(
 function gcloudSshRuns(args: Argv): boolean {
 	const own = beforeDashDash(args);
 	if (!positional(own).includes("ssh") || asksForHelp(own)) return false;
+	// An unresolved `--command=$CMD` still names the option in its source.
 	if (
-		own.some((a) => a.text === "--command" || a.text?.startsWith("--command="))
+		own.some((a) => {
+			const word = a.text ?? a.raw.replace(/^["']/, "");
+			return word === "--command" || word.startsWith("--command=");
+		})
 	)
 		return true;
 	const passed = args.slice(own.length + 1).map((a) => a.text);
@@ -2675,6 +2679,21 @@ const KUBECTL_VALUE_OPTIONS: ReadonlySet<string> = new Set([
 	"--client-certificate",
 	"--client-key",
 	"--tls-server-name",
+	"--as-uid",
+	"--username",
+	"--password",
+	"--cache-dir",
+	"--profile",
+	"--profile-output",
+	"-v",
+	"--v",
+	"--vmodule",
+	"--log-dir",
+	"--log-file",
+	"--log-file-max-size",
+	"--log-flush-frequency",
+	"--log-backtrace-at",
+	"--stderrthreshold",
 ]);
 
 /** A `--help` or `-h` anywhere: the command only prints its usage. */
@@ -2828,12 +2847,16 @@ function awsRunsCommand(service: string, op: string, args: Argv): boolean {
 	if (service === "ecs" && op === "execute-command") return true;
 	if (service !== "ssm" || op !== "start-session") return false;
 	for (let i = 0; i < args.length; i++) {
-		const a = args[i]?.text;
+		const arg = args[i];
+		// An unresolved `--document-name=$DOC` names the option in its source.
+		const a = arg?.text ?? arg?.raw.replace(/^["']/, "");
 		const doc =
 			a === "--document-name"
 				? (args[i + 1]?.text ?? null)
 				: a?.startsWith("--document-name=")
-					? a.slice("--document-name=".length)
+					? arg?.text == null
+						? null
+						: a.slice("--document-name=".length)
 					: undefined;
 		if (doc === null) return true;
 		if (doc !== undefined) return /Command/i.test(doc);
