@@ -1,80 +1,56 @@
 /**
- * Tests for the weekly dogfood report (#286, FR-DOG-4).
+ * Tests for the weekly dogfood report (#286, FR-DOG-4; #570).
  *
- * The report reads the dogfood hook's log.jsonl, keeps one ISO week and
- * computes the gate metrics: decision counts, deny/ask rates, overrides and
- * crashes (fail-closed asks).
+ * The report reads one ISO week of gate decisions from the decision log
+ * (`.maina/decisions.db`, which the dogfood hook's runtime appends to) and
+ * writes `docs/dogfood/<yyyy-ww>.md`: the same bytes `maina digest
+ * --dogfood` writes, and what the release gate's dogfood-weeks evidence
+ * reads.
  */
 
-import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DOGFOOD_REPORT } from "../../../packages/cli/src/commands/digest";
+import { openDecisionDb } from "../../../packages/cli/src/decision-store";
+import { appendDecision } from "../../../packages/core/src/decide/log/append";
+import { hashValue } from "../../../packages/core/src/decide/log/hash";
 import {
-	computeMetrics,
-	isoWeek,
-	parseLog,
-	type ReportRecord,
-	renderReport,
-	report,
-} from "../report";
+	type DigestEvent,
+	gateLogEvents,
+	parseGateLog,
+	weekBounds,
+} from "../../../packages/core/src/digest/build";
+import { recordGateSubject } from "../../../packages/core/src/gate/overrides";
+import {
+	dogfoodWeeksEvidence,
+	parseDogfoodReport,
+} from "../../release/evidence/dogfood-weeks";
+import { decisionLog, isoWeek, report } from "../report";
 
-const line = (o: Record<string, unknown>): string => JSON.stringify(o);
+const SOURCE = DOGFOOD_REPORT.source;
 
-const SAMPLE_LOG = [
-	line({
-		ts: "2026-09-21T09:00:00.000Z",
-		tool: "Bash",
-		action: "bun test",
-		verdict: "allow",
-		reason: "no rule matched",
-	}),
-	line({
-		ts: "2026-09-22T09:00:00.000Z",
-		tool: "Bash",
-		action: "git status",
-		verdict: "allow",
-		reason: "no rule matched",
-	}),
-	line({
-		ts: "2026-09-22T10:00:00.000Z",
-		tool: "Bash",
-		action: "rm -rf /",
-		verdict: "deny",
-		reason: "destructive-shell: recursive rm of /",
-	}),
-	line({
-		ts: "2026-09-23T10:00:00.000Z",
-		tool: "Write",
-		action: "/etc/hosts",
-		verdict: "deny",
-		reason: "write-outside-repo: /etc/hosts",
-	}),
-	line({
-		ts: "2026-09-24T10:00:00.000Z",
-		tool: "Bash",
-		action: "git push origin master",
+const TS = Date.parse("2026-09-23T10:00:00.000Z"); // ISO week 2026-39
+
+const EVENTS: readonly DigestEvent[] = [
+	{
+		ts: TS,
+		tool: "shell",
 		verdict: "ask",
-		reason: "[override] protected-push: master",
+		rule: "git.push.protected",
+		override: false,
+		crash: false,
+	},
+	{
+		ts: TS + 1,
+		tool: "shell",
+		verdict: "deny",
+		rule: "fs.delete.recursive",
 		override: true,
-	}),
-	line({
-		ts: "2026-09-25T10:00:00.000Z",
-		tool: "Bash",
-		action: "ls",
-		verdict: "ask",
-		reason: "hook crash: boom",
-	}),
-	// Different ISO week (2026-40) — excluded.
-	line({
-		ts: "2026-09-28T10:00:00.000Z",
-		tool: "Bash",
-		action: "rm -rf ~",
-		verdict: "deny",
-		reason: "destructive-shell: recursive rm of ~",
-	}),
-	"{garbage",
-	"",
-].join("\n");
+		crash: false,
+	},
+];
 
 describe("isoWeek", () => {
 	test("computes ISO-8601 week keys", () => {
@@ -85,157 +61,168 @@ describe("isoWeek", () => {
 	});
 });
 
-describe("parseLog", () => {
-	test("keeps valid records and counts malformed lines", () => {
-		const { records, malformed } = parseLog(SAMPLE_LOG);
-		expect(records).toHaveLength(7);
-		expect(malformed).toBe(1);
-	});
-
-	// #584: the hook now logs where and how each call was gated. Lines
-	// written before that (no such fields) still count.
-	const BASE: ReportRecord = {
-		ts: "2026-09-25T10:00:00.000Z",
-		tool: "Bash",
-		action: "ls",
-		verdict: "allow",
-		reason: "no rule matched",
-	};
-	const CONTEXT: Partial<ReportRecord> = {
-		root: "/work/maina",
-		host: "claude-code",
-		permissionMode: "accept_edits",
-		decisionIds: ["d-1", "d-1:reversed"],
-	};
-
-	test("reads the root, host, permission mode and decision ids (#584)", () => {
-		const { records, malformed } = parseLog(line({ ...BASE, ...CONTEXT }));
-		expect(malformed).toBe(0);
-		expect(records).toEqual([{ ...BASE, ...CONTEXT }]);
-		const [r] = records;
-		expect(r?.root).toBe("/work/maina");
-		expect(r?.host).toBe("claude-code");
-		expect(r?.permissionMode).toBe("accept_edits");
-		expect(r?.decisionIds).toEqual(["d-1", "d-1:reversed"]);
-	});
-
-	test("lines written before #584 still parse", () => {
-		const { records, malformed } = parseLog(line(BASE));
-		expect(malformed).toBe(0);
-		expect(records).toEqual([BASE]);
-	});
-
-	test.each([
-		["root", { root: 7 }],
-		["host", { host: null }],
-		["permissionMode", { permissionMode: "yolo" }],
-		["decisionIds (not a list)", { decisionIds: "d-1" }],
-		["decisionIds (not strings)", { decisionIds: ["d-1", 2] }],
-	])("a line with a bad %s is malformed (#584)", (_name, bad) => {
-		const { records, malformed } = parseLog(
-			line({ ...BASE, ...CONTEXT, ...bad }),
-		);
-		expect(records).toEqual([]);
-		expect(malformed).toBe(1);
-	});
-});
-
-describe("computeMetrics", () => {
-	test("computes FR-DOG-4 metrics for one week", () => {
-		const { records } = parseLog(SAMPLE_LOG);
-		const m = computeMetrics(records, "2026-39");
-		expect(m.week).toBe("2026-39");
-		expect(m.total).toBe(6);
-		expect(m.verdicts).toEqual({ allow: 2, ask: 2, deny: 2 });
-		expect(m.denyRate).toBeCloseTo(2 / 6);
-		expect(m.askRate).toBeCloseTo(2 / 6);
-		expect(m.overrides).toBe(1);
-		// overrides / (denies + overrides): how often a deny was contested.
-		expect(m.overrideRate).toBeCloseTo(1 / 3);
-		expect(m.crashes).toBe(1);
-		expect(m.byTool).toEqual({ Bash: 5, Write: 1 });
-		expect(m.topDenyRules).toEqual([
-			{ rule: "destructive-shell", count: 1 },
-			{ rule: "write-outside-repo", count: 1 },
-		]);
-	});
-
-	test("an empty week yields zeroed metrics, not NaN", () => {
-		const m = computeMetrics([], "2026-10");
-		expect(m.total).toBe(0);
-		expect(m.denyRate).toBe(0);
-		expect(m.overrideRate).toBe(0);
-	});
-});
-
-describe("renderReport", () => {
-	test("renders a markdown report with the headline numbers", () => {
-		const { records } = parseLog(SAMPLE_LOG);
-		const md = renderReport(computeMetrics(records, "2026-39"));
-		expect(md).toContain("# Dogfood report 2026-39");
-		expect(md).toContain("| deny | 2 |");
-		expect(md).toContain("Overrides");
-		expect(md).toContain("Crashes");
-		expect(md).toContain("destructive-shell");
-	});
-});
-
 describe("report", () => {
-	test("writes docs/dogfood/<yyyy-ww>.md from the log", () => {
+	test("writes docs/dogfood/<yyyy-ww>.md from the week's decision log events", () => {
+		const bounds: Array<{ since: number; until: number }> = [];
 		const writes: Array<{ path: string; content: string }> = [];
 		const r = report("2026-39", {
 			root: "/repo",
-			readLog: () => SAMPLE_LOG,
+			readEvents: (b) => {
+				bounds.push(b);
+				return { ok: true, value: EVENTS };
+			},
 			writeFile: (path, content) => {
 				writes.push({ path, content });
 			},
 		});
-		expect(r.ok).toBe(true);
-		if (r.ok) expect(r.value).toBe("/repo/docs/dogfood/2026-39.md");
+		expect(r).toEqual({ ok: true, value: "/repo/docs/dogfood/2026-39.md" });
+		expect(bounds).toEqual([weekBounds("2026-39")]);
 		expect(writes).toHaveLength(1);
-		expect(writes[0]?.content).toContain("# Dogfood report 2026-39");
+		const md = writes[0]?.content ?? "";
+		expect(md).toStartWith(`# Dogfood report 2026-39\n\n${SOURCE}\n`);
+		expect(md).toContain("| **total** | 2 |");
+		expect(md).toContain("| fs.delete.recursive | 1 |");
+	});
+
+	test("the report says it comes from the decision log", () => {
+		expect(SOURCE).toContain("`.maina/decisions.db`");
+		expect(SOURCE).not.toContain("log.jsonl");
 	});
 
 	test("rejects a malformed week key", () => {
 		const r = report("2026-W39x", {
 			root: "/repo",
-			readLog: () => "",
+			readEvents: () => ({ ok: true, value: [] }),
 			writeFile: () => {},
 		});
 		expect(r.ok).toBe(false);
 	});
 
-	// Golden (#350): the report moved into `packages/core/src/digest`; its
-	// output for the fixture log was captured from this script before the
-	// move and must not change by a byte.
+	test("a decision log that cannot be read is a failure and writes nothing", () => {
+		const writes: string[] = [];
+		const r = report("2026-39", {
+			root: "/repo",
+			readEvents: () => ({ ok: false, error: "corrupt" }),
+			writeFile: (path) => {
+				writes.push(path);
+			},
+		});
+		expect(r).toEqual({
+			ok: false,
+			error: "cannot read the decision log: corrupt",
+		});
+		expect(writes).toEqual([]);
+	});
+
+	// Golden (#350): the metrics and table layout are pinned byte for byte by
+	// the pre-move fixtures; only the source line changed when the report
+	// moved from the hook's log.jsonl to the decision log (#570).
 	test.each([
 		"2026-39",
 		"2026-40",
-	])("week %s matches the pre-move golden report", (week) => {
+	])("week %s matches the golden report apart from its source line", (week) => {
 		const fixtures = join(
 			import.meta.dir,
 			"../../../packages/core/src/digest/__tests__/fixtures",
 		);
+		const { records } = parseGateLog(
+			readFileSync(join(fixtures, "gate-log.jsonl"), "utf-8"),
+		);
 		const writes: string[] = [];
 		const r = report(week, {
 			root: "/repo",
-			readLog: () => readFileSync(join(fixtures, "gate-log.jsonl"), "utf-8"),
+			readEvents: () => ({ ok: true, value: gateLogEvents(records) }),
 			writeFile: (_path, content) => {
 				writes.push(content);
 			},
 		});
 		expect(r.ok).toBe(true);
-		expect(writes).toEqual([
-			readFileSync(join(fixtures, `dogfood-report-${week}.md`), "utf-8"),
-		]);
+		const golden = readFileSync(
+			join(fixtures, `dogfood-report-${week}.md`),
+			"utf-8",
+		).replace(
+			"Generated by `bun run dogfood:report` from the dogfood PreToolUse hook log (`.maina/dogfood/log.jsonl`).",
+			SOURCE,
+		);
+		expect(writes).toEqual([golden]);
+	});
+});
+
+// #570: the gate decisions the dogfood hook's runtime logs reach the
+// committed report, and the release gate counts that week as on v1.
+describe("decision log to release gate", () => {
+	let repo: string;
+
+	beforeEach(() => {
+		repo = mkdtempSync(join(tmpdir(), "maina-570-"));
 	});
 
-	test("a missing log yields an empty report, not a failure", () => {
+	afterEach(() => {
+		rmSync(repo, { recursive: true, force: true });
+	});
+
+	test("a week of logged gate decisions is a week on the v1 runtime", () => {
+		const mainaDir = join(repo, ".maina");
+		const opened = openDecisionDb(mainaDir);
+		if (!opened.ok) throw new Error(opened.error);
+		const { db, close } = opened.value;
+		// What the runtime gate appends for a rule-reached ask.
+		const appended = appendDecision(
+			{ db },
+			{
+				id: "d570",
+				ts: TS,
+				type: "action.risk",
+				inputHash: hashValue("input"),
+				schemaHash: hashValue("schema"),
+				optionOrder: ["allow", "ask", "deny"],
+				policyHash: hashValue("policy"),
+				modelHash: hashValue("rules"),
+				distribution: [
+					{ answer: "allow", p: 0 },
+					{ answer: "ask", p: 1 },
+					{ answer: "deny", p: 0 },
+				],
+				answer: "ask",
+				finalAction: "ask",
+				latencyMs: 1,
+			},
+		);
+		expect(appended.ok).toBe(true);
+		expect(
+			recordGateSubject(db, {
+				decisionId: "d570",
+				kind: "shell",
+				targets: ["sudo rm -rf /opt/x"],
+				classes: ["privilege.escalate"],
+				rule: "ask",
+				irreversible: true,
+			}).ok,
+		).toBe(true);
+		close();
+
+		const written = new Map<string, string>();
 		const r = report("2026-39", {
-			root: "/repo",
-			readLog: () => undefined,
-			writeFile: () => {},
+			root: repo,
+			readEvents: decisionLog(repo),
+			writeFile: (path, content) => {
+				written.set(path, content);
+			},
 		});
 		expect(r.ok).toBe(true);
+		const md = written.get(join(repo, "docs/dogfood/2026-39.md")) ?? "";
+		// Labels only: the gated command never reaches the committed report.
+		expect(md).not.toContain("sudo rm");
+		expect(parseDogfoodReport(md)).toEqual({
+			ok: true,
+			value: { week: "2026-39", decisions: 1 },
+		});
+		const evidence = dogfoodWeeksEvidence(
+			[{ path: "docs/dogfood/2026-39.md", text: md }],
+			[],
+			"https://github.com/mainahq/maina/actions/runs/1",
+			new Date("2026-09-28T12:00:00Z"),
+		);
+		expect(evidence.ok && evidence.value.weeks[0]?.onV1Runtime).toBe(true);
 	});
 });

@@ -7,16 +7,25 @@ name: Dogfood weekly report
 # both. `release:gates` holds the dogfood-weeks item (spec §9.5: 4
 # consecutive clean weeks on the v1 runtime) to those reports.
 #
-# A report a maintainer already committed for the week (run locally, where
-# the dogfood hook's gate log lives) is kept, not overwritten: the runner
-# has no gate log, so a report it writes records no decisions and the week
-# does not count as on the v1 runtime.
+# The report reads the decision log (`.maina/decisions.db`, #570), which the
+# runtime behind the dogfood hook appends every gate decision to. That log
+# is local and gitignored, so a maintainer commits the week where the gate
+# ran: `maina digest --dogfood --commit` writes and commits
+# `docs/dogfood/<yyyy-ww>.md` for the week that just ended. A committed
+# report is kept, not overwritten: the runner has no decision log, so a
+# report it writes records no decisions and the week does not count as on
+# the v1 runtime.
 #
 # The PR is opened with DOGFOOD_BOT_TOKEN when that secret is set (a token
 # whose PRs trigger the required checks), else with the workflow token.
+# The bot then publishes the maina receipt for its own head (`bun run
+# dogfood:receipt`), so the required Dogfood receipt check can pass. The
+# receipt counts only when posted with DOGFOOD_BOT_TOKEN, whose author is a
+# repository member; the workflow token's bot is not a trusted author.
 #
 # On a pull request that changes it, it runs as a dry run: report and
-# weeks computed and shown, nothing pushed.
+# weeks computed and shown, the receipt verified on a local commit,
+# nothing pushed.
 
 on:
   schedule:
@@ -31,6 +40,8 @@ on:
     paths:
       - ".github/workflows/dogfood-report.yml"
       - "scripts/dogfood/report.ts"
+      - "scripts/dogfood/receipt.ts"
+      - "packages/cli/src/commands/digest.ts"
       - "scripts/release/evidence/dogfood-weeks.ts"
 
 permissions:
@@ -46,11 +57,13 @@ jobs:
   report:
     name: weekly dogfood report
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           token: ${{ secrets.DOGFOOD_BOT_TOKEN || github.token }}
+          # The receipt diffs HEAD against its merge-base with the base branch.
+          fetch-depth: 0
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
@@ -95,6 +108,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Bot PR
+        id: pr
         if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.DOGFOOD_BOT_TOKEN || github.token }}
@@ -111,11 +125,37 @@ jobs:
             echo "Nothing new to report for $W."
             exit 0
           fi
-          git commit -q -m "docs(dogfood): weekly report $W"
+          git commit -q -m "docs: weekly dogfood report $W"
           git push -q --force origin "$BRANCH"
           if [ -z "$(gh pr list --head "$BRANCH" --state open --json number -q '.[].number')" ]; then
             gh pr create --base "$BASE" --head "$BRANCH" \
-              --title "docs(dogfood): weekly report $W" \
+              --title "docs: weekly dogfood report $W" \
               --label dogfood \
               --body "Weekly dogfood report for ISO week $W (FR-DOG-4) and the recomputed \`docs/dogfood/dogfood-weeks.json\` (spec §9.5), from $RUN_URL."
           fi
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      # The receipt for the bot's head (#570): the maina verify pipeline over
+      # the report files versus the merge-base, posted to the PR, and the
+      # Dogfood check re-run so it sees the receipt.
+      - name: Receipt
+        if: steps.pr.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.DOGFOOD_BOT_TOKEN || github.token }}
+          HAS_BOT_TOKEN: ${{ secrets.DOGFOOD_BOT_TOKEN != '' }}
+        run: |
+          if [ "$HAS_BOT_TOKEN" != "true" ]; then
+            echo "::warning::DOGFOOD_BOT_TOKEN is not set: the workflow token's bot posts the receipt, which the Dogfood check does not trust, and its PR does not trigger the required checks."
+          fi
+          bun run dogfood:receipt
+
+      - name: Receipt (dry run)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/dogfood
+          git diff --cached --quiet || git commit -q -m "docs: weekly dogfood report (dry run)"
+          bun run dogfood:receipt --no-publish --base "origin/$BASE"

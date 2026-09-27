@@ -33,9 +33,18 @@
  *   docs-build.json             { link, clean }
  *   latency.json                { link, gateP95Ms, decideP95Ms, graphQueryP95Ms, mcpColdStartMs }
  *   dogfood-weeks.json          { link, weeks: [{ week: "yyyy-ww", onV1Runtime, openP0 }] }
- *   receipted-merges.json       { link, merges, receipted, unreceipted?: string[] }
+ *   receipted-merges.json       { link, merges, receipted, unreceipted?: string[],
+ *                                 since?: string, exempt?: string[] }
  *   escape-suite.json           { link, runs: [{ os, worker, cases, blocked }] }
  *   harness-control.json        { link, unattendedNeverShips, boundedRevision }
+ *
+ * receipted-merges counts from receipt enforcement: receipts became required
+ * with the merge of #371 (`RECEIPTS_ENFORCED_BY` in evidence/receipts.ts).
+ * `merges` holds every v1/main merge since then; PRs opened before that
+ * merge could not carry a receipt and are listed in `exempt`, not counted.
+ * The exempt set is pinned to those seven merges (`RECEIPTS_GRANDFATHERED`),
+ * so a reopened pre-enforcement PR is counted, and 100% of `merges` means
+ * every other merge carries one.
  *
  * The thresholds are spec §9's (and §8's latency budgets), defined once in
  * `THRESHOLDS`. The hosts, workers, suite size and the `action.risk` default
@@ -47,6 +56,7 @@ import {
 	isWeekKey,
 	weekBounds,
 } from "../../packages/core/src/digest/build";
+import { RECEIPTS_ENFORCED_BY } from "./evidence/receipts";
 
 type Result<T, E> =
 	| Readonly<{ ok: true; value: T }>
@@ -477,8 +487,15 @@ function checkReceipts(data: Obj): Check {
 		);
 		return c.done();
 	}
-	const line = `${fmt(receipted)} of ${fmt(merges)} v1/main merges carry a valid receipt`;
-	if (merges > 0 && receipted === merges) c.facts.push(line);
+	const since = typeof data.since === "string" ? ` since ${data.since}` : "";
+	const line = `${fmt(receipted)} of ${fmt(merges)} v1/main merges${since} carry a valid receipt`;
+	const exempt = strings(data.exempt) ?? [];
+	if (exempt.length > 0) {
+		c.facts.push(
+			`exempt (opened before receipt enforcement): ${exempt.join(", ")}`,
+		);
+	}
+	if (merges > 0 && receipted === merges) c.facts.unshift(line);
 	else {
 		const which = strings(data.unreceipted) ?? [];
 		c.problems.push(
@@ -636,7 +653,7 @@ export const GATE_ITEMS: readonly GateItem[] = [
 	{
 		id: "receipted-merges",
 		section: "§9.5",
-		title: "100% of v1/main merges carry a valid receipt",
+		title: `100% of v1/main merges since receipt enforcement (#${RECEIPTS_ENFORCED_BY}) carry a valid receipt`,
 		source: file(
 			"receipted-merges.json",
 			"the Dogfood receipt check on every PR merged into v1/main",

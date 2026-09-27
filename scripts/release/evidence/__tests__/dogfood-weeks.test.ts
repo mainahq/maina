@@ -6,11 +6,11 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { renderDogfoodReport } from "../../../../packages/cli/src/commands/digest";
 import {
-	computeMetrics,
-	type ReportRecord,
-	renderReport,
-} from "../../../dogfood/report";
+	buildDigest,
+	type DigestEvent,
+} from "../../../../packages/core/src/digest/build";
 import {
 	dogfoodWeeksEvidence,
 	openP0At,
@@ -21,20 +21,18 @@ import {
 const LINK = "https://github.com/mainahq/maina/actions/runs/42";
 const NOW = new Date("2026-09-27T12:00:00Z"); // a Sunday in ISO week 2026-39
 
-const record = (
-	ts: string,
-	verdict: ReportRecord["verdict"],
-): ReportRecord => ({
-	ts,
-	tool: "Bash",
-	action: "bun test",
+const record = (ts: string, verdict: DigestEvent["verdict"]): DigestEvent => ({
+	ts: Date.parse(ts),
+	tool: "shell",
 	verdict,
-	reason: "no rule matched",
+	rule: "shell.exec",
+	override: false,
+	crash: false,
 });
 
-/** A report exactly as `bun run dogfood:report` writes it. */
-const report = (week: string, records: readonly ReportRecord[]): string =>
-	renderReport(computeMetrics(records, week));
+/** A report exactly as `maina digest --dogfood` writes it. */
+const report = (week: string, events: readonly DigestEvent[]): string =>
+	renderDogfoodReport(buildDigest(events, week));
 
 const W38 = report("2026-38", [
 	record("2026-09-15T09:00:00.000Z", "allow"),
