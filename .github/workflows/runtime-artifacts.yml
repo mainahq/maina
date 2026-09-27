@@ -115,9 +115,12 @@ jobs:
             bun packages/runtime/src/model/__tests__/fixtures/tiny-model.ts dist/selftest
           fi
           ls -R dist/selftest
+      # One process per file, as `bun run test` does: a process loads one
+      # onnxruntime addon, and two files stage it in different directories.
       - name: System 1 engine tests
         if: matrix.smoke
-        run: bun test packages/runtime/src/model
+        shell: bash
+        run: for f in packages/runtime/src/model/__tests__/*.test.ts; do bun test "$f"; done
       - name: Smoke test
         if: matrix.smoke
         shell: bash
