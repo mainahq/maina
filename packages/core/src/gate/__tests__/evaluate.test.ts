@@ -16,6 +16,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { precomputedBackend } from "../../decide/backends/precomputed";
 import { rulesBackend } from "../../decide/backends/rules";
+import { REVERSED_SUFFIX } from "../../decide/encoding";
 import { buildDecisionRecord } from "../../decide/log/append";
 import {
 	createRegistry,
@@ -43,7 +44,6 @@ import {
 	type GatePorts,
 	gateModelInputs,
 	gateShadowRequests,
-	REVERSED_SUFFIX,
 } from "../evaluate";
 import type { GateContext, GateEvent } from "../events";
 import { formatGateMessage } from "../messages";
