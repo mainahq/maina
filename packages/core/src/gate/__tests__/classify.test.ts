@@ -1729,3 +1729,50 @@ describe("docker data deletes and ssh remote commands the default gate allowed (
 		expect(verdictOf(command)).toBe("ask");
 	});
 });
+
+describe("#614 review: docker words the gate cannot read, and empty ssh stdin", () => {
+	const verdictOf = (command: string): string =>
+		evaluateRules(shellEvent(command), DEFAULT_POLICY, ctx).kind;
+	const GATED: readonly string[] = ["ask", "deny"];
+
+	test("a docker subcommand the gate cannot resolve is opaque", () => {
+		for (const command of [
+			"docker $SUB prune -af --volumes",
+			"docker volume $ACTION pgdata",
+			"docker system $ACTION -af",
+			"docker image $ACTION -a",
+			"docker compose $ACTION -v",
+			"docker-compose $ACTION --volumes",
+		]) {
+			expect(classesOf(command), command).toContain("shell.opaque");
+			expect(GATED, command).toContain(verdictOf(command));
+		}
+	});
+
+	test("podman and docker-compose global options that take a value are skipped", () => {
+		for (const command of [
+			"podman --runtime crun volume prune -f",
+			"podman --cgroup-manager systemd system reset -f",
+			"podman --events-backend file --volumepath /v volume rm pgdata",
+			"podman --db-backend sqlite --module m system prune -a",
+			"docker-compose -H ssh://deploy@prod-1 down -v",
+			"docker-compose --context prod down --volumes",
+			"docker-compose --log-level INFO down -v",
+		]) {
+			expect(classesOf(command), command).toContain("system.destructive");
+			expect(verdictOf(command), command).toBe("ask");
+		}
+	});
+
+	test("ssh stdin from any file, /dev/null included, stays remote.exec", () => {
+		// The parser drops words after a redirect, so `ssh h < /dev/null cmd`
+		// reaches the gate as `ssh h < /dev/null`; only the stdin rule holds it.
+		for (const command of [
+			"ssh prod-1 < /dev/null 'rm -rf /srv/data'",
+			"ssh prod-1 < $SCRIPT",
+		]) {
+			expect(classesOf(command), command).toContain("remote.exec");
+			expect(verdictOf(command), command).toBe("ask");
+		}
+	});
+});

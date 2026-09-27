@@ -40,6 +40,23 @@ const GLOBAL_VALUE: ReadonlySet<string> = new Set([
 	"--storage-driver",
 	"--storage-opt",
 	"--tmpdir",
+	// Podman only.
+	"--cdi-spec-dir",
+	"--cgroup-manager",
+	"--conmon",
+	"--db-backend",
+	"--events-backend",
+	"--hooks-dir",
+	"--imagestore",
+	"--module",
+	"--network-cmd-path",
+	"--network-config-dir",
+	"--out",
+	"--registries-conf",
+	"--runtime",
+	"--runtime-flag",
+	"--ssh",
+	"--volumepath",
 ]);
 
 /** `docker compose` / `docker-compose` options that take the next word as a value. */
@@ -54,17 +71,32 @@ const COMPOSE_VALUE: ReadonlySet<string> = new Set([
 	"--ansi",
 	"--progress",
 	"--parallel",
+	// docker-compose v1 connection options.
+	"-H",
+	"--host",
+	"-c",
+	"--context",
+	"--log-level",
+	"--tlscacert",
+	"--tlscert",
+	"--tlskey",
 ]);
+
+/** Groups whose action decides whether data is deleted. */
+const DATA_GROUPS: ReadonlySet<string> = new Set(["volume", "system", "image"]);
 
 /** The classes of `docker …` or `podman …`, given the words after the program. */
 export function classifyDocker(words: readonly Word[]): readonly DockerClass[] {
 	const [group, ...rest] = afterOptions(words, GLOBAL_VALUE);
 	if (group === undefined) return [];
+	// An unresolved subcommand could be any of them, a prune included.
+	if (group === null) return ["shell.opaque"];
 	if (group === "push") return ["package.publish"];
 	if (group === "compose") return classifyCompose(rest);
 	const [action, ...args] = rest;
 	if (group === "stack" && action === "deploy") return ["deploy"];
 	if (asksForHelp(args)) return [];
+	if (action === null && DATA_GROUPS.has(group)) return ["shell.opaque"];
 	if (group === "volume" && (action === "rm" || action === "remove"))
 		return ["system.destructive"];
 	if (group === "volume" && action === "prune") return ["system.destructive"];
@@ -81,7 +113,9 @@ export function classifyCompose(
 	words: readonly Word[],
 ): readonly DockerClass[] {
 	const [action, ...args] = afterOptions(words, COMPOSE_VALUE);
-	if (action !== "down" || asksForHelp(args)) return [];
+	if (asksForHelp(args)) return [];
+	if (action === null) return ["shell.opaque"];
+	if (action !== "down") return [];
 	// `down -v` removes the named volumes the project declares.
 	return dropsData(args, /^-[a-z]*v/, ["--volumes"]);
 }
