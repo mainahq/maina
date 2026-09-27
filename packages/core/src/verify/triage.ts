@@ -19,14 +19,9 @@ import type { Result } from "../db/index";
 import type { DecidePorts } from "../decide/decide";
 import { decide } from "../decide/decide";
 import { hashInput } from "../decide/log/hash";
-import type {
-	DecideError,
-	Decision,
-	DecisionState,
-	DecisionType,
-} from "../decide/types";
+import type { DecideError, Decision, DecisionState } from "../decide/types";
 import { type Preferences, ruleOutcomes } from "../feedback/preferences";
-import { DEFAULT_POLICY } from "../policy/defaults";
+import { confidenceThreshold } from "../policy/defaults";
 import type { Triage } from "../receipt/types";
 import type { Finding } from "./diff-filter";
 
@@ -34,12 +29,9 @@ export type { Triage } from "../receipt/types";
 
 const SEVERITIES = ["error", "warning", "info"] as const;
 
-/** The policy's confidence threshold for `type`. */
-function thresholdOf(ports: DecidePorts, type: DecisionType): number {
-	return (
-		ports.policy.decisions[type]?.thresholds.confidence ??
-		DEFAULT_POLICY.decisions[type].thresholds.confidence
-	);
+/** The policy's confidence threshold for `decision`, by the backend that answered. */
+function thresholdOf(ports: DecidePorts, decision: Decision): number {
+	return confidenceThreshold(ports.policy, decision.type, decision.backend);
 }
 
 /** P(true) of a bool decision. */
@@ -144,12 +136,14 @@ export function triageFindings(
 		return { kept: findings, suppressed: 0, byOriginal };
 	}
 
-	const threshold = thresholdOf(ports, "finding.real");
 	const survivors: Finding[] = [];
 	const originals: Finding[] = [];
 	for (const [i, finding] of findings.entries()) {
 		const decision = real[i];
-		if (decision?.answer === false && decision.confidence >= threshold) {
+		if (
+			decision?.answer === false &&
+			decision.confidence >= thresholdOf(ports, decision)
+		) {
 			byOriginal.set(finding, null);
 			continue;
 		}
@@ -272,7 +266,7 @@ export function triageDiff(
 			},
 		};
 	}
-	const unsure = decision.confidence < thresholdOf(ports, "diff.needs_review");
+	const unsure = decision.confidence < thresholdOf(ports, decision);
 	return {
 		ok: true,
 		value: {

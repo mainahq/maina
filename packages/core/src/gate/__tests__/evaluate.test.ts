@@ -15,6 +15,7 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { precomputedBackend } from "../../decide/backends/precomputed";
+import { rulesBackend } from "../../decide/backends/rules";
 import { buildDecisionRecord } from "../../decide/log/append";
 import {
 	createRegistry,
@@ -469,35 +470,63 @@ describe("fail closed: errors, timeouts and low confidence ask", () => {
 		expect(result.verdict).toBe("allow");
 	});
 
-	test("confidence below the policy threshold asks", () => {
-		const result = evaluateGate(
-			withModel(() => ({ verdict: "allow", p: 0.6 })),
-			shellEvent("ls -la"),
-			modelPolicy(),
-		);
-		expect(result.verdict).toBe("ask");
-		expect(result.degraded).toBe(false);
-		expect(result.reason).toContain("confidence");
-	});
-
-	test("the threshold comes from the policy", () => {
+	test("confidence below a non-model backend's built-in threshold asks", () => {
+		const heuristicStandIn: Backend = {
+			...modelBackend(() => ({ verdict: "allow", p: 0.6 })),
+			id: "heuristic",
+		};
 		const base = modelPolicy();
-		const lenient: Policy = {
+		const policy: Policy = {
 			...base,
 			decisions: {
 				...base.decisions,
 				"action.risk": {
 					...base.decisions["action.risk"],
-					thresholds: { confidence: 0.5 },
+					backend: "heuristic",
+				},
+			},
+		};
+		const result = evaluateGate(
+			gatePorts({
+				backends: createRegistry([rulesBackend, heuristicStandIn]),
+			}),
+			shellEvent("ls -la"),
+			policy,
+		);
+		expect(result.verdict).toBe("ask");
+		expect(result.degraded).toBe(false);
+		expect(result.reason).toContain("below the 0.9 threshold");
+	});
+
+	test("system1's answer is already thresholded: no default floor on top (#576)", () => {
+		const result = evaluateGate(
+			withModel(() => ({ verdict: "allow", p: 0.6 })),
+			shellEvent("ls -la"),
+			modelPolicy(),
+		);
+		expect(result.verdict).toBe("allow");
+	});
+
+	test("a policy's own threshold is a floor on top of system1", () => {
+		const base = modelPolicy();
+		const strict: Policy = {
+			...base,
+			decisions: {
+				...base.decisions,
+				"action.risk": {
+					...base.decisions["action.risk"],
+					thresholds: { confidence: 0.7 },
 				},
 			},
 		};
 		const result = evaluateGate(
 			withModel(() => ({ verdict: "allow", p: 0.6 })),
 			shellEvent("ls -la"),
-			lenient,
+			strict,
 		);
-		expect(result.verdict).toBe("allow");
+		expect(result.verdict).toBe("ask");
+		expect(result.degraded).toBe(false);
+		expect(result.reason).toContain("below the 0.7 threshold");
 	});
 
 	test("a port that throws still yields ask, never a crash", () => {

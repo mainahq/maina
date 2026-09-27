@@ -329,6 +329,27 @@ describe("backend selection follows the policy", () => {
 		});
 	});
 
+	test("a calibrated backend's calibration rides on the decision (#576)", () => {
+		const calibration = {
+			sha256: "c".repeat(64),
+			thresholds: { slop: { confidence: 0.65 } },
+		};
+		const policy = withBackend(DEFAULT_POLICY, "slop", "system1");
+		const backends = createRegistry([
+			rulesBackend,
+			heuristicBackend,
+			{ ...fakeSystem1, calibration },
+		]);
+		const [decision] = decisionsOf(decide(ports({ policy, backends }), slop));
+		expect(decision?.backend).toEqual({
+			id: "system1",
+			version: "test-1",
+			calibration,
+		});
+		const [plain] = decisionsOf(decide(ports(), slop));
+		expect(plain?.backend).not.toHaveProperty("calibration");
+	});
+
 	test("falls back to the catalog default when the named backend is not registered", () => {
 		const policy = withBackend(DEFAULT_POLICY, "slop", "system1");
 		const [decision] = decisionsOf(decide(ports({ policy }), slop));

@@ -129,9 +129,11 @@ const ProtectedBranches = z
 const probability = z.number().min(0).max(1);
 
 const Thresholds = z.strictObject({
-	confidence: probability.describe(
-		"Minimum confidence at which the backend's answer is acted on.",
-	),
+	confidence: probability
+		.describe(
+			"Minimum confidence at which the backend's answer is acted on. Unset, it depends on the backend that answers: rules and heuristic use 0.9 for action.risk and diff.sensitive and 0.8 otherwise; system1 uses 0 for action.risk (its calibrated thresholds are already applied) and its calibrated threshold for other types.",
+		)
+		.optional(),
 });
 
 const ErrorCosts = z.strictObject({
@@ -304,7 +306,7 @@ const PolicyLayerSchema = z
 				z.enum(DECISION_TYPES),
 				z.strictObject({
 					backend: z.enum(DECISION_BACKENDS).optional(),
-					thresholds: Thresholds.partial().optional(),
+					thresholds: Thresholds.optional(),
 					error_costs: ErrorCosts.partial().optional(),
 				}),
 			)

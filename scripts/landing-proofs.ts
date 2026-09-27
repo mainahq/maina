@@ -29,7 +29,10 @@ import { evaluateGate } from "../packages/core/src/gate/evaluate";
 import type { GateContext, GateEvent } from "../packages/core/src/gate/events";
 import { loadShellParser } from "../packages/core/src/gate/parsers/shell";
 import { evaluateRules } from "../packages/core/src/gate/rules";
-import { DEFAULT_POLICY } from "../packages/core/src/policy/defaults";
+import {
+	confidenceThreshold,
+	DEFAULT_POLICY,
+} from "../packages/core/src/policy/defaults";
 import { GATE } from "../packages/docs/src/data/landing";
 import type {
 	CorpusRow,
@@ -326,8 +329,7 @@ export async function computeLandingProofs(
 			proofs: {
 				gate: {
 					backend: DEFAULT_POLICY.decisions["action.risk"].backend,
-					threshold:
-						DEFAULT_POLICY.decisions["action.risk"].thresholds.confidence,
+					threshold: confidenceThreshold(DEFAULT_POLICY, "action.risk"),
 					presets,
 					ledger,
 				},

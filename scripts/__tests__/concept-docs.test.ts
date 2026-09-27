@@ -14,6 +14,7 @@ import { LOG_SALT_PATH } from "../../packages/core/src/decide/log/salt";
 import { OUTCOMES } from "../../packages/core/src/decide/outcomes/types";
 import { DECISION_CATALOG } from "../../packages/core/src/decide/types-catalog";
 import {
+	confidenceThreshold,
 	DEFAULT_POLICY,
 	UNATTENDED_DENIED_ACTION_CLASSES,
 } from "../../packages/core/src/policy/defaults";
@@ -142,11 +143,15 @@ describe("policy", () => {
 		expect(text).toContain("](/reference/policy/)");
 	});
 
-	test("states the default confidence thresholds", () => {
-		const risk = DEFAULT_POLICY.decisions["action.risk"].thresholds.confidence;
-		const other = DEFAULT_POLICY.decisions.slop.thresholds.confidence;
+	test("states the default confidence thresholds, per backend", () => {
+		const heuristic = { id: "heuristic", version: "1" } as const;
+		const system1 = { id: "system1", version: "1" } as const;
+		const risk = confidenceThreshold(DEFAULT_POLICY, "action.risk", heuristic);
+		const other = confidenceThreshold(DEFAULT_POLICY, "slop", heuristic);
+		const model = confidenceThreshold(DEFAULT_POLICY, "action.risk", system1);
 		expect(text).toContain(String(risk));
 		expect(text).toContain(String(other));
+		expect(text).toContain(`so its default there is ${model}`);
 	});
 });
 

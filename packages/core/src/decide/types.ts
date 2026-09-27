@@ -76,6 +76,27 @@ export type BackendAnswer = Readonly<{
 	distribution: readonly DistributionEntry[];
 }>;
 
+/**
+ * What a calibrated backend (System 1) certified: the sha256 of its
+ * calibration file and, per decision type, the confidence at which its
+ * answer may be acted on. A `null` confidence means never act on that type.
+ * `action.risk` needs none: that backend applies its own calibrated
+ * thresholds before it answers.
+ */
+export type BackendCalibration = Readonly<{
+	sha256: string;
+	thresholds: Readonly<
+		Partial<Record<DecisionType, Readonly<{ confidence?: number | null }>>>
+	>;
+}>;
+
+/** Which backend answered, and the calibration it answered under, if any. */
+export type BackendRef = Readonly<{
+	id: DecisionBackend;
+	version: string;
+	calibration?: BackendCalibration;
+}>;
+
 export type Decision = Readonly<{
 	/** The id of the question this decision answers. */
 	id: string;
@@ -84,7 +105,7 @@ export type Decision = Readonly<{
 	distribution: readonly DistributionEntry[];
 	/** The probability of `answer`: the largest entry of `distribution`. */
 	confidence: number;
-	backend: Readonly<{ id: DecisionBackend; version: string }>;
+	backend: BackendRef;
 	latencyMs: number;
 }>;
 
@@ -108,6 +129,8 @@ export type BackendError = Readonly<{
 export type Backend = Readonly<{
 	id: DecisionBackend;
 	version: string;
+	/** Set by a calibrated backend; copied onto every `Decision` it answers. */
+	calibration?: BackendCalibration;
 	answer: (
 		input: BackendInput,
 	) => Result<readonly BackendAnswer[], BackendError>;

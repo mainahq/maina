@@ -13,7 +13,7 @@
 import { createHash, createHmac } from "node:crypto";
 import type { Policy } from "../../policy/schema";
 import type {
-	DecisionBackend,
+	BackendRef,
 	DecisionState,
 	DecisionType,
 	Question,
@@ -191,20 +191,32 @@ export function hashSchema(
 	);
 }
 
-/** The whole effective policy the backend saw. */
-export function hashPolicy(policy: Policy): string {
-	return hashValue({ v: PREIMAGE_VERSION, kind: "policy", policy });
+/**
+ * The whole effective policy the backend saw, plus the sha256 of the
+ * calibration its unset thresholds default to, when the backend has one.
+ * Without a calibration the hash is the same as before calibrations existed.
+ */
+export function hashPolicy(policy: Policy, calibration?: string): string {
+	return hashValue({
+		v: PREIMAGE_VERSION,
+		kind: "policy",
+		policy,
+		calibration,
+	});
 }
 
-/** The backend (and, for System 1, the model) that answered. */
-export function hashModel(
-	backend: Readonly<{ id: DecisionBackend; version: string }>,
-): string {
+/**
+ * The backend (and, for System 1, the model and its calibration) that
+ * answered. Without a calibration the hash is the same as before
+ * calibrations existed.
+ */
+export function hashModel(backend: BackendRef): string {
 	return hashValue({
 		v: PREIMAGE_VERSION,
 		kind: "model",
 		id: backend.id,
 		version: backend.version,
+		calibration: backend.calibration?.sha256,
 	});
 }
 

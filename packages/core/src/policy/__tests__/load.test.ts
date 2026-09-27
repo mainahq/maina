@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createMemoryFs } from "../../ports/testing";
 import {
+	confidenceThreshold,
 	DEFAULT_POLICY,
 	DENIED_ACTION_CLASSES,
 	IRREVERSIBLE_ACTION_CLASSES,
@@ -74,6 +75,24 @@ describe("default policy", () => {
 			ok: true,
 			value: DEFAULT_POLICY,
 		});
+	});
+});
+
+describe("an unset threshold stays unset (#576)", () => {
+	test("a layer that only switches backend leaves the threshold to that backend", async () => {
+		const result = await loadPolicy(
+			repoPolicy({
+				decisions: { "action.risk": { backend: "system1", thresholds: {} } },
+			}),
+			ROOT,
+			undefined,
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		const risk = result.value.decisions["action.risk"];
+		expect(risk?.backend).toBe("system1");
+		expect(risk?.thresholds.confidence).toBeUndefined();
+		expect(confidenceThreshold(result.value, "action.risk")).toBe(0);
 	});
 });
 

@@ -30,6 +30,7 @@ import {
 	type JudgedAnswer,
 	judgeEach,
 } from "../decide/decide";
+import { confidenceThreshold } from "../policy/defaults";
 import type { DecisionType } from "../policy/schema";
 import { extractAcceptanceCriteria, STOP_WORDS } from "../utils";
 
@@ -548,7 +549,7 @@ export function analyzeArtifacts(
 			const threshold =
 				decisionType === undefined
 					? 0
-					: ports.policy.decisions[decisionType].thresholds.confidence;
+					: confidenceThreshold(ports.policy, decisionType);
 			const severity =
 				!decided || confidence >= threshold
 					? finding.severity

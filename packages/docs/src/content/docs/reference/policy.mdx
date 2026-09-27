@@ -29,7 +29,7 @@ Every key a policy file (`.maina/policy.json` in a repo, `~/.maina/policy.json` 
 | `decisions` | map of object |  |
 | `decisions.<type>.backend` | `rules` or `heuristic` or `system1` |  |
 | `decisions.<type>.thresholds` | object |  |
-| `decisions.<type>.thresholds.confidence` | number (0 to 1) | Minimum confidence at which the backend's answer is acted on. |
+| `decisions.<type>.thresholds.confidence` | number (0 to 1) | Minimum confidence at which the backend's answer is acted on. Unset, it depends on the backend that answers: rules and heuristic use 0.9 for action.risk and diff.sensitive and 0.8 otherwise; system1 uses 0 for action.risk (its calibrated thresholds are already applied) and its calibrated threshold for other types. |
 | `decisions.<type>.error_costs` | object |  |
 | `decisions.<type>.error_costs.false_positive` | number (at least 0) |  |
 | `decisions.<type>.error_costs.false_negative` | number (at least 0) |  |
