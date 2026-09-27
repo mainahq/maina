@@ -38,6 +38,7 @@
     "dogfood:receipt": "bun scripts/dogfood/receipt.ts",
     "dogfood:report": "bun scripts/dogfood/report.ts",
     "bench:graph": "bun packages/core/bench/graph.bench.ts",
+    "bench:gate-sets": "bun scripts/gate-bench-sets.ts",
     "release:gates": "bun scripts/release/v1-gates.ts"
   },
   "devDependencies": {

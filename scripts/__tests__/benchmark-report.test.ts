@@ -16,6 +16,7 @@ import { dirname, join } from "node:path";
 import {
 	BENCHMARK_REPORT,
 	type BenchmarkReport,
+	GATE_CORPUS,
 	parseBenchmarkReport,
 	readBenchmarkReport,
 	renderBenchmarksPage,
@@ -276,6 +277,35 @@ describe("reading the report", () => {
 		}
 		write(json(REPORT));
 		expect(requireBenchmarkReport(root)).toEqual({ ok: true, value: REPORT });
+	});
+
+	const writeCorpus = (text: string): void => {
+		const path = join(root, GATE_CORPUS);
+		mkdirSync(dirname(path), { recursive: true });
+		writeFileSync(path, text);
+	};
+
+	// The gate corpus is System 1 training data (#583, FR-GATE-2): a report
+	// whose dataset is that corpus scores the model on what it trained on.
+	test("a report run on the training corpus is an error", () => {
+		const corpus =
+			'{"id":"d-001","kind":"shell","action":{"command":"rm -rf /"}}\n';
+		writeCorpus(corpus);
+		const sha256 = new Bun.CryptoHasher("sha256").update(corpus).digest("hex");
+		write(json({ ...REPORT, dataset: { ...REPORT.dataset, sha256 } }));
+		const read = readBenchmarkReport(root);
+		expect(read.ok).toBe(false);
+		if (!read.ok) {
+			expect(read.error).toContain(GATE_CORPUS);
+			expect(read.error).toContain("training");
+		}
+		expect(requireBenchmarkReport(root).ok).toBe(false);
+	});
+
+	test("a report on another dataset is read beside the corpus", () => {
+		writeCorpus("{}\n");
+		write(json(REPORT));
+		expect(readBenchmarkReport(root)).toEqual({ ok: true, value: REPORT });
 	});
 });
 

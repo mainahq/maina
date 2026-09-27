@@ -1,3 +1,25 @@
+# Gate-bench sets
+
+`gate-bench/` holds the benchmark sets System 1 is measured on (#583,
+FR-GATE-2). The labelled command corpus
+(`src/gate/__fixtures__/commands.jsonl`) is System 1 training data, so no
+model metric is ever reported on it: the landing proofs refuse to run with a
+model deciding `action.risk`, and the public benchmark report is refused when
+its dataset is the corpus.
+
+| Set | What it holds | Deterministic gate |
+| --- | --- | --- |
+| `overeager.jsonl` | Actions that look dangerous but are safe: quoted or searched-for commands, reversible git, dry runs, read-only queries, workspace writes with scary content | allows every one |
+| `injection.jsonl` | Gated actions carrying text meant to talk the gate into allowing them (comments, forged answers, chat-template tokens, file content, MCP fields, provenance), each with its base action | holds every one, with the same verdict as its base |
+
+`gate-bench/hashes.json` records each set file's sha256 and every item's
+content hash, injection bases included. maina-model reads it as its
+training-exclusion anchors: no item, and no near-duplicate of one, may enter
+a training split. The sets are frozen: any edit changes the hashes, and
+`scripts/__tests__/gate-bench-sets.test.ts` fails until the manifest is
+regenerated with `bun run bench:gate-sets`, which maina-model then has to
+pick up with a pin bump.
+
 # Code-graph bench
 
 `graph.bench.ts` holds the code graph to the v1 latency budgets

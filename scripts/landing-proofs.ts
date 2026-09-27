@@ -15,7 +15,9 @@
  * - **receipt**: the newest committed verification receipt.
  *
  * No routing-savings proof: there is no routing data yet, and a number the
- * repo cannot back is not shown.
+ * repo cannot back is not shown. No model proof either: the corpus is System
+ * 1 training data, so the proofs refuse to run with a model deciding
+ * `action.risk` (#583, FR-GATE-2).
  *
  *   bun scripts/landing-proofs.ts           write both files
  *   bun scripts/landing-proofs.ts --check   exit 1 when either is stale
@@ -33,6 +35,10 @@ import {
 	confidenceThreshold,
 	DEFAULT_POLICY,
 } from "../packages/core/src/policy/defaults";
+import type {
+	DecisionBackend,
+	Policy,
+} from "../packages/core/src/policy/schema";
 import { GATE } from "../packages/docs/src/data/landing";
 import type {
 	CorpusRow,
@@ -97,13 +103,14 @@ const VERDICTS: readonly Verdict[] = ["allow", "ask", "deny"];
 
 /** One evaluation of `ev` by the rules and the whole gate, as a row. */
 function evaluate(
+	policy: Policy,
 	ctx: GateContext,
 	ev: GateEvent,
 	id: string,
 	label: string,
 	agent: string,
 ): GateRow {
-	const rules = evaluateRules(ev, DEFAULT_POLICY, ctx);
+	const rules = evaluateRules(ev, policy, ctx);
 	let n = 0;
 	const gate = evaluateGate(
 		{
@@ -113,7 +120,7 @@ function evaluate(
 			newId: () => `landing-${++n}`,
 		},
 		ev,
-		DEFAULT_POLICY,
+		policy,
 	);
 	const decision = gate.decided?.answers[0]?.decision;
 	const distribution = VERDICTS.map((answer) => ({
@@ -244,10 +251,30 @@ export type LandingOutput = Readonly<{
 	corpus: readonly CorpusRow[];
 }>;
 
+/**
+ * The backends whose verdicts the proofs may show. The corpus is System 1
+ * training data (#583, FR-GATE-2), so a model's verdicts on it would be
+ * scored on what it learned from; model metrics come from the gate-bench
+ * sets (`packages/core/bench/gate-bench`) instead. An allow-list, so a new
+ * backend is refused until someone decides it belongs here.
+ */
+const DETERMINISTIC_BACKENDS: ReadonlySet<DecisionBackend> = new Set([
+	"rules",
+	"heuristic",
+]);
+
 /** Both files' content, from the engines and this repo. */
 export async function computeLandingProofs(
 	root: string,
+	policy: Policy = DEFAULT_POLICY,
 ): Promise<Result<LandingOutput>> {
+	const backend = policy.decisions["action.risk"].backend;
+	if (!DETERMINISTIC_BACKENDS.has(backend)) {
+		return {
+			ok: false,
+			error: `action.risk is decided by ${backend}: ${FIXTURES} is its training data, so no model metric is reported on it (FR-GATE-2, #583)`,
+		};
+	}
 	const parser = await loadShellParser();
 	if (!parser.ok) {
 		return { ok: false, error: `bash grammar: ${parser.error.message}` };
@@ -258,6 +285,7 @@ export async function computeLandingProofs(
 	const outcomes: Outcome[] = fixtures.map((f, i) => ({
 		fixture: f,
 		row: evaluate(
+			policy,
 			f.branch ? { ...base, currentBranch: f.branch } : base,
 			event(f.kind, f.action),
 			f.id,
@@ -270,6 +298,7 @@ export async function computeLandingProofs(
 	const presets: Record<string, GateRow> = {};
 	for (const p of GATE.presets) {
 		presets[p.id] = evaluate(
+			policy,
 			base,
 			event("shell", { command: p.label }),
 			p.id,
@@ -328,8 +357,8 @@ export async function computeLandingProofs(
 		value: {
 			proofs: {
 				gate: {
-					backend: DEFAULT_POLICY.decisions["action.risk"].backend,
-					threshold: confidenceThreshold(DEFAULT_POLICY, "action.risk"),
+					backend,
+					threshold: confidenceThreshold(policy, "action.risk"),
 					presets,
 					ledger,
 				},

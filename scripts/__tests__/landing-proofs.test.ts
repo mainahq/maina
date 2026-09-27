@@ -7,6 +7,8 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { withBackend } from "../../packages/core/src/decide/registry";
+import { DEFAULT_POLICY } from "../../packages/core/src/policy/defaults";
 import type { LandingProofs } from "../../packages/docs/src/data/landing-proofs";
 import { computeLandingProofs, staleLandingProofs } from "../landing-proofs";
 
@@ -105,5 +107,21 @@ describe("landing proofs", () => {
 			(computed.ok ? computed.value.corpus : []).map((r) => norm(r.c)),
 		);
 		expect(branchOnly.filter((c) => table.has(c))).toEqual([]);
+	});
+
+	// The corpus is System 1 training data (#583): a model's verdicts on it
+	// would be scored on what it was trained on, so the proofs refuse to run
+	// with a model deciding `action.risk`.
+	test("refuses to report model metrics on the training corpus", async () => {
+		const result = await computeLandingProofs(
+			REPO_ROOT,
+			withBackend(DEFAULT_POLICY, "action.risk", "system1"),
+		);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("FR-GATE-2");
+			expect(result.error).toContain("commands.jsonl");
+			expect(result.error).toContain("system1");
+		}
 	});
 });
