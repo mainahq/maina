@@ -202,6 +202,22 @@ describe("checkDocsLinks", () => {
 		]);
 	});
 
+	test("reports a content page and an Astro page on the same route (#568)", () => {
+		// Astro warns that the page conflicts with Starlight's `/[...slug]`
+		// route and serves only one of them, so the docs build is not clean.
+		write(`${DOCS}/cloud.mdx`, "---\ntitle: Cloud\n---\n");
+		write(`${DOCS}/cloud/guide.mdx`, "---\ntitle: Guide\n---\n");
+		expect(checkDocsLinks(root, { redirects: {} })).toEqual([
+			{
+				file: `${DOCS}/cloud.mdx`,
+				line: 1,
+				href: "/cloud/",
+				reason:
+					"route conflict: packages/docs/src/pages/cloud.astro serves /cloud/ too",
+			},
+		]);
+	});
+
 	test("reports a redirect whose target does not resolve", () => {
 		expect(
 			checkDocsLinks(root, {

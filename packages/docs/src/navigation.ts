@@ -51,7 +51,7 @@ export const SIDEBAR = [
 		label: "Guides",
 		items: [
 			{ slug: "ci" },
-			{ slug: "cloud" },
+			{ slug: "cloud/guide" },
 			{ slug: "feedback" },
 			{ slug: "copy-discipline" },
 			{
