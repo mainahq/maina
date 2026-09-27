@@ -29,7 +29,7 @@ const privatePem = privateKey.export({
 const publicPem = publicKey.export({ type: "spki", format: "pem" }) as string;
 
 describe("targets", () => {
-	test("cover macOS, Linux (glibc and musl) and Windows", () => {
+	test("cover macOS, Linux (glibc and musl) and Windows (x64 and arm64)", () => {
 		expect(TARGETS).toEqual([
 			"darwin-arm64",
 			"darwin-x64",
@@ -38,6 +38,7 @@ describe("targets", () => {
 			"linux-x64-musl",
 			"linux-arm64-musl",
 			"windows-x64",
+			"windows-arm64",
 		]);
 	});
 
@@ -53,6 +54,7 @@ describe("targets", () => {
 	test("map to bun --compile targets", () => {
 		expect(bunTarget("linux-arm64-musl")).toBe("bun-linux-arm64-musl");
 		expect(bunTarget("windows-x64")).toBe("bun-windows-x64");
+		expect(bunTarget("windows-arm64")).toBe("bun-windows-arm64");
 	});
 
 	test("hostTarget maps node platform/arch the way the launcher does", () => {
@@ -61,7 +63,7 @@ describe("targets", () => {
 		expect(hostTarget("linux", "x64", false)).toBe("linux-x64");
 		expect(hostTarget("linux", "arm64", true)).toBe("linux-arm64-musl");
 		expect(hostTarget("win32", "x64", false)).toBe("windows-x64");
-		expect(hostTarget("win32", "arm64", false)).toBeNull();
+		expect(hostTarget("win32", "arm64", false)).toBe("windows-arm64");
 		expect(hostTarget("freebsd", "x64", false)).toBeNull();
 	});
 

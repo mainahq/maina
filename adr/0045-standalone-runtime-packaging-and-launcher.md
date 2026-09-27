@@ -27,7 +27,7 @@ The requirements:
 
 ### Packaging: one `bun build --compile` executable per target
 
-`packages/runtime/build/standalone.ts` compiles `packages/runtime/src/standalone/main.ts` with `bun build --compile --minify --target=bun-<target>`. The targets are `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `linux-x64-musl`, `linux-arm64-musl` and `windows-x64`. The output is one file, `maina-<version>-<target>` (with `.exe` on Windows). It embeds the Bun runtime and the whole program: the CLI, the MCP server and the resident runtime daemon. The binary's first argument selects the mode (`mcp`, `hook <event>`, `cli ...` or `runtime-daemon ...`), and each mode imports only its own code.
+`packages/runtime/build/standalone.ts` compiles `packages/runtime/src/standalone/main.ts` with `bun build --compile --minify --target=bun-<target>`. The targets are `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `linux-x64-musl`, `linux-arm64-musl` and `windows-x64`. The output is one file, `maina-<version>-<target>` (with `.exe` on Windows). *Update (mainahq/maina#587, ADR 0050):* `windows-arm64` is an eighth target. It embeds the Bun runtime and the whole program: the CLI, the MCP server and the resident runtime daemon. The binary's first argument selects the mode (`mcp`, `hook <event>`, `cli ...` or `runtime-daemon ...`), and each mode imports only its own code.
 
 Options considered:
 

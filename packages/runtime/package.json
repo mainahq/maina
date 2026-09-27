@@ -14,10 +14,13 @@
     "bench:statusline": "bun bench/statusline.bench.ts"
   },
   "dependencies": {
+    "@huggingface/tokenizers": "0.2.0",
     "@mainahq/cli": "workspace:*",
     "@mainahq/core": "workspace:*",
     "@mainahq/mcp": "workspace:*",
-    "@vscode/tree-sitter-wasm": "^0.3.1"
+    "@vscode/tree-sitter-wasm": "^0.3.1",
+    "onnxruntime-common": "1.30.0",
+    "onnxruntime-web": "1.30.0"
   },
   "devDependencies": {
     "ajv": "^8.18.0"

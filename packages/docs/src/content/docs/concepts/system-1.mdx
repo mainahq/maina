@@ -25,6 +25,17 @@ The policy picks the backend for each decision type:
 A policy can already route a decision type to the local model. Until a model runtime ships, the type's default backend answers, and each decision records which backend did. `maina doctor` reports the model as not installed and says that heuristics serve every decision. Nothing is downloaded to fill the gap.
 </Aside>
 
+## Platforms for the model
+
+When the model ships, it runs on onnxruntime inside the maina runtime. Where onnxruntime has a native build, the model can be promoted to make decisions. Where it has none, the model runs on the slower WebAssembly engine, which cannot answer within the gate's time budget. On those platforms it runs in shadow only: it logs what it would have answered, and the rules keep deciding.
+
+| Platform | Engine | The model |
+| --- | --- | --- |
+| macOS on Apple silicon, Linux (glibc) x64 and arm64, Windows x64 and arm64 | native | can decide once promoted |
+| macOS on Intel, Linux with musl (Alpine) x64 and arm64 | WebAssembly | shadow only |
+
+On a shadow-only platform, maina shows a notice when the model loads, for example: `system1: onnxruntime has no native build for darwin-x64, so the model runs on the slower WASM engine in shadow only; the rules keep deciding`.
+
 ## Local by design
 
 A decision never needs the network. The rules and heuristics are code inside maina, and the local model is meant to run on your machine too. Each decision is logged to a local database that keeps hashes and labels, not your code: see [Receipts and the log](/concepts/receipts-and-log/).
