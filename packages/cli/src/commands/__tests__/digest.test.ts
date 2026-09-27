@@ -22,6 +22,7 @@ import {
 import { openDecisionDb } from "../../decision-store";
 import {
 	type DigestDeps,
+	digestCommand,
 	readDecisionEvents,
 	renderDogfoodReport,
 	runDigest,
@@ -302,6 +303,13 @@ describe("runDigest --dogfood", () => {
 		expect(h.writes.map((w) => w.path)).toEqual([
 			"/repo/docs/dogfood/2026-39.md",
 		]);
+	});
+
+	test("--week's help names the --dogfood default (the week that just ended)", () => {
+		const week = digestCommand().options.find((o) => o.long === "--week");
+		expect(week?.description).toBe(
+			"ISO week to digest (default: this week; with --dogfood, the week that just ended)",
+		);
 	});
 
 	test("--commit commits only the report, with a conventional message", async () => {

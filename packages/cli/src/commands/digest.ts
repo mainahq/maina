@@ -346,7 +346,10 @@ export function digestCommand(): Command {
 		.description(
 			"Weekly gate digest from the decision log, with a card that is safe to share",
 		)
-		.option("--week <yyyy-ww>", "ISO week to digest (default: this week)")
+		.option(
+			"--week <yyyy-ww>",
+			"ISO week to digest (default: this week; with --dogfood, the week that just ended)",
+		)
 		.option(
 			"--send",
 			"deliver the card to the channels in .maina/config.json `digest` (off unless configured)",

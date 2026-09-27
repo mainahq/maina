@@ -9,7 +9,11 @@ import {
 	type DogfoodReceipt,
 	formatReceiptComment,
 } from "../../../dogfood/receipt-check";
-import { RECEIPTS_ENFORCED_BY, receiptedMergesEvidence } from "../receipts";
+import {
+	RECEIPTS_ENFORCED_BY,
+	RECEIPTS_GRANDFATHERED,
+	receiptedMergesEvidence,
+} from "../receipts";
 
 const LINK = "https://github.com/mainahq/maina/actions/runs/42";
 const sha = (c: string) => c.repeat(40);
@@ -128,5 +132,31 @@ describe("receiptedMergesEvidence", () => {
 		expect(r.since).toBeNull();
 		expect(r.merges).toBe(1);
 		expect(r.exempt).toEqual([]);
+	});
+
+	test("the grandfathered merges are exactly the seven that predate receipts", () => {
+		expect(RECEIPTS_GRANDFATHERED).toEqual([366, 367, 369, 370, 373, 375, 376]);
+	});
+
+	// A PR opened before enforcement but closed unmerged could be reopened
+	// and merged at any time; it is not grandfathered, so it must carry a
+	// receipt. Only the seven merges that actually predate receipts are exempt.
+	test("a pre-enforcement PR outside the grandfathered set still needs a receipt", () => {
+		const enforcedAt = "2026-09-25T03:58:50Z";
+		const prs = [
+			merged(
+				RECEIPTS_ENFORCED_BY,
+				sha("2"),
+				[comment(receipt(sha("2")))],
+				"2026-09-25T03:04:49Z",
+				enforcedAt,
+			),
+			// Opened before enforcement, reopened and merged much later.
+			merged(360, sha("6"), [], "2026-09-24T12:00:00Z", "2026-10-20T10:00:00Z"),
+		];
+		const r = receiptedMergesEvidence(prs, LINK);
+		expect(r.exempt).toEqual([]);
+		expect(r.merges).toBe(2);
+		expect(r.unreceipted).toEqual(["#360 (missing)"]);
 	});
 });

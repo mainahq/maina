@@ -42,8 +42,9 @@
  * with the merge of #371 (`RECEIPTS_ENFORCED_BY` in evidence/receipts.ts).
  * `merges` holds every v1/main merge since then; PRs opened before that
  * merge could not carry a receipt and are listed in `exempt`, not counted.
- * The exempt set is closed (no PR can be opened in the past), so 100% of
- * `merges` still means every PR opened under enforcement carries one.
+ * The exempt set is pinned to those seven merges (`RECEIPTS_GRANDFATHERED`),
+ * so a reopened pre-enforcement PR is counted, and 100% of `merges` means
+ * every other merge carries one.
  *
  * The thresholds are spec §9's (and §8's latency budgets), defined once in
  * `THRESHOLDS`. The hosts, workers, suite size and the `action.risk` default

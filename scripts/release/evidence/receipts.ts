@@ -9,8 +9,11 @@
  * the merge of #371 (`RECEIPTS_ENFORCED_BY`), which added the receipt
  * tooling and the Dogfood check. A PR opened before that merge could not
  * have carried a receipt, so it is listed under `exempt` and not counted.
- * No PR can be opened in the past, so the exempt set is closed: every PR
- * opened since must carry one. When #371 is not among the merges (another
+ * The exemption is pinned to the seven merges that actually predate
+ * receipts (`RECEIPTS_GRANDFATHERED`, #366-#376): a pre-enforcement PR that
+ * was closed unmerged could be reopened and merged at any time, and it must
+ * carry a receipt like any other. So the exempt set is closed: every other
+ * merge must carry one. When #371 is not among the merges (another
  * repository or base), every merge counts.
  *
  *   bun scripts/release/evidence/receipts.ts --out <file> [--base v1/main] [--repo o/r]
@@ -24,6 +27,14 @@ import {
 
 /** The PR whose merge made receipts required on v1/main. */
 export const RECEIPTS_ENFORCED_BY = 371;
+
+/**
+ * The merges opened before #371 merged, which could not carry a receipt:
+ * the only ones exempt. Closed, so a reopened pre-enforcement PR is counted.
+ */
+export const RECEIPTS_GRANDFATHERED: readonly number[] = [
+	366, 367, 369, 370, 373, 375, 376,
+];
 
 export type MergedPr = Readonly<{
 	number: number;
@@ -43,7 +54,7 @@ export type ReceiptedMergesEvidence = Readonly<{
 	receipted: number;
 	/** `#<pr> (<why>)`, in PR order. */
 	unreceipted: readonly string[];
-	/** `#<pr>` of PRs opened before enforcement, in PR order; not counted. */
+	/** `#<pr>` of grandfathered PRs opened before enforcement, in PR order; not counted. */
 	exempt: readonly string[];
 }>;
 
@@ -55,7 +66,9 @@ export function receiptedMergesEvidence(
 	const enforcedAt =
 		enforcement === undefined ? Number.NaN : Date.parse(enforcement.mergedAt);
 	const isExempt = (pr: MergedPr): boolean =>
-		pr !== enforcement && Date.parse(pr.createdAt) < enforcedAt;
+		pr !== enforcement &&
+		RECEIPTS_GRANDFATHERED.includes(pr.number) &&
+		Date.parse(pr.createdAt) < enforcedAt;
 	const sorted = [...prs].sort((a, b) => a.number - b.number);
 	const counted = sorted.filter((pr) => !isExempt(pr));
 	const unreceipted: string[] = [];
