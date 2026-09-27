@@ -5,10 +5,15 @@
  * mainahq/maina, published by maina-model's release job. One release is
  * laid out as
  *
- *   <baseUrl>/model-v<version>/<file>
+ *   <baseUrl>/model-v<version>/<asset>
  *
  * with `manifest.json` (maina-model ADR 0017), its `.sig`, and every file the
- * manifest lists at its manifest path. `packages/runtime/model.json` pins
+ * manifest lists, each with its `.sig`. GitHub Release assets are flat, so a
+ * file's asset name is its manifest path with each `/` written as `--`:
+ * `ort/darwin-arm64/onnxruntime_binding.node` is served as
+ * `ort--darwin-arm64--onnxruntime_binding.node`. A path segment may not
+ * contain `--` or start or end with `-` or `.`, so the mapping is one-to-one
+ * and GitHub never renames an asset. `packages/runtime/model.json` pins
  * `{name, version, manifestSha256, baseUrl}`. It is bundled into the runtime
  * at build time, so neither the environment nor a config file can move it.
  *
@@ -60,6 +65,15 @@ type PinRefusal =
 			message: string;
 	  }>;
 
+/** Why a pin file was refused: every problem found, not only the first. */
+type PinFileRefusal = Readonly<{
+	kind: "invalid_pin";
+	problems: readonly string[];
+}>;
+
+/** A manifest path that cannot be mapped to a release asset. */
+type ReleasePathRefusal = Readonly<{ kind: "unsafe_path"; file: string }>;
+
 /** Fetches a URL. `globalThis.fetch` in production, a fixture host in tests. */
 type FetchPort = (url: string) => Promise<Response>;
 
@@ -69,7 +83,10 @@ const NAME = /^[a-z0-9][a-z0-9-]*$/;
 const SEMVER =
 	/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-const SEGMENT = /^[A-Za-z0-9._-]+$/;
+/** Starts and ends with a letter, digit or `_`; `.` and `-` only inside. */
+const SEGMENT = /^[A-Za-z0-9_](?:[A-Za-z0-9._-]*[A-Za-z0-9_])?$/;
+/** What a `/` in a manifest path becomes in the flat asset name. */
+const ASSET_SEPARATOR = "--";
 /** A manifest lists a few dozen files; anything this large is not one. */
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 
@@ -100,8 +117,13 @@ function baseUrlProblems(url: unknown): readonly string[] {
 /** `value` as a pin file, or every reason it is not one. */
 export function parseModelPin(
 	value: unknown,
-): Result<ModelPinFile, readonly string[]> {
-	if (!isRecord(value)) return { ok: false, error: ["pin must be an object"] };
+): Result<ModelPinFile, PinFileRefusal> {
+	if (!isRecord(value)) {
+		return {
+			ok: false,
+			error: { kind: "invalid_pin", problems: ["pin must be an object"] },
+		};
+	}
 	const keys = Object.keys(value);
 	const problems: string[] = [
 		...FIELDS.filter((f) => !(f in value)).map((f) => `missing ${f}`),
@@ -128,7 +150,7 @@ export function parseModelPin(
 	problems.push(...baseUrlProblems(baseUrl));
 	return problems.length === 0
 		? { ok: true, value: value as ModelPinFile }
-		: { ok: false, error: problems };
+		: { ok: false, error: { kind: "invalid_pin", problems } };
 }
 
 /** The pin this runtime was built with. */
@@ -140,19 +162,22 @@ const releaseBase = (pin: ModelPin): string =>
 
 /**
  * Where `file` of the pinned release is served. `file` is a manifest path:
- * relative, `/`-separated, with no `.` or `..` segment.
+ * relative and `/`-separated. Its asset name joins the segments with `--`.
  */
 export function releaseUrl(
 	pin: ModelPin,
 	file: string,
-): Result<string, string> {
+): Result<string, ReleasePathRefusal> {
 	const segments = file.split("/");
 	const safe = segments.every(
-		(s) => SEGMENT.test(s) && s !== "." && s !== "..",
+		(s) => SEGMENT.test(s) && !s.includes(ASSET_SEPARATOR),
 	);
 	return safe
-		? { ok: true, value: `${releaseBase(pin)}/${file}` }
-		: { ok: false, error: `unsafe release path ${JSON.stringify(file)}` };
+		? {
+				ok: true,
+				value: `${releaseBase(pin)}/${segments.join(ASSET_SEPARATOR)}`,
+			}
+		: { ok: false, error: { kind: "unsafe_path", file } };
 }
 
 const unpinned = (pin: ModelPinFile): PinRefusal => ({

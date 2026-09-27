@@ -132,22 +132,43 @@ describe("parseModelPin", () => {
 	])("refuses %s", (_, value) => {
 		const parsed = parseModelPin(value);
 		expect(parsed.ok).toBe(false);
-		if (!parsed.ok) expect(parsed.error.length).toBeGreaterThan(0);
+		if (parsed.ok) return;
+		expect(parsed.error.kind).toBe("invalid_pin");
+		expect(parsed.error.problems.length).toBeGreaterThan(0);
 	});
 });
 
 describe("releaseUrl", () => {
-	test("lays a release out as <baseUrl>/model-v<version>/<file>", () => {
+	test("lays a release out as <baseUrl>/model-v<version>/<asset>", () => {
 		expect(releaseUrl(pinOn("0.2.0"), "manifest.json")).toEqual({
 			ok: true,
 			value: `${GITHUB}/model-v0.2.0/manifest.json`,
 		});
+		expect(releaseUrl(pinOn("0.2.0"), "manifest.json.sig")).toEqual({
+			ok: true,
+			value: `${GITHUB}/model-v0.2.0/manifest.json.sig`,
+		});
+	});
+
+	test("flattens a nested manifest path, since GitHub Release assets are flat", () => {
 		expect(
 			releaseUrl(pinOn("0.2.0"), "ort/darwin-arm64/onnxruntime_binding.node"),
 		).toEqual({
 			ok: true,
-			value: `${GITHUB}/model-v0.2.0/ort/darwin-arm64/onnxruntime_binding.node`,
+			value: `${GITHUB}/model-v0.2.0/ort--darwin-arm64--onnxruntime_binding.node`,
 		});
+	});
+
+	test("gives each target's file its own asset, so none collide", () => {
+		const urls = [
+			"ort/darwin-arm64/onnxruntime_binding.node",
+			"ort/linux-x64/onnxruntime_binding.node",
+			"ort/darwin-arm64/libonnxruntime.1.30.0.dylib",
+			"wasm/ort-wasm-simd-threaded.wasm",
+		].map((file) => releaseUrl(pinOn("0.2.0"), file));
+		const values = urls.map((u) => (u.ok ? u.value : ""));
+		expect(values.every((v) => v !== "")).toBe(true);
+		expect(new Set(values).size).toBe(values.length);
 	});
 
 	test.each([
@@ -158,8 +179,17 @@ describe("releaseUrl", () => {
 		"a/./b",
 		"a?b",
 		"https://evil.example/manifest.json",
+		// Would make the flattened asset name ambiguous or be renamed by GitHub.
+		"a--b/c",
+		"a-/b",
+		"a/-b",
+		".hidden",
+		"trailing.",
 	])("refuses the unsafe path %p", (file) => {
-		expect(releaseUrl(pinOn("0.2.0"), file).ok).toBe(false);
+		const url = releaseUrl(pinOn("0.2.0"), file);
+		expect(url.ok).toBe(false);
+		if (url.ok) return;
+		expect(url.error).toEqual({ kind: "unsafe_path", file });
 	});
 });
 
