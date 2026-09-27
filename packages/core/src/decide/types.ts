@@ -173,6 +173,19 @@ export type Backend = Readonly<{
 	answer: (
 		input: BackendInput,
 	) => Result<readonly BackendAnswer[], BackendError>;
+	/**
+	 * Set by a backend that hands some inputs to another one (the `system1`
+	 * adapter delegating to rules or the heuristic, #586). `decide` calls it
+	 * in place of `answer` and records `backend` as the one that answered,
+	 * so a delegated decision never carries the model's id or calibration.
+	 */
+	route?: (input: BackendInput) => Result<Routed, BackendError>;
+}>;
+
+/** A routed answer: the backend that answered and its answers. */
+export type Routed = Readonly<{
+	backend: Backend;
+	answers: readonly BackendAnswer[];
 }>;
 
 // ── Errors ──────────────────────────────────────────────────────────────────

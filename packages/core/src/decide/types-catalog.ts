@@ -1,9 +1,11 @@
 /**
  * Every decision type in one place: what it asks, which question kinds it
- * takes, the fixed options of its choice questions and the backend that
- * serves it by default. The type list itself is `DECISION_TYPES` from the
- * policy schema (one source of truth); the default policy derives its
- * per-type backend from `defaultBackend` here.
+ * takes, the fixed options of its choice questions, the built-in backend
+ * that serves it by default and whether the System 1 model covers it. The
+ * type list itself is `DECISION_TYPES` from the policy schema (one source
+ * of truth); the default policy derives its per-type backend from
+ * `defaultBackend` here, unless the type has been promoted (see
+ * `policy/defaults.ts`).
  */
 
 import type { ModelTier } from "../ai/tiers";
@@ -33,8 +35,21 @@ type CatalogEntry = Readonly<{
 	kinds: readonly QuestionKind[];
 	/** When set, every choice option must be one of these. */
 	options: readonly string[] | undefined;
-	defaultBackend: DecisionBackend;
+	/**
+	 * The built-in backend that serves the type when nothing better can:
+	 * the registry falls back to it when the policy's backend is not
+	 * installed or does not cover the type, and the `system1` adapter
+	 * delegates to it when the model cannot answer (#586). Never `system1`:
+	 * promoting a type to the model (8.8) flips the default policy's
+	 * backend, never this fallback.
+	 */
+	defaultBackend: BuiltInBackend;
+	/** Whether the System 1 model covers the type (spec FR-S1-1). */
+	system1: boolean;
 }>;
+
+/** The backends that ship with core and can serve as a fallback. */
+type BuiltInBackend = Exclude<DecisionBackend, "system1">;
 
 /** Options of `task.tier`, cheapest first (routing degrades down this list). */
 export const MODEL_TIERS: readonly ModelTier[] = [
@@ -56,30 +71,38 @@ export const FINDING_CATEGORIES: readonly FindingCategory[] = [
 /** Options of `review.reviewer_kind`. */
 export const REVIEWER_KINDS: readonly ReviewerKind[] = ["bot", "human"];
 
-type EntrySpec = Omit<CatalogEntry, "type" | "options" | "defaultBackend"> &
-	Partial<Pick<CatalogEntry, "options" | "defaultBackend">>;
+type EntrySpec = Omit<
+	CatalogEntry,
+	"type" | "options" | "defaultBackend" | "system1"
+> &
+	Partial<Pick<CatalogEntry, "options" | "defaultBackend" | "system1">>;
 
 const SPECS: Readonly<Record<DecisionType, EntrySpec>> = {
 	"action.risk": {
+		system1: true,
 		description: "Is this agent action allowed, asked about or denied?",
 		kinds: ["choice"],
 		options: VERDICTS,
 		defaultBackend: "rules",
 	},
 	"diff.sensitive": {
+		system1: true,
 		description: "Does this diff touch security-sensitive code?",
 		kinds: ["bool"],
 	},
 	"diff.needs_review": {
+		system1: true,
 		description: "Does this diff need a deep review?",
 		kinds: ["bool"],
 	},
 	"task.tier": {
+		system1: true,
 		description: "Which model tier should run this task?",
 		kinds: ["choice"],
 		options: MODEL_TIERS,
 	},
 	"finding.real": {
+		system1: true,
 		description: "Is this finding (or finding rule) a real problem?",
 		kinds: ["bool"],
 	},
@@ -89,22 +112,27 @@ const SPECS: Readonly<Record<DecisionType, EntrySpec>> = {
 		options: ["error", "warning", "info"],
 	},
 	"spec.coverage": {
+		system1: true,
 		description: "Is this requirement or task covered?",
 		kinds: ["bool"],
 	},
 	"spec.orphan": {
+		system1: true,
 		description: "Does this task or change map to no requirement?",
 		kinds: ["bool"],
 	},
 	"spec.contradiction": {
+		system1: true,
 		description: "Do these two artifacts contradict each other?",
 		kinds: ["bool"],
 	},
 	"spec.impl_leak": {
+		system1: true,
 		description: "Does this line mix WHAT/WHY and HOW across spec and plan?",
 		kinds: ["bool"],
 	},
 	"spec.quality": {
+		system1: true,
 		description: "How measurable, testable, unambiguous and complete is it?",
 		kinds: ["score"],
 	},
@@ -142,10 +170,21 @@ export const DECISION_CATALOG: Readonly<Record<DecisionType, CatalogEntry>> =
 				kinds: spec.kinds,
 				options: spec.options,
 				defaultBackend: spec.defaultBackend ?? "heuristic",
+				system1: spec.system1 ?? false,
 			};
 			return [type, entry];
 		}),
 	) as Record<DecisionType, CatalogEntry>;
+
+/**
+ * The types the System 1 model covers, in catalog order: `action.risk`,
+ * the diff, task and finding checks it was trained on and every `spec.*`
+ * check. A policy naming `system1` for any other type is served by the
+ * type's `defaultBackend` instead (#586).
+ */
+export const SYSTEM1_TYPES: readonly DecisionType[] = DECISION_TYPES.filter(
+	(type) => DECISION_CATALOG[type].system1,
+);
 
 function isDecisionType(value: string): value is DecisionType {
 	return (DECISION_TYPES as readonly string[]).includes(value);

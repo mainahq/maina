@@ -1,8 +1,9 @@
 /**
  * Backend registry and selection. The policy names a backend per decision
  * type; when that backend is not registered (a System 1 model that is not
- * installed yet, say) the catalog's default backend answers instead, and the
- * returned `Decision.backend` records which one did.
+ * installed yet, or one that disabled itself), or does not cover the type
+ * (`system1` outside `SYSTEM1_TYPES`), the catalog's default backend answers
+ * instead, and the returned `Decision.backend` records which one did.
  */
 
 import type { Result } from "../db/index";
@@ -25,6 +26,11 @@ export const DEFAULT_REGISTRY: BackendRegistry = createRegistry([
 	heuristicBackend,
 ]);
 
+/** Whether `backend` can serve `type`: `system1` only covers its types. */
+function covers(backend: DecisionBackend, type: DecisionType): boolean {
+	return backend !== "system1" || DECISION_CATALOG[type].system1;
+}
+
 export function selectBackend(
 	registry: BackendRegistry,
 	policy: Policy,
@@ -33,8 +39,9 @@ export function selectBackend(
 	const named = policy.decisions[type]?.backend;
 	const fallback = DECISION_CATALOG[type].defaultBackend;
 	const backend =
-		(named === undefined ? undefined : registry.get(named)) ??
-		registry.get(fallback);
+		(named === undefined || !covers(named, type)
+			? undefined
+			: registry.get(named)) ?? registry.get(fallback);
 	return backend
 		? { ok: true, value: backend }
 		: {

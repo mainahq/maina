@@ -130,6 +130,7 @@ What is released, and what the next release brings. The next release is read fro
 - Core now has the TypeScript side of the System 1 input contract (encoding v1), so the future `system1` backend sends the model the same text it was trained on: _(@mainahq/core)_
 - The weekly digest's gate-log parser now reads the dogfood hook's new per-call fields: `root`, `host`, `permissionMode` and `decisionIds`. _(@mainahq/core)_
 - `diff.sensitive` now has a caller and a heuristic. _(@mainahq/core)_
+- `system1` now only serves the ten decision types the model covers (`action.risk`, `diff.sensitive`, `diff.needs_review`, `task.tier`, `finding.real` and every `spec.*` check; `SYSTEM1_TYPES`). _(@mainahq/core)_
 
 
 ## Contributing

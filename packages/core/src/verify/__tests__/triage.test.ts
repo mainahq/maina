@@ -210,26 +210,32 @@ describe("noise filter: finding.real probabilities at the policy threshold", () 
 	});
 
 	test("an escalated severity answer is not acted on: the reported severity stays (#577)", () => {
-		// A System 1 stand-in for finding.severity that downgrades to info.
+		// A stand-in for finding.severity that downgrades to info. The type is
+		// outside system1's scope (#586), so it replaces the heuristic, which
+		// still answers every other type.
+		const heuristic = defaultDecidePorts.backends.get("heuristic");
 		const downgrade = (escalate: number): Backend => ({
-			id: "system1",
+			id: "heuristic",
 			version: "test",
-			answer: ({ questions }) => ({
-				ok: true,
-				value: questions.map(() => ({
-					answer: "info",
-					distribution: [
-						{ answer: "error", p: 0.05 },
-						{ answer: "warning", p: 0.05 },
-						{ answer: "info", p: 0.9 },
-					],
-					diagnostics: { escalate },
-				})),
-			}),
+			answer: (input) =>
+				input.type !== "finding.severity" && heuristic !== undefined
+					? heuristic.answer(input)
+					: {
+							ok: true,
+							value: input.questions.map(() => ({
+								answer: "info",
+								distribution: [
+									{ answer: "error", p: 0.05 },
+									{ answer: "warning", p: 0.05 },
+									{ answer: "info", p: 0.9 },
+								],
+								diagnostics: { escalate },
+							})),
+						},
 		});
 		const ports = (escalate: number): DecidePorts => ({
 			...defaultDecidePorts,
-			policy: withBackend(DEFAULT_POLICY, "finding.severity", "system1"),
+			policy: DEFAULT_POLICY,
 			backends: createRegistry([
 				...defaultDecidePorts.backends.values(),
 				downgrade(escalate),

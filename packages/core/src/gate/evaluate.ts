@@ -448,6 +448,18 @@ function consultModel(
 	// earns credit (a clock that stepped back), and NaN still fails closed.
 	const preInference = Math.max(0, ports.preInferenceMs ?? 0);
 	const elapsed = preInference + (ports.clock.now() - started);
+	// A model that could not answer hands every order to the rules backend
+	// (core `system1Backend`, #586). Where a rule already decided, that
+	// backend adds nothing (see above): the rule stands, as it would with
+	// `backend: rules`, so a failed model cannot tighten a listed allow to
+	// its class's own verdict. A model that ran out the budget still asks.
+	if (
+		rules.kind !== "no_rule" &&
+		elapsed <= (ports.budgetMs ?? DEFAULT_GATE_BUDGET_MS) &&
+		decisions().every((d) => d.backend.id === "rules")
+	) {
+		return null;
+	}
 	const judged = judgeAnswers(decisions(), policy, ports.budgetMs, elapsed);
 	return {
 		...judged,

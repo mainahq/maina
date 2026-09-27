@@ -35,6 +35,7 @@ import {
 	type PushConfig,
 	type Result,
 	recordGateSubject,
+	system1Backend,
 	VERDICTS,
 	type Verdict,
 	withBackend,
@@ -197,7 +198,9 @@ export type GateEvaluatorDeps = Readonly<{
 	 * when the policy names its backend. It runs before the gate, once per
 	 * event over both orders; `full` mode only (#572). A `wasm` engine is
 	 * never asked: where the policy names it, the rules answer, and the
-	 * model can only run in `shadow` (#578).
+	 * model can only run in `shadow` (#578). Neither is a model that
+	 * disabled itself, and whatever the model cannot answer the rules
+	 * answer (core `system1Backend`, #586).
 	 */
 	model?: InferencePort;
 	/**
@@ -275,7 +278,8 @@ export function createGateEvaluator(
 			const inferred =
 				mode === "full" &&
 				deps.model !== undefined &&
-				deps.model.engine !== "wasm"
+				deps.model.engine !== "wasm" &&
+				deps.model.disabled?.() === undefined
 					? await preInferGate(deps, deps.model, stagePorts, core, effective)
 					: undefined;
 			const backends = deps.backends ?? DEFAULT_REGISTRY;
@@ -286,7 +290,11 @@ export function createGateEvaluator(
 					backends:
 						inferred === undefined
 							? backends
-							: createRegistry([...backends.values(), inferred.backend]),
+							: createRegistry([
+									...backends.values(),
+									// What the model cannot answer, the rules answer (#586).
+									system1Backend(inferred.backend, backends),
+								]),
 					newId: deps.newId,
 					...(deps.budgetMs === undefined ? {} : { budgetMs: deps.budgetMs }),
 					...(inferred === undefined

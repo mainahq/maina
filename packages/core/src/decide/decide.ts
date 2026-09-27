@@ -7,7 +7,7 @@
 
 import type { Result } from "../db/index";
 import { DEFAULT_POLICY } from "../policy/defaults";
-import type { Policy } from "../policy/schema";
+import { DECISION_BACKENDS, type Policy } from "../policy/schema";
 import type { ClockPort } from "../ports/clock";
 import { applyEscalation, validateDiagnostics } from "./diagnostics";
 import {
@@ -18,6 +18,7 @@ import {
 import {
 	type Backend,
 	type BackendAnswer,
+	type BackendError,
 	type BackendRef,
 	type DecideError,
 	type DecideRequest,
@@ -25,6 +26,7 @@ import {
 	type DecisionType,
 	type DistributionEntry,
 	type Question,
+	type Routed,
 	SUM_EPSILON,
 } from "./types";
 import { validateQuestions } from "./types-catalog";
@@ -146,20 +148,39 @@ function backendFailed(
 	};
 }
 
+/** Whether a routing backend's `backend` can stand in a `Decision`. */
+function isBackend(value: unknown): value is Backend {
+	if (typeof value !== "object" || value === null) return false;
+	const { id, version } = value as Readonly<Record<string, unknown>>;
+	return (
+		typeof id === "string" &&
+		(DECISION_BACKENDS as readonly string[]).includes(id) &&
+		typeof version === "string"
+	);
+}
+
+/**
+ * Asks `backend` for the request's answers, through its `route` when it
+ * has one, and returns them with the backend that answered.
+ */
 function callBackend(
 	backend: Backend,
 	type: DecisionType,
 	request: DecideRequest,
 	policy: Policy,
-): Result<readonly BackendAnswer[], DecideError> {
-	let result: ReturnType<Backend["answer"]>;
+): Result<Routed, DecideError> {
+	const input = {
+		type,
+		state: request.state,
+		questions: request.questions,
+		policy,
+	};
+	let result: Result<unknown, BackendError>;
 	try {
-		result = backend.answer({
-			type,
-			state: request.state,
-			questions: request.questions,
-			policy,
-		});
+		result =
+			backend.route === undefined
+				? backend.answer(input)
+				: backend.route(input);
 	} catch (e) {
 		return backendFailed(
 			backend,
@@ -193,10 +214,21 @@ function callBackend(
 			},
 		};
 	}
-	if (!Array.isArray(result.value)) {
+	const value: unknown =
+		backend.route === undefined
+			? { backend, answers: result.value }
+			: result.value;
+	const { backend: answering, answers } =
+		typeof value === "object" && value !== null
+			? (value as Readonly<Record<string, unknown>>)
+			: {};
+	if (!isBackend(answering)) {
+		return backendFailed(backend, type, "backend routed to no backend");
+	}
+	if (!Array.isArray(answers)) {
 		return backendFailed(backend, type, "backend returned no answer list");
 	}
-	return { ok: true, value: result.value };
+	return { ok: true, value: { backend: answering, answers } };
 }
 
 /**
@@ -217,11 +249,10 @@ export function decide(
 
 	const selected = selectBackend(ports.backends, ports.policy, type);
 	if (!selected.ok) return selected;
-	const backend = selected.value;
 
-	const answered = callBackend(backend, type, request, ports.policy);
+	const answered = callBackend(selected.value, type, request, ports.policy);
 	if (!answered.ok) return answered;
-	const answers = answered.value;
+	const { backend, answers } = answered.value;
 
 	const invalidAnswer = (questionId: string, message: string) =>
 		({

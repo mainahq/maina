@@ -86,6 +86,12 @@ async function main(): Promise<ClaudeHookOutput> {
 				ctx: { shell: shell.ok ? shell.value : null, home: homedir() },
 				newId: randomUUID,
 			},
+			// Intended (#586): each tool call is a fresh process with no model
+			// and no daemon, and `action.risk` has no heuristic, so rules are the
+			// only backend that can answer here. A snapshot naming `system1`
+			// (after 8.8 promotes it) would fall back to rules anyway; pinning
+			// them also keeps a policy that names `heuristic` from turning
+			// every no-rule call into an ask, which an unattended run denies.
 			policy: withBackend(policy, "action.risk", "rules"),
 			log: (record) => appendFileSync(logPath, `${JSON.stringify(record)}\n`),
 		},

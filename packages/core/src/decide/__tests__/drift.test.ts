@@ -15,7 +15,7 @@ import type { Backend } from "../types";
 import { boolRecord, HEURISTIC, outcome, SYSTEM1 } from "./slice-fixtures";
 
 const THRESHOLDS: DriftThresholds = {
-	type: "slop",
+	type: "diff.needs_review",
 	backend: SYSTEM1,
 	window: 10,
 	maxErrorRate: 0.1,
@@ -23,12 +23,15 @@ const THRESHOLDS: DriftThresholds = {
 	minSamples: 5,
 };
 
-/** `slop` served by a promoted system1 backend. */
+/** `diff.needs_review` served by a promoted system1 backend. */
 const PROMOTED: Policy = {
 	...DEFAULT_POLICY,
 	decisions: {
 		...DEFAULT_POLICY.decisions,
-		slop: { ...DEFAULT_POLICY.decisions.slop, backend: "system1" },
+		"diff.needs_review": {
+			...DEFAULT_POLICY.decisions["diff.needs_review"],
+			backend: "system1",
+		},
 	},
 };
 
@@ -43,7 +46,7 @@ type Slice = Readonly<{
 	outcomes: readonly OutcomeRecord[];
 }>;
 
-/** `count` system1 decisions of `slop`; the ids in `wrong` were reverted, the rest accepted. */
+/** `count` system1 decisions of `diff.needs_review`; the ids in `wrong` were reverted, the rest accepted. */
 function window(
 	count: number,
 	options: Readonly<{
@@ -54,7 +57,12 @@ function window(
 ): Slice {
 	const prefix = options.prefix ?? "w";
 	const decisions = Array.from({ length: count }, (_, i) =>
-		boolRecord({ id: `${prefix}${i}`, model: SYSTEM1, p: options.p ?? 0.9 }),
+		boolRecord({
+			id: `${prefix}${i}`,
+			type: THRESHOLDS.type,
+			model: SYSTEM1,
+			p: options.p ?? 0.9,
+		}),
 	);
 	const outcomes = decisions.map((d, i) =>
 		outcome(d.id, options.wrong?.includes(i) ? "reverted" : "accepted"),
@@ -74,19 +82,19 @@ describe("checkDrift", () => {
 		const action = checkDrift(window(10, { wrong: [1, 4, 7, 9] }), THRESHOLDS);
 		expect(action.kind).toBe("demote");
 		if (action.kind !== "demote") return;
-		expect(action.type).toBe("slop");
+		expect(action.type).toBe("diff.needs_review");
 		expect(action.from).toBe("system1");
 		expect(action.to).toBe("heuristic");
 		expect(action.breaches).toEqual(["error_rate"]);
 		expect(action.metrics.errorRate).toBeCloseTo(0.4);
 		expect(action.notice.level).toBe("warning");
-		expect(action.notice.message).toContain("slop");
+		expect(action.notice.message).toContain("diff.needs_review");
 		expect(action.notice.message).toContain("system1");
 		expect(action.notice.message).toContain("heuristic");
 		expect(action.notice.message).toContain("40%");
 
 		const demoted = applyDriftAction(PROMOTED, action);
-		expect(demoted.decisions.slop.backend).toBe("heuristic");
+		expect(demoted.decisions["diff.needs_review"].backend).toBe("heuristic");
 		// Every other type keeps its backend.
 		expect(demoted.decisions["action.risk"]).toEqual(
 			PROMOTED.decisions["action.risk"],
@@ -95,8 +103,8 @@ describe("checkDrift", () => {
 			...DEFAULT_REGISTRY.values(),
 			SYSTEM1_BACKEND,
 		]);
-		const before = selectBackend(registry, PROMOTED, "slop");
-		const after = selectBackend(registry, demoted, "slop");
+		const before = selectBackend(registry, PROMOTED, "diff.needs_review");
+		const after = selectBackend(registry, demoted, "diff.needs_review");
 		expect(before.ok && before.value.id).toBe("system1");
 		expect(after.ok && after.value.id).toBe("heuristic");
 	});
@@ -136,8 +144,13 @@ describe("checkDrift", () => {
 		const recent = window(10, { prefix: "new" });
 		const noise: Slice = {
 			decisions: [
-				boolRecord({ id: "h0", model: HEURISTIC }),
-				boolRecord({ id: "s0", model: SYSTEM1, finalAction: SHADOW_ACTION }),
+				boolRecord({ id: "h0", type: THRESHOLDS.type, model: HEURISTIC }),
+				boolRecord({
+					id: "s0",
+					type: THRESHOLDS.type,
+					model: SYSTEM1,
+					finalAction: SHADOW_ACTION,
+				}),
 				boolRecord({ id: "t0", model: SYSTEM1, type: "finding.real" }),
 			],
 			outcomes: [
@@ -153,8 +166,8 @@ describe("checkDrift", () => {
 	});
 
 	test("a breach demotes to the previous backend when it is known (FR-DEC-8)", () => {
-		// system1 serves `slop` after a promotion from rules (the catalog
-		// default for `slop` is heuristic).
+		// system1 serves `diff.needs_review` after a promotion from rules (the catalog
+		// default for `diff.needs_review` is heuristic).
 		const slice = window(10, { wrong: [0, 1, 2] });
 		const action = checkDrift(slice, { ...THRESHOLDS, previous: "rules" });
 		expect(action.kind).toBe("demote");
@@ -162,9 +175,9 @@ describe("checkDrift", () => {
 		expect(action.from).toBe("system1");
 		expect(action.to).toBe("rules");
 		expect(action.notice.message).toContain("from system1 to rules");
-		expect(applyDriftAction(PROMOTED, action).decisions.slop.backend).toBe(
-			"rules",
-		);
+		expect(
+			applyDriftAction(PROMOTED, action).decisions["diff.needs_review"].backend,
+		).toBe("rules");
 
 		// Without a record of the previous backend, the catalog default.
 		const fallback = checkDrift(slice, THRESHOLDS);
@@ -179,7 +192,7 @@ describe("checkDrift", () => {
 		const records = window(10, { wrong: [0, 1, 2] });
 		const heuristic: Slice = {
 			decisions: records.decisions.map((d) =>
-				boolRecord({ id: d.id, model: HEURISTIC }),
+				boolRecord({ id: d.id, type: THRESHOLDS.type, model: HEURISTIC }),
 			),
 			outcomes: records.outcomes,
 		};
@@ -187,7 +200,7 @@ describe("checkDrift", () => {
 		expect(action.kind).toBe("notify");
 		if (action.kind !== "notify") return;
 		expect(action.breaches).toEqual(["error_rate"]);
-		expect(action.notice.message).toContain("slop");
+		expect(action.notice.message).toContain("diff.needs_review");
 		expect(applyDriftAction(DEFAULT_POLICY, action)).toBe(DEFAULT_POLICY);
 	});
 });
@@ -198,14 +211,16 @@ describe("driftThresholds", () => {
 			...DEFAULT_POLICY,
 			drift: { window: 50, max_error_rate: 0.2, max_confidence_drop: 0.3 },
 		};
-		expect(driftThresholds(policy, "slop", SYSTEM1)).toEqual({
-			type: "slop",
+		expect(driftThresholds(policy, "diff.needs_review", SYSTEM1)).toEqual({
+			type: "diff.needs_review",
 			backend: SYSTEM1,
 			window: 50,
 			maxErrorRate: 0.2,
 			maxConfidenceDrop: 0.3,
 			minSamples: 20,
 		});
-		expect(driftThresholds(policy, "slop", SYSTEM1, 3).minSamples).toBe(3);
+		expect(
+			driftThresholds(policy, "diff.needs_review", SYSTEM1, 3).minSamples,
+		).toBe(3);
 	});
 });

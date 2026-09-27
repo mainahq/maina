@@ -8,9 +8,12 @@
  * `precomputedBackend`. The time spent here counts against the gate budget
  * (core `GatePorts.preInferenceMs`).
  *
- * Fail closed: an error, a rejection, a malformed output or no answer within
- * the budget leaves a backend that answers every input `unsupported`, which
- * the gate turns into an ask.
+ * An error, a rejection, a malformed output or no answer within the budget
+ * leaves a backend that answers every input `unsupported`. The gate wraps it
+ * in core's `system1Backend`, which hands those inputs to the rules backend
+ * (#586): the model never fails closed on its own account, the rules still
+ * apply, and a model that ran out the budget still asks, since its time
+ * counts.
  */
 
 import {
@@ -48,6 +51,14 @@ export type InferencePort = Readonly<{
 	 * runs in shadow only (#578). Absent: native.
 	 */
 	engine?: "native" | "wasm";
+	/**
+	 * Why the model disabled itself for the session (system1-artifact.md
+	 * §8: a failed verification, a parity self-check failure, an engine
+	 * that will not load), as the notice to show; `undefined` while it
+	 * serves. A disabled model is never asked: the type's built-in backend
+	 * answers instead (#586). Absent: never disabled.
+	 */
+	disabled?: () => string | undefined;
 	infer: (
 		inputs: readonly BackendInput[],
 		options?: InferOptions,

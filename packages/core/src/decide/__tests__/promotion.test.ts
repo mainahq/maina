@@ -49,12 +49,16 @@ function migratedDb(): DbPort {
 	return db;
 }
 
+/** A type system1 covers (#586), which the heuristic answers as primary. */
 const REQUEST: DecideRequest = {
-	type: "slop",
-	state: { trusted: {}, untrusted: { text: "console.log(1)" } },
+	type: "diff.needs_review",
+	state: {
+		trusted: { additions: 900, deletions: 10, files: 2 },
+		untrusted: { paths: ["src/a.ts"] },
+	},
 	questions: [
-		{ kind: "bool", id: "ai-console" },
-		{ kind: "bool", id: "ai-todo" },
+		{ kind: "bool", id: "needs_review:a" },
+		{ kind: "bool", id: "needs_review:b" },
 	],
 };
 
@@ -89,7 +93,7 @@ function logPorts(db: DbPort): DecisionLogPorts {
 }
 
 /** A backend that always picks `file` of `a.ts` / `b.ts`. */
-function pick(id: "heuristic" | "system1", file: string): Backend {
+function pick(id: "heuristic" | "rules", file: string): Backend {
 	return {
 		id,
 		version: "1",
@@ -215,15 +219,15 @@ describe("shadowRun", () => {
 	test("a shadow that mutates the request cannot change the primary decisions", () => {
 		const db = migratedDb();
 		const state = {
-			trusted: {} as Record<string, unknown>,
-			untrusted: { text: "console.log(1)" } as Record<string, unknown>,
+			trusted: { ...REQUEST.state.trusted } as Record<string, unknown>,
+			untrusted: { paths: ["src/a.ts"] } as Record<string, unknown>,
 		};
 		const request: DecideRequest = { ...REQUEST, state };
 		const expected = unwrap(decide(primaryPorts(), REQUEST));
 		const vandal: Backend = {
 			...contrarian(false),
 			answer: (input) => {
-				(input.state.untrusted as Record<string, unknown>).text = "clean";
+				(input.state.untrusted as Record<string, unknown>).paths = [];
 				return contrarian(false).answer(input);
 			},
 		};
@@ -245,7 +249,7 @@ describe("shadowRun", () => {
 						...primaryPorts(),
 						backends: createRegistry([pick("heuristic", "a.ts")]),
 					},
-					shadow: pick("system1", "b.ts"),
+					shadow: pick("rules", "b.ts"),
 					log: { db, privacy: { rawOptions: true } },
 				},
 				{
@@ -274,7 +278,7 @@ describe("shadowRun", () => {
 						policy,
 						backends: createRegistry([pick("heuristic", "a.ts")]),
 					},
-					shadow: pick("system1", "b.ts"),
+					shadow: pick("rules", "b.ts"),
 					log: { db },
 				},
 				{
@@ -693,7 +697,7 @@ describe("readLogSlice", () => {
 			}),
 		);
 
-		const slice = unwrap(readLogSlice({ db }, { type: "slop" }));
+		const slice = unwrap(readLogSlice({ db }, { type: "diff.needs_review" }));
 		expect(slice.decisions.map((r) => r.id)).toEqual(
 			run.records.map((r) => r.id),
 		);
@@ -740,8 +744,8 @@ describe("logShadow", () => {
 			),
 		);
 		expect(records.map((r) => [r.id, r.finalAction, r.answer])).toEqual([
-			["ai-console:shadow", SHADOW_ACTION, false],
-			["ai-todo:shadow", SHADOW_ACTION, false],
+			["needs_review:a:shadow", SHADOW_ACTION, false],
+			["needs_review:b:shadow", SHADOW_ACTION, false],
 		]);
 		for (const r of records) expect(r.modelHash).toBe(hashModel(SYSTEM1));
 
@@ -753,7 +757,7 @@ describe("logShadow", () => {
 			}),
 		);
 		const report = evaluatePromotion(
-			unwrap(readLogSlice({ db }, { type: "slop" })),
+			unwrap(readLogSlice({ db }, { type: "diff.needs_review" })),
 			GATES,
 		);
 		expect(report.entries.map((e) => e.candidate)).toEqual([

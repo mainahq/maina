@@ -216,17 +216,83 @@ describe("the gate over an async model", () => {
 		expect(decision.reason).toContain("300 ms, over the 250 ms budget");
 	});
 
-	test("a model that fails makes the gate ask, degraded", async () => {
+	test("a model that fails hands the event to the rules backend (#586)", async () => {
 		const model: InferencePort = {
 			id: "system1",
 			version: "x",
 			infer: async () => Promise.reject(new Error("onnx crashed")),
 		};
+		const evaluate = createGateEvaluator(deps({ model }));
+		// No rule decides `ls`: the rules backend answers its class, allow.
+		const allowed = await evaluate(plain("ls -la"));
+		expect(allowed.verdict).toBe("allow");
+		expect(allowed.degraded).toBe(false);
+		// A class the rules ask about still asks.
+		const asked = await evaluate(plain("rm -rf dist"));
+		expect(asked.verdict).toBe("ask");
+	});
+
+	test("a model that fails leaves a listed allow standing, as the rules backend does (#586)", async () => {
+		// `git push origin main` is `git.push.protected`, a reversible `ask`
+		// class; the allow rule lists it. With `backend: rules` the gate
+		// never asks a backend once a rule decided, so the allow stands. A
+		// failed model delegating to rules must not tighten it to the class's
+		// own `ask`.
+		const allowRule = (backend: "rules" | "system1"): Policy => ({
+			...withBackend(DEFAULT_POLICY, "action.risk", backend),
+			rules: { allow: [{ match: "git push origin main" }], deny: [] },
+		});
+		const failing: InferencePort = {
+			id: "system1",
+			version: "x",
+			infer: async () => Promise.reject(new Error("onnx crashed")),
+		};
+		const push = plain("git push origin main");
+		const rulesOnly = await createGateEvaluator(
+			deps({
+				policyFor: async () => ({ ok: true, value: allowRule("rules") }),
+			}),
+		)(push);
+		expect(rulesOnly.verdict).toBe("allow");
+		const delegated = await createGateEvaluator(
+			deps({
+				model: failing,
+				policyFor: async () => ({ ok: true, value: allowRule("system1") }),
+			}),
+		)(push);
+		expect(delegated.verdict).toBe("allow");
+		expect(delegated.degraded).toBe(false);
+	});
+
+	test("a model that fails slower than the budget still asks, degraded", async () => {
+		let now = 0;
+		const model: InferencePort = {
+			id: "system1",
+			version: "x",
+			infer: async () => {
+				now += 300;
+				return Promise.reject(new Error("onnx crashed"));
+			},
+		};
+		const decision = await createGateEvaluator(
+			deps({ model, clock: { now: () => now } }),
+		)(plain("ls -la"));
+		expect(decision.verdict).toBe("ask");
+		expect(decision.degraded).toBe(true);
+	});
+
+	test("a self-disabled model is never run; the rules backend answers (#586)", async () => {
+		const model: FakeModel = {
+			...fakeModel("deny"),
+			disabled: () =>
+				"system1: model 0.1.0 failed verification; using heuristics",
+		};
 		const decision = await createGateEvaluator(deps({ model }))(
 			plain("ls -la"),
 		);
-		expect(decision.verdict).toBe("ask");
-		expect(decision.degraded).toBe(true);
+		expect(model.calls.length).toBe(0);
+		expect(decision.verdict).toBe("allow");
+		expect(decision.degraded).toBe(false);
 	});
 
 	test("the model is not run when the gate would not ask it", async () => {
