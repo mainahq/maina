@@ -345,7 +345,19 @@ describe("runtime failures", () => {
 		if (!first.ok) throw new Error(first.error.message);
 		expect(await ready(t.endpoint.address)).toBe(true);
 		killQuietly(first.value.pid);
-		expect(await waitFor(() => !isAlive(first.value.pid), 3000)).toBe(true);
+		// Gone means nothing accepts a connection any more: on Windows the
+		// pipe outlives the pid for a moment, and a connection it takes then
+		// just closes, a crash rather than a missing runtime.
+		const gone = async () => {
+			if (isAlive(first.value.pid)) return false;
+			const sent = await sendRequest(
+				t.endpoint.address,
+				createRequest("status", undefined, VERSION),
+				500,
+			);
+			return !sent.ok && sent.error.kind === "connect_failed";
+		};
+		expect(await waitFor(gone, 3000)).toBe(true);
 
 		const result = await client(
 			t.endpoint,
