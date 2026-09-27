@@ -128,7 +128,7 @@ export type EngineError = Readonly<{
 }>;
 
 /** One loaded model on one engine. */
-type OrtSession = Readonly<{
+export type OrtSession = Readonly<{
 	engine: Engine;
 	inputNames: readonly string[];
 	outputNames: readonly string[];

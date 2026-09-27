@@ -19,6 +19,7 @@
 import {
 	type Backend,
 	type BackendAnswer,
+	type BackendCalibration,
 	type BackendError,
 	type BackendInput,
 	type ClockPort,
@@ -38,13 +39,26 @@ export type InferOptions = Readonly<{
 }>;
 
 /**
+ * One input's answers in question order, or `null` for an input the model
+ * does not cover (a type or option outside its vocabulary): the type's
+ * built-in backend answers that one.
+ */
+type InferredAnswers = readonly BackendAnswer[] | null;
+
+/**
  * An async model over a batch of backend inputs: one `infer` call encodes
  * them and runs one inference pass (an onnxruntime session's `run()`),
  * returning each input's answers in input order.
+ *
+ * The fields are read per event, so a model that loads in the background
+ * (`model/infer.ts`) reports its version, engine and calibration once it
+ * has them, and `disabled()` until then.
  */
 export type InferencePort = Readonly<{
 	id: DecisionBackend;
 	version: string;
+	/** Set by a calibrated model; carried onto every decision it answers. */
+	calibration?: BackendCalibration;
 	/**
 	 * `wasm`: the single-thread WASM fallback, used where the native engine
 	 * cannot load. It is too slow to answer inside the gate's budget, so it
@@ -62,7 +76,7 @@ export type InferencePort = Readonly<{
 	infer: (
 		inputs: readonly BackendInput[],
 		options?: InferOptions,
-	) => Promise<Result<readonly (readonly BackendAnswer[])[], BackendError>>;
+	) => Promise<Result<readonly InferredAnswers[], BackendError>>;
 }>;
 
 export type PreInferred = Readonly<{
@@ -77,11 +91,14 @@ const failure = (message: string): Result<never, BackendError> => ({
 	error: { kind: "unsupported", questionId: undefined, message },
 });
 
-/** The model's outputs paired with their inputs, or why they cannot be. */
+/**
+ * The model's outputs paired with their inputs, or why they cannot be. An
+ * input answered `null` is left out, so the backend has no answer for it.
+ */
 function pair(
 	model: InferencePort,
 	inputs: readonly BackendInput[],
-	outputs: Result<readonly (readonly BackendAnswer[])[], BackendError>,
+	outputs: Result<readonly InferredAnswers[], BackendError>,
 ): Result<readonly Precomputed[], BackendError> {
 	if (!outputs.ok) return outputs;
 	if (!Array.isArray(outputs.value) || outputs.value.length !== inputs.length) {
@@ -91,10 +108,10 @@ function pair(
 	}
 	return {
 		ok: true,
-		value: inputs.map((input, i) => ({
-			input,
-			answers: outputs.value[i] ?? [],
-		})),
+		value: inputs.flatMap((input, i) => {
+			const answers = outputs.value[i];
+			return answers === null ? [] : [{ input, answers: answers ?? [] }];
+		}),
 	};
 }
 

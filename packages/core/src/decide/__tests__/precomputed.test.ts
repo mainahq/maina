@@ -140,6 +140,38 @@ describe("precomputedBackend", () => {
 		});
 	});
 
+	test("carries the model's calibration onto every decision it answers (#338)", () => {
+		const calibration = {
+			sha256: "c".repeat(64),
+			thresholds: { "diff.sensitive": { confidence: 0.8 } },
+		};
+		const policy = withBackend(DEFAULT_POLICY, "action.risk", "system1");
+		const backend = precomputedBackend(
+			{ ...META, calibration },
+			{
+				ok: true,
+				value: [
+					{
+						input: { ...input("plan"), policy },
+						answers: [allowAnswer(["allow", "ask", "deny"])],
+					},
+				],
+			},
+		);
+		expect(backend.calibration).toEqual(calibration);
+		const result = decide(
+			{ clock: { now: () => 0 }, policy, backends: createRegistry([backend]) },
+			input("q1"),
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok)
+			expect(result.value[0]?.backend.calibration).toEqual(calibration);
+		// Without one, none is invented.
+		expect(precomputedBackend(META, { ok: true, value: [] }).calibration).toBe(
+			undefined,
+		);
+	});
+
 	test("serves synchronous decide once registered", () => {
 		const policy = withBackend(DEFAULT_POLICY, "action.risk", "system1");
 		const backend = precomputedBackend(META, {

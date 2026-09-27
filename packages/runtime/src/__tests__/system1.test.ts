@@ -163,6 +163,43 @@ describe("preInfer", () => {
 		if (!answered.ok) expect(answered.error.kind).toBe("unsupported");
 	});
 
+	test("an input the model cannot encode (null) is unsupported on its own (#338)", async () => {
+		const other: BackendInput = {
+			...input("b"),
+			state: { trusted: {}, untrusted: { action: { command: "rm -rf /" } } },
+		};
+		const model: InferencePort = {
+			id: "system1",
+			version: "x",
+			infer: async (inputs) => ({
+				ok: true,
+				value: [answerAll(inputs[0] ?? input("a"), "allow"), null],
+			}),
+		};
+		const { backend } = await preInfer(
+			model,
+			{ now: () => 0 },
+			[input("a"), other],
+			250,
+		);
+		expect(backend.answer(input("a")).ok).toBe(true);
+		const skipped = backend.answer(other);
+		expect(skipped.ok).toBe(false);
+		if (!skipped.ok) expect(skipped.error.kind).toBe("unsupported");
+	});
+
+	test("the backend carries the model's calibration (#338)", async () => {
+		const calibration = { sha256: "a".repeat(64), thresholds: {} };
+		const model: InferencePort = { ...fakeModel("allow"), calibration };
+		const { backend } = await preInfer(
+			model,
+			{ now: () => 0 },
+			[input("a")],
+			250,
+		);
+		expect(backend.calibration).toEqual(calibration);
+	});
+
 	test("a model that never answers is cut off at the budget", async () => {
 		const model: InferencePort = {
 			id: "system1",

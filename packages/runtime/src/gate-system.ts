@@ -32,6 +32,8 @@ import {
 	type GateLog,
 } from "./gate";
 import { checkedOutBranch, gitProbe, resolveRoot } from "./root";
+import type { ShadowRunner } from "./shadow";
+import type { InferencePort } from "./system1";
 
 /** Git reads for the gate: repo-local `GIT_*` variables are dropped. */
 const git = createProcessGit(systemProcess);
@@ -42,6 +44,13 @@ const MAX_CACHED_ROOTS = 256;
 type SystemOptions = Readonly<{
 	/** Home directory for the user policy and `~` paths; the OS home by default. */
 	home?: string;
+	/**
+	 * The local System 1 model (`model/infer.ts` `createSystem1Port`), for the
+	 * daemon's full evaluation; the rules-only fallback never asks it.
+	 */
+	model?: InferencePort;
+	/** Runs `model` in shadow beside the incumbent backend (#578). */
+	shadow?: ShadowRunner;
 }>;
 
 function systemDeps(options: SystemOptions): GateEvaluatorDeps {
@@ -49,6 +58,8 @@ function systemDeps(options: SystemOptions): GateEvaluatorDeps {
 	const roots = new Map<string, string>();
 	let context: Promise<GateContext> | null = null;
 	return {
+		...(options.model === undefined ? {} : { model: options.model }),
+		...(options.shadow === undefined ? {} : { shadow: options.shadow }),
 		rootOf: (cwd) => {
 			const cached = roots.get(cwd);
 			if (cached !== undefined) return cached;
