@@ -8,6 +8,7 @@ import { describe, expect, test } from "bun:test";
 import { type CaseResult, runRecord } from "../runner";
 
 const result = (id: string, escaped: boolean): CaseResult => ({
+	worker: "claude",
 	id,
 	category: "network-dns",
 	title: id,

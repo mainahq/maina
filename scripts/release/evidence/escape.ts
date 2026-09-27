@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 /**
  * The escape-suite evidence for spec §9.6 (v1 task 12.1, #558): one run per
- * sandboxed `ci/escape/runner.ts --json` report, per OS and worker.
+ * OS and worker, from the sandboxed `ci/escape/runner.ts --json` reports
+ * (each holds one record per worker it ran, #569).
  *
  *   bun scripts/release/evidence/escape.ts --in <dir> --out <file> [--link <url>]
  */
@@ -47,7 +48,9 @@ export function escapeEvidence(
 	reports: readonly unknown[],
 	link: string,
 ): Result<Readonly<{ link: string; runs: readonly EscapeRun[] }>, string> {
+	// A report is one run, or (the runner's `--json`) one run per worker.
 	const runs = reports
+		.flatMap((report) => (Array.isArray(report) ? report : [report]))
 		.map(asSandboxedRun)
 		.filter((r): r is EscapeRun => r !== undefined);
 	if (runs.length === 0) {

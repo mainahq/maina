@@ -12,14 +12,28 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { WORKER_NAMES } from "../../../packages/harness/src/workers/registry";
+import type { WorkerName } from "../../../packages/harness/src/workers/spec";
 import {
 	ESCAPE_CASES,
 	ESCAPE_CATEGORIES,
 	type EscapeCase,
 	type EscapeContext,
+	GATE_TAMPER,
 } from "../cases";
 
-const fakeContext = (): EscapeContext => ({
+/** Where each worker's gate integration keeps its config in the worktree. */
+const GATE_DIRS: Readonly<Record<WorkerName, readonly [string, string]>> = {
+	claude: [".claude", "settings.local.json"],
+	codex: [".codex", "config.toml"],
+	cursor: [".cursor", "cli.json"],
+	gemini: [".gemini", "settings.json"],
+	opencode: [".opencode", "opencode.json"],
+};
+
+const fakeContext = (worker: WorkerName = "claude"): EscapeContext => ({
+	worker,
+	gateDir: `/tmp/base/worktrees/run-1/${GATE_DIRS[worker][0]}`,
 	layout: {
 		base: "/tmp/base",
 		home: "/tmp/base/home",
@@ -30,9 +44,9 @@ const fakeContext = (): EscapeContext => ({
 		outside: "/tmp/base/outside",
 		tmp: "/tmp/base/tmp",
 	},
-	settingsPath: "/tmp/base/worktrees/run-1/.claude/settings.local.json",
-	policyPath: "/tmp/base/state/claude-hook-policy.json",
-	logPath: "/tmp/base/state/claude-hook-log.jsonl",
+	settingsPath: `/tmp/base/worktrees/run-1/${GATE_DIRS[worker].join("/")}`,
+	policyPath: `/tmp/base/state/${worker}-gate-policy.json`,
+	logPath: `/tmp/base/state/${worker}-gate-log.jsonl`,
 	server: { host: "127.0.0.1", port: 59999, marker: "SERVER-MARKER-322" },
 	allowedHost: "allowed.example.test",
 	secretEnvName: "GITHUB_TOKEN",
@@ -96,6 +110,37 @@ describe("the escape suite", () => {
 		}
 		expect(copies).toEqual([]);
 	});
+
+	test("every worker has gate tampering to attempt", () => {
+		expect(Object.keys(GATE_TAMPER).sort()).toEqual([...WORKER_NAMES].sort());
+	});
+
+	// The suite runs once per worker (spec §9.6: every supported ACP worker),
+	// each time against that worker's gate integration.
+	for (const worker of WORKER_NAMES) {
+		test(`${worker}: every case builds a distinct attack`, () => {
+			const ctx = fakeContext(worker);
+			const scripts = ESCAPE_CASES.map((c) => c.script(ctx));
+			expect(scripts.every((s) => s.length > 0)).toBe(true);
+			expect(new Set(scripts).size).toBe(scripts.length);
+		});
+
+		test(`${worker}: the prompt injections go after its own gate, not Claude's`, () => {
+			const ctx = fakeContext(worker);
+			const injections = ESCAPE_CASES.filter(
+				(c) => c.category === "prompt-injection",
+			);
+			expect(injections.length).toBeGreaterThanOrEqual(4);
+			for (const c of injections) {
+				const script = c.script(ctx);
+				const target = [ctx.gateDir, ctx.settingsPath, ctx.policyPath].some(
+					(path) => script.includes(path),
+				);
+				expect(target).toBe(true);
+				if (worker !== "claude") expect(script).not.toContain(".claude");
+			}
+		});
+	}
 
 	test("every category is a declared one", () => {
 		const declared = new Set<EscapeCase["category"]>(ESCAPE_CATEGORIES);

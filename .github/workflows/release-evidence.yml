@@ -11,7 +11,7 @@ name: Release evidence
 #   receipted-merges.json  every PR merged into v1/main against its receipt
 #   dogfood-weeks.json     docs/dogfood reports + P0 `dogfood` issues
 #   harness-control.json   unattended policy matrix + bounded revision tests
-#   escape-suite.json      the sandboxed escape suite on Linux and macOS
+#   escape-suite.json      the sandboxed escape suite on Linux and macOS, per worker
 #   e2e-matrix.json        the real-config matrix, repeated (JUnit per run)
 #   first-result.json      the plugin cells' install → first verify times
 #   uninstall.json         the plugin cells' uninstall traces
@@ -162,14 +162,33 @@ jobs:
           name: evidence-harness
           path: out/
 
+  # The ACP workers the escape suite runs for, from the worker registry.
+  escape-workers:
+    name: escape suite workers
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - id: list
+        run: echo "list=$(bun -e 'import { WORKER_NAMES as w } from "./packages/harness/src/workers/registry.ts"; process.stdout.write(JSON.stringify(w))')" >> "$GITHUB_OUTPUT"
+
+  # One sandboxed run per OS and worker, with that worker's gate integration
+  # installed (#569); the gate needs every pair.
   escape:
-    name: escape suite (${{ matrix.os }})
+    name: escape suite (${{ matrix.os }} / ${{ matrix.worker }})
+    needs: escape-workers
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+        worker: ${{ fromJSON(needs.escape-workers.outputs.list) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -192,10 +211,10 @@ jobs:
       - name: Sandboxed run
         run: |
           mkdir -p raw
-          bun ci/escape/runner.ts sandboxed --json "raw/escape-${{ runner.os }}.json" || echo "::warning::cases escaped the sandbox (recorded)"
+          bun ci/escape/runner.ts sandboxed --worker "${{ matrix.worker }}" --json "raw/escape-${{ runner.os }}-${{ matrix.worker }}.json" || echo "::warning::cases escaped the sandbox (recorded)"
       - uses: actions/upload-artifact@v4
         with:
-          name: raw-escape-${{ matrix.os }}
+          name: raw-escape-${{ matrix.os }}-${{ matrix.worker }}
           path: raw/
 
   e2e:
