@@ -47,7 +47,7 @@ type Unpinned = Readonly<{
 	baseUrl: string;
 }>;
 
-type ModelPinFile = ModelPin | Unpinned;
+export type ModelPinFile = ModelPin | Unpinned;
 
 /** A manifest that matches the pin, with the bytes that were checked. */
 type PinnedManifest = Readonly<{

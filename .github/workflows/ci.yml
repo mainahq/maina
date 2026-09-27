@@ -182,3 +182,27 @@ jobs:
           name: graph-bench-report
           path: graph-bench.json
           if-no-files-found: ignore
+
+  # System 1 model parity on linux-x64 (#575, maina-model
+  # docs/handoff/parity.md): the release verifier and the parity self-check
+  # the loader runs at every load. CI parity runs on linux-x64, so the job
+  # refuses any other runner. The engine (#338) adds its fixture runs to the
+  # same directory.
+  model-parity:
+    name: model parity (linux-x64)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Require linux-x64
+        run: test "$(uname -s)-$(uname -m)" = "Linux-x86_64"
+
+      - name: Model verifier and parity self-check
+        run: bun test packages/runtime/src/model
