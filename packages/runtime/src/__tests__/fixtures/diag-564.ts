@@ -7,10 +7,11 @@
 
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createRequest, sendRequest } from "../../ipc";
 
-const [bin = "", mode = "detached"] = process.argv.slice(2);
+const [rawBin = "", mode = "detached"] = process.argv.slice(2);
+const bin = resolve(rawBin);
 const log = (...parts: unknown[]) =>
 	process.stderr.write(
 		`${parts.map((p) => (typeof p === "string" ? p : JSON.stringify(p))).join(" ")}\n`,

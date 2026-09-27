@@ -107,6 +107,8 @@ jobs:
             # diagnostic (#564)
             bun packages/runtime/src/__tests__/fixtures/diag-564.ts "$bin" attached || true
             bun packages/runtime/src/__tests__/fixtures/diag-564.ts "$bin" detached || true
+            sleep 2
+            powershell -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object { $_.Name -like "maina*" } | Select-Object ProcessId,ParentProcessId,CommandLine | Format-List' || true
           fi
           # On Windows the host sends a Windows path, not the /d/... of this shell.
           cwd=$(pwd -W 2>/dev/null || pwd)
