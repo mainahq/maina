@@ -53,9 +53,13 @@ const GOOD: Readonly<Record<string, unknown>> = {
 	"promotion-action-risk.json": {
 		link: link("promotion"),
 		type: "action.risk",
+		modelHash: `sha256:${"a".repeat(64)}`,
+		promotionGrade: true,
+		evalSets: { action_risk: "1".repeat(64), injection: "2".repeat(64) },
+		incumbent: { backend: "rules" },
 		metrics: {
-			brier: { candidate: 0.08, heuristic: 0.12 },
-			accuracy: { candidate: 0.93, heuristic: 0.88 },
+			brier: { candidate: 0.08, incumbent: 0.12 },
+			accuracy: { candidate: 0.93, incumbent: 0.88 },
 			eceByLengthBucket: { short: 0.03, medium: 0.04, long: 0.05 },
 			falseAllowDestructive: 0.004,
 			decidedWithoutAsking: 0.74,
@@ -233,17 +237,79 @@ const BELOW: ReadonlyArray<
 		says: /shadow.*999.*1,000/,
 	},
 	{
-		name: "not beating the heuristic on Brier",
+		name: "not beating the incumbent on Brier",
 		id: "promotion-action-risk",
 		file: "promotion-action-risk.json",
 		patch: (g) => ({
 			...g,
 			metrics: {
 				...(g.metrics as object),
-				brier: { candidate: 0.12, heuristic: 0.12 },
+				brier: { candidate: 0.12, incumbent: 0.12 },
 			},
 		}),
-		says: /Brier/,
+		says: /Brier: 0\.12 vs rules 0\.12 \(must beat the incumbent\)/,
+	},
+	{
+		name: "a pair still keyed by heuristic",
+		id: "promotion-action-risk",
+		file: "promotion-action-risk.json",
+		patch: (g) => ({
+			...g,
+			metrics: {
+				...(g.metrics as object),
+				accuracy: { candidate: 0.93, heuristic: 0.88 },
+			},
+		}),
+		says: /accuracy vs incumbent \(metrics\.accuracy\): missing/,
+	},
+	{
+		name: "no incumbent backend",
+		id: "promotion-action-risk",
+		file: "promotion-action-risk.json",
+		patch: ({ incumbent: _dropped, ...g }) => g,
+		says: /incumbent\.backend: missing/,
+	},
+	{
+		name: "the model as its own incumbent",
+		id: "promotion-action-risk",
+		file: "promotion-action-risk.json",
+		patch: (g) => ({ ...g, incumbent: { backend: "system1" } }),
+		says: /incumbent\.backend.*system1/,
+	},
+	{
+		name: "a provisional report",
+		id: "promotion-action-risk",
+		file: "promotion-action-risk.json",
+		patch: (g) => ({ ...g, promotionGrade: false }),
+		says: /promotionGrade.*provisional/,
+	},
+	{
+		name: "no eval set hashes",
+		id: "promotion-action-risk",
+		file: "promotion-action-risk.json",
+		patch: ({ evalSets: _dropped, ...g }) => g,
+		says: /evalSets: missing/,
+	},
+	{
+		name: "an eval set hash that is not sha256",
+		id: "promotion-action-risk",
+		file: "promotion-action-risk.json",
+		patch: (g) => ({ ...g, evalSets: { action_risk: "v0.2" } }),
+		says: /evalSets\.action_risk.*sha256/,
+	},
+	{
+		name: "no model hash",
+		id: "promotion-action-risk",
+		file: "promotion-action-risk.json",
+		patch: ({ modelHash: _dropped, ...g }) => g,
+		says: /modelHash: missing/,
+	},
+	{
+		name: "a model hash not in the decision log's form",
+		id: "promotion-action-risk",
+		file: "promotion-action-risk.json",
+		patch: (g) => ({ ...g, modelHash: "system1@0.1.0" }),
+		says: /modelHash.*sha256/,
 	},
 	{
 		name: "a benchmark without Codex Auto-review",
@@ -502,6 +568,16 @@ describe("evaluateGates", () => {
 		expect(r.status).toBe("missing");
 		expect(r.details.join("\n")).toMatch(/action\.risk.*rules.*system1/);
 		expect(r.details.join("\n")).toContain("promotion-action-risk.json");
+	});
+
+	test("a passing promotion names the model, its eval sets and the incumbent backend", () => {
+		const r = result(evaluateGates(inputs()), "promotion-action-risk");
+		expect(r.status).toBe("pass");
+		const text = r.details.join("\n");
+		expect(text).toContain("eval sets: action_risk, injection");
+		expect(text).toContain(`model: sha256:${"a".repeat(64)}`);
+		expect(text).toContain("Brier: 0.08 vs rules 0.12");
+		expect(text).toContain("accuracy: 0.93 vs rules 0.88");
 	});
 
 	test("a missing metric fails its gate as missing, never as a pass", () => {

@@ -16,8 +16,10 @@ name: Release evidence
 #   first-result.json      the plugin cells' install → first verify times
 #   uninstall.json         the plugin cells' uninstall traces
 #
-# Promotion and benchmark evidence come from the model track (#339) and
-# stay MISSING here until it lands.
+# Promotion and benchmark evidence come from the model track (#339): its
+# frozen-set, shadow and bench reports and the public benchmark reports go
+# through evidence/promotion.ts and evidence/benchmark.ts. Both stay MISSING
+# here until it produces them.
 #
 # The collectors record failures as evidence rather than failing the run: a
 # red job here means the collector itself broke. Producers live in
