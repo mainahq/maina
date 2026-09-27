@@ -110,7 +110,9 @@ export function createShadowRunner(options: ShadowRunnerOptions): ShadowRunner {
 			queued += 1;
 			tail = tail
 				.then(() => runBatch(options, batch))
-				.catch(() => {})
+				// A batch that fails (a write that throws) only loses its
+				// evidence; the queue goes on.
+				.catch(() => undefined)
 				.finally(() => {
 					queued -= 1;
 				});
