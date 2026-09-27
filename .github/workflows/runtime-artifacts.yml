@@ -57,9 +57,9 @@ jobs:
       # The compiled executable's embedded tree-sitter (#526) on every OS,
       # in process: the gate and the code graph, without the resident runtime.
       - run: bun test packages/runtime/src/standalone
-      # diagnostic (#564): the resident runtime over a named pipe.
+      # The resident runtime over a named pipe (#564): spawn, IPC and the
+      # fail-closed client, which the CI workflow runs on Linux and macOS.
       - if: runner.os == 'Windows'
-        continue-on-error: true
         run: bun test packages/runtime/src/__tests__/ipc.test.ts packages/runtime/src/__tests__/lifecycle.test.ts packages/runtime/src/__tests__/crash.test.ts
 
   build:
@@ -102,31 +102,22 @@ jobs:
           case $code:$out in 2:*'"permissionDecision":"deny"'*) ;; *) echo "codex hook did not fail closed" >&2; exit 1 ;; esac
           # The executable embeds tree-sitter (#526): the gate reads a Bash
           # command instead of asking for it as opaque, so wiping the host's
-          # config is denied, not asked. On every OS, Windows included (#564).
-          if [ "$RUNNER_OS" = Windows ]; then
-            # diagnostic (#564)
-            bun packages/runtime/src/__tests__/fixtures/diag-564.ts "$bin" attached || true
-            bun packages/runtime/src/__tests__/fixtures/diag-564.ts "$bin" detached || true
-            sleep 2
-            powershell -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object { $_.Name -like "maina*" } | Select-Object ProcessId,ParentProcessId,CommandLine | Format-List' || true
-          fi
-          # On Windows the host sends a Windows path, not the /d/... of this shell.
+          # config is denied, not asked. The first hook starts the resident
+          # runtime and the next ones get their answer from it, not from the
+          # in-process fallback, on every OS: on Windows a compiled hook used
+          # to spawn no runtime at all (#564).
+          # The host sends a native path: on Windows, not this shell's /d/...
           cwd=$(pwd -W 2>/dev/null || pwd)
           input=$(printf '{"session_id":"ci","transcript_path":"%s/t.jsonl","cwd":"%s","hook_event_name":"PreToolUse","permission_mode":"default","tool_name":"Bash","tool_input":{"command":"rm -rf ~/.claude"},"tool_use_id":"toolu_ci"}' "$cwd" "$cwd")
-          denied=yes
           for attempt in 1 2 3; do
             code=0
-            start=$(date +%s%N)
             out=$(printf '%s' "$input" | "$bin" hook --host claude PreToolUse) || code=$?
-            echo "attempt $attempt: $(( ($(date +%s%N) - start) / 1000000 )) ms exit $code $out"
-            case $code:$out in 2:*'"permissionDecision":"deny"'*) ;; *) denied=no ;; esac
+            echo "attempt $attempt: $out"
+            case $code:$out in 2:*'"permissionDecision":"deny"'*) ;; *) echo "hook did not deny rm -rf ~/.claude (shell grammar not embedded?)" >&2; exit 1 ;; esac
+            if [ "$attempt" -gt 1 ]; then
+              case $out in *'runtime unavailable'*) echo "the resident runtime did not answer the hook" >&2; exit 1 ;; esac
+            fi
           done
-          if [ "$RUNNER_OS" = Windows ]; then
-            ls -la ~/.maina/run || true
-            cat ~/.maina/run/*.pid || true
-            powershell -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object { $_.Name -like "maina*" } | Select-Object ProcessId,ParentProcessId,CommandLine | Format-List' || true
-          fi
-          if [ $denied != yes ]; then echo "hook did not deny rm -rf ~/.claude (shell grammar not embedded?)" >&2; exit 1; fi
           init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}'
           # head exits after one line, so the server may die of SIGPIPE: ignore
           # the pipeline status and check the reply instead.

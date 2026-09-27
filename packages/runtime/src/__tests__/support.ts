@@ -32,7 +32,14 @@ export function tempEndpoint(version = "1.0.0"): TempEndpoint {
 	return {
 		dir,
 		endpoint,
-		cleanup: () => rmSync(dir, { recursive: true, force: true }),
+		// A daemon just killed may still hold the dir (its cwd) on Windows.
+		cleanup: () =>
+			rmSync(dir, {
+				recursive: true,
+				force: true,
+				maxRetries: 20,
+				retryDelay: 50,
+			}),
 	};
 }
 

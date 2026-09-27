@@ -62,8 +62,13 @@ type DaemonOptions = Readonly<{
 	execPath?: string;
 }>;
 
-/** Where a compiled runtime's modules live: Bun's `$bunfs` (`B:/~BUN` on Windows). */
-const COMPILED_MODULE = /^file:\/\/\/(\$bunfs\/|[A-Za-z]:\/~BUN\/)/;
+/**
+ * Where a compiled runtime's modules live: Bun's `$bunfs` (`B:/~BUN` on
+ * Windows), which a module URL may carry escaped: on Windows bun gives
+ * `file:///B:/%7EBUN/...` (#564).
+ */
+const COMPILED_MODULE =
+	/^file:\/\/\/((\$|%24)bunfs\/|[A-Za-z]:\/(~|%7E)BUN\/)/i;
 
 /** Whether `moduleUrl` is a module inside a compiled standalone runtime. */
 export function isCompiledModule(moduleUrl: string): boolean {

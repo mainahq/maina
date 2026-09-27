@@ -24,7 +24,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createHookClient } from "../client/hook-client";
 import { createRequest, sendRequest } from "../ipc";
-import { daemonCommand, daemonSpawner, type SpawnRuntime } from "../lifecycle";
+import {
+	daemonCommand,
+	daemonSpawner,
+	isCompiledModule,
+	type SpawnRuntime,
+} from "../lifecycle";
 import {
 	defaultRuntimeDir,
 	ensureEndpointDirs,
@@ -41,6 +46,9 @@ import {
 	tempEndpoint,
 	waitFor,
 } from "./support";
+
+/** Unix socket layout and POSIX paths; Windows serves a named pipe. */
+const posixOnly = test.skipIf(process.platform === "win32");
 
 const temps: TempEndpoint[] = [];
 const runtimes: Runtime[] = [];
@@ -96,7 +104,7 @@ describe("endpoint registry", () => {
 		tmpDir: "/tmp",
 	};
 
-	test("each version gets its own socket, pid file and spawn lock", () => {
+	posixOnly("each version gets its own socket, pid file and spawn lock", () => {
 		const a = resolveEndpoint({ ...base, version: "1.0.0" });
 		const b = resolveEndpoint({ ...base, version: "1.1.0" });
 		expect(a.address).toBe("/home/u/.maina/run/rt-1.0.0.sock");
@@ -116,22 +124,25 @@ describe("endpoint registry", () => {
 		expect(e.address).toBe("\\\\.\\pipe\\maina-u-1.0.0");
 	});
 
-	test("unsafe characters in a version never reach the path", () => {
+	posixOnly("unsafe characters in a version never reach the path", () => {
 		const e = resolveEndpoint({ ...base, version: "1.0.0/../../x" });
 		expect(e.address.startsWith(`${base.dir}/`)).toBe(true);
 		expect(e.address.slice(base.dir.length + 1)).not.toContain("/");
 	});
 
-	test("an over-long socket path falls back to a short one under tmp", () => {
-		const dir = `/home/${"u".repeat(120)}/.maina/run`;
-		const e = resolveEndpoint({ ...base, dir, version: "1.0.0" });
-		expect(e.address.startsWith("/tmp/")).toBe(true);
-		expect(Buffer.byteLength(e.address)).toBeLessThan(104);
-		expect(e.pidFile.startsWith(dir)).toBe(true);
-		// Inside a per-user subdirectory, never directly in the shared tmp dir.
-		expect(dirname(e.address)).not.toBe("/tmp");
-		expect(dirname(dirname(e.address))).toBe("/tmp");
-	});
+	posixOnly(
+		"an over-long socket path falls back to a short one under tmp",
+		() => {
+			const dir = `/home/${"u".repeat(120)}/.maina/run`;
+			const e = resolveEndpoint({ ...base, dir, version: "1.0.0" });
+			expect(e.address.startsWith("/tmp/")).toBe(true);
+			expect(Buffer.byteLength(e.address)).toBeLessThan(104);
+			expect(e.pidFile.startsWith(dir)).toBe(true);
+			// Inside a per-user subdirectory, never directly in the shared tmp dir.
+			expect(dirname(e.address)).not.toBe("/tmp");
+			expect(dirname(dirname(e.address))).toBe("/tmp");
+		},
+	);
 
 	test("the socket dir is created private and a loose one is tightened", () => {
 		if (process.platform === "win32") return;
@@ -157,39 +168,45 @@ describe("endpoint registry", () => {
 		if (!dirs.ok) expect(dirs.error.kind).toBe("io_error");
 	});
 
-	test("the runtime dir is per user: XDG_RUNTIME_DIR, else ~/.maina/run", () => {
-		expect(
-			defaultRuntimeDir({ XDG_RUNTIME_DIR: "/run/user/501" }, "/home/u"),
-		).toBe("/run/user/501/maina");
-		expect(defaultRuntimeDir({}, "/home/u")).toBe("/home/u/.maina/run");
-		expect(defaultRuntimeDir({ XDG_RUNTIME_DIR: "" }, "/home/u")).toBe(
-			"/home/u/.maina/run",
-		);
-	});
+	posixOnly(
+		"the runtime dir is per user: XDG_RUNTIME_DIR, else ~/.maina/run",
+		() => {
+			expect(
+				defaultRuntimeDir({ XDG_RUNTIME_DIR: "/run/user/501" }, "/home/u"),
+			).toBe("/run/user/501/maina");
+			expect(defaultRuntimeDir({}, "/home/u")).toBe("/home/u/.maina/run");
+			expect(defaultRuntimeDir({ XDG_RUNTIME_DIR: "" }, "/home/u")).toBe(
+				"/home/u/.maina/run",
+			);
+		},
+	);
 
-	test("under a host plugin, the runtime dir is inside the plugin's data dir (#341)", () => {
-		// Uninstalling a plugin deletes its data dir, so the runtime's socket
-		// and pid file go with it. Same precedence as the launcher.
-		expect(
-			defaultRuntimeDir({ CLAUDE_PLUGIN_DATA: "/d/maina" }, "/home/u"),
-		).toBe("/d/maina/run");
-		expect(
-			defaultRuntimeDir(
-				{
-					PLUGIN_DATA: "/p/maina",
-					CLAUDE_PLUGIN_DATA: "/d/maina",
-					XDG_RUNTIME_DIR: "/run/user/501",
-				},
-				"/home/u",
-			),
-		).toBe("/p/maina/run");
-		expect(
-			defaultRuntimeDir(
-				{ PLUGIN_DATA: "", CLAUDE_PLUGIN_DATA: "", XDG_RUNTIME_DIR: "/r" },
-				"/home/u",
-			),
-		).toBe("/r/maina");
-	});
+	posixOnly(
+		"under a host plugin, the runtime dir is inside the plugin's data dir (#341)",
+		() => {
+			// Uninstalling a plugin deletes its data dir, so the runtime's socket
+			// and pid file go with it. Same precedence as the launcher.
+			expect(
+				defaultRuntimeDir({ CLAUDE_PLUGIN_DATA: "/d/maina" }, "/home/u"),
+			).toBe("/d/maina/run");
+			expect(
+				defaultRuntimeDir(
+					{
+						PLUGIN_DATA: "/p/maina",
+						CLAUDE_PLUGIN_DATA: "/d/maina",
+						XDG_RUNTIME_DIR: "/run/user/501",
+					},
+					"/home/u",
+				),
+			).toBe("/p/maina/run");
+			expect(
+				defaultRuntimeDir(
+					{ PLUGIN_DATA: "", CLAUDE_PLUGIN_DATA: "", XDG_RUNTIME_DIR: "/r" },
+					"/home/u",
+				),
+			).toBe("/r/maina");
+		},
+	);
 });
 
 describe("runtime exclusivity", () => {
@@ -227,8 +244,9 @@ describe("runtime exclusivity", () => {
 	});
 
 	// On Linux, Bun unlinks a Unix socket's path when its listener stops, so
-	// only the atomic takeover guards against displacement there.
-	test.skipIf(process.platform === "linux")(
+	// only the atomic takeover guards against displacement there; a Windows
+	// named pipe has no path to leave behind.
+	test.skipIf(process.platform !== "darwin")(
 		"a runtime displaced from its pid file leaves the successor's socket alone",
 		() => {
 			const t = temp();
@@ -511,35 +529,38 @@ describe("claim check (#341)", () => {
 		expect(existsSync(t.endpoint.address)).toBe(false);
 	});
 
-	test("an orphaned runtime also removes its short tmp socket dir", async () => {
-		// A plugin data dir is often too deep for a Unix socket path, so the
-		// socket falls back to a private dir under tmp that nothing else
-		// would delete.
-		const t = temp();
-		const deep = join(t.dir, "d".repeat(120));
-		const endpoint = resolveEndpoint({
-			platform: process.platform,
-			dir: deep,
-			user: "test",
-			version: "1.0.0",
-			tmpDir: tmpdir(),
-		});
-		expect(dirname(endpoint.address)).not.toBe(dirname(endpoint.pidFile));
-		const started = startRuntime(
-			{ gate: fixedGate("allow") },
-			{ endpoint, version: "1.0.0", idleTtlMs: 60_000, claimCheckMs: 50 },
-		);
-		if (!started.ok) throw new Error(JSON.stringify(started.error));
-		runtimes.push(started.value);
-		rmSync(deep, { recursive: true });
-		const closed = await Promise.race([
-			started.value.closed,
-			Bun.sleep(2_000).then(() => "still running"),
-		]);
-		expect(closed).toBe("orphaned");
-		expect(existsSync(endpoint.address)).toBe(false);
-		expect(existsSync(dirname(endpoint.address))).toBe(false);
-	});
+	posixOnly(
+		"an orphaned runtime also removes its short tmp socket dir",
+		async () => {
+			// A plugin data dir is often too deep for a Unix socket path, so the
+			// socket falls back to a private dir under tmp that nothing else
+			// would delete.
+			const t = temp();
+			const deep = join(t.dir, "d".repeat(120));
+			const endpoint = resolveEndpoint({
+				platform: process.platform,
+				dir: deep,
+				user: "test",
+				version: "1.0.0",
+				tmpDir: tmpdir(),
+			});
+			expect(dirname(endpoint.address)).not.toBe(dirname(endpoint.pidFile));
+			const started = startRuntime(
+				{ gate: fixedGate("allow") },
+				{ endpoint, version: "1.0.0", idleTtlMs: 60_000, claimCheckMs: 50 },
+			);
+			if (!started.ok) throw new Error(JSON.stringify(started.error));
+			runtimes.push(started.value);
+			rmSync(deep, { recursive: true });
+			const closed = await Promise.race([
+				started.value.closed,
+				Bun.sleep(2_000).then(() => "still running"),
+			]);
+			expect(closed).toBe("orphaned");
+			expect(existsSync(endpoint.address)).toBe(false);
+			expect(existsSync(dirname(endpoint.address))).toBe(false);
+		},
+	);
 
 	test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
 		"a pid file it cannot read for a moment is not a lost claim",
@@ -599,7 +620,7 @@ describe("claim check (#341)", () => {
 });
 
 describe("standalone runtime daemon (ADR 0045)", () => {
-	test("from source, the daemon is daemon.ts run by bun", () => {
+	posixOnly("from source, the daemon is daemon.ts run by bun", () => {
 		expect(
 			daemonCommand(
 				"file:///repo/packages/runtime/src/lifecycle.ts",
@@ -616,6 +637,25 @@ describe("standalone runtime daemon (ADR 0045)", () => {
 		expect(
 			daemonCommand("file:///B:/~BUN/root/maina.exe", "C:\\data\\maina.exe"),
 		).toEqual(["C:\\data\\maina.exe", "runtime-daemon"]);
+	});
+
+	// #564: on Windows, bun gives a compiled module's URL with `~` escaped.
+	// Taken for a source file, the hook spawned `maina.exe B:\~BUN\root\
+	// daemon.ts`, which is no mode at all, and every hook timed out.
+	test("a compiled runtime is recognised with its URL escaped", () => {
+		for (const url of [
+			"file:///B:/%7EBUN/root/maina.exe",
+			"file:///B:/%7eBUN/root/maina.exe",
+			"file:///%24bunfs/root/maina",
+		]) {
+			expect(isCompiledModule(url)).toBe(true);
+		}
+		expect(
+			daemonCommand("file:///B:/%7EBUN/root/maina.exe", "C:\\data\\maina.exe"),
+		).toEqual(["C:\\data\\maina.exe", "runtime-daemon"]);
+		expect(isCompiledModule("file:///C:/%7Euser/maina/lifecycle.ts")).toBe(
+			false,
+		);
 	});
 
 	test("the standalone entry's runtime-daemon mode serves the runtime", async () => {
