@@ -85,9 +85,9 @@ What is released, and what the next release brings. The next release is read fro
 - Every gate evaluation is now logged, allows included. _(@mainahq/core)_
 - The gate now works out where a push with no refspec (`git push`, `git push <remote>`) actually goes. _(@mainahq/core)_
 - The gate now closes more ways an agent could turn off its own gate. _(@mainahq/core)_
+- `maina digest --dogfood [--commit]`: writes the week that just ended (or `--week yyyy-ww`) as the dogfood report, `docs/dogfood/<yyyy-ww>.md`, from the decision log (`.maina/decisions.db`). _(@mainahq/cli)_
 - The gate can now take `action.risk` answers from an async model, such as a System 1 model on onnxruntime, whose `run()` is async only. _(@mainahq/core)_
 - A candidate model can now run in shadow on every gate event. _(@mainahq/core)_
-- `maina digest --dogfood [--commit]`: writes the week that just ended (or `--week yyyy-ww`) as the dogfood report, `docs/dogfood/<yyyy-ww>.md`, from the decision log (`.maina/decisions.db`). _(@mainahq/cli)_
 
 ### Fixes
 
