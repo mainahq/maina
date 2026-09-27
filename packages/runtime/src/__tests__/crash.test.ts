@@ -352,7 +352,7 @@ describe("runtime failures", () => {
 			fixedGate("deny"),
 			tracking,
 		).evaluate(shellEvent, { timeoutMs: 8000 });
-		expect(result.source).toBe("runtime");
+		expect(result).toMatchObject({ source: "runtime" });
 		expect(pids).toHaveLength(2);
 	}, 15_000);
 });
@@ -462,7 +462,7 @@ describe("the fallback gets a real budget (#564)", () => {
 			cold.fallback,
 			cold.warm,
 		).evaluate(shellEvent, { timeoutMs: 2000 });
-		expect(result.source).toBe("runtime");
+		expect(result).toMatchObject({ source: "runtime" });
 		expect(cold.warmed()).toBe(0);
 	});
 

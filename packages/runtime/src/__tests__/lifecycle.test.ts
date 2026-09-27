@@ -318,7 +318,7 @@ describe("spawn on demand", () => {
 			fallback: fixedGate("deny"),
 		});
 		const result = await client.evaluate(shellEvent, { timeoutMs: 8000 });
-		expect(result.source).toBe("runtime");
+		expect(result).toMatchObject({ source: "runtime" });
 		expect(spawner.calls()).toBe(1);
 		const status = await statusOf(t.endpoint.address, "1.0.0");
 		expect(status?.pid).toBe(daemons[0]);
@@ -343,7 +343,7 @@ describe("spawn on demand", () => {
 			fallback: fixedGate("deny"),
 		});
 		const result = await client.evaluate(shellEvent, { timeoutMs: 8000 });
-		expect(result.source).toBe("runtime");
+		expect(result).toMatchObject({ source: "runtime" });
 		expect(spawner.calls()).toBe(1);
 	}, 15_000);
 
@@ -425,7 +425,7 @@ describe("version mismatch", () => {
 			fallback: fixedGate("deny"),
 		});
 		const result = await client.evaluate(shellEvent, { timeoutMs: 8000 });
-		expect(result.source).toBe("runtime");
+		expect(result).toMatchObject({ source: "runtime" });
 		expect(next.calls()).toBe(1);
 		expect(await waitFor(() => !isAlive(oldSpawn.value.pid), 3000)).toBe(true);
 		const status = await statusOf(t.endpoint.address, "2.0.0");

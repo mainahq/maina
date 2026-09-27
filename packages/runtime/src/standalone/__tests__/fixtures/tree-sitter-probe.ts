@@ -3,8 +3,9 @@
  * like the standalone runtime (`../../main.ts`), then run with no
  * `node_modules` to reach. Starts up the way the standalone does, then
  * prints one JSON line: whether the bash grammar loaded, what the Claude
- * Code gate answers for a harmless and a destructive Bash command, and
- * whether every code-graph grammar parses.
+ * Code gate answers for a harmless and a destructive Bash command, whether
+ * every code-graph grammar parses, and the command a hook in this
+ * executable starts the resident runtime with (#564).
  *
  *   tree-sitter-probe <cwd> <home>
  */
@@ -12,6 +13,7 @@
 import { type GraphLang, loadShellParser, parseFile } from "@mainahq/core";
 import { runClaudeHook } from "../../../claude-hook";
 import { systemGates } from "../../../gate-system";
+import { selfDaemonCommand } from "../../../lifecycle";
 import { useEmbeddedTreeSitter } from "../../tree-sitter-assets";
 
 // What `../../main.ts` does before a mode that parses.
@@ -68,5 +70,7 @@ process.stdout.write(
 		echo: await decide("echo hello"),
 		wipe: await decide("rm -rf ~/.claude"),
 		graph,
+		daemon: selfDaemonCommand("maina-probe"),
+		moduleUrl: import.meta.url,
 	})}\n`,
 );

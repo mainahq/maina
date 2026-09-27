@@ -84,11 +84,16 @@ export function daemonCommand(
 		: [execPath, fileURLToPath(new URL("./daemon.ts", moduleUrl))];
 }
 
+/** The command that starts a daemon from this process (see `daemonCommand`). */
+export function selfDaemonCommand(execPath: string): readonly string[] {
+	return daemonCommand(import.meta.url, execPath);
+}
+
 /** Spawns the daemon detached from this process, with stdio closed. */
 export function daemonSpawner(options: DaemonOptions): SpawnRuntime {
 	const { endpoint, version, idleTtlMs } = options;
 	const argv = [
-		...daemonCommand(import.meta.url, options.execPath ?? process.execPath),
+		...selfDaemonCommand(options.execPath ?? process.execPath),
 		"--address",
 		endpoint.address,
 		"--pid-file",
