@@ -18,13 +18,16 @@ import {
 	type GateEvent as CoreGateEvent,
 	createRegistry,
 	type DbPort,
+	DECISION_CATALOG,
 	DEFAULT_GATE_BUDGET_MS,
 	DEFAULT_REGISTRY,
+	type DecisionLogPorts,
 	evaluateGate,
 	type GateContext,
 	type GateEvaluation,
 	type GatePorts,
 	gateModelInputs,
+	gateShadowRequests,
 	gateSubject,
 	logPrivacy,
 	type PermissionMode,
@@ -36,6 +39,7 @@ import {
 	type Verdict,
 	withBackend,
 } from "@mainahq/core";
+import type { ShadowRunner } from "./shadow";
 import { type InferencePort, type PreInferred, preInfer } from "./system1";
 
 /** A host hook event after adapter normalisation. JSON-serialisable. */
@@ -191,9 +195,19 @@ export type GateEvaluatorDeps = Readonly<{
 	/**
 	 * An async model (System 1 over onnxruntime) that serves `action.risk`
 	 * when the policy names its backend. It runs before the gate, once per
-	 * event over both orders; `full` mode only (#572).
+	 * event over both orders; `full` mode only (#572). A `wasm` engine is
+	 * never asked: where the policy names it, the rules answer, and the
+	 * model can only run in `shadow` (#578).
 	 */
 	model?: InferencePort;
+	/**
+	 * A candidate model run in shadow on every event the gate decides, after
+	 * the host has its answer: both orders, logged as `<decision id>:shadow`
+	 * beside the gate's own records. It never changes a verdict. Skipped in
+	 * `rules_only` mode, for a root that keeps no log and where the policy
+	 * already has the candidate serve `action.risk` (#578).
+	 */
+	shadow?: ShadowRunner;
 	/** The gate budget, pre-inference included; core's default when absent. */
 	budgetMs?: number;
 	/** Repo loosenings the user confirmed (see core `GatePorts`). */
@@ -253,13 +267,15 @@ export function createGateEvaluator(
 			const effective =
 				mode === "rules_only"
 					? withBackend(policy.value, "action.risk", "rules")
-					: policy.value;
+					: shadowOnly(policy.value, deps.model);
 			const stagePorts = {
 				ctx: ctx.value,
 				confirmedLoosenings: deps.confirmedLoosenings,
 			};
 			const inferred =
-				mode === "full" && deps.model !== undefined
+				mode === "full" &&
+				deps.model !== undefined &&
+				deps.model.engine !== "wasm"
 					? await preInferGate(deps, deps.model, stagePorts, core, effective)
 					: undefined;
 			const backends = deps.backends ?? DEFAULT_REGISTRY;
@@ -280,13 +296,16 @@ export function createGateEvaluator(
 				core,
 				effective,
 			);
-			await logDecisions(deps, root, {
+			const logged = await logDecisions(deps, root, {
 				event: core,
 				policy: effective,
 				ctx: ctx.value,
 				result,
 				tightens: mode === "rules_only",
 			});
+			if (mode === "full" && deps.shadow !== undefined && logged) {
+				shadowGate(deps.shadow, logged, core, result);
+			}
 			return {
 				verdict: result.verdict,
 				reason: result.reason,
@@ -394,18 +413,19 @@ type Evaluated = Readonly<{
  * <id> [--always]` finds both (#448). Never rejects and never changes the
  * verdict: a log that cannot be opened, or a salt that cannot be loaded,
  * logs nothing (never an unsalted record), and a failed write skips that
- * record.
+ * record. Returns the log and the records' `ts` when it logged, for the
+ * shadow records to join them.
  */
 async function logDecisions(
 	deps: GateEvaluatorDeps,
 	root: string,
 	{ event, policy, ctx, result, tightens }: Evaluated,
-): Promise<void> {
+): Promise<Logged | undefined> {
 	const { decided } = result;
-	if (deps.logFor === undefined || decided === undefined) return;
+	if (deps.logFor === undefined || decided === undefined) return undefined;
 	try {
 		const log = await deps.logFor(root);
-		if (!log.ok || log.value === null) return;
+		if (!log.ok || log.value === null) return undefined;
 		const { db, salt, now } = log.value;
 		const privacy = logPrivacy(decided.policy, salt);
 		const ts = now();
@@ -434,9 +454,55 @@ async function logDecisions(
 		if (id !== undefined && (result.verdict !== "allow" || tightens)) {
 			recordGateSubject(db, gateSubject(id, event, policy, ctx));
 		}
+		return { log: { db, privacy }, ts };
 	} catch {
 		// The log is evidence, not the gate: losing a record never blocks.
+		return undefined;
 	}
+}
+
+/** Where and when an event's decisions were logged. */
+type Logged = Readonly<{ log: DecisionLogPorts; ts: number }>;
+
+/**
+ * `policy` with a WASM-only `model` taken off `action.risk` (#578): the
+ * fallback runs in shadow only, so where the policy names it the type's
+ * default backend answers instead, as if no model were configured.
+ */
+function shadowOnly(policy: Policy, model: InferencePort | undefined): Policy {
+	const named = policy.decisions["action.risk"]?.backend;
+	return model?.engine === "wasm" && named === model.id
+		? withBackend(
+				policy,
+				"action.risk",
+				DECISION_CATALOG["action.risk"].defaultBackend,
+			)
+		: policy;
+}
+
+/**
+ * Hands the shadow runner both orders of `result`'s `action.risk` request
+ * (core `gateShadowRequests`), keyed by the gate's decision ids, unless the
+ * candidate already served them. Only queues: the host's answer never waits
+ * on the shadow, and nothing here can change it.
+ */
+function shadowGate(
+	runner: ShadowRunner,
+	{ log, ts }: Logged,
+	event: CoreGateEvent,
+	result: GateEvaluation,
+): void {
+	const { decided } = result;
+	if (decided === undefined) return;
+	if (decided.policy.decisions["action.risk"]?.backend === runner.id) return;
+	runner.submit({
+		log,
+		policy: decided.policy,
+		ts,
+		requests: gateShadowRequests(result),
+		host: event.host,
+		...(event.sessionId === "" ? {} : { sessionId: event.sessionId }),
+	});
 }
 
 // ── Wire event → core event ─────────────────────────────────────────────────

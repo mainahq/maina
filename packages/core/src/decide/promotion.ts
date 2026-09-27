@@ -10,10 +10,15 @@
  * Shadow records are ordinary decision records with `finalAction` set to
  * `SHADOW_ACTION`; the backend that answered is in `modelHash`. Question
  * `i` of a run with id `R` is logged as `R:i`, its shadow as `R:i:shadow`.
+ *
+ * A caller that has already decided and logged, such as the gate, whose
+ * decisions are logged under their question ids, shadows them afterwards
+ * with `logShadow`: question `q`'s shadow is logged as `q:shadow` (#578).
  */
 
 import type { Result } from "../db/index";
-import type { Policy } from "../policy/schema";
+import type { DecisionBackend, Policy } from "../policy/schema";
+import type { ClockPort } from "../ports/clock";
 import { type DecidePorts, decide } from "./decide";
 import {
 	ASK_ANSWER,
@@ -41,6 +46,7 @@ import type { Outcome } from "./outcomes/types";
 import { createRegistry, withBackend } from "./registry";
 import type {
 	Backend,
+	BackendInput,
 	DecideError,
 	DecideRequest,
 	Decision,
@@ -77,26 +83,34 @@ export type ShadowRunResult = Readonly<{
 	shadowError?: DecideError | DecisionLogError;
 }>;
 
+/** What every record of one request shares. */
+type RecordContext = Readonly<{
+	ts: number;
+	request: DecideRequest;
+	host?: string;
+	sessionId?: string;
+}>;
+
 function buildRecords(
-	input: ShadowRunInput,
+	context: RecordContext,
 	policy: Policy,
 	privacy: DecisionLogPorts["privacy"],
 	decisions: readonly Decision[],
-	idOf: (i: number) => string,
+	idOf: (i: number, decision: Decision) => string,
 	actionOf: (decision: Decision) => string,
 ): Result<readonly DecisionRecord[], DecisionLogError> {
 	const records: DecisionRecord[] = [];
 	for (const [i, decision] of decisions.entries()) {
 		const record = buildDecisionRecord(
 			{
-				id: idOf(i),
-				ts: input.ts,
-				request: input.request,
+				id: idOf(i, decision),
+				ts: context.ts,
+				request: context.request,
 				decision,
 				policy,
 				finalAction: actionOf(decision),
-				host: input.host,
-				sessionId: input.sessionId,
+				host: context.host,
+				sessionId: context.sessionId,
 			},
 			privacy,
 		);
@@ -117,6 +131,88 @@ function appendAll(
 		stored.push(appended.value);
 	}
 	return { ok: true, value: stored };
+}
+
+/**
+ * The input a shadow backend is handed for `request` under the acting
+ * `policy`: the policy with `request.type` pointed at `backend`, as
+ * `logShadow` decides with it. A runtime that infers a model ahead plans
+ * its inputs with this, so its answers match what the shadow is asked.
+ */
+export function shadowInput(
+	policy: Policy,
+	request: DecideRequest,
+	backend: DecisionBackend,
+): BackendInput {
+	return {
+		type: request.type,
+		state: request.state,
+		questions: request.questions,
+		policy: withBackend(policy, request.type, backend),
+	};
+}
+
+/** Asks `shadow` alone, then logs its answers as shadow records. */
+function shadowRecords(
+	ports: LogShadowPorts,
+	input: LogShadowInput,
+	idOf: (i: number, decision: Decision) => string,
+): Result<readonly DecisionRecord[], DecideError | DecisionLogError> {
+	const { shadow } = ports;
+	const privacy = ports.log.privacy ?? logPrivacy(input.policy);
+	const shadowed = decide(
+		{
+			clock: ports.clock,
+			policy: withBackend(input.policy, input.request.type, shadow.id),
+			backends: createRegistry([shadow]),
+		},
+		input.request,
+	);
+	if (!shadowed.ok) return shadowed;
+	// Shadow records carry the acting policy's hash, so a shadow and its
+	// primary share every key but the model.
+	const built = buildRecords(
+		input,
+		input.policy,
+		privacy,
+		shadowed.value,
+		idOf,
+		() => SHADOW_ACTION,
+	);
+	return built.ok ? appendAll({ ...ports.log, privacy }, built.value) : built;
+}
+
+export type LogShadowPorts = Readonly<{
+	clock: ClockPort;
+	/** The candidate backend. It answers, is logged, and is never acted on. */
+	shadow: Backend;
+	log: DecisionLogPorts;
+}>;
+
+export type LogShadowInput = RecordContext &
+	Readonly<{
+		/** The policy the primary decided with: shadow records carry its hash. */
+		policy: Policy;
+	}>;
+
+/**
+ * Shadows a request whose primary decisions are already made and logged
+ * under their question ids (the gate's, #578): asks `ports.shadow` alone
+ * and logs question `q`'s answer as `q:shadow` with `SHADOW_ACTION`, so it
+ * pairs with the primary record and the outcomes linked to it. Returns the
+ * records logged; a shadow failure logs nothing and is returned as is.
+ * Without `log.privacy`, the policy's `log.paths` decides, as for the
+ * primary.
+ */
+export function logShadow(
+	ports: LogShadowPorts,
+	input: LogShadowInput,
+): Result<readonly DecisionRecord[], DecideError | DecisionLogError> {
+	return shadowRecords(
+		ports,
+		input,
+		(_, decision) => `${decision.id}${SHADOW_SUFFIX}`,
+	);
 }
 
 /**
@@ -152,33 +248,11 @@ export function shadowRun(
 	const logged = appendAll(log, built.value);
 	if (!logged.ok) return logged;
 
-	const shadowed = decide(
-		{
-			clock: primary.clock,
-			policy: withBackend(primary.policy, input.request.type, shadow.id),
-			backends: createRegistry([shadow]),
-		},
-		input.request,
-	);
-	if (!shadowed.ok) {
-		return {
-			ok: true,
-			value: { decisions, records: logged.value, shadowError: shadowed.error },
-		};
-	}
-	// Shadow records carry the acting policy's hash, so a shadow and its
-	// primary share every key but the model.
-	const shadowRecords = buildRecords(
-		input,
-		primary.policy,
-		log.privacy,
-		shadowed.value,
+	const shadowLogged = shadowRecords(
+		{ clock: primary.clock, shadow, log },
+		{ ...input, policy: primary.policy },
 		(i) => `${input.id}:${i}${SHADOW_SUFFIX}`,
-		() => SHADOW_ACTION,
 	);
-	const shadowLogged = shadowRecords.ok
-		? appendAll(log, shadowRecords.value)
-		: shadowRecords;
 	return {
 		ok: true,
 		value: shadowLogged.ok

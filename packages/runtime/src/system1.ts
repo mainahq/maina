@@ -25,6 +25,15 @@ import {
 	type Result,
 } from "@mainahq/core";
 
+/** How one `infer` call may encode its inputs. */
+export type InferOptions = Readonly<{
+	/**
+	 * The most 512-token windows one input is encoded into; the rest is cut
+	 * and the encoding flagged `truncated`. Absent: the model's own limit.
+	 */
+	maxWindows?: number;
+}>;
+
 /**
  * An async model over a batch of backend inputs: one `infer` call encodes
  * them and runs one inference pass (an onnxruntime session's `run()`),
@@ -33,8 +42,15 @@ import {
 export type InferencePort = Readonly<{
 	id: DecisionBackend;
 	version: string;
+	/**
+	 * `wasm`: the single-thread WASM fallback, used where the native engine
+	 * cannot load. It is too slow to answer inside the gate's budget, so it
+	 * runs in shadow only (#578). Absent: native.
+	 */
+	engine?: "native" | "wasm";
 	infer: (
 		inputs: readonly BackendInput[],
+		options?: InferOptions,
 	) => Promise<Result<readonly (readonly BackendAnswer[])[], BackendError>>;
 }>;
 
@@ -74,13 +90,15 @@ function pair(
 /**
  * Runs `model` once over every input and returns a synchronous backend over
  * its outputs. A model that has not answered within `budgetMs` is abandoned:
- * the gate could not use a later answer anyway. Never rejects.
+ * the gate could not use a later answer anyway. `options` go to `infer`
+ * as they are. Never rejects.
  */
 export async function preInfer(
 	model: InferencePort,
 	clock: ClockPort,
 	inputs: readonly BackendInput[],
 	budgetMs: number,
+	options?: InferOptions,
 ): Promise<PreInferred> {
 	const started = clock.now();
 	let timer: ReturnType<typeof setTimeout> | undefined;
@@ -91,7 +109,7 @@ export async function preInfer(
 		);
 	});
 	const inferred = Promise.resolve()
-		.then(() => model.infer(inputs))
+		.then(() => model.infer(inputs, options))
 		.then((outputs) => pair(model, inputs, outputs))
 		// A rejection, or a result too malformed to read.
 		.catch((e: unknown) =>

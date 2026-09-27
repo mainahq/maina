@@ -271,6 +271,9 @@ export {
 export {
 	evaluatePromotion,
 	type GateResult,
+	type LogShadowInput,
+	type LogShadowPorts,
+	logShadow,
 	PROMOTION_METRICS,
 	type PromotionEntry,
 	type PromotionGate,
@@ -280,6 +283,7 @@ export {
 	type ShadowPorts,
 	type ShadowRunInput,
 	type ShadowRunResult,
+	shadowInput,
 	shadowRun,
 } from "./decide/promotion";
 export {
@@ -569,6 +573,7 @@ export {
 	type GatePorts,
 	type GateResult as GateEvaluation,
 	gateModelInputs,
+	gateShadowRequests,
 } from "./gate/evaluate";
 export type {
 	FileReadAction,

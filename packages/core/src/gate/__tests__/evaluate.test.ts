@@ -21,7 +21,12 @@ import {
 	DEFAULT_REGISTRY,
 	withBackend,
 } from "../../decide/registry";
-import type { Backend, BackendAnswer, BackendInput } from "../../decide/types";
+import type {
+	Backend,
+	BackendAnswer,
+	BackendInput,
+	DecideRequest,
+} from "../../decide/types";
 import { DEFAULT_POLICY } from "../../policy/defaults";
 import { loadPolicy } from "../../policy/load";
 import {
@@ -32,7 +37,13 @@ import {
 	type Verdict,
 } from "../../policy/schema";
 import { createMemoryFs } from "../../ports/testing";
-import { evaluateGate, type GatePorts, gateModelInputs } from "../evaluate";
+import {
+	evaluateGate,
+	type GatePorts,
+	gateModelInputs,
+	gateShadowRequests,
+	REVERSED_SUFFIX,
+} from "../evaluate";
 import type { GateContext, GateEvent } from "../events";
 import { formatGateMessage } from "../messages";
 import { evaluateRules } from "../rules";
@@ -1310,5 +1321,87 @@ describe("async model pre-inference (#572)", () => {
 			expect(result.verdict).toBe("ask");
 			expect(result.degraded).toBe(true);
 		}
+	});
+});
+
+describe("the gate's shadow requests (#578)", () => {
+	const provenance = { untrusted: ["web page"] };
+
+	const ids = (requests: readonly DecideRequest[]) =>
+		requests.map((r) => r.questions.map((q) => q.id));
+
+	test("a rule-decided event gets both orders, keyed by its decision id", () => {
+		const result = evaluateGate(
+			gatePorts(),
+			shellEvent("ls -la"),
+			DEFAULT_POLICY,
+		);
+		const id = result.decisionIds[0] ?? "";
+		const requests = gateShadowRequests(result);
+		expect(ids(requests)).toEqual([[id], [`${id}${REVERSED_SUFFIX}`]]);
+		// The forward order is the very request the gate logged.
+		expect(requests[0]).toEqual(result.decided?.answers[0]?.request as never);
+		const [reversed] = requests[1]?.questions ?? [];
+		expect(reversed?.kind === "choice" ? reversed.options : []).toEqual(
+			[...VERDICTS].reverse(),
+		);
+		for (const request of requests) expect(request.type).toBe("action.risk");
+	});
+
+	test("a denied event is shadowed too", () => {
+		const result = evaluateGate(
+			gatePorts(),
+			shellEvent("ls -la"),
+			withRules({ deny: [{ match: "ls -la" }] }),
+		);
+		expect(result.verdict).toBe("deny");
+		const id = result.decisionIds[0] ?? "";
+		expect(ids(gateShadowRequests(result))).toEqual([
+			[id],
+			[`${id}${REVERSED_SUFFIX}`],
+		]);
+	});
+
+	test("a two-order event reuses both requests the gate asked", () => {
+		const result = evaluateGate(
+			withModel(() => ({ verdict: "allow", p: 0.99 })),
+			shellEvent("ls -la", provenance),
+			modelPolicy(),
+		);
+		expect(result.decisionIds).toEqual(["d1", `d1${REVERSED_SUFFIX}`]);
+		expect(gateShadowRequests(result)).toEqual(
+			result.decided?.answers.map((a) => a.request) ?? [],
+		);
+	});
+
+	test("the reversed order it builds is the one the gate would ask", () => {
+		const event = shellEvent("git push --force origin feature", provenance);
+		// The rules decide alone, so the gate asked one order only.
+		const ruled = evaluateGate(
+			gatePorts({ newId: () => "same" }),
+			event,
+			DEFAULT_POLICY,
+		);
+		expect(ruled.decided?.answers.length).toBe(1);
+		// A model asked both orders of the same event under the same id.
+		const asked = evaluateGate(
+			withModel(() => ({ verdict: "ask", p: 0.99 }), { newId: () => "same" }),
+			event,
+			modelPolicy(),
+		);
+		const gateReversed = asked.decided?.answers[1]?.request;
+		const built = gateShadowRequests(ruled)[1];
+		expect(built?.state).toEqual(gateReversed?.state as never);
+		expect(built?.questions).toEqual(gateReversed?.questions as never);
+	});
+
+	test("an event the gate could not evaluate has nothing to shadow", () => {
+		const result = evaluateGate(
+			gatePorts(),
+			{ ...shellEvent("ls"), kind: "bogus" } as never,
+			DEFAULT_POLICY,
+		);
+		expect(result.decisionIds).toEqual([]);
+		expect(gateShadowRequests(result)).toEqual([]);
 	});
 });
