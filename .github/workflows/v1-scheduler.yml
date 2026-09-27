@@ -8,7 +8,9 @@ name: v1 scheduler
 #   30 6 * * 1   dogfood-report.yml    (Mondays)
 #
 # Each run stands down once its target workflow is on the default branch,
-# where its own `schedule` fires. Delete this file when v1/main merges to
+# where its own `schedule` fires. The nightly evidence dispatch also stands
+# down while an on-demand release-evidence run is active on v1/main, which
+# it would otherwise cancel. Delete this file when v1/main merges to
 # master.
 
 on:
@@ -45,8 +47,16 @@ jobs:
             "30 6 * * 1") wf=dogfood-report.yml ;;
             *) wf="$PICKED" ;;
           esac
-          if [ -z "$wf" ]; then
-            echo "::error::no workflow for schedule '$SCHEDULE'"
+          case "$wf" in
+            release-evidence.yml | dogfood-report.yml) ;;
+            *) echo "::error::no v1 workflow for schedule '$SCHEDULE' or input '$PICKED'"; exit 1 ;;
+          esac
+          # A schedule event's payload need not carry `repository`; ask the API.
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            DEFAULT_BRANCH=$(gh api "repos/$GH_REPO" --jq .default_branch 2>/dev/null || true)
+          fi
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::could not resolve the default branch of $GH_REPO"
             exit 1
           fi
           # Only a definite 404 means "not on the default branch yet"; an API
@@ -59,6 +69,19 @@ jobs:
           esac
           args=()
           if [ "$wf" = release-evidence.yml ]; then
+            # release-evidence.yml cancels in-progress runs in its (event, ref)
+            # concurrency group, which a dispatch shares with any on-demand run
+            # on v1/main (such as the 14-repetition release-gate run). Never
+            # dispatch over one.
+            if ! active=$(gh run list --workflow "$wf" --branch v1/main --event workflow_dispatch --limit 50 \
+                --json status --jq '[.[] | select(.status != "completed")] | length'); then
+              echo "::error::could not list $wf runs on v1/main"
+              exit 1
+            fi
+            if [ "$active" != "0" ]; then
+              echo "An on-demand $wf run is active on v1/main; not dispatching over it."
+              exit 0
+            fi
             args=(-f e2e_repetitions=2)
           fi
           gh workflow run "$wf" --ref v1/main "${args[@]}"
