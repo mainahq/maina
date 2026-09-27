@@ -338,12 +338,24 @@ function command(node: Node, extra: readonly Node[] = []): CommandParts {
 	};
 }
 
+/** Operators bash never lets a descriptor prefix: `echo 5&>x` writes `5` to x. */
+const NO_FD_OPS: ReadonlySet<string> = new Set(["&>", "&>>"]);
+
+/** The operator token of a file redirect (`<`, `>>`, `&>`, …). */
+function redirectOp(node: Node): string {
+	return (
+		all(node).find((c) => !c.isNamed && c.type !== "file_descriptor")?.type ??
+		">"
+	);
+}
+
 /** The descriptor a digit argument glued to the next redirect names, if any. */
 function gluedDescriptor(arg: Node | null, next: Node): number | null {
 	if (arg === null || next.type !== "file_redirect") return null;
 	if (arg.type !== "number" || !/^\d+$/.test(arg.text)) return null;
 	if (arg.endIndex !== next.startIndex) return null;
 	if (next.childForFieldName("descriptor") !== null) return null;
+	if (NO_FD_OPS.has(redirectOp(next))) return null;
 	return Number.parseInt(arg.text, 10);
 }
 
@@ -417,9 +429,7 @@ function redirect(node: Node, gluedFd: number | null): RedirectParts {
 		case "file_redirect": {
 			const fdNode = node.childForFieldName("descriptor");
 			const fd = fdNode === null ? gluedFd : Number.parseInt(fdNode.text, 10);
-			const op =
-				all(node).find((c) => !c.isNamed && c.type !== "file_descriptor")
-					?.type ?? ">";
+			const op = redirectOp(node);
 			const dests = node
 				.childrenForFieldName("destination")
 				.filter((c): c is Node => c !== null);

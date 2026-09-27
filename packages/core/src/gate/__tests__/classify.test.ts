@@ -1788,6 +1788,13 @@ describe("#614 review: docker words the gate cannot read, and empty ssh stdin", 
 			expect(classesOf(command), command).not.toContain("remote.exec");
 		}
 	});
+
+	test("a digit before `&>` is the remote command, not a descriptor", () => {
+		// Bash reads `ssh h 5&>/dev/null` as the remote command `5`.
+		for (const command of ["ssh prod-1 5&>/dev/null", "ssh prod-1 5&>>log"]) {
+			expect(classesOf(command), command).toContain("remote.exec");
+		}
+	});
 });
 
 describe("words after a mid-command redirect (#619)", () => {

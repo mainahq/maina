@@ -290,6 +290,11 @@ describe("redirects anywhere in a command (#619)", () => {
 			"prod-1",
 			"0",
 		]);
+		// `&>` and `&>>` take no descriptor in bash: `echo 5&>x` prints `5`
+		// into x, so the digit stays an argument.
+		for (const source of ["echo 5&>/dev/null", "echo 5&>>log"]) {
+			expect(texts(onlyCommand(source).argv), source).toEqual(["echo", "5"]);
+		}
 	});
 
 	test("words after a redirect on a compound statement are not dropped", () => {
