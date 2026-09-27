@@ -32,15 +32,22 @@ export function tempEndpoint(version = "1.0.0"): TempEndpoint {
 	return {
 		dir,
 		endpoint,
-		// A daemon just killed may still hold the dir (its cwd) on Windows.
-		cleanup: () =>
-			rmSync(dir, {
-				recursive: true,
-				force: true,
-				maxRetries: 20,
-				retryDelay: 50,
-			}),
+		cleanup: () => removeTempDir(dir),
 	};
+}
+
+/**
+ * Removes a test's runtime dir. On Windows a daemon just killed can still
+ * hold it as its working directory for a while; that dir is left to the
+ * OS's temp cleanup rather than failing the test.
+ */
+function removeTempDir(dir: string): void {
+	try {
+		rmSync(dir, { recursive: true, force: true });
+	} catch (err) {
+		const code = (err as { code?: unknown }).code;
+		if (process.platform !== "win32" || code !== "EBUSY") throw err;
+	}
 }
 
 export const shellEvent: GateEvent = {
