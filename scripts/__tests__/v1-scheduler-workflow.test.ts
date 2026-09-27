@@ -70,6 +70,15 @@ describe("v1 scheduler workflow", () => {
 		expect(raw).toContain("contents/.github/workflows/");
 	});
 
+	test("dispatches only on a definite 404, never on an API error", () => {
+		// A failed lookup must not read as "absent": that would double-run
+		// the workflow once it is on the default branch.
+		const { raw } = load();
+		expect(raw).toMatch(/^\s*404\)[^\n]*;;/m);
+		expect(raw).toMatch(/^\s*200\)[^\n]*exit 0/m);
+		expect(raw).toMatch(/^\s*\*\)[^\n]*::error::[^\n]*exit 1/m);
+	});
+
 	test("holds only the permissions dispatch needs", () => {
 		const { wf } = load();
 		expect(wf.permissions).toEqual({ actions: "write", contents: "read" });

@@ -49,10 +49,14 @@ jobs:
             echo "::error::no workflow for schedule '$SCHEDULE'"
             exit 1
           fi
-          if gh api "repos/$GH_REPO/contents/.github/workflows/$wf?ref=$DEFAULT_BRANCH" --silent 2>/dev/null; then
-            echo "$wf is on $DEFAULT_BRANCH and runs on its own schedule; nothing to dispatch."
-            exit 0
-          fi
+          # Only a definite 404 means "not on the default branch yet"; an API
+          # error must not dispatch, or the workflow would run twice there.
+          status=$(gh api -i "repos/$GH_REPO/contents/.github/workflows/$wf?ref=$DEFAULT_BRANCH" 2>/dev/null | head -n1 | cut -d' ' -f2 || true)
+          case "$status" in
+            404) ;;
+            200) echo "$wf is on $DEFAULT_BRANCH and runs on its own schedule; nothing to dispatch."; exit 0 ;;
+            *) echo "::error::could not tell whether $wf is on $DEFAULT_BRANCH (HTTP '$status')"; exit 1 ;;
+          esac
           args=()
           if [ "$wf" = release-evidence.yml ]; then
             args=(-f e2e_repetitions=2)
