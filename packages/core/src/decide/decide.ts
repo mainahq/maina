@@ -313,6 +313,8 @@ export type JudgedAnswer = Readonly<{
 	answer: boolean;
 	confidence: number;
 	decided: boolean;
+	/** The backend that answered; absent when `decide` failed. */
+	backend?: BackendRef;
 }>;
 
 /**
@@ -369,6 +371,7 @@ export function judgeEach(
 		answer: d.answer === true,
 		confidence: d.confidence,
 		decided: true,
+		backend: d.backend,
 	}));
 }
 

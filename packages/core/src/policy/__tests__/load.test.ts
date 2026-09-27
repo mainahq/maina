@@ -92,7 +92,12 @@ describe("an unset threshold stays unset (#576)", () => {
 		const risk = result.value.decisions["action.risk"];
 		expect(risk?.backend).toBe("system1");
 		expect(risk?.thresholds.confidence).toBeUndefined();
-		expect(confidenceThreshold(result.value, "action.risk")).toBe(0);
+		expect(
+			confidenceThreshold(result.value, "action.risk", {
+				id: "system1",
+				version: "0.1.0",
+			}),
+		).toBe(0);
 	});
 });
 

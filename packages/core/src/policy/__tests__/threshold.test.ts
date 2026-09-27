@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { BackendCalibration } from "../../decide/types";
+import type { BackendCalibration, BackendRef } from "../../decide/types";
 import { confidenceThreshold, DEFAULT_POLICY } from "../defaults";
 import type { DecisionType, Policy } from "../schema";
 
@@ -105,7 +105,10 @@ describe("confidenceThreshold", () => {
 		expect(confidenceThreshold(policy, "finding.real", system1)).toBe(0.6);
 	});
 
-	test("with no backend given, the policy's configured backend decides", () => {
+	test("with no backend given, the built-in threshold applies (fail closed)", () => {
+		// The configured backend is not proof of who answers: the registry
+		// falls back to the heuristic when system1 is not installed, so an
+		// unknown answerer never gets system1's 0 for action.risk.
 		const policy: Policy = {
 			...DEFAULT_POLICY,
 			decisions: {
@@ -116,6 +119,22 @@ describe("confidenceThreshold", () => {
 				},
 			},
 		};
-		expect(confidenceThreshold(policy, "action.risk")).toBe(0);
+		expect(confidenceThreshold(policy, "action.risk")).toBe(0.9);
+		expect(confidenceThreshold(DEFAULT_POLICY, "slop")).toBe(0.8);
+	});
+
+	test("a malformed calibrated threshold means never act (fail closed)", () => {
+		for (const confidence of [-0.1, 1.5, Number.NaN, "0.5"]) {
+			const backend = {
+				id: "system1",
+				version: "0.1.0",
+				calibration: {
+					sha256: "a".repeat(64),
+					thresholds: { slop: { confidence } },
+				},
+			} as unknown as BackendRef;
+			const threshold = confidenceThreshold(DEFAULT_POLICY, "slop", backend);
+			expect(1 >= threshold).toBe(false);
+		}
 	});
 });

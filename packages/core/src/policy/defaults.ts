@@ -187,8 +187,8 @@ type ThresholdBackend = Pick<BackendRef, "id" | "calibration">;
  * The threshold `backend` gets when the policy sets none. `system1` applies
  * its calibrated `action.risk` thresholds before answering, so nothing more
  * is needed there (0); its other types default to the calibrated threshold,
- * where a `null` one means never act. Rules, heuristic and any type the
- * calibration does not cover keep the built-in thresholds.
+ * where a `null` (or malformed) one means never act. Rules, heuristic and
+ * any type the calibration does not cover keep the built-in thresholds.
  */
 function backendDefault(type: DecisionType, backend: ThresholdBackend): number {
 	switch (backend.id) {
@@ -197,9 +197,15 @@ function backendDefault(type: DecisionType, backend: ThresholdBackend): number {
 			return builtInThreshold(type);
 		case "system1": {
 			if (type === "action.risk") return 0;
-			const calibrated = backend.calibration?.thresholds[type]?.confidence;
+			const calibrated: unknown =
+				backend.calibration?.thresholds[type]?.confidence;
 			if (calibrated === undefined) return builtInThreshold(type);
-			return calibrated ?? Number.POSITIVE_INFINITY;
+			// `null`, or anything that is not a probability, means never act.
+			return typeof calibrated === "number" &&
+				calibrated >= 0 &&
+				calibrated <= 1
+				? calibrated
+				: Number.POSITIVE_INFINITY;
 		}
 		default: {
 			const unreachable: never = backend.id;
@@ -210,10 +216,11 @@ function backendDefault(type: DecisionType, backend: ThresholdBackend): number {
 
 /**
  * The confidence below which `policy` does not act on a `type` answer from
- * `backend` (a `Decision.backend`; the policy's configured backend when
- * omitted): the policy's own threshold, else that backend's default. The
- * gate and `maina decide` both read it here, so they agree on what "unsure"
- * means.
+ * `backend` (a `Decision.backend`): the policy's own threshold, else that
+ * backend's default. Without a backend it is the built-in threshold, never
+ * system1's: the configured backend is not proof of who answered, since the
+ * registry falls back when it is not installed (fail closed). The gate and
+ * `maina decide` both read it here, so they agree on what "unsure" means.
  */
 export function confidenceThreshold(
 	policy: Policy,
@@ -223,6 +230,8 @@ export function confidenceThreshold(
 	const spec = policy.decisions[type] ?? DEFAULT_POLICY.decisions[type];
 	return (
 		spec.thresholds.confidence ??
-		backendDefault(type, backend ?? { id: spec.backend })
+		(backend === undefined
+			? builtInThreshold(type)
+			: backendDefault(type, backend))
 	);
 }
