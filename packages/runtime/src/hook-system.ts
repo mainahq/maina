@@ -116,11 +116,13 @@ export function systemClaudeHookPorts(
 	const env = options.env ?? process.env;
 	const version = cliPackage.version;
 	const endpoint = userEndpoint(env, version);
+	const gates = systemGates();
 	const client = createHookClient({
 		endpoint,
 		version,
 		spawn: daemonSpawner({ endpoint, version, idleTtlMs: RUNTIME_IDLE_TTL_MS }),
-		fallback: systemGates().fallback,
+		fallback: gates.fallback,
+		warmFallback: gates.warm,
 	});
 	const timeoutMs = options.timeoutMs ?? HOOK_TIMEOUT_MS;
 	const stopTimeoutMs = options.stopTimeoutMs ?? STOP_TIMEOUT_MS;

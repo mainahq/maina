@@ -47,6 +47,8 @@ type ProbeResult = Readonly<{
 	echo: string;
 	wipe: string;
 	graph: Readonly<Record<string, string>>;
+	daemon: readonly string[];
+	moduleUrl: string;
 }>;
 
 async function runProbe(): Promise<ProbeResult> {
@@ -104,6 +106,17 @@ describe("compiled standalone runtime", () => {
 			go: "ok",
 			rust: "ok",
 			java: "ok",
+		});
+	}, 30_000);
+
+	// #564: a hook spawned the source daemon command (`<exe> <path>/daemon.ts`)
+	// where the compiled module path was not recognised, so the runtime never
+	// came up and every hook waited out its budget.
+	test("a hook starts the resident runtime with the executable's own daemon mode", async () => {
+		const { daemon, moduleUrl } = await runProbe();
+		expect({ daemon, moduleUrl }).toEqual({
+			daemon: ["maina-probe", "runtime-daemon"],
+			moduleUrl,
 		});
 	}, 30_000);
 

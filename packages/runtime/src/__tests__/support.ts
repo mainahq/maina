@@ -5,7 +5,7 @@
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { GateEvaluator, GateEvent } from "../gate";
 import type { SpawnRuntime } from "../lifecycle";
 import { type Endpoint, resolveEndpoint } from "../registry";
@@ -16,21 +16,38 @@ export type TempEndpoint = Readonly<{
 	cleanup: () => void;
 }>;
 
-/** A fresh runtime dir with the endpoint for `version` inside it. */
+/**
+ * A fresh runtime dir with the endpoint for `version` inside it. The user
+ * part is unique too: on Windows it names the pipe, which is not in the dir.
+ */
 export function tempEndpoint(version = "1.0.0"): TempEndpoint {
 	const dir = mkdtempSync(join(tmpdir(), "maina-rt-"));
 	const endpoint = resolveEndpoint({
 		platform: process.platform,
 		dir,
-		user: "test",
+		user: `test-${basename(dir)}`,
 		version,
 		tmpDir: tmpdir(),
 	});
 	return {
 		dir,
 		endpoint,
-		cleanup: () => rmSync(dir, { recursive: true, force: true }),
+		cleanup: () => removeTempDir(dir),
 	};
+}
+
+/**
+ * Removes a test's runtime dir. On Windows a daemon just killed can still
+ * hold it as its working directory for a while; that dir is left to the
+ * OS's temp cleanup rather than failing the test.
+ */
+function removeTempDir(dir: string): void {
+	try {
+		rmSync(dir, { recursive: true, force: true });
+	} catch (err) {
+		const code = (err as { code?: unknown }).code;
+		if (process.platform !== "win32" || code !== "EBUSY") throw err;
+	}
 }
 
 export const shellEvent: GateEvent = {

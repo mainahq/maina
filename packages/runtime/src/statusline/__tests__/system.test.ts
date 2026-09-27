@@ -74,6 +74,16 @@ describe("statuslineHostCommand", () => {
 			),
 		).toBe("'/Users/Jo Doe/.maina/runtime/2.0.0/maina' cli statusline");
 	});
+
+	test("compiled on Windows, where the module URL is escaped (#564)", () => {
+		expect(
+			statuslineHostCommand(
+				"file:///B:/%7EBUN/root/maina.exe",
+				"C:/maina/maina.exe",
+				"B:/~BUN/root/maina.exe",
+			),
+		).toBe("C:/maina/maina.exe cli statusline");
+	});
 });
 
 describe("maina statusline (process)", () => {

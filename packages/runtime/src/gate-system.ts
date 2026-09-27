@@ -4,8 +4,9 @@
  *
  * `runtime` is what the resident daemon answers `hook.evaluate` with;
  * `fallback` is the rules-only evaluation the hook client runs in process
- * when no runtime answers. Both share one set of caches: the grammar loads
- * once, and each working directory's repository root is looked up once.
+ * when no runtime answers, and `warm` starts loading the grammar it needs
+ * ahead of it (#564). All share one set of caches: the grammar loads once,
+ * and each working directory's repository root is looked up once.
  */
 
 import { randomUUID } from "node:crypto";
@@ -160,10 +161,15 @@ function decisionLogs(): (
 export function systemGates(options: SystemOptions = {}): Readonly<{
 	runtime: GateEvaluator;
 	fallback: GateEvaluator;
+	/** Starts loading the classification context (the bash grammar). */
+	warm: () => void;
 }> {
 	const deps = systemDeps(options);
 	return {
 		runtime: createGateEvaluator(deps, "full"),
 		fallback: createGateEvaluator(deps, "rules_only"),
+		// The evaluators read the same cached promise; a failure there is
+		// theirs to handle.
+		warm: () => void deps.context().catch(() => undefined),
 	};
 }

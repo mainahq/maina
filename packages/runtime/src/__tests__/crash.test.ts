@@ -345,14 +345,149 @@ describe("runtime failures", () => {
 		if (!first.ok) throw new Error(first.error.message);
 		expect(await ready(t.endpoint.address)).toBe(true);
 		killQuietly(first.value.pid);
-		expect(await waitFor(() => !isAlive(first.value.pid), 3000)).toBe(true);
+		// Gone means nothing accepts a connection any more: on Windows the
+		// pipe outlives the pid for a moment, and a connection it takes then
+		// just closes, a crash rather than a missing runtime.
+		const gone = async () => {
+			if (isAlive(first.value.pid)) return false;
+			const sent = await sendRequest(
+				t.endpoint.address,
+				createRequest("status", undefined, VERSION),
+				500,
+			);
+			return !sent.ok && sent.error.kind === "connect_failed";
+		};
+		expect(await waitFor(gone, 3000)).toBe(true);
 
 		const result = await client(
 			t.endpoint,
 			fixedGate("deny"),
 			tracking,
 		).evaluate(shellEvent, { timeoutMs: 8000 });
-		expect(result.source).toBe("runtime");
+		expect(result).toMatchObject({ source: "runtime" });
 		expect(pids).toHaveLength(2);
 	}, 15_000);
+});
+
+/**
+ * A runtime that never answers must still leave the rules-only fallback
+ * enough time to decide (#564): on a cold start the fallback loads the bash
+ * grammar first, which takes far longer than a last-moment grace.
+ */
+describe("the fallback gets a real budget (#564)", () => {
+	const silent: SpawnRuntime = () => ({ ok: true, value: { pid: 0 } });
+
+	/** A deny that takes `loadMs` to load its rules the first time. */
+	function coldFallback(loadMs: number): {
+		fallback: GateEvaluator;
+		warm: () => void;
+		warmed: () => number;
+	} {
+		let loading: Promise<void> | null = null;
+		let warms = 0;
+		const load = () => {
+			loading ??= Bun.sleep(loadMs);
+			return loading;
+		};
+		return {
+			fallback: async (event) => {
+				await load();
+				return fixedGate("deny")(event);
+			},
+			warm: () => {
+				warms++;
+				void load();
+			},
+			warmed: () => warms,
+		};
+	}
+
+	function warmedClient(
+		endpoint: Endpoint,
+		spawn: SpawnRuntime,
+		fallback: GateEvaluator,
+		warmFallback: () => void,
+	) {
+		return createHookClient({
+			endpoint,
+			version: VERSION,
+			spawn,
+			fallback,
+			warmFallback,
+		});
+	}
+
+	test("a runtime that never comes up leaves the fallback time to decide", async () => {
+		const t = temp();
+		const cold = coldFallback(300);
+		const t0 = performance.now();
+		const result = await client(t.endpoint, cold.fallback, silent).evaluate(
+			shellEvent,
+			{ timeoutMs: 1500 },
+		);
+		expect(performance.now() - t0).toBeLessThan(1500 + 200);
+		expect(result).toMatchObject({
+			verdict: "deny",
+			degraded: true,
+			degradedCause: "timeout",
+		});
+	});
+
+	test("a runtime that has to be started warms the fallback while it waits", async () => {
+		const t = temp();
+		const cold = coldFallback(800);
+		const result = await warmedClient(
+			t.endpoint,
+			silent,
+			cold.fallback,
+			cold.warm,
+		).evaluate(shellEvent, { timeoutMs: 1500 });
+		expect(cold.warmed()).toBe(1);
+		expect(result).toMatchObject({
+			verdict: "deny",
+			degraded: true,
+			degradedCause: "timeout",
+		});
+	});
+
+	test("a runtime that is slow to answer warms the fallback too", async () => {
+		const t = temp();
+		start(t.endpoint, { gate: () => new Promise(() => {}) });
+		const cold = coldFallback(800);
+		const result = await warmedClient(
+			t.endpoint,
+			noSpawn,
+			cold.fallback,
+			cold.warm,
+		).evaluate(shellEvent, { timeoutMs: 2000 });
+		expect(cold.warmed()).toBe(1);
+		expect(result).toMatchObject({ verdict: "deny", degradedCause: "timeout" });
+	});
+
+	test("a runtime that answers at once never warms the fallback", async () => {
+		const t = temp();
+		start(t.endpoint, { gate: fixedGate("deny") });
+		const cold = coldFallback(800);
+		const result = await warmedClient(
+			t.endpoint,
+			noSpawn,
+			cold.fallback,
+			cold.warm,
+		).evaluate(shellEvent, { timeoutMs: 2000 });
+		expect(result).toMatchObject({ source: "runtime" });
+		expect(cold.warmed()).toBe(0);
+	});
+
+	test("a warm-up that throws never breaks the gate", async () => {
+		const t = temp();
+		const result = await warmedClient(
+			t.endpoint,
+			silent,
+			fixedGate("deny"),
+			() => {
+				throw new Error("grammar missing");
+			},
+		).evaluate(shellEvent, { timeoutMs: 300 });
+		expect(result).toMatchObject({ verdict: "deny", degraded: true });
+	});
 });
