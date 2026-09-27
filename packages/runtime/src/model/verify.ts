@@ -113,7 +113,7 @@ type ModelRefusal = Readonly<{
 }>;
 
 /** Whether `signature` (base64) is `bytes` signed with the release key. */
-type SignatureCheck = (bytes: Uint8Array, signature: string) => boolean;
+export type SignatureCheck = (bytes: Uint8Array, signature: string) => boolean;
 
 type VerifyInput = Readonly<{
 	/** The pin the runtime was built with (`model.json`). */
@@ -296,6 +296,32 @@ function isNeeded(a: ModelArtifact, target: string): boolean {
 	if (a.kind !== RUNTIME_LIB) return true;
 	if (a.file.startsWith(WASM_DIR)) return true;
 	return TARGET.test(target) && a.file.startsWith(`ort/${target}/`);
+}
+
+/**
+ * The files of the manifest `bytes` that `target` needs, in manifest order,
+ * for the downloader to fetch before `verifyModelRelease` checks them. It
+ * trusts nothing: an entry it cannot read is left out, and the verifier
+ * then reports it missing.
+ */
+export function neededFiles(
+	bytes: Uint8Array,
+	target: string,
+): readonly string[] {
+	let manifest: unknown;
+	try {
+		manifest = JSON.parse(new TextDecoder().decode(bytes));
+	} catch {
+		return [];
+	}
+	const artifacts =
+		isRecord(manifest) && Array.isArray(manifest.artifacts)
+			? manifest.artifacts
+			: [];
+	return artifacts
+		.filter(isArtifact)
+		.filter((a) => isSafePath(a.file) && isNeeded(a, target))
+		.map((a) => a.file);
 }
 
 /** A required kind listed twice, or a (kind, id) pair listed twice. */

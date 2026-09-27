@@ -16,7 +16,7 @@ type TokenizerError = Readonly<{
 	message: string;
 }>;
 
-type TokenizerPort = Readonly<{
+export type TokenizerPort = Readonly<{
 	/**
 	 * The token ids of `text`, with no special tokens added. Never throws:
 	 * a throw, or an id that is not a non-negative integer (a `tokenizer.json`

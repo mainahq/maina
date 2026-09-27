@@ -322,6 +322,7 @@ export {
 	type Answer,
 	type Backend,
 	type BackendAnswer,
+	type BackendCalibration,
 	type BackendError,
 	type BackendInput,
 	type BoolQuestion,
@@ -339,7 +340,11 @@ export {
 	type QuestionKind,
 	type ScoreQuestion,
 } from "./decide/types";
-export { DECISION_CATALOG, validateQuestions } from "./decide/types-catalog";
+export {
+	DECISION_CATALOG,
+	SYSTEM1_TYPES,
+	validateQuestions,
+} from "./decide/types-catalog";
 // Design (ADR)
 export {
 	type AdrSummary,

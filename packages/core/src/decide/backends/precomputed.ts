@@ -16,6 +16,7 @@ import type { Result } from "../../db/index";
 import type {
 	Backend,
 	BackendAnswer,
+	BackendCalibration,
 	BackendError,
 	BackendInput,
 	DecisionBackend,
@@ -57,15 +58,26 @@ function keyed(
 	return answers;
 }
 
-/** A synchronous backend that answers from `entries`, a pre-inference's outputs. */
+/**
+ * A synchronous backend that answers from `entries`, a pre-inference's
+ * outputs. A calibrated model's `calibration` is carried onto every
+ * decision it answers (#338).
+ */
 export function precomputedBackend(
-	meta: Readonly<{ id: DecisionBackend; version: string }>,
+	meta: Readonly<{
+		id: DecisionBackend;
+		version: string;
+		calibration?: BackendCalibration;
+	}>,
 	entries: Result<readonly Precomputed[], BackendError>,
 ): Backend {
 	const answers = entries.ok ? keyed(entries.value) : new Map();
 	return {
 		id: meta.id,
 		version: meta.version,
+		...(meta.calibration === undefined
+			? {}
+			: { calibration: meta.calibration }),
 		answer: (input) => {
 			if (!entries.ok) return entries;
 			const key = inputKey(input);

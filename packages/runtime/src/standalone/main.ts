@@ -13,6 +13,10 @@
  *   maina statusline [install|remove|preview ...]
  *                             the agent status line (`cli statusline ...`
  *                             too, so the launcher's `cli` mode reaches it)
+ *   maina model status|pull|verify
+ *                             the local System 1 model (`cli model ...`
+ *                             too): its state, a verified download, a
+ *                             re-verification of the cache (#338)
  *   maina runtime-daemon ...  the resident runtime (spawned by clients)
  *   maina model-selftest <dir> --target <target> [--engine native|wasm]
  *                             load onnxruntime and the tokenizer from <dir>
@@ -48,6 +52,12 @@ async function statusline(args: readonly string[]): Promise<void> {
 		if (args.length === 0) process.stdout.write("Maina: off\n");
 		else process.exitCode = 70;
 	}
+}
+
+/** `maina model status|pull|verify` (#338): the local System 1 model. */
+async function model(args: readonly string[]): Promise<void> {
+	const { runModelProcess } = await import("../model/system");
+	process.exitCode = await runModelProcess(args);
 }
 
 /**
@@ -108,10 +118,18 @@ switch (mode) {
 		}
 		break;
 	}
+	case "model":
+		await model(rest);
+		break;
 	case "cli": {
-		// The status line needs the runtime, which the CLI package cannot load.
+		// The status line and the model need the runtime, which the CLI
+		// package cannot load.
 		if (rest[0] === "statusline") {
 			await statusline(rest.slice(1));
+			break;
+		}
+		if (rest[0] === "model") {
+			await model(rest.slice(1));
 			break;
 		}
 		await embedTreeSitter();
@@ -134,7 +152,7 @@ switch (mode) {
 	}
 	default:
 		process.stderr.write(
-			"usage: maina mcp | hook [--host <claude|codex|cursor>] <event> | cli [args...] | statusline [...] | runtime-daemon ... | model-selftest <dir> --target <target>\n",
+			"usage: maina mcp | hook [--host <claude|codex|cursor>] <event> | cli [args...] | statusline [...] | model status|pull|verify | runtime-daemon ... | model-selftest <dir> --target <target>\n",
 		);
 		process.exit(64);
 }

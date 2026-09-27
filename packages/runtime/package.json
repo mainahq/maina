@@ -11,7 +11,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "bench": "bun bench/gate-roundtrip.bench.ts",
-    "bench:statusline": "bun bench/statusline.bench.ts"
+    "bench:statusline": "bun bench/statusline.bench.ts",
+    "bench:model": "bun bench/model.bench.ts"
   },
   "dependencies": {
     "@huggingface/tokenizers": "0.2.0",

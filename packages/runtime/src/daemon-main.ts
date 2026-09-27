@@ -13,7 +13,9 @@
 import { parseArgs } from "node:util";
 import { systemGates } from "./gate-system";
 import { createGraphSync, systemGraphSyncPorts } from "./graph-hooks";
+import { createSystem1Port } from "./model/infer";
 import { startRuntime } from "./server";
+import { createShadowRunner } from "./shadow";
 import { createStopVerify } from "./stop-verify";
 import { systemStopVerifyPorts } from "./stop-verify-system";
 
@@ -68,9 +70,22 @@ export async function runDaemon(argv: readonly string[]): Promise<number> {
 	});
 	// Remembers each session's edits and verifies them on its stop (FR-VER-7).
 	const stops = createStopVerify(systemStopVerifyPorts());
+	// The cached System 1 model loads in the background: until it serves,
+	// and for good if it cannot, the rules and heuristics decide (#338).
+	// Loaded lazily, so the engines cost the daemon's start nothing.
+	const model = createSystem1Port(
+		import("./model/system").then((m) => m.loadSystemModel()),
+		{
+			notify: (notice) => process.stderr.write(`maina runtime: ${notice}\n`),
+		},
+	);
+	const shadow = createShadowRunner({
+		model,
+		clock: { now: () => performance.now() },
+	});
 	const started = startRuntime(
 		{
-			gate: systemGates().runtime,
+			gate: systemGates({ model, shadow }).runtime,
 			observe: (event) => {
 				stops.observe(event);
 				return graph.observe(event);
