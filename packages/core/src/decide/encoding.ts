@@ -196,21 +196,46 @@ function defang(s: string): string {
 	return s.replaceAll("⟨", "<").replaceAll("⟩", ">");
 }
 
-/** The workspace-root matcher, or `undefined` for a root that is not a usable absolute path. */
-function rootPattern(root: unknown): RegExp | undefined {
+/** The workspace root to replace, or `undefined` for one that is not a usable absolute path. */
+function usableRoot(root: unknown): string | undefined {
 	if (typeof root !== "string") return undefined;
 	const r = defang(root).replace(/[/\\]+$/, "");
-	if (r.length < 2 || !(r.startsWith("/") || WINDOWS_ROOT.test(r))) {
-		return undefined;
-	}
-	const literal = r.replace(/[.*+?^${}()|[\]\\/-]/g, String.raw`\$&`);
-	return new RegExp(`${BEFORE}${literal}${AFTER}`, "g");
+	return r.length >= 2 && (r.startsWith("/") || WINDOWS_ROOT.test(r))
+		? r
+		: undefined;
 }
 
-function normaliseString(s: string, root: RegExp | undefined): string {
+/** A path character: an ASCII letter or digit, one of `. _ ~ + @ % -`, or any non-ASCII code unit. */
+function isPathChar(c: string | undefined): boolean {
+	if (c === undefined) return false;
+	return /[A-Za-z0-9._~+@%-]/.test(c) || c.charCodeAt(0) > 0x7f;
+}
+
+/**
+ * `s` with each occurrence of `root` that is neither preceded nor followed
+ * by a path character replaced by the placeholder: leftmost first,
+ * non-overlapping, as the model's regular expression scans.
+ */
+function replaceRoot(s: string, root: string): string {
+	let out = "";
+	let from = 0;
+	let at = s.indexOf(root);
+	while (at !== -1) {
+		const end = at + root.length;
+		if (!isPathChar(s[at - 1]) && !isPathChar(s[end])) {
+			out += `${s.slice(from, at)}${ROOT_PLACEHOLDER}`;
+			from = end;
+			at = s.indexOf(root, end);
+		} else {
+			at = s.indexOf(root, at + 1);
+		}
+	}
+	return out + s.slice(from);
+}
+
+function normaliseString(s: string, root: string | undefined): string {
 	const defanged = defang(s);
-	const rooted =
-		root === undefined ? defanged : defanged.replace(root, ROOT_PLACEHOLDER);
+	const rooted = root === undefined ? defanged : replaceRoot(defanged, root);
 	return rooted.replace(HOME_PATTERN, HOME_PLACEHOLDER);
 }
 
@@ -233,7 +258,7 @@ function walk(value: unknown, normalise: (s: string) => string): unknown {
  * segments, and set-valued trusted fields sorted by UTF-16 code units.
  */
 export function canonicaliseState(state: DecisionState): DecisionState {
-	const root = rootPattern(state.untrusted[ROOT_FIELD]);
+	const root = usableRoot(state.untrusted[ROOT_FIELD]);
 	const normalise = (s: string) => normaliseString(s, root);
 	const trusted = walk(state.trusted, normalise) as Record<string, unknown>;
 	for (const key of SET_VALUED_TRUSTED) {

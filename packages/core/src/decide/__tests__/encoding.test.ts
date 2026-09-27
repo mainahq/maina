@@ -257,6 +257,18 @@ describe("canonicaliseState", () => {
 		});
 	});
 
+	test("scans leftmost first, without overlaps, like the model's regex", () => {
+		const cases = [
+			["/w", "/w/w x/w /w,/w", "⟨root⟩/w x/w ⟨root⟩,⟨root⟩"],
+			["/a/a", "/a/a/a/a", "⟨root⟩/a/a"],
+			["/w", "/w🎉 é/w /wé (/w)", "/w🎉 é/w /wé (⟨root⟩)"],
+		] as const;
+		for (const [root, p, expected] of cases) {
+			const out = canonicaliseState(state({ root, p }));
+			expect(out.untrusted.p, p).toBe(expected);
+		}
+	});
+
 	test("a root with trailing separators matches without them", () => {
 		const out = canonicaliseState(state({ root: "/w/app//", p: "/w/app/x" }));
 		expect(out.untrusted).toEqual({
