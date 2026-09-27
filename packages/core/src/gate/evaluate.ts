@@ -18,6 +18,12 @@
  *                 An ask or deny the rules settle without a backend is
  *                 recorded as the rules backend's answer, so it has an id.
  *
+ * The gate stays synchronous. An async model (System 1 over onnxruntime)
+ * runs before it: the runtime plans the inputs with `gateModelInputs`,
+ * infers them in one pass and registers a `precomputedBackend` over the
+ * outputs, reporting the time as `preInferenceMs`, which counts against the
+ * budget (#572).
+ *
  * Fail closed: a backend error, an answer slower than the budget, one below
  * the policy's confidence threshold, a two-order disagreement, a malformed
  * event or any unexpected failure asks. Only Maina-computed values from
@@ -29,7 +35,13 @@
 import { rulesBackend } from "../decide/backends/rules";
 import { type DecidePorts, decide } from "../decide/decide";
 import { type BackendRegistry, selectBackend } from "../decide/registry";
-import type { DecideError, DecideRequest, Decision } from "../decide/types";
+import type {
+	BackendInput,
+	DecideError,
+	DecideRequest,
+	Decision,
+	DecisionBackend,
+} from "../decide/types";
 import { confidenceThreshold, DEFAULT_POLICY } from "../policy/defaults";
 import {
 	type ActionClassPolicy,
@@ -57,6 +69,12 @@ export type GatePorts = Readonly<{
 	newId: () => string;
 	/** Longest the decide stage may take; a slower answer asks. */
 	budgetMs?: number;
+	/**
+	 * Milliseconds already spent on the decide stage's behalf before the
+	 * gate ran: an async model's pre-inference (#572). It counts against
+	 * `budgetMs` with the time `decide` itself takes.
+	 */
+	preInferenceMs?: number;
 	/**
 	 * Irreversible classes a repo policy loosened that the user confirmed at
 	 * user level. A repo loosening not listed here is ignored: a cloned
@@ -126,17 +144,25 @@ export function evaluateGate(
 	}
 }
 
-function evaluate(
-	ports: GatePorts,
+/** The ports stages 1 and 2 read. */
+type StagePorts = Pick<GatePorts, "ctx" | "confirmedLoosenings">;
+
+/** Stages 1 and 2 over a known event kind: what the decide stage builds on. */
+type Staged = Readonly<{
+	narrowed: Narrowed;
+	rules: RuleResult;
+	/** An irreversible class or untrusted provenance: ask in two orders. */
+	highRisk: boolean;
+}>;
+
+/** Trust, then rules; null when the event kind is unknown. */
+function stage(
+	ports: StagePorts,
 	event: GateEvent,
 	policy: Policy,
-): GateResult {
+): Staged | null {
 	if (!(GATE_EVENT_KINDS as readonly string[]).includes(event.kind)) {
-		return ask(
-			`unknown gate event kind ${JSON.stringify(event.kind)}`,
-			[],
-			true,
-		);
+		return null;
 	}
 	const narrowed = trustPolicy(policy, ports.confirmedLoosenings ?? []);
 	const rules = evaluateRules(
@@ -144,6 +170,68 @@ function evaluate(
 		narrowed.policy,
 		withPolicyBranches(ports.ctx, policy),
 	);
+	const highRisk =
+		rules.classes.some((c) => isIrreversible(c, policy)) ||
+		(Array.isArray(event.untrusted) && event.untrusted.length > 0);
+	return { narrowed, rules, highRisk };
+}
+
+/** The question placeholder of a planned input: the gate mints the real id. */
+const PLANNED_ID = "planned";
+
+/**
+ * The backend inputs `evaluateGate` will hand `backend` for this event, in
+ * order (both halves of the two-order check for a high-risk event), so a
+ * runtime can run an async model on all of them in one pass before the gate
+ * and register a `precomputedBackend` over the outputs (#572). Empty when
+ * the policy does not name `backend` for `action.risk` or the gate would
+ * not ask it: an unknown event kind, a deny rule, a rules backend with a
+ * rule already decided. Question ids are placeholders; never throws.
+ */
+export function gateModelInputs(
+	ports: StagePorts,
+	event: GateEvent,
+	policy: Policy,
+	backend: DecisionBackend,
+): readonly BackendInput[] {
+	try {
+		const staged = stage(ports, event, policy);
+		if (staged === null || staged.rules.kind === "deny") return [];
+		const { narrowed, rules, highRisk } = staged;
+		if (narrowed.policy.decisions["action.risk"]?.backend !== backend) {
+			return [];
+		}
+		if (backend === "rules" && rules.kind !== "no_rule") return [];
+		return riskOrders(highRisk).map((reversed) => {
+			const request = riskRequest(
+				event,
+				rules,
+				narrowed.policy,
+				highRisk,
+				PLANNED_ID,
+				reversed,
+			);
+			return { ...request, policy: narrowed.policy };
+		});
+	} catch {
+		return [];
+	}
+}
+
+function evaluate(
+	ports: GatePorts,
+	event: GateEvent,
+	policy: Policy,
+): GateResult {
+	const staged = stage(ports, event, policy);
+	if (staged === null) {
+		return ask(
+			`unknown gate event kind ${JSON.stringify(event.kind)}`,
+			[],
+			true,
+		);
+	}
+	const { narrowed, rules, highRisk } = staged;
 	// Without the grammar every shell event is opaque: the rules ask.
 	const blind = event.kind === "shell" && ports.ctx.shell === null;
 	const reason = [
@@ -155,9 +243,6 @@ function evaluate(
 					`the repo policy's explicitly_allow for ${c} needs user confirmation`,
 			),
 	].join("; ");
-	const highRisk =
-		rules.classes.some((c) => isIrreversible(c, policy)) ||
-		(Array.isArray(event.untrusted) && event.untrusted.length > 0);
 	const model =
 		rules.kind === "deny"
 			? null
@@ -336,10 +421,9 @@ function consultModel(
 	};
 	const id = ports.newId();
 	const started = ports.clock.now();
-	const orders = highRisk ? [false, true] : [false];
 	const answers: GateAnswer[] = [];
 	const decisions = () => answers.map((a) => a.decision);
-	for (const reversed of orders) {
+	for (const reversed of riskOrders(highRisk)) {
 		const request = riskRequest(event, rules, policy, highRisk, id, reversed);
 		const result = decide(decidePorts, request);
 		const ids = decisions().map((d) => d.id);
@@ -350,7 +434,8 @@ function consultModel(
 		}
 		answers.push({ request, decision });
 	}
-	const elapsed = ports.clock.now() - started;
+	// An async model's pre-inference was spent on this stage too.
+	const elapsed = (ports.preInferenceMs ?? 0) + (ports.clock.now() - started);
 	const judged = judgeAnswers(decisions(), policy, ports.budgetMs, elapsed);
 	return {
 		...judged,
@@ -404,6 +489,11 @@ function judgeAnswers(
 		degraded: false,
 		note: `action.risk: ${first}`,
 	};
+}
+
+/** The two-order check's halves: the reversed one only for a high-risk event. */
+function riskOrders(highRisk: boolean): readonly boolean[] {
+	return highRisk ? [false, true] : [false];
 }
 
 /**

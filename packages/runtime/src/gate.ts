@@ -16,11 +16,15 @@ import {
 	buildDecisionRecord,
 	type ClockPort,
 	type GateEvent as CoreGateEvent,
+	createRegistry,
 	type DbPort,
+	DEFAULT_GATE_BUDGET_MS,
 	DEFAULT_REGISTRY,
 	evaluateGate,
 	type GateContext,
 	type GateEvaluation,
+	type GatePorts,
+	gateModelInputs,
 	gateSubject,
 	logPrivacy,
 	type PermissionMode,
@@ -32,6 +36,7 @@ import {
 	type Verdict,
 	withBackend,
 } from "@mainahq/core";
+import { type InferencePort, type PreInferred, preInfer } from "./system1";
 
 /** A host hook event after adapter normalisation. JSON-serialisable. */
 export type GateEvent = Readonly<{
@@ -183,6 +188,14 @@ export type GateEvaluatorDeps = Readonly<{
 	newId: () => string;
 	/** Defaults to core's `DEFAULT_REGISTRY`. */
 	backends?: BackendRegistry;
+	/**
+	 * An async model (System 1 over onnxruntime) that serves `action.risk`
+	 * when the policy names its backend. It runs before the gate, once per
+	 * event over both orders; `full` mode only (#572).
+	 */
+	model?: InferencePort;
+	/** The gate budget, pre-inference included; core's default when absent. */
+	budgetMs?: number;
 	/** Repo loosenings the user confirmed (see core `GatePorts`). */
 	confirmedLoosenings?: readonly string[];
 	/**
@@ -241,13 +254,28 @@ export function createGateEvaluator(
 				mode === "rules_only"
 					? withBackend(policy.value, "action.risk", "rules")
 					: policy.value;
+			const stagePorts = {
+				ctx: ctx.value,
+				confirmedLoosenings: deps.confirmedLoosenings,
+			};
+			const inferred =
+				mode === "full" && deps.model !== undefined
+					? await preInferGate(deps, deps.model, stagePorts, core, effective)
+					: undefined;
+			const backends = deps.backends ?? DEFAULT_REGISTRY;
 			const result = evaluateGate(
 				{
+					...stagePorts,
 					clock: deps.clock,
-					backends: deps.backends ?? DEFAULT_REGISTRY,
-					ctx: ctx.value,
+					backends:
+						inferred === undefined
+							? backends
+							: createRegistry([...backends.values(), inferred.backend]),
 					newId: deps.newId,
-					confirmedLoosenings: deps.confirmedLoosenings,
+					...(deps.budgetMs === undefined ? {} : { budgetMs: deps.budgetMs }),
+					...(inferred === undefined
+						? {}
+						: { preInferenceMs: inferred.elapsedMs }),
 				},
 				core,
 				effective,
@@ -274,6 +302,28 @@ export function createGateEvaluator(
 			);
 		}
 	};
+}
+
+/**
+ * The model's answers to the `action.risk` inputs the gate will ask, run
+ * ahead of the synchronous gate (#572), or undefined when the gate would
+ * not ask the model (so nothing is inferred and nothing counted).
+ */
+async function preInferGate(
+	deps: GateEvaluatorDeps,
+	model: InferencePort,
+	ports: Pick<GatePorts, "ctx" | "confirmedLoosenings">,
+	event: CoreGateEvent,
+	policy: Policy,
+): Promise<PreInferred | undefined> {
+	const inputs = gateModelInputs(ports, event, policy, model.id);
+	if (inputs.length === 0) return undefined;
+	return preInfer(
+		model,
+		deps.clock,
+		inputs,
+		deps.budgetMs ?? DEFAULT_GATE_BUDGET_MS,
+	);
 }
 
 /** A classification context that could not be built: what was unreadable. */
