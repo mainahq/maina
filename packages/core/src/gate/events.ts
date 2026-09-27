@@ -13,16 +13,20 @@ import type { PushConfig } from "./push";
 
 export type GateEventKind = (typeof GATE_EVENT_KINDS)[number];
 
+/** Every normalised permission mode, `unknown` last. */
+export const PERMISSION_MODES = [
+	"default",
+	"plan",
+	"accept_edits",
+	"bypass",
+	"unknown",
+] as const;
+
 /**
  * The host's permission mode, normalised. It is carried for later stages and
  * the audit log; the rules ignore it, so no mode can loosen a deny.
  */
-export type PermissionMode =
-	| "default"
-	| "plan"
-	| "accept_edits"
-	| "bypass"
-	| "unknown";
+export type PermissionMode = (typeof PERMISSION_MODES)[number];
 
 type GateEventBase = Readonly<{
 	/** Host that produced the event (`claude-code`, `codex`, ...). */

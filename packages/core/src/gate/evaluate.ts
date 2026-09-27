@@ -60,7 +60,7 @@ import {
 	DEFAULT_PROTECTED_BRANCHES,
 	type GateContext,
 	type GateEvent,
-	type PermissionMode,
+	PERMISSION_MODES,
 } from "./events";
 import { evaluateRules, type RuleResult, settleVerdict } from "./rules";
 
@@ -121,14 +121,6 @@ type GateAnswer = Readonly<{ request: DecideRequest; decision: Decision }>;
 
 /** Default decide-stage budget. */
 export const DEFAULT_GATE_BUDGET_MS = 250;
-
-const PERMISSION_MODES: readonly PermissionMode[] = [
-	"default",
-	"plan",
-	"accept_edits",
-	"bypass",
-	"unknown",
-];
 
 export function evaluateGate(
 	ports: GatePorts,

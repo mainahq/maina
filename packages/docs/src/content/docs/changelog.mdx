@@ -857,6 +857,7 @@ articles`. When no entity/architecture article matched, the compiler now
   - A drift guard test pins the trusted and untrusted keys of the gate's `action.risk` request. Changing them requires a coordinated `ENCODING_VERSION` bump.
 
   `REVERSED_SUFFIX` moved from `gate/evaluate` to `decide/encoding`.
+- The weekly digest's gate-log parser now reads the dogfood hook's new per-call fields: `root`, `host`, `permissionMode` and `decisionIds`. Lines written before them still parse. A line that has one of them malformed is counted as malformed. The permission modes are now listed once, as `PERMISSION_MODES` in `gate/events`, and the gate uses that list.
 
 
 ### 1.8.1
