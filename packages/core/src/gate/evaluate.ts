@@ -37,6 +37,7 @@
 
 import { rulesBackend } from "../decide/backends/rules";
 import { type DecidePorts, decide } from "../decide/decide";
+import { REVERSED_SUFFIX } from "../decide/encoding";
 import { type BackendRegistry, selectBackend } from "../decide/registry";
 import type {
 	BackendInput,
@@ -117,12 +118,6 @@ export type GateResult = Readonly<{
 
 /** One `action.risk` question the gate asked and the decision it got. */
 type GateAnswer = Readonly<{ request: DecideRequest; decision: Decision }>;
-
-/**
- * Appended to a gate decision's id to name the second half of its two-order
- * check: both halves belong to one gate event.
- */
-export const REVERSED_SUFFIX = ":reversed";
 
 /** Default decide-stage budget. */
 export const DEFAULT_GATE_BUDGET_MS = 250;

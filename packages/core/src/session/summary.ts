@@ -12,9 +12,9 @@
  */
 
 import type { ModelTier } from "../ai/tiers";
+import { baseQuestionId, REVERSED_SUFFIX } from "../decide/encoding";
 import { type LogSlice, percentile, SHADOW_ACTION } from "../decide/evidence";
 import type { DecisionRecord } from "../decide/log/schema";
-import { REVERSED_SUFFIX } from "../gate/evaluate";
 
 export type SessionSummary = Readonly<{
 	/** Gate events that ended in `deny`. */
@@ -72,10 +72,7 @@ function eventKey(record: DecisionRecord): string | undefined {
 	if (record.finalAction === SHADOW_ACTION) return undefined;
 	if (record.type === ROUTING_TYPE) return `${ROUTING_TYPE}\u0000${record.id}`;
 	if (record.type !== GATE_TYPE) return undefined;
-	const id = record.id.endsWith(REVERSED_SUFFIX)
-		? record.id.slice(0, -REVERSED_SUFFIX.length)
-		: record.id;
-	return `${GATE_TYPE}\u0000${id}`;
+	return `${GATE_TYPE}\u0000${baseQuestionId(record.id)}`;
 }
 
 /** Served gate and routing records grouped into events, sorted by key. */
