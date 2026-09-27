@@ -232,6 +232,38 @@ describe("the gate over an async model", () => {
 		expect(asked.verdict).toBe("ask");
 	});
 
+	test("a model that fails leaves a listed allow standing, as the rules backend does (#586)", async () => {
+		// `git push origin main` is `git.push.protected`, a reversible `ask`
+		// class; the allow rule lists it. With `backend: rules` the gate
+		// never asks a backend once a rule decided, so the allow stands. A
+		// failed model delegating to rules must not tighten it to the class's
+		// own `ask`.
+		const allowRule = (backend: "rules" | "system1"): Policy => ({
+			...withBackend(DEFAULT_POLICY, "action.risk", backend),
+			rules: { allow: [{ match: "git push origin main" }], deny: [] },
+		});
+		const failing: InferencePort = {
+			id: "system1",
+			version: "x",
+			infer: async () => Promise.reject(new Error("onnx crashed")),
+		};
+		const push = plain("git push origin main");
+		const rulesOnly = await createGateEvaluator(
+			deps({
+				policyFor: async () => ({ ok: true, value: allowRule("rules") }),
+			}),
+		)(push);
+		expect(rulesOnly.verdict).toBe("allow");
+		const delegated = await createGateEvaluator(
+			deps({
+				model: failing,
+				policyFor: async () => ({ ok: true, value: allowRule("system1") }),
+			}),
+		)(push);
+		expect(delegated.verdict).toBe("allow");
+		expect(delegated.degraded).toBe(false);
+	});
+
 	test("a model that fails slower than the budget still asks, degraded", async () => {
 		let now = 0;
 		const model: InferencePort = {
