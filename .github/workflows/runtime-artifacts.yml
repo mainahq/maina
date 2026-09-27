@@ -57,6 +57,10 @@ jobs:
       # The compiled executable's embedded tree-sitter (#526) on every OS,
       # in process: the gate and the code graph, without the resident runtime.
       - run: bun test packages/runtime/src/standalone
+      # diagnostic (#564): the resident runtime over a named pipe.
+      - if: runner.os == 'Windows'
+        continue-on-error: true
+        run: bun test packages/runtime/src/__tests__/ipc.test.ts packages/runtime/src/__tests__/lifecycle.test.ts packages/runtime/src/__tests__/crash.test.ts
 
   build:
     name: build / ${{ matrix.target }}
@@ -98,16 +102,29 @@ jobs:
           case $code:$out in 2:*'"permissionDecision":"deny"'*) ;; *) echo "codex hook did not fail closed" >&2; exit 1 ;; esac
           # The executable embeds tree-sitter (#526): the gate reads a Bash
           # command instead of asking for it as opaque, so wiping the host's
-          # config is denied, not asked. This goes through the resident
-          # runtime, which does not answer on Windows yet (#564); there the
-          # launcher job checks the embedded tree-sitter in process instead.
-          if [ "$RUNNER_OS" != Windows ]; then
-            input=$(printf '{"session_id":"ci","transcript_path":"%s/t.jsonl","cwd":"%s","hook_event_name":"PreToolUse","permission_mode":"default","tool_name":"Bash","tool_input":{"command":"rm -rf ~/.claude"},"tool_use_id":"toolu_ci"}' "$PWD" "$PWD")
-            code=0
-            out=$(printf '%s' "$input" | "$bin" hook --host claude PreToolUse) || code=$?
-            echo "$out"
-            case $code:$out in 2:*'"permissionDecision":"deny"'*) ;; *) echo "hook did not deny rm -rf ~/.claude (shell grammar not embedded?)" >&2; exit 1 ;; esac
+          # config is denied, not asked. On every OS, Windows included (#564).
+          if [ "$RUNNER_OS" = Windows ]; then
+            # diagnostic (#564): the daemon in the foreground, stderr shown.
+            "$bin" runtime-daemon --address '\\.\pipe\maina-diag-564' --pid-file "$RUNNER_TEMP/d.pid" --spawn-lock "$RUNNER_TEMP/d.lock" --version 0 --idle-ttl-ms 6000 >"$RUNNER_TEMP/d.out" 2>"$RUNNER_TEMP/d.err" &
+            dpid=$!
+            sleep 3
+            ls -la "$RUNNER_TEMP" || true
+            cat "$RUNNER_TEMP/d.pid" || true
+            if kill -0 "$dpid" 2>/dev/null; then echo "daemon still up after 3s"; else wait "$dpid" && echo "daemon exited 0" || echo "daemon exited $?"; fi
+            cat "$RUNNER_TEMP/d.out" "$RUNNER_TEMP/d.err" || true
+            sleep 6
+            if kill -0 "$dpid" 2>/dev/null; then echo "daemon still up after 9s"; else wait "$dpid" && echo "daemon exited 0" || echo "daemon exited $?"; fi
           fi
+          input=$(printf '{"session_id":"ci","transcript_path":"%s/t.jsonl","cwd":"%s","hook_event_name":"PreToolUse","permission_mode":"default","tool_name":"Bash","tool_input":{"command":"rm -rf ~/.claude"},"tool_use_id":"toolu_ci"}' "$PWD" "$PWD")
+          denied=yes
+          for attempt in 1 2 3; do
+            code=0
+            start=$(date +%s%N)
+            out=$(printf '%s' "$input" | "$bin" hook --host claude PreToolUse) || code=$?
+            echo "attempt $attempt: $(( ($(date +%s%N) - start) / 1000000 )) ms exit $code $out"
+            case $code:$out in 2:*'"permissionDecision":"deny"'*) ;; *) denied=no ;; esac
+          done
+          if [ $denied != yes ]; then echo "hook did not deny rm -rf ~/.claude (shell grammar not embedded?)" >&2; exit 1; fi
           init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}'
           # head exits after one line, so the server may die of SIGPIPE: ignore
           # the pipeline status and check the reply instead.

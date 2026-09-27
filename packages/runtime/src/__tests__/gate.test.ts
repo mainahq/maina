@@ -962,6 +962,14 @@ describe("systemGates", () => {
 		expect((await gates.fallback(shell("rm -rf /", repo))).verdict).toBe("ask");
 	});
 
+	// #564: the hook client warms the fallback while it waits for a runtime.
+	test("warm loads the grammar the fallback then classifies with", async () => {
+		const gates = systemGates();
+		expect(gates.warm()).toBeUndefined();
+		const decided = await gates.fallback(shell("rm -rf ~/.claude", repo));
+		expect(decided.verdict).toBe("deny");
+	});
+
 	test("reads the repo policy", async () => {
 		const dir = join(repo, ".maina");
 		mkdirSync(dir, { recursive: true });

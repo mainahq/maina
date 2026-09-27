@@ -10,6 +10,12 @@
  * flagged `degraded`. A runtime answer carries the runtime's own `degraded`
  * flag and decision ids (#454). A degraded result, from either source, is
  * never `allow`.
+ *
+ * The runtime never gets the whole budget: the last part of it is kept for
+ * the fallback, which on a cold start has to load the bash grammar before
+ * it can decide (#564). While the client waits for a runtime it has to
+ * start, or for one slow to answer, `warmFallback` starts that loading, so
+ * a runtime that never answers still leaves a fallback that can deny.
  */
 
 import {
@@ -36,6 +42,12 @@ type HookClientConfig = Readonly<{
 	 * async fallback, but not a synchronous one that never returns.
 	 */
 	fallback: GateEvaluator;
+	/**
+	 * Starts loading what `fallback` needs (the bash grammar) without
+	 * evaluating anything. Called at most once per evaluation, only when the
+	 * runtime has to be started or is slow to answer; errors are ignored.
+	 */
+	warmFallback?: () => void;
 }>;
 
 type EvaluateOptions = Readonly<{ timeoutMs: number }>;
@@ -46,6 +58,15 @@ type HookClient = Readonly<{
 
 /** Extra time the in-process fallback gets once the budget is spent. */
 const FALLBACK_GRACE_MS = 50;
+
+/**
+ * The part of the budget kept for the fallback, at most a third of it: a
+ * cold fallback loads the bash grammar first, a few hundred ms (#564).
+ */
+const FALLBACK_RESERVE_MS = 1_000;
+
+/** A runtime that has not answered by then is slow: warm the fallback. */
+const WARM_AFTER_MS = 500;
 
 const UNUSABLE: GateDecision = {
 	verdict: "ask",
@@ -75,8 +96,22 @@ async function runFallback(
 	}
 }
 
+/** `warm` at most once; a throw is ignored (the fallback then loads cold). */
+function once(warm: (() => void) | undefined): () => void {
+	let warmed = warm === undefined;
+	return () => {
+		if (warmed) return;
+		warmed = true;
+		try {
+			warm?.();
+		} catch {
+			// The fallback loads what it needs itself, or fails closed.
+		}
+	};
+}
+
 export function createHookClient(config: HookClientConfig): HookClient {
-	const { endpoint, version, spawn, fallback } = config;
+	const { endpoint, version, spawn, fallback, warmFallback } = config;
 
 	const degrade = async (
 		event: GateEvent,
@@ -95,13 +130,19 @@ export function createHookClient(config: HookClientConfig): HookClient {
 		};
 	};
 
+	/**
+	 * Asks the runtime until `runtimeDeadline`; a degraded answer runs the
+	 * fallback until `deadline`.
+	 */
 	const evaluateRuntime = async (
 		event: GateEvent,
+		runtimeDeadline: number,
 		deadline: number,
+		warm: () => void,
 	): Promise<GateResult> => {
 		let recovered = false;
 		for (;;) {
-			const remaining = deadline - Date.now();
+			const remaining = runtimeDeadline - Date.now();
 			if (remaining <= 0) return degrade(event, "timeout", deadline);
 			const sent = await sendRequest(
 				endpoint.address,
@@ -117,7 +158,13 @@ export function createHookClient(config: HookClientConfig): HookClient {
 				: sent.error.kind === "connect_failed";
 			if (needsRuntime && !recovered) {
 				recovered = true;
-				const up = await ensureRuntime({ endpoint, version, spawn, deadline });
+				warm();
+				const up = await ensureRuntime({
+					endpoint,
+					version,
+					spawn,
+					deadline: runtimeDeadline,
+				});
 				if (!up.ok) return degrade(event, up.error.kind, deadline);
 				continue;
 			}
@@ -139,13 +186,18 @@ export function createHookClient(config: HookClientConfig): HookClient {
 		{ timeoutMs }: EvaluateOptions,
 	): Promise<GateResult> => {
 		const deadline = Date.now() + timeoutMs;
+		const reserve = Math.min(FALLBACK_RESERVE_MS, Math.floor(timeoutMs / 3));
+		const warm = once(warmFallback);
+		const slow = setTimeout(warm, WARM_AFTER_MS);
 		try {
 			// Only a runtime behind a private socket dir is trusted to answer.
 			const dirs = ensureEndpointDirs(endpoint, process.platform);
 			if (!dirs.ok) return degrade(event, "insecure_endpoint", deadline);
-			return await evaluateRuntime(event, deadline);
+			return await evaluateRuntime(event, deadline - reserve, deadline, warm);
 		} catch {
 			return degrade(event, "client_error", deadline);
+		} finally {
+			clearTimeout(slow);
 		}
 	};
 
