@@ -26,7 +26,13 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-	if (dir !== "") rmSync(dir, { recursive: true, force: true });
+	if (dir === "") return;
+	try {
+		rmSync(dir, { recursive: true, force: true });
+	} catch {
+		// Windows cannot delete the addon this process loaded and never
+		// unloads: the OS temp directory keeps that copy.
+	}
 });
 
 describe("runModelSelftest", () => {
