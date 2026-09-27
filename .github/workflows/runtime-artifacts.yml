@@ -8,7 +8,12 @@ name: Runtime artifacts
 #   (launch.sh on macOS/Linux, launch.ps1 wherever PowerShell is installed),
 #   and the standalone entry's embedded tree-sitter (#526).
 # - build: compiles each target on a runner that can run it where one
-#   exists, and smoke-tests the executable.
+#   exists, and smoke-tests the executable, including the System 1 engines
+#   (#587, ADR 0050): a tiny ONNX model and tokenizer run inside the
+#   compiled executable on onnxruntime-web (WASM) on every target it can
+#   run, and on the onnxruntime-node addon, loaded by path the way a model
+#   release ships it, on the native targets. musl runs in Alpine, darwin-x64
+#   under Rosetta when the runner has it.
 #
 # Signing and publishing moved to the lockstep release (release.yml, v1 task
 # 9.7): the runtime ships with the CLI packages and the plugins, at one
@@ -77,6 +82,7 @@ jobs:
           - { target: darwin-arm64, runner: macos-latest, smoke: true }
           - { target: darwin-x64, runner: macos-latest, smoke: false }
           - { target: windows-x64, runner: windows-latest, smoke: true }
+          - { target: windows-arm64, runner: windows-11-arm, smoke: true }
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -85,6 +91,33 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Compile
         run: bun packages/runtime/build/standalone.ts --out dist/runtime --targets ${{ matrix.target }}
+      # A self-test directory laid out like a model release (#587): the tiny
+      # model, its tokenizer, onnxruntime-web's .wasm and, on a native
+      # target, the onnxruntime-node addon for it. The addon is not a
+      # dependency (a model release ships it), so it comes from npm at the
+      # version the runtime pins.
+      - name: Stage the System 1 engines
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          ort=$(bun -p "require('./packages/runtime/package.json').dependencies['onnxruntime-common']")
+          lib=$(bun -e 'const { ortNodeDir } = await import("./packages/runtime/src/model/engine.ts"); process.stdout.write(ortNodeDir(process.env.TARGET ?? "") ?? "")')
+          mkdir -p dist/ort-node
+          if [ -n "$lib" ]; then
+            (cd dist/ort-node && tgz=$(npm pack "onnxruntime-node@$ort" --silent) && tar xzf "$tgz" "package/$lib" && rm "$tgz")
+            bun packages/runtime/src/model/__tests__/fixtures/tiny-model.ts dist/selftest --target "$TARGET" --native "dist/ort-node/package/$lib"
+            # A native path: on Windows, not this shell's /d/...
+            root=$(pwd -W 2>/dev/null || pwd)
+            echo "MAINA_ORT_NATIVE_DIR=$root/dist/ort-node/package/$lib" >> "$GITHUB_ENV"
+          else
+            bun packages/runtime/src/model/__tests__/fixtures/tiny-model.ts dist/selftest
+          fi
+          ls -R dist/selftest
+      - name: System 1 engine tests
+        if: matrix.smoke
+        run: bun test packages/runtime/src/model
       - name: Smoke test
         if: matrix.smoke
         shell: bash
@@ -124,6 +157,43 @@ jobs:
           reply=$( (echo "$init"; sleep 5) | "$bin" mcp | head -n 1 || true)
           echo "$reply"
           case $reply in *'"serverInfo"'*) ;; *) echo "mcp did not answer initialize" >&2; exit 1 ;; esac
+          # The System 1 engines inside the executable (#587): WASM on every
+          # target, and the native addon from ort/<target>/ where one ships.
+          engines=wasm
+          if [ -d dist/selftest/ort ]; then engines="wasm native"; fi
+          for engine in $engines; do
+            out=$("$bin" model-selftest dist/selftest --target ${{ matrix.target }} --engine "$engine")
+            echo "$engine: $out"
+            case $out in *'"ok":true'*) ;; *) echo "model-selftest ($engine) failed" >&2; exit 1 ;; esac
+          done
+      # musl: the WASM engine inside the executable, in Alpine (#587).
+      - name: Smoke test (musl, System 1 engines)
+        if: contains(matrix.target, 'musl')
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/w" -w /w alpine:3.22 sh -euc '
+            apk add --no-cache libstdc++ libgcc >/dev/null
+            bin=$(ls dist/runtime/maina-*-${{ matrix.target }})
+            out=$("$bin" model-selftest dist/selftest --target ${{ matrix.target }})
+            echo "$out"
+            case $out in *"\"ok\":true"*) ;; *) echo "model-selftest failed" >&2; exit 1 ;; esac
+          '
+      # darwin-x64: the WASM engine inside the executable, under Rosetta
+      # when the arm64 runner has it (#587).
+      - name: Smoke test (darwin-x64 under Rosetta, System 1 engines)
+        if: matrix.target == 'darwin-x64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+            echo "::notice::Rosetta is not installed on this runner; darwin-x64 model-selftest skipped"
+            exit 0
+          fi
+          bin=$(ls dist/runtime/maina-*-darwin-x64)
+          out=$("$bin" model-selftest dist/selftest --target darwin-x64)
+          echo "$out"
+          case $out in *'"ok":true'*) ;; *) echo "model-selftest failed" >&2; exit 1 ;; esac
       - uses: actions/upload-artifact@v4
         with:
           name: runtime-${{ matrix.target }}

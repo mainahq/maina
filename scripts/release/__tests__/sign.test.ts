@@ -126,7 +126,8 @@ describe("the expected artifacts", () => {
 	});
 
 	test("cover every OS/arch, every host plugin and every marketplace", () => {
-		expect(EXPECTED.runtime).toHaveLength(7);
+		// Seven targets plus windows-arm64 (#587, ADR 0050).
+		expect(EXPECTED.runtime).toHaveLength(8);
 		expect(EXPECTED.plugin).toEqual([
 			"claude",
 			"cursor",

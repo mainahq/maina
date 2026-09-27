@@ -40,6 +40,7 @@ export const TARGETS = [
 	"linux-x64-musl",
 	"linux-arm64-musl",
 	"windows-x64",
+	"windows-arm64",
 ] as const;
 
 export type Target = (typeof TARGETS)[number];

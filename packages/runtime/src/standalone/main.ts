@@ -14,6 +14,10 @@
  *                             the agent status line (`cli statusline ...`
  *                             too, so the launcher's `cli` mode reaches it)
  *   maina runtime-daemon ...  the resident runtime (spawned by clients)
+ *   maina model-selftest <dir> --target <target> [--engine native|wasm]
+ *                             load onnxruntime and the tokenizer from <dir>
+ *                             and run its model once: the packaging check
+ *                             CI runs in the compiled executable (#587)
  *
  * Each mode loads only what it needs, so a cold MCP start does not pay for
  * the CLI and a hook does not pay for the MCP server.
@@ -116,6 +120,12 @@ switch (mode) {
 		await import("@mainahq/cli/src/index.ts");
 		break;
 	}
+	case "model-selftest": {
+		// Packaging check for onnxruntime and the tokenizer (#587, ADR 0050).
+		const { runSelftestProcess } = await import("../model/selftest");
+		process.exitCode = await runSelftestProcess(rest);
+		break;
+	}
 	case "runtime-daemon": {
 		await embedTreeSitter();
 		const { runDaemon } = await import("../daemon-main");
@@ -124,7 +134,7 @@ switch (mode) {
 	}
 	default:
 		process.stderr.write(
-			"usage: maina mcp | hook [--host <claude|codex|cursor>] <event> | cli [args...] | statusline [...] | runtime-daemon ...\n",
+			"usage: maina mcp | hook [--host <claude|codex|cursor>] <event> | cli [args...] | statusline [...] | runtime-daemon ... | model-selftest <dir> --target <target>\n",
 		);
 		process.exit(64);
 }
