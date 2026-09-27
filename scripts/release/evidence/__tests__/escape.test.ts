@@ -45,6 +45,26 @@ describe("escapeEvidence", () => {
 		});
 	});
 
+	test("a report holding one run per worker gives each its own run", () => {
+		const run = (worker: string) => ({
+			os: "linux",
+			worker,
+			mode: "sandboxed",
+			cases: 63,
+			blocked: 63,
+		});
+		const r = escapeEvidence(
+			[[run("claude"), run("codex")], run("gemini")],
+			LINK,
+		);
+		if (!r.ok) throw new Error(r.error);
+		expect(r.value.runs.map((x) => x.worker)).toEqual([
+			"claude",
+			"codex",
+			"gemini",
+		]);
+	});
+
 	test("unsandboxed control runs and malformed reports are not evidence", () => {
 		const r = escapeEvidence(
 			[

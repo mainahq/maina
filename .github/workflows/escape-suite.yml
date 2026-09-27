@@ -2,8 +2,10 @@ name: Escape suite
 
 # Sandbox escape and hook-bypass suite (v1 task 4B.9, FR-SBX-5, spec §9.6).
 # Every case in `ci/escape/cases.ts` is run twice against the pinned sandbox
-# runtime: unsandboxed, where it must escape (so the case has teeth), and
-# sandboxed, where it must be blocked. Path traversal, symlink writes,
+# runtime, once per supported ACP worker (claude, codex, cursor, gemini,
+# opencode) with that worker's gate integration installed: unsandboxed,
+# where it must escape (so the case has teeth), and sandboxed, where it must
+# be blocked. Path traversal, symlink writes,
 # $HOME credential reads, DNS and IP network bypass, env and credential
 # exfiltration, prompt injection that disables the sandbox or the gate hook,
 # bypass-permission modes and holdout reads — at least 60 cases in all.
@@ -30,6 +32,7 @@ on:
       - ".github/workflows/escape-suite.yml"
       - "packages/harness/src/sandbox/**"
       - "packages/harness/src/permissions/**"
+      - "packages/harness/src/workers/**"
 
 permissions:
   contents: read
@@ -42,15 +45,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The floor holds: every case blocked by a real srt on both platforms.
+  # The ACP workers the suite runs for, from the worker registry (its one
+  # source of truth), so a new worker gets its own run without a workflow edit.
+  workers:
+    name: supported workers
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - id: list
+        run: echo "list=$(bun -e 'import { WORKER_NAMES as w } from "./packages/harness/src/workers/registry.ts"; process.stdout.write(JSON.stringify(w))')" >> "$GITHUB_OUTPUT"
+
+  # The floor holds: every case blocked by a real srt on both platforms, for
+  # every supported worker with its own gate integration installed (#569).
   sandboxed:
-    name: sandboxed (${{ matrix.os }})
+    name: sandboxed (${{ matrix.os }} / ${{ matrix.worker }})
+    needs: workers
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+        worker: ${{ fromJSON(needs.workers.outputs.list) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -83,11 +105,12 @@ jobs:
 
       # MAINA_REQUIRE_SANDBOX=1 fails loudly if srt is missing rather than
       # skipping. The suite itself runs each case unsandboxed (must escape)
-      # then sandboxed (must be blocked).
-      - name: Escape suite
+      # then sandboxed (must be blocked), for this job's worker.
+      - name: Escape suite (${{ matrix.worker }})
         run: bun test ci/escape
         env:
           MAINA_REQUIRE_SANDBOX: "1"
+          MAINA_ESCAPE_WORKERS: ${{ matrix.worker }}
 
   # The teeth, on their own: every case really does escape with no sandbox.
   # This is the one job allowed to run without the sandbox binary.
@@ -105,5 +128,5 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Every case escapes an unprotected worker
-        run: bun ci/escape/runner.ts unsandboxed --allow-missing-sandbox
+      - name: Every case escapes an unprotected worker, for every worker
+        run: bun ci/escape/runner.ts unsandboxed --worker all --allow-missing-sandbox
