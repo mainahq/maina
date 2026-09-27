@@ -1764,15 +1764,55 @@ describe("#614 review: docker words the gate cannot read, and empty ssh stdin", 
 		}
 	});
 
-	test("ssh stdin from any file, /dev/null included, stays remote.exec", () => {
-		// The parser drops words after a redirect, so `ssh h < /dev/null cmd`
-		// reaches the gate as `ssh h < /dev/null`; only the stdin rule holds it.
+	test("ssh stdin from a script, or a remote command after /dev/null, is remote.exec", () => {
+		// Since #619 the words after `< /dev/null` reach the gate, so the
+		// remote command is read as one; the stdin rule no longer carries it.
 		for (const command of [
 			"ssh prod-1 < /dev/null 'rm -rf /srv/data'",
+			"ssh prod-1 0</dev/null 'rm -rf /srv/data'",
 			"ssh prod-1 < $SCRIPT",
+			"ssh prod-1 < /dev/null < teardown.sh",
+			"ssh prod-1 < teardown.sh < /dev/null",
 		]) {
 			expect(classesOf(command), command).toContain("remote.exec");
 			expect(verdictOf(command), command).toBe("ask");
+		}
+	});
+
+	test("a bare ssh whose only stdin is /dev/null runs nothing remotely", () => {
+		// Like `ssh -n`: the login shell reads end-of-file and exits.
+		for (const command of [
+			"ssh prod-1 < /dev/null",
+			"ssh prod-1 0</dev/null",
+		]) {
+			expect(classesOf(command), command).not.toContain("remote.exec");
+		}
+	});
+});
+
+describe("words after a mid-command redirect (#619)", () => {
+	const verdictOf = (command: string): string =>
+		evaluateRules(shellEvent(command), DEFAULT_POLICY, ctx).kind;
+	const GATED: readonly string[] = ["ask", "deny"];
+
+	test("a redirect before the arguments does not hide them", () => {
+		for (const [command, classes] of [
+			["rm < /dev/null -rf ~", ["fs.delete.recursive", "fs.delete.outside"]],
+			["rm 2>&1 -rf ~", ["fs.delete.recursive", "fs.delete.outside"]],
+			["rm 2>/dev/null -rf /", ["fs.delete.recursive", "fs.delete.outside"]],
+			[
+				"rm >/dev/null -rf ~ 2>&1",
+				["fs.delete.recursive", "fs.delete.outside"],
+			],
+			["rm <<< x -rf ~", ["fs.delete.recursive", "fs.delete.outside"]],
+			["rm <<EOF -rf ~\nx\nEOF", ["fs.delete.recursive", "fs.delete.outside"]],
+			["git < /dev/null push --force origin main", ["git.push.force"]],
+			["git 2>&1 push --force origin main", ["git.push.force"]],
+			["git >/dev/null reset --hard HEAD~3", ["git.discard"]],
+		] as const) {
+			const got = classesOf(command);
+			for (const c of classes) expect(got, command).toContain(c);
+			expect(GATED, command).toContain(verdictOf(command));
 		}
 	});
 });

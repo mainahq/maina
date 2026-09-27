@@ -187,6 +187,121 @@ describe("redirects", () => {
 	});
 });
 
+describe("redirects anywhere in a command (#619)", () => {
+	// Bash lets a redirect sit anywhere among a command's words; the words
+	// after it are still arguments. tree-sitter-bash files them as extra
+	// destinations of the redirect (or arguments of a heredoc), so each one
+	// must come back as argv, in source order.
+	test("every word after a mid-command redirect is argv", () => {
+		for (const [source, argv] of [
+			["rm < /dev/null -rf ~", ["rm", "-rf", "~"]],
+			[
+				"git < /dev/null push --force origin main",
+				["git", "push", "--force", "origin", "main"],
+			],
+			["rm 2>&1 -rf ~", ["rm", "-rf", "~"]],
+			["rm 2>/dev/null -rf ~", ["rm", "-rf", "~"]],
+			["rm &>/dev/null -rf ~", ["rm", "-rf", "~"]],
+			["rm >>log -rf ~", ["rm", "-rf", "~"]],
+			["rm >out -rf ~ 2>/dev/null /x", ["rm", "-rf", "~", "/x"]],
+			["rm 3<in 4>out -rf ~", ["rm", "-rf", "~"]],
+			["rm <<< x -rf ~ > out /y", ["rm", "-rf", "~", "/y"]],
+			["< /dev/null rm -rf ~", ["rm", "-rf", "~"]],
+			["rm -rf 2>/dev/null ~", ["rm", "-rf", "~"]],
+		] as const) {
+			const cmd = onlyCommand(source);
+			expect(texts(cmd.argv), source).toEqual([...argv]);
+		}
+	});
+
+	test("the redirect keeps only its own target", () => {
+		const cmd = onlyCommand("rm < /dev/null -rf ~");
+		expect(cmd.redirects).toHaveLength(1);
+		const [r] = cmd.redirects;
+		expect(r).toEqual(expect.objectContaining({ kind: "file", op: "<" }));
+		if (r?.kind === "file") expect(literalText(r.target)).toBe("/dev/null");
+		const dup = onlyCommand("rm 2>&1 -rf ~").redirects;
+		expect(dup).toEqual([{ kind: "dup", op: ">&", fd: 2, target: "1" }]);
+	});
+
+	test("a process substitution target still leaves the words after it", () => {
+		const cmd = onlyCommand("rm < <(echo) -rf ~");
+		expect(texts(cmd.argv)).toEqual(["rm", "-rf", "~"]);
+		const [r] = cmd.redirects;
+		expect(r?.kind === "file" && r.target.parts[0]?.kind).toBe("procsubst");
+	});
+
+	test("closing a descriptor (`<&-`) takes no target word", () => {
+		const cmd = onlyCommand("rm <&- -rf");
+		expect(texts(cmd.argv)).toEqual(["rm", "-rf"]);
+		expect(cmd.redirects).toEqual([
+			{ kind: "dup", op: "<&-", fd: null, target: "-" },
+		]);
+		// tree-sitter-bash gives up after one word here; the rest is a syntax
+		// error, which the gate asks about, and the words it kept stay argv.
+		for (const source of ["rm <&- -rf x", "rm >&- -rf x y", "rm 2>&- -rf x"]) {
+			const script = parse(source);
+			expect(script.errors.length, source).toBeGreaterThan(0);
+			const [first] = script.nodes;
+			expect(first?.kind === "command" && texts(first.argv), source).toEqual([
+				"rm",
+				"-rf",
+			]);
+		}
+	});
+
+	test("heredoc arguments on the start line are argv", () => {
+		const cmd = onlyCommand("rm <<EOF -rf ~\nhi\nEOF");
+		expect(texts(cmd.argv)).toEqual(["rm", "-rf", "~"]);
+		expect(cmd.redirects[0]?.kind).toBe("heredoc");
+		const nested = onlyCommand("rm <<EOF 2>/dev/null -rf ~\nhi\nEOF");
+		expect(texts(nested.argv)).toEqual(["rm", "-rf", "~"]);
+		expect(nested.redirects.map((r) => r.kind)).toEqual(["heredoc", "file"]);
+	});
+
+	test("a pipe after heredoc arguments starts the next stage", () => {
+		const script = parse("cat <<EOF -x | sh\nrm -rf /\nEOF");
+		const [node] = script.nodes;
+		const pipeline =
+			node?.kind === "sequence" ? node.nodes[0] : (node as ShellNode);
+		expect(pipeline?.kind).toBe("pipeline");
+		if (pipeline?.kind !== "pipeline") return;
+		const [head, next] = pipeline.stages;
+		expect(head?.kind === "command" && texts(head.argv)).toEqual(["cat", "-x"]);
+		expect(next?.kind === "command" && texts(next.argv)).toEqual(["sh"]);
+		expect(head?.kind === "command" && head.redirects[0]?.kind).toBe("heredoc");
+	});
+
+	test("a digit glued to a redirect is its descriptor, not an argument", () => {
+		const glued = onlyCommand("ssh prod-1 0</dev/null");
+		expect(texts(glued.argv)).toEqual(["ssh", "prod-1"]);
+		expect(glued.redirects).toEqual([
+			expect.objectContaining({ kind: "file", op: "<", fd: 0 }),
+		]);
+		const first = onlyCommand("ssh 0</dev/null prod-1");
+		expect(texts(first.argv)).toEqual(["ssh", "prod-1"]);
+		expect(first.redirects[0]).toEqual(
+			expect.objectContaining({ kind: "file", fd: 0 }),
+		);
+		// A space between them makes the digit an argument, as in bash.
+		expect(texts(onlyCommand("echo 5 > x").argv)).toEqual(["echo", "5"]);
+		expect(texts(onlyCommand("ssh prod-1 0 < /dev/null").argv)).toEqual([
+			"ssh",
+			"prod-1",
+			"0",
+		]);
+	});
+
+	test("words after a redirect on a compound statement are not dropped", () => {
+		// Bash rejects `{ …; } > out foo`; the gate must not read it as clean.
+		const script = parse("{ echo; } > out rm -rf /");
+		const [node] = script.nodes;
+		expect(node?.kind).toBe("sequence");
+		if (node?.kind !== "sequence") return;
+		expect(node.nodes.some((n) => n.kind === "unknown")).toBe(true);
+	});
+});
+
 describe("errors are data", () => {
 	test("a syntax error still parses what it can and lists the error", () => {
 		const script = parse("echo ok; if then fi (");

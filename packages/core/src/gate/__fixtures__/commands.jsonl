@@ -1151,3 +1151,40 @@
 {"id":"b-192","label":"benign","obfuscated":false,"kind":"shell","action":{"command":"ssh -N -L 5432:localhost:5432 bastion"},"classes":[]}
 {"id":"b-193","label":"benign","obfuscated":false,"kind":"shell","action":{"command":"ssh -G prod-1"},"classes":[]}
 {"id":"b-194","label":"benign","obfuscated":false,"kind":"shell","action":{"command":"docker volume rm --help"},"classes":[]}
+{"id":"d-501","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm < /dev/null -rf ~"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"d-502","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm 2>&1 -rf ~"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"d-503","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm 2>/dev/null -rf /"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"d-504","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm >/dev/null -rf ~ 2>&1"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"d-505","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm &>/dev/null -rf /"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"d-506","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm >>/tmp/rm.log -rf ~"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"d-507","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm 3</dev/null 4>/dev/null -rf ~"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"d-508","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm <<< x -rf ~"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"d-509","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm <<EOF -rf ~\nx\nEOF"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"d-510","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm <<EOF 2>/dev/null -rf ~\nx\nEOF"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"d-511","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm < <(true) -rf ~"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"d-512","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"rm -r 2>/dev/null -f ~"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"d-513","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"git < /dev/null push --force origin main"},"classes":["git.push.force"],"source":"wrong-allow"}
+{"id":"d-514","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"git 2>&1 push --force origin main"},"classes":["git.push.force"],"source":"wrong-allow"}
+{"id":"d-515","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"git >/dev/null 2>&1 push -f origin main"},"classes":["git.push.force"],"source":"wrong-allow"}
+{"id":"d-516","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"git 2>/dev/null reset --hard HEAD~3"},"classes":["git.discard"],"source":"wrong-allow"}
+{"id":"d-517","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"git < /dev/null clean -fdx"},"classes":["git.discard"],"source":"wrong-allow"}
+{"id":"d-518","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"ssh prod-1 < /dev/null 'rm -rf /srv/data'"},"classes":["remote.exec"],"source":"wrong-allow"}
+{"id":"d-519","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"ssh prod-1 0</dev/null 'systemctl stop api'"},"classes":["remote.exec"],"source":"wrong-allow"}
+{"id":"d-520","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"docker 2>&1 volume prune -f"},"classes":["system.destructive"],"source":"wrong-allow"}
+{"id":"d-521","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"find ~ 2>/dev/null -delete"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"d-522","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"dropdb 2>&1 app"},"classes":["db.destructive"],"source":"wrong-allow"}
+{"id":"d-523","label":"destructive","obfuscated":false,"kind":"shell","action":{"command":"chmod 2>/dev/null -R 777 /"},"classes":["system.destructive"],"source":"wrong-allow"}
+{"id":"o-376","label":"destructive","obfuscated":true,"kind":"shell","action":{"command":"FOO=1 rm < /dev/null -rf ~ | cat"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"o-377","label":"destructive","obfuscated":true,"kind":"shell","action":{"command":"sudo < /dev/null rm -rf ~"},"classes":["privilege.escalate","fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"o-378","label":"destructive","obfuscated":true,"kind":"shell","action":{"command":"bash -c 'rm < /dev/null -rf ~'"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"o-379","label":"destructive","obfuscated":true,"kind":"shell","action":{"command":"X=rm; $X < /dev/null -rf ~"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"o-380","label":"destructive","obfuscated":true,"kind":"shell","action":{"command":"cat <<EOF -x | sh\nrm -rf ~\nEOF"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"o-381","label":"destructive","obfuscated":true,"kind":"shell","action":{"command":"timeout < /dev/null 5 rm -rf ~"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"o-382","label":"destructive","obfuscated":true,"kind":"shell","action":{"command":"env < /dev/null rm -rf ~"},"classes":["fs.delete.recursive","fs.delete.outside"],"source":"wrong-allow"}
+{"id":"o-383","label":"destructive","obfuscated":true,"kind":"shell","action":{"command":"rm <&- -rf ~"},"classes":["fs.delete.recursive","shell.opaque"],"source":"wrong-allow"}
+{"id":"b-195","label":"benign","obfuscated":false,"kind":"shell","action":{"command":"ls 2>/dev/null -la"},"classes":[]}
+{"id":"b-196","label":"benign","obfuscated":false,"kind":"shell","action":{"command":"git < /dev/null status --short"},"classes":[]}
+{"id":"b-197","label":"benign","obfuscated":false,"kind":"shell","action":{"command":"cat <<EOF -n\nhi\nEOF"},"classes":[]}
+{"id":"b-198","label":"benign","obfuscated":false,"kind":"shell","action":{"command":"ssh prod-1 < /dev/null"},"classes":[]}
+{"id":"b-199","label":"benign","obfuscated":false,"kind":"shell","action":{"command":"grep 2>/dev/null -rn TODO src"},"classes":[]}
+{"id":"b-200","label":"benign","obfuscated":false,"kind":"shell","action":{"command":"git 2>&1 log --oneline -5"},"classes":[]}
