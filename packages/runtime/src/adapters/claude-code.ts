@@ -78,7 +78,8 @@ export type ClaudeOutput = Readonly<{
 	stderr: string;
 }>;
 
-const HOST = "claude-code";
+/** The host name the adapter stamps on every gate event. */
+export const CLAUDE_HOST = "claude-code";
 
 /**
  * The tools maina gates (see `mapTool`), as an anchored Claude Code matcher
@@ -282,7 +283,7 @@ function gateEvent(
 			? PERMISSION_MODES[payload.permission_mode]
 			: "unknown";
 	const input = {
-		host: HOST,
+		host: CLAUDE_HOST,
 		sessionId: typeof payload.session_id === "string" ? payload.session_id : "",
 		permissionMode: mode,
 		...mapped.input,

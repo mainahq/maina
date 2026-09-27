@@ -18,6 +18,7 @@
 
 import {
 	buildDigest,
+	type GateLogRecord,
 	gateLogEvents,
 	isoWeek,
 	isWeekKey,
@@ -25,11 +26,15 @@ import {
 	type WeeklyDigest,
 } from "../../packages/core/src/digest/build";
 import { renderDigest } from "../../packages/core/src/digest/render";
-import type { LogRecord } from "./hook";
 import type { Result } from "./receipt-check";
 
 export { isoWeek };
 export type WeeklyMetrics = WeeklyDigest;
+/**
+ * One log line as the report reads it: the hook's `LogRecord`, or a line
+ * written before #584 without its root, host, permission mode and decision ids.
+ */
+export type ReportRecord = GateLogRecord;
 
 export interface ReportDeps {
 	readonly root: string;
@@ -45,7 +50,7 @@ const SOURCE =
 export const parseLog = parseGateLog;
 
 export function computeMetrics(
-	records: readonly LogRecord[],
+	records: readonly ReportRecord[],
 	week: string,
 ): WeeklyMetrics {
 	return buildDigest(gateLogEvents(records), week);

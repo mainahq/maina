@@ -6,8 +6,11 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import type { LogRecord } from "../../../dogfood/hook";
-import { computeMetrics, renderReport } from "../../../dogfood/report";
+import {
+	computeMetrics,
+	type ReportRecord,
+	renderReport,
+} from "../../../dogfood/report";
 import {
 	dogfoodWeeksEvidence,
 	openP0At,
@@ -18,7 +21,10 @@ import {
 const LINK = "https://github.com/mainahq/maina/actions/runs/42";
 const NOW = new Date("2026-09-27T12:00:00Z"); // a Sunday in ISO week 2026-39
 
-const record = (ts: string, verdict: LogRecord["verdict"]): LogRecord => ({
+const record = (
+	ts: string,
+	verdict: ReportRecord["verdict"],
+): ReportRecord => ({
 	ts,
 	tool: "Bash",
 	action: "bun test",
@@ -27,7 +33,7 @@ const record = (ts: string, verdict: LogRecord["verdict"]): LogRecord => ({
 });
 
 /** A report exactly as `bun run dogfood:report` writes it. */
-const report = (week: string, records: readonly LogRecord[]): string =>
+const report = (week: string, records: readonly ReportRecord[]): string =>
 	renderReport(computeMetrics(records, week));
 
 const W38 = report("2026-38", [

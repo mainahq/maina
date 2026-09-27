@@ -24,12 +24,16 @@ import { parseLog } from "../report";
 const ROOT = resolve(import.meta.dir, "../../..");
 const NOW = "2026-09-25T10:00:00.000Z";
 
-const bash = (command: string, cwd = "/work/maina"): string =>
+const bash = (
+	command: string,
+	cwd = "/work/maina",
+	permissionMode = "default",
+): string =>
 	JSON.stringify({
 		session_id: "s1",
 		transcript_path: "/dev/null",
 		cwd,
-		permission_mode: "default",
+		permission_mode: permissionMode,
 		hook_event_name: "PreToolUse",
 		tool_name: "Bash",
 		tool_input: { command },
@@ -39,22 +43,30 @@ const bash = (command: string, cwd = "/work/maina"): string =>
 function gate(
 	verdict: "allow" | "ask" | "deny",
 	reason = "why",
+	decisionIds: readonly string[] = [],
 ): ClaudeHookPorts {
 	return {
 		evaluate: async () => ({
 			verdict,
 			reason,
-			decisionIds: [],
+			decisionIds,
 			degraded: false,
 		}),
 		sessionSummary: async () => undefined,
 	};
 }
 
+/** The workspace root for any directory under /work/maina, as git would say. */
+const workRoot = (cwd: string): string | null =>
+	cwd === "/work/maina" || cwd.startsWith("/work/maina/")
+		? "/work/maina"
+		: null;
+
 async function run(
 	raw: string,
 	ports: ClaudeHookPorts,
 	override = false,
+	rootOf: (cwd: string) => string | null = workRoot,
 ): Promise<{
 	out: Awaited<ReturnType<typeof runDogfoodHook>>;
 	logged: LogRecord[];
@@ -64,6 +76,7 @@ async function run(
 		ports,
 		override,
 		now: () => NOW,
+		rootOf,
 		log: (record) => logged.push(record),
 	});
 	return { out, logged };
@@ -88,8 +101,54 @@ describe("runDogfoodHook", () => {
 				action: "bun test",
 				verdict: "allow",
 				reason: "ok",
+				root: "/work/maina",
+				host: "claude-code",
+				permissionMode: "default",
+				decisionIds: [],
 			},
 		]);
+	});
+
+	// #584: the exporter rebuilds the event under its workspace root (so
+	// absolute paths are not relabelled as outside it) and joins the record
+	// to `decision_outcome` by decision id.
+	test("records carry the root, host, permission mode and decision ids (#584)", async () => {
+		const { logged } = await run(
+			bash("rm -rf dist", "/work/maina/packages/core", "acceptEdits"),
+			gate("ask", "irreversible", ["d-1", "d-1:reversed"]),
+		);
+		expect(logged[0]).toMatchObject({
+			root: "/work/maina",
+			host: "claude-code",
+			permissionMode: "accept_edits",
+			decisionIds: ["d-1", "d-1:reversed"],
+		});
+	});
+
+	test("the root falls back to the host's directory outside a repository (#584)", async () => {
+		const { logged } = await run(bash("ls", "/tmp/scratch"), gate("allow"));
+		expect(logged[0]?.root).toBe("/tmp/scratch");
+	});
+
+	test("a root lookup that throws falls back to the host's directory (#584)", async () => {
+		const { logged } = await run(
+			bash("ls", "/work/maina/scripts"),
+			gate("allow"),
+			false,
+			() => {
+				throw new Error("git missing");
+			},
+		);
+		expect(logged).toHaveLength(1);
+		expect(logged[0]?.root).toBe("/work/maina/scripts");
+	});
+
+	test("an unknown permission mode is logged as unknown (#584)", async () => {
+		const { logged } = await run(
+			bash("ls", "/work/maina", "yolo"),
+			gate("allow"),
+		);
+		expect(logged[0]?.permissionMode).toBe("unknown");
 	});
 
 	test("an ask is passed to Claude Code", async () => {
@@ -147,6 +206,13 @@ describe("runDogfoodHook", () => {
 		expect(logged[0]?.verdict).toBe("ask");
 		expect(logged[0]?.reason.startsWith("hook crash")).toBe(true);
 		expect(logged[0]?.tool).toBe("unknown");
+		// Nothing was read, so nothing is claimed about where or how (#584).
+		expect(logged[0]).toMatchObject({
+			root: "",
+			host: "claude-code",
+			permissionMode: "unknown",
+			decisionIds: [],
+		});
 	});
 
 	test("a gate that throws asks", async () => {
@@ -258,7 +324,12 @@ describe("repo wiring", () => {
 			tool: "Bash",
 			action: "rm -rf /",
 			verdict: "ask",
+			// The real git root lookup (#584).
+			root: ROOT,
+			host: "claude-code",
+			permissionMode: "default",
 		});
+		expect(Array.isArray(record.decisionIds)).toBe(true);
 	}, 20_000);
 
 	test("the repo policy protects master and v1/main (#459)", async () => {

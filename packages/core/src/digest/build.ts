@@ -15,12 +15,17 @@
 import { baseQuestionId } from "../decide/encoding";
 import { type LogSlice, SHADOW_ACTION } from "../decide/evidence";
 import type { DecisionRecord } from "../decide/log/schema";
+import { PERMISSION_MODES, type PermissionMode } from "../gate/events";
 import { DEFAULT_POLICY } from "../policy/defaults";
 
 export type DigestVerdict = "allow" | "ask" | "deny";
 
-/** One line of the gate log (`{ ts, tool, action, verdict, reason, override? }`). */
-type GateLogRecord = Readonly<{
+/**
+ * One line of the gate log (`{ ts, tool, action, verdict, reason, override?,
+ * root?, host?, permissionMode?, decisionIds? }`). The last four came with
+ * #584 and are absent from older lines; when present they must be well formed.
+ */
+export type GateLogRecord = Readonly<{
 	/** ISO-8601 timestamp. */
 	ts: string;
 	tool: string;
@@ -28,6 +33,13 @@ type GateLogRecord = Readonly<{
 	verdict: DigestVerdict;
 	reason: string;
 	override?: true;
+	/** Workspace root the call was gated under; empty when unknown. */
+	root?: string;
+	/** Host that made the call (`claude-code`, ...). */
+	host?: string;
+	permissionMode?: PermissionMode;
+	/** Ids of the `action.risk` decisions behind the verdict (`decision_outcome` joins on them). */
+	decisionIds?: readonly string[];
 }>;
 
 /** One gated action, whichever log it came from. */
@@ -116,6 +128,16 @@ export function weekBounds(week: string): WeekBounds {
 
 // ── Gate log ────────────────────────────────────────────────────────────────
 
+const MODES: ReadonlySet<unknown> = new Set(PERMISSION_MODES);
+
+const optional = (v: unknown, ok: (v: unknown) => boolean): boolean =>
+	v === undefined || ok(v);
+
+const isString = (v: unknown): boolean => typeof v === "string";
+
+const isStringList = (v: unknown): boolean =>
+	Array.isArray(v) && v.every(isString);
+
 function asRecord(v: unknown): GateLogRecord | undefined {
 	if (typeof v !== "object" || v === null) return undefined;
 	const r = v as Record<string, unknown>;
@@ -126,7 +148,11 @@ function asRecord(v: unknown): GateLogRecord | undefined {
 		typeof r.action !== "string" ||
 		typeof r.verdict !== "string" ||
 		!VERDICTS.has(r.verdict) ||
-		typeof r.reason !== "string"
+		typeof r.reason !== "string" ||
+		!optional(r.root, isString) ||
+		!optional(r.host, isString) ||
+		!optional(r.permissionMode, (m) => MODES.has(m)) ||
+		!optional(r.decisionIds, isStringList)
 	) {
 		return undefined;
 	}

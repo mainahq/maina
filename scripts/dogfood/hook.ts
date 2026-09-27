@@ -23,11 +23,21 @@
  *
  * Every gated decision is appended to `.maina/dogfood/log.jsonl`
  * (gitignored; `MAINA_DOGFOOD_LOG` overrides the path) as
- * `{ ts, tool, action, verdict, reason, override? }` and summarised weekly
- * by `bun run dogfood:report`.
+ * `{ ts, tool, action, verdict, reason, override?, root, host,
+ * permissionMode, decisionIds }` and summarised weekly by
+ * `bun run dogfood:report`. `root`, `host`, `permissionMode` and
+ * `decisionIds` (#584) let an exporter rebuild the gate event under its
+ * workspace root and join the record to the decision log's outcomes.
  */
 
-import type { ClaudeOutput } from "../../packages/runtime/src/adapters/claude-code";
+import {
+	PERMISSION_MODES,
+	type PermissionMode,
+} from "../../packages/core/src/gate/events";
+import {
+	CLAUDE_HOST,
+	type ClaudeOutput,
+} from "../../packages/runtime/src/adapters/claude-code";
 import {
 	type ClaudeHookPorts,
 	type ClaudeHookRun,
@@ -44,6 +54,17 @@ export interface LogRecord {
 	readonly verdict: Verdict;
 	readonly reason: string;
 	readonly override?: true;
+	/**
+	 * Workspace root the call was gated under: the git root of the host's
+	 * directory, that directory outside a repository, empty when unknown.
+	 */
+	readonly root: string;
+	/** Host that made the call. */
+	readonly host: string;
+	/** The host's permission mode, normalised by the adapter. */
+	readonly permissionMode: PermissionMode;
+	/** Ids of the `action.risk` decisions behind the verdict. */
+	readonly decisionIds: readonly string[];
 }
 
 export interface DogfoodDeps {
@@ -51,6 +72,11 @@ export interface DogfoodDeps {
 	/** MAINA_DOGFOOD_OVERRIDE=1: denies become asks. */
 	readonly override: boolean;
 	readonly now: () => string;
+	/**
+	 * The workspace root for a directory, or null outside a repository; the
+	 * lookup the runtime's gate makes. Best-effort: a throw counts as null.
+	 */
+	readonly rootOf: (cwd: string) => string | null;
 	/** Appends one record; best-effort, never changes the decision. */
 	readonly log: (record: LogRecord) => void;
 }
@@ -73,6 +99,40 @@ function actionOf(run: ClaudeHookRun): string {
 			? `${input.server}/${input.tool}`
 			: "");
 	return raw.length > MAX_ACTION ? `${raw.slice(0, MAX_ACTION - 3)}...` : raw;
+}
+
+const MODES: ReadonlySet<string> = new Set(PERMISSION_MODES);
+
+/** The git root of `cwd`, `cwd` itself when there is none or the lookup fails. */
+function rootFor(cwd: string, rootOf: DogfoodDeps["rootOf"]): string {
+	try {
+		return rootOf(cwd) ?? cwd;
+	} catch {
+		return cwd;
+	}
+}
+
+/**
+ * Where and how the call was gated, for the log (#584). A malformed call
+ * was never read, so it claims no root and an unknown mode.
+ */
+function contextOf(
+	run: ClaudeHookRun,
+	rootOf: DogfoodDeps["rootOf"],
+): Pick<LogRecord, "root" | "host" | "permissionMode"> {
+	if (run.event.type !== "gate") {
+		return { root: "", host: CLAUDE_HOST, permissionMode: "unknown" };
+	}
+	const { input, cwd } = run.event.event;
+	const mode = input.permissionMode;
+	return {
+		root: cwd === undefined ? "" : rootFor(cwd, rootOf),
+		host: typeof input.host === "string" ? input.host : CLAUDE_HOST,
+		permissionMode:
+			typeof mode === "string" && MODES.has(mode)
+				? (mode as PermissionMode)
+				: "unknown",
+	};
 }
 
 /**
@@ -100,6 +160,8 @@ export async function runDogfoodHook(
 			verdict: final.verdict,
 			reason: malformed ? `hook crash: ${final.reason}` : final.reason,
 			...(overridden ? { override: true as const } : {}),
+			...contextOf(run, deps.rootOf),
+			decisionIds: decision.decisionIds,
 		});
 	} catch {
 		// Logging is best-effort; it never changes the decision.
@@ -127,6 +189,9 @@ if (import.meta.main) {
 	const { systemClaudeHookPorts } = await import(
 		"../../packages/runtime/src/hook-system"
 	);
+	const { gitProbe, resolveRoot } = await import(
+		"../../packages/runtime/src/root"
+	);
 	const repoRoot = resolve(import.meta.dir, "../..");
 	const logPath =
 		process.env.MAINA_DOGFOOD_LOG ??
@@ -135,6 +200,10 @@ if (import.meta.main) {
 		ports: systemClaudeHookPorts(),
 		override: process.env.MAINA_DOGFOOD_OVERRIDE === "1",
 		now: () => new Date().toISOString(),
+		rootOf: (cwd) => {
+			const root = resolveRoot({ cwd }, gitProbe);
+			return root.ok ? root.value.path : null;
+		},
 		log: (record) => {
 			mkdirSync(dirname(logPath), { recursive: true });
 			appendFileSync(logPath, `${JSON.stringify(record)}\n`);
