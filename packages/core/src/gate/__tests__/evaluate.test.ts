@@ -1273,4 +1273,42 @@ describe("async model pre-inference (#572)", () => {
 		);
 		expect(result.verdict).toBe("allow");
 	});
+
+	test("a negative pre-inference time earns no budget credit", () => {
+		// A clock that stepped back during pre-inference must not pay for a
+		// slow decide stage.
+		let now = 0;
+		const result = evaluateGate(
+			withModel(() => ({ verdict: "allow", p: 1 }), {
+				clock: {
+					now: () => {
+						now += 200;
+						return now;
+					},
+				},
+				budgetMs: 250,
+				preInferenceMs: -1000,
+			}),
+			shellEvent("ls -la"),
+			modelPolicy(),
+		);
+		expect(result.verdict).toBe("ask");
+		expect(result.degraded).toBe(true);
+		expect(result.reason).toContain("over the 250 ms budget");
+	});
+
+	test("a non-finite pre-inference time asks, degraded", () => {
+		for (const preInferenceMs of [Number.NaN, Number.POSITIVE_INFINITY]) {
+			const result = evaluateGate(
+				withModel(() => ({ verdict: "allow", p: 1 }), {
+					budgetMs: 250,
+					preInferenceMs,
+				}),
+				shellEvent("ls -la"),
+				modelPolicy(),
+			);
+			expect(result.verdict).toBe("ask");
+			expect(result.degraded).toBe(true);
+		}
+	});
 });

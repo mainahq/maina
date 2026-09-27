@@ -434,8 +434,10 @@ function consultModel(
 		}
 		answers.push({ request, decision });
 	}
-	// An async model's pre-inference was spent on this stage too.
-	const elapsed = (ports.preInferenceMs ?? 0) + (ports.clock.now() - started);
+	// An async model's pre-inference was spent on this stage too. It never
+	// earns credit (a clock that stepped back), and NaN still fails closed.
+	const preInference = Math.max(0, ports.preInferenceMs ?? 0);
+	const elapsed = preInference + (ports.clock.now() - started);
 	const judged = judgeAnswers(decisions(), policy, ports.budgetMs, elapsed);
 	return {
 		...judged,
