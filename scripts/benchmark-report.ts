@@ -27,6 +27,13 @@ type Result<T> =
 /** Where the report is committed, repo-relative. */
 export const BENCHMARK_REPORT = "packages/docs/src/data/benchmark-report.json";
 
+/**
+ * The labelled gate corpus. It is System 1 training data, so a report whose
+ * dataset is this file would score the model on what it learned from
+ * (#583, FR-GATE-2); the benchmark runs on its own frozen sets.
+ */
+export const GATE_CORPUS = "packages/core/src/gate/__fixtures__/commands.jsonl";
+
 const ISSUE_339 = "https://github.com/mainahq/maina/issues/339";
 
 // ── Report ──────────────────────────────────────────────────────────────────
@@ -210,9 +217,53 @@ export function readBenchmarkReport(
 		return { ok: false, error: `${BENCHMARK_REPORT}: could not be read` };
 	}
 	const parsed = parseBenchmarkReport(text);
-	return parsed.ok
-		? parsed
-		: { ok: false, error: `${BENCHMARK_REPORT}: ${parsed.error}` };
+	if (!parsed.ok) {
+		return { ok: false, error: `${BENCHMARK_REPORT}: ${parsed.error}` };
+	}
+	if (corpusSha256s(root).has(parsed.value.dataset.sha256)) {
+		return {
+			ok: false,
+			error: `${BENCHMARK_REPORT}: the dataset is ${GATE_CORPUS}, the System 1 training data; run the benchmark on its own frozen sets (FR-GATE-2, #583)`,
+		};
+	}
+	return parsed;
+}
+
+const sha256Of = (bytes: Uint8Array): string =>
+	new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
+
+/**
+ * The sha256 of the gate corpus as it is under `root` and as it was at every
+ * commit that touched it. The corpus grows with most gate changes, so a
+ * harness that froze an earlier revision is caught too. Without git history
+ * (not a repo, a shallow clone) only the revisions present count.
+ */
+function corpusSha256s(root: string): ReadonlySet<string> {
+	const hashes = new Set<string>();
+	const path = join(root, GATE_CORPUS);
+	if (existsSync(path)) {
+		try {
+			hashes.add(sha256Of(readFileSync(path)));
+		} catch {
+			// Unreadable: the committed revisions below still count.
+		}
+	}
+	const log = Bun.spawnSync(["git", "log", "--format=%H", "--", GATE_CORPUS], {
+		cwd: root,
+		stdout: "pipe",
+		stderr: "ignore",
+	});
+	if (log.exitCode !== 0) return hashes;
+	for (const commit of log.stdout.toString().split("\n")) {
+		if (commit.trim() === "") continue;
+		const show = Bun.spawnSync(
+			["git", "show", `${commit.trim()}:${GATE_CORPUS}`],
+			{ cwd: root, stdout: "pipe", stderr: "ignore" },
+		);
+		// A commit that deleted the file has no blob to hash.
+		if (show.exitCode === 0) hashes.add(sha256Of(show.stdout));
+	}
+	return hashes;
 }
 
 /** The release gate's check (#362): the report must exist and be valid. */

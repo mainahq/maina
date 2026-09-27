@@ -16,6 +16,7 @@ import { dirname, join } from "node:path";
 import {
 	BENCHMARK_REPORT,
 	type BenchmarkReport,
+	GATE_CORPUS,
 	parseBenchmarkReport,
 	readBenchmarkReport,
 	renderBenchmarksPage,
@@ -276,6 +277,65 @@ describe("reading the report", () => {
 		}
 		write(json(REPORT));
 		expect(requireBenchmarkReport(root)).toEqual({ ok: true, value: REPORT });
+	});
+
+	const writeCorpus = (text: string): void => {
+		const path = join(root, GATE_CORPUS);
+		mkdirSync(dirname(path), { recursive: true });
+		writeFileSync(path, text);
+	};
+
+	// The gate corpus is System 1 training data (#583, FR-GATE-2): a report
+	// whose dataset is that corpus scores the model on what it trained on.
+	test("a report run on the training corpus is an error", () => {
+		const corpus =
+			'{"id":"d-001","kind":"shell","action":{"command":"rm -rf /"}}\n';
+		writeCorpus(corpus);
+		const sha256 = new Bun.CryptoHasher("sha256").update(corpus).digest("hex");
+		write(json({ ...REPORT, dataset: { ...REPORT.dataset, sha256 } }));
+		const read = readBenchmarkReport(root);
+		expect(read.ok).toBe(false);
+		if (!read.ok) {
+			expect(read.error).toContain(GATE_CORPUS);
+			expect(read.error).toContain("training");
+		}
+		expect(requireBenchmarkReport(root).ok).toBe(false);
+	});
+
+	// The corpus changes with most gate PRs, so a harness that froze an
+	// earlier revision of it would slip past a check against today's file.
+	test("a report run on an earlier revision of the corpus is an error", () => {
+		const git = (...args: string[]): void => {
+			const run = Bun.spawnSync(["git", ...args], { cwd: root });
+			if (run.exitCode !== 0) throw new Error(run.stderr.toString());
+		};
+		git("init", "-q");
+		git("config", "user.email", "bench@example.com");
+		git("config", "user.name", "bench");
+		git("config", "commit.gpgsign", "false");
+		const earlier =
+			'{"id":"d-001","kind":"shell","action":{"command":"rm -rf /"}}\n';
+		writeCorpus(earlier);
+		git("add", GATE_CORPUS);
+		git("commit", "-q", "--no-verify", "-m", "corpus v1");
+		writeCorpus(
+			`${earlier}{"id":"d-002","kind":"shell","action":{"command":"rm -rf ~"}}\n`,
+		);
+		git("add", GATE_CORPUS);
+		git("commit", "-q", "--no-verify", "-m", "corpus v2");
+		const sha256 = new Bun.CryptoHasher("sha256").update(earlier).digest("hex");
+		write(json({ ...REPORT, dataset: { ...REPORT.dataset, sha256 } }));
+		const read = readBenchmarkReport(root);
+		expect(read.ok).toBe(false);
+		if (!read.ok) expect(read.error).toContain(GATE_CORPUS);
+		write(json(REPORT));
+		expect(readBenchmarkReport(root)).toEqual({ ok: true, value: REPORT });
+	});
+
+	test("a report on another dataset is read beside the corpus", () => {
+		writeCorpus("{}\n");
+		write(json(REPORT));
+		expect(readBenchmarkReport(root)).toEqual({ ok: true, value: REPORT });
 	});
 });
 
