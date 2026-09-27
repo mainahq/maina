@@ -206,8 +206,23 @@ export {
 	type DriftThresholds,
 	driftThresholds,
 } from "./decide/drift";
+// System 1 input contract, encoding v1 (#582): canonical texts for the model
 export {
+	baseQuestionId,
+	type CanonicalTexts,
+	canonicaliseState,
+	canonicalTexts,
+	ENCODING_VERSION,
+	type EncodingError,
+	REVERSED_SUFFIX,
+	scrub,
+} from "./decide/encoding";
+export {
+	approxTokens,
+	LENGTH_BUCKETS,
+	type LengthBucket,
 	type LogSlice,
+	lengthBucket,
 	readLogSlice,
 	SHADOW_ACTION,
 } from "./decide/evidence";

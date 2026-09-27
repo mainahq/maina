@@ -1,12 +1,23 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createFixedClock } from "../../ports/testing";
-import { confidenceOf, readLogSlice, verdictOf } from "../evidence";
+import { pythonCanonicalJson, REVERSED_SUFFIX } from "../encoding";
+import {
+	approxTokens,
+	confidenceOf,
+	LENGTH_BUCKETS,
+	lengthBucket,
+	readLogSlice,
+	verdictOf,
+} from "../evidence";
 import {
 	logDecision,
 	outcomePorts,
 	unwrap,
 } from "../outcomes/__tests__/fixtures";
 import { linkOutcome } from "../outcomes/link";
+import type { DecideRequest } from "../types";
 import { riskRecord, SYSTEM1 } from "./slice-fixtures";
 
 describe("confidenceOf", () => {
@@ -76,5 +87,147 @@ describe("verdictOf", () => {
 			kind: "wrong",
 			errors: ["false_negative", "false_negative", "false_negative"],
 		});
+	});
+});
+
+// ── Length buckets (maina-model contracts/buckets.py) ───────────────────────
+
+type ParityFixture = Readonly<{
+	name: string;
+	request: Readonly<{
+		type: DecideRequest["type"];
+		trusted: Readonly<Record<string, unknown>>;
+		untrusted: Readonly<Record<string, unknown>>;
+		questions: DecideRequest["questions"];
+	}>;
+	bucket: string;
+	approxTokens: number;
+}>;
+
+const PARITY = JSON.parse(
+	readFileSync(
+		join(import.meta.dir, "..", "__fixtures__", "encoding-parity.json"),
+		"utf-8",
+	),
+) as Readonly<{ fixtures: readonly ParityFixture[] }>;
+
+const decideRequest = ({ request }: ParityFixture): DecideRequest => ({
+	type: request.type,
+	state: { trusted: request.trusted, untrusted: request.untrusted },
+	questions: request.questions,
+});
+
+/** An action.risk request whose untrusted text is `n` bytes of padding. */
+function padded(n: number, id = "d1"): DecideRequest {
+	return {
+		type: "action.risk",
+		state: { trusted: {}, untrusted: { pad: "x".repeat(n) } },
+		questions: [{ kind: "choice", id, options: ["allow", "ask", "deny"] }],
+	};
+}
+
+/** The smallest padding whose request measures more than `edge` tokens. */
+function firstPast(edge: number): number {
+	let n = 0;
+	while (approxTokens(padded(n)) <= edge && n <= 4 * edge) n += 1;
+	return n;
+}
+
+describe("lengthBucket", () => {
+	test("the buckets are the model's, in order", () => {
+		expect(LENGTH_BUCKETS).toEqual(["le128", "le512", "le2048", "gt2048"]);
+	});
+
+	for (const f of PARITY.fixtures) {
+		test(`parity with contracts/buckets.py: ${f.name}`, () => {
+			const request = decideRequest(f);
+			expect(approxTokens(request)).toBe(f.approxTokens);
+			expect(lengthBucket(request) as string).toBe(f.bucket);
+		});
+	}
+
+	test("measures ceil(utf-8 bytes / 4) of the Python canonical input", () => {
+		const request = padded(10);
+		const text = pythonCanonicalJson({
+			questions: request.questions,
+			trusted: {},
+			type: "action.risk",
+			untrusted: { pad: "x".repeat(10) },
+		});
+		expect(text).toBe(
+			'{"questions":[{"id":"d1","kind":"choice","options":["allow","ask","deny"]}],"trusted":{},"type":"action.risk","untrusted":{"pad":"xxxxxxxxxx"}}',
+		);
+		expect(approxTokens(request)).toBe(Math.ceil(text.length / 4));
+		// Non-ASCII counts in utf-8 bytes, not UTF-16 code units.
+		const wide: DecideRequest = {
+			...request,
+			state: { trusted: {}, untrusted: { pad: "é".repeat(10) } },
+		};
+		expect(approxTokens(wide)).toBe(Math.ceil((text.length + 10) / 4));
+	});
+
+	test("each edge belongs to the bucket below it", () => {
+		for (const [i, edge] of [128, 512, 2048].entries()) {
+			const n = firstPast(edge);
+			expect(approxTokens(padded(n - 1))).toBe(edge);
+			expect(lengthBucket(padded(n - 1)) as string).toBe(
+				LENGTH_BUCKETS[i] as string,
+			);
+			expect(lengthBucket(padded(n)) as string).toBe(
+				LENGTH_BUCKETS[i + 1] as string,
+			);
+		}
+	});
+
+	test("the gate's reversed call shares its base's bucket, even at an edge", () => {
+		const n = firstPast(128) - 1;
+		const reversed = padded(n, `d1${REVERSED_SUFFIX}`);
+		expect(approxTokens(reversed)).toBe(approxTokens(padded(n)));
+		expect(lengthBucket(reversed)).toBe("le128");
+		// Only a trailing suffix is removed.
+		expect(lengthBucket(padded(n, `d1${REVERSED_SUFFIX}x`))).toBe("le512");
+	});
+});
+
+describe("pythonCanonicalJson", () => {
+	test("numbers read back from JavaScript's JSON print as Python prints them", () => {
+		expect(
+			pythonCanonicalJson([
+				1.0,
+				-0,
+				1.5,
+				1e-7,
+				1e16,
+				0.0001,
+				1e22,
+				123456789.123,
+				-1.5e-10,
+				1000000000000000.5,
+				1e-5,
+				5e-324,
+				1.7976931348623157e308,
+				Number.NaN,
+			]),
+		).toBe(
+			"[1,0,1.5,1e-07,10000000000000000,0.0001,1e+22,123456789.123,-1.5e-10,1000000000000000.5,1e-05,5e-324,1.7976931348623157e+308,null]",
+		);
+	});
+
+	test("keys sort by code point, which differs from UTF-16 above the BMP", () => {
+		expect(pythonCanonicalJson({ "🎉": 2, Ａ: 1, "10": 0, "9": 0 })).toBe(
+			'{"10":0,"9":0,"Ａ":1,"🎉":2}',
+		);
+	});
+
+	test("strings escape like json.dumps(ensure_ascii=False)", () => {
+		expect(pythonCanonicalJson({ s: '"\\\b\f\n\r\t\u0001é' })).toBe(
+			'{"s":"\\"\\\\\\b\\f\\n\\r\\t\\u0001é"}',
+		);
+	});
+
+	test("undefined object values are dropped, as JSON drops them", () => {
+		expect(pythonCanonicalJson({ a: undefined, b: [undefined] })).toBe(
+			'{"b":[null]}',
+		);
 	});
 });

@@ -5,11 +5,13 @@
  */
 
 import type { Result } from "../db/index";
+import { baseQuestionId, pythonCanonicalJson } from "./encoding";
 import type { DecisionLogPorts } from "./log/append";
 import { type DecisionFilter, queryDecisions } from "./log/query";
 import type { DecisionLogError, DecisionRecord } from "./log/schema";
 import { queryOutcomes } from "./outcomes/link";
 import type { Outcome, OutcomeError, OutcomeRecord } from "./outcomes/types";
+import type { DecideRequest } from "./types";
 
 /** The `finalAction` of every shadow record: nothing was done with it. */
 export const SHADOW_ACTION = "shadow";
@@ -120,6 +122,47 @@ export function percentile(
 	const sorted = [...values].sort((a, b) => a - b);
 	const rank = Math.max(1, Math.ceil(q * sorted.length));
 	return sorted[rank - 1] ?? null;
+}
+
+/**
+ * Length buckets for calibration and ECE per bucket (spec §9.2), the same
+ * rule as maina-model `contracts/buckets.py`: tokenizer-free, so the eval
+ * harness, calibration and the runtime agree whatever tokenizer a model
+ * version uses.
+ */
+export const LENGTH_BUCKETS = ["le128", "le512", "le2048", "gt2048"] as const;
+
+export type LengthBucket = (typeof LENGTH_BUCKETS)[number];
+
+const BUCKET_EDGES: readonly (readonly [number, LengthBucket])[] = [
+	[128, "le128"],
+	[512, "le512"],
+	[2048, "le2048"],
+];
+
+/**
+ * Approximate tokens of `request`: `ceil(utf-8 bytes / 4)` of the Python
+ * canonical input `{questions, trusted, type, untrusted}`, with every
+ * question id at its base, so the gate's two calls for one action always
+ * measure the same.
+ */
+export function approxTokens(request: DecideRequest): number {
+	const text = pythonCanonicalJson({
+		questions: request.questions.map((q) => ({
+			...q,
+			id: baseQuestionId(q.id),
+		})),
+		trusted: request.state.trusted ?? null,
+		type: request.type,
+		untrusted: request.state.untrusted ?? null,
+	});
+	return Math.ceil(new TextEncoder().encode(text).length / 4);
+}
+
+/** The length bucket of `request`; an edge belongs to the bucket below it. */
+export function lengthBucket(request: DecideRequest): LengthBucket {
+	const n = approxTokens(request);
+	return BUCKET_EDGES.find(([edge]) => n <= edge)?.[1] ?? "gt2048";
 }
 
 const CALIBRATION_BINS = 10;

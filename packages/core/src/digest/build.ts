@@ -12,9 +12,9 @@
  * Pure: callers read the log and pick the week.
  */
 
+import { baseQuestionId } from "../decide/encoding";
 import { type LogSlice, SHADOW_ACTION } from "../decide/evidence";
 import type { DecisionRecord } from "../decide/log/schema";
-import { REVERSED_SUFFIX } from "../gate/evaluate";
 import { DEFAULT_POLICY } from "../policy/defaults";
 
 export type DigestVerdict = "allow" | "ask" | "deny";
@@ -176,12 +176,6 @@ export function gateLogEvents(
 
 const GATE_TYPE = "action.risk";
 
-function baseId(id: string): string {
-	return id.endsWith(REVERSED_SUFFIX)
-		? id.slice(0, -REVERSED_SUFFIX.length)
-		: id;
-}
-
 /** The class that explains the verdict: the first one not allowed by default. */
 function ruleOfSubject(subject: DigestSubject | undefined): string {
 	if (subject === undefined) return UNKNOWN;
@@ -211,7 +205,7 @@ export function decisionLogEvents(
 		if (record.type !== GATE_TYPE || record.finalAction === SHADOW_ACTION) {
 			continue;
 		}
-		const key = baseId(record.id);
+		const key = baseQuestionId(record.id);
 		groups.set(key, [...(groups.get(key) ?? []), record]);
 	}
 	const events: Array<Readonly<{ key: string; event: DigestEvent }>> = [];
