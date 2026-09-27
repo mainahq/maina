@@ -380,6 +380,110 @@ function classifyMcp(
 		}
 	}
 	if (mcpTouchesGateControl(event, ctx)) out.add("gate.self_override");
+	const deletes = mcpDeletedResource(toolWords(event.action.tool));
+	if (deletes !== undefined) out.add(deletes);
+}
+
+/** A tool name's words: `deleteRepository` and `delete-repository` both read `delete`, `repository`. */
+const toolWords = (tool: string): readonly string[] =>
+	tool
+		.replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+		.toLowerCase()
+		.split(/[^a-z0-9]+/);
+
+/** Tool-name words that destroy what the rest of the name names. */
+const MCP_DESTROY_VERBS: ReadonlySet<string> = new Set([
+	"delete",
+	"destroy",
+	"drop",
+	"terminate",
+	"purge",
+	"remove",
+	"rm",
+]);
+
+/** A hosted repository: deleting it takes every ref, issue and release with it. */
+const MCP_REPO_NOUNS: ReadonlySet<string> = new Set([
+	"repository",
+	"repositories",
+	"repo",
+	"repos",
+]);
+
+/** A data store: deleting it is dropping a database. */
+const MCP_DATA_NOUNS: ReadonlySet<string> = new Set([
+	"database",
+	"databases",
+	"db",
+	"dbs",
+	"table",
+	"tables",
+	"collection",
+	"collections",
+	"bucket",
+	"buckets",
+	"keyspace",
+	"keyspaces",
+]);
+
+/** A live resource: deleting it is a deploy that takes something down. */
+const MCP_LIVE_NOUNS: ReadonlySet<string> = new Set([
+	"namespace",
+	"namespaces",
+	"cluster",
+	"clusters",
+	"deployment",
+	"deployments",
+	"project",
+	"projects",
+	"stack",
+	"stacks",
+	"environment",
+	"environments",
+	"instance",
+	"instances",
+	"vm",
+	"vms",
+	"server",
+	"servers",
+	"service",
+	"services",
+	"function",
+	"functions",
+	"app",
+	"apps",
+	"application",
+	"applications",
+	"volume",
+	"volumes",
+	"site",
+	"sites",
+	"org",
+	"organization",
+	"workspace",
+	"workspaces",
+]);
+
+/**
+ * The class of an MCP tool that deletes a repository, a data store or a live
+ * resource (#579): `delete_repository`, `s3_delete_bucket`,
+ * `rds_delete_db_instance`, `delete_namespace`. The name must end on the
+ * resource, so `remove_repository_collaborator` or `delete_file` is not one.
+ */
+function mcpDeletedResource(words: readonly string[]): ActionClass | undefined {
+	const verb = words.findIndex((w) => MCP_DESTROY_VERBS.has(w));
+	const last = words.at(-1) ?? "";
+	if (verb < 0 || verb === words.length - 1) return undefined;
+	if (
+		!MCP_REPO_NOUNS.has(last) &&
+		!MCP_DATA_NOUNS.has(last) &&
+		!MCP_LIVE_NOUNS.has(last)
+	)
+		return undefined;
+	const object = words.slice(verb + 1);
+	if (object.some((w) => MCP_REPO_NOUNS.has(w))) return "git.discard";
+	if (object.some((w) => MCP_DATA_NOUNS.has(w))) return "db.destructive";
+	return "deploy";
 }
 
 /** Input keys an MCP filesystem tool names a path with (`path`, `file_path`, `destination`, `uri`). */
@@ -481,10 +585,7 @@ function mcpTouchesGateControl(
 	event: Extract<GateEvent, { kind: "mcp" }>,
 	ctx: GateContext,
 ): boolean {
-	const words = event.action.tool
-		.replace(/([a-z0-9])([A-Z])/g, "$1_$2")
-		.toLowerCase()
-		.split(/[^a-z0-9]+/);
+	const words = toolWords(event.action.tool);
 	const replaces = words.some((w) => MCP_REPLACE_VERBS.has(w));
 	const changes =
 		replaces ||
@@ -1301,12 +1402,16 @@ function gitClassifier(args: Argv, cwd: string | null, ctx: ShellCtx): void {
 					? null
 					: resolvePath(to, dir, ctx.gate.home);
 			i += 2;
-		} else if (a === "-c" || a === "--git-dir" || a === "--work-tree") i += 2;
+		} else if (a === "-c") {
+			gitConfigParameter(args[i + 1], ctx);
+			i += 2;
+		} else if (a === "--git-dir" || a === "--work-tree") i += 2;
 		else if (a.startsWith("-")) i++;
 		else break;
 	}
 	const sub = literals[i];
 	const rest = literals.slice(i + 1);
+	if (sub === "config") gitConfig(rest, ctx);
 	if (
 		sub !== undefined &&
 		GIT_PATH_REWRITERS.has(sub) &&
@@ -1369,6 +1474,126 @@ function gitPathIsGateControl(
 	const path = word.replace(/^:(\([^)]*\)|\/)?/, "");
 	const resolved = resolvePath(path, cwd, ctx.gate.home) ?? path;
 	return removesGateControl(resolved) || globMatchesGateControl(resolved);
+}
+
+/** `core.hooksPath`: git matches config section and key names without case. */
+const isHooksPathKey = (key: string): boolean =>
+	key.toLowerCase() === "core.hookspath";
+
+/** `git config` options that take the next word as their value. */
+const GIT_CONFIG_VALUE_OPTIONS: ReadonlySet<string> = new Set([
+	"-f",
+	"--file",
+	"--blob",
+	"-t",
+	"--type",
+	"--default",
+	"--comment",
+	"--value",
+	"--url",
+]);
+
+/** `git config` subcommands (git 2.46+) and the legacy mode options they replace. */
+const GIT_CONFIG_MODES: Readonly<
+	Record<string, "read" | "set" | "unset" | "section">
+> = {
+	get: "read",
+	list: "read",
+	edit: "read",
+	"--get": "read",
+	"--get-all": "read",
+	"--get-regexp": "read",
+	"--get-urlmatch": "read",
+	"--get-color": "read",
+	"--get-colorbool": "read",
+	"-l": "read",
+	"--list": "read",
+	"-e": "read",
+	"--edit": "read",
+	set: "set",
+	"--add": "set",
+	"--replace-all": "set",
+	unset: "unset",
+	"--unset": "unset",
+	"--unset-all": "unset",
+	"remove-section": "section",
+	"rename-section": "section",
+	"--remove-section": "section",
+	"--rename-section": "section",
+};
+
+/**
+ * `git config` of `core.hooksPath` (#579). Hooks are how a repo verifies
+ * what an agent commits, so moving them where no repo hook runs overrides
+ * the gate as surely as editing its hook config; reads and repo hook dirs
+ * (`.githooks`, `.husky/_`) stay allowed.
+ */
+function gitConfig(rest: readonly string[], ctx: ShellCtx): void {
+	let mode: "read" | "set" | "unset" | "section" = "set";
+	const words: string[] = [];
+	for (let i = 0; i < rest.length; i++) {
+		const a = rest[i] as string;
+		const named = GIT_CONFIG_MODES[a];
+		if (GIT_CONFIG_VALUE_OPTIONS.has(a)) i++;
+		else if (named !== undefined && (a.startsWith("-") || words.length === 0))
+			mode = named;
+		else if (!a.startsWith("-")) words.push(a);
+	}
+	const [key, value] = words;
+	if (key === undefined || mode === "read") return;
+	if (mode === "section") {
+		// Removing or renaming `[core]` drops its `hooksPath` with it.
+		if (key === UNKNOWN_WORD) ctx.out.add("shell.opaque");
+		else if (key.toLowerCase() === "core") ctx.out.add("gate.self_override");
+		return;
+	}
+	if (key === UNKNOWN_WORD) {
+		ctx.out.add("shell.opaque");
+		return;
+	}
+	if (!isHooksPathKey(key)) return;
+	// Unsetting falls back to `.git/hooks`, dropping a repo's own hooks dir.
+	if (mode === "unset") ctx.out.add("gate.self_override");
+	else if (value !== undefined) hooksPathValue(value, ctx);
+}
+
+/** `git -c <key>=<value>`: one command run with that config. */
+function gitConfigParameter(arg: Arg | undefined, ctx: ShellCtx): void {
+	if (arg === undefined) return;
+	const param = arg.text;
+	if (param === null) {
+		// `-c user.name=$NAME` is plain config; a key the gate cannot read may be the hooks path.
+		const known = /^["']?([A-Za-z0-9.-]+)=/.exec(arg.raw)?.[1];
+		if (known === undefined || isHooksPathKey(known))
+			ctx.out.add("shell.opaque");
+		return;
+	}
+	const eq = param.indexOf("=");
+	const key = eq < 0 ? param : param.slice(0, eq);
+	if (isHooksPathKey(key))
+		hooksPathValue(eq < 0 ? "" : param.slice(eq + 1), ctx);
+}
+
+/**
+ * A `core.hooksPath` value where no repo hook runs: empty, a device, or a
+ * dir outside the workspace (a temp dir included). A relative value is
+ * relative to the workspace root, where git runs hooks.
+ */
+function hooksPathValue(value: string, ctx: ShellCtx): void {
+	if (value === UNKNOWN_WORD) {
+		ctx.out.add("shell.opaque");
+		return;
+	}
+	const root = ctx.event.root;
+	const resolved = resolvePath(value.trim(), root, ctx.gate.home);
+	if (
+		value.trim() === "" ||
+		/^nul$/i.test(value.trim()) ||
+		resolved === null ||
+		resolved.startsWith("/dev/") ||
+		!isInside(resolved, root)
+	)
+		ctx.out.add("gate.self_override");
 }
 
 /** Names a control dir may hold; `isGateControlFile` picks the dir's own. */
@@ -1833,14 +2058,8 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 		const p = positional(args);
 		if (p.includes("get") || p.includes("read")) ctx.out.add("secrets.read");
 	},
-	az: (args, _cwd, ctx) => {
-		const p = positional(args);
-		if (p[0] === "account" && p[1] === "get-access-token")
-			ctx.out.add("secrets.read");
-	},
-	heroku: (args, _cwd, ctx) => {
-		if (positional(args)[0]?.startsWith("auth:")) ctx.out.add("secrets.read");
-	},
+	az: azClassifier,
+	heroku: herokuClassifier,
 	"ssh-keygen": (args, cwd, ctx) => {
 		const at = literalArgs(args).indexOf("-f");
 		const file = at >= 0 ? literalArgs(args)[at + 1] : undefined;
@@ -1953,6 +2172,7 @@ const CLASSIFIERS: Readonly<Record<string, Classifier>> = {
 	},
 	firebase: deployClassifier,
 	gcloud: gcloudClassifier,
+	gsutil: gsutilClassifier,
 	aws: awsClassifier,
 	serverless: deployClassifier,
 	sls: deployClassifier,
@@ -2138,6 +2358,9 @@ function ghClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
 		ctx.out.add("package.publish");
 	if (p[0] === "pr" && p[1] === "merge") ctx.out.add("pr.merge");
 	if (p[0] === "auth" && p[1] === "token") ctx.out.add("secrets.read");
+	// Deleting a hosted repository takes every ref, issue and release with it (#579).
+	if (p[0] === "repo" && p[1] === "delete" && !asksForHelp(args))
+		ctx.out.add("git.discard");
 	if (
 		p[0] === "auth" &&
 		p[1] === "status" &&
@@ -2221,19 +2444,182 @@ function gcloudClassifier(
 	if (p[0] === "run" && p[1] === "deploy") ctx.out.add("deploy");
 	if (p[0] === "auth" && p[1] === "print-access-token")
 		ctx.out.add("secrets.read");
+	const group = p[0] === "alpha" || p[0] === "beta" ? p[1] : p[0];
+	const deletes =
+		p.includes("delete") || (p.includes("rm") && recursiveFlag(args));
+	if (deletes && !GCLOUD_LOCAL_GROUPS.has(group ?? "") && !asksForHelp(args))
+		ctx.out.add(cloudDeleteClass(GCLOUD_DATA_GROUPS.has(group ?? "")));
 }
 
+/** A `--help` or `-h` anywhere: the command only prints its usage. */
+const asksForHelp = (args: Argv): boolean =>
+	literalArgs(args).some((a) => a === "--help" || a === "-h");
+
+const recursiveFlag = (args: Argv): boolean =>
+	literalArgs(args).some(
+		(a) => a === "--recursive" || /^-[a-zA-Z]*[rR]/.test(a),
+	);
+
+/**
+ * Deleting a cloud data store drops a database; deleting any other live
+ * resource takes it down, as a `cloudformation delete-stack` does (#579).
+ */
+const cloudDeleteClass = (data: boolean): ActionClass =>
+	data ? "db.destructive" : "deploy";
+
+/** gcloud groups whose deletes touch only the local CLI's own state. */
+const GCLOUD_LOCAL_GROUPS: ReadonlySet<string> = new Set([
+	"config",
+	"auth",
+	"components",
+	"help",
+	"topic",
+]);
+
+const GCLOUD_DATA_GROUPS: ReadonlySet<string> = new Set([
+	"sql",
+	"spanner",
+	"firestore",
+	"datastore",
+	"bigtable",
+	"storage",
+	"alloydb",
+	"redis",
+	"memcache",
+	"filestore",
+]);
+
+/** `aws` global options that take the next word as their value. */
+const AWS_VALUE_OPTIONS: ReadonlySet<string> = new Set([
+	"--region",
+	"--profile",
+	"--output",
+	"--endpoint-url",
+	"--query",
+	"--color",
+	"--ca-bundle",
+	"--cli-read-timeout",
+	"--cli-connect-timeout",
+	"--cli-binary-format",
+]);
+
+/** The service, operation and first operand of an `aws` command, global options skipped. */
+function awsWords(args: Argv): readonly string[] {
+	const words: string[] = [];
+	for (let i = 0; i < args.length && words.length < 3; i++) {
+		const a = args[i]?.text ?? UNKNOWN_WORD;
+		if (AWS_VALUE_OPTIONS.has(a)) i++;
+		else if (!a.startsWith("-")) words.push(a);
+	}
+	return words;
+}
+
+const AWS_DATA_SERVICES: ReadonlySet<string> = new Set([
+	"rds",
+	"dynamodb",
+	"s3",
+	"s3api",
+	"s3control",
+	"redshift",
+	"redshift-serverless",
+	"elasticache",
+	"memorydb",
+	"docdb",
+	"neptune",
+	"keyspaces",
+	"timestream-write",
+	"opensearch",
+	"es",
+	"efs",
+	"fsx",
+	"backup",
+	"glacier",
+]);
+
+/** Per-item deletes that are routine work, not the loss of a resource. */
+const AWS_ROUTINE_DELETES: ReadonlySet<string> = new Set([
+	"delete-message",
+	"delete-message-batch",
+	"delete-tags",
+	"delete-item",
+	"delete-object",
+	"delete-object-tagging",
+]);
+
 function awsClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
-	const p = positional(args);
+	const [service, op, operand] = awsWords(args);
 	if (
-		p[0] === "cloudformation" &&
-		(p[1] === "deploy" || p[1] === "delete-stack")
+		service === "cloudformation" &&
+		(op === "deploy" || op === "delete-stack")
 	)
 		ctx.out.add("deploy");
-	if (p[0] === "lambda" && p[1] === "update-function-code")
+	if (service === "lambda" && op === "update-function-code")
 		ctx.out.add("deploy");
-	if (p[0] === "configure" && p[1] === "export-credentials")
+	if (service === "configure" && op === "export-credentials")
 		ctx.out.add("secrets.read");
+	if (service === undefined || op === undefined || operand === "help") return;
+	if (literalArgs(args).includes("--dry-run")) return;
+	const deletes =
+		(/^(delete|terminate|purge)-/.test(op) && !AWS_ROUTINE_DELETES.has(op)) ||
+		(service === "s3" &&
+			(op === "rb" ||
+				(op === "rm" && literalArgs(args).includes("--recursive"))));
+	if (deletes) ctx.out.add(cloudDeleteClass(AWS_DATA_SERVICES.has(service)));
+}
+
+/** az groups whose deletes touch only the local CLI's own state. */
+const AZ_LOCAL_GROUPS: ReadonlySet<string> = new Set([
+	"config",
+	"extension",
+	"cache",
+	"account",
+]);
+
+const AZ_DATA_GROUPS: ReadonlySet<string> = new Set([
+	"sql",
+	"cosmosdb",
+	"storage",
+	"mysql",
+	"postgres",
+	"mariadb",
+	"redis",
+	"synapse",
+	"kusto",
+]);
+
+function azClassifier(args: Argv, _cwd: string | null, ctx: ShellCtx): void {
+	const p = positional(args);
+	if (p[0] === "account" && p[1] === "get-access-token")
+		ctx.out.add("secrets.read");
+	const group = p[0] ?? "";
+	if (
+		(p.includes("delete") || p.includes("purge")) &&
+		!AZ_LOCAL_GROUPS.has(group) &&
+		!asksForHelp(args)
+	)
+		ctx.out.add(cloudDeleteClass(AZ_DATA_GROUPS.has(group)));
+}
+
+function herokuClassifier(
+	args: Argv,
+	_cwd: string | null,
+	ctx: ShellCtx,
+): void {
+	const cmd = positional(args)[0];
+	if (cmd?.startsWith("auth:")) ctx.out.add("secrets.read");
+	if (asksForHelp(args)) return;
+	if (cmd === "apps:destroy" || cmd === "destroy") ctx.out.add("deploy");
+	if (cmd === "pg:reset") ctx.out.add("db.destructive");
+}
+
+function gsutilClassifier(
+	args: Argv,
+	_cwd: string | null,
+	ctx: ShellCtx,
+): void {
+	const cmd = positional(args)[0];
+	if (cmd === "rb" || (cmd === "rm" && recursiveFlag(args)))
+		ctx.out.add("db.destructive");
 }
 
 const SQL_START =
