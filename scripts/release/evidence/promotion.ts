@@ -13,11 +13,18 @@
  *                  { modelP95Ms, gateP95Ms }
  *
  *   bun scripts/release/evidence/promotion.ts --candidate <f> --incumbent <f> \
- *     --shadow <f> --bench <f> --model-hash sha256:<hex> --out <f> [--link <url>]
+ *     --shadow <f> --bench <f> --model-hash sha256:<hex> --out <f> [--link <url>] \
+ *     [--incumbent-backend <rules|heuristic>]
+ *
+ * The incumbent defaults to `action.risk`'s catalog backend (`rules`). Once
+ * the model is promoted that default is `system1`, so pass the backend it
+ * replaced.
  *
  * Refused outright (no evidence file, so the gate says MISSING): a report
  * marked provisional or not promotion-grade, an incumbent measured on other
- * sets or by another backend than the one serving `action.risk`, or a model
+ * sets or by another backend than the one serving `action.risk`, a model
+ * (`system1`) as the incumbent, a candidate report from a non-model backend,
+ * or a model
  * hash not in the decision log's `sha256:<hex>` form. A shadow log or bench
  * that has nothing for the model leaves its numbers out and lists them in
  * `missing`, so the gate reports them missing instead of passing.
@@ -38,6 +45,7 @@
  *   log's repeated inputs, when both are measured.
  */
 
+import { DECISION_BACKENDS } from "../../../packages/core/src/policy/schema";
 import type { Result } from "./shell";
 
 type Obj = Readonly<Record<string, unknown>>;
@@ -59,6 +67,11 @@ const SET_HASH = /^[0-9a-f]{64}$/;
 /** The decision log's model hash (`hashModel`). */
 const MODEL_HASH = /^sha256:[0-9a-f]{64}$/;
 
+/** Backends that are not the model: the only ones it can be compared with. */
+const NON_MODEL: readonly string[] = DECISION_BACKENDS.filter(
+	(b) => b !== "system1",
+);
+
 export type PromotionInputs = Readonly<{
 	/** The frozen-set report for the exported model. */
 	candidate: unknown;
@@ -70,7 +83,11 @@ export type PromotionInputs = Readonly<{
 	bench: unknown;
 	/** The exported model's hash, as the decision log records it. */
 	modelHash: string;
-	/** The backend serving `action.risk` before promotion. */
+	/**
+	 * The backend serving `action.risk` before promotion. Once promoted the
+	 * catalog default is `system1`, so the CLI then needs
+	 * `--incumbent-backend`.
+	 */
 	incumbentBackend: string;
 }>;
 
@@ -241,8 +258,20 @@ export function promotionEvidence(
 			error: `model hash ${JSON.stringify(inputs.modelHash)} is not the decision log's sha256:<hex>`,
 		};
 	}
+	if (!NON_MODEL.includes(inputs.incumbentBackend)) {
+		return {
+			ok: false,
+			error: `incumbent backend ${JSON.stringify(inputs.incumbentBackend)} is not one the model can be compared with (${NON_MODEL.join(", ")}); pass --incumbent-backend`,
+		};
+	}
 	const cand = frozenReport("candidate", inputs.candidate);
 	if (!cand.ok) return cand;
+	if (NON_MODEL.includes(cand.value.predictor)) {
+		return {
+			ok: false,
+			error: `candidate report is for ${JSON.stringify(cand.value.predictor)}, not the model`,
+		};
+	}
 	const inc = frozenReport("incumbent", inputs.incumbent);
 	if (!inc.ok) return inc;
 	if (inc.value.predictor !== inputs.incumbentBackend) {
@@ -319,7 +348,9 @@ if (import.meta.main) {
 				shadow: readJson(flag(argv, "--shadow")),
 				bench: readJson(flag(argv, "--bench")),
 				modelHash: flag(argv, "--model-hash") ?? "",
-				incumbentBackend: DECISION_CATALOG[TYPE].defaultBackend,
+				incumbentBackend:
+					flag(argv, "--incumbent-backend") ??
+					DECISION_CATALOG[TYPE].defaultBackend,
 			},
 			flag(argv, "--link") ?? runLink(process.env),
 		),

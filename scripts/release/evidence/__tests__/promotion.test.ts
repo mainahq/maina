@@ -203,6 +203,31 @@ describe("promotionEvidence", () => {
 		});
 	});
 
+	test("refuses the model as its own incumbent (once promoted, the catalog default is system1)", () => {
+		const r = promotionEvidence(
+			inputs({
+				incumbent: frozenReport("system1"),
+				incumbentBackend: "system1",
+			}),
+			LINK,
+		);
+		expect(r).toEqual({
+			ok: false,
+			error: expect.stringMatching(/--incumbent-backend/),
+		});
+	});
+
+	test("refuses a candidate report measured on a non-model backend", () => {
+		const r = promotionEvidence(
+			inputs({ candidate: frozenReport("heuristic") }),
+			LINK,
+		);
+		expect(r).toEqual({
+			ok: false,
+			error: expect.stringMatching(/candidate.*heuristic.*not the model/),
+		});
+	});
+
 	test("refuses a model hash that is not the decision log's sha256 form", () => {
 		expect(promotionEvidence(inputs({ modelHash: "system1" }), LINK).ok).toBe(
 			false,
