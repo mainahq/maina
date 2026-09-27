@@ -8,11 +8,11 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runModelSelftest, SELFTEST_TEXT } from "../selftest";
-import { stageSelftest } from "./fixtures/tiny-model";
+import { stageSelftest, TINY_TOKENIZER } from "./fixtures/tiny-model";
 
 let dir = "";
 
@@ -108,6 +108,31 @@ describe("runModelSelftest", () => {
 			}
 		} finally {
 			rmSync(empty, { recursive: true, force: true });
+		}
+	});
+
+	test("a tokenizer that encodes the probe to non-ids is an error, not a throw", async () => {
+		const broken = mkdtempSync(join(tmpdir(), "maina-587-badtok-"));
+		try {
+			stageSelftest(broken);
+			// `main` is unknown and the unknown token is not in the vocabulary.
+			const { main: _main, ...vocab } = TINY_TOKENIZER.model.vocab;
+			writeFileSync(
+				join(broken, "tokenizer.json"),
+				JSON.stringify({
+					...TINY_TOKENIZER,
+					model: { ...TINY_TOKENIZER.model, unk_token: "[MISSING]", vocab },
+				}),
+			);
+			const report = await runModelSelftest({
+				dir: broken,
+				target: "linux-x64",
+				engine: "wasm",
+			});
+			expect(report.ok).toBe(false);
+			if (!report.ok) expect(report.error.kind).toBe("encode_failed");
+		} finally {
+			rmSync(broken, { recursive: true, force: true });
 		}
 	});
 

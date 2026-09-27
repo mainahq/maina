@@ -10,15 +10,29 @@
 import { Tokenizer } from "@huggingface/tokenizers";
 import type { Result } from "@mainahq/core";
 
-type TokenizerPort = Readonly<{
-	/** The token ids of `text`, with no special tokens added. */
-	encode: (text: string) => readonly number[];
-}>;
-
 type TokenizerError = Readonly<{
-	kind: "tokenizer_invalid";
+	/** `encode_failed`: a tokenizer that loads but cannot encode a text. */
+	kind: "tokenizer_invalid" | "encode_failed";
 	message: string;
 }>;
+
+type TokenizerPort = Readonly<{
+	/**
+	 * The token ids of `text`, with no special tokens added. Never throws:
+	 * a throw, or an id that is not a non-negative integer (a `tokenizer.json`
+	 * whose unknown token is missing from its vocabulary encodes an unknown
+	 * word as `undefined`), is `encode_failed`.
+	 */
+	encode: (text: string) => Result<readonly number[], TokenizerError>;
+}>;
+
+const isTokenId = (id: unknown): id is number =>
+	typeof id === "number" && Number.isSafeInteger(id) && id >= 0;
+
+const encodeFailed = (message: string): Result<never, TokenizerError> => ({
+	ok: false,
+	error: { kind: "encode_failed", message: `tokenizer.json: ${message}` },
+});
 
 const invalid = (e: unknown): Result<never, TokenizerError> => ({
 	ok: false,
@@ -49,8 +63,18 @@ export function loadTokenizer(
 	return {
 		ok: true,
 		value: {
-			encode: (text) =>
-				tokenizer.encode(text, { add_special_tokens: false }).ids,
+			encode: (text) => {
+				let ids: readonly unknown[];
+				try {
+					ids = tokenizer.encode(text, { add_special_tokens: false }).ids;
+				} catch (e) {
+					return encodeFailed(e instanceof Error ? e.message : String(e));
+				}
+				const bad = ids.findIndex((id) => !isTokenId(id));
+				return bad === -1
+					? { ok: true, value: ids as readonly number[] }
+					: encodeFailed(`token ${bad} has no id (${String(ids[bad])})`);
+			},
 		},
 	};
 }

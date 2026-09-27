@@ -58,6 +58,7 @@ type SelftestError = Readonly<{
 		| "unsupported_target"
 		| "missing_file"
 		| "tokenizer_invalid"
+		| "encode_failed"
 		| "wrong_output"
 		| EngineError["kind"];
 	message: string;
@@ -92,6 +93,10 @@ export async function runModelSelftest(
 		new TextDecoder().decode(tokenizerBytes.value),
 	);
 	if (!tokenizer.ok) return tokenizer;
+	// Before a session opens, so a bad tokenizer leaves nothing to dispose.
+	const encoded = tokenizer.value.encode(SELFTEST_TEXT);
+	if (!encoded.ok) return encoded;
+	const ids = encoded.value;
 	const model = read(input.dir, "model.onnx");
 	if (!model.ok) return model;
 
@@ -109,7 +114,6 @@ export async function runModelSelftest(
 	if (!opened.ok) return fail(opened.error.kind, opened.error.message);
 	const session = opened.value;
 
-	const ids = tokenizer.value.encode(SELFTEST_TEXT);
 	const dims = [1, ids.length];
 	const out = await session.run({
 		input_ids: { type: "int64", data: BigInt64Array.from(ids, BigInt), dims },

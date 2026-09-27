@@ -13,11 +13,15 @@ describe("loadTokenizer", () => {
 	test("encodes text to the tokenizer's ids, subwords included", () => {
 		const loaded = loadTokenizer(JSON.stringify(TINY_TOKENIZER));
 		if (!loaded.ok) throw new Error(loaded.error.message);
-		expect(loaded.value.encode("git push --force origin main")).toEqual([
-			1, 2, 3, 4, 5, 6,
-		]);
-		expect(loaded.value.encode("git frobnicate")).toEqual([1, 0]);
-		expect(loaded.value.encode("")).toEqual([]);
+		expect(loaded.value.encode("git push --force origin main")).toEqual({
+			ok: true,
+			value: [1, 2, 3, 4, 5, 6],
+		});
+		expect(loaded.value.encode("git frobnicate")).toEqual({
+			ok: true,
+			value: [1, 0],
+		});
+		expect(loaded.value.encode("")).toEqual({ ok: true, value: [] });
 	});
 
 	test("never adds the tokenizer's special tokens", () => {
@@ -49,7 +53,29 @@ describe("loadTokenizer", () => {
 		};
 		const loaded = loadTokenizer(JSON.stringify(withTemplate));
 		if (!loaded.ok) throw new Error(loaded.error.message);
-		expect(loaded.value.encode("git push")).toEqual([1, 2]);
+		expect(loaded.value.encode("git push")).toEqual({
+			ok: true,
+			value: [1, 2],
+		});
+	});
+
+	test("ids that are not token ids are an error, not a throw", () => {
+		// It loads, but its unknown token is missing from the vocabulary, so
+		// @huggingface/tokenizers encodes an unknown word as `undefined`.
+		const loaded = loadTokenizer(
+			JSON.stringify({
+				...TINY_TOKENIZER,
+				model: { ...TINY_TOKENIZER.model, unk_token: "[MISSING]" },
+			}),
+		);
+		if (!loaded.ok) throw new Error(loaded.error.message);
+		expect(loaded.value.encode("git push")).toEqual({
+			ok: true,
+			value: [1, 2],
+		});
+		const encoded = loaded.value.encode("git frobnicate");
+		expect(encoded.ok).toBe(false);
+		if (!encoded.ok) expect(encoded.error.kind).toBe("encode_failed");
 	});
 
 	test("text that is not JSON is an error, not a throw", () => {
