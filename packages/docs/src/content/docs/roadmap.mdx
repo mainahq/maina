@@ -128,6 +128,7 @@ What is released, and what the next release brings. The next release is read fro
 - The gate now classes two more CLI commands as `gate.self_override` when an agent runs them, because they write Codex's `config.toml` (a gate control file) from inside the CLI, where the gate cannot see the write: _(@mainahq/core)_
 - Core now has the TypeScript side of the System 1 input contract (encoding v1), so the future `system1` backend sends the model the same text it was trained on: _(@mainahq/core)_
 - The weekly digest's gate-log parser now reads the dogfood hook's new per-call fields: `root`, `host`, `permissionMode` and `decisionIds`. _(@mainahq/core)_
+- `diff.sensitive` now has a caller and a heuristic. _(@mainahq/core)_
 
 
 ## Contributing

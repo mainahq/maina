@@ -7,9 +7,13 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { type DecidePorts, defaultDecidePorts } from "../../decide/decide";
+import {
+	type DecidePorts,
+	decide,
+	defaultDecidePorts,
+} from "../../decide/decide";
 import { createRegistry, withBackend } from "../../decide/registry";
-import type { Backend } from "../../decide/types";
+import type { Backend, BackendInput } from "../../decide/types";
 import type { Preferences } from "../../feedback/preferences";
 import { indexedRepo, ROOT } from "../../graph/query/__tests__/fixture";
 import { DEFAULT_POLICY } from "../../policy/defaults";
@@ -386,6 +390,323 @@ describe("review triage: diff.needs_review", () => {
 		].join("\n");
 		const bin = triageDiff(defaultDecidePorts, binary);
 		expect(bin.ok && bin.value.needsReview).toBe(true);
+	});
+});
+
+// ── diff.sensitive ──────────────────────────────────────────────────────────
+
+/**
+ * Ports whose `diff.sensitive` is served by a System 1 stand-in answering
+ * yes with `pTrue`; every request it gets is recorded in `seen`.
+ */
+function sensitivePorts(pTrue: number): {
+	ports: DecidePorts;
+	seen: BackendInput[];
+} {
+	const seen: BackendInput[] = [];
+	const inner = fixedBoolBackend(pTrue);
+	const recording: Backend = {
+		...inner,
+		answer: (input) => {
+			seen.push(input);
+			return inner.answer(input);
+		},
+	};
+	return {
+		seen,
+		ports: {
+			...defaultDecidePorts,
+			policy: withBackend(DEFAULT_POLICY, "diff.sensitive", "system1"),
+			backends: createRegistry([
+				...defaultDecidePorts.backends.values(),
+				recording,
+			]),
+		},
+	};
+}
+
+/** The one `diff.sensitive` request `triageDiff` made over `diff`. */
+function sensitiveRequest(diff: string): BackendInput {
+	const { ports, seen } = sensitivePorts(0.01);
+	const result = triageDiff(ports, diff);
+	expect(result.ok).toBe(true);
+	expect(seen).toHaveLength(1);
+	const [request] = seen;
+	if (request === undefined) throw new Error("no diff.sensitive request");
+	return request;
+}
+
+function patchOf(diff: string): unknown {
+	return sensitiveRequest(diff).state.untrusted.patch;
+}
+
+/** One change in `src/app.ts`, git's default three lines of context. */
+const CONTEXT_DIFF = [
+	"diff --git a/src/app.ts b/src/app.ts",
+	"index 1111111..2222222 100644",
+	"--- a/src/app.ts",
+	"+++ b/src/app.ts",
+	"@@ -1,8 +1,10 @@ function main() {",
+	" l1",
+	" l2",
+	"-const a = 1;",
+	"+const a = 2;",
+	" l4",
+	" l5",
+	" l6",
+	"+x",
+	"+y",
+	" l7",
+	" l8",
+	"\\ No newline at end of file",
+].join("\n");
+
+/** The same change as `CONTEXT_DIFF`, as `git diff -U0` writes it. */
+const ZERO_CONTEXT_DIFF = [
+	"diff --git a/src/app.ts b/src/app.ts",
+	"index 1111111..2222222 100644",
+	"--- a/src/app.ts",
+	"+++ b/src/app.ts",
+	"@@ -3 +3 @@ function main() {",
+	"-const a = 1;",
+	"+const a = 2;",
+	"@@ -6,0 +7,2 @@ l6",
+	"+x",
+	"+y",
+].join("\n");
+
+describe("diff.sensitive: the caller and its state (#585)", () => {
+	test("every diff triage asks diff.sensitive one bool question over the whole diff", () => {
+		const request = sensitiveRequest(diffOf("src/app.ts", 5));
+		expect(request.type).toBe("diff.sensitive");
+		expect(request.questions).toHaveLength(1);
+		expect(request.questions[0]?.kind).toBe("bool");
+		expect(request.questions[0]?.id).toMatch(/^sensitive:[0-9a-f]{16}$/);
+		expect(request.state.trusted).toEqual({
+			additions: 5,
+			deletions: 0,
+			files: 1,
+		});
+		expect(Object.keys(request.state.untrusted).sort()).toEqual([
+			"patch",
+			"paths",
+		]);
+		expect(request.state.untrusted.paths).toEqual(["src/app.ts"]);
+	});
+
+	test("the question id is stable for the same diff and differs for another", () => {
+		const a = sensitiveRequest(diffOf("src/app.ts", 5)).questions[0]?.id;
+		const b = sensitiveRequest(diffOf("src/app.ts", 5)).questions[0]?.id;
+		const c = sensitiveRequest(diffOf("src/app.ts", 6)).questions[0]?.id;
+		expect(a).toBe(b);
+		expect(a).not.toBe(c);
+	});
+
+	test("the patch is zero-context: the file line, recomputed hunk headers and the changed lines", () => {
+		expect(patchOf(CONTEXT_DIFF)).toBe(
+			[
+				"diff --git a/src/app.ts b/src/app.ts",
+				"@@ -3 +3 @@",
+				"-const a = 1;",
+				"+const a = 2;",
+				"@@ -6,0 +7,2 @@",
+				"+x",
+				"+y",
+			].join("\n"),
+		);
+	});
+
+	test("the patch is the same whatever context the diff was taken with", () => {
+		expect(patchOf(ZERO_CONTEXT_DIFF)).toBe(patchOf(CONTEXT_DIFF) as string);
+	});
+
+	test("new and deleted files get git's zero-count hunk headers", () => {
+		const diff = [
+			"diff --git a/src/new.ts b/src/new.ts",
+			"new file mode 100644",
+			"index 0000000..3333333",
+			"--- /dev/null",
+			"+++ b/src/new.ts",
+			"@@ -0,0 +1,2 @@",
+			"+a",
+			"+b",
+			"diff --git a/src/old.ts b/src/old.ts",
+			"deleted file mode 100644",
+			"index 4444444..0000000",
+			"--- a/src/old.ts",
+			"+++ /dev/null",
+			"@@ -1,2 +0,0 @@",
+			"-c",
+			"--- d",
+		].join("\n");
+		expect(patchOf(diff)).toBe(
+			[
+				"diff --git a/src/new.ts b/src/new.ts",
+				"@@ -0,0 +1,2 @@",
+				"+a",
+				"+b",
+				"diff --git a/src/old.ts b/src/old.ts",
+				"@@ -1,2 +0,0 @@",
+				"-c",
+				"--- d",
+			].join("\n"),
+		);
+	});
+
+	test("a change without hunks keeps only its file line", () => {
+		const rename = [
+			"diff --git a/src/app.ts b/src/auth/app.ts",
+			"similarity index 100%",
+			"rename from src/app.ts",
+			"rename to src/auth/app.ts",
+		].join("\n");
+		expect(patchOf(rename)).toBe("diff --git a/src/app.ts b/src/auth/app.ts");
+	});
+
+	test("a patch over 6000 code points is cut there and marked with a trailing ellipsis line", () => {
+		const long = patchOf(diffOf("src/app.ts", 1000));
+		expect(typeof long).toBe("string");
+		if (typeof long !== "string") return;
+		expect(Array.from(long)).toHaveLength(6000 + "\n…".length);
+		expect(long.endsWith("\n…")).toBe(true);
+		expect(long.startsWith("diff --git a/src/app.ts b/src/app.ts\n")).toBe(
+			true,
+		);
+	});
+
+	test("the cut counts code points, not UTF-16 units, as the model's Python does", () => {
+		// About 4,550 code points but over 6,000 UTF-16 units: not cut.
+		const emoji = [
+			"diff --git a/src/e.ts b/src/e.ts",
+			"@@ -0,0 +1,1500 @@",
+			...Array.from({ length: 1500 }, () => "+😀"),
+		].join("\n");
+		const patch = patchOf(emoji);
+		expect(typeof patch).toBe("string");
+		if (typeof patch !== "string") return;
+		expect(patch.length).toBeGreaterThan(6000);
+		expect(patch.endsWith("…")).toBe(false);
+		expect(patch.endsWith("+😀")).toBe(true);
+	});
+
+	test("a confident diff.sensitive yes asks for the deep review when diff.needs_review says no", () => {
+		const { ports } = sensitivePorts(0.95);
+		const result = triageDiff(ports, diffOf("src/app.ts", 5));
+		expect(result.ok && result.value.needsReview).toBe(true);
+	});
+
+	test("an unsure diff.sensitive no still asks for the deep review", () => {
+		// The policy's diff.sensitive threshold is 0.9: 0.7 is unsure.
+		const unsure = triageDiff(sensitivePorts(0.3).ports, diffOf("src/a.ts", 5));
+		expect(unsure.ok && unsure.value.needsReview).toBe(true);
+		const sure = triageDiff(sensitivePorts(0.05).ports, diffOf("src/a.ts", 5));
+		expect(sure.ok && sure.value.needsReview).toBe(false);
+	});
+
+	test("a failed diff.sensitive decision fails the triage, so the deep review runs", () => {
+		const failing: Backend = {
+			id: "system1",
+			version: "test",
+			answer: () => ({
+				ok: false,
+				error: {
+					kind: "unsupported",
+					questionId: undefined,
+					message: "model not loaded",
+				},
+			}),
+		};
+		const ports: DecidePorts = {
+			...defaultDecidePorts,
+			policy: withBackend(DEFAULT_POLICY, "diff.sensitive", "system1"),
+			backends: createRegistry([
+				...defaultDecidePorts.backends.values(),
+				failing,
+			]),
+		};
+		const result = triageDiff(ports, diffOf("src/app.ts", 5));
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.error).toMatchObject({
+			kind: "unsupported",
+			type: "diff.sensitive",
+			backend: "system1",
+		});
+		expect(runsDeepReview(false, undefined)).toBe(true);
+	});
+
+	test("the heuristic flags security-sensitive paths and answers with confidence 1", () => {
+		const ask = (paths: readonly string[]) =>
+			decide(defaultDecidePorts, {
+				type: "diff.sensitive",
+				state: {
+					trusted: { additions: 1, deletions: 0, files: paths.length },
+					untrusted: { paths, patch: "" },
+				},
+				questions: [{ kind: "bool", id: "sensitive:0123456789abcdef" }],
+			});
+		for (const path of [
+			"src/auth/login.ts",
+			"src/services/authService.ts",
+			"src/JWTVerifier.ts",
+			"config/secrets.bin",
+		]) {
+			const result = ask(["README.md", path]);
+			expect(result.ok).toBe(true);
+			if (!result.ok) continue;
+			expect({ path, answer: result.value[0]?.answer }).toEqual({
+				path,
+				answer: true,
+			});
+			expect(result.value[0]?.confidence).toBe(1);
+		}
+		const plain = ask(["src/app.ts", "src/authorList.ts"]);
+		expect(plain.ok && plain.value[0]?.answer).toBe(false);
+	});
+
+	test("business-critical paths need a deep review but are not security-sensitive", () => {
+		for (const path of [
+			"src/billing/invoice.ts",
+			"src/payments.ts",
+			"db/migrations/001.sql",
+			"src/sessionStore.ts",
+			"src/env.ts",
+		]) {
+			const result = decide(defaultDecidePorts, {
+				type: "diff.sensitive",
+				state: {
+					trusted: { additions: 1, deletions: 0, files: 1 },
+					untrusted: { paths: [path], patch: "" },
+				},
+				questions: [{ kind: "bool", id: "sensitive" }],
+			});
+			expect(result.ok).toBe(true);
+			expect({ path, answer: result.ok && result.value[0]?.answer }).toEqual({
+				path,
+				answer: false,
+			});
+			const triage = triageDiff(defaultDecidePorts, diffOf(path, 3));
+			expect({ path, needs: triage.ok && triage.value.needsReview }).toEqual({
+				path,
+				needs: true,
+			});
+		}
+	});
+
+	test("the heuristic answers only its own question over a state with paths", () => {
+		const noPaths = decide(defaultDecidePorts, {
+			type: "diff.sensitive",
+			state: { trusted: {}, untrusted: { patch: "" } },
+			questions: [{ kind: "bool", id: "sensitive" }],
+		});
+		expect(noPaths.ok).toBe(false);
+		if (!noPaths.ok) expect(noPaths.error.kind).toBe("unsupported");
+		const otherCheck = decide(defaultDecidePorts, {
+			type: "diff.sensitive",
+			state: { trusted: {}, untrusted: { paths: ["src/auth.ts"] } },
+			questions: [{ kind: "bool", id: "needs_review" }],
+		});
+		expect(otherCheck.ok).toBe(false);
 	});
 });
 

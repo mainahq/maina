@@ -271,17 +271,23 @@ describe("decide", () => {
 	});
 
 	test("a type the heuristic backend has no heuristic for is an unsupported error", () => {
-		const result = decide(ports(), {
-			type: "diff.sensitive",
+		// action.risk is served by rules; routed to the heuristic backend, it
+		// has no heuristic to answer with.
+		const policy = withBackend(DEFAULT_POLICY, "action.risk", "heuristic");
+		const result = decide(ports({ policy }), {
+			type: "action.risk",
 			state: EMPTY_STATE,
-			questions: [{ kind: "bool", id: "sensitive" }],
+			questions: [
+				{ kind: "choice", id: "risk", options: ["allow", "ask", "deny"] },
+			],
 		});
 		expect(result.ok).toBe(false);
 		if (result.ok) return;
 		expect(result.error).toMatchObject({
 			kind: "unsupported",
-			type: "diff.sensitive",
+			type: "action.risk",
 			backend: "heuristic",
+			questionId: undefined,
 		});
 	});
 });

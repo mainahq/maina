@@ -84,7 +84,10 @@ export interface FeedbackEntry {
 export interface Triage {
 	/** The decision's id (its question id, as the decision log keys it). */
 	decisionId: string;
-	/** True when the deep review was warranted (a yes, or an unsure no). */
+	/**
+	 * True when the deep review was warranted: a yes, or an unsure no, from
+	 * `diff.needs_review` or from `diff.sensitive` (#585).
+	 */
 	needsReview: boolean;
 	/** Probability (0..1) of the decision's answer. */
 	confidence: number;

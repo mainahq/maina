@@ -16,8 +16,9 @@
  * 6b. Triage the findings through `decide`: noise suppressed at the
  *    policy's `finding.real` threshold, severity from `finding.severity`
  *    (#329)
- * 6c. Triage the diff (`diff.needs_review`): the AI review goes deep only
- *    when it says so or `deep` is set; its entities come from the graph
+ * 6c. Triage the diff (`diff.needs_review`, `diff.sensitive`): the AI
+ *    review goes deep only when either says so or `deep` is set; its
+ *    entities come from the graph
  * 7. Status: failed on any error finding; passed only when a tool actually
  *    ran on a file in scope; otherwise skipped (#328)
  * 8. Return unified PipelineResult

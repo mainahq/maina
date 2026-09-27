@@ -11,6 +11,8 @@
  * - `diff.needs_review` decides whether the diff warrants the deep
  *   (standard-tier) review. An unsure "no" (below the policy's threshold)
  *   counts as a yes: a missed review costs more than an extra one.
+ * - `diff.sensitive` decides whether the diff touches security-sensitive
+ *   code (#585); a yes, or an unsure no, also asks for the deep review.
  *
  * Pure given its ports: no I/O, and the input findings are never mutated.
  */
@@ -236,28 +238,131 @@ function diffStats(diff: string): DiffStats {
 	return { additions, deletions, paths: [...paths].sort() };
 }
 
+// ── diff.sensitive's patch ──────────────────────────────────────────────────
+
+/** The most code points of patch `diff.sensitive` sends before cutting it. */
+const MAX_PATCH_CODE_POINTS = 6000;
+/** Appended to a patch cut at `MAX_PATCH_CODE_POINTS`. */
+const PATCH_CUT_MARK = "\n…";
+
+const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+
+/** A zero-context hunk header's range, as `git diff -U0` writes it. */
+function hunkRange(start: number, count: number): string {
+	if (count === 0) return `${start - 1},0`;
+	return count === 1 ? `${start}` : `${start},${count}`;
+}
+
+type ChangeRun = {
+	oldStart: number;
+	oldCount: number;
+	newStart: number;
+	newCount: number;
+	lines: string[];
+};
+
 /**
- * Whether `diff` needs the deep review, via `decide` (`diff.needs_review`).
- * The decision id is `needs_review:<16 hex>`, derived from what was decided
- * over, so the same diff always gets the same id.
+ * `diff` as zero-context text, whatever context it was taken with: each
+ * file's `diff --git` line, then one `@@ -a,b +c,d @@` header per run of
+ * changed lines (recomputed, without git's section heading) followed by
+ * the run's `+` / `-` lines. File headers, mode, index, rename and binary
+ * lines, context lines and `\ No newline at end of file` are left out.
  */
-export function triageDiff(
-	ports: DecidePorts,
-	diff: string,
-): Result<Triage, DecideError> {
-	const stats = diffStats(diff);
-	const state: DecisionState = {
-		trusted: {
-			additions: stats.additions,
-			deletions: stats.deletions,
-			files: stats.paths.length,
-		},
-		untrusted: { paths: stats.paths },
+function zeroContextPatch(diff: string): string {
+	const out: string[] = [];
+	let inHunk = false;
+	let oldLine = 0;
+	let newLine = 0;
+	let run: ChangeRun | undefined;
+	const flush = (): void => {
+		if (run === undefined) return;
+		out.push(
+			`@@ -${hunkRange(run.oldStart, run.oldCount)} +${hunkRange(run.newStart, run.newCount)} @@`,
+			...run.lines,
+		);
+		run = undefined;
 	};
-	const digest = hashInput("diff.needs_review", state, "needs_review");
-	const decisionId = `needs_review:${digest.slice("sha256:".length, "sha256:".length + 16)}`;
+	for (const line of diff.split("\n")) {
+		const header = HUNK_HEADER.exec(line);
+		if (line.startsWith("diff --git ")) {
+			flush();
+			inHunk = false;
+			out.push(line);
+		} else if (header) {
+			flush();
+			inHunk = true;
+			// A zero count names the line before the hunk; the next line is one on.
+			oldLine = Number(header[1]) + (header[2] === "0" ? 1 : 0);
+			newLine = Number(header[3]) + (header[4] === "0" ? 1 : 0);
+		} else if (inHunk && (line.startsWith("+") || line.startsWith("-"))) {
+			run ??= {
+				oldStart: oldLine,
+				oldCount: 0,
+				newStart: newLine,
+				newCount: 0,
+				lines: [],
+			};
+			run.lines.push(line);
+			if (line.startsWith("+")) {
+				run.newCount++;
+				newLine++;
+			} else {
+				run.oldCount++;
+				oldLine++;
+			}
+		} else if (inHunk && !line.startsWith("\\")) {
+			// A context line (git writes " x"; an empty line is a stripped " ").
+			flush();
+			oldLine++;
+			newLine++;
+		}
+		// Anything else (file headers, "\ No newline at end of file") is left out.
+	}
+	flush();
+	return out.join("\n");
+}
+
+/**
+ * `patch` cut to `MAX_PATCH_CODE_POINTS` code points (not UTF-16 units,
+ * so the model's Python `len` agrees) plus `PATCH_CUT_MARK` when longer.
+ */
+function capPatch(patch: string): string {
+	if (patch.length <= MAX_PATCH_CODE_POINTS) return patch;
+	const points = Array.from(patch);
+	return points.length <= MAX_PATCH_CODE_POINTS
+		? patch
+		: `${points.slice(0, MAX_PATCH_CODE_POINTS).join("")}${PATCH_CUT_MARK}`;
+}
+
+// ── Diff triage ─────────────────────────────────────────────────────────────
+
+type DiffCheck = Readonly<{
+	type: "diff.needs_review" | "diff.sensitive";
+	/** The question's check: its id is `<check>:<16 hex>`. */
+	check: string;
+	state: DecisionState;
+}>;
+
+type DiffVerdict = Readonly<{
+	decisionId: string;
+	/** A yes, or a no below the policy's confidence threshold. */
+	yesOrUnsure: boolean;
+	confidence: number;
+}>;
+
+/**
+ * One bool question about the whole diff, via `decide`. The id is
+ * `<check>:<16 hex>`, derived from what was decided over, so the same diff
+ * always gets the same id.
+ */
+function decideDiff(
+	ports: DecidePorts,
+	{ type, check, state }: DiffCheck,
+): Result<DiffVerdict, DecideError> {
+	const digest = hashInput(type, state, check);
+	const decisionId = `${check}:${digest.slice("sha256:".length, "sha256:".length + 16)}`;
 	const result = decide(ports, {
-		type: "diff.needs_review",
+		type,
 		state,
 		questions: [{ kind: "bool", id: decisionId }],
 	});
@@ -268,9 +373,8 @@ export function triageDiff(
 			ok: false,
 			error: {
 				kind: "invalid_answer",
-				type: "diff.needs_review",
-				backend:
-					ports.policy.decisions["diff.needs_review"]?.backend ?? "heuristic",
+				type,
+				backend: ports.policy.decisions[type]?.backend ?? "heuristic",
 				questionId: decisionId,
 				message: "no decision",
 			},
@@ -281,8 +385,66 @@ export function triageDiff(
 		ok: true,
 		value: {
 			decisionId,
-			needsReview: decision.answer === true || unsure,
+			yesOrUnsure: decision.answer === true || unsure,
 			confidence: decision.confidence,
+		},
+	};
+}
+
+/**
+ * Whether `diff` needs the deep review, via two `decide` calls:
+ *
+ * - `diff.needs_review` over `trusted { additions, deletions, files }` and
+ *   `untrusted { paths }`, question `needs_review:<16 hex>`;
+ * - `diff.sensitive` (#585) over the same state plus `untrusted.patch`,
+ *   question `sensitive:<16 hex>`.
+ *
+ * `diff.sensitive` is one bool for the whole diff, not one per category or
+ * per file: the only labels there are to learn from (a later security fix,
+ * a security-sensitive path) are about a whole commit, and its threshold
+ * and error costs are per type. `paths` are the sorted, distinct paths the
+ * diff touches (both sides of a rename); `patch` is `zeroContextPatch`
+ * capped by `capPatch`. This is the contract the maina-model trains
+ * `diff.sensitive` on: changing it needs a coordinated change there.
+ *
+ * Either one's yes, or unsure no, asks for the deep review. The result
+ * carries `diff.needs_review`'s decision; a failure of either is an error,
+ * which `runsDeepReview` fails closed on.
+ */
+export function triageDiff(
+	ports: DecidePorts,
+	diff: string,
+): Result<Triage, DecideError> {
+	const stats = diffStats(diff);
+	const trusted = {
+		additions: stats.additions,
+		deletions: stats.deletions,
+		files: stats.paths.length,
+	};
+	const review = decideDiff(ports, {
+		type: "diff.needs_review",
+		check: "needs_review",
+		state: { trusted, untrusted: { paths: stats.paths } },
+	});
+	if (!review.ok) return review;
+	const sensitive = decideDiff(ports, {
+		type: "diff.sensitive",
+		check: "sensitive",
+		state: {
+			trusted,
+			untrusted: {
+				paths: stats.paths,
+				patch: capPatch(zeroContextPatch(diff)),
+			},
+		},
+	});
+	if (!sensitive.ok) return sensitive;
+	return {
+		ok: true,
+		value: {
+			decisionId: review.value.decisionId,
+			needsReview: review.value.yesOrUnsure || sensitive.value.yesOrUnsure,
+			confidence: review.value.confidence,
 		},
 	};
 }

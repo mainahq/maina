@@ -279,7 +279,7 @@ describe("decideAction", () => {
 	});
 
 	test("a backend that cannot answer is a tool failure with no verdict", async () => {
-		// diff.sensitive has no 1.x heuristic yet.
+		// The diff.sensitive heuristic answers only its `sensitive` question.
 		const { output, exitCode } = await run({
 			type: "diff.sensitive",
 			input: JSON.stringify({ questions: [{ kind: "bool", id: "diff" }] }),

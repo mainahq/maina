@@ -858,6 +858,7 @@ articles`. When no entity/architecture article matched, the compiler now
 
   `REVERSED_SUFFIX` moved from `gate/evaluate` to `decide/encoding`.
 - The weekly digest's gate-log parser now reads the dogfood hook's new per-call fields: `root`, `host`, `permissionMode` and `decisionIds`. Lines written before them still parse. A line that has one of them malformed is counted as malformed. The permission modes are now listed once, as `PERMISSION_MODES` in `gate/events`, and the gate uses that list.
+- `diff.sensitive` now has a caller and a heuristic. The verify review triage asks it one yes/no question about the whole diff, next to `diff.needs_review`. A yes, or an unsure no, asks for the deep review. Its state is the `diff.needs_review` state (`additions`, `deletions`, `files`, `paths`) plus `untrusted.patch`: the diff's zero-context text, cut at 6,000 code points. The heuristic says yes when a path names security-sensitive code (auth, tokens, secrets, crypto and similar). Business-critical paths such as billing, payments, sessions, migrations and env still ask for a deep review through `diff.needs_review`, but they are not security-sensitive.
 
 
 ### 1.8.1
