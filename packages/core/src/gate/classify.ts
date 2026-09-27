@@ -34,6 +34,7 @@ import {
 	isScratchPath,
 	resolvePath,
 } from "./paths";
+import { type ImplicitPush, implicitPush } from "./push";
 import {
 	containsSecret,
 	isCredentialStorePath,
@@ -1513,14 +1514,17 @@ function gitPush(rest: readonly string[], ctx: ShellCtx): void {
 	const isDelete = rest.includes("--delete") || rest.includes("-d");
 
 	let repoOption = false;
+	let repo: string | undefined;
 	const pos: string[] = [];
 	for (let i = 0; i < rest.length; i++) {
 		const a = rest[i] as string;
 		if (a === "--repo") {
 			repoOption = true;
-			i++;
-		} else if (a.startsWith("--repo=")) repoOption = true;
-		else if (a === "-o" || a === "--push-option") i++;
+			repo = rest[++i];
+		} else if (a.startsWith("--repo=")) {
+			repoOption = true;
+			repo = a.slice("--repo=".length);
+		} else if (a === "-o" || a === "--push-option") i++;
 		else if (a.startsWith("--force-with-lease=")) continue;
 		else if (!a.startsWith("-")) pos.push(a);
 	}
@@ -1543,12 +1547,17 @@ function gitPush(rest: readonly string[], ctx: ShellCtx): void {
 	}
 
 	if (refspecs.length === 0) {
-		const branch = ctx.gate.currentBranch;
+		const implicit = implicitTarget(ctx, repoOption ? repo : remote);
 		const toProtected =
-			branch !== undefined && ctx.protectedBranches.includes(branch);
-		if (hard) ctx.out.add("git.push.force");
+			implicit.unknown ||
+			implicit.targets.some((t) => ctx.protectedBranches.includes(t));
+		if (hard || implicit.force) ctx.out.add("git.push.force");
 		else if (toProtected)
-			ctx.out.add(leaseForce ? "git.push.force" : "git.push.protected");
+			ctx.out.add(
+				leaseForce || implicit.deletes
+					? "git.push.force"
+					: "git.push.protected",
+			);
 		return;
 	}
 
@@ -1564,6 +1573,37 @@ function gitPush(rest: readonly string[], ctx: ShellCtx): void {
 	else if (deleting && toProtected) ctx.out.add("git.push.force");
 	else if (leaseForce && toProtected) ctx.out.add("git.push.force");
 	else if (toProtected) ctx.out.add("git.push.protected");
+}
+
+/**
+ * Where a push with no refspec goes: from the workspace's push config when
+ * the context has it (#494), else to the checked-out branch.
+ */
+function implicitTarget(
+	ctx: ShellCtx,
+	remote: string | undefined,
+): ImplicitPush {
+	const branch = ctx.gate.currentBranch;
+	const push = ctx.gate.push;
+	if (push !== undefined) {
+		if (remote !== UNKNOWN_WORD) return implicitPush(push, branch, remote);
+		// A remote the gate cannot read may be any remote: resolvable only
+		// while no remote has refspecs or mirroring of its own. The
+		// upstream's remote is then the widest guess: only `upstream` depends
+		// on the remote, and it pushes nowhere to any other (#494).
+		if (push.refspecs.size > 0 || push.mirrors.size > 0) {
+			return { targets: [], unknown: true, force: false, deletes: false };
+		}
+		const upstreamRemote =
+			branch === undefined ? undefined : push.branches.get(branch)?.remote;
+		return implicitPush(push, branch, upstreamRemote);
+	}
+	return {
+		targets: branch === undefined ? [] : [branch],
+		unknown: false,
+		force: false,
+		deletes: false,
+	};
 }
 
 function pushTarget(spec: string, ctx: ShellCtx): string | null {
