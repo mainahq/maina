@@ -1,13 +1,18 @@
 /**
- * Reads a `docker`, `podman` or `docker-compose` command line for the
- * actions the gate classifies (#614): publishing an image, deploying a
- * stack, and deleting data that no rebuild brings back.
+ * Reads a `docker`, `podman`, `nerdctl` or `docker-compose` command line for
+ * the actions the gate classifies (#614): publishing an image, deploying a
+ * stack, deleting data that no rebuild brings back, and running a command
+ * inside a container (#622).
  *
  * Volumes hold databases and uploads, so pruning or removing them is
  * `system.destructive`, as is `system prune --all`/`image prune --all`,
- * which drop every image no container uses, and `podman system reset`. A
- * plain `system prune` only clears dangling images, stopped containers and
- * build cache, so it stays clear.
+ * which drop every image no container uses, `podman system reset`, and
+ * `rm -v`, which takes a container's anonymous volumes with it. A plain
+ * `system prune` only clears dangling images, stopped containers and build
+ * cache, so it stays clear.
+ *
+ * `exec` runs a command in a live container, whose files and services the
+ * gate cannot see, so it is `remote.exec`, like `ssh host cmd`.
  */
 
 import type { ActionClass } from "../policy/defaults";
@@ -17,7 +22,11 @@ type Word = string | null;
 
 type DockerClass = Extract<
 	ActionClass,
-	"package.publish" | "deploy" | "system.destructive" | "shell.opaque"
+	| "package.publish"
+	| "deploy"
+	| "system.destructive"
+	| "shell.opaque"
+	| "remote.exec"
 >;
 
 /** Global options of `docker`/`podman` that take the next word as a value. */
@@ -57,6 +66,16 @@ const GLOBAL_VALUE: ReadonlySet<string> = new Set([
 	"--runtime-flag",
 	"--ssh",
 	"--volumepath",
+	// nerdctl only.
+	"-n",
+	"--namespace",
+	"-a",
+	"--address",
+	"--snapshotter",
+	"--data-root",
+	"--cni-path",
+	"--cni-netconfpath",
+	"--hosts-dir",
 ]);
 
 /** `docker compose` / `docker-compose` options that take the next word as a value. */
@@ -85,7 +104,7 @@ const COMPOSE_VALUE: ReadonlySet<string> = new Set([
 /** Groups whose action decides whether data is deleted. */
 const DATA_GROUPS: ReadonlySet<string> = new Set(["volume", "system", "image"]);
 
-/** The classes of `docker …` or `podman …`, given the words after the program. */
+/** The classes of `docker …`, `podman …` or `nerdctl …`, given the words after the program. */
 export function classifyDocker(words: readonly Word[]): readonly DockerClass[] {
 	const [group, ...rest] = afterOptions(words, GLOBAL_VALUE);
 	if (group === undefined) return [];
@@ -93,8 +112,13 @@ export function classifyDocker(words: readonly Word[]): readonly DockerClass[] {
 	if (group === null) return ["shell.opaque"];
 	if (group === "push") return ["package.publish"];
 	if (group === "compose") return classifyCompose(rest);
+	if (group === "exec") return execs(rest);
+	if (group === "rm") return removesVolumes(rest);
 	const [action, ...args] = rest;
 	if (group === "stack" && action === "deploy") return ["deploy"];
+	if (group === "container" && action === "exec") return execs(args);
+	if (group === "container" && (action === "rm" || action === "remove"))
+		return removesVolumes(args);
 	if (asksForHelp(args)) return [];
 	if (action === null && DATA_GROUPS.has(group)) return ["shell.opaque"];
 	if (group === "volume" && (action === "rm" || action === "remove"))
@@ -113,8 +137,10 @@ export function classifyCompose(
 	words: readonly Word[],
 ): readonly DockerClass[] {
 	const [action, ...args] = afterOptions(words, COMPOSE_VALUE);
+	if (action === "exec") return execs(args);
 	if (asksForHelp(args)) return [];
 	if (action === null) return ["shell.opaque"];
+	if (action === "rm") return removesVolumes(args);
 	if (action !== "down") return [];
 	// `down -v` removes the named volumes the project declares.
 	return dropsData(args, /^-[a-z]*v/, ["--volumes"]);
@@ -162,3 +188,33 @@ function dropsData(
 
 const asksForHelp = (args: readonly Word[]): boolean =>
 	args.some((a) => a === "--help" || a === "-h");
+
+/**
+ * `exec [options] CONTAINER CMD…`: `remote.exec`, unless `--help` comes
+ * before the container (after it, it belongs to the command run inside).
+ */
+function execs(args: readonly Word[]): readonly DockerClass[] {
+	for (const a of args) {
+		if (a === "--help") return [];
+		if (a === null || !a.startsWith("-")) break;
+	}
+	return ["remote.exec"];
+}
+
+/**
+ * `rm -v`/`--volumes` also deletes the container's anonymous volumes. An
+ * unresolved word is most often the container (`docker rm $(docker ps -aq)`),
+ * so only a literal flag counts.
+ */
+function removesVolumes(args: readonly Word[]): readonly DockerClass[] {
+	const end = args.indexOf("--");
+	const options = end < 0 ? args : args.slice(0, end);
+	const drops = options.some(
+		(a) =>
+			a !== null &&
+			(/^-[a-z]*v(?!=false$)/.test(a) ||
+				a === "--volumes" ||
+				a === "--volumes=true"),
+	);
+	return drops ? ["system.destructive"] : [];
+}
