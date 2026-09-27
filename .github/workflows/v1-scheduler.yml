@@ -1,0 +1,88 @@
+name: v1 scheduler
+
+# Temporary (#571). GitHub fires `schedule` triggers only from the default
+# branch, so the v1 workflows that live on v1/main never run on their crons.
+# This dispatches them with `--ref v1/main` on the same crons:
+#
+#   15 4 * * *   release-evidence.yml  (nightly, 2 e2e repetitions as on schedule)
+#   30 6 * * 1   dogfood-report.yml    (Mondays)
+#
+# Each run stands down once its target workflow is on the default branch,
+# where its own `schedule` fires. The nightly evidence dispatch also stands
+# down while an on-demand release-evidence run is active on v1/main, which
+# it would otherwise cancel. Delete this file when v1/main merges to
+# master.
+
+on:
+  schedule:
+    - cron: "15 4 * * *"
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      workflow:
+        description: "v1 workflow to dispatch on v1/main"
+        type: choice
+        options:
+          - release-evidence.yml
+          - dogfood-report.yml
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch on v1/main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          SCHEDULE: ${{ github.event.schedule }}
+          PICKED: ${{ inputs.workflow }}
+        run: |
+          case "$SCHEDULE" in
+            "15 4 * * *") wf=release-evidence.yml ;;
+            "30 6 * * 1") wf=dogfood-report.yml ;;
+            *) wf="$PICKED" ;;
+          esac
+          case "$wf" in
+            release-evidence.yml | dogfood-report.yml) ;;
+            *) echo "::error::no v1 workflow for schedule '$SCHEDULE' or input '$PICKED'"; exit 1 ;;
+          esac
+          # A schedule event's payload need not carry `repository`; ask the API.
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            DEFAULT_BRANCH=$(gh api "repos/$GH_REPO" --jq .default_branch 2>/dev/null || true)
+          fi
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::could not resolve the default branch of $GH_REPO"
+            exit 1
+          fi
+          # Only a definite 404 means "not on the default branch yet"; an API
+          # error must not dispatch, or the workflow would run twice there.
+          status=$(gh api -i "repos/$GH_REPO/contents/.github/workflows/$wf?ref=$DEFAULT_BRANCH" 2>/dev/null | head -n1 | cut -d' ' -f2 || true)
+          case "$status" in
+            404) ;;
+            200) echo "$wf is on $DEFAULT_BRANCH and runs on its own schedule; nothing to dispatch."; exit 0 ;;
+            *) echo "::error::could not tell whether $wf is on $DEFAULT_BRANCH (HTTP '$status')"; exit 1 ;;
+          esac
+          args=()
+          if [ "$wf" = release-evidence.yml ]; then
+            # release-evidence.yml cancels in-progress runs in its (event, ref)
+            # concurrency group, which a dispatch shares with any on-demand run
+            # on v1/main (such as the 14-repetition release-gate run). Never
+            # dispatch over one.
+            if ! active=$(gh run list --workflow "$wf" --branch v1/main --event workflow_dispatch --limit 50 \
+                --json status --jq '[.[] | select(.status != "completed")] | length'); then
+              echo "::error::could not list $wf runs on v1/main"
+              exit 1
+            fi
+            if [ "$active" != "0" ]; then
+              echo "An on-demand $wf run is active on v1/main; not dispatching over it."
+              exit 0
+            fi
+            args=(-f e2e_repetitions=2)
+          fi
+          gh workflow run "$wf" --ref v1/main "${args[@]}"
+          echo "Dispatched $wf on v1/main." >> "$GITHUB_STEP_SUMMARY"
