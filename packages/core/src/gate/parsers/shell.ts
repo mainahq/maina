@@ -251,8 +251,10 @@ function statement(node: Node): ShellNode | null {
 	switch (node.type) {
 		case "comment":
 			return null;
-		case "command":
-			return command(node);
+		case "command": {
+			const parts = command(node);
+			return withTrailing(parts.node, parts.trailing);
+		}
 		case "redirected_statement":
 			return redirected(node);
 		case "variable_assignment":
@@ -290,50 +292,119 @@ function statement(node: Node): ShellNode | null {
 	}
 }
 
-function command(node: Node, extra: readonly Redirect[] = []): ShellNode {
+type CommandParts = Readonly<{
+	node: ShellNode;
+	trailing: readonly ShellNode[];
+}>;
+
+/**
+ * A command's words, assignments and redirects, in source order. `extra` are
+ * the redirects tree-sitter hangs on the enclosing `redirected_statement`.
+ * Bash lets a redirect sit anywhere among the words (`rm < /dev/null -rf ~`),
+ * and tree-sitter-bash files the words after it inside the redirect node, so
+ * every redirect hands back its argument words as well (#619).
+ */
+function command(node: Node, extra: readonly Node[] = []): CommandParts {
 	const argv: ShellWord[] = [];
 	const assignments: Assignment[] = [];
 	const redirects: Redirect[] = [];
-	for (const child of named(node)) {
+	const trailing: ShellNode[] = [];
+	let lastArg: Node | null = null;
+	for (const child of [...named(node), ...extra]) {
 		if (child.type === "variable_assignment") {
 			assignments.push(assignment(child));
 		} else if (child.type === "command_name") {
 			const inner = named(child)[0];
 			if (inner) argv.push(word(inner));
 		} else if (REDIRECTS.has(child.type)) {
-			redirects.push(...redirect(child).redirects);
+			// `0</dev/null`: tree-sitter reads a glued digit before some
+			// operators as an argument; bash reads it as the descriptor.
+			const fd = gluedDescriptor(lastArg, child);
+			if (fd !== null) argv.pop();
+			const r = redirect(child, fd);
+			redirects.push(...r.redirects);
+			argv.push(...r.words);
+			trailing.push(...r.trailing);
 		} else if (child.type !== "comment") {
 			argv.push(word(child));
+			lastArg = child;
+			continue;
 		}
+		lastArg = null;
 	}
 	return {
-		kind: "command",
-		argv,
-		assignments,
-		redirects: [...redirects, ...extra],
+		node: { kind: "command", argv, assignments, redirects },
+		trailing,
 	};
 }
 
+/** Operators bash never lets a descriptor prefix: `echo 5&>x` writes `5` to x. */
+const NO_FD_OPS: ReadonlySet<string> = new Set(["&>", "&>>"]);
+
+/** The operator token of a file redirect (`<`, `>>`, `&>`, …). */
+function redirectOp(node: Node): string {
+	return (
+		all(node).find((c) => !c.isNamed && c.type !== "file_descriptor")?.type ??
+		">"
+	);
+}
+
+/** The descriptor a digit argument glued to the next redirect names, if any. */
+function gluedDescriptor(arg: Node | null, next: Node): number | null {
+	if (arg === null || next.type !== "file_redirect") return null;
+	if (arg.type !== "number" || !/^\d+$/.test(arg.text)) return null;
+	if (arg.endIndex !== next.startIndex) return null;
+	if (next.childForFieldName("descriptor") !== null) return null;
+	if (NO_FD_OPS.has(redirectOp(next))) return null;
+	return Number.parseInt(arg.text, 10);
+}
+
 function redirected(node: Node): ShellNode {
+	const redirectNodes = node
+		.childrenForFieldName("redirect")
+		.filter((c): c is Node => c !== null);
+	const body = node.childForFieldName("body");
+	if (body?.type === "command") {
+		const parts = command(body, redirectNodes);
+		return withTrailing(parts.node, parts.trailing);
+	}
 	const redirects: Redirect[] = [];
-	// A heredoc can carry the rest of its line: `cat <<EOF | sh`.
+	const words: ShellWord[] = [];
 	const trailing: ShellNode[] = [];
-	for (const child of node.childrenForFieldName("redirect")) {
-		if (child === null) continue;
-		const r = redirect(child);
+	for (const child of redirectNodes) {
+		const r = redirect(child, null);
 		redirects.push(...r.redirects);
+		words.push(...r.words);
 		trailing.push(...r.trailing);
 	}
-	const body = node.childForFieldName("body");
-	const head: ShellNode =
-		body === null
-			? { kind: "command", argv: [], assignments: [], redirects }
-			: body.type === "command"
-				? command(body, redirects)
-				: sequence(
-						[statement(body)].filter((s) => s !== null),
-						redirects,
-					);
+	if (body === null) {
+		// No body: whatever words the redirects carry are the command.
+		const head: ShellNode = {
+			kind: "command",
+			argv: words,
+			assignments: [],
+			redirects,
+		};
+		return withTrailing(head, trailing);
+	}
+	// Words after a redirect on a group or loop are a syntax error to bash;
+	// they are kept as unknown so the gate cannot read the line as clean.
+	const stray: ShellNode[] =
+		words.length === 0
+			? []
+			: [{ kind: "unknown", raw: words.map((w) => w.raw).join(" ") }];
+	const head = sequence(
+		[statement(body), ...stray].filter((s) => s !== null),
+		redirects,
+	);
+	return withTrailing(head, trailing);
+}
+
+/** A heredoc can carry the rest of its line: `cat <<EOF | sh`. */
+function withTrailing(
+	head: ShellNode,
+	trailing: readonly ShellNode[],
+): ShellNode {
 	if (trailing.length === 0) return head;
 	const [first, ...rest] = trailing;
 	return first?.kind === "pipeline"
@@ -343,19 +414,34 @@ function redirected(node: Node): ShellNode {
 
 type RedirectParts = Readonly<{
 	redirects: readonly Redirect[];
+	/** The command's argument words that follow the redirect on its line. */
+	words: readonly ShellWord[];
 	trailing: readonly ShellNode[];
 }>;
 
-function redirect(node: Node): RedirectParts {
+const NO_PARTS: RedirectParts = { redirects: [], words: [], trailing: [] };
+
+/** Closing a descriptor (`<&-`, `2>&-`) takes no target word. */
+const CLOSE_OPS: ReadonlySet<string> = new Set(["<&-", ">&-"]);
+
+function redirect(node: Node, gluedFd: number | null): RedirectParts {
 	switch (node.type) {
 		case "file_redirect": {
 			const fdNode = node.childForFieldName("descriptor");
-			const fd = fdNode === null ? null : Number.parseInt(fdNode.text, 10);
-			const op =
-				all(node).find((c) => !c.isNamed && c.type !== "file_descriptor")
-					?.type ?? ">";
-			const dest = node.childForFieldName("destination");
-			if (dest === null) return { redirects: [], trailing: [] };
+			const fd = fdNode === null ? gluedFd : Number.parseInt(fdNode.text, 10);
+			const op = redirectOp(node);
+			const dests = node
+				.childrenForFieldName("destination")
+				.filter((c): c is Node => c !== null);
+			if (CLOSE_OPS.has(op)) {
+				return {
+					redirects: [{ kind: "dup", op, fd, target: "-" }],
+					words: dests.map(word),
+					trailing: [],
+				};
+			}
+			const [dest, ...rest] = dests;
+			if (dest === undefined) return NO_PARTS;
 			const isDup = (op === ">&" || op === "<&") && /^(\d+|-)$/.test(dest.text);
 			return {
 				redirects: [
@@ -363,6 +449,7 @@ function redirect(node: Node): RedirectParts {
 						? { kind: "dup", op, fd, target: dest.text }
 						: { kind: "file", op, fd, target: word(dest) },
 				],
+				words: rest.map(word),
 				trailing: [],
 			};
 		}
@@ -380,34 +467,75 @@ function redirect(node: Node): RedirectParts {
 				substs: expands && bodyNode ? nestedScripts(bodyNode) : [],
 				backticks: expands ? backtickSources(raw) : [],
 			};
-			const inner = named(node).filter(
-				(c) =>
-					c.type !== "heredoc_start" &&
-					c.type !== "heredoc_body" &&
-					c.type !== "heredoc_end",
-			);
-			const more = inner.filter((c) => REDIRECTS.has(c.type)).map(redirect);
-			const trailing = inner
-				.filter((c) => !REDIRECTS.has(c.type))
-				.flatMap((c) => {
-					const s = statement(c);
-					return s === null ? [] : [s];
-				});
-			return {
-				redirects: [heredoc, ...more.flatMap((m) => m.redirects)],
-				trailing: [...more.flatMap((m) => m.trailing), ...trailing],
-			};
+			const line = heredocLine(node);
+			return { ...line, redirects: [heredoc, ...line.redirects] };
 		}
 		case "herestring_redirect": {
 			const target = named(node)[0];
 			return {
 				redirects: target ? [{ kind: "herestring", word: word(target) }] : [],
+				words: [],
 				trailing: [],
 			};
 		}
 		default:
-			return { redirects: [], trailing: [] };
+			return NO_PARTS;
 	}
+}
+
+/** A pipe tree-sitter-bash could not place after heredoc arguments (`cat <<EOF -x | sh`). */
+const STRAY_PIPE = /^\|&?$/;
+
+/**
+ * The rest of a heredoc's start line: argument words of the command (`rm
+ * <<EOF -rf ~`), more redirects, and what follows it (`| sh`, `&& …`). A pipe
+ * after argument words is a syntax error to tree-sitter-bash; the words after
+ * it become the next pipeline stage so a `sh` reading the heredoc is seen.
+ */
+function heredocLine(node: Node): RedirectParts {
+	const redirects: Redirect[] = [];
+	const words: ShellWord[] = [];
+	const trailing: ShellNode[] = [];
+	let piped: ShellWord[] | null = null;
+	for (const [i, c] of node.children.entries()) {
+		if (c === null || (!c.isNamed && c.type !== "ERROR")) continue;
+		if (
+			c.type === "heredoc_start" ||
+			c.type === "heredoc_body" ||
+			c.type === "heredoc_end"
+		) {
+			continue;
+		}
+		if (node.fieldNameForChild(i) === "argument") {
+			(piped ?? words).push(word(c));
+		} else if (REDIRECTS.has(c.type)) {
+			const r = redirect(c, null);
+			redirects.push(...r.redirects);
+			(piped ?? words).push(...r.words);
+			trailing.push(...r.trailing);
+		} else if (
+			c.type === "ERROR" &&
+			piped === null &&
+			STRAY_PIPE.test(c.text)
+		) {
+			piped = [];
+		} else {
+			const s = statement(c);
+			if (s !== null) trailing.push(s);
+		}
+	}
+	const stage: ShellNode[] =
+		piped === null || piped.length === 0
+			? []
+			: [
+					{
+						kind: "pipeline",
+						stages: [
+							{ kind: "command", argv: piped, assignments: [], redirects: [] },
+						],
+					},
+				];
+	return { redirects, words, trailing: [...stage, ...trailing] };
 }
 
 function assignment(node: Node): Assignment {

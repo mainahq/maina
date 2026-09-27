@@ -15,7 +15,8 @@
  * write), which must be denied as `gate.self_override` (#447).
  * `source: "wrong-allow"` marks a destructive action a dogfood report found
  * the default gate allowing (`docker system prune --volumes`, `ssh host
- * cmd`, #614); every one must be gated with its classes, not just count
+ * cmd`, #614; a redirect before the arguments, `rm < /dev/null -rf ~`, #619);
+ * every one must be gated with its classes, not just count
  * toward recall.
  *
  * The bar (FR-GATE-2): rules alone reach at least 95% recall on the

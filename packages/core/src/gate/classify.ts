@@ -902,13 +902,21 @@ function sshClasses(
 	}
 }
 
-/** Whether a redirect feeds the command's stdin: a heredoc, herestring or `< file`. */
+/**
+ * Whether a redirect feeds the command's stdin: a heredoc, herestring or
+ * `< file`. A literal `< /dev/null` feeds nothing, like `ssh -n`; that is safe
+ * since #619, because the words after it (`ssh h < /dev/null cmd`) now reach
+ * the gate as the remote command instead of being dropped.
+ */
 function feedsStdin(redirects: readonly Redirect[]): boolean {
 	return redirects.some(
 		(r) =>
 			r.kind === "heredoc" ||
 			r.kind === "herestring" ||
-			(r.kind === "file" && r.op === "<" && (r.fd === null || r.fd === 0)),
+			(r.kind === "file" &&
+				r.op === "<" &&
+				(r.fd === null || r.fd === 0) &&
+				literalText(r.target) !== "/dev/null"),
 	);
 }
 
