@@ -12,8 +12,10 @@ import {
 	lstatSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	realpathSync,
+	rmSync,
 	symlinkSync,
 	writeFileSync,
 } from "node:fs";
@@ -92,6 +94,8 @@ describe("GATE_CONFIGS", () => {
 				"opencode.jsonc",
 				"plugin",
 				"plugins",
+				"tool",
+				"tools",
 			].sort(),
 		);
 		// Gemini: workspace policy files with `allow` rules.
@@ -526,6 +530,78 @@ describe("installWorkerGate", () => {
 		expect(removed.ok).toBe(false);
 		expect(readFileSync(again, "utf8")).toBe("// a second copy\n");
 		expect(readFileSync(moved, "utf8")).toBe(original);
+	});
+
+	test("a quarantine the repo ships as a symlink fails closed, moving nothing out of the worktree", () => {
+		const { worktree, stateDir, sandbox } = setup();
+		const shipped = maliciousRepo(worktree);
+		// Points outside the worktree, e.g. at the user's global OpenCode
+		// config, whose `agent/` and `plugin/` OpenCode also loads.
+		const outside = join(dirname(worktree), "global-opencode");
+		mkdirSync(outside, { recursive: true });
+		symlinkSync(outside, join(worktree, ".opencode", ".maina-quarantine"));
+		const options = { worktree, stateDir, policy: DENY_PUBLISH, sandbox };
+		const installed = installWorkerGate(worker("opencode"), options);
+		expect(installed.ok).toBe(false);
+		if (!installed.ok) expect(installed.error.code).toBe("invalid_settings");
+		expect(readdirSync(outside)).toEqual([]);
+		for (const [rel, content] of Object.entries(shipped.opencode)) {
+			expect(readFileSync(join(worktree, ".opencode", rel), "utf8")).toBe(
+				content,
+			);
+		}
+		// Nor does the uninstall pull anything in through it.
+		mkdirSync(join(outside, "plugin"));
+		writeFileSync(join(outside, "moved.json"), JSON.stringify(["plugin"]));
+		rmSync(join(worktree, ".opencode", "plugin"), { recursive: true });
+		expect(uninstallWorkerGate(worker("opencode"), worktree).ok).toBe(false);
+		expect(existsSync(join(outside, "plugin"))).toBe(true);
+		expect(exists(join(worktree, ".opencode", "plugin"))).toBe(false);
+	});
+
+	test("a quarantine record the repo ships as a symlink fails closed, writing nothing through it", () => {
+		const { worktree, stateDir, sandbox } = setup();
+		maliciousRepo(worktree);
+		const target = join(dirname(worktree), "victim.json");
+		writeFileSync(target, "[]");
+		const quarantine = join(worktree, ".opencode", ".maina-quarantine");
+		mkdirSync(quarantine);
+		symlinkSync(target, join(quarantine, "moved.json"));
+		const installed = installWorkerGate(worker("opencode"), {
+			worktree,
+			stateDir,
+			policy: DENY_PUBLISH,
+			sandbox,
+		});
+		expect(installed.ok).toBe(false);
+		expect(readFileSync(target, "utf8")).toBe("[]");
+		expect(exists(join(worktree, ".opencode", "plugin"))).toBe(true);
+	});
+
+	test("OpenCode custom tools, which run without asking, are moved aside too", () => {
+		const { worktree, stateDir, sandbox } = setup();
+		const tool =
+			'export default { description: "sh", args: {}, async execute() { return String(await Bun.$`id`) } }\n';
+		for (const dir of ["tool", "tools"]) {
+			mkdirSync(join(worktree, ".opencode", dir), { recursive: true });
+			writeFileSync(join(worktree, ".opencode", dir, "sh.ts"), tool);
+		}
+		const installed = installWorkerGate(worker("opencode"), {
+			worktree,
+			stateDir,
+			policy: DENY_PUBLISH,
+			sandbox,
+		});
+		if (!installed.ok) throw new Error(installed.error.message);
+		for (const dir of ["tool", "tools"]) {
+			expect(exists(join(worktree, ".opencode", dir))).toBe(false);
+		}
+		expect(uninstallWorkerGate(worker("opencode"), worktree).ok).toBe(true);
+		for (const dir of ["tool", "tools"]) {
+			expect(
+				readFileSync(join(worktree, ".opencode", dir, "sh.ts"), "utf8"),
+			).toBe(tool);
+		}
 	});
 
 	test("a repo's own quarantine-named directory is never mistaken for maina's", () => {

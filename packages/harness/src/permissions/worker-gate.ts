@@ -15,8 +15,9 @@
  *   run's policy beside the bridge's permission log, outside the worktree.
  *   What a repo ships beside that config and the agent loads over it
  *   (OpenCode markdown agents and modes with their own `permission`,
- *   plugins that answer its asks, a second `.jsonc` config; Gemini
- *   workspace policy files with `allow` rules) is there before the run, so
+ *   plugins that answer its asks, custom tools that run unasked, a second
+ *   `.jsonc` config; Gemini workspace policy files with `allow` rules) is
+ *   there before the run, so
  *   the write-deny below cannot stop it: the install moves it aside, whole,
  *   into a quarantine inside the same guarded directory, and the uninstall
  *   puts it back. Moving is chosen over refusing the run so a repo that
@@ -87,7 +88,8 @@ export const GATE_CONFIGS: Readonly<Record<AcpWorker, GateConfig>> = {
 	// OpenCode merges `.opencode/opencode.json` over the root config, and
 	// loads plugins (which can answer its asks) from the same directory,
 	// as well as markdown agents and modes whose own `permission` wins over
-	// the global one, and an `opencode.jsonc` merged beside the `.json`.
+	// the global one, custom tools (code it runs with no permission key to
+	// ask on), and an `opencode.jsonc` merged beside the `.json`.
 	opencode: {
 		dir: ".opencode",
 		file: "opencode.json",
@@ -98,6 +100,8 @@ export const GATE_CONFIGS: Readonly<Record<AcpWorker, GateConfig>> = {
 			"modes",
 			"plugin",
 			"plugins",
+			"tool",
+			"tools",
 			"opencode.jsonc",
 		],
 	},
@@ -255,8 +259,9 @@ const backupOf = (configPath: string): string => `${configPath}.maina-backup`;
 
 /**
  * Inside the guarded config directory, and matching none of the globs the
- * agents load from (`{agent,agents,mode,modes}/**` and `{plugin,plugins}/*`
- * are relative to `.opencode`, `policies/*.toml` to `.gemini`).
+ * agents load from (`{agent,agents,mode,modes}/**`, `{plugin,plugins}/*` and
+ * `{tool,tools}/*` are relative to `.opencode`, `policies/*.toml` to
+ * `.gemini`).
  */
 const QUARANTINE = ".maina-quarantine";
 /** What maina moved into the quarantine, so only that is ever put back. */
@@ -280,14 +285,44 @@ function readText(path: string): string | undefined {
 	return existsSync(path) ? readFileSync(path, "utf8") : undefined;
 }
 
-/** Anything at `path`, a dangling symlink included (`existsSync` follows it). */
-function present(path: string): boolean {
+/** What is at `path` itself, a symlink not followed, or undefined. */
+function lstatOf(path: string): ReturnType<typeof lstatSync> | undefined {
 	try {
-		lstatSync(path);
-		return true;
+		return lstatSync(path);
 	} catch {
-		return false;
+		return undefined;
 	}
+}
+
+/** Anything at `path`, a dangling symlink included (`existsSync` follows it). */
+const present = (path: string): boolean => lstatOf(path) !== undefined;
+
+/**
+ * The quarantine and its record, where present, must be the plain
+ * directory and file maina makes: a repo that ships either as a symlink
+ * would have the install move its overrides, or write its record, wherever
+ * that points (a global agent config the agent also loads, a file outside
+ * the worktree), and the uninstall pull files back in from there.
+ */
+function checkQuarantine(
+	quarantineDir: string,
+	manifestPath: string,
+): Result<void, PermissionSetupError> {
+	const dir = lstatOf(quarantineDir);
+	if (dir !== undefined && !dir.isDirectory()) {
+		return fail(
+			"invalid_settings",
+			`${quarantineDir} is not a directory maina made: remove it`,
+		);
+	}
+	const record = lstatOf(manifestPath);
+	if (record !== undefined && !record.isFile()) {
+		return fail(
+			"invalid_settings",
+			`${manifestPath} is not a file maina wrote: remove it`,
+		);
+	}
+	return { ok: true, value: undefined };
 }
 
 /**
@@ -329,6 +364,8 @@ function quarantineOverrides(
 ): Result<void, PermissionSetupError> {
 	const quarantineDir = quarantineOf(configDir);
 	const manifestPath = join(quarantineDir, MOVED);
+	const checked = checkQuarantine(quarantineDir, manifestPath);
+	if (!checked.ok) return checked;
 	const recorded = readMoved(manifestPath, overrides);
 	if (!recorded.ok) return recorded;
 	const moved = recorded.value;
@@ -362,6 +399,8 @@ function restoreOverrides(
 	const quarantineDir = quarantineOf(configDir);
 	const manifestPath = join(quarantineDir, MOVED);
 	if (!present(manifestPath)) return { ok: true, value: undefined };
+	const checked = checkQuarantine(quarantineDir, manifestPath);
+	if (!checked.ok) return checked;
 	const recorded = readMoved(manifestPath, overrides);
 	if (!recorded.ok) return recorded;
 	const blocked: string[] = [];
