@@ -9,6 +9,7 @@ import { DEFAULT_POLICY } from "../../policy/defaults";
 import { classifyAction } from "../classify";
 import type { GateContext } from "../events";
 import { EMPTY_PUSH_CONFIG, type PushConfig } from "../push";
+import { evaluateRules } from "../rules";
 import {
 	gateContext,
 	mcpEvent,
@@ -1321,5 +1322,272 @@ describe("gate.self_override: an installed maina plugin (#533)", () => {
 		]) {
 			expect(classesOf(command), command).not.toContain(SELF);
 		}
+	});
+});
+
+describe("destructive cloud, repo and hook actions the default gate allowed (#579)", () => {
+	const verdictOf = (event: Parameters<typeof classifyAction>[0]): string =>
+		evaluateRules(event, DEFAULT_POLICY, ctx).kind;
+	const GATED: readonly string[] = ["ask", "deny"];
+
+	test("deleting a hosted repository discards it", () => {
+		for (const command of [
+			"gh repo delete acme/api --yes",
+			"gh repo delete --yes",
+			"gh repo delete acme/api --confirm",
+		]) {
+			expect(classesOf(command), command).toContain("git.discard");
+			expect(verdictOf(shellEvent(command)), command).toBe("ask");
+		}
+	});
+
+	test("MCP tools that delete a repository, data store or live resource", () => {
+		const cases: ReadonlyArray<
+			readonly [string, string, Readonly<Record<string, unknown>>, string]
+		> = [
+			[
+				"github",
+				"delete_repository",
+				{ owner: "acme", repo: "api" },
+				"git.discard",
+			],
+			[
+				"github",
+				"deleteRepository",
+				{ owner: "acme", repo: "api" },
+				"git.discard",
+			],
+			["gitlab", "delete_repo", { id: 7 }, "git.discard"],
+			["aws", "s3_delete_bucket", { bucket: "prod-assets" }, "db.destructive"],
+			["aws", "rds_delete_db_instance", { id: "prod" }, "db.destructive"],
+			["neon", "delete_database", { name: "app" }, "db.destructive"],
+			["supabase", "drop_table", { table: "users" }, "db.destructive"],
+			["kubernetes", "delete_namespace", { name: "production" }, "deploy"],
+			["gcp", "delete_project", { project: "prod" }, "deploy"],
+			["aws", "ec2_terminate_instances", { ids: ["i-1"] }, "deploy"],
+			["vercel", "destroy_deployment", { id: "dpl_1" }, "deploy"],
+		];
+		for (const [server, tool, input, cls] of cases) {
+			const event = mcpEvent(server, tool, input);
+			const got: readonly string[] = classifyAction(event, ctx);
+			expect(got, tool).toContain(cls);
+			expect(verdictOf(event), tool).toBe("ask");
+		}
+	});
+
+	test("cloud CLI deletes of data stores and live resources", () => {
+		const cases: ReadonlyArray<readonly [string, string]> = [
+			[
+				"aws rds delete-db-instance --db-instance-identifier prod",
+				"db.destructive",
+			],
+			[
+				"aws rds delete-db-cluster --db-cluster-identifier prod",
+				"db.destructive",
+			],
+			["aws dynamodb delete-table --table-name orders", "db.destructive"],
+			["aws s3 rb s3://prod-assets --force", "db.destructive"],
+			["aws s3 rm s3://prod-assets --recursive", "db.destructive"],
+			["aws s3api delete-bucket --bucket prod-assets", "db.destructive"],
+			[
+				"aws --region us-east-1 rds delete-db-instance --db-instance-identifier x",
+				"db.destructive",
+			],
+			["aws ec2 terminate-instances --instance-ids i-123", "deploy"],
+			["aws eks delete-cluster --name prod", "deploy"],
+			["aws lambda delete-function --function-name api", "deploy"],
+			["aws sqs purge-queue --queue-url https://sqs/q", "deploy"],
+			["gcloud projects delete my-prod-project", "deploy"],
+			["gcloud compute instances delete vm-1 --zone us-central1-a", "deploy"],
+			["gcloud sql instances delete prod-db", "db.destructive"],
+			["gcloud storage rm --recursive gs://prod-assets", "db.destructive"],
+			["az group delete --name prod-rg --yes", "deploy"],
+			[
+				"az sql db delete --name app --server s --resource-group rg",
+				"db.destructive",
+			],
+			["heroku apps:destroy myapp --confirm myapp", "deploy"],
+			["heroku pg:reset DATABASE_URL --confirm myapp", "db.destructive"],
+		];
+		for (const [command, cls] of cases) {
+			expect(classesOf(command), command).toContain(cls);
+			expect(verdictOf(shellEvent(command)), command).toBe("ask");
+		}
+	});
+
+	test("core.hooksPath pointed where no repo hook runs overrides the gate", () => {
+		for (const command of [
+			"git config core.hooksPath /dev/null",
+			"git config core.hookspath /dev/null",
+			"git config --local core.hooksPath /dev/null",
+			"git config --global core.hooksPath /tmp/nohooks",
+			"git config set core.hooksPath /dev/null",
+			"git config core.hooksPath ''",
+			"git config core.hooksPath ~/empty-hooks",
+			"git config core.hooksPath ../elsewhere",
+			"git config --unset core.hooksPath",
+			"git config --unset-all core.hooksPath",
+			"git config unset core.hooksPath",
+			"git config --replace-all core.hooksPath /dev/null",
+			"git config --file .git/config core.hooksPath /dev/null",
+			"git -c core.hooksPath=/dev/null commit -m wip",
+			"git -c core.hooksPath= commit -m wip",
+			"git -C /work/repo config core.hooksPath /dev/null",
+			"git config --remove-section core",
+		]) {
+			expect(classesOf(command), command).toContain("gate.self_override");
+			expect(verdictOf(shellEvent(command)), command).toBe("deny");
+		}
+	});
+
+	test("a core.hooksPath the gate cannot read asks", () => {
+		expect(classesOf("git config core.hooksPath $DIR")).toContain(
+			"shell.opaque",
+		);
+	});
+
+	test("reads, repo hook dirs and look-alikes stay allowed", () => {
+		for (const command of [
+			"git config core.hooksPath",
+			"git config --get core.hooksPath",
+			"git config get core.hooksPath",
+			"git config --list",
+			"git config core.hooksPath .githooks",
+			"git config core.hooksPath .husky/_",
+			"git config user.name 'Dev'",
+			"git config --unset user.email",
+			"git -c user.name=x commit -m wip",
+			"git config --remove-section alias",
+			"gh repo view acme/api",
+			"gh repo clone acme/api",
+			"gh repo create acme/new --private",
+			"gh repo delete --help",
+			"aws rds describe-db-instances",
+			"aws s3 ls s3://prod-assets",
+			"aws s3 rm s3://bucket/tmp/file.txt",
+			"aws sqs delete-message --queue-url q --receipt-handle h",
+			"aws rds delete-db-instance help",
+			"gcloud sql instances list",
+			"gcloud config configurations delete old",
+			"az group list",
+			"heroku apps:info myapp",
+		]) {
+			expect(GATED, command).not.toContain(verdictOf(shellEvent(command)));
+		}
+		for (const [server, tool, input] of [
+			["github", "get_repository", { owner: "acme", repo: "api" }],
+			["github", "delete_file", { path: "src/a.ts" }],
+			["github", "remove_repository_collaborator", { user: "x" }],
+			["github", "delete_branch", { branch: "feature/x" }],
+			["linear", "delete_comment", { id: "c1" }],
+			["kubernetes", "list_namespaces", {}],
+		] as const) {
+			expect(GATED, tool).not.toContain(
+				verdictOf(mcpEvent(server, tool, input)),
+			);
+		}
+	});
+});
+
+describe("#579 review: other spellings of the same destructive actions", () => {
+	const verdictOf = (event: Parameters<typeof classifyAction>[0]): string =>
+		evaluateRules(event, DEFAULT_POLICY, ctx).kind;
+	const GATED: readonly string[] = ["ask", "deny"];
+
+	test("core.hooksPath set through --config-env or GIT_CONFIG_* env overrides the gate", () => {
+		for (const command of [
+			"git --config-env=core.hooksPath=EMPTY commit -m wip",
+			"git --config-env core.hooksPath=EMPTY commit -m wip",
+			"GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git commit -m wip",
+			"export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hookspath GIT_CONFIG_VALUE_0=/dev/null; git commit -m wip",
+			"env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git commit -m wip",
+			"GIT_CONFIG_PARAMETERS=\"'core.hooksPath'='/dev/null'\" git commit -m wip",
+		]) {
+			expect(classesOf(command), command).toContain("gate.self_override");
+			expect(verdictOf(shellEvent(command)), command).toBe("deny");
+		}
+		// A key the gate cannot read may be the hooks path.
+		expect(classesOf("git --config-env=$K=V commit -m wip")).toContain(
+			"shell.opaque",
+		);
+		expect(
+			classesOf("GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=$K git commit -m wip"),
+		).toContain("shell.opaque");
+		// Other config through the environment stays allowed.
+		expect(GATED).not.toContain(
+			verdictOf(
+				shellEvent(
+					"GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=bot git log",
+				),
+			),
+		);
+	});
+
+	test("a core.hooksPath inside .git, other than .git/hooks, runs no repo hook", () => {
+		expect(classesOf("git config core.hooksPath .git/nohooks")).toContain(
+			"gate.self_override",
+		);
+		expect(
+			verdictOf(shellEvent("git config core.hooksPath .git/hooks")),
+		).not.toBe("deny");
+	});
+
+	test("gh api DELETE of a repository discards it", () => {
+		for (const command of [
+			"gh api -X DELETE repos/acme/api",
+			"gh api --method DELETE /repos/acme/api",
+			"gh api --method=delete repos/{owner}/{repo}",
+			"gh api -XDELETE https://api.github.com/repos/acme/api",
+		]) {
+			expect(classesOf(command), command).toContain("git.discard");
+			expect(verdictOf(shellEvent(command)), command).toBe("ask");
+		}
+		for (const command of [
+			"gh api repos/acme/api",
+			"gh api -X DELETE repos/acme/api/branches/x/protection",
+			"gh api -X GET repos/acme/api",
+		]) {
+			expect(classesOf(command), command).not.toContain("git.discard");
+		}
+	});
+
+	test("MCP delete tools with a trailing qualifier still name the resource", () => {
+		for (const [tool, cls] of [
+			["delete_table_by_name", "db.destructive"],
+			["delete_database_by_id", "db.destructive"],
+			["drop_table_if_exists", "db.destructive"],
+			["delete_repo_permanently", "git.discard"],
+			["deleteRepositoryById", "git.discard"],
+		] as const) {
+			expect(classifyAction(mcpEvent("x", tool, {}), ctx), tool).toContain(cls);
+		}
+		for (const tool of [
+			"delete_access_for_repository",
+			"delete_bucket_objects",
+			"delete_file_by_path",
+		]) {
+			expect(GATED, tool).not.toContain(verdictOf(mcpEvent("x", tool, {})));
+		}
+	});
+
+	test("gcloud and az global options before the group keep its class", () => {
+		expect(
+			classesOf("gcloud --project prod sql instances delete db"),
+		).toContain("db.destructive");
+		expect(
+			classesOf("az --subscription prod sql db delete -n app -s s -g rg"),
+		).toContain("db.destructive");
+		expect(GATED).not.toContain(
+			verdictOf(
+				shellEvent("gcloud --project prod config configurations delete old"),
+			),
+		);
+	});
+
+	test("heroku addons:destroy takes a live resource down; --help only prints usage", () => {
+		expect(
+			classesOf("heroku addons:destroy heroku-postgresql -a app"),
+		).toContain("deploy");
+		expect(GATED).not.toContain(verdictOf(shellEvent("gsutil rb --help")));
 	});
 });
