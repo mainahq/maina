@@ -36,17 +36,38 @@ describe("testTmpDir (runtime): one marked per-process root (#639)", () => {
  */
 const AREAS = ["__tests__", "link", "model", "statusline"];
 
-/** A path built directly in TMPDIR, such as a `mkdtempSync` of `tmpdir()`. */
-const IN_TMPDIR = /join\(\s*tmpdir\(\)\s*,/;
+/**
+ * A path built directly in TMPDIR, such as a `mkdtempSync` of `tmpdir()`: any
+ * `tmpdir()` call except the socket fallback parent `tmpDir: tmpdir()`.
+ */
+const IN_TMPDIR = /(?<!\btmpDir:\s*)\btmpdir\(\)/;
 
 describe("runtime test fixtures: none made directly in TMPDIR (#641)", () => {
+	test("the guard catches every way of building a path in TMPDIR", () => {
+		for (const made of [
+			'mkdtempSync(join(tmpdir(), "maina-x-"))',
+			'mkdtempSync(resolve(tmpdir(), "maina-x-"))',
+			'mkdtempSync(tmpdir() + "/maina-x-")',
+			"const root = tmpdir();",
+		]) {
+			expect({ made, caught: IN_TMPDIR.test(made) }).toEqual({
+				made,
+				caught: true,
+			});
+		}
+		expect(IN_TMPDIR.test("tmpDir: tmpdir(),")).toBe(false);
+	});
+
 	test("every runtime test file makes its dirs with testTmpDir", async () => {
 		const src = join(import.meta.dir, "..");
 		const offenders: string[] = [];
 		for (const area of AREAS) {
 			const glob = new Bun.Glob("**/*.test.ts");
 			for await (const rel of glob.scan({ cwd: join(src, area) })) {
-				const text = await Bun.file(join(src, area, rel)).text();
+				const path = join(src, area, rel);
+				// This file names the patterns it looks for.
+				if (path === import.meta.path) continue;
+				const text = await Bun.file(path).text();
 				if (IN_TMPDIR.test(text)) offenders.push(join(area, rel));
 			}
 		}

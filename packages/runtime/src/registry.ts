@@ -412,10 +412,14 @@ function removeEmptyDir(dir: string): void {
 	}
 }
 
+/** How many times a mark remakes a socket dir removed under it. */
+const MARK_ATTEMPTS = 3;
+
 /**
  * Marks the endpoint's fallback socket dir as served by `pid`, which holds
  * the endpoint's pid file, so the marker is its own to overwrite. The dir is
- * made again first: a sweep may have removed it since it was created.
+ * made again first, and again when it vanishes before the marker lands: a
+ * sweep, or another version's runtime exiting, removes it while it is empty.
  */
 export function markSocketOwner(
 	endpoint: Endpoint,
@@ -425,16 +429,21 @@ export function markSocketOwner(
 	if (fallbackSocketDir(endpoint) === null) {
 		return { ok: true, value: undefined };
 	}
-	const dirs = ensureEndpointDirs(endpoint, process.platform);
-	if (!dirs.ok) return dirs;
-	try {
-		writeFileSync(ownerFile(endpoint), JSON.stringify({ pid, at: now }), {
-			mode: 0o600,
-		});
-		return { ok: true, value: undefined };
-	} catch (err) {
-		return { ok: false, error: { kind: "io_error", message: message(err) } };
+	let failure: RegistryError = { kind: "io_error", message: "not marked" };
+	for (let attempt = 0; attempt < MARK_ATTEMPTS; attempt++) {
+		const dirs = ensureEndpointDirs(endpoint, process.platform);
+		if (!dirs.ok) return dirs;
+		try {
+			writeFileSync(ownerFile(endpoint), JSON.stringify({ pid, at: now }), {
+				mode: 0o600,
+			});
+			return { ok: true, value: undefined };
+		} catch (err) {
+			failure = { kind: "io_error", message: message(err) };
+			if (errorCode(err) !== "ENOENT") break;
+		}
 	}
+	return { ok: false, error: failure };
 }
 
 /**

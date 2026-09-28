@@ -8,7 +8,8 @@
  * entry in a child process.
  */
 
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, spyOn, test } from "bun:test";
+import * as fs from "node:fs";
 import {
 	chmodSync,
 	existsSync,
@@ -813,6 +814,44 @@ describe("socket fallback dir (#641)", () => {
 			started.value.stop();
 			await started.value.closed;
 			expect(existsSync(socketDir)).toBe(false);
+		},
+	);
+
+	posixOnly(
+		"a start whose socket dir another runtime's exit removes mid-mark still serves",
+		async () => {
+			// Another version's runtime exiting removes the shared dir once it
+			// is empty, which can land between this start making the dir and
+			// writing its owner marker into it.
+			const t = temp();
+			const endpoint = deepEndpoint(t);
+			const socketDir = dirname(endpoint.address);
+			const real = fs.writeFileSync;
+			let removed = false;
+			const spy = spyOn(fs, "writeFileSync").mockImplementation(((
+				path: fs.PathOrFileDescriptor,
+				...rest: unknown[]
+			) => {
+				if (!removed && String(path).endsWith(".owner")) {
+					removed = true;
+					rmSync(socketDir, { recursive: true, force: true });
+				}
+				return (real as (...args: unknown[]) => void)(path, ...rest);
+			}) as typeof fs.writeFileSync);
+			let started: ReturnType<typeof startRuntime>;
+			try {
+				started = startRuntime(
+					{ gate: fixedGate("allow") },
+					{ endpoint, version: "1.0.0", idleTtlMs: 60_000 },
+				);
+			} finally {
+				spy.mockRestore();
+			}
+			if (!started.ok) throw new Error(JSON.stringify(started.error));
+			runtimes.push(started.value);
+			expect(removed).toBe(true);
+			expect(existsSync(`${endpoint.address}.owner`)).toBe(true);
+			expect(await statusOf(endpoint.address, "1.0.0")).not.toBeNull();
 		},
 	);
 });
