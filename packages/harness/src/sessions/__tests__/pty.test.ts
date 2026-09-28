@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { spawnPty } from "../pty";
 import { createWorktree, readLease } from "../worktree";
 import { alive, eventually, makeRepo } from "./repo-fixture";
 
-const CWD = realpathSync(mkdtempSync(join(tmpdir(), "maina-pty-")));
+const CWD = testTmpDir("maina-pty-");
 
 const sh = (script: string) => ({
 	name: "sh",

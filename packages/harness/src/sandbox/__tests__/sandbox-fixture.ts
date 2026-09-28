@@ -8,9 +8,9 @@
  * into a failure so a broken install cannot pass for a green run.
  */
 
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { layoutTmpDir } from "../../__tests__/test-tmp";
 import type { Command } from "../port";
 import { detectSandboxRuntime } from "../runtime-adapter";
 
@@ -54,7 +54,7 @@ export type Layout = Readonly<{
 }>;
 
 export function makeLayout(): Layout {
-	const base = realpathSync(mkdtempSync(join(tmpdir(), "maina-sbx-")));
+	const base = layoutTmpDir();
 	const layout: Layout = {
 		base,
 		home: join(base, "home"),

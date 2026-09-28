@@ -224,6 +224,7 @@ export async function runCase(
 	const previous = process.env[SECRET_ENV];
 	process.env[SECRET_ENV] = SECRET_VALUE;
 	const harness = harnessFor(worker);
+	const runtime = createSandboxRuntime();
 	try {
 		const command = shell(esc.script(harness.ctx));
 		let outcome: EscapeOutcome;
@@ -234,7 +235,7 @@ export async function runCase(
 				[CRED_ENV]: CRED_VALUE,
 			});
 		} else {
-			const wrapped = createSandboxRuntime().wrap(command, harness.sandbox);
+			const wrapped = runtime.wrap(command, harness.sandbox);
 			if (!wrapped.ok) throw new Error(`wrap: ${wrapped.error.message}`);
 			outcome = await run(wrapped.value, harness.ctx.layout.worktree);
 		}
@@ -248,6 +249,7 @@ export async function runCase(
 			exitCode: outcome.exitCode,
 		};
 	} finally {
+		runtime.dispose();
 		harness.dispose();
 		if (previous === undefined) delete process.env[SECRET_ENV];
 		else process.env[SECRET_ENV] = previous;

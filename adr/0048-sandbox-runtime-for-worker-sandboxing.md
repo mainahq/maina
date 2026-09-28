@@ -73,6 +73,28 @@ Options considered:
 - **Per-worker temp directory.** `srt` sets the worker's `TMPDIR` to a shared
   `/tmp/claude` unless `CLAUDE_CODE_TMPDIR` is set in its own environment. The
   adapter sets it to the worker's `tmpDir`, so workers do not share temp files.
+- **Temp layout (#632).** Each `wrap` makes one private (0700) directory,
+  `$TMPDIR/maina-srt-XXXXXX/`, holding a `.maina-tmp` marker (the owning
+  pid) and `settings.json`. It is also `srt`'s own `TMPDIR` (not `TMP` or
+  `TEMP`, which `srt` passes through to the worker), so what `srt` makes
+  host-side lands inside it: its ephemeral CA (`srt-ca-*`), masked-file
+  store and proxy sockets (`srt-mux-*.sock`,
+  `srt-tt-*.sock`, and `claude-http-*.sock` on Linux). The prefix is short
+  because those sockets must fit macOS's 104-byte socket path; a directory
+  too deep for them is not handed to `srt`, which then falls back to the
+  inherited `TMPDIR`. The directory goes with `dispose`; one left undisposed
+  goes when the process exits (an `exit` hook); one a killed process left is
+  removed by the next process that wraps, which sweeps marked `maina-srt-*`
+  directories older than an hour whose pid is gone. Tests put their fixture
+  directories under one marked `$TMPDIR/maina-test-XXXXXX/` per process
+  (a sandbox layout is its own marked `$TMPDIR/maina-sbx-XXXXXX/`, so an
+  inner srt's sockets in its `tmp/` still fit), removed after the file's
+  last test (`bun test` emits no `exit`), on exit and on
+  SIGINT/SIGTERM/SIGHUP, and swept the same way. Because `bun test` shares
+  one module registry across the files of a run, that `afterAll` fires
+  after the first file only; each test root also gets a detached `sh`
+  reaper that waits for the process to go (however it went, SIGKILL
+  included) and removes the root if its marker is still there.
 - **Credential proxy.** A declared credential (`name`, `value`, `hosts`) is an
   `srt` `mask` rule: inside the sandbox the variable holds a per-session
   stand-in, and the proxy swaps the real value in only on requests to the

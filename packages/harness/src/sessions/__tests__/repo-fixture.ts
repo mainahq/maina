@@ -3,10 +3,10 @@
  * on `main`, and a way to run git in it and in its worktrees.
  */
 
-import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { stripRepoLocalGitEnv } from "@mainahq/core";
+import { testTmpDir } from "../../__tests__/test-tmp";
 
 // A test run inside a git hook inherits GIT_DIR and friends for the outer
 // repository; git must read the throwaway one instead.
@@ -30,7 +30,7 @@ export function commitAll(cwd: string, message: string): GitRun {
 }
 
 export function makeRepo(): string {
-	const root = realpathSync(mkdtempSync(join(tmpdir(), "maina-sessions-")));
+	const root = testTmpDir("maina-sessions-");
 	gitIn(root, "init", "-q", "-b", "main");
 	gitIn(root, "config", "user.name", "Session Test");
 	gitIn(root, "config", "user.email", "sessions@test.invalid");

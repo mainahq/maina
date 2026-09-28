@@ -2,14 +2,12 @@ import { describe, expect, test } from "bun:test";
 import {
 	existsSync,
 	mkdirSync,
-	mkdtempSync,
 	readFileSync,
-	realpathSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { sessionsDir, withWorktreeLock } from "../lease";
 import {
 	type ProcessState,
@@ -21,7 +19,7 @@ const STALE = { pid: 999_001, start: "crashed" };
 const OTHER = { pid: 999_002, start: "alive" };
 
 function commonDir(): string {
-	const dir = realpathSync(mkdtempSync(join(tmpdir(), "maina-lease-")));
+	const dir = testTmpDir("maina-lease-");
 	mkdirSync(sessionsDir(dir), { recursive: true });
 	return dir;
 }

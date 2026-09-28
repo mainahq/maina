@@ -5,10 +5,10 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import { DEFAULT_POLICY, holdoutDir, holdoutFeatureDir } from "@mainahq/core";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { policyToSandbox } from "../policy-to-sandbox";
 import { createSandboxRuntime } from "../runtime-adapter";
 import { integrationTitle, run, SKIP_REASON, shell } from "./sandbox-fixture";
@@ -50,7 +50,7 @@ describe.skipIf(SKIP_REASON !== undefined)(
 	integrationTitle("holdout under a real srt (integration)"),
 	() => {
 		test("a sandboxed worker reading a holdout scenario gets nothing", async () => {
-			const root = realpathSync(mkdtempSync(join(tmpdir(), "maina-holdout-")));
+			const root = testTmpDir("maina-holdout-");
 			const home = join(root, "home");
 			const worktree = join(root, ".maina", "worktrees", "run-1");
 			const featureDir = holdoutFeatureDir(root, "012-export");
@@ -68,12 +68,13 @@ describe.skipIf(SKIP_REASON !== undefined)(
 				{ home },
 			);
 			if (!options.ok) throw new Error(options.error.message);
-			const wrapped = createSandboxRuntime().wrap(
+			const port = createSandboxRuntime();
+			const wrapped = port.wrap(
 				shell(`cat '${join(worktree, "README.md")}'; cat '${scenario}'`),
 				{ ...options.value, credentials: [] },
 			);
 			if (!wrapped.ok) throw new Error(wrapped.error.message);
-			const ran = await run(wrapped.value, worktree);
+			const ran = await run(wrapped.value, worktree).finally(port.dispose);
 			expect(ran.stdout).toContain("own worktree");
 			expect(ran.stdout).not.toContain("HOLDOUT-SCENARIO-321");
 		}, 30_000);

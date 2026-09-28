@@ -10,23 +10,19 @@
  *
  * `wrap` writes the worker's settings to a private temp file (paths and
  * variable names only: no secret is ever written) and returns
- * `srt --debug --settings <file> -- <command>`. `dispose` removes those
- * files (and their `maina-sandbox-*` dirs) once the workers have exited.
+ * `srt --debug --settings <file> -- <command>`. That file's `maina-srt-*`
+ * dir is also srt's own TMPDIR, so the CA material and sockets srt makes
+ * (`srt-ca-*`, `srt-mux-*.sock`) land in it too (#632). `dispose` removes
+ * those dirs once the workers have exited; one left undisposed goes when
+ * the process exits, and one a killed process left is swept by the next
+ * process that wraps (`tmp-root.ts`).
  * The real credential values travel in srt's own environment; `srt` hands
  * the worker a stand-in.
  * `--debug` makes srt log each network decision to stderr, which
  * `decisions` reads back.
  */
 
-import {
-	chmodSync,
-	mkdtempSync,
-	readFileSync,
-	realpathSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Result } from "@mainahq/core";
 import { type CredentialPlan, planCredentials } from "./credential-proxy";
@@ -36,6 +32,7 @@ import type {
 	SandboxOptions,
 	SandboxPort,
 } from "./port";
+import { makeTmpRoot, removeTmpRoot, sweepStaleTmpRoots } from "./tmp-root";
 
 /** The one sandbox-runtime release this adapter is tested against. */
 export const SANDBOX_RUNTIME = {
@@ -188,41 +185,75 @@ function toSettings(
 	};
 }
 
-/** The settings file's temp directory name prefix. */
-const SETTINGS_DIR_PREFIX = "maina-sandbox-";
+/**
+ * The per-wrap temp directory's name prefix. Short on purpose: srt binds
+ * Unix sockets in it, and a socket path must fit in 104 bytes on macOS.
+ */
+const WRAP_DIR_PREFIX = "maina-srt-";
 
-/** A 0700 temp directory holding a 0600 settings file. */
+/**
+ * The longest file name srt 0.0.77 binds under its TMPDIR
+ * (`claude-socks-<16 hex>.sock`), and the socket path limit (macOS's
+ * `sun_path` is 104 bytes, NUL included). A wrap dir too deep for both is
+ * not handed to srt as its TMPDIR, so srt still starts.
+ */
+const LONGEST_SOCKET_NAME = 34;
+const SOCKET_PATH_MAX = 103;
+
+let swept = false;
+
+function settingsError(message: string): Result<never, SandboxError> {
+	return {
+		ok: false,
+		error: {
+			code: "io",
+			message: `could not write the sandbox settings: ${message}`,
+		},
+	};
+}
+
+/**
+ * A 0700 marked temp directory (`tmp-root.ts`) holding a 0600 settings
+ * file. The first call in a process sweeps what a killed one left.
+ */
 function writeSettingsFile(json: string): Result<string, SandboxError> {
+	if (!swept) {
+		swept = true;
+		sweepStaleTmpRoots([WRAP_DIR_PREFIX]);
+	}
+	const dir = makeTmpRoot(WRAP_DIR_PREFIX);
+	if (!dir.ok) return settingsError(dir.error.message);
 	try {
-		const dir = mkdtempSync(join(tmpdir(), SETTINGS_DIR_PREFIX));
-		chmodSync(dir, 0o700);
-		const path = join(dir, "settings.json");
+		const path = join(dir.value, "settings.json");
 		writeFileSync(path, json, { mode: 0o600 });
 		return { ok: true, value: path };
 	} catch (e) {
-		return {
-			ok: false,
-			error: {
-				code: "io",
-				message: `could not write the sandbox settings: ${e instanceof Error ? e.message : String(e)}`,
-			},
-		};
+		removeTmpRoot(dir.value);
+		return settingsError(e instanceof Error ? e.message : String(e));
 	}
 }
 
 /**
  * Removes the temp directory `writeSettingsFile` made for `path`. Only a
- * `maina-sandbox-*` directory is removed, so a path from elsewhere never
+ * marked `maina-srt-*` directory is removed, so a path from elsewhere never
  * takes its parent directory with it.
  */
 function removeSettingsFile(path: string): void {
 	const dir = dirname(path);
-	if (!basename(dir).startsWith(SETTINGS_DIR_PREFIX)) return;
-	try {
-		rmSync(dir, { recursive: true, force: true });
-	} catch {
-		// Best effort: a leftover temp dir is not worth failing a run over.
-	}
+	if (basename(dir).startsWith(WRAP_DIR_PREFIX)) removeTmpRoot(dir);
+}
+
+/**
+ * srt's own temp dir for one wrap: the settings file's dir, as TMPDIR in
+ * srt's environment (Node reads it first), so what srt makes goes with it.
+ * Not TMP or TEMP: srt passes those through to the worker, which should not
+ * learn where srt keeps its CA. None when the dir is too deep for srt's
+ * sockets.
+ */
+function srtTempEnv(settingsPath: string): Record<string, string> {
+	const dir = dirname(settingsPath);
+	if (dir.length + 1 + LONGEST_SOCKET_NAME > SOCKET_PATH_MAX) return {};
+	return { TMPDIR: dir };
 }
 
 /** srt's `--debug` lines for a network decision, and what each means. */
@@ -305,6 +336,7 @@ export function createSandboxRuntime(
 				env: {
 					...launchEnv,
 					...plan.value.hostEnv,
+					...srtTempEnv(settings.value),
 					// srt hands the worker this as TMPDIR, instead of /tmp/claude.
 					...(options.tmpDir === undefined
 						? {}
