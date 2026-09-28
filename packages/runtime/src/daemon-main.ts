@@ -10,7 +10,9 @@
  * the endpoint; 1 when it cannot start and 2 on bad arguments.
  */
 
+import { randomBytes } from "node:crypto";
 import { parseArgs } from "node:util";
+import { processEnv } from "@mainahq/cli/src/env";
 import type { DecisionRecord } from "@mainahq/core";
 import { systemGates } from "./gate-system";
 import { createGraphSync, systemGraphSyncPorts } from "./graph-hooks";
@@ -26,6 +28,7 @@ import {
 	systemUplink,
 } from "./link-system";
 import { createSystem1Port } from "./model/infer";
+import { createPluginRuns, withRunEvents } from "./run-events";
 import { startRuntime } from "./server";
 import { createShadowRunner } from "./shadow";
 import { createStopVerify } from "./stop-verify";
@@ -113,7 +116,16 @@ export async function runDaemon(argv: readonly string[]): Promise<number> {
 			if (!emitted.ok) linkFailed("decision event")(emitted.error);
 		});
 	};
-	const started = startRuntime(
+	// Plugin sessions become runs for the run board (#594): a session's start,
+	// its gated tool calls and its stop, queued after the host has its answer.
+	const runs = createPluginRuns({
+		sink: uplink,
+		ci: Boolean(processEnv.get("CI")),
+		now: () => Date.now(),
+		newRunId: () => `run_${randomBytes(12).toString("hex")}`,
+		onError: linkFailed("run event"),
+	});
+	const ports = withRunEvents(
 		{
 			// A remote approval's events (#593) queue on the uplink too.
 			gate: systemGates({
@@ -128,16 +140,18 @@ export async function runDaemon(argv: readonly string[]): Promise<number> {
 			},
 			stop: stops.stop,
 		},
-		{
-			endpoint: {
-				address: args.address,
-				pidFile: args.pidFile,
-				spawnLock: args.spawnLock,
-			},
-			version: args.version,
-			idleTtlMs: args.idleTtlMs,
-		},
+		// `maina run` workers send theirs over `run.event`.
+		{ runs, sink: uplink },
 	);
+	const started = startRuntime(ports, {
+		endpoint: {
+			address: args.address,
+			pidFile: args.pidFile,
+			spawnLock: args.spawnLock,
+		},
+		version: args.version,
+		idleTtlMs: args.idleTtlMs,
+	});
 	if (!started.ok) return started.error.kind === "already_running" ? 0 : 1;
 
 	const runtime = started.value;

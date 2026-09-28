@@ -84,6 +84,21 @@ export function resolveRunContext(input: RunContextInput): RunContext {
 	return input.interactiveTerminal && !input.ci ? "interactive" : "unattended";
 }
 
+/**
+ * Where a run comes from, as the run board groups runs (#594, cloud
+ * FR-RUN-1): a host session maina is a plugin in, a `maina run` worker, or
+ * either of them in a CI job.
+ */
+export type RunSource = "plugin" | "maina-run" | "ci";
+
+/** The source of a run of `kind`: `ci` under CI (`CI` is set), else `kind`. */
+export function runSource(
+	input: Readonly<{ ci: boolean }>,
+	kind: Exclude<RunSource, "ci">,
+): RunSource {
+	return input.ci ? "ci" : kind;
+}
+
 // ── The session's sandbox (FR-SBX-6) ───────────────────────────────────────
 
 /** What `maina run` sets in the environment of the worker it sandboxes. */

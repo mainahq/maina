@@ -7,6 +7,8 @@ import {
 	type Policy,
 	parseManagedLayer,
 } from "@mainahq/core";
+import type { RunLifecycleEvent } from "@mainahq/harness/src/events";
+import { createRunControl } from "@mainahq/harness/src/run/revision";
 import {
 	type PrepareInput,
 	type RunActionDeps,
@@ -337,5 +339,100 @@ describe("runAction", () => {
 			});
 			expect((await runAction(options, d)).ok).toBe(true);
 		});
+	});
+});
+
+describe("runAction on the run board (#594)", () => {
+	test("an enrolled run reports its lifecycle under its run id and closes its control after the run", async () => {
+		const order: string[] = [];
+		const events: RunLifecycleEvent[] = [];
+		const opened: unknown[] = [];
+		const written: string[] = [];
+		const base = deps({
+			writeFile: async (_path, content) => {
+				order.push("write");
+				written.push(content);
+				return { ok: true, value: undefined };
+			},
+		});
+		const d: RunActionDeps = {
+			...base.deps,
+			openControl: (input) => {
+				opened.push(input);
+				const { control } = createRunControl({
+					...input,
+					emit: (event) => {
+						events.push(event);
+					},
+				});
+				return {
+					control,
+					close: async () => {
+						order.push("close");
+					},
+				};
+			},
+		};
+		const result = await runAction(options, d);
+		expect(result.ok).toBe(true);
+		expect(opened).toEqual([
+			{ runId: "run-1", source: "maina-run", agent: "claude" },
+		]);
+		expect(events.map((e) => [e.type, e.runId])).toEqual([
+			["run.started", "run-1"],
+			["run.finished", "run-1"],
+		]);
+		expect(events.at(-1)).toMatchObject({ outcome: "succeeded" });
+		expect(order).toEqual(["close", "write"]);
+		expect(JSON.parse(written[0] ?? "{}").source).toBe("maina-run");
+	});
+
+	test("a release that fails still closes the run's control and hands over its events", async () => {
+		const closed: string[] = [];
+		const base = deps();
+		const prepare = base.deps.prepare;
+		const d: RunActionDeps = {
+			...base.deps,
+			prepare: async (input) => {
+				const prepared = await prepare(input);
+				if (!prepared.ok) return prepared;
+				return {
+					ok: true,
+					value: {
+						...prepared.value,
+						release: async () => {
+							throw new Error("sandbox dispose failed");
+						},
+					},
+				};
+			},
+			openControl: (input) => {
+				const { control } = createRunControl({ ...input, emit: () => {} });
+				return {
+					control,
+					close: async () => {
+						closed.push(input.runId);
+					},
+				};
+			},
+		};
+		await runAction(options, d).catch(() => undefined);
+		expect(closed).toEqual(["run-1"]);
+	});
+
+	test("a run under CI has source ci", async () => {
+		const sources: string[] = [];
+		const base = deps({ env: envOf({ CI: "true" }) });
+		const result = await runAction(options, {
+			...base.deps,
+			openControl: (input) => {
+				sources.push(input.source);
+				return undefined;
+			},
+		});
+		expect(result.ok).toBe(true);
+		expect(sources).toEqual(["ci"]);
+		const receipt = JSON.parse(base.seen.written[0]?.content ?? "{}");
+		expect(receipt.source).toBe("ci");
 	});
 });

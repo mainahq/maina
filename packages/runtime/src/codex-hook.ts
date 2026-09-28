@@ -26,6 +26,7 @@ import {
 	parseHookInput,
 	safeDecision,
 	safeSummary,
+	sessionStartSummary,
 } from "./claude-hook";
 import type { GateDecision, GateEvent } from "./gate";
 
@@ -129,11 +130,13 @@ export async function runCodexHook(
 			};
 		}
 		case "session": {
-			const line = await safeSummary(ports, event.event);
-			const context =
-				event.hookEvent === "SessionStart"
-					? [GUARDRAILS_ACTIVE, line].filter(Boolean).join(" ")
-					: line;
+			const starting = event.hookEvent === "SessionStart";
+			const line = starting
+				? await sessionStartSummary(ports, event.event, "codex")
+				: await safeSummary(ports, event.event);
+			const context = starting
+				? [GUARDRAILS_ACTIVE, line].filter(Boolean).join(" ")
+				: line;
 			return {
 				event,
 				output: toCodex({ hookEvent: event.hookEvent, context }),

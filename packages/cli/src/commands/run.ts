@@ -35,11 +35,18 @@ import type {
 	PermissionRecord,
 } from "@mainahq/harness/src/permissions/judge";
 import { budgetsFor } from "@mainahq/harness/src/run/budget";
-import { resolveRunContext, runEnv } from "@mainahq/harness/src/run/context";
 import {
+	type RunSource,
+	resolveRunContext,
+	runEnv,
+	runSource,
+} from "@mainahq/harness/src/run/context";
+import {
+	createRunControl,
 	orchestratedAttempt,
 	type Review,
 	type RevisionPorts,
+	type RunControl,
 	type RunReceipt,
 	runWithRevision,
 } from "@mainahq/harness/src/run/revision";
@@ -56,9 +63,15 @@ import {
 	type Worktree,
 } from "@mainahq/harness/src/sessions/worktree";
 import { resolveWorker } from "@mainahq/harness/src/workers/registry";
+import { startLoop } from "@mainahq/runtime/src/lifecycle";
 import { nodeLinkCrypto } from "@mainahq/runtime/src/link/keys";
 import { readManagedLayer } from "@mainahq/runtime/src/link/policy-sync";
 import { fileLinkStore, linkDir } from "@mainahq/runtime/src/link/store";
+import {
+	linkEnrolled,
+	systemRemoteControl,
+	systemRunEventClient,
+} from "@mainahq/runtime/src/link-system";
 import { Command } from "commander";
 import { processEnv } from "../env";
 import { nodeFs } from "../ports";
@@ -101,6 +114,19 @@ type RunError = Readonly<{
 	hint?: string;
 }>;
 
+type ControlInput = Readonly<{
+	runId: string;
+	source: RunSource;
+	agent: string;
+}>;
+
+/** A run the run board sees and steers, and how to let go of it. */
+type OpenedControl = Readonly<{
+	control: RunControl;
+	/** Stops the control channel and hands over the run's last events. */
+	close: () => Promise<void>;
+}>;
+
 export type RunActionDeps = Readonly<{
 	/** stdin and stdout are a terminal. */
 	interactiveTerminal: boolean;
@@ -110,6 +136,12 @@ export type RunActionDeps = Readonly<{
 	newRunId: () => string;
 	prepare: (input: PrepareInput) => Promise<Result<PreparedRun, Failure>>;
 	writeFile: FsPort["writeFile"];
+	/**
+	 * Puts the run on the org's run board (#594): its events and the board's
+	 * stop and revision grant. Undefined (and by default on a machine that is
+	 * not enrolled) runs it off the board.
+	 */
+	openControl?: (input: ControlInput) => OpenedControl | undefined;
 }>;
 
 type RunActionResult =
@@ -167,11 +199,13 @@ export async function runAction(
 	const stopped = stoppedByBudget(policy.value);
 	if (stopped !== undefined) return { ok: false, error: stopped };
 
+	const ci = Boolean(deps.env.get("CI"));
 	const context = resolveRunContext({
 		requested: options.context,
 		interactiveTerminal: deps.interactiveTerminal,
-		ci: Boolean(deps.env.get("CI")),
+		ci,
 	});
+	const source = runSource({ ci }, "maina-run");
 	const budgets = budgetsFor(policy.value, context);
 	const runId = deps.newRunId();
 	const prepared = await deps.prepare({
@@ -188,17 +222,26 @@ export async function runAction(
 	}
 
 	const { worktree, ports, release } = prepared.value;
-	// The sandbox is torn down once the agent is done, however the run ended.
+	const opened = deps.openControl?.({ runId, source, agent: options.agent });
+	// The sandbox is torn down once the agent is done, however the run ended,
+	// and the run leaves the board once its last event is handed over.
 	const receipt = await runWithRevision(
 		{ task: options.task, context, budgets },
-		ports,
-	).finally(() => release?.());
+		opened === undefined ? ports : { ...ports, control: opened.control },
+	).finally(async () => {
+		try {
+			await release?.();
+		} finally {
+			await opened?.close();
+		}
+	});
 	const receiptPath = join(root.value, ".maina", "runs", `${runId}.json`);
 	const written = await deps.writeFile(
 		receiptPath,
 		`${JSON.stringify(
 			{
 				runId,
+				source,
 				task: options.task,
 				agent: options.agent,
 				worktree: worktree.path,
@@ -469,6 +512,40 @@ export async function loadRunPolicy(
 	return loadPolicy({ fs: nodeFs }, root, user.value, managed.value);
 }
 
+/**
+ * How long a failed review waits for the run board's answer to its
+ * revision question before the local rule (one revision) stands.
+ */
+const REVISION_WAIT_MS = 2 * 60_000;
+/** How long the end of a run waits to hand its last events to the runtime. */
+const EVENTS_FLUSH_MS = 5_000;
+
+/**
+ * The run on the org's run board, on an enrolled machine (#594): its events
+ * go to the resident runtime, which queues them on the Link uplink, and the
+ * board's control messages for it are polled here, verified and audited.
+ */
+function openRunControl(input: ControlInput): OpenedControl | undefined {
+	if (!linkEnrolled()) return undefined;
+	const events = systemRunEventClient();
+	const { control, handle } = createRunControl({
+		...input,
+		emit: events.send,
+		revisionWaitMs: REVISION_WAIT_MS,
+	});
+	const remote = systemRemoteControl();
+	const unregister = remote.register(input.runId, handle);
+	const loop = startLoop(remote.poll);
+	return {
+		control,
+		close: async () => {
+			loop.stop();
+			unregister();
+			await events.flush(EVENTS_FLUSH_MS);
+		},
+	};
+}
+
 /** Built when the command runs: reading `process.stdin` has side effects. */
 const defaultDeps = (): RunActionDeps => ({
 	interactiveTerminal: Boolean(process.stdin.isTTY && process.stdout.isTTY),
@@ -478,6 +555,7 @@ const defaultDeps = (): RunActionDeps => ({
 	newRunId: () => `run-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`,
 	prepare: prepareRun,
 	writeFile: nodeFs.writeFile,
+	openControl: openRunControl,
 });
 
 // ── Commander command ────────────────────────────────────────────────────────

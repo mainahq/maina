@@ -1,0 +1,5 @@
+---
+"@mainahq/cli": minor
+---
+
+Run events and remote control on the run board. On a machine enrolled in Maina Cloud, `maina run` workers and plugin sessions in Claude Code, Codex and Cursor report `run.started`, one `run.step` per gated tool call with the gate's verdict, and `run.finished`, under one run id, as metadata through the resident runtime's Link outbox. A run in CI is a `ci` run. A plugin session start now reaches the resident runtime, which opens the session's run. `maina run` follows the board's control messages: a stop halts the worker and ends the run stopped with a report, and after a failed first review the run waits up to two minutes for the board's revision grant or "stopped with report" before the local rule gives the revision. A run takes one revision at most. A control message acts only when it verifies under the org's pinned link-control key; unsigned messages from a dark signer are ignored, and every message acted on or ignored is recorded in `control.jsonl` in the Link directory. The run's receipt records its source.

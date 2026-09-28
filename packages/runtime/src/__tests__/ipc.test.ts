@@ -3,7 +3,7 @@
  *
  * The protocol is newline-delimited JSON over a Unix socket (named pipe on
  * Windows), versioned by `PROTOCOL_VERSION`. These tests pin the codec, the
- * five request methods, and the warm round-trip budget the hook path relies
+ * six request methods, and the warm round-trip budget the hook path relies
  * on: under 10 ms at p95.
  */
 
@@ -57,9 +57,16 @@ function start(ports: RuntimePorts): Runtime {
 }
 
 describe("protocol codec", () => {
-	test("the protocol carries exactly the five runtime requests", () => {
+	test("the protocol carries exactly the six runtime requests", () => {
 		expect([...METHODS].sort() as string[]).toEqual(
-			["decide", "graph.query", "hook.evaluate", "status", "verify.run"].sort(),
+			[
+				"decide",
+				"graph.query",
+				"hook.evaluate",
+				"run.event",
+				"status",
+				"verify.run",
+			].sort(),
 		);
 		expect(PROTOCOL_VERSION).toBe(1);
 	});
@@ -220,6 +227,7 @@ describe("runtime requests over the socket", () => {
 		"decide",
 		"graph.query",
 		"verify.run",
+		"run.event",
 	] as const)("%s answers not_implemented until a port is plugged in", async (method) => {
 		const rt = start({ gate: fixedGate("allow") });
 		const sent = await sendRequest(

@@ -439,7 +439,7 @@ describe("runtime observe port", () => {
 		cleanups.unshift(() => started.value.stop());
 
 		for (let i = 0; i < 3; i++) {
-			expect(await hook(started.value.address, session("/repo"))).toEqual({
+			expect(await hook(started.value.address, edit("/repo", "a.ts"))).toEqual({
 				verdict: "deny",
 				reason: "fixed deny",
 				decisionIds: [],
@@ -556,10 +556,11 @@ describe("runtime graph hooks", () => {
 			},
 		});
 
-		// The gate still answers; the sync runs beside it.
+		// A session start is no gate event: a quiet allow (#594); the sync
+		// runs beside it.
 		expect(await hook(rt.address, session(root))).toEqual({
 			verdict: "allow",
-			reason: "fixed allow",
+			reason: "",
 			decisionIds: [],
 			degraded: false,
 		});

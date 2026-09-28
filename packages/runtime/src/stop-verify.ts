@@ -31,6 +31,12 @@ import { graphTrigger } from "./graph-hooks";
 /** The event kind that ends a session (spec §6.2). */
 export const SESSION_STOP = "session.stop";
 
+/**
+ * The event kind a host's session start sends the runtime (#594): not a
+ * gate event, it opens the session's run and is answered with a quiet allow.
+ */
+export const SESSION_START = "session.start";
+
 /** What one verify run on a session's files found. */
 export type StopVerifyReport = Readonly<{
 	status: VerifyStatus;

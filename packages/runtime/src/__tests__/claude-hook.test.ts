@@ -190,6 +190,31 @@ describe("runClaudeHook", () => {
 		});
 	});
 
+	test("SessionStart tells the runtime the session started; a failing port changes nothing", async () => {
+		const started: GateEvent[] = [];
+		const run = await runClaudeHook(
+			raw("session-start.startup.input.json"),
+			ports({
+				sessionStart: async (event) => {
+					started.push(event);
+				},
+			}),
+		);
+		expect(started).toHaveLength(1);
+		expect(started[0]?.kind).toBe("session.start");
+		expect(started[0]?.input.host).toBe("claude-code");
+		expect(typeof started[0]?.input.sessionId).toBe("string");
+		const failing = await runClaudeHook(
+			raw("session-start.startup.input.json"),
+			ports({
+				sessionStart: async () => {
+					throw new Error("runtime gone");
+				},
+			}),
+		);
+		expect(failing.output).toEqual(run.output);
+	});
+
 	test("Stop shows the session summary, and stays silent without one", async () => {
 		const asked: string[] = [];
 		const run = await runClaudeHook(

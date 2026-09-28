@@ -2,7 +2,7 @@
  * Runtime IPC protocol, version 1 (ADR 0044).
  *
  * Newline-delimited JSON over a Unix socket (a named pipe on Windows). Each
- * line is one message. A request names one of the five runtime methods and
+ * line is one message. A request names one of the six runtime methods and
  * carries the client's version; every response carries the runtime's version,
  * so either side can detect a mismatch. The runtime answers a request from a
  * client of another version (or protocol) with `version_mismatch`.
@@ -23,6 +23,8 @@ export const METHODS = [
 	"graph.query",
 	"verify.run",
 	"status",
+	// A `maina run` worker's run events for the Link uplink (#594).
+	"run.event",
 ] as const;
 export type Method = (typeof METHODS)[number];
 

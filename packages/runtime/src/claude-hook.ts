@@ -10,6 +10,7 @@
  */
 
 import {
+	CLAUDE_HOST,
 	type ClaudeEvent,
 	type ClaudeOutput,
 	fromClaude,
@@ -26,7 +27,7 @@ import {
 } from "./gate";
 import type { Env } from "./notify/detect";
 import { notificationSequence, notifyEventOf } from "./notify/notify";
-import { SESSION_STOP } from "./stop-verify";
+import { SESSION_START, SESSION_STOP } from "./stop-verify";
 
 export type ClaudeHookPorts = Readonly<{
 	/** The gate for one event; the hook client in production. */
@@ -39,6 +40,11 @@ export type ClaudeHookPorts = Readonly<{
 	 * blocks the stop; an allow's reason is shown. Absent: no verify.
 	 */
 	stopVerify?: (event: GateEvent) => Promise<GateDecision>;
+	/**
+	 * Tells the runtime a session started (#594): its `session.start` event
+	 * opens the session's run for the run board. Absent: nothing is sent.
+	 */
+	sessionStart?: (event: GateEvent) => Promise<void>;
 }>;
 
 export type ClaudeHookRun = Readonly<{
@@ -137,6 +143,32 @@ export function stopFromClient(
 		decisionIds,
 		degraded,
 	};
+}
+
+/**
+ * The session summary for a session start, with the runtime told of the
+ * start beside it (`sessionStart`). Never rejects: a failed port leaves the
+ * start as it was.
+ */
+export async function sessionStartSummary(
+	ports: ClaudeHookPorts,
+	event: SessionEvent,
+	host: string,
+): Promise<string | undefined> {
+	const input = { host, sessionId: event.sessionId };
+	const start: GateEvent =
+		event.cwd === undefined
+			? { kind: SESSION_START, input }
+			: { kind: SESSION_START, input, cwd: event.cwd };
+	const told = (async () => {
+		try {
+			await ports.sessionStart?.(start);
+		} catch {
+			// The run board misses this start; the session goes on.
+		}
+	})();
+	const [line] = await Promise.all([safeSummary(ports, event), told]);
+	return line;
 }
 
 /** The runtime's `session.stop` event for a host's session stop. */
@@ -247,7 +279,7 @@ export async function runClaudeHook(
 		}
 		case "session": {
 			if (event.hookEvent === "Stop") return stopHook(event, ports);
-			const line = await safeSummary(ports, event.event);
+			const line = await sessionStartSummary(ports, event.event, CLAUDE_HOST);
 			const context = [GUARDRAILS_ACTIVE, line].filter(Boolean).join(" ");
 			return {
 				event,

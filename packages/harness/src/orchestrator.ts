@@ -7,7 +7,7 @@
  * permission requests with the policy's verdict, and one final `end`.
  *
  * A run always ends, and always cleans up: completed, stopped, cancelled
- * (`Run.cancel()`), over budget, or failed (spawn error, protocol version
+ * (`Run.cancel()` or the `signal`), over budget, or failed (spawn error, protocol version
  * mismatch, agent died). Whatever the ending, the agent process is stopped
  * (TERM, then KILL) before `end` is emitted.
  */
@@ -41,6 +41,11 @@ export type RunOptions = Readonly<{
 	root: string;
 	policy: PermissionPolicy;
 	budgets?: Budgets;
+	/**
+	 * Stops the run like `cancel()` once aborted: a stop from the run board
+	 * (#594) halts the worker the same way, and the run ends `cancelled`.
+	 */
+	signal?: AbortSignal;
 }>;
 
 export type RunDeps = Readonly<{
@@ -185,10 +190,15 @@ export function startRun(options: RunOptions, deps: RunDeps = {}): Run {
 	};
 
 	const done = (async (): Promise<EndEvent> => {
+		if (options.signal?.aborted) {
+			return finish({ type: "end", state: "cancelled" });
+		}
 		const spawned = (deps.spawn ?? spawnAgent)(options.agent, options.root);
 		if (!spawned.ok)
 			return finish({ type: "end", state: "failed", error: spawned.error });
 		const child = spawned.value;
+		const onAbort = (): void => stop("cancelled");
+		options.signal?.addEventListener("abort", onAbort, { once: true });
 
 		if (budgets.wallClockMs !== undefined) {
 			wallClock = setTimeout(() => stop("wall_clock"), budgets.wallClockMs);
@@ -242,6 +252,7 @@ export function startRun(options: RunOptions, deps: RunDeps = {}): Run {
 		await child.stop(killGraceMs);
 		// With the agent gone the connection closes and the session settles.
 		await within(session, killGraceMs);
+		options.signal?.removeEventListener("abort", onAbort);
 		return finish(endOf(cause, outcome, child.stderrTail()));
 	})();
 

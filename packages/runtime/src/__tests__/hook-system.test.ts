@@ -84,6 +84,44 @@ describe("systemClaudeHookPorts stop verify", () => {
 	});
 });
 
+describe("systemClaudeHookPorts session start", () => {
+	test("a session start reaches the runtime's observer, never its gate (#594)", async () => {
+		const xdg = testTmpDir("maina-xdg-");
+		cleanups.push(() => rmSync(xdg, { recursive: true, force: true }));
+		const endpoint = resolveEndpoint({
+			platform: process.platform,
+			dir: join(xdg, "maina"),
+			user: userInfo().username,
+			version: cliPackage.version,
+			tmpDir: tmpdir(),
+		});
+		const observed: string[] = [];
+		const gated: string[] = [];
+		const started = startRuntime(
+			{
+				gate: (event) => {
+					gated.push(event.kind);
+					return fixedGate("deny")(event);
+				},
+				observe: (event) => {
+					observed.push(event.kind);
+					return null;
+				},
+			},
+			{ endpoint, version: cliPackage.version, idleTtlMs: 60_000 },
+		);
+		if (!started.ok) throw new Error(JSON.stringify(started.error));
+		cleanups.unshift(started.value.stop);
+		const ports = systemClaudeHookPorts({ env: { XDG_RUNTIME_DIR: xdg } });
+		await ports.sessionStart?.({
+			kind: "session.start",
+			input: { host: "claude-code", sessionId: "s-594" },
+		});
+		expect(observed).toEqual(["session.start"]);
+		expect(gated).toEqual([]);
+	});
+});
+
 // #351 review: the terminal write must only ever reach an existing terminal
 // device. Opened with "w" (O_CREAT | O_TRUNC), "/dev/tty" on Windows is a
 // path on the current drive, and a missing one would be created as a file.
