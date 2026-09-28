@@ -11,13 +11,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { enrolDevice } from "../enrol";
 import { nodeLinkCrypto } from "../keys";
+import { verifyBundle } from "../policy-bundle";
 import {
 	createPolicySync,
 	managedLayerReader,
 	managedPolicyStatus,
 	POLICY_POLL_MS,
 	readManagedLayer,
-	verifyBundle,
 } from "../policy-sync";
 import { fileLinkStore } from "../store";
 import { trustedOrgKeys } from "../trust";
