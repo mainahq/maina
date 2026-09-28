@@ -61,6 +61,14 @@ describe("spendEvent", () => {
 		asWireEvent(spendEvent(call({ model: "acme/internal-model" })));
 	});
 
+	test("a bare model id of no known family is `other`, as its prefixed form is", () => {
+		const bare = spendEvent(call({ model: "acme-internal-model" })).data;
+		expect(bare).toMatchObject({ provider: "other", model: "other" });
+		expect(JSON.stringify(bare)).not.toContain("acme");
+		const ollama = spendEvent(call({ model: "llama3" })).data;
+		expect(ollama).toMatchObject({ provider: "other", model: "other" });
+	});
+
 	test("the task is the run; its name stays on the machine", () => {
 		const input = spendEvent(
 			call({ taskId: "0b5c3f5e-2d7a-4a53-9a51-3b1f4f0c9d11" }),

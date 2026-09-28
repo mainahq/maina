@@ -116,6 +116,76 @@ describe("collectInventory", () => {
 		} satisfies InventoryFacts);
 	});
 
+	test("only a hook command running Maina counts, not the word elsewhere", async () => {
+		const facts = await collectInventory(
+			ports(
+				[
+					{ name: "claude", version: "2.3.1" },
+					{ name: "codex", version: "0.44.0" },
+				],
+				{
+					// Minified, so the whole file is one line: a disabled Maina
+					// plugin and someone else's hook command.
+					[join(HOME, ".claude", "settings.json")]: JSON.stringify({
+						enabledPlugins: { "maina@mainahq": false },
+						hooks: {
+							PreToolUse: [
+								{ hooks: [{ type: "command", command: "./lint hook" }] },
+							],
+						},
+					}),
+					[join(HOME, ".codex", "config.toml")]: [
+						'notify = ["maina", "notify hook"]',
+						"# maina hook pre-tool-use, to try later",
+						"[[hooks.PreToolUse]]",
+						'command = "./lint.sh"',
+					].join("\n"),
+				},
+			),
+		);
+		expect(facts.agents.map((a) => a.hooks)).toEqual(["missing", "missing"]);
+	});
+
+	test("finds Maina's hook in Codex's nested `hooks` groups", async () => {
+		const facts = await collectInventory(
+			ports([{ name: "codex", version: "0.44.0" }], {
+				[join(HOME, ".codex", "hooks.json")]: JSON.stringify({
+					hooks: {
+						PreToolUse: [
+							{
+								matcher: "^(Bash|apply_patch)$",
+								hooks: [
+									{
+										type: "command",
+										command: "/opt/bin/maina hook --host codex PreToolUse",
+									},
+								],
+							},
+						],
+					},
+				}),
+			}),
+		);
+		expect(facts.agents[0]?.hooks).toBe("installed");
+		const inline = await collectInventory(
+			ports([{ name: "codex", version: "0.44.0" }], {
+				[join(HOME, ".codex", "config.toml")]: [
+					"[mcp_servers.maina]",
+					"[mcp_servers.maina.env]",
+					'[mcp_servers."docs.local"]',
+					"[[hooks.PreToolUse]]",
+					'matcher = "Bash"',
+					"[[hooks.PreToolUse.hooks]]",
+					"command = ['maina', 'hook', '--host', 'codex', 'PreToolUse'] # ours",
+				].join("\n"),
+			}),
+		);
+		expect(inline.agents[0]).toMatchObject({
+			hooks: "installed",
+			mcpServers: 2,
+		});
+	});
+
 	test("an unreadable or malformed config counts as nothing configured", async () => {
 		const facts = await collectInventory(
 			ports([{ name: "gemini", version: "0.61.0" }], {

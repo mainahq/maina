@@ -73,8 +73,12 @@ function modelOf(id: string): Model {
 	if (parts.length !== 1 || !isLabel(lower)) {
 		return { provider: OTHER, model: OTHER };
 	}
+	// A bare id of no known family (a local model's name, say) goes out no
+	// more than its `<provider>/<model>` form from an unknown provider does.
 	const family = FAMILIES.find(([pattern]) => pattern.test(lower));
-	return { provider: family?.[1] ?? OTHER, model: lower };
+	return family === undefined
+		? { provider: OTHER, model: OTHER }
+		: { provider: family[1], model: lower };
 }
 
 /**

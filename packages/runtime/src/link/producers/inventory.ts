@@ -138,16 +138,15 @@ function agentConfigs(
 // ── Reading a config (pure) ────────────────────────────────────────────────
 
 /** Maina's hook command: its launcher or CLI running `hook <event>`. */
-const MAINA_HOOK = /\bmaina\b[^\n]*?\shook\b/;
+const MAINA_HOOK = /\bmaina\b.*\shook\b/;
 /** A Maina plugin id (`maina@mainahq`). */
 const MAINA_PLUGIN = /^maina(@|$)/;
-/** A TOML MCP server table: `[mcp_servers.<name>]`. */
-const TOML_MCP_SERVER = /^\s*\[mcp_servers\.("[^"]*"|[^\].\s]+)\]\s*$/gm;
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** A JSON config's text as an object, or null when it does not parse to one. */
 function parseJson(text: string): Readonly<Record<string, unknown>> | null {
 	try {
 		const value: unknown = JSON.parse(text);
@@ -155,6 +154,62 @@ function parseJson(text: string): Readonly<Record<string, unknown>> | null {
 	} catch {
 		return null;
 	}
+}
+
+// Link modules load under Node too (no Bun API, no TOML dependency), so a
+// Codex `config.toml` is read line by line for the two things it tells.
+
+/** A TOML table header, `[a.b]` or `[[a.b]]`, with an optional comment. */
+const TOML_TABLE = /^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(#.*)?$/;
+/** A TOML MCP server table: `[mcp_servers.<name>]`. */
+const TOML_MCP_SERVER = /^mcp_servers\.("[^"]*"|[^.\s]+)$/;
+/** A `command = ...` key: a basic or literal string, or a one-line array. */
+const TOML_COMMAND = /^\s*command\s*=\s*("(?:[^"\\]|\\.)*"|'[^']*'|\[[^\]]*\])/;
+const TOML_STRING = /"((?:[^"\\]|\\.)*)"|'([^']*)'/g;
+
+/**
+ * The hook commands in the `hooks` tables of a TOML config and the MCP
+ * servers it names. Comments and keys outside those tables are not read.
+ */
+function readToml(
+	text: string,
+): Readonly<{ hookCommands: readonly string[]; mcpServers: number }> {
+	const servers = new Set<string>();
+	const commands: string[] = [];
+	let table = "";
+	for (const line of text.split(/\r?\n/)) {
+		const header = TOML_TABLE.exec(line);
+		if (header !== null) {
+			table = header[1] ?? "";
+			const server = TOML_MCP_SERVER.exec(table);
+			if (server?.[1] !== undefined) servers.add(server[1]);
+			continue;
+		}
+		if (table !== "hooks" && !table.startsWith("hooks.")) continue;
+		const value = TOML_COMMAND.exec(line)?.[1];
+		if (value === undefined) continue;
+		const parts = [...value.matchAll(TOML_STRING)].map((m) => m[1] ?? m[2]);
+		commands.push(parts.join(" "));
+	}
+	return { hookCommands: commands, mcpServers: servers.size };
+}
+
+/**
+ * Every hook command under a config's `hooks`, however the agent nests its
+ * groups: one command at a time, so the word `maina` in a comment, a
+ * disabled plugin or another key never reads as Maina's hook.
+ */
+function hookCommands(value: unknown): readonly string[] {
+	if (Array.isArray(value)) return value.flatMap(hookCommands);
+	if (!isRecord(value)) return [];
+	return Object.entries(value).flatMap(([key, v]) => {
+		if (key !== "command") return hookCommands(v);
+		if (typeof v === "string") return [v];
+		if (Array.isArray(v) && v.every((part) => typeof part === "string")) {
+			return [v.join(" ")];
+		}
+		return hookCommands(v);
+	});
 }
 
 type FileFacts = Readonly<{
@@ -165,17 +220,24 @@ type FileFacts = Readonly<{
 
 const NOTHING: FileFacts = { hooks: false, mcpServers: 0, plugins: 0 };
 
+const runsMaina = (commands: readonly string[]): boolean =>
+	commands.some((command) => MAINA_HOOK.test(command));
+
 function readConfig(file: ConfigFile, text: string): FileFacts {
-	const hooks = file.hooks === true && MAINA_HOOK.test(text);
 	if (file.format === "toml") {
-		const names = new Set([...text.matchAll(TOML_MCP_SERVER)].map((m) => m[1]));
-		return { hooks, mcpServers: names.size, plugins: 0 };
+		const toml = readToml(text);
+		return {
+			hooks: file.hooks === true && runsMaina(toml.hookCommands),
+			mcpServers: toml.mcpServers,
+			plugins: 0,
+		};
 	}
-	const json = parseJson(text);
-	if (json === null) return NOTHING;
-	const servers = file.mcpKey === undefined ? undefined : json[file.mcpKey];
+	const config = parseJson(text);
+	if (config === null) return NOTHING;
+	const hooks = file.hooks === true && runsMaina(hookCommands(config.hooks));
+	const servers = file.mcpKey === undefined ? undefined : config[file.mcpKey];
 	const enabled =
-		file.pluginsKey === undefined ? undefined : json[file.pluginsKey];
+		file.pluginsKey === undefined ? undefined : config[file.pluginsKey];
 	const plugins = isRecord(enabled)
 		? Object.entries(enabled).filter(
 				([id, on]) => on === true && MAINA_PLUGIN.test(id),
