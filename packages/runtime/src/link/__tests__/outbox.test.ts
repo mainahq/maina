@@ -40,6 +40,9 @@ afterEach(() => {
 const H = `sha256:${"a".repeat(64)}`;
 const T0 = Date.parse("2026-09-28T09:00:00.000Z");
 
+const seqs = (from: number, to: number): number[] =>
+	Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
 function keyPair() {
 	const pair = nodeLinkCrypto.generateKeyPair();
 	if (!pair.ok) throw new Error(pair.error.message);
@@ -272,14 +275,17 @@ describe("the bound", () => {
 		for (let i = 0; i < 300; i++) must(outbox.enqueue(step(i)));
 		const before = readFileSync(box.path, "utf-8").length;
 		must(
-			outbox.settle({
-				v: 1,
-				accepted: 300,
-				duplicates: 0,
-				rejected: [],
-				nextExpectedSeq: 301,
-				gaps: [],
-			}),
+			outbox.settle(
+				{
+					v: 1,
+					accepted: 300,
+					duplicates: 0,
+					rejected: [],
+					nextExpectedSeq: 301,
+					gaps: [],
+				},
+				seqs(1, 300),
+			),
 		);
 		expect(outbox.pending()).toEqual([]);
 		expect(readFileSync(box.path, "utf-8").length).toBeLessThan(before / 10);
@@ -295,14 +301,17 @@ describe("settle", () => {
 		const outbox = box.open();
 		for (let i = 0; i < 5; i++) must(outbox.enqueue(decision()));
 		const settled = must(
-			outbox.settle({
-				v: 1,
-				accepted: 4,
-				duplicates: 0,
-				rejected: [],
-				nextExpectedSeq: 40,
-				gaps: [{ from: 3, to: 3 }],
-			}),
+			outbox.settle(
+				{
+					v: 1,
+					accepted: 4,
+					duplicates: 0,
+					rejected: [],
+					nextExpectedSeq: 40,
+					gaps: [{ from: 3, to: 3 }],
+				},
+				seqs(1, 5),
+			),
 		);
 		expect(settled.delivered).toBe(4);
 		expect(outbox.pending().map((e) => e.seq)).toEqual([3]);
@@ -314,14 +323,17 @@ describe("settle", () => {
 		const outbox = box.open();
 		must(outbox.enqueue(decision()));
 		const settled = must(
-			outbox.settle({
-				v: 1,
-				accepted: 0,
-				duplicates: 0,
-				rejected: [{ seq: 1, reason: "invalid_event" }],
-				nextExpectedSeq: 2,
-				gaps: [],
-			}),
+			outbox.settle(
+				{
+					v: 1,
+					accepted: 0,
+					duplicates: 0,
+					rejected: [{ seq: 1, reason: "invalid_event" }],
+					nextExpectedSeq: 2,
+					gaps: [],
+				},
+				[1],
+			),
 		);
 		expect(settled.rejected).toBe(1);
 		expect(outbox.pending()).toEqual([]);
@@ -341,18 +353,56 @@ describe("sequence", () => {
 		expect(toRanges([])).toEqual([]);
 	});
 
-	test("reconcile trusts nextExpectedSeq and the gaps, not the batch alone", () => {
-		const r = reconcile([1, 2, 3, 4, 9], {
+	test("reconcile settles only the batch the ack answers, never a held seq it was not sent", () => {
+		const r = reconcile([1, 2, 3, 4, 9], [1, 2, 3, 4], {
 			v: 1,
-			accepted: 3,
+			accepted: 1,
 			duplicates: 0,
 			rejected: [{ seq: 4, reason: "invalid_event" }],
-			nextExpectedSeq: 6,
+			nextExpectedSeq: 600,
 			gaps: [{ from: 2, to: 2 }],
 		});
+		// 9 is below nextExpectedSeq and outside every gap, but was never sent:
+		// a cloud ahead holds some event at 9, not necessarily this one.
 		expect(r.delivered).toEqual([1, 3]);
 		expect(r.rejected).toEqual([4]);
-		expect(r.floor).toBe(5);
+		expect(r.floor).toBe(599);
+	});
+
+	test("reconcile never reads past a truncated gap list as delivered", () => {
+		// The ack carries at most 100 gaps, oldest first: past the last one
+		// nothing is known, so a seq there is resent, never dropped.
+		const gaps = Array.from({ length: 100 }, (_, i) => ({
+			from: 2 * i + 1,
+			to: 2 * i + 1,
+		}));
+		const r = reconcile([198, 202, 204], [198, 202, 204], {
+			v: 1,
+			accepted: 1,
+			duplicates: 0,
+			rejected: [],
+			nextExpectedSeq: 1000,
+			gaps,
+		});
+		expect(r.delivered).toEqual([198]);
+	});
+
+	test("reconcile settles a batch the cloud took whole, whatever its gap list", () => {
+		// Every event counted (accepted, duplicate or rejected): the batch is
+		// held even when older, permanent gaps fill the 100-gap list.
+		const gaps = Array.from({ length: 100 }, (_, i) => ({
+			from: 2 * i + 1,
+			to: 2 * i + 1,
+		}));
+		const r = reconcile([300, 301, 302], [300, 301, 302], {
+			v: 1,
+			accepted: 2,
+			duplicates: 1,
+			rejected: [],
+			nextExpectedSeq: 303,
+			gaps,
+		});
+		expect(r.delivered).toEqual([300, 301, 302]);
 	});
 });
 

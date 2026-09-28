@@ -8,9 +8,10 @@
  * - Each `tick` sends at most one batch: the oldest queued events, capped by
  *   count and bytes, in a `LinkEnvelope` signed by the device key and
  *   checked against the published schema before it leaves.
- * - The cloud's `EnvelopeAck` settles the outbox (`sequence.ts`): what it
+ * - The cloud's `EnvelopeAck` settles that batch (`sequence.ts`): what it
  *   holds leaves, its gaps are resent, rejected events leave with a gap
- *   marker and `nextExpectedSeq` lifts the device's seq.
+ *   marker and `nextExpectedSeq` lifts the device's seq. Events outside the
+ *   batch (queued meanwhile, or past the cap) wait for their own.
  * - A failure, or an ack that settles nothing, backs off exponentially
  *   (with jitter, capped); the next success resets it. A backlog is sent
  *   batch after batch, so reconnecting replays everything in `seq` order.
@@ -99,7 +100,7 @@ function takeBatch(
 	let bytes = 0;
 	for (const event of events) {
 		if (batch.length >= maxEvents) break;
-		const size = JSON.stringify(event).length;
+		const size = Buffer.byteLength(JSON.stringify(event), "utf-8");
 		if (batch.length > 0 && bytes + size > maxBytes) break;
 		batch.push(event);
 		bytes += size;
@@ -249,7 +250,10 @@ export function createUplink(
 		}
 		const ack = parseWire("envelope-ack", sent.value.data);
 		if (!ack.ok) return fail(ack.error);
-		const settled = outbox.settle(ack.value);
+		const settled = outbox.settle(
+			ack.value,
+			batch.map((e) => e.seq),
+		);
 		if (!settled.ok) return fail(settled.error);
 		if (settled.value.delivered + settled.value.rejected === 0) {
 			return fail({

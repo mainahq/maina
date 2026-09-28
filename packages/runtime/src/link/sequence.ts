@@ -6,12 +6,18 @@
  * repeats one; `ts` is informational. The cloud orders by `seq`, dedupes by
  * `eventId` and finds a lost event as a gap in the seqs it has seen.
  *
- * An ack is read against what the device still holds, not just the batch it
- * answers: a seq below `nextExpectedSeq` outside every reported gap is held
- * by the cloud (a lost ack's batch included); a seq in a gap is resent; a
- * rejected seq will never be accepted and leaves. A cloud ahead of the
- * device (after a restore, say) lifts the device's seq, so a new event never
- * reuses a seq the cloud already has.
+ * An ack settles only the batch it answers. A held seq outside that batch
+ * stays, even below `nextExpectedSeq`: a cloud ahead of the device holds
+ * some event at that seq, not necessarily this one, and an event queued
+ * while the batch was in flight was never sent. A lost ack's batch is the
+ * oldest queued events, so the next batch resends it and the cloud dedupes.
+ * Within the batch, a cloud that counted every event (accepted, duplicate
+ * or rejected) holds them all; otherwise a seq below `nextExpectedSeq`
+ * outside every reported gap is held and one in a gap is resent. The gap
+ * list is capped (100, oldest first), so when it is full nothing past its
+ * last gap is read as held. A rejected seq will never be accepted and
+ * leaves. A cloud ahead lifts the device's seq, so a new event never reuses
+ * a seq the cloud already has.
  */
 
 import type { EnvelopeAck } from "./protocol/wire";
@@ -44,17 +50,33 @@ type Reconciled = Readonly<{
 	floor: number;
 }>;
 
-/** What an ack means for the seqs the device still `held`. */
+/** The most gaps an ack carries (`envelope-ack.schema.json` `maxItems`). */
+const MAX_ACK_GAPS = 100;
+
+/**
+ * What an ack means for the seqs the device still `held`, given the seqs of
+ * the batch it answers (`sent`).
+ */
 export function reconcile(
 	held: readonly number[],
+	sent: readonly number[],
 	ack: EnvelopeAck,
 ): Reconciled {
+	const inBatch = new Set(sent);
 	const refused = new Set(ack.rejected.map((r) => r.seq));
+	const whole =
+		ack.accepted + ack.duplicates + ack.rejected.length >= inBatch.size;
+	const lastGap = ack.gaps.at(-1);
+	const horizon =
+		ack.gaps.length >= MAX_ACK_GAPS && lastGap !== undefined
+			? lastGap.to
+			: ack.nextExpectedSeq - 1;
 	const delivered: number[] = [];
 	const rejected: number[] = [];
 	for (const seq of held) {
+		if (!inBatch.has(seq)) continue;
 		if (refused.has(seq)) rejected.push(seq);
-		else if (seq < ack.nextExpectedSeq && !inGaps(seq, ack.gaps)) {
+		else if (whole || (seq <= horizon && !inGaps(seq, ack.gaps))) {
 			delivered.push(seq);
 		}
 	}

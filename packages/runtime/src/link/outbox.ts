@@ -117,8 +117,11 @@ export type Outbox = Readonly<{
 	) => Result<Readonly<{ eventId: string; seq: number }>, OutboxError>;
 	/** The queued events, oldest first. */
 	pending: () => readonly LinkEvent[];
-	/** Applies the cloud's answer to a batch (see `reconcile`). */
-	settle: (ack: EnvelopeAck) => Result<Settled, OutboxError>;
+	/** Applies the cloud's answer to the batch of `sent` seqs (see `reconcile`). */
+	settle: (
+		ack: EnvelopeAck,
+		sent: readonly number[],
+	) => Result<Settled, OutboxError>;
 	status: () => OutboxStatus;
 }>;
 
@@ -413,9 +416,10 @@ export function openOutbox(
 
 		pending: () => state.entries.map((e) => e.event),
 
-		settle: (ack) => {
+		settle: (ack, sent) => {
 			const r = reconcile(
 				state.entries.map((e) => e.event.seq),
+				sent,
 				ack,
 			);
 			const records: string[] = [];

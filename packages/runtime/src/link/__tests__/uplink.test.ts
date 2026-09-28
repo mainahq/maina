@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { HttpPort } from "@mainahq/core";
 import { enrolDevice } from "../enrol";
 import { nodeLinkCrypto } from "../keys";
 import type { EventInput } from "../outbox";
@@ -79,6 +80,21 @@ function harness(cloud: FakeCloud, options: UplinkOptions = {}) {
 				},
 			);
 			if (!done.ok) throw new Error(JSON.stringify(done.error));
+		},
+	};
+}
+
+/** The cloud's HTTP port, calling `onEvents` with each events body first. */
+function tapEvents(
+	cloud: FakeCloud,
+	onEvents: (body: { events: unknown[] }) => void,
+): HttpPort {
+	return {
+		request: async (req) => {
+			if (new URL(req.url).pathname === "/link/v1/events") {
+				onEvents(JSON.parse(req.body ?? "{}") as { events: unknown[] });
+			}
+			return cloud.http.request(req);
 		},
 	};
 }
@@ -243,6 +259,81 @@ describe("delivery", () => {
 		await drain(h, uplink);
 		const next = uplink.enqueue(decision());
 		expect(next.ok && next.value.queued && next.value.seq).toBe(501);
+	});
+
+	test("a cloud ahead never settles queued events it was not sent", async () => {
+		const cloud = fakeCloud({ ingest: true });
+		const h = harness(cloud, { maxBatchEvents: 25 });
+		await h.enrol();
+		cloud.state.seqFloor = 500;
+		const uplink = h.start();
+		for (let i = 0; i < 60; i++)
+			expect(uplink.enqueue(decision()).ok).toBe(true);
+		await drain(h, uplink);
+		expect(cloud.state.received).toHaveLength(60);
+		expect(cloud.state.envelopes).toEqual([25, 25, 10]);
+	});
+
+	test("an event queued while a batch is in flight is not settled by its ack", async () => {
+		const cloud = fakeCloud({ ingest: true });
+		const h = harness(cloud);
+		await h.enrol();
+		cloud.state.seqFloor = 500;
+		let late:
+			| ReturnType<ReturnType<typeof createUplink>["enqueue"]>
+			| undefined;
+		const uplink = createUplink({
+			...h.ports,
+			http: tapEvents(cloud, () => {
+				if (late === undefined) late = uplink.enqueue(decision());
+			}),
+		});
+		uplink.enqueue(decision());
+		await drain(h, uplink);
+		expect(late?.ok).toBe(true);
+		expect(cloud.state.received).toHaveLength(2);
+	});
+
+	test("a batch is capped by UTF-8 bytes, not string length", async () => {
+		const cloud = fakeCloud({ ingest: true });
+		const h = harness(cloud);
+		await h.enrol();
+		// A rich org, so a free-text field can carry multi-byte characters.
+		const enrolled = h.ports.store.readState();
+		if (!enrolled.ok || enrolled.value === null)
+			throw new Error("not enrolled");
+		h.ports.store.writeState({ ...enrolled.value, dataClass: "rich" });
+		const sent: number[] = [];
+		const uplink = createUplink(
+			{
+				...h.ports,
+				http: tapEvents(cloud, (body) => {
+					sent.push(
+						body.events.reduce<number>(
+							(n, e) => n + Buffer.byteLength(JSON.stringify(e), "utf-8"),
+							0,
+						),
+					);
+				}),
+			},
+			{ maxBatchBytes: 4096 },
+		);
+		const wide: EventInput = {
+			type: "run.step",
+			runId: "run_1",
+			dataClass: "rich",
+			data: {
+				step: 1,
+				toolClass: "shell.exec",
+				verdict: "allow",
+				command: `echo ${"\u00e9".repeat(200)}`,
+			},
+		};
+		for (let i = 0; i < 40; i++) expect(uplink.enqueue(wide).ok).toBe(true);
+		await drain(h, uplink);
+		expect(cloud.state.received).toHaveLength(40);
+		expect(sent.length).toBeGreaterThan(1);
+		for (const bytes of sent) expect(bytes).toBeLessThanOrEqual(4096);
 	});
 
 	test("a gap the cloud reports is filled from the outbox", async () => {
