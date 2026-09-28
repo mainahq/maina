@@ -11,13 +11,14 @@
  * On disk it is `outbox.log` in the Link directory (`store.ts`), an
  * append-only journal: a plaintext header naming the format and the device,
  * then one record per line, each sealed with AES-256-GCM under a key derived
- * (HKDF-SHA256) from the device's private key and bound to the header. So
+ * (HKDF-SHA256) from the device's private key and bound to the header
+ * (`seal.ts`). So
  * the file is unreadable without the device key, a logout (which deletes
  * the key) leaves nothing to read, and a line cannot be moved from another
  * device's outbox. Acknowledged events leave by a journal record; the
  * journal is rewritten once it is mostly such records.
  *
- * The outbox is bounded by count, bytes and age. Events older than the age
+ * The outbox is bounded by count, bytes and age (`bound.ts`). Events older than the age
  * bound expire. Past the size bound the oldest `run.step` events (progress
  * ticks, the lowest priority) are coalesced away first, down to 90% of the
  * bound; only when none are left do the oldest other events go. Every drop
@@ -26,14 +27,18 @@
  * outbox status and the cloud sees the same seqs as a gap.
  */
 
-import {
-	createCipheriv,
-	createDecipheriv,
-	createPrivateKey,
-	hkdfSync,
-	randomBytes,
-} from "node:crypto";
+import { randomBytes } from "node:crypto";
 import type { Result } from "@mainahq/core";
+import {
+	type Entry,
+	type Eviction,
+	type GapMarker,
+	keepMarkers,
+	marker,
+	type OutboxBounds,
+	planEviction,
+	removeRanges,
+} from "./bound";
 import type { CryptoFailure } from "./keys";
 import {
 	type DataClass,
@@ -43,6 +48,7 @@ import {
 	parseWire,
 	type WireRefusal,
 } from "./protocol/wire";
+import { cryptoFailure, outboxKey, seal, unseal } from "./seal";
 import { reconcile, type SeqRange, toRanges } from "./sequence";
 import type { LinkStore, StoreError } from "./store";
 
@@ -57,29 +63,11 @@ export type EventInput = Readonly<{
 	ts?: string;
 }>;
 
-export type OutboxBounds = Readonly<{
-	maxEvents: number;
-	/** Of sealed journal lines. */
-	maxBytes: number;
-	maxAgeMs: number;
-}>;
-
 const DEFAULT_BOUNDS: OutboxBounds = {
 	maxEvents: 10_000,
 	maxBytes: 8 * 1024 * 1024,
 	maxAgeMs: 7 * 24 * 60 * 60 * 1000,
 };
-
-/** A drop past the bound, a rejection or an expiry. */
-type GapReason = "coalesced" | "overflow" | "expired" | "rejected";
-
-type GapMarker = Readonly<{
-	ranges: readonly SeqRange[];
-	reason: GapReason;
-	count: number;
-	types: Readonly<Partial<Record<LinkEventType, number>>>;
-	at: string;
-}>;
 
 export type OutboxError =
 	| StoreError
@@ -142,79 +130,17 @@ type JournalRecord =
 	| Readonly<{ r: "gap"; gap: GapMarker }>
 	| Readonly<{ r: "floor"; seq: number }>;
 
-type Entry = Readonly<{ event: LinkEvent; queuedAt: number; bytes: number }>;
-
 const FORMAT = "maina-link-outbox";
-/** The HKDF salt: domain-separates the outbox key from every other use. */
-const KDF_SALT = "maina-link/outbox/v1";
-/** Gap markers kept in the status; older ones are the cloud's to report. */
-const MAX_MARKERS = 256;
-const LOW_WATER = 0.9;
-const IV_BYTES = 12;
-const TAG_BYTES = 16;
 const CLASS_RANK: Readonly<Record<DataClass, number>> = {
 	metadata: 0,
 	names: 1,
 	rich: 2,
 };
 
-function cryptoFailure(e: unknown): CryptoFailure {
-	return {
-		kind: "crypto",
-		message: e instanceof Error ? e.message : String(e),
-	};
-}
-
-/** The outbox key: HKDF-SHA256 over the device key's PKCS#8 bytes. */
-function outboxKey(
-	privateKey: string,
-	deviceId: string,
-): Result<Buffer, CryptoFailure> {
+function openRecord(key: Buffer, aad: Buffer, line: string): unknown {
+	const text = unseal(key, aad, line);
+	if (text === null) return undefined;
 	try {
-		const der = createPrivateKey(privateKey).export({
-			type: "pkcs8",
-			format: "der",
-		});
-		const key = hkdfSync(
-			"sha256",
-			der,
-			Buffer.from(KDF_SALT, "utf-8"),
-			Buffer.from(deviceId, "utf-8"),
-			32,
-		);
-		return { ok: true, value: Buffer.from(key) };
-	} catch (e) {
-		// A key parse error names the problem, never the key.
-		return { ok: false, error: cryptoFailure(e) };
-	}
-}
-
-function seal(key: Buffer, aad: Buffer, record: JournalRecord): string {
-	const iv = randomBytes(IV_BYTES);
-	const cipher = createCipheriv("aes-256-gcm", key, iv);
-	cipher.setAAD(aad);
-	const body = Buffer.concat([
-		cipher.update(JSON.stringify(record), "utf-8"),
-		cipher.final(),
-	]);
-	return Buffer.concat([iv, body, cipher.getAuthTag()]).toString("base64url");
-}
-
-function unseal(key: Buffer, aad: Buffer, line: string): unknown {
-	const raw = Buffer.from(line, "base64url");
-	if (raw.length < IV_BYTES + TAG_BYTES) return undefined;
-	try {
-		const decipher = createDecipheriv(
-			"aes-256-gcm",
-			key,
-			raw.subarray(0, IV_BYTES),
-		);
-		decipher.setAAD(aad);
-		decipher.setAuthTag(raw.subarray(raw.length - TAG_BYTES));
-		const text = Buffer.concat([
-			decipher.update(raw.subarray(IV_BYTES, raw.length - TAG_BYTES)),
-			decipher.final(),
-		]).toString("utf-8");
 		return JSON.parse(text);
 	} catch {
 		return undefined;
@@ -233,86 +159,6 @@ function headerLine(deviceId: string): string {
 		kdf: "hkdf-sha256",
 		aead: "aes-256-gcm",
 	});
-}
-
-function countTypes(
-	entries: readonly Entry[],
-): Partial<Record<LinkEventType, number>> {
-	const types: Partial<Record<LinkEventType, number>> = {};
-	for (const e of entries) types[e.event.type] = (types[e.event.type] ?? 0) + 1;
-	return types;
-}
-
-function marker(
-	reason: GapReason,
-	entries: readonly Entry[],
-	now: Date,
-): GapMarker {
-	return {
-		ranges: toRanges(entries.map((e) => e.event.seq)),
-		reason,
-		count: entries.length,
-		types: countTypes(entries),
-		at: now.toISOString(),
-	};
-}
-
-type Eviction = Readonly<{ reason: GapReason; entries: readonly Entry[] }>;
-
-/**
- * What must go before an event of `incomingBytes` joins `entries`: the
- * expired ones, then (past a bound) the oldest `run.step` events and, only
- * if still over, the oldest of the rest, down to the low-water mark.
- */
-function planEviction(
-	entries: readonly Entry[],
-	incomingBytes: number,
-	bounds: OutboxBounds,
-	now: number,
-): readonly Eviction[] {
-	const expired = entries.filter((e) => now - e.queuedAt > bounds.maxAgeMs);
-	const gone = new Set(expired);
-	let live = entries.filter((e) => !gone.has(e));
-	let count = live.length + 1;
-	let bytes = live.reduce((n, e) => n + e.bytes, incomingBytes);
-	const plan: Eviction[] = [];
-	if (expired.length > 0) plan.push({ reason: "expired", entries: expired });
-	if (count <= bounds.maxEvents && bytes <= bounds.maxBytes) return plan;
-
-	const targetCount = Math.max(1, Math.floor(bounds.maxEvents * LOW_WATER));
-	const targetBytes = Math.floor(bounds.maxBytes * LOW_WATER);
-	const over = (): boolean => count > targetCount || bytes > targetBytes;
-	const take = (pick: (e: Entry) => boolean): Entry[] => {
-		const taken: Entry[] = [];
-		for (const e of live) {
-			if (!over()) break;
-			if (!pick(e)) continue;
-			taken.push(e);
-			count--;
-			bytes -= e.bytes;
-		}
-		const out = new Set(taken);
-		live = live.filter((e) => !out.has(e));
-		return taken;
-	};
-	const steps = take((e) => e.event.type === "run.step");
-	if (steps.length > 0) plan.push({ reason: "coalesced", entries: steps });
-	const rest = take(() => true);
-	if (rest.length > 0) plan.push({ reason: "overflow", entries: rest });
-	return plan;
-}
-
-function removeRanges(
-	entries: readonly Entry[],
-	ranges: readonly SeqRange[],
-): Entry[] {
-	return entries.filter(
-		(e) => !ranges.some(([a, b]) => e.event.seq >= a && e.event.seq <= b),
-	);
-}
-
-function keepMarkers(markers: readonly GapMarker[]): GapMarker[] {
-	return markers.slice(Math.max(0, markers.length - MAX_MARKERS));
 }
 
 type Loaded = {
@@ -367,7 +213,7 @@ function load(
 	for (const line of lines.slice(1)) {
 		if (line === "") continue;
 		sealed++;
-		const record = unseal(key, aad, line) as JournalRecord | undefined;
+		const record = openRecord(key, aad, line) as JournalRecord | undefined;
 		if (!isRecord(record)) {
 			state.damaged = true;
 			continue;
@@ -419,7 +265,7 @@ export function openOutbox(
 	const header = headerLine(deviceId);
 	const aad = Buffer.from(header, "utf-8");
 	const sealRecord = (record: JournalRecord): string =>
-		seal(key.value, aad, record);
+		seal(key.value, aad, JSON.stringify(record));
 
 	const read = file.readOutbox();
 	if (!read.ok) return read;

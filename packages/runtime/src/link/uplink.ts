@@ -23,13 +23,13 @@
  */
 
 import type { Result } from "@mainahq/core";
+import type { OutboxBounds } from "./bound";
 import { createLinkClient } from "./client";
 import type { LinkFailure } from "./http";
 import { deviceSigningInput } from "./keys";
 import {
 	type EventInput,
 	type Outbox,
-	type OutboxBounds,
 	type OutboxError,
 	openOutbox,
 } from "./outbox";

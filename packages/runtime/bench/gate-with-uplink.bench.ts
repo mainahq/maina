@@ -58,7 +58,8 @@ const ports = {
 	clock: () => new Date(),
 };
 const enrolled = await enrolDevice(
-	{ ...ports, http: cloud.http, sleep: async () => {} },
+	// The fake cloud approves at once: enrolment never waits.
+	{ ...ports, http: cloud.http, sleep: () => Promise.resolve() },
 	{
 		baseUrl: cloud.baseUrl,
 		device: { os: "linux", arch: "x64", runtimeVersion: version },
