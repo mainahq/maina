@@ -337,6 +337,19 @@ describe("maina cloud privacy", () => {
 		expect(JSON.parse(text(h.out)).dataClass).toBe("metadata");
 	});
 
+	// #644: the class the org told the device at enrolment, not a guess.
+	test("shows the org's data class the device was enrolled with", async () => {
+		const cloud = fakeCloud({ orgDataClass: "rich" });
+		const e = harness(cloud);
+		expect(await runCloud(["enrol"], e.ports)).toBe(0);
+		const h = harness(cloud);
+		expect(await runCloud(["privacy", "--json"], h.ports)).toBe(0);
+		expect(JSON.parse(text(h.out)).dataClass).toBe("rich");
+		const s = harness(cloud);
+		expect(await runCloud(["status"], s.ports)).toBe(0);
+		expect(text(s.out)).toContain("data class: rich");
+	});
+
 	test("an unknown class is a usage error", async () => {
 		const h = harness(fakeCloud());
 		expect(await runCloud(["privacy", "--class", "everything"], h.ports)).toBe(

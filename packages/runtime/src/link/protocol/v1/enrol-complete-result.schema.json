@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://api.mainahq.com/link/v1/schemas/enrol-complete-result.schema.json",
 	"title": "EnrolCompleteResult",
-	"description": "The enrolled device: its id, its org, the org keys to pin, the org link salt that keys the repo and branch identifiers sent over Link (never uploaded back), the schema version and the endpoints. Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
+	"description": "The enrolled device: its id, its org, the org keys to pin, the org link salt that keys the repo and branch identifiers sent over Link (never uploaded back), the schema version, the endpoints and, when the device asked for it in EnrolComplete.accepts, the org's data class. Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
 	"type": "object",
 	"additionalProperties": false,
 	"required": [
@@ -165,6 +165,14 @@
 					]
 				}
 			}
+		},
+		"dataClass": {
+			"type": "string",
+			"enum": [
+				"metadata",
+				"names",
+				"rich"
+			]
 		}
 	}
 }

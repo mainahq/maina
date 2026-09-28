@@ -154,6 +154,20 @@
 					"examples": [
 						"id_0001"
 					]
+				},
+				"actionClass": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"matchedRule": {
+					"type": "string",
+					"enum": [
+						"allow",
+						"deny"
+					]
 				}
 			}
 		},
@@ -241,6 +255,20 @@
 					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
 					"examples": [
 						"id_0001"
+					]
+				},
+				"actionClass": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"matchedRule": {
+					"type": "string",
+					"enum": [
+						"allow",
+						"deny"
 					]
 				},
 				"repoName": {
@@ -345,6 +373,20 @@
 					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
 					"examples": [
 						"id_0001"
+					]
+				},
+				"actionClass": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"matchedRule": {
+					"type": "string",
+					"enum": [
+						"allow",
+						"deny"
 					]
 				},
 				"repoName": {
@@ -1267,6 +1309,18 @@
 					"type": "integer",
 					"minimum": 0,
 					"maximum": 9007199254740991
+				},
+				"policyVersion": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"policyHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
 				}
 			}
 		},
@@ -1313,6 +1367,18 @@
 					"type": "integer",
 					"minimum": 0,
 					"maximum": 9007199254740991
+				},
+				"policyVersion": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"policyHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
 				}
 			}
 		},
@@ -1359,6 +1425,18 @@
 					"type": "integer",
 					"minimum": 0,
 					"maximum": 9007199254740991
+				},
+				"policyVersion": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"policyHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
 				}
 			}
 		},

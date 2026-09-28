@@ -1,6 +1,6 @@
 {
 	"v": 1,
-	"description": "Every field a device sends over Maina Link, per data class (FR-PRIV-1, FR-PRIV-3). Generated from src/link/protocol/**; do not edit. `maina cloud privacy` prints the org's class from this file.",
+	"description": "Every field a device sends over Maina Link, per data class (FR-PRIV-1, FR-PRIV-3). Generated from src/link/protocol/**; do not edit. `maina cloud privacy` prints the org's class from this file; a device learns its org's class at enrolment (EnrolCompleteResult.dataClass, asked for with EnrolComplete.accepts).",
 	"dataClasses": {
 		"metadata": "The default. Labels, numbers, ids and salted hashes only: no names, paths, commands, diffs or code.",
 		"names": "Metadata plus repo and branch names, so the board shows them (org setting).",
@@ -76,6 +76,11 @@
 						"field": "publicKey",
 						"kind": "public-key",
 						"required": true
+					},
+					{
+						"field": "accepts",
+						"kind": "array",
+						"required": false
 					},
 					{
 						"field": "proof",
@@ -275,6 +280,16 @@
 					{
 						"field": "data.sessionId",
 						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.actionClass",
+						"kind": "label",
+						"required": false
+					},
+					{
+						"field": "data.matchedRule",
+						"kind": "enum",
 						"required": false
 					}
 				],
@@ -686,6 +701,16 @@
 					{
 						"field": "data.plugins",
 						"kind": "integer",
+						"required": false
+					},
+					{
+						"field": "data.policyVersion",
+						"kind": "integer",
+						"required": false
+					},
+					{
+						"field": "data.policyHash",
+						"kind": "hash",
 						"required": false
 					}
 				],
@@ -799,6 +824,11 @@
 						"required": true
 					},
 					{
+						"field": "accepts",
+						"kind": "array",
+						"required": false
+					},
+					{
 						"field": "proof",
 						"kind": "signature",
 						"required": true
@@ -1006,6 +1036,16 @@
 					{
 						"field": "data.sessionId",
 						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.actionClass",
+						"kind": "label",
+						"required": false
+					},
+					{
+						"field": "data.matchedRule",
+						"kind": "enum",
 						"required": false
 					},
 					{
@@ -1457,6 +1497,16 @@
 					{
 						"field": "data.plugins",
 						"kind": "integer",
+						"required": false
+					},
+					{
+						"field": "data.policyVersion",
+						"kind": "integer",
+						"required": false
+					},
+					{
+						"field": "data.policyHash",
+						"kind": "hash",
 						"required": false
 					}
 				],
@@ -1580,6 +1630,11 @@
 						"required": true
 					},
 					{
+						"field": "accepts",
+						"kind": "array",
+						"required": false
+					},
+					{
 						"field": "proof",
 						"kind": "signature",
 						"required": true
@@ -1802,6 +1857,16 @@
 					{
 						"field": "data.sessionId",
 						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.actionClass",
+						"kind": "label",
+						"required": false
+					},
+					{
+						"field": "data.matchedRule",
+						"kind": "enum",
 						"required": false
 					},
 					{
@@ -2293,6 +2358,16 @@
 					{
 						"field": "data.plugins",
 						"kind": "integer",
+						"required": false
+					},
+					{
+						"field": "data.policyVersion",
+						"kind": "integer",
+						"required": false
+					},
+					{
+						"field": "data.policyHash",
+						"kind": "hash",
 						"required": false
 					}
 				],

@@ -1,0 +1,7 @@
+{
+	"data": null,
+	"error": "authorization_pending",
+	"meta": {
+		"message": "Waiting for a member to approve the user code"
+	}
+}

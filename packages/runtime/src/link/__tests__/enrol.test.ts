@@ -187,6 +187,44 @@ describe("enrolDevice", () => {
 		expect(complete?.headers.Authorization).toBeUndefined();
 	});
 
+	// #644 (cloud #265): the cloud sends the org's class only when asked.
+	test("asks for the org's data class at enrolment and keeps the class it gets", async () => {
+		const cloud = fakeCloud({ orgDataClass: "names" });
+		const { ports } = portsFor(cloud);
+		const enrolled = await enrolDevice(ports, options(cloud));
+		expect(enrolled.ok).toBe(true);
+		if (!enrolled.ok) return;
+		const complete = cloud.requests.find((r) =>
+			r.url.endsWith("/enrol/complete"),
+		);
+		expect(JSON.parse(complete?.body ?? "{}").accepts).toEqual(["dataClass"]);
+		// The proof still verifies: `accepts` is part of the signed message.
+		expect(cloud.state.proofVerified).toBe(true);
+		expect(enrolled.value.dataClass).toBe("names");
+		const reread = fileLinkStore(linkDir()).readState();
+		expect(reread.ok && reread.value?.dataClass).toBe("names");
+	});
+
+	test("a cloud that sends no data class leaves the device at metadata", async () => {
+		const cloud = fakeCloud({ orgDataClass: null });
+		const { ports } = portsFor(cloud);
+		const enrolled = await enrolDevice(ports, options(cloud));
+		expect(enrolled.ok).toBe(true);
+		if (enrolled.ok) expect(enrolled.value.dataClass).toBe("metadata");
+	});
+
+	// Fail closed: a class the protocol doesn't name must not widen what the
+	// outbox lets through, so the enrolment is refused and nothing is kept.
+	test("a data class the protocol doesn't name refuses the enrolment", async () => {
+		const cloud = fakeCloud({ orgDataClass: "everything" });
+		const { ports } = portsFor(cloud);
+		const enrolled = await enrolDevice(ports, options(cloud));
+		expect(enrolled.ok).toBe(false);
+		if (!enrolled.ok) expect(enrolled.error.kind).toBe("invalid_response");
+		expect(existsSync(join(linkDir(), "device.key"))).toBe(false);
+		expect(existsSync(join(linkDir(), "device.json"))).toBe(false);
+	});
+
 	test("a refused completion leaves nothing behind", async () => {
 		const cloud = fakeCloud({ refuseCompleteWith: "expired_code" });
 		const { ports } = portsFor(cloud);

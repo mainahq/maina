@@ -37,5 +37,6 @@
 		"policy": "/link/v1/policy",
 		"approvals": "/link/v1/approvals",
 		"schemas": "/link/v1/schemas"
-	}
+	},
+	"dataClass": "metadata"
 }

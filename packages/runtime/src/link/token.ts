@@ -123,7 +123,7 @@ export async function linkToken(
 		challenge.value,
 	);
 	if (!answer.ok) return answer;
-	if (answer.value.envelope.error === LINK_CODES.deviceRevoked) {
+	if (answer.value.envelope.error === LINK_CODES.device_revoked) {
 		return revokedFailure(ports.store, now);
 	}
 	if (!isSuccess(answer.value))
