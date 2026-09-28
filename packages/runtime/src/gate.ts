@@ -9,8 +9,10 @@
  * the real dependencies.
  */
 
+import { createHash } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
 import {
+	APPROVAL_STATUSES,
 	appendDecision,
 	type BackendRegistry,
 	buildDecisionRecord,
@@ -20,10 +22,12 @@ import {
 	type DbPort,
 	DECISION_CATALOG,
 	DEFAULT_GATE_BUDGET_MS,
+	DEFAULT_POLICY,
 	DEFAULT_REGISTRY,
 	type DecisionLogPorts,
 	type DecisionRecord,
 	evaluateGate,
+	type GateApprovalNote,
 	type GateContext,
 	type GateEvaluation,
 	type GatePorts,
@@ -41,6 +45,11 @@ import {
 	type Verdict,
 	withBackend,
 } from "@mainahq/core";
+import type {
+	ApprovalRoute,
+	RemoteApproval,
+	RemoteAsk,
+} from "./link/approvals";
 import type { ShadowRunner } from "./shadow";
 import { type InferencePort, type PreInferred, preInfer } from "./system1";
 
@@ -78,6 +87,34 @@ export type GateDecision = Readonly<{
 	 * it: without it, a decision with an id bands as `low` (#497).
 	 */
 	confidence?: number;
+	/** What a remote approval made of an ask (#593). */
+	approval?: GateApprovalNote;
+}>;
+
+/**
+ * Remote approvals (#593, FR-APR-1): where the managed policy routes an
+ * ask, and the wait on the org's approvers (`link/approvals.ts`).
+ */
+export type GateApprovals = Readonly<{
+	/** The route for an ask; `LOCAL_ROUTE` keeps it at the host's prompt. */
+	routeFor: (
+		ask: Readonly<{
+			root: string;
+			policy: Policy;
+			actionClass: string;
+			irreversible: boolean;
+		}>,
+	) => ApprovalRoute;
+	awaitRemoteApproval: (
+		ask: RemoteAsk,
+		route: ApprovalRoute,
+		options: Readonly<{ timeoutMs: number }>,
+	) => Promise<RemoteApproval>;
+	/**
+	 * What the hook can spare for the wait, below the hook client's budget
+	 * (and so below every host's hook timeout); a longer route is clamped.
+	 */
+	waitMs: number;
 }>;
 
 /** The gate port: evaluates one event. May be sync or async. */
@@ -138,21 +175,50 @@ const isStringArray = (value: unknown): value is readonly string[] =>
 const isConfidence = (value: unknown): value is number =>
 	typeof value === "number" && value >= 0 && value <= 1;
 
+/** An approval note from untrusted input, or null when it has the wrong shape. */
+function parseApprovalNote(value: unknown): GateApprovalNote | null {
+	if (!isRecord(value)) return null;
+	const { status, link, by } = value;
+	if (
+		typeof status !== "string" ||
+		!(APPROVAL_STATUSES as readonly string[]).includes(status)
+	) {
+		return null;
+	}
+	if (link !== undefined && typeof link !== "string") return null;
+	if (by !== undefined && typeof by !== "string") return null;
+	return {
+		status: status as GateApprovalNote["status"],
+		...(link === undefined ? {} : { link }),
+		...(by === undefined ? {} : { by }),
+	};
+}
+
 /**
  * A gate decision from untrusted input, or null when it has the wrong shape.
  * A missing `degraded` flag is rejected rather than read as `false`; a
- * `confidence` may be absent, but one outside [0, 1] is rejected.
+ * `confidence` may be absent, but one outside [0, 1] is rejected, and so is
+ * a malformed `approval` note.
  */
 export function parseGateDecision(value: unknown): GateDecision | null {
 	if (!isRecord(value)) return null;
-	const { verdict, reason, decisionIds, degraded, confidence } = value;
+	const { verdict, reason, decisionIds, degraded, confidence, approval } =
+		value;
 	if (!isVerdict(verdict) || typeof reason !== "string") return null;
 	if (!isStringArray(decisionIds) || typeof degraded !== "boolean") {
 		return null;
 	}
 	if (confidence !== undefined && !isConfidence(confidence)) return null;
-	const decision = { verdict, reason, decisionIds: [...decisionIds], degraded };
-	return confidence === undefined ? decision : { ...decision, confidence };
+	const note = approval === undefined ? undefined : parseApprovalNote(approval);
+	if (note === null) return null;
+	return {
+		verdict,
+		reason,
+		decisionIds: [...decisionIds],
+		degraded,
+		...(confidence === undefined ? {} : { confidence }),
+		...(note === undefined ? {} : { approval: note }),
+	};
 }
 
 /**
@@ -227,6 +293,12 @@ export type GateEvaluatorDeps = Readonly<{
 	 * decisions and never reach it; a port that throws changes nothing.
 	 */
 	onDecision?: (record: DecisionRecord) => void;
+	/**
+	 * Remote approvals (#593): an `ask` whose route is not local waits on
+	 * the org's approvers, in `full` mode only, on a machine holding a
+	 * managed policy. Absent: every ask stays at the host's prompt.
+	 */
+	approvals?: GateApprovals;
 }>;
 
 /** A root's decision log (FR-DEC-3, FR-DEC-5). */
@@ -311,24 +383,30 @@ export function createGateEvaluator(
 				core,
 				effective,
 			);
+			const approval =
+				mode === "full"
+					? await remoteApproval(deps, core, effective, ctx.value, result)
+					: undefined;
+			const verdict = approval?.verdict ?? result.verdict;
 			const logged = await logDecisions(deps, root, {
 				event: core,
 				policy: effective,
 				ctx: ctx.value,
-				result,
+				result: { ...result, verdict },
 				tightens: mode === "rules_only",
 			});
 			if (mode === "full" && deps.shadow !== undefined && logged) {
 				shadowGate(deps.shadow, logged, core, result);
 			}
 			return {
-				verdict: result.verdict,
+				verdict,
 				reason: result.reason,
 				decisionIds: result.decisionIds,
 				degraded: result.degraded,
 				...(result.confidence === undefined
 					? {}
 					: { confidence: result.confidence }),
+				...(approval?.note === undefined ? {} : { approval: approval.note }),
 			};
 		} catch (e) {
 			return asking(
@@ -336,6 +414,96 @@ export function createGateEvaluator(
 			);
 		}
 	};
+}
+
+/** What a remote approval made of an ask. */
+type Approved = Readonly<{ verdict: Verdict; note?: GateApprovalNote }>;
+
+const LABEL = /^[a-z][a-z0-9_.-]{0,63}$/;
+const HASH = /^sha256:[0-9a-f]{64}$/;
+
+/**
+ * Sends a full, non-degraded `ask` to the org's approvers when its route
+ * says so (#593), and returns the verdict they reached; undefined when the
+ * ask stays local. Only a machine holding a managed policy routes remotely
+ * (its etag is the ask's policy hash). The action class is the first
+ * irreversible one the policy does not allow, else the first it does not
+ * allow. A port that fails
+ * resolves per the route, never to an allow.
+ */
+async function remoteApproval(
+	deps: GateEvaluatorDeps,
+	event: CoreGateEvent,
+	policy: Policy,
+	ctx: GateContext,
+	result: GateEvaluation,
+): Promise<Approved | undefined> {
+	const { approvals } = deps;
+	if (approvals === undefined || result.verdict !== "ask" || result.degraded) {
+		return undefined;
+	}
+	const policyHash = policy.managed?.etag;
+	if (policyHash === undefined || !HASH.test(policyHash)) return undefined;
+	const subject = gateSubject(result.decisionIds[0] ?? "", event, policy, ctx);
+	const spec = (c: string) =>
+		policy.action_classes[c] ?? DEFAULT_POLICY.action_classes[c];
+	// The classes behind the ask (not allowed by the policy), irreversible first.
+	const asking = subject.classes.filter((c) => spec(c)?.verdict !== "allow");
+	const actionClass =
+		asking.find(
+			(c) =>
+				DEFAULT_POLICY.action_classes[c]?.irreversible === true ||
+				policy.action_classes[c]?.irreversible === true,
+		) ??
+		asking[0] ??
+		subject.classes[0] ??
+		"action.risk";
+	const ask = {
+		root: event.root,
+		policy,
+		actionClass: LABEL.test(actionClass) ? actionClass : "action.risk",
+		irreversible: subject.irreversible,
+	};
+	let route: ApprovalRoute | undefined;
+	try {
+		route = approvals.routeFor(ask);
+		if (route.target !== "remote") return undefined;
+		const got = await approvals.awaitRemoteApproval(
+			{
+				key: createHash("sha256")
+					.update(
+						JSON.stringify([
+							event.root,
+							event.host,
+							event.sessionId,
+							event.kind,
+							event.action,
+						]),
+					)
+					.digest("hex"),
+				actionClass: ask.actionClass,
+				irreversible: ask.irreversible,
+				policyHash,
+			},
+			route,
+			{ timeoutMs: approvals.waitMs },
+		);
+		const verdict: Verdict =
+			got.outcome === "allow"
+				? "allow"
+				: got.outcome === "deny"
+					? "deny"
+					: "ask";
+		return got.note === undefined ? { verdict } : { verdict, note: got.note };
+	} catch {
+		// Fail closed: an approvals port that throws resolves per the route.
+		return route === undefined
+			? undefined
+			: {
+					verdict: route.onTimeout === "deny" ? "deny" : "ask",
+					note: { status: "unavailable" },
+				};
+	}
 }
 
 /**

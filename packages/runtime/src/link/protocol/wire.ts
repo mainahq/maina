@@ -12,6 +12,12 @@
 
 import type { Result } from "@mainahq/core";
 import Ajv2020, { type ValidateFunction } from "ajv/dist/2020";
+import approvalAskSchema from "./v1/approval-ask.schema.json" with {
+	type: "json",
+};
+import approvalResolutionSchema from "./v1/approval-resolution.schema.json" with {
+	type: "json",
+};
 import controlMessageSchema from "./v1/control-message.schema.json" with {
 	type: "json",
 };
@@ -262,6 +268,44 @@ export type PolicyBundle = Readonly<{
 	sig: string;
 }>;
 
+/** What an ask falls back to when nobody resolves it in time. */
+export type ApprovalFallback = "deny" | "ask-local";
+
+/**
+ * `POST /link/v1/approvals` body: a pending ask routed to the org's
+ * approvers, signed by the device (`sig`). `data` is the
+ * `approval.requested` event data at `dataClass`, checked by the schema.
+ */
+type ApprovalAsk = Readonly<{
+	v: 1;
+	askId: string;
+	deviceId: string;
+	runId?: string;
+	sentAt: string;
+	fallback: ApprovalFallback;
+	dataClass: DataClass;
+	data: Readonly<Record<string, unknown>>;
+	sig: string;
+}>;
+
+/**
+ * An ask's outcome, signed by the org's approval-resolution key `keyId`
+ * (while the cloud's signer is dark: `keyId: "unsigned"` and an all-zero
+ * `sig`). A `timeout` carries its fallback; `approved` and `denied` do not.
+ */
+export type ApprovalResolution = Readonly<{
+	v: 1;
+	orgId: string;
+	askId: string;
+	deviceId: string;
+	resolution: "approved" | "denied" | "timeout";
+	fallback?: ApprovalFallback;
+	resolvedBy?: Readonly<{ kind: "member" | "policy" | "system"; id: string }>;
+	resolvedAt: string;
+	keyId: string;
+	sig: string;
+}>;
+
 type WireTypes = {
 	"enrol-start": EnrolStart;
 	"enrol-start-result": EnrolStartResult;
@@ -274,6 +318,8 @@ type WireTypes = {
 	envelope: LinkEnvelope;
 	"envelope-ack": EnvelopeAck;
 	"policy-bundle": PolicyBundle;
+	"approval-ask": ApprovalAsk;
+	"approval-resolution": ApprovalResolution;
 };
 
 type WireKind = keyof WireTypes;
@@ -290,6 +336,8 @@ const SCHEMAS: Readonly<Record<WireKind, object>> = {
 	envelope: envelopeSchema,
 	"envelope-ack": envelopeAckSchema,
 	"policy-bundle": policyBundleSchema,
+	"approval-ask": approvalAskSchema,
+	"approval-resolution": approvalResolutionSchema,
 };
 
 export type WireRefusal = Readonly<{

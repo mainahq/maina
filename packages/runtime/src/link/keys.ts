@@ -10,7 +10,8 @@
  *
  *   device  utf8("maina-link/sig/v1\n" + purpose + "\n") || JCS(message without its signature field)
  *   cloud   utf8("maina-cloud/sig/v1\n" + purpose + "\n" + orgId + "\n") || JCS(message without sig)
- *           (purpose `link-control` for control messages, `policy-bundle` for policy bundles)
+ *           (purpose `link-control` for control messages, `policy-bundle` for policy bundles,
+ *           `approval-resolution` for approval resolutions)
  *
  * JCS is RFC 8785; the Link messages carry only strings and safe integers,
  * the subset core's receipt canonicalizer implements.
@@ -45,7 +46,11 @@ export type LinkCrypto = Readonly<{
 	randomToken: (bytes: number) => string;
 }>;
 
-type DevicePurpose = "enrol-proof" | "token-challenge" | "envelope";
+type DevicePurpose =
+	| "enrol-proof"
+	| "token-challenge"
+	| "envelope"
+	| "approval-ask";
 
 function failure(e: unknown): CryptoFailure {
 	return {
@@ -140,7 +145,7 @@ export function deviceSigningInput(
 
 /** The bytes an org key of `purpose` signs for `message` (its `sig` left out). */
 function cloudSigningInput(
-	purpose: "link-control" | "policy-bundle",
+	purpose: "link-control" | "policy-bundle" | "approval-resolution",
 	orgId: string,
 	message: Readonly<Record<string, unknown>>,
 ): Result<Uint8Array, CryptoFailure> {
@@ -166,4 +171,12 @@ export function policyBundleSigningInput(
 	bundle: Readonly<Record<string, unknown>>,
 ): Result<Uint8Array, CryptoFailure> {
 	return cloudSigningInput("policy-bundle", orgId, bundle);
+}
+
+/** The bytes the org's approval-resolution key signs for a resolution. */
+export function approvalResolutionSigningInput(
+	orgId: string,
+	resolution: Readonly<Record<string, unknown>>,
+): Result<Uint8Array, CryptoFailure> {
+	return cloudSigningInput("approval-resolution", orgId, resolution);
 }

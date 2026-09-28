@@ -47,6 +47,14 @@ type LinkRequest = Readonly<{
 	 * client's own `Authorization` always wins over one set here.
 	 */
 	headers?: Readonly<Record<string, string>>;
+	/**
+	 * Query parameters, such as the approvals long poll's `waitMs`. Names
+	 * and values are plain words (`[A-Za-z0-9_]`); anything else is refused
+	 * as `invalid_path`, like a path that could leave the enrolled cloud.
+	 */
+	query?: Readonly<Record<string, string>>;
+	/** How long the HTTP call may take; the Link default when absent. */
+	timeoutMs?: number;
 }>;
 
 type LinkResponse = Readonly<{ status: number; data: unknown }>;
@@ -65,6 +73,22 @@ const RENEW_MARGIN_MS = 30_000;
  * refused before a token is bought or attached.
  */
 const LINK_PATH = /^\/link\/v[0-9]+(\/[A-Za-z0-9][A-Za-z0-9_.:-]*)+$/;
+
+/** A query name or value: a plain word, never an encoded `&`, `#` or `/`. */
+const QUERY_WORD = /^[A-Za-z0-9_]{1,64}$/;
+
+/** `?a=b&...` for `query`, `""` for none, or null when a part is not a word. */
+function queryString(
+	query: Readonly<Record<string, string>> | undefined,
+): string | null {
+	const entries = Object.entries(query ?? {});
+	if (entries.some(([k, v]) => !QUERY_WORD.test(k) || !QUERY_WORD.test(v))) {
+		return null;
+	}
+	return entries.length === 0
+		? ""
+		: `?${entries.map(([k, v]) => `${k}=${v}`).join("&")}`;
+}
 
 const STALE_TOKEN: ReadonlySet<string> = new Set([
 	LINK_CODES.token_expired,
@@ -107,7 +131,7 @@ export function createLinkClient(ports: LinkPorts): LinkClient {
 		return linkCall(
 			ports.http,
 			request.method,
-			`${base}${request.path}`,
+			`${base}${request.path}${queryString(request.query) ?? ""}`,
 			request.body,
 			{
 				...Object.fromEntries(
@@ -117,13 +141,17 @@ export function createLinkClient(ports: LinkPorts): LinkClient {
 				),
 				Authorization: `Bearer ${t.value.token}`,
 			},
+			request.timeoutMs,
 		);
 	}
 
 	return {
 		send: async (request) => {
 			if (stopped !== null) return { ok: false, error: stopped };
-			if (!LINK_PATH.test(request.path)) {
+			if (
+				!LINK_PATH.test(request.path) ||
+				queryString(request.query) === null
+			) {
 				return {
 					ok: false,
 					error: { kind: "invalid_path", path: request.path },

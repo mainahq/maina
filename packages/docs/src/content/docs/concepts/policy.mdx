@@ -76,3 +76,21 @@ maina allow <decision-id> --always   # and from now on
 ```
 
 `--always` adds an exact allow rule for that command, path, tool or URL to your user policy, never to the repository's. It refuses what an allow rule should not cover: an irreversible class, a final deny, an opaque command, a wildcard. Every override is linked to the decision it overrode, so the decision's error rate learns from it (see [Calibration](/concepts/calibration/)).
+
+## Remote approvals
+
+On a machine enrolled in Maina Cloud, the org's managed policy can route an ask to remote approvers instead of your prompt. The resident runtime sends the ask, signed by the device, to the org's approvals channel and waits for the answer inside the same hook. The verdict is still decided on your machine:
+
+- An approval allows the action, and the message names the approver. A denial denies it, names the approver and offers no local override.
+- An approval counts only when it is signed by the org's approval-resolution key pinned at enrolment. A bad or unknown signature denies. While the cloud's signer is not yet live it sends unsigned answers: an unsigned denial still denies, but an unsigned approval never allows: you get your local prompt instead.
+- A cloud that cannot be reached, or refuses, never allows. The ask resolves to the route's timeout rule, a deny or your local prompt, and so does a route whose timeout passes.
+
+A host stops a hook that runs past its timeout, and Claude Code and Codex then run the tool anyway. So the wait never gets close to it: maina waits at most 1.2 s for the approver, inside the 3 s its hook client gives every host. Approvers usually take longer. The ask then stays open in the cloud and the host shows a line linking to it (`waiting for approval: <link> (retry once approved)`). When the same action is retried after an approver has answered, the retry gets that answer without a new ask. Each answer is used once.
+
+| Host | While the ask waits |
+|---|---|
+| Claude Code | The permission prompt shows the waiting line. Approve it there, or retry the action once it is approved remotely. |
+| Codex | Codex hooks cannot ask, so maina blocks the action with the waiting line and tells the agent to retry once the ask is approved. |
+| Cursor | `preToolUse` blocks with the waiting line and a retry. `beforeShellExecution` shows it in Cursor's own prompt. |
+
+On an irreversible class whose route denies on timeout, the waiting line comes with a deny on every host, never a local prompt: only the approver can let it through.

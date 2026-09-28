@@ -7,6 +7,10 @@
  * when no runtime answers, and `warm` starts loading the grammar it needs
  * ahead of it (#564). All share one set of caches: the grammar loads once,
  * and each working directory's repository root is looked up once.
+ *
+ * The runtime's asks can go to the org's remote approvers (#593) over the
+ * Link directory's enrolled device. The wait fits in the hook: see
+ * `REMOTE_WAIT_MS`.
  */
 
 import { randomUUID } from "node:crypto";
@@ -14,7 +18,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { openDecisionDb } from "@mainahq/cli/src/decision-store";
 import { processEnv } from "@mainahq/cli/src/env";
-import { nodeFs } from "@mainahq/cli/src/ports";
+import { fetchHttp, nodeFs } from "@mainahq/cli/src/ports";
 import {
 	createProcessGit,
 	type GateContext,
@@ -30,12 +34,15 @@ import {
 } from "@mainahq/core";
 import {
 	createGateEvaluator,
+	type GateApprovals,
 	type GateEvaluator,
 	type GateEvaluatorDeps,
 	type GateLog,
 } from "./gate";
+import { createRemoteApprovals, LOCAL_ROUTE } from "./link/approvals";
 import { nodeLinkCrypto } from "./link/keys";
 import { managedLayerReader } from "./link/policy-sync";
+import type { EventSink } from "./link/producers/emit";
 import { fileLinkStore, linkDir } from "./link/store";
 import { checkedOutBranch, gitProbe, resolveRoot } from "./root";
 import type { ShadowRunner } from "./shadow";
@@ -46,6 +53,18 @@ const git = createProcessGit(systemProcess);
 
 /** Working directories whose root is remembered; the cache resets past this. */
 const MAX_CACHED_ROOTS = 256;
+
+/**
+ * How long an ask may wait on the org's approvers inside one hook (#593).
+ * Every host runs the same hook client, which gives the runtime 2 s of its
+ * 3 s budget (`hook-system.ts` `HOOK_TIMEOUT_MS`, less the fallback's
+ * reserve), far below each host's own hook timeout: the gate's own work
+ * and the IPC need the rest. A route that waits longer is clamped to this,
+ * and the host gets its local ask (or, on an irreversible class whose
+ * route denies on timeout, a deny) with the link to the ask; a retry of the
+ * action picks up the approver's resolution.
+ */
+const REMOTE_WAIT_MS = 1_200;
 
 type SystemOptions = Readonly<{
 	/** Home directory for the user policy and `~` paths; the OS home by default. */
@@ -65,6 +84,8 @@ type SystemOptions = Readonly<{
 	 * disk only (never the network) and verified when it changes.
 	 */
 	managed?: ManagedReader;
+	/** Where `approval.requested` and `approval.resolved` go: the uplink. */
+	approvalEvents?: EventSink;
 }>;
 
 type ManagedReader = () => Result<
@@ -79,6 +100,28 @@ function systemManagedLayer(home: string): ManagedReader {
 		crypto: nodeLinkCrypto,
 		clock: () => new Date(),
 	});
+}
+
+/**
+ * Remote approvals over the enrolled device in the Link directory for
+ * `home`. [NEEDS CLARIFICATION] The v1 policy body has no approvals routes
+ * yet (cloud adr/0014 leaves where an org's rules live open), so every ask
+ * keeps `LOCAL_ROUTE` until the managed policy carries them; only
+ * `routeFor` changes then.
+ */
+function systemApprovals(home: string, sink?: EventSink): GateApprovals {
+	const { awaitRemoteApproval } = createRemoteApprovals({
+		http: fetchHttp,
+		store: fileLinkStore(linkDir(processEnv, home)),
+		crypto: nodeLinkCrypto,
+		clock: () => new Date(),
+		...(sink === undefined ? {} : { sink }),
+	});
+	return {
+		routeFor: () => LOCAL_ROUTE,
+		awaitRemoteApproval,
+		waitMs: REMOTE_WAIT_MS,
+	};
 }
 
 function systemDeps(options: SystemOptions): GateEvaluatorDeps {
@@ -129,6 +172,7 @@ function systemDeps(options: SystemOptions): GateEvaluatorDeps {
 		clock: { now: () => performance.now() },
 		newId: () => randomUUID(),
 		logFor: decisionLogs(),
+		approvals: systemApprovals(home, options.approvalEvents),
 	};
 }
 

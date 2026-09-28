@@ -374,9 +374,12 @@ const denied = (value: unknown, reason: string): ClaudeOutput => ({
 });
 
 function preToolUse(decision: GateDecision): ClaudeOutput {
-	// An ask or deny shows the gate message, with the id to override by.
+	// An ask or deny shows the gate message, with the id to override by; so
+	// does an allow an approver gave, which names them (#593).
 	const reason =
-		decision.verdict === "allow" ? decision.reason : gateMessage(decision);
+		decision.verdict === "allow" && decision.approval === undefined
+			? decision.reason
+			: gateMessage(decision);
 	const out = {
 		hookSpecificOutput: {
 			hookEventName: "PreToolUse",

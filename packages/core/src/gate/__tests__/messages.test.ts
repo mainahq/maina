@@ -175,3 +175,51 @@ describe("a rule-only verdict's message", () => {
 		expect(message).toContain("override: maina allow d-3 [--always]");
 	});
 });
+
+// #593: a remote approval says where it left the ask.
+describe("a remote approval's message", () => {
+	test("a waiting ask links to it and says to retry", () => {
+		const message = formatGateMessage({
+			...result(),
+			approval: { status: "waiting", link: "https://app.x.test/approvals/a1" },
+		});
+		expect(message).toContain(
+			"| waiting for approval: https://app.x.test/approvals/a1 (retry once approved) |",
+		);
+		expect(message).toContain("override: maina allow d-1 [--always]");
+	});
+
+	test("an approver's denial names them and offers no local override", () => {
+		const message = formatGateMessage({
+			...result({ verdict: "deny" }),
+			approval: { status: "denied", by: "member mem_7c1d" },
+		});
+		expect(message).toContain("denied by member mem_7c1d");
+		expect(message).not.toContain("override:");
+	});
+
+	test("hidden characters never reach the line", () => {
+		const message = formatGateMessage({
+			...result({ verdict: "allow" }),
+			approval: {
+				status: "approved",
+				by: "member\u202e mem\nx",
+				link: "https://a.test/x\u200b y",
+			},
+		});
+		expect(message).toContain("approved by member mem x");
+		expect(message).not.toMatch(/[\u200b-\u200f\u202a-\u202e\n]/);
+	});
+
+	test("every other status has its own line", () => {
+		for (const [status, line] of [
+			["timeout", "the approval timed out"],
+			["unavailable", "the approvals channel could not be reached"],
+			["untrusted", "the approval could not be verified"],
+		] as const) {
+			expect(
+				formatGateMessage({ ...result(), approval: { status } }),
+			).toContain(line);
+		}
+	});
+});

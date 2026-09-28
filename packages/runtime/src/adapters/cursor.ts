@@ -404,6 +404,8 @@ const blockReason = (reason: string): string =>
  */
 function askAsDeny(decision: GateDecision): CursorOutput {
 	const reason = blockReason(decision.reason);
+	if (decision.approval?.status === "waiting")
+		return awaitingApproval(decision);
 	const id = overrideId(decision);
 	const blocked = `maina: ${reason}. Cursor cannot ask for confirmation before this tool runs, so maina blocked it.`;
 	const command = id === undefined ? undefined : `maina allow ${id} --always`;
@@ -425,6 +427,24 @@ function askAsDeny(decision: GateDecision): CursorOutput {
 			permission: "deny",
 			user_message,
 			agent_message: `maina blocked this action because it needs the user's confirmation (${reason}) and Cursor cannot ask from preToolUse. ${next}; do not try another way.`,
+		},
+		2,
+		user_message,
+	);
+}
+
+/**
+ * A preToolUse `ask` the org's approvers still hold (#593): blocked, with
+ * the gate message's link to the ask, and a retry once it is approved.
+ */
+function awaitingApproval(decision: GateDecision): CursorOutput {
+	const message = gateMessage(decision);
+	const user_message = `${message}. Cursor cannot wait for the approver before this tool runs, so maina blocked it; retry once the ask is approved.`;
+	return out(
+		{
+			permission: "deny",
+			user_message,
+			agent_message: `maina blocked this action until the org's approvers approve it: ${message}. Tell the user, and retry once the ask is approved; do not try another way.`,
 		},
 		2,
 		user_message,
