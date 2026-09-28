@@ -5,10 +5,10 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import { DEFAULT_POLICY, holdoutDir, holdoutFeatureDir } from "@mainahq/core";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { policyToSandbox } from "../policy-to-sandbox";
 import { createSandboxRuntime } from "../runtime-adapter";
 import { integrationTitle, run, SKIP_REASON, shell } from "./sandbox-fixture";
@@ -50,7 +50,7 @@ describe.skipIf(SKIP_REASON !== undefined)(
 	integrationTitle("holdout under a real srt (integration)"),
 	() => {
 		test("a sandboxed worker reading a holdout scenario gets nothing", async () => {
-			const root = realpathSync(mkdtempSync(join(tmpdir(), "maina-holdout-")));
+			const root = testTmpDir("maina-holdout-");
 			const home = join(root, "home");
 			const worktree = join(root, ".maina", "worktrees", "run-1");
 			const featureDir = holdoutFeatureDir(root, "012-export");

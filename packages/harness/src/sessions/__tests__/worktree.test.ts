@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { runBranch } from "../lease";
 import { createWorktree } from "../worktree";
 import { gitIn, makeRepo } from "./repo-fixture";
@@ -87,7 +87,7 @@ describe("createWorktree", () => {
 	});
 
 	test("fails with not_a_repo outside a git repository", async () => {
-		const plain = realpathSync(mkdtempSync(join(tmpdir(), "maina-no-repo-")));
+		const plain = testTmpDir("maina-no-repo-");
 		const created = await createWorktree(plain, "x");
 		expect(created.ok).toBe(false);
 		if (created.ok) return;

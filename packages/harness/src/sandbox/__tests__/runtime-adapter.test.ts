@@ -1,7 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { DEFAULT_POLICY, type Result } from "@mainahq/core";
+import { shallowTmpDir } from "../../__tests__/test-tmp";
 import { policyToSandbox } from "../policy-to-sandbox";
 import type { Command, SandboxError, SandboxOptions } from "../port";
 import {
@@ -11,6 +12,7 @@ import {
 	SANDBOX_RUNTIME,
 	type SandboxRuntimeProbe,
 } from "../runtime-adapter";
+import { removeTmpRoot, TMP_MARKER } from "../tmp-root";
 import {
 	integrationTitle,
 	type Layout,
@@ -71,7 +73,7 @@ function fakeRuntime(
 		env: { PATH: "/usr/bin", GITHUB_TOKEN: "ghp_ambient_316" },
 		writeSettings: (json): Result<string, SandboxError> => {
 			written.push(json);
-			return { ok: true, value: `/tmp/maina-sandbox-x/settings.json` };
+			return { ok: true, value: `/tmp/maina-srt-x/settings.json` };
 		},
 		...overrides,
 	});
@@ -94,7 +96,7 @@ describe("wrap: the command", () => {
 		expect(command.args).toEqual([
 			"--debug",
 			"--settings",
-			"/tmp/maina-sandbox-x/settings.json",
+			"/tmp/maina-srt-x/settings.json",
 			"--",
 			"/opt/bin/codex-acp",
 			"--flag",
@@ -105,7 +107,24 @@ describe("wrap: the command", () => {
 		expect(wrapped().command.env).toEqual({
 			INITIAL_AGENT_MODE: "agent-full-access",
 			OPENAI_API_KEY: "sk-real-316",
+			TMPDIR: "/tmp/maina-srt-x",
 		});
+	});
+
+	test("srt's own temp files (its CA, sockets) go in the wrap's dir (#632)", () => {
+		const { env } = wrapped().command;
+		expect(env?.TMPDIR).toBe("/tmp/maina-srt-x");
+		// Not TMP or TEMP: those pass through to the worker.
+		expect(env?.TMP).toBeUndefined();
+		expect(env?.TEMP).toBeUndefined();
+	});
+
+	test("a wrap dir too deep for srt's sockets is not srt's TMPDIR", () => {
+		const deep = `/${"d".repeat(80)}/maina-srt-x/settings.json`;
+		const { command } = wrapped({
+			writeSettings: () => ({ ok: true, value: deep }),
+		});
+		expect(command.env?.TMPDIR).toBeUndefined();
 	});
 
 	test("a worker temp dir replaces srt's shared /tmp/claude and is writable", () => {
@@ -238,7 +257,7 @@ describe("dispose: the settings temp dirs (#544)", () => {
 		const { port } = fakeRuntime({
 			writeSettings: () => ({
 				ok: true,
-				value: `/tmp/maina-sandbox-${++n}/settings.json`,
+				value: `/tmp/maina-srt-${++n}/settings.json`,
 			}),
 			removeSettings: (path) => {
 				removed.push(path);
@@ -249,14 +268,14 @@ describe("dispose: the settings temp dirs (#544)", () => {
 		expect(removed).toEqual([]);
 		port.dispose();
 		expect(removed).toEqual([
-			"/tmp/maina-sandbox-1/settings.json",
-			"/tmp/maina-sandbox-2/settings.json",
+			"/tmp/maina-srt-1/settings.json",
+			"/tmp/maina-srt-2/settings.json",
 		]);
 		port.dispose();
 		expect(removed).toHaveLength(2);
 	});
 
-	test("the real writer's maina-sandbox-* dir is gone after dispose", () => {
+	test("the real writer's maina-srt-* dir is gone after dispose", () => {
 		const port = createSandboxRuntime({
 			probe: ALL_INSTALLED,
 			platform: "darwin",
@@ -267,10 +286,40 @@ describe("dispose: the settings temp dirs (#544)", () => {
 		const args = result.value.args ?? [];
 		const settings = String(args[args.indexOf("--settings") + 1]);
 		const dir = dirname(settings);
-		expect(basename(dir).startsWith("maina-sandbox-")).toBe(true);
+		expect(basename(dir).startsWith("maina-srt-")).toBe(true);
 		expect(existsSync(settings)).toBe(true);
+		expect(existsSync(join(dir, TMP_MARKER))).toBe(true);
+		expect(result.value.env?.TMPDIR).toBe(dir);
 		port.dispose();
 		expect(existsSync(dir)).toBe(false);
+	});
+
+	test("a port nobody disposed leaves nothing once its process exits (#632)", async () => {
+		const parent = shallowTmpDir();
+		const before = readdirSync(parent);
+		const script = `
+			import { createSandboxRuntime } from ${JSON.stringify(join(import.meta.dir, "..", "runtime-adapter.ts"))};
+			const port = createSandboxRuntime({
+				probe: { which: (b) => "/opt/bin/" + b, version: () => ${JSON.stringify(SANDBOX_RUNTIME.version)} },
+				platform: "darwin",
+				env: {},
+			});
+			const wrapped = port.wrap(
+				{ name: "sh", command: "/bin/sh" },
+				{ writeAllow: [], readDeny: [], netAllow: [], credentials: [] },
+			);
+			if (!wrapped.ok) process.exit(2);
+			const srtTmp = wrapped.value.env.TMPDIR;
+			if (!srtTmp?.startsWith(${JSON.stringify(parent)})) process.exit(3);
+			await Bun.write(srtTmp + "/srt-ca-leak/ca.key", "k");
+		`;
+		const child = Bun.spawn(["bun", "-e", script], {
+			env: { ...process.env, TMPDIR: parent },
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		expect(await child.exited).toBe(0);
+		expect(readdirSync(parent)).toEqual(before);
 	});
 });
 
@@ -357,14 +406,64 @@ function filesUnder(dir: string): string[] {
 
 const INTEGRATION_MS = 30_000;
 
+/** Every port an integration test made, disposed after it. */
+const ports: ReturnType<typeof createSandboxRuntime>[] = [];
+function sandboxRuntime(deps?: Parameters<typeof createSandboxRuntime>[0]) {
+	const port = createSandboxRuntime(deps);
+	ports.push(port);
+	return port;
+}
+
 describe.skipIf(SKIP_REASON !== undefined)(
 	integrationTitle("srt sandbox (integration)"),
 	() => {
+		afterEach(() => {
+			for (const port of ports.splice(0)) port.dispose();
+		});
+
+		test(
+			"a wrap leaves no new entries in the parent tmpdir (#632)",
+			async () => {
+				const layout = makeLayout();
+				// Shallow, like a real TMPDIR: srt binds its sockets in there.
+				const parent = shallowTmpDir();
+				const before = readdirSync(parent);
+				const previous = process.env.TMPDIR;
+				process.env.TMPDIR = parent;
+				try {
+					const port = createSandboxRuntime({ env: process.env });
+					const wrappedCmd = port.wrap(
+						shell("echo ran"),
+						sandboxFor(layout, {
+							// A masked credential makes srt mint its ephemeral CA.
+							credentials: [
+								{
+									name: "MAINA_TEST_API_KEY",
+									value: "sk-leak-632",
+									hosts: ["api.example.com"],
+								},
+							],
+						}),
+					);
+					if (!wrappedCmd.ok) throw new Error(wrappedCmd.error.message);
+					const ran = await run(wrappedCmd.value, layout.worktree);
+					expect(ran.stdout).toBe("ran\n");
+					port.dispose();
+					expect(readdirSync(parent)).toEqual(before);
+				} finally {
+					if (previous === undefined) delete process.env.TMPDIR;
+					else process.env.TMPDIR = previous;
+					removeTmpRoot(parent);
+				}
+			},
+			INTEGRATION_MS,
+		);
+
 		test(
 			"writes outside the worktree fail; writes inside succeed",
 			async () => {
 				const layout = makeLayout();
-				const port = createSandboxRuntime();
+				const port = sandboxRuntime();
 				const outside = join(layout.outside, "escaped.txt");
 				const inside = join(layout.worktree, "made.txt");
 				const wrappedCmd = port.wrap(
@@ -384,7 +483,7 @@ describe.skipIf(SKIP_REASON !== undefined)(
 			"reads of ~/.ssh, other worktrees and the holdout directory fail",
 			async () => {
 				const layout = makeLayout();
-				const port = createSandboxRuntime();
+				const port = sandboxRuntime();
 				const script = [
 					`cat '${join(layout.home, ".ssh", "id_rsa")}'`,
 					`cat '${join(layout.otherWorktree, "notes.txt")}'`,
@@ -406,7 +505,7 @@ describe.skipIf(SKIP_REASON !== undefined)(
 			"a non-allowlisted host is blocked and logged as a decision",
 			async () => {
 				const layout = makeLayout();
-				const port = createSandboxRuntime();
+				const port = sandboxRuntime();
 				const wrappedCmd = port.wrap(
 					shell(
 						"curl -sS -o /dev/null --max-time 10 https://not-allowlisted.example.com/; echo curl=$?",
@@ -431,7 +530,7 @@ describe.skipIf(SKIP_REASON !== undefined)(
 			"the worker's temp files land in its own temp dir",
 			async () => {
 				const layout = makeLayout();
-				const port = createSandboxRuntime();
+				const port = sandboxRuntime();
 				const wrappedCmd = port.wrap(
 					shell('echo "$TMPDIR"; mktemp "$TMPDIR/maina.XXXXXX"'),
 					sandboxFor(layout),
@@ -453,7 +552,7 @@ describe.skipIf(SKIP_REASON !== undefined)(
 				const secret = "sk-real-credential-316";
 				const ambient = "ghp_ambient_token_316";
 				const env = { ...process.env, GITHUB_TOKEN: ambient };
-				const port = createSandboxRuntime({ env });
+				const port = sandboxRuntime({ env });
 				const dump = join(layout.worktree, "env.txt");
 				const wrappedCmd = port.wrap(
 					shell(`env > '${dump}'; env > '${join(layout.tmp, "env.txt")}'; env`),
