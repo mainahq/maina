@@ -29,6 +29,31 @@ describe("testTmpDir (runtime): one marked per-process root (#639)", () => {
 	});
 });
 
+/**
+ * Runtime test areas whose fixtures must live under testTmpDir (#641). A
+ * socket fallback parent (`tmpDir: tmpdir()`) is allowed: a socket path must
+ * stay short, and the runtime removes its socket dir itself.
+ */
+const AREAS = ["__tests__", "link", "model", "statusline"];
+
+/** A path built directly in TMPDIR, such as a `mkdtempSync` of `tmpdir()`. */
+const IN_TMPDIR = /join\(\s*tmpdir\(\)\s*,/;
+
+describe("runtime test fixtures: none made directly in TMPDIR (#641)", () => {
+	test("every runtime test file makes its dirs with testTmpDir", async () => {
+		const src = join(import.meta.dir, "..");
+		const offenders: string[] = [];
+		for (const area of AREAS) {
+			const glob = new Bun.Glob("**/*.test.ts");
+			for await (const rel of glob.scan({ cwd: join(src, area) })) {
+				const text = await Bun.file(join(src, area, rel)).text();
+				if (IN_TMPDIR.test(text)) offenders.push(join(area, rel));
+			}
+		}
+		expect(offenders.sort()).toEqual([]);
+	});
+});
+
 describe("runtime gate/hook fixtures: none left in TMPDIR (#639)", () => {
 	test("the moved files make their dirs with testTmpDir, not tmpdir()", async () => {
 		const offenders: string[] = [];

@@ -5,7 +5,7 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import cliPackage from "@mainahq/cli/package.json" with { type: "json" };
@@ -14,6 +14,7 @@ import { systemClaudeHookPorts, writeTty } from "../hook-system";
 import { resolveEndpoint } from "../registry";
 import { startRuntime } from "../server";
 import { fixedGate } from "./support";
+import { testTmpDir } from "./test-tmp";
 
 const cleanups: (() => void)[] = [];
 
@@ -39,7 +40,7 @@ const stopEvent: GateEvent = {
  * whose stop takes `stopMs` to answer `BLOCK`. Returns that env.
  */
 function slowStopRuntime(stopMs: number): Readonly<Record<string, string>> {
-	const xdg = mkdtempSync(join(tmpdir(), "maina-xdg-"));
+	const xdg = testTmpDir("maina-xdg-");
 	cleanups.push(() => rmSync(xdg, { recursive: true, force: true }));
 	const endpoint = resolveEndpoint({
 		platform: process.platform,
@@ -88,7 +89,7 @@ describe("systemClaudeHookPorts stop verify", () => {
 // path on the current drive, and a missing one would be created as a file.
 describe("writeTty", () => {
 	test("never creates the file it writes to", () => {
-		const dir = mkdtempSync(join(tmpdir(), "maina-tty-"));
+		const dir = testTmpDir("maina-tty-");
 		try {
 			const path = join(dir, "tty");
 			expect(() => writeTty("\u001b]9;x\u0007", path)).toThrow();

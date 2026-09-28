@@ -20,7 +20,6 @@ import {
 	utimesSync,
 	writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createHookClient } from "../client/hook-client";
 import { createRequest, sendRequest } from "../ipc";
@@ -350,7 +349,7 @@ describe("spawn on demand", () => {
 			dir: join(t.dir, "not", "created", "yet"),
 			user: "test",
 			version: "1.0.0",
-			tmpDir: tmpdir(),
+			tmpDir: t.dir,
 		});
 		const spawner = tracked(
 			daemonSpawner({ endpoint, version: "1.0.0", idleTtlMs: 10_000 }),
@@ -543,7 +542,7 @@ describe("claim check (#341)", () => {
 				dir: deep,
 				user: "test",
 				version: "1.0.0",
-				tmpDir: tmpdir(),
+				tmpDir: t.dir,
 			});
 			expect(dirname(endpoint.address)).not.toBe(dirname(endpoint.pidFile));
 			const started = startRuntime(
@@ -618,6 +617,204 @@ describe("claim check (#341)", () => {
 			process.ppid,
 		);
 	});
+});
+
+/**
+ * An endpoint whose runtime dir is too deep for a Unix socket path, so its
+ * socket falls back to a private `maina-<digest>` dir under `tmpDir` (the
+ * test's own short temp dir, so nothing lands in the shared TMPDIR).
+ */
+function deepEndpoint(t: TempEndpoint, version = "1.0.0") {
+	const endpoint = resolveEndpoint({
+		platform: process.platform,
+		dir: join(t.dir, "d".repeat(120)),
+		user: "test",
+		version,
+		tmpDir: t.dir,
+	});
+	expect(dirname(dirname(endpoint.address))).toBe(t.dir);
+	return endpoint;
+}
+
+/** Sets `path`'s mtime a minute back. */
+function age(path: string): void {
+	const old = new Date(Date.now() - 60_000);
+	utimesSync(path, old, old);
+}
+
+/** A `maina-<digest>` socket dir under `parent`, as a runtime left it. */
+function leftSocketDir(
+	parent: string,
+	digest: string,
+	owner: { pid: number; at: number } | null,
+): string {
+	const dir = join(parent, `maina-${digest}`);
+	mkdirSync(dir, { mode: 0o700 });
+	writeFileSync(join(dir, "rt-9.9.9.sock"), "");
+	if (owner !== null) {
+		writeFileSync(join(dir, "rt-9.9.9.sock.owner"), JSON.stringify(owner));
+	}
+	age(dir);
+	return dir;
+}
+
+describe("socket fallback dir (#641)", () => {
+	posixOnly(
+		"a runtime that stops removes its short tmp socket dir",
+		async () => {
+			const t = temp();
+			const endpoint = deepEndpoint(t);
+			const started = startRuntime(
+				{ gate: fixedGate("allow") },
+				{ endpoint, version: "1.0.0", idleTtlMs: 60_000 },
+			);
+			if (!started.ok) throw new Error(JSON.stringify(started.error));
+			runtimes.push(started.value);
+			expect(existsSync(dirname(endpoint.address))).toBe(true);
+			started.value.stop();
+			expect(await started.value.closed).toBe("stopped");
+			expect(existsSync(endpoint.pidFile)).toBe(false);
+			expect(existsSync(dirname(endpoint.address))).toBe(false);
+		},
+	);
+
+	posixOnly("an idle runtime removes its short tmp socket dir", async () => {
+		const t = temp();
+		const endpoint = deepEndpoint(t);
+		const started = startRuntime(
+			{ gate: fixedGate("allow") },
+			{ endpoint, version: "1.0.0", idleTtlMs: 100 },
+		);
+		if (!started.ok) throw new Error(JSON.stringify(started.error));
+		runtimes.push(started.value);
+		expect(await started.value.closed).toBe("idle");
+		expect(existsSync(dirname(endpoint.address))).toBe(false);
+	});
+
+	posixOnly(
+		"a daemon stopped by SIGTERM removes its short tmp socket dir",
+		async () => {
+			const t = temp();
+			const endpoint = deepEndpoint(t);
+			// The client makes the runtime dir (the daemon's cwd) before spawning.
+			expect(ensureEndpointDirs(endpoint, process.platform).ok).toBe(true);
+			const spawner = tracked(
+				daemonSpawner({ endpoint, version: "1.0.0", idleTtlMs: 60_000 }),
+			);
+			const spawned = spawner.spawn();
+			if (!spawned.ok) throw new Error(spawned.error.message);
+			expect(
+				await waitFor(
+					async () => (await statusOf(endpoint.address, "1.0.0")) !== null,
+					5000,
+				),
+			).toBe(true);
+			process.kill(spawned.value.pid, "SIGTERM");
+			expect(await waitFor(() => !isAlive(spawned.value.pid), 5000)).toBe(true);
+			expect(existsSync(dirname(endpoint.address))).toBe(false);
+		},
+		15_000,
+	);
+
+	posixOnly(
+		"a socket dir another version's runtime still serves from is kept",
+		async () => {
+			// The digest keys on the user and the runtime dir, not the version:
+			// every version of one runtime dir shares the socket dir.
+			const t = temp();
+			const a = deepEndpoint(t, "1.0.0");
+			const b = deepEndpoint(t, "1.1.0");
+			expect(dirname(a.address)).toBe(dirname(b.address));
+			const first = startRuntime(
+				{ gate: fixedGate("allow") },
+				{ endpoint: a, version: "1.0.0", idleTtlMs: 60_000 },
+			);
+			if (!first.ok) throw new Error(JSON.stringify(first.error));
+			runtimes.push(first.value);
+			const second = startRuntime(
+				{ gate: fixedGate("allow") },
+				{ endpoint: b, version: "1.1.0", idleTtlMs: 60_000 },
+			);
+			if (!second.ok) throw new Error(JSON.stringify(second.error));
+			runtimes.push(second.value);
+			first.value.stop();
+			await first.value.closed;
+			expect(existsSync(b.address)).toBe(true);
+			expect(await statusOf(b.address, "1.1.0")).not.toBeNull();
+			second.value.stop();
+			await second.value.closed;
+			expect(existsSync(dirname(b.address))).toBe(false);
+		},
+	);
+
+	posixOnly(
+		"a start sweeps socket dirs whose owner runtime is gone",
+		async () => {
+			const t = temp();
+			const dead = leftSocketDir(t.dir, "0123456789ab", {
+				pid: await deadPid(),
+				at: Date.now(),
+			});
+			const empty = join(t.dir, "maina-ba9876543210");
+			mkdirSync(empty, { mode: 0o700 });
+			age(empty);
+			const live = leftSocketDir(t.dir, "aaaaaaaaaaaa", {
+				pid: process.pid,
+				at: Date.now(),
+			});
+			const unmarked = leftSocketDir(t.dir, "bbbbbbbbbbbb", null);
+			const fresh = join(t.dir, "maina-cccccccccccc");
+			mkdirSync(fresh, { mode: 0o700 });
+			const other = join(t.dir, "maina-rt-keep");
+			mkdirSync(other);
+			age(other);
+
+			const endpoint = deepEndpoint(t);
+			const started = startRuntime(
+				{ gate: fixedGate("allow") },
+				{ endpoint, version: "1.0.0", idleTtlMs: 60_000 },
+			);
+			if (!started.ok) throw new Error(JSON.stringify(started.error));
+			runtimes.push(started.value);
+
+			expect(existsSync(dead)).toBe(false);
+			expect(existsSync(empty)).toBe(false);
+			// A live owner, a socket of unknown owner, a dir a starting runtime
+			// just made, and anything that is not a socket dir all stay.
+			expect(existsSync(join(live, "rt-9.9.9.sock"))).toBe(true);
+			expect(existsSync(join(unmarked, "rt-9.9.9.sock"))).toBe(true);
+			expect(existsSync(fresh)).toBe(true);
+			expect(existsSync(other)).toBe(true);
+			expect(await statusOf(endpoint.address, "1.0.0")).not.toBeNull();
+		},
+	);
+
+	posixOnly(
+		"the socket dir a crashed runtime left is taken over by the next start",
+		async () => {
+			const t = temp();
+			const endpoint = deepEndpoint(t);
+			const socketDir = dirname(endpoint.address);
+			mkdirSync(socketDir, { mode: 0o700 });
+			writeFileSync(endpoint.address, "");
+			writeFileSync(
+				`${endpoint.address}.owner`,
+				JSON.stringify({ pid: await deadPid(), at: Date.now() }),
+			);
+			const started = startRuntime(
+				{ gate: fixedGate("allow") },
+				{ endpoint, version: "1.0.0", idleTtlMs: 60_000 },
+			);
+			if (!started.ok) throw new Error(JSON.stringify(started.error));
+			runtimes.push(started.value);
+			expect(
+				JSON.parse(readFileSync(`${endpoint.address}.owner`, "utf8")).pid,
+			).toBe(process.pid);
+			started.value.stop();
+			await started.value.closed;
+			expect(existsSync(socketDir)).toBe(false);
+		},
+	);
 });
 
 describe("standalone runtime daemon (ADR 0045)", () => {

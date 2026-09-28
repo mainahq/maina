@@ -11,14 +11,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
 	existsSync,
-	mkdtempSync,
 	readdirSync,
 	readFileSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import {
 	modelCacheFallbacks,
 	modelCacheRoot,
@@ -42,7 +41,7 @@ let scratch: string;
 beforeAll(() => {
 	key = devKey();
 	release = buildSystem1Release(key.privatePem);
-	scratch = mkdtempSync(join(tmpdir(), "maina-338-fetch-"));
+	scratch = testTmpDir("maina-338-fetch-");
 });
 
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));

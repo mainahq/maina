@@ -8,16 +8,16 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { runModelSelftest, SELFTEST_TEXT } from "../selftest";
 import { stageSelftest, TINY_TOKENIZER } from "./fixtures/tiny-model";
 
 let dir = "";
 
 beforeAll(() => {
-	dir = mkdtempSync(join(tmpdir(), "maina-587-selftest-"));
+	dir = testTmpDir("maina-587-selftest-");
 	const native = process.env.MAINA_ORT_NATIVE_DIR;
 	stageSelftest(
 		dir,
@@ -94,7 +94,7 @@ describe("runModelSelftest", () => {
 	});
 
 	test("a directory without the model files is an error", async () => {
-		const empty = mkdtempSync(join(tmpdir(), "maina-587-empty-"));
+		const empty = testTmpDir("maina-587-empty-");
 		try {
 			const report = await runModelSelftest({
 				dir: empty,
@@ -112,7 +112,7 @@ describe("runModelSelftest", () => {
 	});
 
 	test("a tokenizer that encodes the probe to non-ids is an error, not a throw", async () => {
-		const broken = mkdtempSync(join(tmpdir(), "maina-587-badtok-"));
+		const broken = testTmpDir("maina-587-badtok-");
 		try {
 			stageSelftest(broken);
 			// `main` is unknown and the unknown token is not in the vocabulary.

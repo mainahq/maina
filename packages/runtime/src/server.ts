@@ -17,8 +17,7 @@
  * sees it. Without the port a stop is let through silently.
  */
 
-import { chmodSync, existsSync, rmdirSync, rmSync } from "node:fs";
-import { dirname } from "node:path";
+import { chmodSync, existsSync, rmSync } from "node:fs";
 import type { Result } from "@mainahq/core";
 import type { Socket, UnixSocketListener } from "bun";
 import {
@@ -49,8 +48,11 @@ import {
 	ensureEndpointDirs,
 	holdsPidFile,
 	lostPidFile,
+	markSocketOwner,
 	type RegistryError,
 	releasePidFile,
+	releaseSocketDir,
+	sweepStaleSocketDirs,
 } from "./registry";
 import { QUIET_STOP, SESSION_STOP } from "./stop-verify";
 
@@ -132,15 +134,6 @@ async function runPort(run: () => unknown): Promise<Outcome> {
 		return { ok: true, value: await run() };
 	} catch (err) {
 		return rpcError("handler_failed", errorMessage(err));
-	}
-}
-
-/** Removes `dir` when it is empty; anything else leaves it. */
-function removeEmptyDir(dir: string): void {
-	try {
-		rmdirSync(dir);
-	} catch {
-		// Not empty (another runtime's socket) or already gone.
 	}
 }
 
@@ -248,10 +241,17 @@ export function startRuntime(
 	const startedAt = Date.now();
 	const isPipe = process.platform === "win32";
 
+	// Socket dirs under tmp that crashed runtimes left behind (#641).
+	sweepStaleSocketDirs(endpoint, startedAt);
 	const dirs = ensureEndpointDirs(endpoint, process.platform);
 	if (!dirs.ok) return dirs;
 	const claimed = claimPidFile(endpoint, pid, startedAt);
 	if (!claimed.ok) return claimed;
+	const marked = markSocketOwner(endpoint, pid, startedAt);
+	if (!marked.ok) {
+		releasePidFile(endpoint, pid);
+		return marked;
+	}
 
 	let requests = 0;
 	let stopping: StopReason | null = null;
@@ -290,11 +290,8 @@ export function startRuntime(
 		if (!isPipe && (unclaimed || holdsPidFile(endpoint, pid))) {
 			rmSync(endpoint.address, { force: true });
 			// A socket too deep for its runtime dir lives in a private dir
-			// under tmp; once the runtime dir is gone, nothing else removes it.
-			const socketDir = dirname(endpoint.address);
-			if (unclaimed && socketDir !== dirname(endpoint.pidFile)) {
-				removeEmptyDir(socketDir);
-			}
+			// under tmp that nothing else removes (#641).
+			releaseSocketDir(endpoint, pid);
 		}
 		releasePidFile(endpoint, pid);
 		if (now || conns.size === 0) finalize();
@@ -449,6 +446,7 @@ export function startRuntime(
 			} catch {
 				// Nothing more to do; the next start removes it.
 			}
+			releaseSocketDir(endpoint, pid);
 		}
 		releasePidFile(endpoint, pid);
 		return {

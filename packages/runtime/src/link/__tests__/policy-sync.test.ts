@@ -6,9 +6,9 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { enrolDevice } from "../enrol";
 import { nodeLinkCrypto } from "../keys";
 import { verifyBundle } from "../policy-bundle";
@@ -26,7 +26,7 @@ import { fakeCloud } from "./fake-cloud";
 let dir: string;
 
 beforeEach(() => {
-	dir = mkdtempSync(join(tmpdir(), "maina-link-policy-"));
+	dir = testTmpDir("maina-link-policy-");
 });
 
 afterEach(() => {

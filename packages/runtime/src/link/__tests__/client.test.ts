@@ -5,9 +5,9 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { createLinkClient } from "../client";
 import { enrolDevice } from "../enrol";
 import { nodeLinkCrypto } from "../keys";
@@ -18,7 +18,7 @@ import { type FakeCloud, fakeCloud } from "./fake-cloud";
 let dir: string;
 
 beforeEach(() => {
-	dir = mkdtempSync(join(tmpdir(), "maina-link-client-"));
+	dir = testTmpDir("maina-link-client-");
 });
 
 afterEach(() => {

@@ -11,8 +11,7 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import Ajv from "ajv";
 import { renderStop, type StopHost } from "../adapters/stop";
@@ -26,6 +25,7 @@ import {
 } from "../stop-verify";
 import { systemStopVerifyPorts } from "../stop-verify-system";
 import { fixedGate, type TempEndpoint, tempEndpoint } from "./support";
+import { testTmpDir } from "./test-tmp";
 
 const VERSION = "1.0.0";
 const FIXTURES = join(import.meta.dir, "..", "adapters", "__fixtures__");
@@ -363,7 +363,7 @@ describe("renderStop", () => {
 
 describe("systemStopVerifyPorts", () => {
 	function tempDir(): string {
-		const dir = mkdtempSync(join(tmpdir(), "maina-stop-"));
+		const dir = testTmpDir("maina-stop-");
 		cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
 		return dir;
 	}
