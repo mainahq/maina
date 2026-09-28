@@ -5,6 +5,7 @@
  * lists a field by hand: `maina cloud privacy` prints this file.
  */
 
+import { createHmac } from "node:crypto";
 import privacy from "./protocol/v1/privacy.json" with { type: "json" };
 import type { DataClass } from "./protocol/wire";
 
@@ -88,4 +89,21 @@ export function renderPrivacy(report: PrivacyReport): string {
 		"Salted hashes:",
 		...salts,
 	].join("\n")}\n`;
+}
+
+/**
+ * A repo or branch identifier as Link sends it (`privacy.json` `salts.link`):
+ * `sha256:` and the hex HMAC-SHA256 of `value` keyed by the org link salt
+ * from the enrolment, so an org's devices hash one repo alike and nothing
+ * outside the org can reverse or match it. The per-clone decision-log salt
+ * never keys a Link field and never leaves the machine.
+ */
+export function linkHash(
+	salt: Readonly<{ id: string; value: string }>,
+	value: string,
+): string {
+	const digest = createHmac("sha256", Buffer.from(salt.value, "base64url"))
+		.update(value, "utf-8")
+		.digest("hex");
+	return `sha256:${digest}`;
 }

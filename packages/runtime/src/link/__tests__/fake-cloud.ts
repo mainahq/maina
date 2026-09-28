@@ -1,10 +1,14 @@
 /**
  * An in-process Maina cloud for the Link client tests: the enrol, token and
- * one authenticated route, answered from the vendored v1 schemas. It checks
+ * event routes, answered from the vendored v1 schemas. It checks
  * everything the real cloud checks on these routes (adr/0010 in the cloud
  * repo): each body validates against its published schema, the enrolment
  * proof and the token challenge verify under the device key, a revoked
- * device gets `device_revoked`, and a nonce is used once. The crypto here is
+ * device gets `device_revoked`, and a nonce is used once. With `ingest`,
+ * `POST /link/v1/events` is the cloud's ingest (cloud Task 4.3): it verifies
+ * the envelope signature and schema, dedupes by `eventId`, tracks the
+ * device's `seq` and answers an `EnvelopeAck` with `nextExpectedSeq` and the
+ * open gaps. The crypto here is
  * written against `node:crypto` directly, not the client's helpers, so a
  * client that signs the wrong bytes fails.
  */
@@ -68,7 +72,18 @@ type FakeCloudOptions = {
 	omitPurposes?: readonly OrgKeyPurpose[];
 	/** Refuse every completion with this code (an expired code, say). */
 	refuseCompleteWith?: string;
+	/** Serve the real ingest on the events route (else a bare `accepted`). */
+	ingest?: boolean;
 };
+
+type IngestedEvent = Readonly<{
+	eventId: string;
+	seq: number;
+	ts: string;
+	type: string;
+	dataClass: string;
+	data: Record<string, unknown>;
+}>;
 
 export type FakeCloud = Readonly<{
 	baseUrl: string;
@@ -89,6 +104,23 @@ export type FakeCloud = Readonly<{
 		devicePublicKey: string | null;
 		proofVerified: boolean;
 		challengesVerified: number;
+		/** The HTTP port fails every request, as with no network. */
+		offline: boolean;
+		/** Envelopes still to ingest whose answer is then lost (a crash). */
+		loseAcks: number;
+		/** The next ingest forgets these seqs (a lost write); they reopen a gap. */
+		forget: Set<number>;
+		/** Events of these types are rejected as `invalid_event`. */
+		rejectTypes: Set<string>;
+		/** The cloud already holds seqs up to here from an earlier life. */
+		seqFloor: number;
+		/** Every event ingested, once each, in arrival order. */
+		received: IngestedEvent[];
+		/** The size of each envelope that verified. */
+		envelopes: number[];
+		duplicates: number;
+		/** The last ack's open gaps. */
+		gaps: readonly Readonly<{ from: number; to: number }>[];
 	};
 	/** Every token issued so far is answered `token_expired` from now on. */
 	expireIssuedTokens: () => void;
@@ -212,7 +244,18 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		devicePublicKey: null,
 		proofVerified: false,
 		challengesVerified: 0,
+		offline: false,
+		loseAcks: 0,
+		forget: new Set(),
+		rejectTypes: new Set(),
+		seqFloor: 0,
+		received: [],
+		envelopes: [],
+		duplicates: 0,
+		gaps: [],
 	};
+	const seenEvents = new Set<string>();
+	const seenSeqs = new Set<number>();
 
 	function parse(body: string | undefined): unknown {
 		try {
@@ -334,7 +377,88 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		if (t === undefined) return refuse(401, "invalid_token");
 		if (state.revoked) return refuse(401, "device_revoked");
 		if (t.expired) return refuse(401, "token_expired");
-		return ok({ accepted: true });
+		if (!options.ingest) return ok({ accepted: true });
+		return ingest(req);
+	}
+
+	/** The open gaps below the highest seq seen, oldest first. */
+	function openGaps(max: number): { from: number; to: number }[] {
+		const gaps: { from: number; to: number }[] = [];
+		let from: number | null = null;
+		for (let s = state.seqFloor + 1; s <= max; s++) {
+			if (!seenSeqs.has(s)) {
+				from ??= s;
+			} else if (from !== null) {
+				gaps.push({ from, to: s - 1 });
+				from = null;
+			}
+		}
+		if (from !== null) gaps.push({ from, to: max });
+		return gaps.slice(0, 100);
+	}
+
+	function ingest(req: FakeRequest): FakeResponse {
+		const body = parse(req.body);
+		if (!valid("envelope", body)) return refuse(400, "invalid_envelope");
+		const envelope = body as Record<string, unknown> & {
+			deviceId: string;
+			seqFrom: number;
+			seqTo: number;
+			events: IngestedEvent[];
+		};
+		if (
+			envelope.deviceId !== state.deviceId ||
+			state.devicePublicKey === null ||
+			!deviceSigned("envelope", envelope, "sig", state.devicePublicKey)
+		) {
+			return refuse(401, "invalid_signature");
+		}
+		const seqs = envelope.events.map((e) => e.seq);
+		const ordered = seqs.every((s, i) => i === 0 || s > (seqs[i - 1] ?? 0));
+		if (
+			!ordered ||
+			seqs[0] !== envelope.seqFrom ||
+			seqs.at(-1) !== envelope.seqTo
+		) {
+			return refuse(400, "invalid_envelope");
+		}
+		state.envelopes.push(envelope.events.length);
+		let accepted = 0;
+		let duplicates = 0;
+		const rejected: { seq: number; eventId: string; reason: string }[] = [];
+		for (const event of envelope.events) {
+			if (state.forget.delete(event.seq)) continue;
+			if (seenEvents.has(event.eventId)) {
+				duplicates++;
+				continue;
+			}
+			seenEvents.add(event.eventId);
+			seenSeqs.add(event.seq);
+			if (state.rejectTypes.has(event.type)) {
+				rejected.push({
+					seq: event.seq,
+					eventId: event.eventId,
+					reason: "invalid_event",
+				});
+				continue;
+			}
+			state.received.push(event);
+			accepted++;
+		}
+		state.duplicates += duplicates;
+		let max = state.seqFloor;
+		for (const s of seenSeqs) max = Math.max(max, s);
+		state.gaps = openGaps(max);
+		const ack = {
+			v: 1,
+			accepted,
+			duplicates,
+			rejected,
+			nextExpectedSeq: max + 1,
+			gaps: state.gaps,
+		};
+		if (!valid("envelope-ack", ack)) throw new Error("fake ack is invalid");
+		return ok(ack, 202);
 	}
 
 	function handle(req: FakeRequest): FakeResponse {
@@ -373,7 +497,29 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		requests,
 		state,
 		handle,
-		http: { request: async (req) => ({ ok: true, value: handle(req) }) },
+		http: {
+			request: async (req) => {
+				if (state.offline) {
+					return {
+						ok: false,
+						error: { kind: "network", url: req.url, message: "offline" },
+					};
+				}
+				const res = handle(req);
+				if (
+					state.loseAcks > 0 &&
+					new URL(req.url).pathname === "/link/v1/events" &&
+					res.status === 202
+				) {
+					state.loseAcks--;
+					return {
+						ok: false,
+						error: { kind: "network", url: req.url, message: "reset" },
+					};
+				}
+				return { ok: true, value: res };
+			},
+		},
 		expireIssuedTokens: () => {
 			for (const t of tokens.values()) t.expired = true;
 		},
