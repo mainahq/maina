@@ -303,6 +303,12 @@ export type ManagedPolicyInfo = Readonly<{
 	keyId: string;
 	issuedAt: string;
 	budgetDirectives: readonly ManagedBudgetDirective[];
+	/**
+	 * The action classes the managed layer holds at `ask`. An allow rule from
+	 * any layer cannot turn them into an allow (`evaluateRules`), or a user or
+	 * repo rule would loosen the floor without touching the class.
+	 */
+	askFloor: readonly string[];
 	overridden: readonly FloorOverride[];
 }>;
 

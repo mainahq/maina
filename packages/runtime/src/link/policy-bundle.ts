@@ -4,10 +4,11 @@
  * names this device's org, is signed by a pinned policy-bundle key
  * (`trust.ts`), is valid now, is not older than the held one (no downgrade)
  * and its policy body validates as a managed layer (core
- * `parseManagedLayer`). An unsigned bundle is refused, except the one the
+ * `parseManagedLayer`). An unsigned bundle is refused, and so is the one the
  * cloud serves while its production signer is dark (`keyId: "unsigned"`, an
- * all-zero `sig`): that is labelled `unsigned`, core only lets it tighten,
- * and it never replaces a signed bundle already held.
+ * all-zero `sig`): no pinned key verifies it, so the device keeps its last
+ * good bundle (adr/0012 §6, fail closed). Refusing it by name reports it as
+ * `unsigned` rather than as an unknown key.
  */
 
 import {
@@ -51,11 +52,7 @@ export type BundleRefusal =
 type BundleTrust = Readonly<{ orgId: string; keys: readonly OrgKey[] }>;
 
 /** What `verifyBundle` needs of the bundle already held. */
-type HeldSummary = Readonly<{
-	version: number;
-	etag: string;
-	signature: ManagedSignature;
-}>;
+type HeldSummary = Readonly<{ version: number; etag: string }>;
 
 type VerifiedBundle = Readonly<{
 	bundle: PolicyBundle;
@@ -107,14 +104,10 @@ export function verifyBundle(
 	if (bundle.orgId !== trust.orgId) {
 		return { ok: false, error: { kind: "wrong_org", orgId: bundle.orgId } };
 	}
-	const signature: ManagedSignature = isDark(bundle) ? "unsigned" : "signed";
-	if (signature === "unsigned" && held?.signature === "signed") {
-		return { ok: false, error: { kind: "unsigned" } };
-	}
-	if (signature === "signed") {
-		const signed = checkSignature(bundle, trust, ports.crypto);
-		if (!signed.ok) return signed;
-	}
+	if (isDark(bundle)) return { ok: false, error: { kind: "unsigned" } };
+	const signed = checkSignature(bundle, trust, ports.crypto);
+	if (!signed.ok) return signed;
+	const signature: ManagedSignature = "signed";
 	if (Date.parse(bundle.notBefore) > ports.now.getTime() + MAX_SKEW_MS) {
 		return {
 			ok: false,

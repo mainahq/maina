@@ -6,11 +6,11 @@
  * defaults < managed < user < repo, and the managed layer is a floor, so a
  * user or repo layer may only tighten what it sets (`load.ts`).
  *
- * A bundle is `signed` by the org's pinned policy-bundle key, or `unsigned`
- * while the cloud's production signer is dark (cloud adr/0012). An unsigned
- * managed layer is accepted only to tighten: it carries no
- * `explicitly_allow`, so it can never loosen an irreversible class, and it
- * cannot raise a run budget.
+ * A bundle is `signed` by the org's pinned policy-bundle key. The runtime
+ * refuses the cloud's `unsigned` (dark signer) bundles (cloud adr/0012 §6);
+ * should a caller still pass an `unsigned` layer, core holds it to less: it
+ * carries no `explicitly_allow`, so it can never loosen an irreversible
+ * class, and it cannot raise a run budget.
  *
  * Budget directives (cloud Task 9.2) say an org or team budget for a period
  * was reached; `activeBudgetDirectives` keeps those whose period is still

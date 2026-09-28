@@ -8,8 +8,8 @@
  *   ETag (`"<version>.<content hex>"`) in `If-None-Match`; a 304 keeps it.
  * - Each new bundle is checked by `verifyBundle` (`policy-bundle.ts`):
  *   schema, org, pinned policy-bundle key, validity, no downgrade and a
- *   valid policy body. A bundle from the dark cloud signer is kept as a
- *   clearly labelled *unsigned* managed policy that only tightens.
+ *   valid policy body. A bundle from the dark cloud signer is refused
+ *   (adr/0012 §6): no pinned key verifies it.
  * - The last good bundle is kept owner-only in `<link dir>/policy/
  *   bundle.json` with the last refusal, if any. A refused bundle changes
  *   nothing else: the last good one stays in force, and applies offline.
@@ -185,7 +185,9 @@ export function createPolicySync(
 		const held = current.held;
 		const now = ports.clock();
 		// The held ETag goes out whenever the held bundle still verifies, so
-		// an unchanged bundle is a 304 (adr/0012 §4 and §5).
+		// an unchanged bundle is a 304 (adr/0012 §4 and §5). Only a held
+		// bundle that verifies sets the downgrade baseline: one edited on disk
+		// (a raised version, say) must not refuse every good bundle after it.
 		const reusable =
 			held !== null && heldLayer(held, state, { crypto: ports.crypto, now }).ok;
 		const sent = await client.send({
@@ -207,13 +209,9 @@ export function createPolicySync(
 				orgId: state.enrolment.orgId,
 				keys: trustedOrgKeys(state, now, "policy-bundle"),
 			},
-			held === null
-				? null
-				: {
-						version: held.bundle.version,
-						etag: held.bundle.etag,
-						signature: held.signature,
-					},
+			reusable && held !== null
+				? { version: held.bundle.version, etag: held.bundle.etag }
+				: null,
 			{ crypto: ports.crypto, now },
 		);
 		if (!verified.ok) {
@@ -404,7 +402,8 @@ export function managedPolicyStatus(ports: ReadPorts): ManagedPolicyStatus {
 	return {
 		kind: "held",
 		version: held.bundle.version,
-		signature: held.signature,
+		// From the verification, not the file's own label.
+		signature: layer.value.signature,
 		keyId: held.bundle.keyId,
 		etag: held.bundle.etag,
 		issuedAt: held.bundle.issuedAt,

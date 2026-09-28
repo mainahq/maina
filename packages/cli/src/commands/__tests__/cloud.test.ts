@@ -151,7 +151,7 @@ describe("maina cloud status", () => {
 	});
 
 	// #592: the managed policy the device holds, and whether it is signed.
-	test("shows the held managed policy, and labels an unsigned one", async () => {
+	test("shows the held managed policy, and a refused unsigned one", async () => {
 		const cloud = fakeCloud();
 		const h = harness(cloud);
 		await runCloud(["enrol"], h.ports);
@@ -159,6 +159,7 @@ describe("maina cloud status", () => {
 		await runCloud(["status"], none.ports);
 		expect(text(none.out)).toContain("policy:     none held yet");
 
+		// The dark signer's bundle is refused (adr/0012 §6), never held.
 		cloud.state.policy = cloud.policyBundle(
 			3,
 			{ version: 1, action_classes: { deploy: { verdict: "deny" } } },
@@ -168,14 +169,13 @@ describe("maina cloud status", () => {
 		const s = harness(cloud);
 		expect(await runCloud(["status"], s.ports)).toBe(0);
 		expect(text(s.out)).toContain(
-			"policy:     v3 UNSIGNED managed policy (the cloud's signer is dark)",
+			"policy:     none held yet; the last bundle (v3) was refused (unsigned)",
 		);
 		const j = harness(cloud);
 		await runCloud(["status", "--json"], j.ports);
 		expect(JSON.parse(text(j.out)).policy).toMatchObject({
-			kind: "held",
-			version: 3,
-			signature: "unsigned",
+			kind: "none",
+			lastRefusal: { kind: "unsigned", version: 3 },
 		});
 
 		cloud.state.policy = cloud.policyBundle(4, {

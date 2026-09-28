@@ -159,6 +159,7 @@ describe("loadPolicy with a managed layer", () => {
 			keyId: "key_policy_1",
 			issuedAt: "2026-09-28T08:00:00.000Z",
 			budgetDirectives: [],
+			askFloor: ["deps.install"],
 			overridden: [],
 		});
 	});

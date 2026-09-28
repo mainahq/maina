@@ -39,6 +39,7 @@ import {
 	type FloorOverride,
 	isLockedClass,
 	type Loosening,
+	type ManagedPolicyInfo,
 	type Policy,
 	type PolicyError,
 	type PolicyLayer,
@@ -312,7 +313,7 @@ type Clamped = Readonly<{
 function managedFloor(
 	value: PolicyLayer,
 	unsigned: boolean,
-	info: Policy["managed"],
+	info: Omit<ManagedPolicyInfo, "askFloor"> | undefined,
 ): Floor {
 	const { explicitly_allow: _dropped, ...tightenOnly } = value;
 	const layer: Layer = {
@@ -322,11 +323,16 @@ function managedFloor(
 		unsigned,
 	};
 	const merged = mergeLayer({ policy: DEFAULT_POLICY, errors: [] }, layer);
+	const askFloor = Object.keys(layer.value.action_classes ?? {}).filter(
+		(id) => merged.policy.action_classes[id]?.verdict === "ask",
+	);
 	return {
 		layer: layer.value,
 		errors: merged.errors,
 		policy:
-			info === undefined ? merged.policy : { ...merged.policy, managed: info },
+			info === undefined
+				? merged.policy
+				: { ...merged.policy, managed: { ...info, askFloor } },
 	};
 }
 

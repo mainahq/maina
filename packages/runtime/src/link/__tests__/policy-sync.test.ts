@@ -133,17 +133,13 @@ describe("verifyBundle", () => {
 		const { cloud, trust } = await setup();
 		const held = { version: 5, etag: `sha256:${"b".repeat(64)}` };
 		const older = cloud.policyBundle(4, TIGHT);
-		expect(
-			verifyBundle(older, trust, { ...held, signature: "signed" }, at),
-		).toEqual({
+		expect(verifyBundle(older, trust, held, at)).toEqual({
 			ok: false,
 			error: { kind: "downgrade", version: 4, held: 5 },
 		});
 		// The same version with other content is not an upgrade either.
 		const same = cloud.policyBundle(5, TIGHT);
-		expect(
-			verifyBundle(same, trust, { ...held, signature: "signed" }, at).ok,
-		).toBe(false);
+		expect(verifyBundle(same, trust, held, at).ok).toBe(false);
 	});
 
 	test("refuses a bundle for another org", async () => {
@@ -178,41 +174,20 @@ describe("verifyBundle", () => {
 		expect(verified.error.kind).toBe("invalid_policy");
 	});
 
-	describe("while the cloud's signer is dark", () => {
-		test("accepts a bundle marked unsigned as an unsigned managed policy", async () => {
+	describe("while the cloud's signer is dark (adr/0012 §6)", () => {
+		test("refuses a bundle marked unsigned: no pinned key verifies it", async () => {
 			const { cloud, trust } = await setup();
 			const dark = cloud.policyBundle(3, TIGHT, { signed: false });
-			const verified = verifyBundle(dark, trust, null, at);
-			if (!verified.ok) throw new Error(JSON.stringify(verified.error));
-			expect(verified.value.signature).toBe("unsigned");
-			expect(verified.value.layer.signature).toBe("unsigned");
+			expect(verifyBundle(dark, trust, null, at)).toEqual({
+				ok: false,
+				error: { kind: "unsigned" },
+			});
 		});
 
-		test("refuses one that would loosen an irreversible class", async () => {
-			const { cloud, trust } = await setup();
-			const dark = cloud.policyBundle(
-				3,
-				{
-					version: 1,
-					explicitly_allow: ["deploy"],
-					action_classes: { deploy: { verdict: "allow" } },
-				},
-				{ signed: false },
-			);
-			const verified = verifyBundle(dark, trust, null, at);
-			expect(verified.ok).toBe(false);
-			if (verified.ok) return;
-			expect(verified.error.kind).toBe("invalid_policy");
-		});
-
-		test("never replaces a signed bundle with an unsigned one", async () => {
+		test("refuses one whatever bundle is held", async () => {
 			const { cloud, trust } = await setup();
 			const dark = cloud.policyBundle(9, TIGHT, { signed: false });
-			const held = {
-				version: 3,
-				etag: `sha256:${"b".repeat(64)}`,
-				signature: "signed" as const,
-			};
+			const held = { version: 3, etag: `sha256:${"b".repeat(64)}` };
 			expect(verifyBundle(dark, trust, held, at)).toEqual({
 				ok: false,
 				error: { kind: "unsigned" },
@@ -332,16 +307,34 @@ describe("createPolicySync", () => {
 		});
 	});
 
-	test("an unsigned bundle from the dark signer is held and labelled unsigned", async () => {
+	test("a bundle from the dark signer is refused and nothing is held", async () => {
 		const { cloud, ports } = await setup();
 		cloud.state.policy = cloud.policyBundle(3, TIGHT, { signed: false });
-		await createPolicySync(ports).tick();
-		expect(layerOf(ports)?.signature).toBe("unsigned");
+		const sync = createPolicySync(ports);
+		await sync.tick();
+		expect(sync.status().lastError).toMatchObject({ kind: "unsigned" });
+		expect(layerOf(ports)).toBeUndefined();
 		expect(managedPolicyStatus(ports)).toMatchObject({
-			kind: "held",
-			version: 3,
-			signature: "unsigned",
+			kind: "none",
+			lastRefusal: { kind: "unsigned", version: 3 },
 		});
+	});
+
+	test("a bundle from the dark signer never replaces the last good one", async () => {
+		const { cloud, ports } = await setup();
+		cloud.state.policy = cloud.policyBundle(3, TIGHT);
+		const sync = createPolicySync(ports);
+		await sync.tick();
+		cloud.state.policy = cloud.policyBundle(
+			4,
+			{ version: 1 },
+			{ signed: false },
+		);
+		await sync.tick();
+		expect(sync.status().lastError).toMatchObject({ kind: "unsigned" });
+		const layer = layerOf(ports);
+		expect(layer?.version).toBe(3);
+		expect(layer?.signature).toBe("signed");
 	});
 
 	test("with the cloud down the last good policy applies, read without the network", async () => {
@@ -420,6 +413,41 @@ describe("createPolicySync", () => {
 		expect(read.ok).toBe(false);
 		if (read.ok) return;
 		expect(read.error[0]?.source).toBe("managed");
+	});
+
+	test("a dark bundle written over the held file is refused on read", async () => {
+		const { cloud, ports } = await setup();
+		cloud.state.policy = cloud.policyBundle(3, TIGHT);
+		await createPolicySync(ports).tick();
+		const file = join(dir, "link", "policy", "bundle.json");
+		const held = JSON.parse(readFileSync(file, "utf-8"));
+		held.held.bundle = cloud.policyBundle(
+			99,
+			{ version: 1 },
+			{ signed: false },
+		);
+		held.held.signature = "unsigned";
+		writeFileSync(file, JSON.stringify(held));
+		const read = readManagedLayer(ports);
+		expect(read.ok).toBe(false);
+		if (read.ok) return;
+		expect(read.error[0]?.message).toContain("(unsigned)");
+	});
+
+	test("a held file that no longer verifies does not block the next good bundle as a downgrade", async () => {
+		const { cloud, ports } = await setup();
+		cloud.state.policy = cloud.policyBundle(3, TIGHT);
+		const sync = createPolicySync(ports);
+		await sync.tick();
+		const file = join(dir, "link", "policy", "bundle.json");
+		const held = JSON.parse(readFileSync(file, "utf-8"));
+		held.held.bundle.version = 99;
+		writeFileSync(file, JSON.stringify(held));
+		expect(readManagedLayer(ports).ok).toBe(false);
+		cloud.state.policy = cloud.policyBundle(4, TIGHTER);
+		await sync.tick();
+		expect(sync.status().lastError).toBeNull();
+		expect(layerOf(ports)?.version).toBe(4);
 	});
 
 	test("logging out removes the managed layer (back to v1)", async () => {

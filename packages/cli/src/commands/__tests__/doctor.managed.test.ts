@@ -91,7 +91,7 @@ describe("checkManagedPolicy", () => {
 		});
 	});
 
-	test("warns that an unsigned managed policy is unsigned", async () => {
+	test("warns that an unsigned bundle (the dark signer's) was refused", async () => {
 		const { cloud, ports } = await enrolled();
 		cloud.state.policy = cloud.policyBundle(
 			5,
@@ -100,8 +100,8 @@ describe("checkManagedPolicy", () => {
 		);
 		await createPolicySync(ports).tick();
 		const report = await check();
-		expect(report.status).toBe("unsigned");
-		expect(report.warnings.join("\n")).toContain("UNSIGNED managed policy");
+		expect(report.status).toBe("none");
+		expect(report.warnings.join("\n")).toContain("refused (unsigned)");
 	});
 
 	test("a user layer that loosens a managed rule is reported, and the managed rule wins", async () => {
