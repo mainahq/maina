@@ -234,6 +234,22 @@ describe("runCodexHook", () => {
 		});
 	});
 
+	test("SessionStart tells the runtime the session started", async () => {
+		const started: GateEvent[] = [];
+		await runCodexHook(
+			raw("session-start.startup.input.json"),
+			ports(undefined, {
+				sessionStart: async (event) => {
+					started.push(event);
+				},
+			}),
+			"SessionStart",
+		);
+		expect(started.map((e) => [e.kind, e.input.host])).toEqual([
+			["session.start", "codex"],
+		]);
+	});
+
 	test("Stop carries the summary; a failing summary is left out", async () => {
 		const run = await runCodexHook(
 			raw("stop.input.json"),

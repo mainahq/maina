@@ -189,6 +189,22 @@ describe("runCursorHook", () => {
 		});
 	});
 
+	test("sessionStart tells the runtime the session started", async () => {
+		const started: GateEvent[] = [];
+		await runCursorHook(
+			raw("session-start.input.json"),
+			ports({
+				sessionStart: async (event) => {
+					started.push(event);
+				},
+			}),
+			"sessionStart",
+		);
+		expect(started.map((e) => [e.kind, e.input.host])).toEqual([
+			["session.start", "cursor"],
+		]);
+	});
+
 	test("stop does not read the session summary, which its output cannot carry", async () => {
 		let summarised = 0;
 		const run = await runCursorHook(

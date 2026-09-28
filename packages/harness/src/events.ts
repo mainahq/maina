@@ -25,6 +25,10 @@
  * ACP sends a tool call once and then partial `tool_call_update`s; the
  * reducer merges each update into the call it updates, so every event
  * carries the whole call as known so far.
+ *
+ * A `maina run` on the run board (#594) also reports its lifecycle as
+ * `RunLifecycleEvent`s; each judged permission request is one step
+ * (`runStepOf`).
  */
 
 import { isAbsolute, relative, resolve } from "node:path";
@@ -41,6 +45,7 @@ import type {
 	ToolKind,
 } from "@agentclientprotocol/sdk";
 import type { GateEvent, Verdict } from "@mainahq/core";
+import type { RunSource } from "./run/context";
 
 export type DiffContent = Readonly<{
 	path: string;
@@ -137,6 +142,53 @@ export type HarnessEvent =
 			optionId?: string;
 	  }>
 	| EndEvent;
+
+/** How a run ended, as the run board shows it (#594, cloud FR-RUN-1). */
+export type RunOutcome = "succeeded" | "failed" | "cancelled" | "stopped";
+
+/**
+ * A `maina run`'s lifecycle (#594, cloud FR-RUN-1, FR-RUN-4), one id for
+ * the whole run: its start, each gated tool call with the policy's verdict,
+ * and its end. The runtime turns them into the Link `run.*` events.
+ */
+export type RunLifecycleEvent =
+	| Readonly<{
+			type: "run.started";
+			runId: string;
+			source: RunSource;
+			agent: string;
+	  }>
+	| Readonly<{
+			type: "run.step";
+			runId: string;
+			/** 1 for the run's first gated call. */
+			step: number;
+			toolClass: string;
+			verdict: Verdict;
+	  }>
+	| Readonly<{
+			type: "run.finished";
+			runId: string;
+			outcome: RunOutcome;
+			durationMs: number;
+			steps: number;
+	  }>;
+
+/**
+ * The step a harness event stands for: each permission request the policy
+ * judged, as its tool class (the first gate event's kind; the ACP tool kind
+ * when it has none) and verdict. Null for every other event.
+ */
+export function runStepOf(
+	event: HarnessEvent,
+): Readonly<{ toolClass: string; verdict: Verdict }> | null {
+	if (event.type !== "permission") return null;
+	const { request } = event;
+	return {
+		toolClass: request.gate[0]?.kind ?? request.call.kind,
+		verdict: event.verdict,
+	};
+}
 
 /** What every gate event of a run shares. */
 export type NormaliseContext = Readonly<{

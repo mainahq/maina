@@ -66,6 +66,17 @@ An unattended run has nobody to answer an `ask`, so every `ask` is a `deny`. It 
 
 Both contexts are configured under `run` in the policy. Their deny lists accumulate across layers, and a repository's policy can only lower a budget.
 
+### On the run board
+
+On a machine enrolled in Maina Cloud, every run shows on the org's run board: `maina run` workers, plugin sessions in Claude Code, Codex and Cursor, and either of them in CI. A run reports `run.started`, one `run.step` per gated tool call with the gate's verdict, and `run.finished` with how it ended, all under one run id. Only metadata leaves the machine: labels, counts and the verdict, never a command, a path or a name. The events go through the resident runtime's Link outbox, so an offline run catches up later.
+
+The board can steer a `maina run`:
+
+- **Stop.** The worker is stopped as a cancel would stop it, and the run ends `stopped` with a report. No PR is opened.
+- **The one revision.** After a failed first review the run waits up to two minutes for the board. A revision grant starts the revision. "Stopped with report" ends the run. With no answer in time the revision runs anyway, as it does off the board. A run gets one revision either way: a second grant is refused.
+
+A control message acts only when it is signed by the org's link-control key pinned at enrolment, names this device, and has not expired or been applied before. While the cloud's signer is not yet live it sends unsigned messages, and maina ignores them. Every message the run acts on or ignores is recorded in `control.jsonl` in the Link directory.
+
 <Aside type="note">
 A run's receipt says how it ended and why. See [Receipts and the log](/concepts/receipts-and-log/#harness-runs).
 </Aside>

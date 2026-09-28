@@ -7,14 +7,17 @@
  * connects, so that client can start a runtime of its own version.
  *
  * Request handling lives behind ports: `gate` answers `hook.evaluate`, and the
- * optional `handlers` answer `decide`, `graph.query` and `verify.run`. A
+ * optional `handlers` answer `decide`, `graph.query`, `verify.run` and
+ * `run.event` (a `maina run` worker's run events, #594). A
  * method without a port answers `not_implemented`. The optional `observe`
  * port sees each hook event first and runs background work beside the gate,
  * such as the graph hooks' incremental syncs (FR-GRAPH-2).
  *
  * A `session.stop` hook event is not a gate event: the optional `stop` port
  * answers it (verify on the session's changes, FR-VER-7) and the gate never
- * sees it. Without the port a stop is let through silently.
+ * sees it. Without the port a stop is let through silently. A
+ * `session.start` event is not one either: the observer sees it (the
+ * session's run starts, #594) and it is answered with a quiet allow.
  */
 
 import { chmodSync, existsSync, rmSync } from "node:fs";
@@ -54,7 +57,7 @@ import {
 	releaseSocketDir,
 	sweepStaleSocketDirs,
 } from "./registry";
-import { QUIET_STOP, SESSION_STOP } from "./stop-verify";
+import { QUIET_STOP, SESSION_START, SESSION_STOP } from "./stop-verify";
 
 /** Methods served by an optional handler port. */
 export type DelegatedMethod = Exclude<Method, "hook.evaluate" | "status">;
@@ -207,6 +210,7 @@ async function evaluateHook(
 	const event = parseGateEvent(params);
 	if (event === null) return rpcError("bad_request", "invalid gate event");
 	observe(event);
+	if (event.kind === SESSION_START) return { ok: true, value: QUIET_STOP };
 	if (event.kind === SESSION_STOP) return stopSession(ports.stop, event);
 	const ran = await runPort(() => ports.gate(event));
 	const decision = ran.ok ? parseGateDecision(ran.value) : null;
@@ -342,7 +346,8 @@ export function startRuntime(
 				return evaluateHook(ports, req.params, observe, gateHealth.record);
 			case "decide":
 			case "graph.query":
-			case "verify.run": {
+			case "verify.run":
+			case "run.event": {
 				const handler = ports.handlers?.[req.method];
 				return handler
 					? runPort(() => handler(req.params))

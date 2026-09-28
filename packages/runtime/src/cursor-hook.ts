@@ -22,7 +22,7 @@ import {
 	parseHookInput,
 	safeDecision,
 	safeStopVerify,
-	safeSummary,
+	sessionStartSummary,
 	stopGateEvent,
 } from "./claude-hook";
 import type { GateDecision } from "./gate";
@@ -88,7 +88,7 @@ export async function runCursorHook(
 							output: { ...output, stderr: `${verified.reason}\n` },
 						};
 			}
-			const line = await safeSummary(ports, event.event);
+			const line = await sessionStartSummary(ports, event.event, "cursor");
 			const context = [GUARDRAILS_ACTIVE, line].filter(Boolean).join(" ");
 			return {
 				event,

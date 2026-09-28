@@ -169,6 +169,13 @@ export type FakeCloud = Readonly<{
 		waits: (string | null)[];
 		/** Answers every approvals call with this refusal (a hub outage). */
 		approvalsRefuse: string | null;
+		/**
+		 * The control messages `GET /link/v1/control/wait` serves, in order;
+		 * a message's cursor is its 1-based index.
+		 */
+		controls: unknown[];
+		/** The `after` of each control wait, in order (null when absent). */
+		controlWaits: (string | null)[];
 	};
 	/** Resolves a taken ask; the next wait (or re-ask) answers it. */
 	resolveApproval: (
@@ -336,6 +343,8 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		askCalls: 0,
 		waits: [],
 		approvalsRefuse: null,
+		controls: [],
+		controlWaits: [],
 	};
 	const seenEvents = new Set<string>();
 	const seenSeqs = new Set<number>();
@@ -565,6 +574,19 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		);
 	}
 
+	/** `GET /link/v1/control/wait`: the messages after the cursor, at once. */
+	function controlWait(req: FakeRequest): FakeResponse {
+		const denied = authorize(req);
+		if (denied !== null) return denied;
+		const after = new URL(req.url).searchParams.get("after");
+		state.controlWaits.push(after);
+		const from = after === null ? 0 : Number(after);
+		const messages = state.controls.slice(from);
+		const cursor =
+			state.controls.length > from ? String(state.controls.length) : after;
+		return ok({ messages, cursor });
+	}
+
 	function signResolution(
 		unsigned: Record<string, unknown>,
 		keyId: string,
@@ -707,6 +729,9 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		requests.push(req);
 		const path = new URL(req.url).pathname;
 		if (req.method === "GET" && path === "/link/v1/policy") return policy(req);
+		if (req.method === "GET" && path === "/link/v1/control/wait") {
+			return controlWait(req);
+		}
 		const waiting = /^\/link\/v1\/approvals\/([^/]+)\/wait$/.exec(path);
 		if (req.method === "GET" && waiting?.[1] !== undefined) {
 			return wait(req, decodeURIComponent(waiting[1]));

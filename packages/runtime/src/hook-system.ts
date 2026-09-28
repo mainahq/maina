@@ -19,6 +19,9 @@
  *   written to the controlling terminal for Codex and Cursor.
  * - A session start and a notification shown go into this user's local
  *   retention history, `~/.maina/retention.jsonl` (FR-RET-7).
+ * - A session start is sent to the runtime as `session.start` (#594): it
+ *   opens the session's run on the run board, and the session's stop and
+ *   gated tool calls, which already reach the runtime, become its events.
  *
  * `runClaudeHookProcess`, `runCursorHookProcess` and `runCodexHookProcess`
  * are the whole hook process: stdin in, the host's answer out. The
@@ -58,6 +61,7 @@ import {
 import { userEndpoint } from "./registry";
 import { retentionEventsOf } from "./retention";
 import { gitProbe, resolveRoot } from "./root";
+import { QUIET_STOP } from "./stop-verify";
 
 /** How long one hook waits for the gate, runtime spawn included. */
 const HOOK_TIMEOUT_MS = 3_000;
@@ -126,8 +130,19 @@ export function systemClaudeHookPorts(
 	});
 	const timeoutMs = options.timeoutMs ?? HOOK_TIMEOUT_MS;
 	const stopTimeoutMs = options.stopTimeoutMs ?? STOP_TIMEOUT_MS;
+	// A session start is no gate event: when the runtime cannot take it, it
+	// is dropped (a quiet allow), never judged by the rules-only fallback.
+	const starts = createHookClient({
+		endpoint,
+		version,
+		spawn: daemonSpawner({ endpoint, version, idleTtlMs: RUNTIME_IDLE_TTL_MS }),
+		fallback: () => QUIET_STOP,
+	});
 	return {
 		evaluate: (event) => client.evaluate(event, { timeoutMs }),
+		sessionStart: async (event) => {
+			await starts.evaluate(event, { timeoutMs });
+		},
 		sessionSummary: async (event) => sessionSummary(event),
 		stopVerify: async (event) =>
 			stopFromClient(
