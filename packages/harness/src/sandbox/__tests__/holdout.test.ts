@@ -68,12 +68,13 @@ describe.skipIf(SKIP_REASON !== undefined)(
 				{ home },
 			);
 			if (!options.ok) throw new Error(options.error.message);
-			const wrapped = createSandboxRuntime().wrap(
+			const port = createSandboxRuntime();
+			const wrapped = port.wrap(
 				shell(`cat '${join(worktree, "README.md")}'; cat '${scenario}'`),
 				{ ...options.value, credentials: [] },
 			);
 			if (!wrapped.ok) throw new Error(wrapped.error.message);
-			const ran = await run(wrapped.value, worktree);
+			const ran = await run(wrapped.value, worktree).finally(port.dispose);
 			expect(ran.stdout).toContain("own worktree");
 			expect(ran.stdout).not.toContain("HOLDOUT-SCENARIO-321");
 		}, 30_000);

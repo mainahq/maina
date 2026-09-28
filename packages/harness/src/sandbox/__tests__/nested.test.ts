@@ -202,10 +202,14 @@ async function startsUnderOuter(innerScript: (tmp: string) => string) {
 	);
 	if (!opts.ok) throw new Error(opts.error.message);
 	const port = createSandboxRuntime();
-	const wrapped = port.wrap(shell(innerScript(layout.tmp)), opts.value);
-	if (!wrapped.ok) throw new Error(wrapped.error.message);
-	const ran = await run(wrapped.value, layout.worktree);
-	return { started: ran.stdout.includes("inner-ok"), ran };
+	try {
+		const wrapped = port.wrap(shell(innerScript(layout.tmp)), opts.value);
+		if (!wrapped.ok) throw new Error(wrapped.error.message);
+		const ran = await run(wrapped.value, layout.worktree);
+		return { started: ran.stdout.includes("inner-ok"), ran };
+	} finally {
+		port.dispose();
+	}
 }
 
 const SPIKE_MS = 60_000;

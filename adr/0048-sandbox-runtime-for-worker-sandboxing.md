@@ -86,9 +86,15 @@ Options considered:
   goes when the process exits (an `exit` hook); one a killed process left is
   removed by the next process that wraps, which sweeps marked `maina-srt-*`
   directories older than an hour whose pid is gone. Tests put their fixture
-  directories under one marked `$TMPDIR/maina-test-XXXXXX/` per process,
-  removed after the file's last test (`bun test` emits no `exit`), on exit
-  and on SIGINT/SIGTERM/SIGHUP, and swept the same way.
+  directories under one marked `$TMPDIR/maina-test-XXXXXX/` per process
+  (a sandbox layout is its own marked `$TMPDIR/maina-sbx-XXXXXX/`, so an
+  inner srt's sockets in its `tmp/` still fit), removed after the file's
+  last test (`bun test` emits no `exit`), on exit and on
+  SIGINT/SIGTERM/SIGHUP, and swept the same way. Because `bun test` shares
+  one module registry across the files of a run, that `afterAll` fires
+  after the first file only; each test root also gets a detached `sh`
+  reaper that waits for the process to go (however it went, SIGKILL
+  included) and removes the root if its marker is still there.
 - **Credential proxy.** A declared credential (`name`, `value`, `hosts`) is an
   `srt` `mask` rule: inside the sandbox the variable holds a per-session
   stand-in, and the proxy swaps the real value in only on requests to the

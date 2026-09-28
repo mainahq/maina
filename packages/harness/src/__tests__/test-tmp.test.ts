@@ -97,3 +97,57 @@ describe("testTmpDir: one per-process parent, removed when the process ends", ()
 		expect(readdirSync(parent)).toEqual([]);
 	});
 });
+
+/** Polls until `dir` is empty (a reaper runs after its process is gone). */
+async function emptied(dir: string, ms = 10_000): Promise<string[]> {
+	const until = Date.now() + ms;
+	let left = readdirSync(dir);
+	while (left.length > 0 && Date.now() < until) {
+		await Bun.sleep(100);
+		left = readdirSync(dir);
+	}
+	return left;
+}
+
+describe("testTmpDir: what afterAll and exit hooks cannot reach", () => {
+	test("one `bun test` run over several files leaves nothing in TMPDIR", async () => {
+		// bun shares one module registry across the files of a run, so the
+		// helper's afterAll fires after the first file only, and bun test
+		// emits no `exit`: the second file's root needs another way out.
+		const parent = testTmpDir("maina-tt-parent-");
+		const files = testTmpDir("maina-tt-files-");
+		const helper = JSON.stringify(join(import.meta.dir, "test-tmp.ts"));
+		for (const name of ["a", "b"]) {
+			await Bun.write(
+				join(files, `${name}.test.ts`),
+				`
+				import { test } from "bun:test";
+				import { testTmpDir } from ${helper};
+				test("${name}", async () => {
+					await Bun.write(testTmpDir("maina-sessions-") + "/f", "x");
+				});
+				`,
+			);
+		}
+		const proc = Bun.spawn(["bun", "test", "./a.test.ts", "./b.test.ts"], {
+			cwd: files,
+			env: { ...process.env, TMPDIR: parent },
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		const [err, code] = await Promise.all([
+			new Response(proc.stderr).text(),
+			proc.exited,
+		]);
+		expect({ code, err: code === 0 ? "" : err }).toEqual({ code: 0, err: "" });
+		expect(await emptied(parent)).toEqual([]);
+	}, 20_000);
+
+	test("SIGKILL leaves nothing in TMPDIR", async () => {
+		const parent = testTmpDir("maina-tt-parent-");
+		const ran = await child(parent, "process.kill(process.pid, 'SIGKILL');");
+		expect(ran.signal).toBe("SIGKILL");
+		expect(ran.dir.startsWith(parent)).toBe(true);
+		expect(await emptied(parent)).toEqual([]);
+	}, 20_000);
+});

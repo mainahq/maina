@@ -97,12 +97,12 @@ describe.skipIf(SKIP_REASON !== undefined)(
 				`cat '${join(layout.home, ".ssh", "id_rsa")}'`,
 				`echo ok > '${made}'`,
 			].join("; ");
-			const wrapped = createSandboxRuntime().wrap(
-				shell(script),
-				installed.sandbox,
-			);
+			const port = createSandboxRuntime();
+			const wrapped = port.wrap(shell(script), installed.sandbox);
 			if (!wrapped.ok) throw new Error(wrapped.error.message);
-			const ran = await run(wrapped.value, layout.worktree);
+			const ran = await run(wrapped.value, layout.worktree).finally(
+				port.dispose,
+			);
 
 			expect(readFileSync(installed.settingsPath, "utf8")).toBe(settingsBefore);
 			expect(readFileSync(installed.policyPath, "utf8")).toBe(policyBefore);
@@ -118,14 +118,17 @@ describe.skipIf(SKIP_REASON !== undefined)(
 				join(layout.worktreesRoot, ".maina-state"),
 			);
 			const policyBefore = readFileSync(installed.policyPath, "utf8");
-			const wrapped = createSandboxRuntime().wrap(
+			const port = createSandboxRuntime();
+			const wrapped = port.wrap(
 				shell(
 					`cat '${installed.policyPath}'; echo '{}' > '${installed.policyPath}'`,
 				),
 				installed.sandbox,
 			);
 			if (!wrapped.ok) throw new Error(wrapped.error.message);
-			const ran = await run(wrapped.value, layout.worktree);
+			const ran = await run(wrapped.value, layout.worktree).finally(
+				port.dispose,
+			);
 
 			expect(ran.stdout).toContain('"action_classes"');
 			expect(readFileSync(installed.policyPath, "utf8")).toBe(policyBefore);
