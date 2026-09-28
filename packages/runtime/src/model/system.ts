@@ -9,15 +9,14 @@
  * - The target is this machine's (`hostTarget`, musl detected as the
  *   launcher detects it).
  * - Signatures verify against the release key pinned in the runtime
- *   binary. That key (#424) is provisioned by #574; until then
- *   `RELEASE_PUBLIC_KEY` is null, nothing verifies, and `system1` stays
- *   off, as it does while no release is pinned.
+ *   binary (`release-key.ts`, #574); no environment variable or config
+ *   file can move it. The ports below take the key, so only the two
+ *   entry points name it.
  *
  * The runtime loads only a release that is already cached; it never
  * downloads on its own. `maina model pull` does, once.
  */
 
-import { verify } from "node:crypto";
 import { readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import {
@@ -38,27 +37,7 @@ import {
 import type { LoadedModel } from "./infer";
 import { type LoadRefusal, loadModel } from "./load";
 import { type ModelPinFile, SHIPPED_PIN } from "./pin";
-
-/**
- * The public half of the model release key (#424), PEM. #574 pins it; no
- * environment variable or config file can replace it.
- */
-const RELEASE_PUBLIC_KEY: string | null = null;
-
-/** RSA-SHA256 over the pinned release key; false while none is pinned. */
-function releaseSignatureCheck(bytes: Uint8Array, signature: string): boolean {
-	if (RELEASE_PUBLIC_KEY === null) return false;
-	try {
-		return verify(
-			"sha256",
-			bytes,
-			RELEASE_PUBLIC_KEY,
-			Buffer.from(signature, "base64"),
-		);
-	} catch {
-		return false;
-	}
-}
+import { RELEASE_PUBLIC_KEY, releaseSignatureCheck } from "./release-key";
 
 /** glibc or musl Linux, as `launcher/launch.sh` tells them apart. */
 function isMusl(): boolean {
@@ -78,14 +57,14 @@ const UNPINNED: ModelPinFile = {
 	baseUrl: "https://github.com/mainahq/maina/releases/download",
 };
 
-function systemSource() {
+function systemSource(releaseKey: string) {
 	return {
 		pin: SHIPPED_PIN.ok ? SHIPPED_PIN.value : UNPINNED,
 		root: modelCacheRoot(process.env, homedir()),
 		// A release pulled from a terminal, outside the plugin, is found too.
 		fallbackRoots: modelCacheFallbacks(process.env, homedir()),
 		target: hostTarget(process.platform, process.arch, isMusl()) ?? "unknown",
-		verifySignature: releaseSignatureCheck,
+		verifySignature: releaseSignatureCheck(releaseKey),
 	};
 }
 
@@ -94,11 +73,11 @@ function systemSource() {
  * it once it has loaded), or the notice saying why it cannot.
  */
 export function loadSystemModel(): Promise<Result<LoadedModel, LoadRefusal>> {
-	return loadModel(systemSource());
+	return loadModel(systemSource(RELEASE_PUBLIC_KEY));
 }
 
-async function status(): Promise<ModelStatus> {
-	const source = systemSource();
+async function status(releaseKey: string): Promise<ModelStatus> {
+	const source = systemSource(releaseKey);
 	const { pin, target } = source;
 	const support = engineSupport(target);
 	const engine =
@@ -130,11 +109,14 @@ async function status(): Promise<ModelStatus> {
 	};
 }
 
-function systemModelPorts(): ModelCommandPorts {
+function systemModelPorts(releaseKey: string): ModelCommandPorts {
 	return {
-		status,
+		status: () => status(releaseKey),
 		pull: async () => {
-			const pulled = await pullModel({ ...systemSource(), fetchUrl: fetch });
+			const pulled = await pullModel({
+				...systemSource(releaseKey),
+				fetchUrl: fetch,
+			});
 			return pulled.ok
 				? {
 						ok: true,
@@ -147,7 +129,7 @@ function systemModelPorts(): ModelCommandPorts {
 				: { ok: false, error: { message: pulled.error.message } };
 		},
 		verify: async () => {
-			const cached = verifyCachedModel(systemSource());
+			const cached = verifyCachedModel(systemSource(releaseKey));
 			return cached.ok
 				? {
 						ok: true,
@@ -165,5 +147,5 @@ function systemModelPorts(): ModelCommandPorts {
 
 /** One `maina model <args>` process; resolves to the exit code. */
 export function runModelProcess(args: readonly string[]): Promise<number> {
-	return runModel(args, systemModelPorts());
+	return runModel(args, systemModelPorts(RELEASE_PUBLIC_KEY));
 }

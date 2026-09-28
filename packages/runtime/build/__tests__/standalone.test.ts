@@ -17,6 +17,7 @@ import {
 	sha256Hex,
 	signArtifact,
 	TARGETS,
+	verifySignature,
 } from "../standalone";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", {
@@ -152,6 +153,22 @@ describe("checksums and signatures", () => {
 		expect(
 			verify("sha256", other, publicPem, Buffer.from(signature, "base64")),
 		).toBe(false);
+	});
+
+	// #574: one check, shared by the release scripts and the runtime's model
+	// verifier.
+	test("verifySignature accepts the key's own signature and nothing else", () => {
+		const signature = signArtifact(bytes, privatePem);
+		const otherPem = generateKeyPairSync("rsa", {
+			modulusLength: 2048,
+		}).publicKey.export({ type: "spki", format: "pem" }) as string;
+		expect(verifySignature(bytes, signature, publicPem)).toBe(true);
+		expect(verifySignature(bytes, signature, otherPem)).toBe(false);
+		const tampered = new TextEncoder().encode("tampered");
+		expect(verifySignature(tampered, signature, publicPem)).toBe(false);
+		expect(verifySignature(bytes, "", publicPem)).toBe(false);
+		expect(verifySignature(bytes, "not base64 !", publicPem)).toBe(false);
+		expect(verifySignature(bytes, signature, "not a key")).toBe(false);
 	});
 
 	test("publicKeyXml carries the same modulus and exponent as the PEM", () => {

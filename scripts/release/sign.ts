@@ -16,13 +16,14 @@
  * with a throwaway key.
  */
 
-import { createPrivateKey, createPublicKey, verify } from "node:crypto";
+import { createPrivateKey, createPublicKey } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import {
 	sha256Hex,
 	signArtifact,
+	verifySignature,
 } from "../../packages/runtime/build/standalone";
 import {
 	checkRelease,
@@ -40,25 +41,6 @@ type Result<T, E> =
 /** Base64 RSA-SHA256 signature of `bytes`. */
 export const signBytes = (bytes: Uint8Array, privateKeyPem: string): string =>
 	signArtifact(bytes, privateKeyPem);
-
-/** Whether `signature` is `bytes` signed by the key `publicKeyPem` pairs. */
-export function verifySignature(
-	bytes: Uint8Array,
-	signature: string,
-	publicKeyPem: string,
-): boolean {
-	if (signature === "") return false;
-	try {
-		return verify(
-			"sha256",
-			bytes,
-			createPublicKey(publicKeyPem),
-			Buffer.from(signature, "base64"),
-		);
-	} catch {
-		return false;
-	}
-}
 
 /** The public half of `privateKeyPem`, as SPKI PEM. */
 export const publicKeyOf = (privateKeyPem: string): string =>

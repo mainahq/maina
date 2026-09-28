@@ -4,9 +4,8 @@
  * each file this target needs, in manifest order: a safe path, the sha256,
  * and only then the signature, at the manifest's version.
  *
- * The release key is not provisioned yet (#574, #424), so the tests sign
- * with a dev key and hand the verifier a signature check over its public
- * half.
+ * The tests sign with a dev key and hand the verifier a signature check
+ * over its public half; the release key itself only signs in CI (#574).
  */
 
 import { describe, expect, test } from "bun:test";

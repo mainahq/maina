@@ -2,17 +2,13 @@
  * Builds signed System 1 model releases in memory for the verifier and
  * parity tests (#575), laid out as maina-model's `python -m export release`
  * writes one (system1-artifact.md §1): the files, `manifest.json` and
- * `manifest.json.sig`. The release key (#574, #424) is not provisioned, so a
+ * `manifest.json.sig`. The release key only signs in CI (#574, #424), so a
  * dev key made once per test run signs everything and reaches the verifier
  * through its injected signature port.
  */
 
-import {
-	createHash,
-	generateKeyPairSync,
-	sign,
-	verify as verifyRsa,
-} from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
+import { releaseSignatureCheck } from "../../release-key";
 
 type Json = Record<string, unknown>;
 
@@ -31,21 +27,8 @@ export function devKey(): Readonly<{ privatePem: string; publicPem: string }> {
 export const signWith = (privatePem: string, bytes: Uint8Array): string =>
 	sign("sha256", bytes, privatePem).toString("base64");
 
-/** The signature port the verifier takes, over `publicPem`. */
-export const checkerFor =
-	(publicPem: string) =>
-	(bytes: Uint8Array, signature: string): boolean => {
-		try {
-			return verifyRsa(
-				"sha256",
-				bytes,
-				publicPem,
-				Buffer.from(signature, "base64"),
-			);
-		} catch {
-			return false;
-		}
-	};
+/** The signature port the verifier takes, over `publicPem`: the runtime's. */
+export const checkerFor = releaseSignatureCheck;
 
 export const sha256 = (bytes: Uint8Array): string =>
 	createHash("sha256").update(bytes).digest("hex");
