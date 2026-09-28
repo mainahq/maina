@@ -7,11 +7,11 @@
  */
 
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { failClosedHook } from "../standalone/hook-fallback";
 import { routeHook } from "../standalone/hook-route";
+import { testTmpDir } from "./test-tmp";
 
 describe("routeHook", () => {
 	test("an explicit host routes each of its events to its adapter", () => {
@@ -119,7 +119,7 @@ afterAll(() => {
 
 /** A temp HOME: hooks record to ~/.maina/retention.jsonl (FR-RET-7). */
 function tempHome(): string {
-	const home = mkdtempSync(join(tmpdir(), "maina-hook-home-"));
+	const home = testTmpDir("maina-hook-home-");
 	homes.push(home);
 	return home;
 }

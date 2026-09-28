@@ -4,7 +4,8 @@
  *
  *   bun run dogfood:receipt
  *
- * 1. Refuses a dirty tree (the receipt must describe the committed HEAD).
+ * 1. Refuses a dirty tree (the receipt must describe the committed HEAD);
+ *    generated `.maina` runtime files (`isGeneratedMainaPath`) do not count.
  * 2. Finds the current branch's PR (`gh pr view`) and checks HEAD is pushed.
  * 3. Runs the maina 1.x verify pipeline (`maina receipt`) over the files the
  *    PR changes versus its merge-base, and writes a local dogfood receipt to
@@ -131,6 +132,35 @@ export async function planPrePush(
 	return pushed
 		? { branch: pushed.remoteRef.slice("refs/heads/".length) }
 		: { skip: "HEAD is not among the pushed branches" };
+}
+
+/**
+ * Runtime files maina itself rewrites (#639): `maina commit` refreshes the
+ * wiki's RL signals and appends to the workflow trace. They are gitignored,
+ * but a branch cut before they were untracked still sees them modified, and
+ * they say nothing about what HEAD contains, so the dirty check skips them.
+ */
+const GENERATED_MAINA_FILES: readonly string[] = [".maina/wiki/.signals.json"];
+const GENERATED_MAINA_DIRS: readonly string[] = [".maina/workflow/"];
+
+export function isGeneratedMainaPath(path: string): boolean {
+	return (
+		GENERATED_MAINA_FILES.includes(path) ||
+		GENERATED_MAINA_DIRS.some((dir) => path.startsWith(dir))
+	);
+}
+
+/**
+ * The paths of `git status --porcelain` (v1) lines that are not generated
+ * runtime files. A rename counts unless both sides are generated; a quoted
+ * (unusual) path never matches, so it counts as dirty.
+ */
+function dirtyPaths(porcelain: string): string[] {
+	return porcelain
+		.split("\n")
+		.filter((line) => line.trim().length > 0)
+		.flatMap((line) => line.slice(3).split(" -> "))
+		.filter((path) => !isGeneratedMainaPath(path));
 }
 
 export type ReceiptError =
@@ -364,10 +394,11 @@ export async function produceReceipt(
 		"--untracked-files=no",
 	]);
 	if (status.code !== 0) return fail("git", status.stderr.trim());
-	if (status.stdout.trim() !== "") {
+	const dirty = dirtyPaths(status.stdout);
+	if (dirty.length > 0) {
 		return fail(
 			"dirty",
-			"Working tree has uncommitted changes; commit (via maina commit) first so the receipt matches HEAD.",
+			`Working tree has uncommitted changes (${dirty.join(", ")}); commit (via maina commit) first so the receipt matches HEAD.`,
 		);
 	}
 	const rev = await ports.exec(["git", "rev-parse", "HEAD"]);

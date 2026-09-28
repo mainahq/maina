@@ -11,6 +11,7 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import {
 	type ExecResult,
+	isGeneratedMainaPath,
 	parsePushRefs,
 	planPrePush,
 	produceReceipt,
@@ -291,6 +292,40 @@ describe("produceReceipt", () => {
 		const r = await produceReceipt({ publish: true }, f.ports);
 		expect(r.ok).toBe(false);
 		if (!r.ok) expect(r.error.code).toBe("dirty");
+	});
+
+	// #639: `maina commit` rewrites these runtime files; a branch cut before
+	// they were untracked still sees them modified, which must not block.
+	test("ignores generated .maina runtime files in the dirty check", async () => {
+		const f = fake({
+			"git status --porcelain --untracked-files=no": {
+				code: 0,
+				stdout:
+					" M .maina/wiki/.signals.json\n M .maina/workflow/current.md\nD  .maina/workflow/old.md\n",
+				stderr: "",
+			},
+		});
+		const r = await produceReceipt({ publish: true }, f.ports);
+		expect(r.ok).toBe(true);
+	});
+
+	test("still refuses real changes alongside generated .maina files", async () => {
+		const f = fake({
+			"git status --porcelain --untracked-files=no": {
+				code: 0,
+				stdout:
+					" M .maina/wiki/.signals.json\n M .maina/constitution.md\nR  lefthook.yml -> .maina/workflow/x.md\n",
+				stderr: "",
+			},
+		});
+		const r = await produceReceipt({ publish: true }, f.ports);
+		expect(r.ok).toBe(false);
+		if (!r.ok) {
+			expect(r.error.code).toBe("dirty");
+			expect(r.error.message).toContain(".maina/constitution.md");
+			expect(r.error.message).toContain("lefthook.yml");
+			expect(r.error.message).not.toContain(".signals.json");
+		}
 	});
 
 	test("refuses to publish without a PR", async () => {
@@ -721,5 +756,42 @@ describe("receipt.ts --pre-push (process)", () => {
 		expect(code).toBe(0);
 		expect(stdout).toContain("skipped");
 		expect(stdout).not.toContain("Maina receipt for");
+	});
+});
+
+describe("isGeneratedMainaPath (#639)", () => {
+	test("matches the runtime files maina rewrites, nothing else", () => {
+		expect(isGeneratedMainaPath(".maina/wiki/.signals.json")).toBe(true);
+		expect(isGeneratedMainaPath(".maina/workflow/current.md")).toBe(true);
+		expect(isGeneratedMainaPath(".maina/workflow/archive/a.md")).toBe(true);
+		expect(isGeneratedMainaPath(".maina/wiki/index.md")).toBe(false);
+		expect(isGeneratedMainaPath(".maina/constitution.md")).toBe(false);
+		expect(isGeneratedMainaPath("x/.maina/workflow/current.md")).toBe(false);
+		expect(isGeneratedMainaPath(".maina/workflow")).toBe(false);
+	});
+
+	test("every generated path is gitignored and untracked in this repo", () => {
+		const root = join(import.meta.dir, "..", "..", "..");
+		for (const path of [
+			".maina/wiki/.signals.json",
+			".maina/workflow/current.md",
+		]) {
+			expect(isGeneratedMainaPath(path)).toBe(true);
+			const ignored = Bun.spawnSync(
+				["git", "check-ignore", "-q", "--no-index", path],
+				{ cwd: root },
+			);
+			expect({ path, ignored: ignored.exitCode }).toEqual({
+				path,
+				ignored: 0,
+			});
+			const tracked = Bun.spawnSync(["git", "ls-files", "--", path], {
+				cwd: root,
+			});
+			expect({ path, tracked: tracked.stdout.toString().trim() }).toEqual({
+				path,
+				tracked: "",
+			});
+		}
 	});
 });
