@@ -13,4 +13,4 @@
 
 /** sha256 of `./v1/manifest.json` (protocol v1). Changed only by the sync script. */
 export const LINK_V1_MANIFEST_SHA256 =
-	"49cf45cb6ab04bd1b4637b36abdf837105410d9893fa83b6683ba272ba48102a";
+	"4b2c16932bc3a063bd5736344fb10ecc194452ace651904ab5e91ccce7bb9d3d";

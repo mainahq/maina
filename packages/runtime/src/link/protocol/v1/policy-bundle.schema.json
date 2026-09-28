@@ -217,7 +217,8 @@
 						"enum": [
 							"org",
 							"team",
-							"repo"
+							"repo",
+							"member"
 						]
 					},
 					"scopeId": {

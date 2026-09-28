@@ -67,9 +67,9 @@ const RENEW_MARGIN_MS = 30_000;
 const LINK_PATH = /^\/link\/v[0-9]+(\/[A-Za-z0-9][A-Za-z0-9_.:-]*)+$/;
 
 const STALE_TOKEN: ReadonlySet<string> = new Set([
-	LINK_CODES.tokenExpired,
-	LINK_CODES.invalidToken,
-	LINK_CODES.missingToken,
+	LINK_CODES.token_expired,
+	LINK_CODES.invalid_token,
+	LINK_CODES.missing_token,
 ]);
 
 export function createLinkClient(ports: LinkPorts): LinkClient {
@@ -152,7 +152,7 @@ export function createLinkClient(ports: LinkPorts): LinkClient {
 				answer = await call(base.value, request, true);
 			}
 			if (!answer.ok) return stop(answer);
-			if (answer.value.envelope.error === LINK_CODES.deviceRevoked) {
+			if (answer.value.envelope.error === LINK_CODES.device_revoked) {
 				return stop(revokedFailure(ports.store, ports.clock()));
 			}
 			if (!isSuccess(answer.value)) {

@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://api.mainahq.com/link/v1/schemas/enrol-complete.schema.json",
 	"title": "EnrolComplete",
-	"description": "Registers the device public key with a proof of possession: Ed25519 over utf8(\"maina-link/sig/v1\\nenrol-proof\\n\") || JCS(message without proof) (POST /link/v1/enrol/complete). Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
+	"description": "Registers the device public key with a proof of possession: Ed25519 over utf8(\"maina-link/sig/v1\\nenrol-proof\\n\") || JCS(message without proof) (POST /link/v1/enrol/complete). accepts lists the optional EnrolCompleteResult fields the device understands; the cloud sends no optional field it does not list. Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
 	"type": "object",
 	"additionalProperties": false,
 	"required": [
@@ -35,6 +35,16 @@
 			"examples": [
 				"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
 			]
+		},
+		"accepts": {
+			"type": "array",
+			"items": {
+				"type": "string",
+				"enum": [
+					"dataClass"
+				]
+			},
+			"maxItems": 8
 		},
 		"proof": {
 			"type": "string",

@@ -35,6 +35,7 @@ import eventSchema from "./v1/event.schema.json" with { type: "json" };
 import policyBundleSchema from "./v1/policy-bundle.schema.json" with {
 	type: "json",
 };
+import refusalSchema from "./v1/refusal.schema.json" with { type: "json" };
 import tokenChallengeSchema from "./v1/token-challenge.schema.json" with {
 	type: "json",
 };
@@ -75,12 +76,20 @@ type EnrolStartResult = Readonly<{
 	interval: number;
 }>;
 
-/** `POST /link/v1/enrol/complete` body; `proof` signs the rest. */
+/** An optional `EnrolCompleteResult` field a device can ask for. */
+type EnrolAccept = "dataClass";
+
+/**
+ * `POST /link/v1/enrol/complete` body; `proof` signs the rest. `accepts`
+ * lists the optional result fields the device understands: the cloud sends
+ * none it does not list.
+ */
 type EnrolComplete = Readonly<{
 	v: 1;
 	deviceCode: string;
 	alg: "ed25519";
 	publicKey: string;
+	accepts?: readonly EnrolAccept[];
 	proof: string;
 }>;
 
@@ -109,6 +118,8 @@ export type EnrolCompleteResult = Readonly<{
 	linkSalt: Readonly<{ id: string; value: string }>;
 	schemaVersion: 1;
 	endpoints: LinkEndpoints;
+	/** The org's data class, when the device listed it in `accepts`. */
+	dataClass?: DataClass;
 }>;
 
 /** `POST /link/v1/token` body; `sig` signs the rest. */
@@ -240,7 +251,7 @@ export type PolicyBundle = Readonly<{
 	exceptions: readonly Readonly<{
 		id: string;
 		actionClass: string;
-		scopeKind: BundleScope["kind"];
+		scopeKind: BundleScope["kind"] | "member";
 		scopeId: string;
 		verdict: "allow" | "ask";
 		expiresAt: string;
@@ -347,18 +358,13 @@ export type ApiEnvelope = Readonly<{
 	meta?: Readonly<{ message?: unknown }>;
 }>;
 
-/** The refusal codes the runtime acts on (adr/0010). */
-export const LINK_CODES = {
-	/** Enrolment: not approved yet; poll again after `interval`. */
-	authorizationPending: "authorization_pending",
-	/** Enrolment: poll more slowly (RFC 8628). */
-	slowDown: "slow_down",
-	/** Enrolment: the org keys aren't available yet; retry the same code. */
-	orgKeysUnavailable: "org_keys_unavailable",
-	/** The device was revoked: stop Link, ask to re-enrol. */
-	deviceRevoked: "device_revoked",
-	/** The token is stale or unknown: buy a new one once. */
-	tokenExpired: "token_expired",
-	invalidToken: "invalid_token",
-	missingToken: "missing_token",
-} as const;
+/**
+ * Every refusal code a Link route answers with (the `error` enum of the
+ * vendored `refusal.schema.json`), keyed by itself. Its type comes from the
+ * schema's `$defs`, one per code with what a device should do about it, so
+ * a code the runtime acts on (`LINK_CODES.<code>`) fails the typecheck when
+ * a re-pin drops it. A code the runtime does not know is not retried.
+ */
+export const LINK_CODES = Object.fromEntries(
+	refusalSchema.properties.error.enum.map((code) => [code, code]),
+) as { readonly [C in keyof typeof refusalSchema.$defs]: C };

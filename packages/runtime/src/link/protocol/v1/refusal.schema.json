@@ -1,0 +1,175 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://api.mainahq.com/link/v1/schemas/refusal.schema.json",
+	"title": "LinkRefusal",
+	"description": "A refused Link request: the envelope with data null and a machine code in error. A device acts on the code alone (each is described under $defs); meta is diagnostics for people. A code the device doesn't know is a refusal it can't retry. Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"data",
+		"error"
+	],
+	"properties": {
+		"data": {
+			"type": "null"
+		},
+		"error": {
+			"type": "string",
+			"enum": [
+				"invalid_request",
+				"authorization_pending",
+				"slow_down",
+				"expired_code",
+				"invalid_grant",
+				"already_approved",
+				"invalid_proof",
+				"org_keys_unavailable",
+				"enrol_unavailable",
+				"ci_token_required",
+				"ci_scope_required",
+				"unknown_device",
+				"device_revoked",
+				"invalid_signature",
+				"stale_challenge",
+				"challenge_replayed",
+				"missing_token",
+				"invalid_token",
+				"token_expired",
+				"device_mismatch",
+				"forbidden",
+				"no_policy",
+				"policy_conflict",
+				"not_found",
+				"schema_version_not_found",
+				"rate_limited",
+				"internal"
+			]
+		},
+		"meta": {
+			"type": "object",
+			"description": "Diagnostics: a message a person can read, a retry time, the offending name. Other keys may appear.",
+			"properties": {
+				"message": {
+					"type": "string"
+				},
+				"retryAt": {
+					"type": "string",
+					"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+					"examples": [
+						"2026-09-01T10:00:00.000Z"
+					]
+				}
+			}
+		}
+	},
+	"$defs": {
+		"invalid_request": {
+			"const": "invalid_request",
+			"description": "The body is not the protocol message the route takes. Fix the request; don't retry it as is."
+		},
+		"authorization_pending": {
+			"const": "authorization_pending",
+			"description": "Enrolment: no member has approved the user code yet. Keep polling enrol/complete every `interval` seconds until the code expires."
+		},
+		"slow_down": {
+			"const": "slow_down",
+			"description": "Enrolment: the device polls too fast (RFC 8628). Add 5 seconds to the polling interval and keep polling."
+		},
+		"expired_code": {
+			"const": "expired_code",
+			"description": "Enrolment: the device or user code is past its 10 minutes. Start a new enrolment."
+		},
+		"invalid_grant": {
+			"const": "invalid_grant",
+			"description": "Enrolment: the device code is unknown or already used, or the key is already enrolled. Start a new enrolment with a new key."
+		},
+		"already_approved": {
+			"const": "already_approved",
+			"description": "Enrolment: the user code was already approved (answered to the approving member)."
+		},
+		"invalid_proof": {
+			"const": "invalid_proof",
+			"description": "Enrolment: the proof of possession doesn't verify with the presented public key."
+		},
+		"org_keys_unavailable": {
+			"const": "org_keys_unavailable",
+			"description": "Enrolment: the org verification keys a device pins aren't available (a dark signer); nothing was written. Keep polling with the same code."
+		},
+		"enrol_unavailable": {
+			"const": "enrol_unavailable",
+			"description": "Enrolment: the cloud can't take enrolments right now (a missing or failing rate limiter). Retry later."
+		},
+		"ci_token_required": {
+			"const": "ci_token_required",
+			"description": "CI enrolment: a `ci` device must present a CI-enrolment API token."
+		},
+		"ci_scope_required": {
+			"const": "ci_scope_required",
+			"description": "CI enrolment: the token isn't an API token scoped to device.enrol.ci."
+		},
+		"unknown_device": {
+			"const": "unknown_device",
+			"description": "Token exchange: no device has this id. Re-enrol."
+		},
+		"device_revoked": {
+			"const": "device_revoked",
+			"description": "The device was revoked; every Link call is refused from now on. Stop Link and re-enrol."
+		},
+		"invalid_signature": {
+			"const": "invalid_signature",
+			"description": "A device signature doesn't verify with the device's enrolled key."
+		},
+		"stale_challenge": {
+			"const": "stale_challenge",
+			"description": "Token exchange: the challenge's `ts` is more than 5 minutes from the cloud's clock. Check the clock and sign a fresh challenge."
+		},
+		"challenge_replayed": {
+			"const": "challenge_replayed",
+			"description": "Token exchange: the challenge's nonce was already used. Sign a fresh challenge."
+		},
+		"missing_token": {
+			"const": "missing_token",
+			"description": "No access token was presented. Buy a token (POST /link/v1/token) and retry once."
+		},
+		"invalid_token": {
+			"const": "invalid_token",
+			"description": "The access token is unknown. Buy a fresh token and retry once."
+		},
+		"token_expired": {
+			"const": "token_expired",
+			"description": "The access token is past its expiry. Buy a fresh token and retry once."
+		},
+		"device_mismatch": {
+			"const": "device_mismatch",
+			"description": "A signed message names another device than the access token's."
+		},
+		"forbidden": {
+			"const": "forbidden",
+			"description": "Not allowed (a member without device.enrol, say)."
+		},
+		"no_policy": {
+			"const": "no_policy",
+			"description": "Policy pull: nothing is published for the device's scope yet. Keep the last good bundle, if any."
+		},
+		"policy_conflict": {
+			"const": "policy_conflict",
+			"description": "Policy pull: the scope's published layers don't compile together. Keep the last good bundle until an admin fixes a layer."
+		},
+		"not_found": {
+			"const": "not_found",
+			"description": "The thing asked for doesn't exist (an unknown schema file, say)."
+		},
+		"schema_version_not_found": {
+			"const": "schema_version_not_found",
+			"description": "Schemas: no published file has the pinned sha256. Pin a published manifest."
+		},
+		"rate_limited": {
+			"const": "rate_limited",
+			"description": "Too many requests. Retry after `meta.retryAt` when it is given."
+		},
+		"internal": {
+			"const": "internal",
+			"description": "A storage or signer failure in the cloud; never a pass. Retry later."
+		}
+	}
+}

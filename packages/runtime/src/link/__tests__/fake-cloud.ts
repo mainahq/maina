@@ -78,6 +78,12 @@ type FakeCloudOptions = {
 	refuseCompleteWith?: string;
 	/** Serve the real ingest on the events route (else a bare `accepted`). */
 	ingest?: boolean;
+	/**
+	 * The org's data class, sent in the enrolment result only to a device
+	 * that lists `dataClass` in `accepts` (cloud #265); null is a cloud from
+	 * before the field, which never sends it. Defaults to `metadata`.
+	 */
+	orgDataClass?: "metadata" | "names" | "rich" | null;
 };
 
 type IngestedEvent = Readonly<{
@@ -258,6 +264,8 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		});
 	}
 
+	const orgDataClass =
+		options.orgDataClass === undefined ? "metadata" : options.orgDataClass;
 	const deviceCodes = new Map<string, { approved: boolean }>();
 	const nonces = new Set<string>();
 	const tokens = new Map<string, { expired: boolean }>();
@@ -328,6 +336,7 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		const message = body as Record<string, unknown> & {
 			deviceCode: string;
 			publicKey: string;
+			accepts?: readonly string[];
 		};
 		if (options.refuseCompleteWith !== undefined) {
 			return refuse(400, options.refuseCompleteWith);
@@ -362,6 +371,9 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 				approvals: "/link/v1/approvals",
 				schemas: "/link/v1/schemas",
 			},
+			...(orgDataClass !== null && message.accepts?.includes("dataClass")
+				? { dataClass: orgDataClass }
+				: {}),
 		});
 	}
 

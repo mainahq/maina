@@ -82,9 +82,16 @@
 				"invite.revoked",
 				"policy.updated",
 				"policy.published",
+				"policy.bundle_issued",
 				"policy.rolled_back",
+				"policy.rollout_staged",
+				"policy.adopted",
+				"policy.drift_detected",
 				"exception.created",
 				"exception.revoked",
+				"exception.requested",
+				"exception.approved",
+				"exception.denied",
 				"exception.expired",
 				"export.requested",
 				"export.completed",
@@ -433,6 +440,20 @@
 								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
 								"examples": [
 									"id_0001"
+								]
+							},
+							"actionClass": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"matchedRule": {
+								"type": "string",
+								"enum": [
+									"allow",
+									"deny"
 								]
 							}
 						}
@@ -1033,6 +1054,18 @@
 								"type": "integer",
 								"minimum": 0,
 								"maximum": 9007199254740991
+							},
+							"policyVersion": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"policyHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
 							}
 						}
 					}
@@ -2375,6 +2408,121 @@
 								"examples": [
 									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
 								]
+							},
+							"previousVersion": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"tighter": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"looser": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"neutral": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"diffHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							},
+							"rolloutStage": {
+								"type": "string",
+								"enum": [
+									"percent",
+									"team"
+								]
+							},
+							"rolloutPercent": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 99
+							},
+							"rolloutTeams": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "policy.bundle_issued"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "policy"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"scopeKind",
+							"scopeId",
+							"version",
+							"policyHash",
+							"signature"
+						],
+						"properties": {
+							"scopeKind": {
+								"type": "string",
+								"enum": [
+									"org",
+									"team",
+									"repo"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"version": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"policyHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							},
+							"signature": {
+								"type": "string",
+								"enum": [
+									"signed",
+									"ephemeral",
+									"dark"
+								]
 							}
 						}
 					}
@@ -2443,6 +2591,210 @@
 								"examples": [
 									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
 								]
+							},
+							"version": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "policy.rollout_staged"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "policy"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"scopeKind",
+							"scopeId",
+							"version",
+							"step",
+							"stage"
+						],
+						"properties": {
+							"scopeKind": {
+								"type": "string",
+								"enum": [
+									"org",
+									"team",
+									"repo"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"version": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"baseVersion": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"step": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"stage": {
+								"type": "string",
+								"enum": [
+									"percent",
+									"team",
+									"full"
+								]
+							},
+							"percent": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 99
+							},
+							"teams": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "policy.adopted"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "device"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"version",
+							"policyHash"
+						],
+						"properties": {
+							"version": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"policyHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							},
+							"previousVersion": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "policy.drift_detected"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "device"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"reason",
+							"version",
+							"policyHash"
+						],
+						"properties": {
+							"reason": {
+								"type": "string",
+								"enum": [
+									"modified",
+									"outdated"
+								]
+							},
+							"version": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"policyHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							},
+							"expectedHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							},
+							"graceSeconds": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
 							}
 						}
 					}
@@ -2546,6 +2898,255 @@
 			"if": {
 				"properties": {
 					"type": {
+						"const": "exception.requested"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "exception"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"scope",
+							"scopeId",
+							"actionClass",
+							"verdict",
+							"notAfter",
+							"durationSeconds",
+							"justificationHash"
+						],
+						"properties": {
+							"scope": {
+								"type": "string",
+								"enum": [
+									"member",
+									"team",
+									"repo",
+									"action_class"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"actionClass": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"verdict": {
+								"type": "string",
+								"enum": [
+									"allow",
+									"ask"
+								]
+							},
+							"notAfter": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							},
+							"durationSeconds": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"justificationHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "exception.approved"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "exception"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"scope",
+							"scopeId",
+							"actionClass",
+							"verdict",
+							"notAfter",
+							"requestedBy"
+						],
+						"properties": {
+							"scope": {
+								"type": "string",
+								"enum": [
+									"member",
+									"team",
+									"repo",
+									"action_class"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"actionClass": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"verdict": {
+								"type": "string",
+								"enum": [
+									"allow",
+									"ask"
+								]
+							},
+							"notAfter": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							},
+							"requestedBy": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "exception.denied"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "exception"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"scope",
+							"scopeId",
+							"actionClass",
+							"verdict",
+							"notAfter",
+							"requestedBy"
+						],
+						"properties": {
+							"scope": {
+								"type": "string",
+								"enum": [
+									"member",
+									"team",
+									"repo",
+									"action_class"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"actionClass": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"verdict": {
+								"type": "string",
+								"enum": [
+									"allow",
+									"ask"
+								]
+							},
+							"notAfter": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							},
+							"requestedBy": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
 						"const": "exception.expired"
 					}
 				},
@@ -2566,7 +3167,52 @@
 						"type": "object",
 						"additionalProperties": false,
 						"required": [],
-						"properties": {}
+						"properties": {
+							"scope": {
+								"type": "string",
+								"enum": [
+									"member",
+									"team",
+									"repo",
+									"action_class"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"actionClass": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"verdict": {
+								"type": "string",
+								"enum": [
+									"allow",
+									"ask"
+								]
+							},
+							"notAfter": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							},
+							"from": {
+								"type": "string",
+								"enum": [
+									"pending",
+									"approved"
+								]
+							}
+						}
 					}
 				}
 			}

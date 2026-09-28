@@ -12,9 +12,13 @@
  *    It is polled every `interval` seconds while the answer is
  *    `authorization_pending` (or `org_keys_unavailable`), until the code
  *    expires.
+ *    The message lists `accepts: ["dataClass"]`, so the cloud answers with
+ *    the org's data class (cloud #265); it sends no field a device did not
+ *    ask for.
  * 4. The result is pinned: device and org ids, the org verification keys
  *    (one per purpose, or the enrolment is refused: without a link-control
- *    key no rotation could ever be verified), the link salt, the endpoints.
+ *    key no rotation could ever be verified), the link salt, the endpoints,
+ *    and the org's data class (`metadata` when the cloud sends none).
  *
  * A failure leaves nothing behind: no key, no state.
  */
@@ -75,9 +79,9 @@ export type EnrolError =
 const SLOW_DOWN_MS = 5_000;
 
 const KEEP_POLLING: ReadonlySet<string> = new Set([
-	LINK_CODES.authorizationPending,
-	LINK_CODES.orgKeysUnavailable,
-	LINK_CODES.slowDown,
+	LINK_CODES.authorization_pending,
+	LINK_CODES.org_keys_unavailable,
+	LINK_CODES.slow_down,
 ]);
 
 function missingPurposes(result: EnrolCompleteResult): OrgKeyPurpose[] {
@@ -170,7 +174,7 @@ export async function enrolDevice(
 		publicKey: keys.value.publicKey,
 		enrolledAt: ports.clock().toISOString(),
 		revokedAt: null,
-		dataClass: "metadata",
+		dataClass: completed.value.dataClass ?? "metadata",
 		enrolment: completed.value,
 		appliedControls: [],
 	};
@@ -194,6 +198,7 @@ async function complete(
 		deviceCode: code.deviceCode,
 		alg: "ed25519",
 		publicKey: keys.publicKey,
+		accepts: ["dataClass"],
 	} as const;
 	const input = deviceSigningInput("enrol-proof", unsigned, "proof");
 	if (!input.ok) return input;
@@ -239,7 +244,7 @@ async function complete(
 		if (!KEEP_POLLING.has(refused)) {
 			return { ok: false, error: refusal(answer.value) };
 		}
-		if (refused === LINK_CODES.slowDown) interval += SLOW_DOWN_MS;
+		if (refused === LINK_CODES.slow_down) interval += SLOW_DOWN_MS;
 		if (ports.clock().getTime() + interval >= deadline) {
 			return { ok: false, error: { kind: "expired" } };
 		}

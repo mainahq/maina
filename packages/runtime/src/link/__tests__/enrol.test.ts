@@ -187,6 +187,32 @@ describe("enrolDevice", () => {
 		expect(complete?.headers.Authorization).toBeUndefined();
 	});
 
+	// #644 (cloud #265): the cloud sends the org's class only when asked.
+	test("asks for the org's data class at enrolment and keeps the class it gets", async () => {
+		const cloud = fakeCloud({ orgDataClass: "names" });
+		const { ports } = portsFor(cloud);
+		const enrolled = await enrolDevice(ports, options(cloud));
+		expect(enrolled.ok).toBe(true);
+		if (!enrolled.ok) return;
+		const complete = cloud.requests.find((r) =>
+			r.url.endsWith("/enrol/complete"),
+		);
+		expect(JSON.parse(complete?.body ?? "{}").accepts).toEqual(["dataClass"]);
+		// The proof still verifies: `accepts` is part of the signed message.
+		expect(cloud.state.proofVerified).toBe(true);
+		expect(enrolled.value.dataClass).toBe("names");
+		const reread = fileLinkStore(linkDir()).readState();
+		expect(reread.ok && reread.value?.dataClass).toBe("names");
+	});
+
+	test("a cloud that sends no data class leaves the device at metadata", async () => {
+		const cloud = fakeCloud({ orgDataClass: null });
+		const { ports } = portsFor(cloud);
+		const enrolled = await enrolDevice(ports, options(cloud));
+		expect(enrolled.ok).toBe(true);
+		if (enrolled.ok) expect(enrolled.value.dataClass).toBe("metadata");
+	});
+
 	test("a refused completion leaves nothing behind", async () => {
 		const cloud = fakeCloud({ refuseCompleteWith: "expired_code" });
 		const { ports } = portsFor(cloud);

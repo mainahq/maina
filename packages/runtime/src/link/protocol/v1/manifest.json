@@ -16,12 +16,12 @@
 			"bytes": 5741
 		},
 		"enrol-complete-result.schema.json": {
-			"sha256": "ac3eb9b6f7736e77023ec5b123e03f9d3ce4ddbff6c503a0378c64888e0a28b4",
-			"bytes": 3867
+			"sha256": "aa364da52d8aaeb09dbc86aca47588a307ddb1da43cd4311d04d224a091cc39d",
+			"bytes": 4046
 		},
 		"enrol-complete.schema.json": {
-			"sha256": "9138dd6b0a2ecc111f9f2444de803488f03532655ab2b2ddbf59bbe7d138e2ab",
-			"bytes": 1212
+			"sha256": "d1db007e2507e2e9b43b48980d232075427d99e6ac4d2ad259325091dac4ba00",
+			"bytes": 1478
 		},
 		"enrol-start-result.schema.json": {
 			"sha256": "dda31437aa29b76a4359872381e7b7f698f7e74164c9864c09f737bc1a5507ba",
@@ -40,8 +40,8 @@
 			"bytes": 1654
 		},
 		"event.schema.json": {
-			"sha256": "e350ff13a8e4d1b8baa3c67d73e91521e7575f750daffbeb7fc4f3cd5608c276",
-			"bytes": 41340
+			"sha256": "5d51e26269654c3246e75d2819ee20db4b06a6d29735faeee396e0324f471fdb",
+			"bytes": 42975
 		},
 		"examples/approval-ask.json": {
 			"sha256": "8efc358c9f6d8bdb43d33756a109068d93c906a83fb13c021db59d516ba4760c",
@@ -56,12 +56,12 @@
 			"bytes": 407
 		},
 		"examples/enrol-complete-result.json": {
-			"sha256": "9e4551596e5ae0a704ab5bd03a926964f3cb4807374c283d71f2ab044c5ed66d",
-			"bytes": 1048
+			"sha256": "6e16681b76f0edad07bd5a1dc60739c10b58e0083286f383595d1a01e3a90cf8",
+			"bytes": 1074
 		},
 		"examples/enrol-complete.json": {
-			"sha256": "cdcf49fc70359b2ee04b13e2f3399a47918a77b202224ffff090475565825f81",
-			"bytes": 246
+			"sha256": "9ff465af58c9a91d5ed93e9680b1ab1c35391647bd340109d48370c89df776ae",
+			"bytes": 278
 		},
 		"examples/enrol-start-result.json": {
 			"sha256": "2ba015189326e718905b9986ee4aa2527cb28cd175cd9e0edae0165466d9921e",
@@ -131,6 +131,10 @@
 			"sha256": "b037163239d7e2b2f30685ec39ca69114d4f621cf952f942df127ed0ec1fb35d",
 			"bytes": 890
 		},
+		"examples/refusal.json": {
+			"sha256": "3f1fc48325d4c968c683e08f3365f880ab57543edc0bc57bcf9df38a80b1d964",
+			"bytes": 129
+		},
 		"examples/token-challenge.json": {
 			"sha256": "e03a1c21eb533edde141a92f53241bf818b8c10e3d14b8d1b0358cfc73bb6083",
 			"bytes": 215
@@ -140,8 +144,8 @@
 			"bytes": 150
 		},
 		"ledger/event.schema.json": {
-			"sha256": "007f5fd6def0774a285ede53eb3575be964f3b5c1216c75f4c2c9720f122dbf0",
-			"bytes": 74135
+			"sha256": "83232e56ed11bed156f3d45066def60d41baa4603f5ec3ebe9b20317c534702c",
+			"bytes": 87352
 		},
 		"ledger/vectors/canonical-v1.json": {
 			"sha256": "68305c031dd3f951674d7cf010a11401f221fe87468796fd75216da58636124c",
@@ -152,12 +156,16 @@
 			"bytes": 4931
 		},
 		"policy-bundle.schema.json": {
-			"sha256": "a24411ad4ff9b3823a3807d62a76f8cc2ac55ef297328b3af1f62817b079d070",
-			"bytes": 5755
+			"sha256": "c62f7f014dcd50078872a09a6de1df9045a544510a8107ead92649b026105645",
+			"bytes": 5772
 		},
 		"privacy.json": {
-			"sha256": "aa0ec13ba9ea58648bf49fe48b7032ea1c9b00d1645e86d45df042705c5088f2",
-			"bytes": 42585
+			"sha256": "4e5bc8062d2006e140d98f3ee20d8db87ab6cb5874c47ad5760228da4db4fbf4",
+			"bytes": 44132
+		},
+		"refusal.schema.json": {
+			"sha256": "362197655cf6859e874ef84309eb33960065ea4cb5d2ad28c970ec2235103f23",
+			"bytes": 6249
 		},
 		"token-challenge.schema.json": {
 			"sha256": "762bde7d0db635ca4a14deeda64b1118f2d093c4ee627d27d50881a790171272",
