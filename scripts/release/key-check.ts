@@ -104,12 +104,30 @@ function fingerprintOf(publicPem: string): string | undefined {
 	}
 }
 
+/**
+ * The public half of an RSA private key, or undefined when it is not one:
+ * launch.ps1 verifies with an `RSAKeyValue` only.
+ */
 function publicHalf(privateKeyPem: string): string | undefined {
 	try {
-		return publicKeyOf(privateKeyPem);
+		const publicPem = publicKeyOf(privateKeyPem);
+		return createPublicKey(publicPem).asymmetricKeyType === "rsa"
+			? publicPem
+			: undefined;
 	} catch {
 		return undefined;
 	}
+}
+
+/** Whether parsed JSON has the shape `checkSigningKey` reads. */
+function isManifest(value: unknown): value is Manifest {
+	if (typeof value !== "object" || value === null) return false;
+	const { version, artifacts } = value as Record<string, unknown>;
+	return (
+		typeof version === "string" &&
+		typeof artifacts === "object" &&
+		artifacts !== null
+	);
 }
 
 /** Whether `privateKeyPem` is the pinned key and its signatures verify. Pure. */
@@ -190,14 +208,12 @@ function main(argv: readonly string[]): number {
 	let privateKeyPem: string;
 	let pinnedPem: string;
 	let pinnedXml: string;
-	let manifest: Manifest;
+	let parsed: unknown;
 	try {
 		privateKeyPem = readFileSync(keyPath, "utf-8");
 		pinnedPem = readFileSync(join(launcher, "release.pub.pem"), "utf-8");
 		pinnedXml = readFileSync(join(launcher, "release.pub.xml"), "utf-8");
-		manifest = JSON.parse(
-			readFileSync(join(dir, "manifest.json"), "utf-8"),
-		) as Manifest;
+		parsed = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf-8"));
 	} catch (err) {
 		// The message names the path, never the contents.
 		process.stderr.write(
@@ -205,6 +221,13 @@ function main(argv: readonly string[]): number {
 		);
 		return 1;
 	}
+	if (!isManifest(parsed)) {
+		process.stderr.write(
+			`key-check: ${join(dir, "manifest.json")} is not a runtime manifest\n`,
+		);
+		return 1;
+	}
+	const manifest = parsed;
 	const out = resolve(dir);
 	const checked = checkSigningKey({
 		privateKeyPem,

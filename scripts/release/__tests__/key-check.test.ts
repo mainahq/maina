@@ -9,7 +9,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { createHash, createPublicKey } from "node:crypto";
+import { createHash, createPublicKey, generateKeyPairSync } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -92,6 +92,32 @@ describe("checkSigningKey", () => {
 		expect(errorOf(input({ privateKeyPem: "" }))).toEqual({
 			kind: "invalid_key",
 		});
+	});
+
+	// launch.ps1 verifies with an RSAKeyValue only: a non-RSA key whose
+	// empty-modulus XML matches must not pass the check.
+	test("refuses a key that is not RSA, even when pinned", () => {
+		const { privateKey, publicKey } = generateKeyPairSync("ec", {
+			namedCurve: "P-256",
+		});
+		const ecPrivate = privateKey.export({
+			type: "pkcs8",
+			format: "pem",
+		}) as string;
+		const ecPublic = publicKey.export({
+			type: "spki",
+			format: "pem",
+		}) as string;
+		expect(
+			errorOf(
+				input({
+					privateKeyPem: ecPrivate,
+					pinnedPem: ecPublic,
+					pinnedXml: publicKeyXml(ecPublic),
+					manifest: manifestFor(signArtifact(BYTES, ecPrivate)),
+				}),
+			),
+		).toEqual({ kind: "invalid_key" });
 	});
 
 	test("refuses a key the launcher does not pin", () => {
@@ -231,6 +257,17 @@ describe("key-check script", () => {
 		expect(code).toBe(1);
 		expect(output).toContain("not the key the launcher pins");
 		expect(output).not.toMatch(/PRIVATE/);
+	});
+
+	test("exits 1 with a message, not a crash, on a manifest that is not one", () => {
+		const { launcher, out } = layout(keys.privatePem);
+		for (const bad of ["{}", "null", '{"version":"2.0.0"}']) {
+			writeFileSync(join(out, "manifest.json"), bad);
+			const { code, output } = run(launcher, out);
+			expect(code).toBe(1);
+			expect(output).toContain("manifest.json is not a runtime manifest");
+			expect(output).not.toMatch(/TypeError|at /);
+		}
 	});
 
 	test("exits 2 on missing arguments", () => {
