@@ -9,21 +9,14 @@
  * evidence.
  */
 
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { describe, expect, test } from "bun:test";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { resolveScopeFiles } from "../../git/scope";
 import { createFakeGit, createFakeProcess } from "../../ports/testing";
 import { filterByDiff } from "../diff-filter";
 import { runPipeline } from "../pipeline";
-
-const dirs: string[] = [];
-
-afterEach(() => {
-	for (const dir of dirs.splice(0))
-		rmSync(dir, { recursive: true, force: true });
-});
 
 /** Env for setup git calls, without any repo-local GIT_* leaked by a hook. */
 const gitEnv = (): Record<string, string> => {
@@ -51,8 +44,7 @@ const LEAKY = `export const a = 1;\nconst password = "hunter2-prod-value";\n`;
 
 /** A repo on `main` with one clean committed file, `src/app.ts`. */
 function makeRepo(): string {
-	const root = mkdtempSync(join(tmpdir(), "maina-scope-"));
-	dirs.push(root);
+	const root = testTmpDir("maina-scope-");
 	git(root, "init", "-q", "-b", "main");
 	git(root, "config", "user.email", "test@example.com");
 	git(root, "config", "user.name", "Test");

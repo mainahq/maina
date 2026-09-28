@@ -7,9 +7,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { startRun } from "../../orchestrator";
 import { resolveWorker } from "../registry";
 
@@ -31,7 +29,7 @@ describe.skipIf(requested.length === 0)("real agent smoke", () => {
 				);
 			}
 			expect(worker.value.protocol).toBe("acp");
-			const root = realpathSync(mkdtempSync(join(tmpdir(), "maina-smoke-")));
+			const root = testTmpDir("maina-smoke-");
 			const run = startRun({
 				agent: worker.value.launch,
 				task: "Reply with the single word OK. Do not use any tools.",

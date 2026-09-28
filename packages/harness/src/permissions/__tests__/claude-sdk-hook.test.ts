@@ -10,14 +10,12 @@ import { beforeAll, describe, expect, test } from "bun:test";
 import {
 	existsSync,
 	mkdirSync,
-	mkdtempSync,
 	readdirSync,
 	readFileSync,
-	realpathSync,
 	writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import type { SandboxOptions } from "../../sandbox/port";
 import { resolveWorker } from "../../workers/registry";
 import type { WorkerSpec } from "../../workers/spec";
@@ -229,7 +227,7 @@ describe("installClaudePreToolUse", () => {
 		stateDir: string;
 		sandbox: SandboxOptions;
 	} {
-		const base = realpathSync(mkdtempSync(join(tmpdir(), "maina-hook-")));
+		const base = testTmpDir("maina-hook-");
 		const worktree = join(base, "worktrees", "run-1");
 		const stateDir = join(base, "state");
 		mkdirSync(worktree, { recursive: true });
