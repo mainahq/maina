@@ -13,8 +13,6 @@
  */
 
 import { beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	client,
@@ -25,6 +23,7 @@ import {
 	type ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
 import type { FakeScript } from "../../__fixtures__/fake-acp-agent";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import {
 	type TestBridge,
 	testBridge,
@@ -44,7 +43,7 @@ const FIXTURE = join(
 	"__fixtures__",
 	"fake-acp-agent.ts",
 );
-const ROOT = realpathSync(mkdtempSync(join(tmpdir(), "maina-acp-proxy-")));
+const ROOT = testTmpDir("maina-acp-proxy-");
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

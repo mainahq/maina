@@ -5,14 +5,13 @@
  */
 
 import { beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
 	PermissionOption,
 	ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
 import type { FakeScript } from "../../__fixtures__/fake-acp-agent";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import {
 	type HarnessEvent,
 	INITIAL_STATE,
@@ -23,7 +22,7 @@ import { startRun } from "../../orchestrator";
 import { acpGatePolicy, bridgeAcpPermission } from "../acp-bridge";
 import { type TestBridge, testBridge } from "./gate-fixture";
 
-const ROOT = realpathSync(mkdtempSync(join(tmpdir(), "maina-acp-bridge-")));
+const ROOT = testTmpDir("maina-acp-bridge-");
 const CTX = { host: "acp:fake", sessionId: "s-1", root: ROOT } as const;
 
 const ONCE: readonly PermissionOption[] = [

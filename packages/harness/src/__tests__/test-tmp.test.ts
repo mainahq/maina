@@ -151,3 +151,48 @@ describe("testTmpDir: what afterAll and exit hooks cannot reach", () => {
 		expect(await emptied(parent)).toEqual([]);
 	}, 20_000);
 });
+
+/** Harness test files whose fixtures used to land straight in TMPDIR (#637). */
+const MOVED = [
+	"__tests__/orchestrator.test.ts",
+	"permissions/__tests__/acp-bridge.test.ts",
+	"permissions/__tests__/claude-sdk-hook.test.ts",
+	"permissions/__tests__/worker-gate.test.ts",
+	"proxy/__tests__/proxy.test.ts",
+	"run/__tests__/budget.test.ts",
+];
+
+describe("harness test fixtures: none left in TMPDIR (#637)", () => {
+	const src = join(import.meta.dir, "..");
+
+	test("no harness test makes a dir straight in the system temp dir", async () => {
+		const offenders: string[] = [];
+		for await (const file of new Bun.Glob("**/__tests__/**/*.ts").scan(src)) {
+			if (file === join("__tests__", "test-tmp.ts")) continue;
+			const text = await Bun.file(join(src, file)).text();
+			if (/\btmpdir\(\)/.test(text)) offenders.push(file);
+		}
+		expect(offenders.sort()).toEqual([]);
+	});
+
+	test("one `bun test` run over the moved files leaves nothing in TMPDIR", async () => {
+		const parent = testTmpDir("maina-tt-parent-");
+		const proc = Bun.spawn(
+			["bun", "test", ...MOVED.map((file) => join(src, file))],
+			{
+				cwd: join(src, ".."),
+				env: { ...process.env, TMPDIR: parent },
+				stdout: "ignore",
+				stderr: "pipe",
+			},
+		);
+		const [err, code] = await Promise.all([
+			new Response(proc.stderr).text(),
+			proc.exited,
+		]);
+		// A run that never started (a moved or renamed file) also leaves an
+		// empty TMPDIR: only a passing run proves the fixtures were cleaned.
+		expect({ code, err: code === 0 ? "" : err }).toEqual({ code: 0, err: "" });
+		expect(await emptied(parent)).toEqual([]);
+	}, 60_000);
+});

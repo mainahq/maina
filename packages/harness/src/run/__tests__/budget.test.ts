@@ -4,11 +4,10 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_POLICY, type Policy } from "@mainahq/core";
 import type { FakeScript } from "../../__fixtures__/fake-acp-agent";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import {
 	breachOf,
 	budgetsFor,
@@ -24,7 +23,7 @@ const FIXTURE = join(
 	"__fixtures__",
 	"fake-acp-agent.ts",
 );
-const ROOT = realpathSync(mkdtempSync(join(tmpdir(), "maina-run-budget-")));
+const ROOT = testTmpDir("maina-run-budget-");
 
 const fakeAgent = (script: FakeScript) => ({
 	name: "fake",

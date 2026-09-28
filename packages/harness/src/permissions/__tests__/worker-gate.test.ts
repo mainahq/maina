@@ -11,16 +11,14 @@ import {
 	existsSync,
 	lstatSync,
 	mkdirSync,
-	mkdtempSync,
 	readdirSync,
 	readFileSync,
-	realpathSync,
 	rmSync,
 	symlinkSync,
 	writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import type { SandboxOptions } from "../../sandbox/port";
 import { resolveWorker, WORKER_NAMES } from "../../workers/registry";
 import type { WorkerSpec } from "../../workers/spec";
@@ -48,7 +46,7 @@ function setup(): {
 	stateDir: string;
 	sandbox: SandboxOptions;
 } {
-	const base = realpathSync(mkdtempSync(join(tmpdir(), "maina-gate-")));
+	const base = testTmpDir("maina-gate-");
 	const worktree = join(base, "worktrees", "run-1");
 	const stateDir = join(base, "state");
 	mkdirSync(worktree, { recursive: true });

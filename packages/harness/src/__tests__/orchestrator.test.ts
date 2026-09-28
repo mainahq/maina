@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { FakeScript } from "../__fixtures__/fake-acp-agent";
 import type { HarnessEvent } from "../events";
@@ -11,6 +9,7 @@ import {
 	startRun,
 } from "../orchestrator";
 import { type SpawnAgent, spawnAgent } from "../worker";
+import { testTmpDir } from "./test-tmp";
 
 const FIXTURE = join(
 	import.meta.dir,
@@ -18,7 +17,7 @@ const FIXTURE = join(
 	"__fixtures__",
 	"fake-acp-agent.ts",
 );
-const ROOT = realpathSync(mkdtempSync(join(tmpdir(), "maina-harness-")));
+const ROOT = testTmpDir("maina-harness-");
 
 const allowAll: PermissionPolicy = () => "allow";
 
