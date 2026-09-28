@@ -35,6 +35,9 @@ packages/core/src/feedback/__tests__/tmp-capture-*
 .maina/benchmarks/*.json
 !.maina/benchmarks/stories/
 .maina/wiki/.search-index.json
+# Runtime files maina rewrites on every commit (#639, as master #261)
+.maina/wiki/.signals.json
+.maina/workflow/
 # Dogfood bootstrap (#286): per-machine decision log + local receipts
 .maina/dogfood/log.jsonl
 .maina/dogfood/receipts/

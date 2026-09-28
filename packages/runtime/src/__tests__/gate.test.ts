@@ -11,13 +11,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
 	existsSync,
 	mkdirSync,
-	mkdtempSync,
 	readFileSync,
-	realpathSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDecisionDb } from "@mainahq/cli/src/decision-store";
 import {
@@ -56,6 +53,7 @@ import {
 } from "../gate";
 import { branchCache, systemGates } from "../gate-system";
 import { noSpawn, tempEndpoint } from "./support";
+import { testTmpDir } from "./test-tmp";
 
 const ROOT = "/work/repo";
 let ctx: GateContext;
@@ -971,7 +969,7 @@ describe("branchCache (#459)", () => {
 describe("systemGates", () => {
 	let repo = "";
 	beforeAll(() => {
-		repo = mkdtempSync(join(tmpdir(), "maina-gate-"));
+		repo = testTmpDir("maina-gate-");
 		Bun.spawnSync(["git", "init", "-q", repo]);
 	});
 	afterAll(() => rmSync(repo, { recursive: true, force: true }));
@@ -1010,7 +1008,7 @@ describe("systemGates", () => {
 	describe("the managed policy layer", () => {
 		let home = "";
 		beforeAll(() => {
-			home = mkdtempSync(join(tmpdir(), "maina-gate-home-"));
+			home = testTmpDir("maina-gate-home-");
 		});
 		afterAll(() => rmSync(home, { recursive: true, force: true }));
 
@@ -1076,7 +1074,7 @@ describe("systemGates", () => {
 			if (p.exitCode !== 0) throw new Error(p.stderr.toString());
 		};
 		beforeAll(() => {
-			branchRepo = realpathSync(mkdtempSync(join(tmpdir(), "maina-gate-br-")));
+			branchRepo = testTmpDir("maina-gate-br-");
 			run(branchRepo, "init", "-q");
 			run(branchRepo, "checkout", "-q", "-b", "master");
 			run(
@@ -1133,9 +1131,7 @@ describe("systemGates", () => {
 			let pushRepo = "";
 			const bare = (dir: string) => shell("git push", dir);
 			beforeAll(() => {
-				pushRepo = realpathSync(
-					mkdtempSync(join(tmpdir(), "maina-gate-push-")),
-				);
+				pushRepo = testTmpDir("maina-gate-push-");
 				run(pushRepo, "init", "-q", "-b", "feature");
 			});
 			afterAll(() => rmSync(pushRepo, { recursive: true, force: true }));
@@ -1184,7 +1180,7 @@ describe("systemGates", () => {
 	});
 
 	test("reads the user policy, so `maina allow --always` takes effect (FR-GATE-8)", async () => {
-		const home = mkdtempSync(join(tmpdir(), "maina-gate-home-"));
+		const home = testTmpDir("maina-gate-home-");
 		try {
 			const push = shell("git push origin main", repo);
 			expect((await systemGates({ home }).runtime(push)).verdict).toBe("ask");
@@ -1205,7 +1201,7 @@ describe("systemGates", () => {
 	// repo's own salt (`.maina/private/log-salt`), loaded once per root.
 	describe("decision log", () => {
 		const repos: string[] = [];
-		const home = mkdtempSync(join(tmpdir(), "maina-gate-home-"));
+		const home = testTmpDir("maina-gate-home-");
 		afterAll(() => {
 			for (const r of [...repos, home]) {
 				rmSync(r, { recursive: true, force: true });
@@ -1214,7 +1210,7 @@ describe("systemGates", () => {
 
 		function newRepo(withMaina = true): string {
 			// The real path: the gate keys state by the resolved root.
-			const dir = realpathSync(mkdtempSync(join(tmpdir(), "maina-gate-log-")));
+			const dir = testTmpDir("maina-gate-log-");
 			Bun.spawnSync(["git", "init", "-q", dir]);
 			if (withMaina) mkdirSync(join(dir, ".maina"));
 			repos.push(dir);
@@ -1372,7 +1368,7 @@ describe("systemGates", () => {
 	});
 
 	test("an invalid user policy asks instead of being ignored", async () => {
-		const home = mkdtempSync(join(tmpdir(), "maina-gate-home-"));
+		const home = testTmpDir("maina-gate-home-");
 		try {
 			mkdirSync(join(home, ".maina"), { recursive: true });
 			writeFileSync(join(home, ".maina", "policy.json"), "{ nope");

@@ -5,7 +5,7 @@
 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { GateEvaluator, GateEvent } from "../gate";
 import type { SpawnRuntime } from "../lifecycle";
 import { type Endpoint, resolveEndpoint } from "../registry";
@@ -29,10 +29,18 @@ export function tempEndpoint(version = "1.0.0"): TempEndpoint {
 		version,
 		tmpDir: tmpdir(),
 	});
+	// A socket path too long for `sun_path` moves to a `maina-<digest>` dir
+	// directly under tmp (#639): remove that one too, or it outlives the test.
+	const socketDir = dirname(endpoint.address);
 	return {
 		dir,
 		endpoint,
-		cleanup: () => removeTempDir(dir),
+		cleanup: () => {
+			removeTempDir(dir);
+			if (process.platform !== "win32" && socketDir !== dir) {
+				removeTempDir(socketDir);
+			}
+		},
 	};
 }
 
