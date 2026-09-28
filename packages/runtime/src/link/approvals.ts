@@ -14,11 +14,10 @@
  *   approval-resolution key valid now. Anything else (a bad signature, an
  *   unknown key, a malformed answer) is a `deny`.
  * - **Unsigned resolutions.** While the cloud's signer is dark it marks
- *   resolutions unsigned (`keyId: "unsigned"`, an all-zero `sig`). They are
- *   held to the rule core holds an unsigned managed layer to (#592): they
- *   may tighten but never loosen an irreversible class. An unsigned denial
- *   denies and an unsigned approval of a reversible class allows; an
- *   unsigned approval of an irreversible class falls back to the local ask.
+ *   resolutions unsigned (`keyId: "unsigned"`, an all-zero `sig`). No
+ *   pinned key verifies them, so, as the runtime refuses an unsigned policy
+ *   bundle, they may tighten but never loosen: an unsigned denial denies,
+ *   and an unsigned approval of any class falls back to the local ask.
  * - **Fail closed.** No path here allows without an approval: an
  *   unreachable or refusing cloud, an unenrolled or revoked device and an
  *   unreadable state all resolve to the route's `onTimeout` (`deny` or
@@ -145,6 +144,12 @@ type Waiting = Readonly<{
 	/** The wait was cut to the hook's limit, short of the route's timeout. */
 	clamped: boolean;
 	deadline: number;
+	/**
+	 * Set once the host got its answer at the deadline: a port still running
+	 * past it may remember the ask but never applies (and so never uses up)
+	 * a resolution the host did not see.
+	 */
+	cut: { done: boolean };
 }>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -312,16 +317,19 @@ export function createRemoteApprovals(ports: ApprovalsPorts): Readonly<{
 		}
 		const dark = r.keyId === DARK_KEY_ID && r.sig === DARK_SIG;
 		if (!dark && !verified(w.state, r)) return untrusted;
+		// The host already has its answer: leave the resolution for a retry.
+		if (w.cut.done) return expired(w, entry);
 		forget(w.ask.key);
 		const by = resolver(r);
 		const named = { ...link, ...(by === undefined ? {} : { by }) };
 		const latencyMs = Math.max(0, Math.round(wall() - entry.sentAt));
 		switch (r.resolution) {
 			case "approved":
+				// Unverified, it may not loosen anything: the local prompt stands in.
+				if (dark)
+					return { outcome: "ask-local", note: note("untrusted", named) };
 				enqueue("approval.resolved", { resolution: "approved", latencyMs });
-				return dark && w.ask.irreversible
-					? { outcome: "ask-local", note: note("untrusted", named) }
-					: { outcome: "allow", note: note("approved", named) };
+				return { outcome: "allow", note: note("approved", named) };
 			case "denied":
 				enqueue("approval.resolved", { resolution: "denied", latencyMs });
 				return { outcome: "deny", note: note("denied", named) };
@@ -454,10 +462,12 @@ export function createRemoteApprovals(ports: ApprovalsPorts): Readonly<{
 					state: read.value,
 					clamped,
 					deadline: now() + budget,
+					cut: { done: false },
 				};
-				return await withDeadline(run(w, known), budget + GRACE_MS, () =>
-					expired(w, open.get(ask.key)),
-				);
+				return await withDeadline(run(w, known), budget + GRACE_MS, () => {
+					w.cut.done = true;
+					return expired(w, open.get(ask.key));
+				});
 			} catch {
 				return unavailable(route);
 			}

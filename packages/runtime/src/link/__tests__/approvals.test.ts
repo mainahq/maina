@@ -74,9 +74,12 @@ async function setup(
 	options: Readonly<{
 		enrol?: boolean;
 		onAsk?: (cloud: FakeCloud) => void;
+		/** Wraps the fake cloud's HTTP port, e.g. to stall a request. */
+		wrapHttp?: (cloud: FakeCloud) => FakeCloud["http"];
 	}> = {},
 ): Promise<Setup> {
 	const cloud = fakeCloud();
+	const http = options.wrapHttp?.(cloud) ?? cloud.http;
 	const files = fileLinkStore(join(dir, `link-${++setups}`));
 	let broken = false;
 	const store: LinkStore = {
@@ -87,7 +90,7 @@ async function setup(
 				: files.readState(),
 	};
 	const ports = {
-		http: cloud.http,
+		http,
 		store,
 		crypto: nodeLinkCrypto,
 		clock: () => new Date(NOW),
@@ -248,27 +251,29 @@ describe("awaitRemoteApproval", () => {
 		});
 	});
 
-	test("an unsigned approval (signer dark) never loosens an irreversible class", async () => {
-		const reversible = await setup({
-			onAsk: resolveFirst("approved", { signed: false }),
-		});
-		expect(
-			(await reversible.approvals.awaitRemoteApproval(ask(), LONG, HOOK))
-				.outcome,
-		).toBe("allow");
-
-		const irreversible = await setup({
-			onAsk: resolveFirst("approved", { signed: false }),
-		});
-		const got = await irreversible.approvals.awaitRemoteApproval(
-			ask({ actionClass: "fs.delete.recursive", irreversible: true }),
-			LONG,
-			HOOK,
-		);
-		expect(got).toMatchObject({
-			outcome: "ask-local",
-			note: { status: "untrusted" },
-		});
+	test("an unsigned approval (signer dark) never allows: the local prompt stands in", async () => {
+		// No pinned key verifies it, like an unsigned policy bundle: whatever
+		// the class, it falls back to the prompt the developer had anyway.
+		for (const irreversible of [false, true]) {
+			const s = await setup({
+				onAsk: resolveFirst("approved", { signed: false }),
+			});
+			const got = await s.approvals.awaitRemoteApproval(
+				ask(
+					irreversible
+						? { actionClass: "fs.delete.recursive", irreversible: true }
+						: {},
+				),
+				LONG,
+				HOOK,
+			);
+			expect(got).toMatchObject({
+				outcome: "ask-local",
+				note: { status: "untrusted" },
+			});
+			// Not applied, so not reported as resolved.
+			expect(s.events.map((e) => e.type)).toEqual(["approval.requested"]);
+		}
 
 		// An unsigned denial still denies: tightening needs no signature.
 		const denial = await setup({
@@ -277,6 +282,40 @@ describe("awaitRemoteApproval", () => {
 		expect(
 			(await denial.approvals.awaitRemoteApproval(ask(), LONG, HOOK)).outcome,
 		).toBe("deny");
+	});
+
+	test("a resolution landing after the hook's deadline stays for the retry", async () => {
+		// A port that ignores its timeout: the approver resolves the ask, but
+		// the wait brings the answer long after the hook's cut.
+		let stall = true;
+		const { cloud, approvals, events } = await setup({
+			wrapHttp: (fake) => ({
+				request: async (req) => {
+					if (stall && req.url.includes("/wait")) {
+						resolveFirst("approved")(fake);
+						const res = await fake.http.request(req);
+						await new Promise((r) => setTimeout(r, 400));
+						return res;
+					}
+					return fake.http.request(req);
+				},
+			}),
+		});
+		const got = await approvals.awaitRemoteApproval(ask(), LONG, {
+			timeoutMs: 20,
+		});
+		expect(got).toMatchObject({
+			outcome: "ask-local",
+			note: { status: "waiting" },
+		});
+		// The stalled wait answers in the background; it must not use up the
+		// approval the host never saw.
+		await new Promise((r) => setTimeout(r, 500));
+		expect(events.map((e) => e.type)).toEqual(["approval.requested"]);
+		stall = false;
+		const retried = await approvals.awaitRemoteApproval(ask(), LONG, HOOK);
+		expect(retried.outcome).toBe("allow");
+		expect(cloud.state.askCalls).toBe(1);
 	});
 
 	test("a route timeout past the hook's limit is clamped and falls back to ask-local", async () => {
