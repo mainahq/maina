@@ -97,6 +97,7 @@ What is released, and what the next release brings. The next release is read fro
 
 ### Fixes
 
+- The launchers now ship the real release public key (`release.pub.pem`, and `release.pub.xml` for PowerShell), so they install signed runtime artifacts instead of degrading with `no_release_key` (#424). _(@mainahq/plugins, @mainahq/runtime)_
 - `DECISION_BACKENDS` (`rules`, `heuristic`, `system1`) is exported from the policy schema, so the docs checks read the backend list from the code instead of repeating it. _(@mainahq/core)_
 - The standalone `maina` runtime can now load the engines the local `system1` model will run on, still as one `bun build --compile` file. _(@mainahq/cli)_
 - `maina verify` no longer reports inline type imports (`import { A, type B } from "…"`) as unused; the built-in unused-import check now strips the `type` modifier before looking for usages. _(@mainahq/core)_
