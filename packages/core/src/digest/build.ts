@@ -5,7 +5,9 @@
  * same way.
  *
  * - The gate log: the dogfood hook's `log.jsonl`, one JSON record per gated
- *   tool call (`parseGateLog`, then `gateLogEvents`).
+ *   tool call (`parseGateLog`, then `gateLogEvents`). The hook's post mode
+ *   appends `kind: "ran"` records to the same file; they are not decisions
+ *   and are skipped.
  * - The decision log: the repository's `action.risk` decisions with their
  *   gate subjects and override outcomes (`decisionLogEvents`).
  *
@@ -22,8 +24,9 @@ export type DigestVerdict = "allow" | "ask" | "deny";
 
 /**
  * One line of the gate log (`{ ts, tool, action, verdict, reason, override?,
- * root?, host?, permissionMode?, decisionIds? }`). The last four came with
- * #584 and are absent from older lines; when present they must be well formed.
+ * root?, host?, permissionMode?, decisionIds?, toolUseId?, sessionId? }`).
+ * The root, host, mode and ids came with #584, the tool use and session ids
+ * later; all are absent from older lines, and must be well formed when present.
  */
 export type GateLogRecord = Readonly<{
 	/** ISO-8601 timestamp. */
@@ -40,7 +43,14 @@ export type GateLogRecord = Readonly<{
 	permissionMode?: PermissionMode;
 	/** Ids of the `action.risk` decisions behind the verdict (`decision_outcome` joins on them). */
 	decisionIds?: readonly string[];
+	/** Claude Code's `tool_use_id`: pairs the record with the call's `ran` record. */
+	toolUseId?: string;
+	/** Claude Code's `session_id`. */
+	sessionId?: string;
 }>;
+
+/** The kind of the post hook's records: the gated call ran. */
+export const RAN_KIND = "ran";
 
 /** One gated action, whichever log it came from. */
 export type DigestEvent = Readonly<{
@@ -152,14 +162,24 @@ function asRecord(v: unknown): GateLogRecord | undefined {
 		!optional(r.root, isString) ||
 		!optional(r.host, isString) ||
 		!optional(r.permissionMode, (m) => MODES.has(m)) ||
-		!optional(r.decisionIds, isStringList)
+		!optional(r.decisionIds, isStringList) ||
+		!optional(r.toolUseId, isString) ||
+		!optional(r.sessionId, isString)
 	) {
 		return undefined;
 	}
 	return r as unknown as GateLogRecord;
 }
 
-/** The gate log's valid records, and how many lines were not one. */
+const isRan = (v: unknown): boolean =>
+	typeof v === "object" &&
+	v !== null &&
+	(v as Record<string, unknown>).kind === RAN_KIND;
+
+/**
+ * The gate log's valid records, and how many lines were not one. The post
+ * hook's `ran` records are neither: they are skipped.
+ */
 export function parseGateLog(text: string): Readonly<{
 	records: readonly GateLogRecord[];
 	malformed: number;
@@ -169,7 +189,9 @@ export function parseGateLog(text: string): Readonly<{
 	for (const line of text.split("\n")) {
 		if (line.trim() === "") continue;
 		try {
-			const rec = asRecord(JSON.parse(line));
+			const value: unknown = JSON.parse(line);
+			if (isRan(value)) continue;
+			const rec = asRecord(value);
 			if (rec) records.push(rec);
 			else malformed++;
 		} catch {

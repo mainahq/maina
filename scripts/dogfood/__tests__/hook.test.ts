@@ -1,7 +1,8 @@
 /**
  * The repo's dogfood PreToolUse hook (#286, #309): the real Claude Code
  * adapter and fail-closed hook client, run from source, tightening only,
- * with every decision logged for the weekly report.
+ * with every decision logged for the weekly report. Its `post` mode logs
+ * which gated calls ran, so an ask's outcome can be read off the log.
  */
 
 import { afterAll, describe, expect, test } from "bun:test";
@@ -19,7 +20,12 @@ import { join, resolve } from "node:path";
 import { parseGateLog } from "../../../packages/core/src/digest/build";
 import type { ClaudeHookPorts } from "../../../packages/runtime/src/claude-hook";
 import { systemGates } from "../../../packages/runtime/src/gate-system";
-import { type LogRecord, runDogfoodHook } from "../hook";
+import {
+	type LogRecord,
+	type RanRecord,
+	runDogfoodHook,
+	runDogfoodPostHook,
+} from "../hook";
 
 const ROOT = resolve(import.meta.dir, "../../..");
 const NOW = "2026-09-25T10:00:00.000Z";
@@ -105,8 +111,39 @@ describe("runDogfoodHook", () => {
 				host: "claude-code",
 				permissionMode: "default",
 				decisionIds: [],
+				toolUseId: "t1",
+				sessionId: "s1",
 			},
 		]);
+	});
+
+	// FR-S1-4, FR-DOG-3: the ids pair a pre record with the post hook's `ran`
+	// record, which says whether an ask was approved.
+	test("records carry the tool use and session ids from the payload", async () => {
+		const { logged } = await run(bash("rm -rf dist"), gate("ask"));
+		expect(logged[0]).toMatchObject({ toolUseId: "t1", sessionId: "s1" });
+	});
+
+	test("ids absent from the payload are left out of the record", async () => {
+		const { logged } = await run(
+			JSON.stringify({
+				cwd: "/work/maina",
+				hook_event_name: "PreToolUse",
+				tool_name: "Bash",
+				tool_input: { command: "ls" },
+				session_id: 7,
+			}),
+			gate("allow"),
+		);
+		expect(logged).toHaveLength(1);
+		expect(logged[0]).not.toHaveProperty("toolUseId");
+		expect(logged[0]).not.toHaveProperty("sessionId");
+	});
+
+	test("malformed stdin logs no ids", async () => {
+		const { logged } = await run("{nope", gate("allow"));
+		expect(logged[0]).not.toHaveProperty("toolUseId");
+		expect(logged[0]).not.toHaveProperty("sessionId");
 	});
 
 	// #584: the exporter rebuilds the event under its workspace root (so
@@ -262,13 +299,182 @@ describe("runDogfoodHook", () => {
 	});
 });
 
+// ── Post mode: which gated calls ran ─────────────────────────────────────
+
+const SECRET = "tool output: AKIA-secret-file-contents";
+
+const post = (
+	toolName: string,
+	toolInput: Record<string, unknown>,
+	extra: Record<string, unknown> = {},
+): string =>
+	JSON.stringify({
+		session_id: "s1",
+		transcript_path: "/dev/null",
+		cwd: "/work/maina",
+		permission_mode: "default",
+		hook_event_name: "PostToolUse",
+		tool_name: toolName,
+		tool_input: toolInput,
+		tool_response: { stdout: SECRET, content: SECRET },
+		tool_use_id: "t1",
+		...extra,
+	});
+
+function runPost(
+	raw: string,
+	rootOf: (cwd: string) => string | null = workRoot,
+): { out: ReturnType<typeof runDogfoodPostHook>; logged: RanRecord[] } {
+	const logged: RanRecord[] = [];
+	const out = runDogfoodPostHook(raw, {
+		now: () => NOW,
+		rootOf,
+		log: (record) => logged.push(record),
+	});
+	return { out, logged };
+}
+
+const SILENT_OUT = { exitCode: 0, stdout: "", stderr: "" };
+
+describe("runDogfoodPostHook", () => {
+	test("a gated tool that ran is logged as ran, silently", () => {
+		const { out, logged } = runPost(post("Bash", { command: "rm -rf dist" }));
+		expect(out).toEqual(SILENT_OUT);
+		expect(logged).toEqual([
+			{
+				ts: NOW,
+				kind: "ran",
+				tool: "Bash",
+				action: "rm -rf dist",
+				toolUseId: "t1",
+				sessionId: "s1",
+				root: "/work/maina",
+				host: "claude-code",
+			},
+		]);
+	});
+
+	test("the action is extracted as the pre record's is", async () => {
+		const cases: Array<[string, Record<string, unknown>, string]> = [
+			[
+				"Write",
+				{ file_path: "/work/maina/a.ts", content: SECRET },
+				"/work/maina/a.ts",
+			],
+			[
+				"Edit",
+				{ file_path: "/work/maina/b.ts", new_string: SECRET },
+				"/work/maina/b.ts",
+			],
+			["Read", { file_path: "/etc/hosts" }, "/etc/hosts"],
+			[
+				"WebFetch",
+				{ url: "https://example.com", prompt: "x" },
+				"https://example.com",
+			],
+			["mcp__github__create_issue", { title: "t" }, "github/create_issue"],
+		];
+		for (const [tool, input, action] of cases) {
+			const pre = await run(
+				JSON.stringify({
+					session_id: "s1",
+					cwd: "/work/maina",
+					hook_event_name: "PreToolUse",
+					tool_name: tool,
+					tool_input: input,
+					tool_use_id: "t1",
+				}),
+				gate("allow"),
+			);
+			const { logged } = runPost(post(tool, input));
+			expect(logged[0]?.action).toBe(action);
+			expect(logged[0]?.action).toBe(pre.logged[0]?.action ?? "");
+		}
+	});
+
+	test("long actions are truncated as on the pre record", () => {
+		const { logged } = runPost(
+			post("Bash", { command: `echo ${"x".repeat(300)}` }),
+		);
+		expect(logged[0]?.action.length).toBe(200);
+		expect(logged[0]?.action.endsWith("...")).toBe(true);
+	});
+
+	test("never records the tool response or file contents", () => {
+		const { logged } = runPost(
+			post("Write", { file_path: "/work/maina/a.ts", content: SECRET }),
+		);
+		expect(logged).toHaveLength(1);
+		expect(JSON.stringify(logged)).not.toContain("secret");
+	});
+
+	test("ids absent from the payload are left out", () => {
+		const { logged } = runPost(
+			post(
+				"Bash",
+				{ command: "ls" },
+				{ session_id: undefined, tool_use_id: 3 },
+			),
+		);
+		expect(logged).toHaveLength(1);
+		expect(logged[0]).not.toHaveProperty("toolUseId");
+		expect(logged[0]).not.toHaveProperty("sessionId");
+	});
+
+	test("a tool maina does not gate is not logged", () => {
+		const { out, logged } = runPost(post("TodoWrite", { todos: [] }));
+		expect(out).toEqual(SILENT_OUT);
+		expect(logged).toEqual([]);
+	});
+
+	test("malformed input logs nothing and exits 0 silently", () => {
+		for (const raw of [
+			"{nope",
+			"",
+			"[]",
+			JSON.stringify({ hook_event_name: "PostToolUse" }),
+			JSON.stringify({ hook_event_name: "PostToolUse", tool_name: "Bash" }),
+			post("Bash", {}),
+			post("Bash", { command: "ls" }, { hook_event_name: "PreToolUse" }),
+		]) {
+			const { out, logged } = runPost(raw);
+			expect(out).toEqual(SILENT_OUT);
+			expect(logged).toEqual([]);
+		}
+	});
+
+	test("a log or root lookup that throws never fails the tool", () => {
+		const out = runDogfoodPostHook(post("Bash", { command: "ls" }), {
+			now: () => NOW,
+			rootOf: () => {
+				throw new Error("git missing");
+			},
+			log: () => {
+				throw new Error("disk full");
+			},
+		});
+		expect(out).toEqual(SILENT_OUT);
+	});
+});
+
 // ── The settings.json wiring, end to end ──────────────────────────────────
 
-function hookCommand(): string {
+const GATED_MATCHER =
+	"Bash|Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|WebFetch|mcp__.*";
+
+function settingsHooks(
+	event: "PreToolUse" | "PostToolUse",
+): Array<{ matcher: string; hooks: Array<Record<string, unknown>> }> {
 	const settings = JSON.parse(
 		readFileSync(join(ROOT, ".claude/settings.json"), "utf-8"),
 	);
-	const cmd = settings.hooks.PreToolUse[0]?.hooks[0]?.command;
+	return settings.hooks[event] ?? [];
+}
+
+function hookCommand(
+	event: "PreToolUse" | "PostToolUse" = "PreToolUse",
+): string {
+	const cmd = settingsHooks(event)[0]?.hooks[0]?.command;
 	expect(typeof cmd).toBe("string");
 	return cmd as string;
 }
@@ -276,8 +482,9 @@ function hookCommand(): string {
 async function runShell(
 	stdin: string,
 	env: Record<string, string>,
+	event: "PreToolUse" | "PostToolUse" = "PreToolUse",
 ): Promise<{ code: number; stdout: string; stderr: string }> {
-	const proc = Bun.spawn(["sh", "-c", hookCommand()], {
+	const proc = Bun.spawn(["sh", "-c", hookCommand(event)], {
 		stdin: new Blob([stdin]),
 		stdout: "pipe",
 		stderr: "pipe",
@@ -335,6 +542,53 @@ describe("repo wiring", () => {
 		});
 		expect(Array.isArray(record.decisionIds)).toBe(true);
 	}, 20_000);
+
+	test("PostToolUse runs the post mode for the gated tools, never failing the tool", () => {
+		const pre = settingsHooks("PreToolUse");
+		const entries = settingsHooks("PostToolUse");
+		expect(entries).toHaveLength(1);
+		expect(entries[0]?.matcher).toBe(GATED_MATCHER);
+		expect(entries[0]?.matcher).toBe(pre[0]?.matcher);
+		expect(entries[0]?.hooks).toEqual([
+			{
+				type: "command",
+				command:
+					'bun "$CLAUDE_PROJECT_DIR/scripts/dogfood/hook.ts" post; exit 0',
+				timeout: 10,
+			},
+		]);
+	});
+
+	test("the post hook logs a ran record and prints nothing", async () => {
+		const log = join(scratch, "post-log.jsonl");
+		const out = await runShell(
+			post("Bash", { command: "ls" }, { cwd: ROOT }),
+			{ CLAUDE_PROJECT_DIR: ROOT, MAINA_DOGFOOD_LOG: log },
+			"PostToolUse",
+		);
+		expect(out).toEqual({ code: 0, stdout: "", stderr: "" });
+		expect(JSON.parse(readFileSync(log, "utf-8").trim())).toMatchObject({
+			kind: "ran",
+			tool: "Bash",
+			action: "ls",
+			toolUseId: "t1",
+			sessionId: "s1",
+			root: ROOT,
+			host: "claude-code",
+		});
+	});
+
+	test("the post hook exits 0 when it cannot run", async () => {
+		const empty = join(scratch, "empty-post");
+		mkdirSync(empty);
+		const out = await runShell(
+			post("Bash", { command: "ls" }),
+			{ CLAUDE_PROJECT_DIR: empty },
+			"PostToolUse",
+		);
+		expect(out.code).toBe(0);
+		expect(out.stdout).toBe("");
+	});
 
 	test("the repo policy protects master and v1/main (#459)", async () => {
 		const gates = systemGates();

@@ -24,12 +24,23 @@
  * Every gated decision is appended to `.maina/dogfood/log.jsonl`
  * (gitignored; `MAINA_DOGFOOD_LOG` overrides the path) as
  * `{ ts, tool, action, verdict, reason, override?, root, host,
- * permissionMode, decisionIds }`: a local trail with the command text, for
- * friction reports. `root`, `host`, `permissionMode` and `decisionIds`
- * (#584) let an exporter rebuild the gate event under its workspace root and
- * join the record to the decision log's outcomes. The weekly report reads
- * the decision log instead (`.maina/decisions.db`, #570), which the runtime
- * this hook asks appends its gate decisions to, as hashes and labels only.
+ * permissionMode, decisionIds, toolUseId?, sessionId? }`: a local trail with
+ * the command text, for friction reports. `root`, `host`, `permissionMode`
+ * and `decisionIds` (#584) let an exporter rebuild the gate event under its
+ * workspace root and join the record to the decision log's outcomes. The
+ * weekly report reads the decision log instead (`.maina/decisions.db`,
+ * #570), which the runtime this hook asks appends its gate decisions to, as
+ * hashes and labels only.
+ *
+ * Outcomes (FR-S1-4, FR-DOG-3): `hook.ts post`, wired as the `PostToolUse`
+ * hook for the same tools, appends `{ ts, kind: "ran", tool, action,
+ * toolUseId?, sessionId?, root, host }` for each gated call that ran. It
+ * never blocks, prints or fails the tool, and never records the tool's
+ * response. Claude Code runs PostToolUse only for a tool that ran, so an ask
+ * whose `toolUseId` has a `ran` record in the same session was approved; an
+ * ask without one was refused or abandoned. Set `MAINA_DOGFOOD_LOG` globally
+ * (say to `~/.maina/dogfood/log.jsonl`) so every checkout and worktree
+ * appends to one file.
  */
 
 import {
@@ -38,11 +49,14 @@ import {
 } from "../../packages/core/src/gate/events";
 import {
 	CLAUDE_HOST,
+	type ClaudeEvent,
 	type ClaudeOutput,
+	fromClaude,
 } from "../../packages/runtime/src/adapters/claude-code";
 import {
 	type ClaudeHookPorts,
 	type ClaudeHookRun,
+	parseHookInput,
 	runClaudeHook,
 } from "../../packages/runtime/src/claude-hook";
 
@@ -68,6 +82,36 @@ export interface LogRecord {
 	readonly permissionMode: PermissionMode;
 	/** Ids of the `action.risk` decisions behind the verdict. */
 	readonly decisionIds: readonly string[];
+	/** Claude Code's `tool_use_id`, when the payload had one. */
+	readonly toolUseId?: string;
+	/** Claude Code's `session_id`, when the payload had one. */
+	readonly sessionId?: string;
+}
+
+/**
+ * The post hook's line: a gated call ran. Paired with the pre record by
+ * `toolUseId` (within `sessionId`), it says an ask was approved. Never holds
+ * the tool's response.
+ */
+export interface RanRecord {
+	readonly ts: string;
+	readonly kind: "ran";
+	readonly tool: string;
+	/** As on the pre record: the command, path, URL or MCP tool. */
+	readonly action: string;
+	readonly toolUseId?: string;
+	readonly sessionId?: string;
+	/** Workspace root, as on the pre record; empty when unknown. */
+	readonly root: string;
+	readonly host: string;
+}
+
+export interface DogfoodPostDeps {
+	readonly now: () => string;
+	/** As `DogfoodDeps.rootOf`. */
+	readonly rootOf: (cwd: string) => string | null;
+	/** Appends one record; best-effort. */
+	readonly log: (record: RanRecord) => void;
 }
 
 export interface DogfoodDeps {
@@ -91,9 +135,9 @@ const MAX_ACTION = 200;
 const SILENT: ClaudeOutput = { exitCode: 0, stdout: "", stderr: "" };
 
 /** What the tool call does, for the log: its command, path, tool or URL. */
-function actionOf(run: ClaudeHookRun): string {
-	if (run.event.type !== "gate") return "";
-	const { input } = run.event.event;
+function actionOf(event: ClaudeEvent): string {
+	if (event.type !== "gate") return "";
+	const { input } = event.event;
 	const pick = [input.command, input.path, input.url].find(
 		(v): v is string => typeof v === "string",
 	);
@@ -143,6 +187,22 @@ function contextOf(
 	};
 }
 
+const isRecord = (v: unknown): v is Readonly<Record<string, unknown>> =>
+	typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * The payload's `tool_use_id` and `session_id`, best-effort: each is left
+ * out unless it is a non-empty string.
+ */
+function idsOf(payload: unknown): Pick<LogRecord, "toolUseId" | "sessionId"> {
+	if (!isRecord(payload)) return {};
+	const { tool_use_id: toolUseId, session_id: sessionId } = payload;
+	return {
+		...(typeof toolUseId === "string" && toolUseId !== "" ? { toolUseId } : {}),
+		...(typeof sessionId === "string" && sessionId !== "" ? { sessionId } : {}),
+	};
+}
+
 /**
  * Runs the hook over raw stdin and returns what to print. Logs every gated
  * or malformed tool call; leaves tools maina does not gate alone.
@@ -164,12 +224,13 @@ export async function runDogfoodHook(
 		deps.log({
 			ts: deps.now(),
 			tool: run.event.type === "gate" ? run.event.tool : "unknown",
-			action: actionOf(run),
+			action: actionOf(run.event),
 			verdict: final.verdict,
 			reason: malformed ? `hook crash: ${final.reason}` : final.reason,
 			...(overridden ? { override: true as const } : {}),
 			...contextOf(run, deps.rootOf),
 			decisionIds: decision.decisionIds,
+			...(malformed ? {} : idsOf(parseHookInput(raw))),
 		});
 	} catch {
 		// Logging is best-effort; it never changes the decision.
@@ -189,6 +250,41 @@ export async function runDogfoodHook(
 	};
 }
 
+/**
+ * The post mode: logs a gated call that ran (`PostToolUse`). The payload is
+ * read as its PreToolUse twin would be, so the tool and action match the
+ * pre record's; the tool's response is never looked at. Always silent and
+ * exit 0: it never blocks or fails the tool. Tools maina does not gate and
+ * payloads it cannot read are not logged.
+ */
+export function runDogfoodPostHook(
+	raw: string,
+	deps: DogfoodPostDeps,
+): ClaudeOutput {
+	try {
+		const payload = parseHookInput(raw);
+		if (!isRecord(payload) || payload.hook_event_name !== "PostToolUse") {
+			return SILENT;
+		}
+		const { tool_response: _response, ...call } = payload;
+		const event = fromClaude({ ...call, hook_event_name: HOOK_EVENT });
+		if (event.type !== "gate") return SILENT;
+		const { cwd, input } = event.event;
+		deps.log({
+			ts: deps.now(),
+			kind: "ran",
+			tool: event.tool,
+			action: actionOf(event),
+			...idsOf(payload),
+			root: cwd === undefined ? "" : rootFor(cwd, deps.rootOf),
+			host: typeof input.host === "string" ? input.host : CLAUDE_HOST,
+		});
+	} catch {
+		// Best-effort: the tool already ran; nothing here may fail it.
+	}
+	return SILENT;
+}
+
 // ── Imperative shell ─────────────────────────────────────────────────────
 
 if (import.meta.main) {
@@ -204,19 +300,29 @@ if (import.meta.main) {
 	const logPath =
 		process.env.MAINA_DOGFOOD_LOG ??
 		resolve(repoRoot, ".maina/dogfood/log.jsonl");
-	const out = await runDogfoodHook(await Bun.stdin.text(), {
-		ports: systemClaudeHookPorts(),
-		override: process.env.MAINA_DOGFOOD_OVERRIDE === "1",
-		now: () => new Date().toISOString(),
-		rootOf: (cwd) => {
-			const root = resolveRoot({ cwd }, gitProbe);
-			return root.ok ? root.value.path : null;
-		},
-		log: (record) => {
-			mkdirSync(dirname(logPath), { recursive: true });
-			appendFileSync(logPath, `${JSON.stringify(record)}\n`);
-		},
-	});
+	const rootOf = (cwd: string): string | null => {
+		const root = resolveRoot({ cwd }, gitProbe);
+		return root.ok ? root.value.path : null;
+	};
+	const append = (record: LogRecord | RanRecord): void => {
+		mkdirSync(dirname(logPath), { recursive: true });
+		appendFileSync(logPath, `${JSON.stringify(record)}\n`);
+	};
+	const stdin = await Bun.stdin.text();
+	const out =
+		process.argv[2] === "post"
+			? runDogfoodPostHook(stdin, {
+					now: () => new Date().toISOString(),
+					rootOf,
+					log: append,
+				})
+			: await runDogfoodHook(stdin, {
+					ports: systemClaudeHookPorts(),
+					override: process.env.MAINA_DOGFOOD_OVERRIDE === "1",
+					now: () => new Date().toISOString(),
+					rootOf,
+					log: append,
+				});
 	process.stdout.write(out.stdout);
 	process.stderr.write(out.stderr);
 	process.exitCode = out.exitCode;

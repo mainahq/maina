@@ -14,6 +14,14 @@
  * `maina digest --dogfood --commit`, and the weekly workflow keeps a
  * committed report rather than overwriting it.
  *
+ * It also prints an outcomes line to stdout, not into the committed report
+ * (which must stay what `maina digest --dogfood` writes from the decision
+ * log): of the week's asks in the dogfood hook log (`MAINA_DOGFOOD_LOG`, or
+ * `.maina/dogfood/log.jsonl`) that carry a tool use id, how many ran, that
+ * is the user approved them, and how many did not (refused or abandoned).
+ * An ask ran when the hook's post mode logged a `ran` record with its tool
+ * use id in the same session. A log without ids prints nothing more.
+ *
  * Usage:
  *   bun run dogfood:report                 # the week that just ended
  *   bun run dogfood:report --week 2026-39  # a specific week
@@ -28,6 +36,8 @@ import {
 	type DigestEvent,
 	isoWeek,
 	isWeekKey,
+	parseGateLog,
+	RAN_KIND,
 	type WeekBounds,
 	weekBounds,
 } from "../../packages/core/src/digest/build";
@@ -65,10 +75,70 @@ export function decisionLog(root: string): ReportDeps["readEvents"] {
 	return (bounds) => readDecisionEvents(`${root}/.maina`, bounds);
 }
 
+/** What became of a week's asks that carry a tool use id. */
+export interface AskOutcomes {
+	readonly asked: number;
+	/** A `ran` record followed: the user approved the call. */
+	readonly ran: number;
+	/** No `ran` record: the user refused or abandoned the call. */
+	readonly notRan: number;
+}
+
+const pairKey = (toolUseId: string, sessionId: unknown): string =>
+	`${typeof sessionId === "string" ? sessionId : ""}\u0000${toolUseId}`;
+
+/** The `ran` records' pairing keys; malformed lines are skipped. */
+function ranKeys(logText: string): ReadonlySet<string> {
+	const keys = new Set<string>();
+	for (const line of logText.split("\n")) {
+		if (line.trim() === "") continue;
+		try {
+			const r = JSON.parse(line) as Record<string, unknown> | null;
+			if (r?.kind === RAN_KIND && typeof r.toolUseId === "string") {
+				keys.add(pairKey(r.toolUseId, r.sessionId));
+			}
+		} catch {
+			// Not a record.
+		}
+	}
+	return keys;
+}
+
+/**
+ * Pairs `week`'s asks in the dogfood hook log with the post hook's `ran`
+ * records by tool use id, within a session. Asks without an id (older
+ * lines) cannot be paired and are left out. A `ran` record may fall after
+ * the week. Pure.
+ */
+export function askOutcomes(logText: string, week: string): AskOutcomes {
+	const ran = ranKeys(logText);
+	let asked = 0;
+	let approved = 0;
+	for (const r of parseGateLog(logText).records) {
+		if (r.verdict !== "ask" || r.toolUseId === undefined) continue;
+		if (isoWeek(r.ts) !== week) continue;
+		asked++;
+		if (ran.has(pairKey(r.toolUseId, r.sessionId))) approved++;
+	}
+	return { asked, ran: approved, notRan: asked - approved };
+}
+
+/** The outcomes line the CLI prints, or undefined when no ask has an id. */
+export function outcomesLine(
+	logText: string,
+	week: string,
+): string | undefined {
+	const o = askOutcomes(logText, week);
+	if (o.asked === 0) return undefined;
+	return `outcomes: of ${o.asked} asks with a tool use id, ${o.ran} ran (approved), ${o.notRan} did not (refused or abandoned)`;
+}
+
 // ── CLI (imperative shell) ────────────────────────────────────────────────
 
 if (import.meta.main) {
-	const { mkdirSync, writeFileSync } = await import("node:fs");
+	const { existsSync, mkdirSync, readFileSync, writeFileSync } = await import(
+		"node:fs"
+	);
 	const { dirname, resolve } = await import("node:path");
 	const root = resolve(import.meta.dir, "../..");
 	const argv = process.argv.slice(2);
@@ -86,6 +156,17 @@ if (import.meta.main) {
 	});
 	if (r.ok) {
 		process.stdout.write(`Wrote ${r.value}\n`);
+		const logPath =
+			process.env.MAINA_DOGFOOD_LOG ??
+			resolve(root, ".maina/dogfood/log.jsonl");
+		try {
+			const line = existsSync(logPath)
+				? outcomesLine(readFileSync(logPath, "utf-8"), week)
+				: undefined;
+			if (line !== undefined) process.stdout.write(`${line}\n`);
+		} catch {
+			// The hook log is a local extra; the report stands without it.
+		}
 	} else {
 		process.stderr.write(`dogfood report: ${r.error}\n`);
 		process.exitCode = 1;

@@ -123,6 +123,14 @@ only); the hook also keeps a local trail with the command text in
 Claude Code is started in a v1 checkout (project settings load from the
 directory Claude Code starts in, not from a worktree under it).
 
+A `PostToolUse` hook (`hook.ts post`) appends a `ran` record for each gated
+call that ran, with the call's `toolUseId` and `sessionId` (never its
+output), so an ask's outcome can be read from the log: approved if it ran,
+refused or abandoned if not. `bun run dogfood:report` prints the week's
+counts. Set `MAINA_DOGFOOD_LOG` globally, for example to
+`~/.maina/dogfood/log.jsonl` in your shell profile, so every checkout and
+worktree appends to one file.
+
 The weekly dogfood report comes from the decision log. Commit the week that
 just ended from the checkout where the gate ran:
 
