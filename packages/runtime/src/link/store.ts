@@ -2,11 +2,13 @@
  * Where an enrolled device keeps its Link identity (#589, adr 0051).
  *
  * One directory per user, `~/.maina/link` (or `MAINA_LINK_DIR`), created
- * owner-only (0700), holding two owner-only (0600) files:
+ * owner-only (0700), holding owner-only (0600) files:
  *
  *   device.key   the Ed25519 private key, PKCS#8 PEM
  *   device.json  the enrolment: device and org ids, the pinned org keys,
  *                the org link salt, the endpoints, the revocation mark
+ *   outbox.log   the events waiting for the cloud, encrypted under a key
+ *                derived from the device key (#590, `outbox.ts`)
  *
  * Files are written to a fresh owner-only temp file and renamed into place,
  * so a crash never leaves half a key and an existing file with looser
@@ -17,6 +19,7 @@
 
 import { randomBytes } from "node:crypto";
 import {
+	appendFileSync,
 	chmodSync,
 	mkdirSync,
 	readFileSync,
@@ -68,12 +71,21 @@ export type LinkStore = Readonly<{
 	writeState: (state: DeviceState) => Result<void, StoreError>;
 	readPrivateKey: () => Result<string | null, StoreError>;
 	writePrivateKey: (pem: string) => Result<void, StoreError>;
-	/** Removes the key and the state (a local logout). */
+	/** The outbox journal (`outbox.ts`); null when there is none. */
+	readOutbox: () => Result<string | null, StoreError>;
+	/** Replaces the whole journal, atomically. */
+	writeOutbox: (text: string) => Result<void, StoreError>;
+	/** Appends lines to the journal `writeOutbox` started. */
+	appendOutbox: (text: string) => Result<void, StoreError>;
+	/** Moves an unreadable journal aside as `outbox.log.<reason>`. */
+	setAsideOutbox: (reason: string) => Result<void, StoreError>;
+	/** Removes the key, the state and the outbox (a local logout). */
 	clear: () => Result<void, StoreError>;
 }>;
 
 const KEY_FILE = "device.key";
 const STATE_FILE = "device.json";
+const OUTBOX_FILE = "outbox.log";
 const DATA_CLASSES: readonly DataClass[] = ["metadata", "names", "rich"];
 
 /** `MAINA_LINK_DIR`, else `<home>/.maina/link`. */
@@ -154,6 +166,7 @@ export function fileLinkStore(
 	const posix = platform !== "win32";
 	const keyPath = join(dir, KEY_FILE);
 	const statePath = join(dir, STATE_FILE);
+	const outboxPath = join(dir, OUTBOX_FILE);
 
 	function ensureDir(): Result<void, StoreError> {
 		try {
@@ -248,10 +261,47 @@ export function fileLinkStore(
 			}
 		},
 		writePrivateKey: (pem) => writeOwnerOnly(keyPath, pem),
+		readOutbox: () => {
+			try {
+				return { ok: true, value: readFileSync(outboxPath, "utf-8") };
+			} catch (e) {
+				if (isMissing(e)) return { ok: true, value: null };
+				return {
+					ok: false,
+					error: { kind: "store", op: "read", message: message(e) },
+				};
+			}
+		},
+		writeOutbox: (text) => writeOwnerOnly(outboxPath, text),
+		appendOutbox: (text) => {
+			try {
+				// `writeOutbox` created it owner-only; `mode` covers a lost race.
+				appendFileSync(outboxPath, text, { mode: 0o600 });
+				return { ok: true, value: undefined };
+			} catch (e) {
+				return {
+					ok: false,
+					error: { kind: "store", op: "append", message: message(e) },
+				};
+			}
+		},
+		setAsideOutbox: (reason) => {
+			try {
+				renameSync(outboxPath, `${outboxPath}.${reason}`);
+				return { ok: true, value: undefined };
+			} catch (e) {
+				if (isMissing(e)) return { ok: true, value: undefined };
+				return {
+					ok: false,
+					error: { kind: "store", op: "rename", message: message(e) },
+				};
+			}
+		},
 		clear: () => {
 			try {
 				rmSync(keyPath, { force: true });
 				rmSync(statePath, { force: true });
+				rmSync(outboxPath, { force: true });
 				return { ok: true, value: undefined };
 			} catch (e) {
 				return {

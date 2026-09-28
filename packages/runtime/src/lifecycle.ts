@@ -213,3 +213,50 @@ export async function ensureRuntime(
 		if (holdsLock) releaseSpawnLock(endpoint, pid);
 	}
 }
+
+type BackgroundLoop = Readonly<{ stop: () => void }>;
+
+type LoopOptions = Readonly<{
+	/** A task that rejected (it should not: tasks return `Result`s). */
+	onError?: (error: unknown) => void;
+	/** The wait after a task that rejected. */
+	errorDelayMs?: number;
+}>;
+
+/**
+ * Runs `task` in the background of the resident runtime (the Link uplink,
+ * #590), waiting the milliseconds each run resolves to before the next.
+ * Runs never overlap. The timers are unref'd and the loop never touches the
+ * idle clock, so background work neither keeps a runtime alive nor holds
+ * up a gate request beyond its own event-loop turns. `stop` ends it, a run
+ * in flight included.
+ */
+export function startLoop(
+	task: () => Promise<number>,
+	options: LoopOptions = {},
+): BackgroundLoop {
+	let stopped = false;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const schedule = (ms: number): void => {
+		if (stopped) return;
+		timer = setTimeout(run, Math.max(0, ms));
+		timer.unref?.();
+	};
+	async function run(): Promise<void> {
+		let delay: number;
+		try {
+			delay = await task();
+		} catch (error) {
+			options.onError?.(error);
+			delay = options.errorDelayMs ?? 60_000;
+		}
+		schedule(delay);
+	}
+	schedule(0);
+	return {
+		stop: () => {
+			stopped = true;
+			clearTimeout(timer);
+		},
+	};
+}

@@ -27,6 +27,11 @@ import enrolStartSchema from "./v1/enrol-start.schema.json" with {
 import enrolStartResultSchema from "./v1/enrol-start-result.schema.json" with {
 	type: "json",
 };
+import envelopeSchema from "./v1/envelope.schema.json" with { type: "json" };
+import envelopeAckSchema from "./v1/envelope-ack.schema.json" with {
+	type: "json",
+};
+import eventSchema from "./v1/event.schema.json" with { type: "json" };
 import tokenChallengeSchema from "./v1/token-challenge.schema.json" with {
 	type: "json",
 };
@@ -150,6 +155,60 @@ export type ControlMessage =
 			}>)
 	| (ControlBase & Readonly<{ kind: "key_rotation"; body: KeyRotationBody }>);
 
+/** An uplinked event's type (`event.schema.json` `type`). */
+export type LinkEventType =
+	| "decision"
+	| "approval.requested"
+	| "approval.resolved"
+	| "run.started"
+	| "run.step"
+	| "run.finished"
+	| "receipt"
+	| "spend"
+	| "inventory"
+	| "override";
+
+/**
+ * One runtime event. `data` is checked against the schema for its `type`
+ * at its `dataClass`, so its fields are the schema's, not listed here.
+ */
+export type LinkEvent = Readonly<{
+	eventId: string;
+	seq: number;
+	ts: string;
+	type: LinkEventType;
+	dataClass: DataClass;
+	runId?: string;
+	data: Readonly<Record<string, unknown>>;
+}>;
+
+/** `POST /link/v1/events` body: one device's signed, ordered batch. */
+type LinkEnvelope = Readonly<{
+	v: 1;
+	deviceId: string;
+	seqFrom: number;
+	seqTo: number;
+	sentAt: string;
+	events: readonly LinkEvent[];
+	sig: string;
+}>;
+
+/** The cloud's answer to an envelope (202 from `POST /link/v1/events`). */
+export type EnvelopeAck = Readonly<{
+	v: 1;
+	accepted: number;
+	duplicates: number;
+	rejected: readonly Readonly<{
+		seq: number;
+		eventId?: string;
+		reason: "invalid_event" | "data_class_violation";
+		field?: string;
+	}>[];
+	nextExpectedSeq: number;
+	/** Seqs the cloud has not seen below `nextExpectedSeq`, oldest first. */
+	gaps: readonly Readonly<{ from: number; to: number }>[];
+}>;
+
 type WireTypes = {
 	"enrol-start": EnrolStart;
 	"enrol-start-result": EnrolStartResult;
@@ -158,6 +217,9 @@ type WireTypes = {
 	"token-challenge": TokenChallenge;
 	"token-grant": TokenGrant;
 	"control-message": ControlMessage;
+	event: LinkEvent;
+	envelope: LinkEnvelope;
+	"envelope-ack": EnvelopeAck;
 };
 
 type WireKind = keyof WireTypes;
@@ -170,6 +232,9 @@ const SCHEMAS: Readonly<Record<WireKind, object>> = {
 	"token-challenge": tokenChallengeSchema,
 	"token-grant": tokenGrantSchema,
 	"control-message": controlMessageSchema,
+	event: eventSchema,
+	envelope: envelopeSchema,
+	"envelope-ack": envelopeAckSchema,
 };
 
 export type WireRefusal = Readonly<{
@@ -185,8 +250,16 @@ function validator(kind: WireKind): Result<ValidateFunction, string> {
 	const cached = compiled.get(kind);
 	if (cached !== undefined) return { ok: true, value: cached };
 	try {
-		ajv ??= new Ajv2020({ allErrors: true, strict: false });
-		const fn = ajv.compile(SCHEMAS[kind]);
+		if (ajv === undefined) {
+			ajv = new Ajv2020({ allErrors: true, strict: false });
+			// The envelope refers to the event schema by its `$id`.
+			ajv.addSchema(eventSchema);
+		}
+		const fn =
+			kind === "event"
+				? ajv.getSchema(eventSchema.$id)
+				: ajv.compile(SCHEMAS[kind]);
+		if (fn === undefined) return { ok: false, error: `no schema ${kind}` };
 		compiled.set(kind, fn);
 		return { ok: true, value: fn };
 	} catch (e) {

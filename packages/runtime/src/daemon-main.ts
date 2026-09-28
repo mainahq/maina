@@ -13,6 +13,8 @@
 import { parseArgs } from "node:util";
 import { systemGates } from "./gate-system";
 import { createGraphSync, systemGraphSyncPorts } from "./graph-hooks";
+import { startLoop } from "./lifecycle";
+import { systemUplink } from "./link-system";
 import { createSystem1Port } from "./model/infer";
 import { startRuntime } from "./server";
 import { createShadowRunner } from "./shadow";
@@ -105,8 +107,18 @@ export async function runDaemon(argv: readonly string[]): Promise<number> {
 	if (!started.ok) return started.error.kind === "already_running" ? 0 : 1;
 
 	const runtime = started.value;
+	// Maina Link (#590): the outbox goes to the cloud in the background, off
+	// the gate path; an unenrolled device only reads its state each tick.
+	const uplink = systemUplink();
+	const loop = startLoop(uplink.tick, {
+		onError: (error) =>
+			process.stderr.write(
+				`maina runtime: link uplink failed: ${error instanceof Error ? error.message : String(error)}\n`,
+			),
+	});
 	process.on("SIGTERM", () => runtime.stop());
 	process.on("SIGINT", () => runtime.stop());
 	await runtime.closed;
+	loop.stop();
 	return 0;
 }

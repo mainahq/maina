@@ -44,7 +44,7 @@ export type LinkCrypto = Readonly<{
 	randomToken: (bytes: number) => string;
 }>;
 
-type DevicePurpose = "enrol-proof" | "token-challenge";
+type DevicePurpose = "enrol-proof" | "token-challenge" | "envelope";
 
 function failure(e: unknown): CryptoFailure {
 	return {

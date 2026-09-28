@@ -29,6 +29,7 @@ import {
 	daemonSpawner,
 	isCompiledModule,
 	type SpawnRuntime,
+	startLoop,
 } from "../lifecycle";
 import {
 	defaultRuntimeDir,
@@ -690,4 +691,54 @@ describe("standalone runtime daemon (ADR 0045)", () => {
 		).toBe(true);
 		expect((await statusOf(t.endpoint.address, "1.0.0"))?.pid).toBe(proc.pid);
 	}, 15_000);
+});
+
+describe("background loop", () => {
+	test("runs its task again after the delay the task returns, never two at once", async () => {
+		let running = 0;
+		let overlapped = false;
+		const starts: number[] = [];
+		const loop = startLoop(async () => {
+			running++;
+			if (running > 1) overlapped = true;
+			starts.push(performance.now());
+			await Bun.sleep(5);
+			running--;
+			return 20;
+		});
+		expect(await waitFor(async () => starts.length >= 3, 2000)).toBe(true);
+		loop.stop();
+		expect(overlapped).toBe(false);
+		const gaps = starts.slice(1).map((t, i) => t - (starts[i] ?? 0));
+		expect(gaps.every((g) => g >= 20)).toBe(true);
+	});
+
+	test("stop ends it, even with a run in flight", async () => {
+		let runs = 0;
+		const loop = startLoop(async () => {
+			runs++;
+			await Bun.sleep(20);
+			return 0;
+		});
+		await Bun.sleep(5);
+		loop.stop();
+		await Bun.sleep(60);
+		expect(runs).toBe(1);
+	});
+
+	test("a task that fails is reported and the loop carries on", async () => {
+		const errors: unknown[] = [];
+		let runs = 0;
+		const loop = startLoop(
+			async () => {
+				runs++;
+				if (runs === 1) throw new Error("boom");
+				return 5;
+			},
+			{ onError: (e) => errors.push(e), errorDelayMs: 5 },
+		);
+		expect(await waitFor(async () => runs >= 3, 2000)).toBe(true);
+		loop.stop();
+		expect(errors).toHaveLength(1);
+	});
 });
