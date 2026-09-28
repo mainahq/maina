@@ -22,6 +22,7 @@ import {
 	findGateSubject,
 	type GateSubject,
 	gateSubject,
+	type OverrideFact,
 	recordGateSubject,
 	recordOverride,
 	rememberOverride,
@@ -85,6 +86,72 @@ describe("recordOverride", () => {
 				error: { kind: "unknown_decision", decisionId: "nope" },
 			});
 		}
+	});
+});
+
+describe("recordOverride's port (#591)", () => {
+	test("reports the decision type and the action the user overrode", () => {
+		const ports = outcomePorts();
+		logDecision(ports.db, {
+			id: "d-1",
+			type: "action.risk",
+			finalAction: "deny",
+		});
+		const seen: OverrideFact[] = [];
+		unwrap(
+			recordOverride({ ...ports, onOverride: (f) => void seen.push(f) }, "d-1"),
+		);
+		expect(seen).toEqual([
+			{
+				decisionId: "d-1",
+				decisionType: "action.risk",
+				fromAction: "deny",
+				toAction: "allow",
+				reason: "member_override",
+			},
+		]);
+	});
+
+	test("an override already recorded is reported once", () => {
+		const ports = outcomePorts();
+		logDecision(ports.db, {
+			id: "d-1",
+			type: "action.risk",
+			finalAction: "ask",
+		});
+		const seen: OverrideFact[] = [];
+		const withPort = {
+			...ports,
+			onOverride: (f: OverrideFact) => void seen.push(f),
+		};
+		unwrap(recordOverride(withPort, "d-1"));
+		unwrap(recordOverride(withPort, "d-1"));
+		expect(seen).toHaveLength(1);
+	});
+
+	test("an unknown decision reports nothing; a throwing port changes nothing", () => {
+		const ports = outcomePorts();
+		const seen: OverrideFact[] = [];
+		expect(
+			recordOverride({ ...ports, onOverride: (f) => void seen.push(f) }, "nope")
+				.ok,
+		).toBe(false);
+		expect(seen).toEqual([]);
+		logDecision(ports.db, {
+			id: "d-2",
+			type: "action.risk",
+			finalAction: "deny",
+		});
+		const recorded = recordOverride(
+			{
+				...ports,
+				onOverride: () => {
+					throw new Error("uplink down");
+				},
+			},
+			"d-2",
+		);
+		expect(recorded.ok).toBe(true);
 	});
 });
 

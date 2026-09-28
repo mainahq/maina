@@ -51,6 +51,8 @@ type SystemOptions = Readonly<{
 	model?: InferencePort;
 	/** Runs `model` in shadow beside the incumbent backend (#578). */
 	shadow?: ShadowRunner;
+	/** Each logged gate decision, for the Link uplink (#591). */
+	onDecision?: GateEvaluatorDeps["onDecision"];
 }>;
 
 function systemDeps(options: SystemOptions): GateEvaluatorDeps {
@@ -60,6 +62,9 @@ function systemDeps(options: SystemOptions): GateEvaluatorDeps {
 	return {
 		...(options.model === undefined ? {} : { model: options.model }),
 		...(options.shadow === undefined ? {} : { shadow: options.shadow }),
+		...(options.onDecision === undefined
+			? {}
+			: { onDecision: options.onDecision }),
 		rootOf: (cwd) => {
 			const cached = roots.get(cwd);
 			if (cached !== undefined) return cached;

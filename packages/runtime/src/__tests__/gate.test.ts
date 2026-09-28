@@ -607,6 +607,26 @@ describe("decision log", () => {
 		});
 	});
 
+	test("each logged decision reaches `onDecision`, for the Link uplink (#591)", async () => {
+		const db = memoryDb();
+		const seen: DecisionRecord[] = [];
+		const gate = gateWithLog(db, { onDecision: (r) => void seen.push(r) });
+		const decision = await gate(shell("ls -la"));
+		expect(seen.map((r) => r.id)).toEqual([...decision.decisionIds]);
+		expect(seen).toEqual([...logged(db)]);
+	});
+
+	test("an `onDecision` that throws never changes the verdict (#591)", async () => {
+		const db = memoryDb();
+		const quiet = await gateWithLog(db)(shell("ls -la"));
+		const gate = gateWithLog(memoryDb(), {
+			onDecision: () => {
+				throw new Error("uplink down");
+			},
+		});
+		expect((await gate(shell("ls -la"))).verdict).toBe(quiet.verdict);
+	});
+
 	test("the same path gets different hashes under two repos' salts", async () => {
 		const event: GateEvent = {
 			kind: "file.write",

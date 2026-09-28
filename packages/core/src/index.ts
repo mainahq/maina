@@ -18,7 +18,12 @@ export {
 	generateSpecQuestions,
 	type SpecQuestion,
 } from "./ai/spec-questions";
-export { currentSpendTask, runAsSpendTask } from "./ai/spend";
+export {
+	currentSpendTask,
+	runAsSpendTask,
+	type SpendRecord,
+	savingsEstimateUsd,
+} from "./ai/spend";
 export {
 	type DelegationPrompt,
 	type TryAIResult,
@@ -634,6 +639,7 @@ export {
 	type GateSubject,
 	gateSubject,
 	type OverrideError,
+	type OverrideFact,
 	recordGateSubject,
 	recordOverride,
 	rememberOverride,
@@ -899,6 +905,8 @@ export {
 	type PromptVersion as ReceiptPromptVersion,
 	type Receipt,
 	type ReceiptStatus,
+	type ReceiptSummary,
+	receiptSummary,
 	renderIndexHtml as renderReceiptIndexHtml,
 	renderReceiptHtml,
 	type ValidatePatchResult,

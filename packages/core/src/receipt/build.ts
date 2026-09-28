@@ -204,6 +204,20 @@ export async function buildReceipt(
 }
 
 /**
+ * A receipt as the Link `receipt` event carries it (#591): its hash, in the
+ * `sha256:` form, and whether it passed. The title, findings, file names
+ * and walkthrough stay on the machine.
+ */
+export type ReceiptSummary = Readonly<{ receiptHash: string; passed: boolean }>;
+
+export function receiptSummary(receipt: Receipt): ReceiptSummary {
+	return {
+		receiptHash: `sha256:${receipt.hash}`,
+		passed: receipt.status === "passed",
+	};
+}
+
+/**
  * A probability rounded to 4 decimal places: short, and never serialised
  * with an exponent (`1e-7`), which the canonical form does not cover.
  */

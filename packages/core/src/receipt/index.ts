@@ -15,6 +15,8 @@ export {
 	type BuildReceiptResult,
 	buildReceipt,
 	deriveChecksAndStatus,
+	type ReceiptSummary,
+	receiptSummary,
 } from "./build";
 export { canonicalize } from "./canonical";
 export {

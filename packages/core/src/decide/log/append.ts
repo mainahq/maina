@@ -8,6 +8,7 @@
 import type { Result } from "../../db/index";
 import type { Policy } from "../../policy/schema";
 import type { DbPort } from "../../ports/db";
+import { notify, type ObserverPort } from "../../ports/observer";
 import { answerProblem } from "../decide";
 import type { Answer, DecideRequest, Decision, Question } from "../types";
 import { DECISION_CATALOG } from "../types-catalog";
@@ -34,6 +35,13 @@ export type DecisionLogPorts = Readonly<{
 	 * `appendDecision`; `shadowRun` defaults it from `policy.log.paths`.
 	 */
 	privacy?: DecisionLogPrivacy;
+	/**
+	 * The post-append port (#591): handed each record once it is stored, so
+	 * the runtime can uplink it without core touching the network. What it
+	 * does never changes the append: it cannot undo the insert, and a port
+	 * that throws is ignored.
+	 */
+	onAppended?: ObserverPort<DecisionRecord>;
 }>;
 
 export type DecisionRecordInput = Readonly<{
@@ -190,7 +198,12 @@ export function appendDecision(
 		d?.windows ?? null,
 		jsonOrNull(d?.actionClassProbs),
 	]);
-	return inserted.ok
-		? { ok: true, value: r }
-		: { ok: false, error: { kind: "db", message: inserted.error.message } };
+	if (!inserted.ok) {
+		return {
+			ok: false,
+			error: { kind: "db", message: inserted.error.message },
+		};
+	}
+	notify(ports.onAppended, r);
+	return { ok: true, value: r };
 }

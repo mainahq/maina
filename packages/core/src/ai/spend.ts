@@ -15,6 +15,7 @@ import type { BudgetSpend } from "../config/budget";
 import type { Result } from "../db/index";
 import type { ClockPort } from "../ports/clock";
 import type { DbError, DbPort } from "../ports/db";
+import { notify, type ObserverPort } from "../ports/observer";
 import type { ModelTier } from "./tiers";
 
 /** Token usage a provider reported for one call. */
@@ -130,9 +131,30 @@ function sumOf(
 	return { ok: true, value: Number(rows.value[0]?.total ?? 0) };
 }
 
-/** The ledger over `db`, creating its table on first use. */
+/**
+ * What routing saved on one call (#591): what its tokens would have cost at
+ * the architectural tier's list price, less what the call cost. Never
+ * negative: an architectural call, or a model pricier than the list, saved
+ * nothing.
+ */
+export function savingsEstimateUsd(record: SpendRecord): number {
+	const top = usageCostUsd(
+		{ input: record.inputTokens, output: record.outputTokens },
+		DEFAULT_TIER_PRICES.architectural,
+	);
+	return Math.max(0, top - record.costUsd);
+}
+
+/**
+ * The ledger over `db`, creating its table on first use. `onRecorded` (the
+ * Link uplink, #591) is handed each call once it is stored.
+ */
 export function createSpendLedger(
-	ports: Readonly<{ db: DbPort; clock: ClockPort }>,
+	ports: Readonly<{
+		db: DbPort;
+		clock: ClockPort;
+		onRecorded?: ObserverPort<SpendRecord>;
+	}>,
 ): Result<SpendLedgerPort, DbError> {
 	const { db, clock } = ports;
 	const migrated = migrate(db, SPEND_LEDGER_MIGRATION);
@@ -150,8 +172,8 @@ export function createSpendLedger(
 					value: { todayUsd: today.value, taskUsd: task.value },
 				};
 			},
-			record: (entry) =>
-				db.run(
+			record: (entry) => {
+				const inserted = db.run(
 					`INSERT INTO model_spend
 						(ts, task_id, task, tier, model, input_tokens, output_tokens, cost_usd)
 						VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -165,7 +187,10 @@ export function createSpendLedger(
 						entry.outputTokens,
 						entry.costUsd,
 					],
-				),
+				);
+				if (inserted.ok) notify(ports.onRecorded, entry);
+				return inserted;
+			},
 		},
 	};
 }

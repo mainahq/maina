@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createFakeEnv } from "../../ports/testing";
 import type { PipelineResult } from "../../verify/pipeline";
-import { buildReceipt } from "../build";
+import { buildReceipt, receiptSummary } from "../build";
 import { renderReceiptHtml } from "../render";
 import { verifyReceipt } from "../verify";
 
@@ -150,6 +150,35 @@ describe("buildReceipt", () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.data.checks[0]?.status).toBe("skipped");
+	});
+});
+
+describe("receiptSummary (#591)", () => {
+	async function built(overrides: Partial<PipelineResult> = {}) {
+		const result = await buildReceipt({
+			prTitle: "fix /Users/alice/acme/src/pay.ts and clean build",
+			pipeline: stubPipeline(overrides),
+			constitutionHash: "a".repeat(64),
+			promptsHash: "b".repeat(64),
+			cwd: process.cwd(),
+			env: createFakeEnv(),
+		});
+		if (!result.ok) throw new Error(result.message);
+		return result.data;
+	}
+
+	test("is the receipt's hash and whether it passed, nothing else", async () => {
+		const receipt = await built();
+		expect(receiptSummary(receipt)).toEqual({
+			receiptHash: `sha256:${receipt.hash}`,
+			passed: true,
+		});
+	});
+
+	test("a receipt that did not pass says so", async () => {
+		const receipt = await built({ passed: false, status: "failed" });
+		expect(receipt.status).not.toBe("passed");
+		expect(receiptSummary(receipt).passed).toBe(false);
 	});
 });
 

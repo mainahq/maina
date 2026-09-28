@@ -113,6 +113,7 @@
         "@huggingface/tokenizers": "0.2.0",
         "@mainahq/cli": "workspace:*",
         "@mainahq/core": "workspace:*",
+        "@mainahq/harness": "workspace:*",
         "@mainahq/mcp": "workspace:*",
         "@vscode/tree-sitter-wasm": "^0.3.1",
         "ajv": "^8.18.0",

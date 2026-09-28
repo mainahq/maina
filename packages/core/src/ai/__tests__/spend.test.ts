@@ -7,6 +7,7 @@ import {
 	DEFAULT_TIER_PRICES,
 	runAsSpendTask,
 	type SpendRecord,
+	savingsEstimateUsd,
 	usageCostUsd,
 	utcDayStartMs,
 } from "../spend";
@@ -206,5 +207,62 @@ describe("createDbLogger", () => {
 		const cyclic: Record<string, unknown> = {};
 		cyclic.self = cyclic;
 		expect(() => created.value.info("x", cyclic)).not.toThrow();
+	});
+});
+
+describe("the spend port (#591)", () => {
+	test("hands each recorded call to `onRecorded`, after the insert", () => {
+		const db = createMemoryDb();
+		const seen: SpendRecord[] = [];
+		const created = createSpendLedger({
+			db,
+			clock: createFixedClock(AFTERNOON),
+			onRecorded: (r) => {
+				const rows = db.all("SELECT COUNT(*) AS n FROM model_spend");
+				expect(rows.ok && rows.value[0]?.n).toBe(1);
+				seen.push(r);
+			},
+		});
+		if (!created.ok) throw new Error(created.error.message);
+		const call = entry({ costUsd: 0.25 });
+		expect(created.value.record(call).ok).toBe(true);
+		expect(seen).toEqual([call]);
+	});
+
+	test("a failed insert reaches no port; a throwing port fails nothing", () => {
+		const db = createMemoryDb();
+		const seen: SpendRecord[] = [];
+		const created = createSpendLedger({
+			db,
+			clock: createFixedClock(AFTERNOON),
+			onRecorded: (r) => {
+				seen.push(r);
+				throw new Error("uplink down");
+			},
+		});
+		if (!created.ok) throw new Error(created.error.message);
+		expect(created.value.record(entry()).ok).toBe(true);
+		db.run("DROP TABLE model_spend");
+		expect(created.value.record(entry()).ok).toBe(false);
+		expect(seen).toHaveLength(1);
+	});
+});
+
+describe("savingsEstimateUsd (#591)", () => {
+	test("is the call's cost on the architectural tier, less what it cost", () => {
+		const usage = { input: 8_000, output: 1_000 };
+		const call = entry({
+			tier: "mechanical",
+			inputTokens: usage.input,
+			outputTokens: usage.output,
+			costUsd: usageCostUsd(usage, DEFAULT_TIER_PRICES.mechanical),
+		});
+		const top = usageCostUsd(usage, DEFAULT_TIER_PRICES.architectural);
+		expect(savingsEstimateUsd(call)).toBeCloseTo(top - call.costUsd, 12);
+	});
+
+	test("is never negative: an architectural or pricier call saved nothing", () => {
+		expect(savingsEstimateUsd(entry({ tier: "architectural" }))).toBe(0);
+		expect(savingsEstimateUsd(entry({ costUsd: 1_000 }))).toBe(0);
 	});
 });
