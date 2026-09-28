@@ -153,7 +153,7 @@ describe("report", () => {
 		expect(writes).toEqual([golden]);
 	});
 
-	// The post hook appends `ran` records to the same log.jsonl: they are not
+	// The outcome hook appends `ran` records to the same log.jsonl: they are not
 	// gate decisions, so the counts and the report stay as they were.
 	test("ran records in the hook log leave the golden report unchanged", () => {
 		const fixtures = join(
@@ -165,10 +165,8 @@ describe("report", () => {
 			ts: "2026-09-23T10:00:00.000Z",
 			kind: "ran",
 			tool: "Bash",
-			action: "ls",
 			toolUseId: "t1",
 			sessionId: "s1",
-			root: "/repo",
 			host: "claude-code",
 		});
 		const mixed = text
@@ -218,10 +216,8 @@ describe("ask outcomes", () => {
 			ts,
 			kind: "ran",
 			tool: "Bash",
-			action: "rm -rf dist",
 			toolUseId: id,
 			sessionId: session,
-			root: "/repo",
 			host: "claude-code",
 		});
 	const allow = (id: string) =>
@@ -283,10 +279,8 @@ describe("ask outcomes", () => {
 			kind: "ran",
 			failed: true,
 			tool: "Bash",
-			action: "rm -rf dist",
 			toolUseId: "a1",
 			sessionId: "s1",
-			root: "/repo",
 			host: "claude-code",
 		});
 		const log = [ask("a1"), failed, ask("a2")].join("\n");

@@ -19,10 +19,10 @@
  * log): of the week's asks in the dogfood hook log (`MAINA_DOGFOOD_LOG`, or
  * `.maina/dogfood/log.jsonl`) that carry a tool use id, how many ran, that
  * is the user approved them, how many the auto-mode classifier denied, and
- * how many did not run (refused or abandoned). An ask ran when the hook's
- * post mode logged a `ran` record with its tool use id in the same session
- * (the tool succeeded or failed), and was denied when it logged a `denied`
- * record. A log without ids prints nothing more.
+ * how many did not run (refused or abandoned). An ask ran when the outcome
+ * hook (`outcome.ts`) logged a `ran` record with its tool use id in the
+ * same session (the tool succeeded or failed), and was denied when it
+ * logged a `denied` record. A log without ids prints nothing more.
  *
  * Usage:
  *   bun run dogfood:report                 # the week that just ended
@@ -120,7 +120,7 @@ function outcomeKeys(logText: string): OutcomeKeys {
 }
 
 /**
- * Pairs `week`'s asks in the dogfood hook log with the post hook's outcome
+ * Pairs `week`'s asks in the dogfood hook log with the outcome hook's
  * records by tool use id, within a session: a `ran` record (the tool
  * succeeded or failed) means approved, a `denied` one denied by the
  * classifier; a call that ran counts as ran even if a denial was logged too.

@@ -5,8 +5,8 @@
  * same way.
  *
  * - The gate log: the dogfood hook's `log.jsonl`, one JSON record per gated
- *   tool call (`parseGateLog`, then `gateLogEvents`). The hook's post mode
- *   appends `kind: "ran"` and `kind: "denied"` records to the same file;
+ *   tool call (`parseGateLog`, then `gateLogEvents`). The outcome hook
+ *   (`outcome.ts`) appends `kind: "ran"` and `kind: "denied"` records to the same file;
  *   they are not decisions and are skipped.
  * - The decision log: the repository's `action.risk` decisions with their
  *   gate subjects and override outcomes (`decisionLogEvents`).
@@ -50,12 +50,12 @@ export type GateLogRecord = Readonly<{
 }>;
 
 /**
- * The kind of the post hook's records: the gated call ran (after
+ * The kind of the outcome hook's records: the gated call ran (after
  * `PostToolUse`, or `PostToolUseFailure` with `failed: true`).
  */
 export const RAN_KIND = "ran";
 
-/** The kind of the post hook's `PermissionDenied` records: the auto-mode classifier denied the call. */
+/** The kind of the outcome hook's `PermissionDenied` records: the auto-mode classifier denied the call. */
 export const DENIED_KIND = "denied";
 
 const OUTCOME_KINDS: ReadonlySet<unknown> = new Set([RAN_KIND, DENIED_KIND]);

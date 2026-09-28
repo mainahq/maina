@@ -1,8 +1,9 @@
 /**
  * The repo's dogfood PreToolUse hook (#286, #309): the real Claude Code
  * adapter and fail-closed hook client, run from source, tightening only,
- * with every decision logged for the weekly report. Its `post` mode logs
- * which gated calls ran, so an ask's outcome can be read off the log.
+ * with every decision logged for the weekly report; and the outcome hook
+ * (`outcome.ts`), which logs which gated calls ran, so an ask's outcome can
+ * be read off the log.
  */
 
 import { afterAll, describe, expect, test } from "bun:test";
@@ -16,16 +17,18 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { parseGateLog } from "../../../packages/core/src/digest/build";
+import { CLAUDE_HOOK_MAP } from "../../../packages/runtime/src/adapters/claude-code";
 import type { ClaudeHookPorts } from "../../../packages/runtime/src/claude-hook";
 import { systemGates } from "../../../packages/runtime/src/gate-system";
+import { type LogRecord, runDogfoodHook } from "../hook";
 import {
-	type LogRecord,
+	CLAUDE_HOST,
+	GATED_TOOLS,
 	type OutcomeRecord,
-	runDogfoodHook,
 	runDogfoodPostHook,
-} from "../hook";
+} from "../outcome";
 import { askOutcomes } from "../report";
 
 const ROOT = resolve(import.meta.dir, "../../..");
@@ -322,24 +325,19 @@ const post = (
 		...extra,
 	});
 
-function runPost(
-	raw: string,
-	rootOf: (cwd: string) => string | null = workRoot,
-): { out: ReturnType<typeof runDogfoodPostHook>; logged: OutcomeRecord[] } {
+function runPost(raw: string): {
+	out: ReturnType<typeof runDogfoodPostHook>;
+	logged: OutcomeRecord[];
+} {
 	const logged: OutcomeRecord[] = [];
 	const out = runDogfoodPostHook(raw, {
 		now: () => NOW,
-		rootOf,
 		log: (record) => logged.push(record),
 	});
 	return { out, logged };
 }
 
 const SILENT_OUT = { exitCode: 0, stdout: "", stderr: "" };
-
-/** The logged action; a denied record has none. */
-const actionIn = (r: OutcomeRecord | undefined): string | undefined =>
-	r !== undefined && "action" in r ? r.action : undefined;
 
 /**
  * A PostToolUseFailure payload (Claude Code 2.1.283+: `tool_name`,
@@ -398,36 +396,25 @@ describe("runDogfoodPostHook", () => {
 				ts: NOW,
 				kind: "ran",
 				tool: "Bash",
-				action: "rm -rf dist",
 				toolUseId: "t1",
 				sessionId: "s1",
-				root: "/work/maina",
 				host: "claude-code",
 			},
 		]);
 	});
 
-	test("the action is extracted as the pre record's is", async () => {
-		const cases: Array<[string, Record<string, unknown>, string]> = [
-			[
-				"Write",
-				{ file_path: "/work/maina/a.ts", content: SECRET },
-				"/work/maina/a.ts",
-			],
-			[
-				"Edit",
-				{ file_path: "/work/maina/b.ts", new_string: SECRET },
-				"/work/maina/b.ts",
-			],
-			["Read", { file_path: "/etc/hosts" }, "/etc/hosts"],
-			[
-				"WebFetch",
-				{ url: "https://example.com", prompt: "x" },
-				"https://example.com",
-			],
-			["mcp__github__create_issue", { title: "t" }, "github/create_issue"],
+	// #660: pairing uses only toolUseId and sessionId, so an outcome record
+	// keeps no second copy of the command, path, URL or MCP tool (which can
+	// hold secrets), nor the root, whose lookup would spawn git per call.
+	test("records the pre record's tool, but no command, path, URL or root", async () => {
+		const cases: Array<[string, Record<string, unknown>]> = [
+			["Write", { file_path: "/work/maina/a.ts", content: SECRET }],
+			["Edit", { file_path: "/work/maina/b.ts", new_string: SECRET }],
+			["Read", { file_path: "/etc/hosts" }],
+			["WebFetch", { url: "https://example.com", prompt: "x" }],
+			["mcp__github__create_issue", { title: "t" }],
 		];
-		for (const [tool, input, action] of cases) {
+		for (const [tool, input] of cases) {
 			const pre = await run(
 				JSON.stringify({
 					session_id: "s1",
@@ -439,18 +426,28 @@ describe("runDogfoodPostHook", () => {
 				}),
 				gate("allow"),
 			);
-			const { logged } = runPost(post(tool, input));
-			expect(actionIn(logged[0])).toBe(action);
-			expect(actionIn(logged[0])).toBe(pre.logged[0]?.action ?? "");
+			for (const raw of [post(tool, input), failure(tool, input)]) {
+				const { logged } = runPost(raw);
+				expect(logged).toHaveLength(1);
+				expect(logged[0]?.tool).toBe(pre.logged[0]?.tool ?? "");
+				expect(logged[0]).not.toHaveProperty("action");
+				expect(logged[0]).not.toHaveProperty("root");
+			}
 		}
 	});
 
-	test("long actions are truncated as on the pre record", () => {
-		const { logged } = runPost(
-			post("Bash", { command: `echo ${"x".repeat(300)}` }),
-		);
-		expect(actionIn(logged[0])?.length).toBe(200);
-		expect(actionIn(logged[0])?.endsWith("...")).toBe(true);
+	test("a Bearer token in the payload never reaches the log", () => {
+		const command = 'curl -H "Authorization: Bearer ghp_abc123" x';
+		for (const raw of [
+			post("Bash", { command }),
+			failure("Bash", { command }),
+			denied("Bash", { command }),
+			post("WebFetch", { url: "https://x.test/?token=ghp_abc123" }),
+		]) {
+			const { logged } = runPost(raw);
+			expect(logged).toHaveLength(1);
+			expect(JSON.stringify(logged)).not.toContain("ghp_abc123");
+		}
 	});
 
 	test("never records the tool response or file contents", () => {
@@ -487,11 +484,9 @@ describe("runDogfoodPostHook", () => {
 			"[]",
 			JSON.stringify({ hook_event_name: "PostToolUse" }),
 			JSON.stringify({ hook_event_name: "PostToolUse", tool_name: "Bash" }),
-			post("Bash", {}),
+			JSON.stringify({ hook_event_name: "PostToolUse", tool_name: 3 }),
 			post("Bash", { command: "ls" }, { hook_event_name: "PreToolUse" }),
 			post("Bash", { command: "ls" }, { hook_event_name: "Stop" }),
-			failure("Bash", {}),
-			denied("Bash", {}),
 		]) {
 			const { out, logged } = runPost(raw);
 			expect(out).toEqual(SILENT_OUT);
@@ -499,12 +494,9 @@ describe("runDogfoodPostHook", () => {
 		}
 	});
 
-	test("a log or root lookup that throws never fails the tool", () => {
+	test("a log that throws never fails the tool", () => {
 		const out = runDogfoodPostHook(post("Bash", { command: "ls" }), {
 			now: () => NOW,
-			rootOf: () => {
-				throw new Error("git missing");
-			},
 			log: () => {
 				throw new Error("disk full");
 			},
@@ -525,10 +517,8 @@ describe("runDogfoodPostHook", () => {
 				kind: "ran",
 				failed: true,
 				tool: "Bash",
-				action: "false",
 				toolUseId: "t1",
 				sessionId: "s1",
-				root: "/work/maina",
 				host: "claude-code",
 			},
 		]);
@@ -568,7 +558,6 @@ describe("runDogfoodPostHook", () => {
 				tool: "Bash",
 				toolUseId: "t1",
 				sessionId: "s1",
-				root: "/work/maina",
 				host: "claude-code",
 			},
 		]);
@@ -587,6 +576,15 @@ describe("runDogfoodPostHook", () => {
 			denied: 1,
 			notRan: 0,
 		});
+	});
+
+	// The post hook does not import the adapter (it loads all of core), so
+	// it keeps its own copy of the gated tools and the host name.
+	test("gates the adapter's tools and stamps its host", () => {
+		expect(CLAUDE_HOOK_MAP["tool.before"]).toEqual([
+			{ event: "PreToolUse", matcher: GATED_TOOLS },
+		]);
+		expect(CLAUDE_HOST).toBe("claude-code");
 	});
 
 	test("failure and denial payloads for ungated tools are not logged", () => {
@@ -646,6 +644,31 @@ async function runShell(
 	return { code, stdout, stderr };
 }
 
+/**
+ * Every module `entry` loads at run time, static and dynamic imports alike
+ * (type-only imports are erased), as resolved paths; builtins as `node:*`.
+ */
+function importGraph(entry: string): ReadonlySet<string> {
+	const transpiler = new Bun.Transpiler({ loader: "ts" });
+	const seen = new Set<string>();
+	const pending = [entry];
+	for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
+		if (seen.has(file)) continue;
+		seen.add(file);
+		if (!file.startsWith("/") || !/\.[cm]?[jt]sx?$/.test(file)) continue;
+		const source = readFileSync(file, "utf-8").replace(/^#!.*/, "");
+		for (const { path } of transpiler.scanImports(source)) {
+			const resolved = Bun.resolveSync(path, dirname(file));
+			pending.push(
+				resolved.startsWith("/") || resolved.includes(":")
+					? resolved
+					: `node:${resolved}`,
+			);
+		}
+	}
+	return seen;
+}
+
 describe("repo wiring", () => {
 	const scratch = mkdtempSync(join(tmpdir(), "maina-dogfood-"));
 	const runtimeDir = join(scratch, "rt");
@@ -700,8 +723,7 @@ describe("repo wiring", () => {
 		expect(entries[0]?.hooks).toEqual([
 			{
 				type: "command",
-				command:
-					'bun "$CLAUDE_PROJECT_DIR/scripts/dogfood/hook.ts" post; exit 0',
+				command: 'bun "$CLAUDE_PROJECT_DIR/scripts/dogfood/outcome.ts"; exit 0',
 				timeout: 10,
 			},
 		]);
@@ -726,33 +748,67 @@ describe("repo wiring", () => {
 		expect(out).toEqual({ code: 0, stdout: "", stderr: "" });
 		const text = readFileSync(log, "utf-8");
 		expect(text).not.toContain("secret");
-		expect(JSON.parse(text.trim())).toMatchObject({
+		expect(JSON.parse(text.trim())).toEqual({
+			ts: expect.any(String),
 			kind: "ran",
 			failed: true,
 			tool: "Bash",
 			toolUseId: "t1",
 			sessionId: "s1",
-			root: ROOT,
+			host: "claude-code",
 		});
 	});
 
 	test("the post hook logs a ran record and prints nothing", async () => {
 		const log = join(scratch, "post-log.jsonl");
 		const out = await runShell(
-			post("Bash", { command: "ls" }, { cwd: ROOT }),
+			post(
+				"Bash",
+				{ command: 'curl -H "Authorization: Bearer ghp_abc123" x' },
+				{ cwd: ROOT },
+			),
 			{ CLAUDE_PROJECT_DIR: ROOT, MAINA_DOGFOOD_LOG: log },
 			"PostToolUse",
 		);
 		expect(out).toEqual({ code: 0, stdout: "", stderr: "" });
-		expect(JSON.parse(readFileSync(log, "utf-8").trim())).toMatchObject({
+		const text = readFileSync(log, "utf-8");
+		expect(text).not.toContain("ghp_abc123");
+		expect(JSON.parse(text.trim())).toEqual({
+			ts: expect.any(String),
 			kind: "ran",
 			tool: "Bash",
-			action: "ls",
 			toolUseId: "t1",
 			sessionId: "s1",
-			root: ROOT,
 			host: "claude-code",
 		});
+	});
+
+	// #660: the post hook runs after every gated call (each Read, Grep and
+	// Glob), so it must stay near bun's own startup: no runtime hook system,
+	// no adapter (which loads all of core), no git spawn for the root.
+	test("the post hook loads neither the runtime hook system nor git", () => {
+		const script = hookCommand("PostToolUse").match(
+			/\$CLAUDE_PROJECT_DIR\/(\S+\.ts)/,
+		)?.[1];
+		expect(script).toBeDefined();
+		const graph = importGraph(join(ROOT, script as string));
+		const loaded = [...graph].map((f) =>
+			f.startsWith(`${ROOT}/`) ? f.slice(ROOT.length + 1) : f,
+		);
+		for (const heavy of [
+			"packages/runtime/src/hook-system.ts",
+			"packages/runtime/src/claude-hook.ts",
+			"packages/runtime/src/root.ts",
+			"packages/runtime/src/adapters/claude-code.ts",
+			"packages/core/src/index.ts",
+		]) {
+			expect(loaded).not.toContain(heavy);
+		}
+		expect(graph.has("node:child_process")).toBe(false);
+		for (const file of graph) {
+			if (file.startsWith("node:")) continue;
+			expect(readFileSync(file, "utf-8")).not.toMatch(/Bun\.spawn|\$`/);
+		}
 	});
 
 	test("the post hook exits 0 when it cannot run", async () => {

@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun \"$CLAUDE_PROJECT_DIR/scripts/dogfood/hook.ts\" post; exit 0",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/scripts/dogfood/outcome.ts\"; exit 0",
             "timeout": 10
           }
         ]
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun \"$CLAUDE_PROJECT_DIR/scripts/dogfood/hook.ts\" post; exit 0",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/scripts/dogfood/outcome.ts\"; exit 0",
             "timeout": 10
           }
         ]
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun \"$CLAUDE_PROJECT_DIR/scripts/dogfood/hook.ts\" post; exit 0",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/scripts/dogfood/outcome.ts\"; exit 0",
             "timeout": 10
           }
         ]

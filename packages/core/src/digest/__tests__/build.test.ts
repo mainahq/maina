@@ -127,7 +127,7 @@ describe("parseGateLog", () => {
 	});
 });
 
-describe("parseGateLog and the post hook's ran records", () => {
+describe("parseGateLog and the outcome hook's ran records", () => {
 	const PRE: GateLogRecord = {
 		ts: "2026-09-25T10:00:00.000Z",
 		tool: "Bash",
@@ -141,10 +141,8 @@ describe("parseGateLog and the post hook's ran records", () => {
 		ts: "2026-09-25T10:00:05.000Z",
 		kind: "ran",
 		tool: "Bash",
-		action: "rm -rf dist",
 		toolUseId: "t1",
 		sessionId: "s1",
-		root: "/work/maina",
 		host: "claude-code",
 	};
 
@@ -160,7 +158,7 @@ describe("parseGateLog and the post hook's ran records", () => {
 		expect(parseGateLog(text)).toEqual({ records: [PRE], malformed: 0 });
 	});
 
-	// #659: the post hook also logs PermissionDenied (the auto-mode
+	// #659: the outcome hook also logs PermissionDenied (the auto-mode
 	// classifier denied the call) as `kind: "denied"`, and PostToolUseFailure
 	// as a `ran` record marked failed. Neither is a verdict.
 	test("denied and failed ran records are skipped too", () => {
