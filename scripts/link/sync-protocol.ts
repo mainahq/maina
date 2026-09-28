@@ -9,8 +9,9 @@
  * its sha256 is the pin, fetches every file it lists as
  * `<path>?sha256=<file sha256>` (the cloud serves only matching bytes, as
  * immutable), checks each file's sha256 and size against the manifest, and
- * only then replaces `packages/runtime/src/link/protocol/v1/` and rewrites
- * the pin in `protocol/pin.ts`. Any mismatch writes nothing.
+ * only then replaces `packages/runtime/src/link/protocol/v1/` (staged, the
+ * old copy kept aside until the new one is in place) and rewrites the pin in
+ * `protocol/pin.ts`. Any mismatch writes nothing.
  *
  * Check: verifies the vendored directory against the pin in `pin.ts`, with
  * no network (the pin test does the same in CI).
@@ -19,6 +20,7 @@
  */
 
 import {
+	existsSync,
 	mkdirSync,
 	readdirSync,
 	readFileSync,
@@ -85,12 +87,27 @@ async function fetchBytes(
 	}
 }
 
-/** Writes `files` into a staging dir, then swaps it in for `outDir`. */
+/** Runs `fn`; its error message, or null when it succeeded. */
+function attempt(fn: () => void): string | null {
+	try {
+		fn();
+		return null;
+	} catch (e) {
+		return message(e);
+	}
+}
+
+/**
+ * Writes `files` into a staging dir, then swaps it in for `outDir`: the old
+ * copy is moved aside first and moved back if the swap fails, so the
+ * vendored directory is never missing.
+ */
 function replaceDir(
 	outDir: string,
 	files: ReadonlyMap<string, Uint8Array>,
 ): Result<void, SyncRefusal> {
 	const staging = `${outDir}.sync-tmp`;
+	const backup = `${outDir}.sync-old`;
 	try {
 		rmSync(staging, { recursive: true, force: true });
 		for (const [path, bytes] of files) {
@@ -98,13 +115,33 @@ function replaceDir(
 			mkdirSync(dirname(target), { recursive: true });
 			writeFileSync(target, bytes);
 		}
-		rmSync(outDir, { recursive: true, force: true });
-		renameSync(staging, outDir);
-		return { ok: true, value: undefined };
 	} catch (e) {
 		rmSync(staging, { recursive: true, force: true });
 		return { ok: false, error: { kind: "write_failed", message: message(e) } };
 	}
+	const hadOld = existsSync(outDir);
+	try {
+		rmSync(backup, { recursive: true, force: true });
+		if (hadOld) renameSync(outDir, backup);
+	} catch (e) {
+		rmSync(staging, { recursive: true, force: true });
+		return { ok: false, error: { kind: "write_failed", message: message(e) } };
+	}
+	try {
+		renameSync(staging, outDir);
+	} catch (e) {
+		const restored = attempt(() => {
+			if (hadOld) renameSync(backup, outDir);
+		});
+		attempt(() => rmSync(staging, { recursive: true, force: true }));
+		const note = restored === null ? "" : `; the old copy is left at ${backup}`;
+		return {
+			ok: false,
+			error: { kind: "write_failed", message: `${message(e)}${note}` },
+		};
+	}
+	attempt(() => rmSync(backup, { recursive: true, force: true }));
+	return { ok: true, value: undefined };
 }
 
 /** Fetches, verifies and vendors the version whose manifest hashes to `pin`. */

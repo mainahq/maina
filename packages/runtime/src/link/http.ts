@@ -12,9 +12,15 @@ import type { StoreError } from "./store";
 /** Why a Link operation did not go through. */
 export type LinkFailure =
 	| Readonly<{ kind: "not_enrolled" }>
-	| Readonly<{ kind: "revoked"; revokedAt: string }>
+	| Readonly<{
+			kind: "revoked";
+			revokedAt: string;
+			/** Set when the revocation could not be written to the device state. */
+			unrecorded?: StoreError;
+	  }>
 	| Readonly<{ kind: "insecure_url"; url: string }>
 	| Readonly<{ kind: "invalid_path"; path: string }>
+	| Readonly<{ kind: "invalid_body"; message: string }>
 	| Readonly<{ kind: "network"; message: string }>
 	| Readonly<{
 			kind: "refused";
@@ -81,15 +87,28 @@ export async function linkCall(
 	body: unknown,
 	headers: Readonly<Record<string, string>> = {},
 ): Promise<Result<LinkAnswer, LinkFailure>> {
+	let json: string | undefined;
+	try {
+		json = body === undefined ? undefined : JSON.stringify(body);
+	} catch (e) {
+		// A cyclic or BigInt body: a value, not a throw across the port.
+		return {
+			ok: false,
+			error: {
+				kind: "invalid_body",
+				message: e instanceof Error ? e.message : String(e),
+			},
+		};
+	}
 	const sent = await http.request({
 		method,
 		url,
 		headers: {
 			Accept: "application/json",
-			...(body === undefined ? {} : { "Content-Type": "application/json" }),
+			...(json === undefined ? {} : { "Content-Type": "application/json" }),
 			...headers,
 		},
-		...(body === undefined ? {} : { body: JSON.stringify(body) }),
+		...(json === undefined ? {} : { body: json }),
 		timeoutMs: TIMEOUT_MS,
 	});
 	if (!sent.ok) {

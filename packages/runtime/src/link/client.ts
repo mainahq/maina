@@ -36,6 +36,11 @@ type LinkRequest = Readonly<{
 	method: "GET" | "POST";
 	/** An endpoint path from the enrolment, e.g. `/link/v1/events`. */
 	path: string;
+	/**
+	 * A message the caller has already built and checked with `parseWire`
+	 * (the uplink, policy and approval tasks add their kinds there). A body
+	 * that cannot be serialised is refused as `invalid_body`, never thrown.
+	 */
 	body?: unknown;
 }>;
 

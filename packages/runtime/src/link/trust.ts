@@ -9,7 +9,7 @@
  *
  * A control message is accepted when it matches the published schema, names
  * this device and its org, is signed by a trusted link-control key valid
- * now, has not expired, and was not applied before. A rotation that would
+ * now, has not expired, and was not applied before (applied ids are kept until they expire). A rotation that would
  * leave no link-control key is refused: the device could never verify
  * another rotation.
  */
@@ -46,8 +46,6 @@ export type ControlRefusal =
 
 /** Clock skew tolerated on `issuedAt`. */
 const MAX_SKEW_MS = 5 * 60_000;
-/** Applied control message ids kept for replay refusal (they expire fast). */
-const APPLIED_KEPT = 64;
 
 function validAt(key: OrgKey, now: number): boolean {
 	return (
@@ -113,7 +111,7 @@ function verifyControl(
 			error: { kind: "not_yet_valid", issuedAt: message.issuedAt },
 		};
 	}
-	if (state.appliedControls.includes(message.messageId)) {
+	if (state.appliedControls.some((c) => c.messageId === message.messageId)) {
 		return {
 			ok: false,
 			error: { kind: "replayed", messageId: message.messageId },
@@ -175,12 +173,15 @@ export function acceptControlMessage(
 		if (!applied.ok) return applied;
 		next = applied.value;
 	}
-	const written = ports.store.writeState({
-		...next,
-		appliedControls: [...state.appliedControls, message.messageId].slice(
-			-APPLIED_KEPT,
+	// A record is dropped only once its message has expired: from then on
+	// the expiry check refuses a replay, so no count limit can reopen one.
+	const appliedControls = [
+		...state.appliedControls.filter(
+			(c) => now.getTime() < Date.parse(c.expiresAt),
 		),
-	});
+		{ messageId: message.messageId, expiresAt: message.expiresAt },
+	];
+	const written = ports.store.writeState({ ...next, appliedControls });
 	if (!written.ok) return written;
 	return verified;
 }

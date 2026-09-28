@@ -128,7 +128,11 @@ function failureMessage(e: EnrolError): string {
 		case "not_enrolled":
 			return "this device is not enrolled; run `maina cloud enrol`";
 		case "revoked":
-			return `this device was revoked at ${e.revokedAt}`;
+			return e.unrecorded === undefined
+				? `this device was revoked at ${e.revokedAt}`
+				: `this device was revoked at ${e.revokedAt}, but that could not be recorded: ${storeMessage(e.unrecorded)}`;
+		case "invalid_body":
+			return `the request body cannot be sent as JSON: ${e.message}`;
 		case "insecure_url":
 			return `refusing ${e.url}: the cloud must be https (http only to localhost)`;
 		case "invalid_path":

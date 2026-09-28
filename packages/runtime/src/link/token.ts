@@ -40,13 +40,26 @@ export type AccessToken = Readonly<{
 /** 32 random bytes: 43 base64url characters, inside the schema's 22–86. */
 const NONCE_BYTES = 32;
 
-/** Marks the device revoked and returns the refusal that says so. */
+/**
+ * Marks the device revoked and returns the refusal that says so. The
+ * refusal is `revoked` even when the mark cannot be written (it then carries
+ * the store error as `unrecorded`), so the caller stops Link either way.
+ */
 export function revokedFailure(
 	store: LinkStore,
 	now: Date,
 ): Result<never, LinkFailure> {
 	const marked = markRevoked(store, now);
-	if (!marked.ok) return marked;
+	if (!marked.ok) {
+		return {
+			ok: false,
+			error: {
+				kind: "revoked",
+				revokedAt: now.toISOString(),
+				unrecorded: marked.error,
+			},
+		};
+	}
 	return {
 		ok: false,
 		error: {

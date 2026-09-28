@@ -248,6 +248,41 @@ describe("acceptControlMessage key_rotation", () => {
 		if (!replay.ok) expect(replay.error.kind).toBe("replayed");
 	});
 
+	test("a replay stays refused however many controls come after it, until it expires", async () => {
+		const { cloud, ports } = await setup();
+		let now = NOW;
+		const clocked = { ...ports, clock: () => new Date(now) };
+		const stopMessage = (id: string, expiresAt: string) =>
+			cloud.signControl({
+				v: 1,
+				orgId: cloud.orgId,
+				messageId: id,
+				deviceId: "dev_01J9Z3K4T8QX",
+				kind: "stop",
+				issuedAt: "2026-09-28T08:59:00.000Z",
+				expiresAt,
+				body: { runId: "run_1" },
+			});
+		const first = stopMessage("ctl_first", "2026-09-28T10:00:00.000Z");
+		expect((await acceptControlMessage(clocked, first)).ok).toBe(true);
+		for (let i = 0; i < 100; i++) {
+			const later = stopMessage(`ctl_${i}`, "2026-09-28T09:05:00.000Z");
+			expect((await acceptControlMessage(clocked, later)).ok).toBe(true);
+		}
+		const replay = await acceptControlMessage(clocked, first);
+		expect(replay.ok).toBe(false);
+		if (!replay.ok) expect(replay.error.kind).toBe("replayed");
+		// Records are pruned only once their message has expired.
+		now = Date.parse("2026-09-28T09:06:00.000Z");
+		const after = stopMessage("ctl_after", "2026-09-28T09:10:00.000Z");
+		expect((await acceptControlMessage(clocked, after)).ok).toBe(true);
+		expect(
+			state(ports.store)
+				.appliedControls.map((c) => c.messageId)
+				.sort(),
+		).toEqual(["ctl_after", "ctl_first"]);
+	});
+
 	test("a verified stop message is returned for the caller, keys unchanged", async () => {
 		const { cloud, ports, device } = await setup();
 		const stop = cloud.signControl({

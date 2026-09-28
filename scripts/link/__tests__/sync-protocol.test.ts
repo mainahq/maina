@@ -10,6 +10,7 @@ import {
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
+	readdirSync,
 	readFileSync,
 	rmSync,
 	writeFileSync,
@@ -125,6 +126,23 @@ describe("syncProtocol", () => {
 		}
 		expect(existsSync(join(out, "keep.json"))).toBe(true);
 		expect(existsSync(join(out, "privacy.json"))).toBe(false);
+	});
+
+	test("an existing copy is swapped out whole, with no staging or backup left", async () => {
+		const out = join(dir, "v1");
+		mkdirSync(out);
+		writeFileSync(join(out, "stale.json"), "{}");
+		const { fetch } = servedFrom(V1);
+		const synced = await syncProtocol({
+			fetch,
+			baseUrl: BASE,
+			pin: LINK_V1_MANIFEST_SHA256,
+			outDir: out,
+		});
+		expect(synced.ok).toBe(true);
+		expect(existsSync(join(out, "stale.json"))).toBe(false);
+		expect(existsSync(join(out, "manifest.json"))).toBe(true);
+		expect(readdirSync(dir).sort()).toEqual(["v1"]);
 	});
 
 	test("an unreachable cloud is an error, not a throw", async () => {

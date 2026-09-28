@@ -185,6 +185,51 @@ describe("createLinkClient", () => {
 		});
 	});
 
+	test("device_revoked stops this client even when the revocation cannot be recorded", async () => {
+		const cloud = fakeCloud();
+		const ports = await enrolled(cloud);
+		const readOnly = {
+			...ports.store,
+			writeState: () => ({
+				ok: false as const,
+				error: { kind: "store" as const, op: "write", message: "EROFS" },
+			}),
+		};
+		for (const revokedOn of ["call", "token"] as const) {
+			const client = createLinkClient({ ...ports, store: readOnly });
+			if (revokedOn === "call") {
+				cloud.state.revoked = false;
+				expect((await client.send(event)).ok).toBe(true);
+			}
+			cloud.state.revoked = true;
+			const refused = await client.send(event);
+			expect(refused.ok).toBe(false);
+			if (!refused.ok) {
+				expect(refused.error).toMatchObject({ kind: "revoked" });
+				if (refused.error.kind === "revoked") {
+					expect(refused.error.unrecorded).toMatchObject({ kind: "store" });
+				}
+			}
+			const calls = cloud.requests.length;
+			const again = await client.send(event);
+			expect(again.ok).toBe(false);
+			if (!again.ok) expect(again.error.kind).toBe("revoked");
+			expect(cloud.requests.length).toBe(calls);
+		}
+	});
+
+	test("a body that cannot be serialised is an error value, never a throw", async () => {
+		const cloud = fakeCloud();
+		const client = createLinkClient(await enrolled(cloud));
+		const cyclic: Record<string, unknown> = {};
+		cyclic.self = cyclic;
+		const sent = await client.send({ ...event, body: cyclic });
+		expect(sent.ok).toBe(false);
+		if (!sent.ok) expect(sent.error.kind).toBe("invalid_body");
+		const big = await client.send({ ...event, body: { n: 1n } });
+		expect(big.ok).toBe(false);
+	});
+
 	test("device_revoked on the token exchange stops Link too", async () => {
 		const cloud = fakeCloud();
 		const ports = await enrolled(cloud);

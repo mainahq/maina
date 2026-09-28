@@ -49,9 +49,14 @@ export type DeviceState = Readonly<{
 	dataClass: DataClass;
 	/** The enrolment result; `orgKeys` change only by a verified rotation. */
 	enrolment: EnrolCompleteResult;
-	/** Control message ids already applied (newest last), to refuse replays. */
-	appliedControls: readonly string[];
+	/**
+	 * Control messages already applied, each kept until its `expiresAt` so a
+	 * replay is refused for as long as the message itself would be accepted.
+	 */
+	appliedControls: readonly AppliedControl[];
 }>;
+
+export type AppliedControl = Readonly<{ messageId: string; expiresAt: string }>;
 
 export type StoreError =
 	| Readonly<{ kind: "store"; op: string; message: string }>
@@ -116,9 +121,17 @@ function parseState(value: unknown): Result<DeviceState, string> {
 	}
 	if (
 		!Array.isArray(value.appliedControls) ||
-		!value.appliedControls.every((id) => typeof id === "string")
+		!value.appliedControls.every(
+			(c) =>
+				isRecord(c) &&
+				typeof c.messageId === "string" &&
+				typeof c.expiresAt === "string",
+		)
 	) {
-		return { ok: false, error: "appliedControls is not a list of ids" };
+		return {
+			ok: false,
+			error: "appliedControls is not a list of applied control messages",
+		};
 	}
 	const enrolment = parseWire("enrol-complete-result", value.enrolment);
 	if (!enrolment.ok) {
