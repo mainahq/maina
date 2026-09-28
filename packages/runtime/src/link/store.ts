@@ -9,6 +9,9 @@
  *                the org link salt, the endpoints, the revocation mark
  *   outbox.log   the events waiting for the cloud, encrypted under a key
  *                derived from the device key (#590, `outbox.ts`)
+ *   policy/bundle.json
+ *                the last good org policy bundle and the last refusal
+ *                (#592, `policy-sync.ts`), in an owner-only subdirectory
  *
  * Files are written to a fresh owner-only temp file and renamed into place,
  * so a crash never leaves half a key and an existing file with looser
@@ -28,7 +31,7 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Result } from "@mainahq/core";
 import {
 	type DataClass,
@@ -79,13 +82,19 @@ export type LinkStore = Readonly<{
 	appendOutbox: (text: string) => Result<void, StoreError>;
 	/** Moves an unreadable journal aside as `outbox.log.<reason>`. */
 	setAsideOutbox: (reason: string) => Result<void, StoreError>;
-	/** Removes the key, the state and the outbox (a local logout). */
+	/** The held policy bundle file (`policy-sync.ts`); null when there is none. */
+	readPolicy: () => Result<string | null, StoreError>;
+	/** Replaces the held policy bundle file, atomically. */
+	writePolicy: (text: string) => Result<void, StoreError>;
+	/** Removes the key, the state, the outbox and the held policy (a local logout). */
 	clear: () => Result<void, StoreError>;
 }>;
 
 const KEY_FILE = "device.key";
 const STATE_FILE = "device.json";
 const OUTBOX_FILE = "outbox.log";
+const POLICY_DIR = "policy";
+const POLICY_FILE = "bundle.json";
 const DATA_CLASSES: readonly DataClass[] = ["metadata", "names", "rich"];
 
 /** `MAINA_LINK_DIR`, else `<home>/.maina/link`. */
@@ -167,11 +176,15 @@ export function fileLinkStore(
 	const keyPath = join(dir, KEY_FILE);
 	const statePath = join(dir, STATE_FILE);
 	const outboxPath = join(dir, OUTBOX_FILE);
+	const policyDir = join(dir, POLICY_DIR);
+	const policyPath = join(policyDir, POLICY_FILE);
 
-	function ensureDir(): Result<void, StoreError> {
+	function ensureDir(path: string = dir): Result<void, StoreError> {
 		try {
-			mkdirSync(dir, { recursive: true, mode: 0o700 });
-			if (posix) chmodSync(dir, 0o700);
+			for (const d of path === dir ? [dir] : [dir, path]) {
+				mkdirSync(d, { recursive: true, mode: 0o700 });
+				if (posix) chmodSync(d, 0o700);
+			}
 			return { ok: true, value: undefined };
 		} catch (e) {
 			return {
@@ -186,7 +199,7 @@ export function fileLinkStore(
 		path: string,
 		text: string,
 	): Result<void, StoreError> {
-		const dirReady = ensureDir();
+		const dirReady = ensureDir(dirname(path));
 		if (!dirReady.ok) return dirReady;
 		const tmp = `${path}.${randomBytes(6).toString("hex")}.tmp`;
 		try {
@@ -297,11 +310,24 @@ export function fileLinkStore(
 				};
 			}
 		},
+		readPolicy: () => {
+			try {
+				return { ok: true, value: readFileSync(policyPath, "utf-8") };
+			} catch (e) {
+				if (isMissing(e)) return { ok: true, value: null };
+				return {
+					ok: false,
+					error: { kind: "store", op: "read", message: message(e) },
+				};
+			}
+		},
+		writePolicy: (text) => writeOwnerOnly(policyPath, text),
 		clear: () => {
 			try {
 				rmSync(keyPath, { force: true });
 				rmSync(statePath, { force: true });
 				rmSync(outboxPath, { force: true });
+				rmSync(policyDir, { recursive: true, force: true });
 				return { ok: true, value: undefined };
 			} catch (e) {
 				return {

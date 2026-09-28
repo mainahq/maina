@@ -6,6 +6,7 @@
  *   1. a matching deny rule            → deny (final)
  *   2. an action class set to deny     → deny (final)
  *   3. an irreversible class at `ask`  → ask (irreversible)   ← beats allow rules
+ *      (so does a class the org's managed layer holds at `ask`, #592)
  *   4. a matching allow rule           → allow (listed)
  *   5. a reversible class at `ask`     → ask
  *   6. an explicitly allowed class     → allow (listed)
@@ -101,6 +102,22 @@ export function evaluateRules(
 			kind: "ask",
 			irreversible: true,
 			reason: `${irreversibleAsk.id} is irreversible`,
+			classes,
+		};
+	}
+
+	// 3b. A class the managed layer holds at `ask` (#592) asks before any
+	// allow rule too: the managed layer is a floor, so a user or repo allow
+	// rule must not loosen it without touching the class.
+	const askFloor = new Set(policy.managed?.askFloor ?? []);
+	const managedAsk = specs.find(
+		(s) => askFloor.has(s.id) && s.spec?.verdict === "ask",
+	);
+	if (managedAsk) {
+		return {
+			kind: "ask",
+			irreversible: false,
+			reason: `${managedAsk.id} is held at ask by the org's managed policy`,
 			classes,
 		};
 	}

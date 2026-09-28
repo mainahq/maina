@@ -32,6 +32,9 @@ import envelopeAckSchema from "./v1/envelope-ack.schema.json" with {
 	type: "json",
 };
 import eventSchema from "./v1/event.schema.json" with { type: "json" };
+import policyBundleSchema from "./v1/policy-bundle.schema.json" with {
+	type: "json",
+};
 import tokenChallengeSchema from "./v1/token-challenge.schema.json" with {
 	type: "json",
 };
@@ -209,6 +212,45 @@ export type EnvelopeAck = Readonly<{
 	gaps: readonly Readonly<{ from: number; to: number }>[];
 }>;
 
+type BundleScope = Readonly<{ kind: "org" | "team" | "repo"; id: string }>;
+
+/**
+ * `GET /link/v1/policy`: the org's signed, versioned policy for this
+ * device's scope. `policy` is a maina v1 policy body, which core validates
+ * against its own schema. While the cloud's signer is dark a bundle is
+ * marked unsigned: `keyId: "unsigned"` and an all-zero `sig` (adr/0012).
+ */
+export type PolicyBundle = Readonly<{
+	v: 1;
+	orgId: string;
+	scope: BundleScope;
+	version: number;
+	/** `sha256:` of the canonical `{ policy, budgetDirectives, exceptions }`. */
+	etag: string;
+	policy: Readonly<Record<string, unknown>> & Readonly<{ version: 1 }>;
+	budgetDirectives: readonly Readonly<{
+		id: string;
+		scopeKind: BundleScope["kind"];
+		scopeId: string;
+		period: "day" | "week" | "month";
+		limitMicroUsd: number;
+		action: "degrade" | "stop";
+		degradeTo?: string;
+	}>[];
+	exceptions: readonly Readonly<{
+		id: string;
+		actionClass: string;
+		scopeKind: BundleScope["kind"];
+		scopeId: string;
+		verdict: "allow" | "ask";
+		expiresAt: string;
+	}>[];
+	issuedAt: string;
+	notBefore: string;
+	keyId: string;
+	sig: string;
+}>;
+
 type WireTypes = {
 	"enrol-start": EnrolStart;
 	"enrol-start-result": EnrolStartResult;
@@ -220,6 +262,7 @@ type WireTypes = {
 	event: LinkEvent;
 	envelope: LinkEnvelope;
 	"envelope-ack": EnvelopeAck;
+	"policy-bundle": PolicyBundle;
 };
 
 type WireKind = keyof WireTypes;
@@ -235,6 +278,7 @@ const SCHEMAS: Readonly<Record<WireKind, object>> = {
 	event: eventSchema,
 	envelope: envelopeSchema,
 	"envelope-ack": envelopeAckSchema,
+	"policy-bundle": policyBundleSchema,
 };
 
 export type WireRefusal = Readonly<{

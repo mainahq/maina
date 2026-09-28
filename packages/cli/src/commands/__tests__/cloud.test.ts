@@ -15,6 +15,7 @@ import {
 } from "@mainahq/runtime/src/link/__tests__/fake-cloud";
 import { createLinkClient } from "@mainahq/runtime/src/link/client";
 import { nodeLinkCrypto } from "@mainahq/runtime/src/link/keys";
+import { createPolicySync } from "@mainahq/runtime/src/link/policy-sync";
 import privacy from "@mainahq/runtime/src/link/protocol/v1/privacy.json" with {
 	type: "json",
 };
@@ -147,6 +148,46 @@ describe("maina cloud status", () => {
 			dataClass: "metadata",
 		});
 		expect(JSON.stringify(json)).not.toContain(salt);
+	});
+
+	// #592: the managed policy the device holds, and whether it is signed.
+	test("shows the held managed policy, and a refused unsigned one", async () => {
+		const cloud = fakeCloud();
+		const h = harness(cloud);
+		await runCloud(["enrol"], h.ports);
+		const none = harness(cloud);
+		await runCloud(["status"], none.ports);
+		expect(text(none.out)).toContain("policy:     none held yet");
+
+		// The dark signer's bundle is refused (adr/0012 §6), never held.
+		cloud.state.policy = cloud.policyBundle(
+			3,
+			{ version: 1, action_classes: { deploy: { verdict: "deny" } } },
+			{ signed: false },
+		);
+		await createPolicySync(h.ports.link).tick();
+		const s = harness(cloud);
+		expect(await runCloud(["status"], s.ports)).toBe(0);
+		expect(text(s.out)).toContain(
+			"policy:     none held yet; the last bundle (v3) was refused (unsigned)",
+		);
+		const j = harness(cloud);
+		await runCloud(["status", "--json"], j.ports);
+		expect(JSON.parse(text(j.out)).policy).toMatchObject({
+			kind: "none",
+			lastRefusal: { kind: "unsigned", version: 3 },
+		});
+
+		cloud.state.policy = cloud.policyBundle(4, {
+			version: 1,
+			action_classes: { deploy: { verdict: "deny" } },
+		});
+		await createPolicySync(h.ports.link).tick();
+		const signed = harness(cloud);
+		await runCloud(["status"], signed.ports);
+		expect(text(signed.out)).toContain(
+			"policy:     v4 signed (key key_policy_1)",
+		);
 	});
 
 	test("a device_revoked answer shows as revoked, with the way back", async () => {

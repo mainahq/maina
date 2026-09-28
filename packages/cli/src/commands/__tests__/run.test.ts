@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { DEFAULT_POLICY, type EnvPort, type Policy } from "@mainahq/core";
+import {
+	DEFAULT_POLICY,
+	type EnvPort,
+	type FsPort,
+	loadPolicy,
+	type Policy,
+	parseManagedLayer,
+} from "@mainahq/core";
 import {
 	type PrepareInput,
 	type RunActionDeps,
@@ -223,5 +230,112 @@ describe("runAction", () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.receipt.budgets).toEqual({ maxToolCalls: 5 });
+	});
+
+	// #592: an enrolled machine's managed policy (the cloud's bundle) sets
+	// the run budgets, and its budget directives stop runs.
+	describe("with a managed policy", () => {
+		const noFiles: FsPort = {
+			readFile: async (path) => ({
+				ok: false,
+				error: { kind: "not_found", path },
+			}),
+			writeFile: async () => ({ ok: true, value: undefined }),
+			exists: async () => false,
+			readDir: async (path) => ({
+				ok: false,
+				error: { kind: "not_found", path },
+			}),
+			remove: async () => ({ ok: true, value: undefined }),
+		};
+		const managedPolicy = async (
+			policy: unknown,
+			budgetDirectives: Parameters<
+				typeof parseManagedLayer
+			>[0]["budgetDirectives"] = [],
+			user?: unknown,
+		): Promise<Policy> => {
+			const layer = parseManagedLayer({
+				policy,
+				version: 4,
+				etag: `sha256:${"c".repeat(64)}`,
+				signature: "signed",
+				keyId: "key_policy_1",
+				issuedAt: "2026-09-28T08:00:00.000Z",
+				budgetDirectives,
+			});
+			if (!layer.ok) throw new Error(JSON.stringify(layer.error));
+			const loaded = await loadPolicy(
+				{ fs: noFiles },
+				"/repo",
+				user,
+				layer.value,
+			);
+			if (!loaded.ok) throw new Error(JSON.stringify(loaded.error));
+			return loaded.value;
+		};
+
+		test("the bundle's run budgets bound the run, whatever the user layer raises them to", async () => {
+			const policy = await managedPolicy(
+				{
+					version: 1,
+					run: { unattended: { budgets: { max_tool_calls: 25 } } },
+				},
+				[],
+				{ run: { unattended: { budgets: { max_tool_calls: 900 } } } },
+			);
+			const { deps: d } = deps({
+				loadPolicy: async () => ({ ok: true, value: policy }),
+			});
+			const result = await runAction(options, d);
+			expect(result.ok).toBe(true);
+			if (!result.ok) return;
+			expect(result.receipt.budgets).toEqual({
+				wallClockMs: 3_600_000,
+				maxToolCalls: 25,
+			});
+		});
+
+		test("a stop directive refuses the run before anything is set up", async () => {
+			const policy = await managedPolicy({ version: 1 }, [
+				{
+					id: "bud_team_month",
+					scopeKind: "team",
+					scopeId: "team_payments",
+					period: "month",
+					limitMicroUsd: 500_000_000,
+					action: "stop",
+				},
+			]);
+			const { deps: d, seen } = deps({
+				loadPolicy: async () => ({ ok: true, value: policy }),
+			});
+			const result = await runAction(options, d);
+			expect(result.ok).toBe(false);
+			if (result.ok) return;
+			expect(result.error.kind).toBe("budget");
+			expect(result.error.message).toContain("bud_team_month");
+			expect(result.error.message).toContain("$500.00");
+			expect(seen.prepared).toHaveLength(0);
+			expect(seen.written).toHaveLength(0);
+		});
+
+		test("a degrade directive does not stop the run", async () => {
+			const policy = await managedPolicy({ version: 1 }, [
+				{
+					id: "bud_team_month",
+					scopeKind: "team",
+					scopeId: "team_payments",
+					period: "month",
+					limitMicroUsd: 500_000_000,
+					action: "degrade",
+					degradeTo: "mechanical",
+				},
+			]);
+			const { deps: d } = deps({
+				loadPolicy: async () => ({ ok: true, value: policy }),
+			});
+			expect((await runAction(options, d)).ok).toBe(true);
+		});
 	});
 });

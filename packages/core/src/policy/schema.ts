@@ -55,7 +55,12 @@ export type DecisionType = (typeof DECISION_TYPES)[number];
 export const DECISION_BACKENDS = ["rules", "heuristic", "system1"] as const;
 export type DecisionBackend = (typeof DECISION_BACKENDS)[number];
 
-export type PolicySource = "user" | "repo";
+/**
+ * Where a layer came from. `managed` is the org's policy bundle pulled over
+ * Maina Link on an enrolled machine (#592); it sits between the defaults and
+ * the user layer, and is a floor for both layers after it.
+ */
+export type PolicySource = "managed" | "user" | "repo";
 
 /**
  * Action classes no policy layer can loosen, `explicitly_allow` included
@@ -258,9 +263,62 @@ export type Loosening = Readonly<{
 	before: Verdict;
 }>;
 
-/** The effective policy: defaults < user < repo, plus an audit of loosenings. */
+/**
+ * A user or repo setting that tried to loosen what the managed layer set.
+ * The managed value is kept; this records the attempt for `maina doctor`.
+ */
+export type FloorOverride = Readonly<{
+	source: PolicySource;
+	file: string | undefined;
+	/** Dotted path of the setting, as in a `PolicyError`. */
+	path: string;
+	/** The managed value that stayed in force. */
+	managed: Verdict | boolean | number;
+	/** What the layer asked for. */
+	attempted: Verdict | boolean | number;
+}>;
+
+/** Whether the cloud signed the bundle, or marked it unsigned (signer dark). */
+export type ManagedSignature = "signed" | "unsigned";
+
+/**
+ * A budget directive from the org's bundle (cloud Task 9.2): an org or team
+ * budget for `period` was reached, and runs `stop` or `degrade` to a tier.
+ */
+export type ManagedBudgetDirective = Readonly<{
+	id: string;
+	scopeKind: "org" | "team" | "repo";
+	scopeId: string;
+	period: "day" | "week" | "month";
+	limitMicroUsd: number;
+	action: "degrade" | "stop";
+	degradeTo?: string;
+}>;
+
+/** What the effective policy took from the managed layer, when there was one. */
+export type ManagedPolicyInfo = Readonly<{
+	version: number;
+	etag: string;
+	signature: ManagedSignature;
+	keyId: string;
+	issuedAt: string;
+	budgetDirectives: readonly ManagedBudgetDirective[];
+	/**
+	 * The action classes the managed layer holds at `ask`. An allow rule from
+	 * any layer cannot turn them into an allow (`evaluateRules`), or a user or
+	 * repo rule would loosen the floor without touching the class.
+	 */
+	askFloor: readonly string[];
+	overridden: readonly FloorOverride[];
+}>;
+
+/**
+ * The effective policy: defaults < managed < user < repo, plus an audit of
+ * loosenings. `managed` is present only on an enrolled machine that holds a
+ * bundle; without it the policy is exactly the v1 one.
+ */
 export type Policy = DeepReadonly<z.infer<typeof PolicyBody>> &
-	Readonly<{ loosened: readonly Loosening[] }>;
+	Readonly<{ loosened: readonly Loosening[]; managed?: ManagedPolicyInfo }>;
 
 export type ActionClassPolicy = Policy["action_classes"][string];
 export type RulePolicy = Policy["rules"]["allow"][number];

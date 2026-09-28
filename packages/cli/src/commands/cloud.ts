@@ -33,6 +33,10 @@ import {
 } from "@mainahq/runtime/src/link/enrol";
 import { nodeLinkCrypto } from "@mainahq/runtime/src/link/keys";
 import {
+	type ManagedPolicyStatus,
+	managedPolicyStatus,
+} from "@mainahq/runtime/src/link/policy-sync";
+import {
 	parseDataClass,
 	privacyReport,
 	renderPrivacy,
@@ -191,6 +195,41 @@ function renderStatus(status: DeviceStatus): string {
 	}
 }
 
+type ManagedPolicyRefusal = Extract<
+	ManagedPolicyStatus,
+	{ kind: "none" }
+>["lastRefusal"];
+
+/**
+ * One line for the managed policy (#592): its version and whether the cloud
+ * signed it. An unsigned one (the cloud's signer is dark) says so plainly.
+ * Shared with `maina doctor`.
+ */
+export function describeManagedPolicy(status: ManagedPolicyStatus): string {
+	const refused = (r: ManagedPolicyRefusal): string =>
+		r === null
+			? ""
+			: `; the last bundle${r.version === undefined ? "" : ` (v${r.version})`} was refused (${r.kind}) at ${r.at}`;
+	switch (status.kind) {
+		case "not_enrolled":
+			return "none (not enrolled)";
+		case "none":
+			return `none held yet${refused(status.lastRefusal)}`;
+		case "unreadable":
+			return `unreadable: ${status.message} (the gate asks until a good bundle arrives)`;
+		case "held":
+			return `${
+				status.signature === "signed"
+					? `v${status.version} signed (key ${status.keyId})`
+					: `v${status.version} UNSIGNED managed policy (the cloud's signer is dark): it can only tighten`
+			}${refused(status.lastRefusal)}`;
+		default: {
+			const unreachable: never = status;
+			return unreachable;
+		}
+	}
+}
+
 // ── Subcommands ─────────────────────────────────────────────────────────────
 
 async function enrol(
@@ -259,16 +298,25 @@ async function status(
 	}
 	// Read after the check: a `device_revoked` answer has marked the state.
 	const current = deviceStatus(ports.link.store);
+	// The managed policy the device holds (#592), once it is enrolled.
+	const policy =
+		current.kind === "enrolled" || current.kind === "revoked"
+			? managedPolicyStatus(ports.link)
+			: undefined;
 	if (flags.bools.has("--json")) {
 		const shown =
 			current.kind === "unreadable"
 				? { kind: "unreadable", error: storeMessage(current.error) }
 				: current;
+		const withPolicy = policy === undefined ? shown : { ...shown, policy };
 		ports.stdout(
-			`${JSON.stringify(check === undefined ? shown : { ...shown, check })}\n`,
+			`${JSON.stringify(check === undefined ? withPolicy : { ...withPolicy, check })}\n`,
 		);
 	} else {
 		ports.stdout(renderStatus(current));
+		if (policy !== undefined) {
+			ports.stdout(`  policy:     ${describeManagedPolicy(policy)}\n`);
+		}
 		if (check !== undefined) ports.stdout(`  check:      ${check}\n`);
 	}
 	return current.kind === "unreadable" || !checkPassed ? 1 : 0;

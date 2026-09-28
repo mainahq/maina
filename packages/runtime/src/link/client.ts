@@ -42,6 +42,11 @@ type LinkRequest = Readonly<{
 	 * that cannot be serialised is refused as `invalid_body`, never thrown.
 	 */
 	body?: unknown;
+	/**
+	 * Extra request headers, such as the policy pull's `If-None-Match`. The
+	 * client's own `Authorization` always wins over one set here.
+	 */
+	headers?: Readonly<Record<string, string>>;
 }>;
 
 type LinkResponse = Readonly<{ status: number; data: unknown }>;
@@ -105,6 +110,11 @@ export function createLinkClient(ports: LinkPorts): LinkClient {
 			`${base}${request.path}`,
 			request.body,
 			{
+				...Object.fromEntries(
+					Object.entries(request.headers ?? {}).filter(
+						([name]) => name.toLowerCase() !== "authorization",
+					),
+				),
 				Authorization: `Bearer ${t.value.token}`,
 			},
 		);

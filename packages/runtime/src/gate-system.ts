@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { openDecisionDb } from "@mainahq/cli/src/decision-store";
+import { processEnv } from "@mainahq/cli/src/env";
 import { nodeFs } from "@mainahq/cli/src/ports";
 import {
 	createProcessGit,
@@ -20,6 +21,8 @@ import {
 	loadLogSalt,
 	loadPolicy,
 	loadShellParser,
+	type ManagedLayer,
+	type PolicyError,
 	type Result,
 	readPushConfig,
 	readUserPolicy,
@@ -31,6 +34,9 @@ import {
 	type GateEvaluatorDeps,
 	type GateLog,
 } from "./gate";
+import { nodeLinkCrypto } from "./link/keys";
+import { managedLayerReader } from "./link/policy-sync";
+import { fileLinkStore, linkDir } from "./link/store";
 import { checkedOutBranch, gitProbe, resolveRoot } from "./root";
 import type { ShadowRunner } from "./shadow";
 import type { InferencePort } from "./system1";
@@ -53,10 +59,31 @@ type SystemOptions = Readonly<{
 	shadow?: ShadowRunner;
 	/** Each logged gate decision, for the Link uplink (#591). */
 	onDecision?: GateEvaluatorDeps["onDecision"];
+	/**
+	 * The managed policy layer (#592): the org's bundle this machine holds.
+	 * By default the held file in the Link directory, read per event from
+	 * disk only (never the network) and verified when it changes.
+	 */
+	managed?: ManagedReader;
 }>;
+
+type ManagedReader = () => Result<
+	ManagedLayer | undefined,
+	readonly PolicyError[]
+>;
+
+/** The held bundle under the Link directory for `home` (`MAINA_LINK_DIR` wins). */
+function systemManagedLayer(home: string): ManagedReader {
+	return managedLayerReader({
+		store: fileLinkStore(linkDir(processEnv, home)),
+		crypto: nodeLinkCrypto,
+		clock: () => new Date(),
+	});
+}
 
 function systemDeps(options: SystemOptions): GateEvaluatorDeps {
 	const home = options.home ?? homedir();
+	const managed = options.managed ?? systemManagedLayer(home);
 	const roots = new Map<string, string>();
 	let context: Promise<GateContext> | null = null;
 	return {
@@ -74,13 +101,17 @@ function systemDeps(options: SystemOptions): GateEvaluatorDeps {
 			roots.set(cwd, resolved.value.path);
 			return resolved.value.path;
 		},
-		// defaults < user (`~/.maina/policy.json`, where `maina allow --always`
-		// writes) < repo. Re-read per event, so a remembered override applies
-		// at once; an unreadable user policy makes the event ask.
+		// defaults < managed (the org's bundle on an enrolled machine, a floor
+		// for the layers after it) < user (`~/.maina/policy.json`, where
+		// `maina allow --always` writes) < repo. Re-read per event, so a
+		// remembered override or a new bundle applies at once; an unreadable
+		// user policy or held bundle makes the event ask.
 		policyFor: async (root) => {
+			const layer = managed();
+			if (!layer.ok) return layer;
 			const user = await readUserPolicy({ fs: nodeFs }, home);
 			if (!user.ok) return user;
-			return loadPolicy({ fs: nodeFs }, root, user.value);
+			return loadPolicy({ fs: nodeFs }, root, user.value, layer.value);
 		},
 		// A grammar that fails to load leaves `shell: null`: every shell event
 		// is then opaque and asks.

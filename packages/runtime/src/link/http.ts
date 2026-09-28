@@ -36,6 +36,8 @@ export type LinkFailure =
 export type LinkAnswer = Readonly<{ status: number; envelope: ApiEnvelope }>;
 
 const TIMEOUT_MS = 15_000;
+/** The answer to a conditional GET whose `If-None-Match` still matches. */
+export const NOT_MODIFIED = 304;
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /**
@@ -121,6 +123,13 @@ export async function linkCall(
 					: `HTTP ${e.status} from ${e.url}`;
 		return { ok: false, error: { kind: "network", message } };
 	}
+	// A conditional GET that matched (`If-None-Match`) has no body at all.
+	if (sent.value.status === NOT_MODIFIED) {
+		return {
+			ok: true,
+			value: { status: NOT_MODIFIED, envelope: { data: null, error: null } },
+		};
+	}
 	const envelope = parseEnvelope(sent.value.body);
 	if (envelope === null) {
 		return {
@@ -136,8 +145,8 @@ export async function linkCall(
 
 export function isSuccess(answer: LinkAnswer): boolean {
 	return (
-		answer.status >= 200 &&
-		answer.status < 300 &&
+		((answer.status >= 200 && answer.status < 300) ||
+			answer.status === NOT_MODIFIED) &&
 		answer.envelope.error === null
 	);
 }

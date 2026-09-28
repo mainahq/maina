@@ -12,6 +12,7 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { DEFAULT_POLICY } from "../../policy/defaults";
 import { loadPolicy } from "../../policy/load";
+import { parseManagedLayer } from "../../policy/managed";
 import type { Policy, RulePolicy } from "../../policy/schema";
 import { createMemoryFs } from "../../ports/testing";
 import type { GateContext } from "../events";
@@ -567,5 +568,67 @@ describe("an agent cannot override its own gate (#447)", () => {
 			expect(result.kind).toBe("deny");
 			expect(result.classes).toContain("gate.self_override");
 		}
+	});
+});
+
+// #592: on an enrolled machine the managed layer is a floor. A class it holds
+// at `ask` must not be loosened by an allow rule a user or repo layer adds.
+describe("the managed floor and allow rules", () => {
+	async function managedPolicy(user: unknown): Promise<Policy> {
+		const managed = parseManagedLayer({
+			policy: {
+				version: 1,
+				action_classes: { "network.fetch": { verdict: "ask" } },
+			},
+			version: 7,
+			etag: `sha256:${"a".repeat(64)}`,
+			signature: "signed",
+			keyId: "key_policy_1",
+			issuedAt: "2026-09-28T08:00:00.000Z",
+			budgetDirectives: [],
+		});
+		if (!managed.ok) throw new Error(JSON.stringify(managed.error));
+		const loaded = await loadPolicy(
+			{ fs: createMemoryFs({}) },
+			ROOT,
+			user,
+			managed.value,
+		);
+		if (!loaded.ok) throw new Error(JSON.stringify(loaded.error));
+		return loaded.value;
+	}
+
+	test("without a managed layer an allow rule allows the class (v1)", async () => {
+		const policy = await policyFrom({
+			action_classes: { "network.fetch": { verdict: "ask" } },
+			rules: { allow: [{ match: "curl *" }] },
+		});
+		expect(
+			evaluateRules(shellEvent("curl https://x.example"), policy, ctx).kind,
+		).toBe("allow");
+	});
+
+	test("a user allow rule cannot loosen a class the managed layer holds at ask", async () => {
+		const policy = await managedPolicy({
+			rules: { allow: [{ match: "curl *" }] },
+		});
+		const result = evaluateRules(
+			shellEvent("curl https://x.example"),
+			policy,
+			ctx,
+		);
+		expect(result).toMatchObject({ kind: "ask", irreversible: false });
+		if (result.kind === "ask") {
+			expect(result.reason).toContain("managed");
+		}
+	});
+
+	test("an allow rule for another class still allows", async () => {
+		const policy = await managedPolicy({
+			rules: { allow: [{ match: "echo *" }] },
+		});
+		expect(evaluateRules(shellEvent("echo hi"), policy, ctx).kind).toBe(
+			"allow",
+		);
 	});
 });

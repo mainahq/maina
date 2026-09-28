@@ -9,7 +9,8 @@
  * Signed messages sign a domain-separated input:
  *
  *   device  utf8("maina-link/sig/v1\n" + purpose + "\n") || JCS(message without its signature field)
- *   cloud   utf8("maina-cloud/sig/v1\nlink-control\n" + orgId + "\n") || JCS(message without sig)
+ *   cloud   utf8("maina-cloud/sig/v1\n" + purpose + "\n" + orgId + "\n") || JCS(message without sig)
+ *           (purpose `link-control` for control messages, `policy-bundle` for policy bundles)
  *
  * JCS is RFC 8785; the Link messages carry only strings and safe integers,
  * the subset core's receipt canonicalizer implements.
@@ -137,8 +138,9 @@ export function deviceSigningInput(
 	};
 }
 
-/** The bytes the org's link-control key signs for a control message. */
-export function controlSigningInput(
+/** The bytes an org key of `purpose` signs for `message` (its `sig` left out). */
+function cloudSigningInput(
+	purpose: "link-control" | "policy-bundle",
 	orgId: string,
 	message: Readonly<Record<string, unknown>>,
 ): Result<Uint8Array, CryptoFailure> {
@@ -146,6 +148,22 @@ export function controlSigningInput(
 	if (!body.ok) return body;
 	return {
 		ok: true,
-		value: concat(`maina-cloud/sig/v1\nlink-control\n${orgId}\n`, body.value),
+		value: concat(`maina-cloud/sig/v1\n${purpose}\n${orgId}\n`, body.value),
 	};
+}
+
+/** The bytes the org's link-control key signs for a control message. */
+export function controlSigningInput(
+	orgId: string,
+	message: Readonly<Record<string, unknown>>,
+): Result<Uint8Array, CryptoFailure> {
+	return cloudSigningInput("link-control", orgId, message);
+}
+
+/** The bytes the org's policy-bundle key signs for a policy bundle. */
+export function policyBundleSigningInput(
+	orgId: string,
+	bundle: Readonly<Record<string, unknown>>,
+): Result<Uint8Array, CryptoFailure> {
+	return cloudSigningInput("policy-bundle", orgId, bundle);
 }
