@@ -1,0 +1,4127 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://api.mainahq.com/protocol/ledger/v1/event.schema.json",
+	"title": "LedgerEvent",
+	"description": "Maina Cloud ledger event, schema version 1. Generated from src/core/ledger/{catalog,event}.ts; do not edit. Canonical form and hash chain: adr/0005-ledger-canonical-form.md.",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"v",
+		"orgId",
+		"seq",
+		"id",
+		"type",
+		"ts",
+		"actor",
+		"requestId",
+		"subject",
+		"data",
+		"prevHash",
+		"hash"
+	],
+	"properties": {
+		"v": {
+			"const": 1
+		},
+		"orgId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"seq": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 9007199254740991
+		},
+		"id": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"type": {
+			"type": "string",
+			"enum": [
+				"decision",
+				"approval.requested",
+				"approval.resolved",
+				"approval.timeout",
+				"override",
+				"run.started",
+				"run.step",
+				"run.finished",
+				"receipt",
+				"spend",
+				"inventory",
+				"auth.login",
+				"auth.logout",
+				"org.created",
+				"team.created",
+				"member.added",
+				"member.updated",
+				"member.removed",
+				"sso.configured",
+				"sso.updated",
+				"sso.disabled",
+				"credential.issued",
+				"credential.revoked",
+				"credential.rehashed",
+				"credential.used",
+				"device.enrolled",
+				"device.revoked",
+				"link.batch_received",
+				"link.gap_detected",
+				"role.granted",
+				"role.changed",
+				"role.revoked",
+				"invite.created",
+				"invite.accepted",
+				"invite.revoked",
+				"policy.updated",
+				"policy.published",
+				"policy.rolled_back",
+				"exception.created",
+				"exception.revoked",
+				"exception.expired",
+				"export.requested",
+				"export.completed",
+				"settings.changed",
+				"billing.plan_changed",
+				"billing.seats_changed",
+				"billing.payment_failed",
+				"billing.subscription_updated",
+				"retention.changed",
+				"retention.swept",
+				"legal_hold.placed",
+				"legal_hold.released",
+				"gdpr.erasure",
+				"gdpr.org_erasure",
+				"finding.dismissed",
+				"verification.created",
+				"verification.updated",
+				"installation.linked",
+				"installation.unlinked",
+				"installation.repos_changed",
+				"installation.delivery",
+				"prompt.changed",
+				"feedback.recorded",
+				"feedback.undone",
+				"episodic.recorded",
+				"episodic.accessed",
+				"wiki.synced",
+				"wiki.compile.requested",
+				"wiki.compile.updated",
+				"wiki.query.logged",
+				"graph.stored",
+				"ledger.segment_sealed",
+				"legacy.gdpr.purge.user",
+				"legacy.gdpr.purge.org",
+				"legacy.finding.dismissed"
+			]
+		},
+		"ts": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+			"examples": [
+				"2026-09-01T10:00:00.000Z"
+			]
+		},
+		"actor": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"id"
+			],
+			"properties": {
+				"kind": {
+					"type": "string",
+					"enum": [
+						"member",
+						"api_token",
+						"device",
+						"agent",
+						"service",
+						"system"
+					]
+				},
+				"id": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+					"examples": [
+						"id_0001"
+					]
+				}
+			}
+		},
+		"onBehalfOf": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"id"
+			],
+			"properties": {
+				"kind": {
+					"type": "string",
+					"enum": [
+						"member",
+						"api_token",
+						"device",
+						"agent",
+						"service",
+						"system"
+					]
+				},
+				"id": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+					"examples": [
+						"id_0001"
+					]
+				}
+			}
+		},
+		"device": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"ipHash": {
+			"type": "string",
+			"pattern": "^hmac-sha256:[0-9a-f]{64}$",
+			"examples": [
+				"hmac-sha256:0000000000000000000000000000000000000000000000000000000000000000"
+			]
+		},
+		"requestId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"subject": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"id"
+			],
+			"properties": {
+				"kind": {
+					"type": "string",
+					"enum": [
+						"org",
+						"team",
+						"member",
+						"credential",
+						"device",
+						"role_grant",
+						"invite",
+						"policy",
+						"exception",
+						"export",
+						"settings",
+						"subscription",
+						"retention",
+						"legal_hold",
+						"run",
+						"approval",
+						"decision",
+						"receipt",
+						"finding",
+						"verification",
+						"installation",
+						"prompt",
+						"feedback",
+						"repo",
+						"wiki",
+						"graph",
+						"ledger_segment"
+					]
+				},
+				"id": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+					"examples": [
+						"id_0001"
+					]
+				}
+			}
+		},
+		"data": {
+			"description": "The event type's data; see the allOf branches."
+		},
+		"pii": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"subject",
+				"keyId",
+				"fields",
+				"ct"
+			],
+			"properties": {
+				"subject": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+					"examples": [
+						"id_0001"
+					]
+				},
+				"keyId": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+					"examples": [
+						"id_0001"
+					]
+				},
+				"fields": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"name",
+							"email",
+							"login"
+						]
+					},
+					"maxItems": 3,
+					"description": "The sealed fields' names, sorted, without duplicates.",
+					"minItems": 1,
+					"uniqueItems": true
+				},
+				"ct": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9_-]{16,8192}$",
+					"examples": [
+						"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+					]
+				}
+			}
+		},
+		"prevHash": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{64}$",
+			"examples": [
+				"0000000000000000000000000000000000000000000000000000000000000000"
+			]
+		},
+		"hash": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{64}$",
+			"examples": [
+				"0000000000000000000000000000000000000000000000000000000000000000"
+			]
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "decision"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "decision"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"decisionType",
+							"inputHash",
+							"policyHash",
+							"modelHash",
+							"finalAction",
+							"confidenceBp",
+							"latencyMs"
+						],
+						"properties": {
+							"decisionType": {
+								"type": "string",
+								"enum": [
+									"action.risk",
+									"diff.sensitive",
+									"diff.needs_review",
+									"task.tier",
+									"finding.real",
+									"finding.severity",
+									"spec.coverage",
+									"spec.orphan",
+									"spec.contradiction",
+									"spec.impl_leak",
+									"spec.quality",
+									"review.category",
+									"review.reviewer_kind",
+									"slop",
+									"wiki.relevance",
+									"context.select"
+								]
+							},
+							"inputHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							},
+							"policyHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							},
+							"modelHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							},
+							"finalAction": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"confidenceBp": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 10000
+							},
+							"latencyMs": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"host": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"sessionId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"runId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "approval.requested"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "approval"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"actionClass",
+							"policyHash",
+							"expiresAt"
+						],
+						"properties": {
+							"actionClass": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"policyHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							},
+							"expiresAt": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							},
+							"runId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "approval.resolved"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "approval"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"resolution",
+							"latencyMs"
+						],
+						"properties": {
+							"resolution": {
+								"type": "string",
+								"enum": [
+									"approved",
+									"denied"
+								]
+							},
+							"latencyMs": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "approval.timeout"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "approval"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"waitedMs",
+							"fallback"
+						],
+						"properties": {
+							"waitedMs": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"fallback": {
+								"type": "string",
+								"enum": [
+									"deny",
+									"ask-local"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "override"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "decision"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"decisionType",
+							"fromAction",
+							"toAction",
+							"reason"
+						],
+						"properties": {
+							"decisionType": {
+								"type": "string",
+								"enum": [
+									"action.risk",
+									"diff.sensitive",
+									"diff.needs_review",
+									"task.tier",
+									"finding.real",
+									"finding.severity",
+									"spec.coverage",
+									"spec.orphan",
+									"spec.contradiction",
+									"spec.impl_leak",
+									"spec.quality",
+									"review.category",
+									"review.reviewer_kind",
+									"slop",
+									"wiki.relevance",
+									"context.select"
+								]
+							},
+							"fromAction": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"toAction": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"reason": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "run.started"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "run"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"agent"
+						],
+						"properties": {
+							"agent": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"host": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"repoHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							},
+							"branchHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "run.step"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "run"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"step",
+							"toolClass",
+							"verdict"
+						],
+						"properties": {
+							"step": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"toolClass": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"verdict": {
+								"type": "string",
+								"enum": [
+									"allow",
+									"ask",
+									"deny"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "run.finished"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "run"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"outcome",
+							"durationMs",
+							"steps"
+						],
+						"properties": {
+							"outcome": {
+								"type": "string",
+								"enum": [
+									"succeeded",
+									"failed",
+									"cancelled",
+									"stopped"
+								]
+							},
+							"durationMs": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"steps": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "receipt"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "receipt"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"receiptHash",
+							"passed"
+						],
+						"properties": {
+							"receiptHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							},
+							"passed": {
+								"type": "boolean"
+							},
+							"runId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"commit": {
+								"type": "string",
+								"pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+								"examples": [
+									"0000000000000000000000000000000000000000"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "spend"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "run"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"provider",
+							"model",
+							"inputTokens",
+							"outputTokens",
+							"costMicroUsd"
+						],
+						"properties": {
+							"provider": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"model": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"inputTokens": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"outputTokens": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"costMicroUsd": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"routedTier": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"savingsMicroUsd": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "inventory"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "device"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"agent",
+							"agentVersion",
+							"mcpServers",
+							"hooksInstalled"
+						],
+						"properties": {
+							"agent": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"agentVersion": {
+								"type": "string",
+								"pattern": "^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$",
+								"examples": [
+									"1.4.0"
+								]
+							},
+							"mcpServers": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"hooksInstalled": {
+								"type": "boolean"
+							},
+							"runtimeVersion": {
+								"type": "string",
+								"pattern": "^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$",
+								"examples": [
+									"1.4.0"
+								]
+							},
+							"plugins": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "auth.login"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "member"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"method",
+							"credentialId"
+						],
+						"properties": {
+							"method": {
+								"type": "string",
+								"enum": [
+									"github",
+									"sso",
+									"device"
+								]
+							},
+							"credentialId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "auth.logout"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "credential"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"scope"
+						],
+						"properties": {
+							"scope": {
+								"type": "string",
+								"enum": [
+									"current",
+									"others"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "org.created"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "org"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"source",
+							"ownerId"
+						],
+						"properties": {
+							"source": {
+								"type": "string",
+								"enum": [
+									"github",
+									"device"
+								]
+							},
+							"ownerId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "team.created"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "team"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [],
+						"properties": {}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "member.added"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "member"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"role",
+							"via"
+						],
+						"properties": {
+							"role": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"via": {
+								"type": "string",
+								"enum": [
+									"dashboard"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "member.updated"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "member"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"fields"
+						],
+						"properties": {
+							"fields": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"enum": [
+										"name",
+										"email",
+										"onboarded"
+									]
+								},
+								"maxItems": 3
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "member.removed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "member"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"reason"
+						],
+						"properties": {
+							"reason": {
+								"type": "string",
+								"enum": [
+									"self",
+									"admin"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "sso.configured"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "org"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"protocol",
+							"provider"
+						],
+						"properties": {
+							"protocol": {
+								"type": "string",
+								"enum": [
+									"saml",
+									"oidc"
+								]
+							},
+							"provider": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "sso.updated"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "org"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"protocol",
+							"provider"
+						],
+						"properties": {
+							"protocol": {
+								"type": "string",
+								"enum": [
+									"saml",
+									"oidc"
+								]
+							},
+							"provider": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "sso.disabled"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "org"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"protocol"
+						],
+						"properties": {
+							"protocol": {
+								"type": "string",
+								"enum": [
+									"saml",
+									"oidc"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "credential.issued"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "credential"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"kind",
+							"expiresAt"
+						],
+						"properties": {
+							"kind": {
+								"type": "string",
+								"enum": [
+									"session",
+									"cli",
+									"api",
+									"device"
+								]
+							},
+							"expiresAt": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							},
+							"scopes": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+									"examples": [
+										"claude-code"
+									]
+								},
+								"maxItems": 256
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "credential.revoked"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "credential"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"kind",
+							"reason"
+						],
+						"properties": {
+							"kind": {
+								"type": "string",
+								"enum": [
+									"session",
+									"cli",
+									"api",
+									"device"
+								]
+							},
+							"reason": {
+								"type": "string",
+								"enum": [
+									"user",
+									"admin",
+									"logout",
+									"compromised"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "credential.rehashed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "credential"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"kind",
+							"expiresAt"
+						],
+						"properties": {
+							"kind": {
+								"type": "string",
+								"enum": [
+									"session",
+									"cli",
+									"api",
+									"device"
+								]
+							},
+							"expiresAt": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "credential.used"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "credential"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"kind"
+						],
+						"properties": {
+							"kind": {
+								"type": "string",
+								"enum": [
+									"session",
+									"cli",
+									"api",
+									"device"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "device.enrolled"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "device"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"kind",
+							"publicKeyHash"
+						],
+						"properties": {
+							"kind": {
+								"type": "string",
+								"enum": [
+									"workstation",
+									"ci"
+								]
+							},
+							"publicKeyHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "device.revoked"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "device"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"reason"
+						],
+						"properties": {
+							"reason": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "link.batch_received"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "device"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"seqFrom",
+							"seqTo",
+							"accepted",
+							"duplicates",
+							"rejected",
+							"gapsClosed",
+							"openGaps"
+						],
+						"properties": {
+							"seqFrom": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"seqTo": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"accepted": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"duplicates": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"rejected": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"gapsClosed": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"openGaps": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "link.gap_detected"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "device"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"seqFrom",
+							"seqTo",
+							"accepted",
+							"duplicates",
+							"rejected",
+							"gapsClosed",
+							"openGaps",
+							"gapsOpened",
+							"missing",
+							"firstMissing",
+							"lastMissing"
+						],
+						"properties": {
+							"seqFrom": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"seqTo": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"accepted": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"duplicates": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"rejected": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"gapsClosed": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"openGaps": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"gapsOpened": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"missing": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"firstMissing": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"lastMissing": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "role.granted"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "role_grant"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"memberId",
+							"role",
+							"scopeKind",
+							"scopeId"
+						],
+						"properties": {
+							"memberId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"role": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"scopeKind": {
+								"type": "string",
+								"enum": [
+									"org",
+									"team",
+									"repo"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"expiresAt": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "role.changed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "role_grant"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"memberId",
+							"fromRole",
+							"toRole",
+							"scopeKind",
+							"scopeId"
+						],
+						"properties": {
+							"memberId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"fromRole": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"toRole": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"scopeKind": {
+								"type": "string",
+								"enum": [
+									"org",
+									"team",
+									"repo"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "role.revoked"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "role_grant"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"memberId",
+							"role",
+							"scopeKind",
+							"scopeId"
+						],
+						"properties": {
+							"memberId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"role": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"scopeKind": {
+								"type": "string",
+								"enum": [
+									"org",
+									"team",
+									"repo"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "invite.created"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "invite"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"role",
+							"expiresAt"
+						],
+						"properties": {
+							"role": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"expiresAt": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							},
+							"teamId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"inviteeHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "invite.accepted"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "invite"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"memberId"
+						],
+						"properties": {
+							"memberId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "invite.revoked"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "invite"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [],
+						"properties": {}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "policy.updated"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "policy"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"scopeKind",
+							"scopeId",
+							"version",
+							"policyHash"
+						],
+						"properties": {
+							"scopeKind": {
+								"type": "string",
+								"enum": [
+									"org",
+									"team",
+									"repo"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"version": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"policyHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "policy.published"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "policy"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"scopeKind",
+							"scopeId",
+							"version",
+							"policyHash"
+						],
+						"properties": {
+							"scopeKind": {
+								"type": "string",
+								"enum": [
+									"org",
+									"team",
+									"repo"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"version": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"policyHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "policy.rolled_back"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "policy"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"scopeKind",
+							"scopeId",
+							"fromVersion",
+							"toVersion",
+							"policyHash"
+						],
+						"properties": {
+							"scopeKind": {
+								"type": "string",
+								"enum": [
+									"org",
+									"team",
+									"repo"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"fromVersion": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"toVersion": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"policyHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "exception.created"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "exception"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"rule",
+							"scopeKind",
+							"scopeId",
+							"expiresAt"
+						],
+						"properties": {
+							"rule": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"scopeKind": {
+								"type": "string",
+								"enum": [
+									"org",
+									"team",
+									"repo"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"expiresAt": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "exception.revoked"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "exception"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [],
+						"properties": {}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "exception.expired"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "exception"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [],
+						"properties": {}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "export.requested"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "export"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"kind",
+							"fromTs",
+							"toTs"
+						],
+						"properties": {
+							"kind": {
+								"type": "string",
+								"enum": [
+									"audit_csv",
+									"audit_jsonl",
+									"evidence_pack",
+									"siem_backfill"
+								]
+							},
+							"fromTs": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							},
+							"toTs": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "export.completed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "export"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"kind",
+							"rows",
+							"bytes",
+							"artifactHash"
+						],
+						"properties": {
+							"kind": {
+								"type": "string",
+								"enum": [
+									"audit_csv",
+									"audit_jsonl",
+									"evidence_pack",
+									"siem_backfill"
+								]
+							},
+							"rows": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"bytes": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"artifactHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "settings.changed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "settings"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"key",
+							"valueHash"
+						],
+						"properties": {
+							"key": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"valueHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "billing.plan_changed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "subscription"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"fromPlan",
+							"toPlan"
+						],
+						"properties": {
+							"fromPlan": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"toPlan": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "billing.seats_changed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "subscription"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"fromSeats",
+							"toSeats"
+						],
+						"properties": {
+							"fromSeats": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"toSeats": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "billing.payment_failed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "subscription"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"attempt"
+						],
+						"properties": {
+							"attempt": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "billing.subscription_updated"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "subscription"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"status",
+							"plan"
+						],
+						"properties": {
+							"status": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							},
+							"plan": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "retention.changed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "retention"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"fromDays",
+							"toDays"
+						],
+						"properties": {
+							"fromDays": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 2555
+							},
+							"toDays": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 2555
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "retention.swept"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "retention"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"deletedEvents",
+							"deletedSegments",
+							"anchorSeq"
+						],
+						"properties": {
+							"deletedEvents": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"deletedSegments": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"anchorSeq": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "legal_hold.placed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "legal_hold"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"scopeKind",
+							"scopeId",
+							"fromTs"
+						],
+						"properties": {
+							"scopeKind": {
+								"type": "string",
+								"enum": [
+									"org",
+									"team",
+									"repo"
+								]
+							},
+							"scopeId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"fromTs": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							},
+							"toTs": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "legal_hold.released"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "legal_hold"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [],
+						"properties": {}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "gdpr.erasure"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "member"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"subjectKind",
+							"keysDestroyed",
+							"purgeErrors"
+						],
+						"properties": {
+							"subjectKind": {
+								"type": "string",
+								"enum": [
+									"user",
+									"org"
+								]
+							},
+							"keysDestroyed": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"purgeErrors": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"failedSurfaces": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"enum": [
+										"collect",
+										"reports_bucket",
+										"proof_bucket",
+										"posthog",
+										"kv"
+									]
+								},
+								"maxItems": 5
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "gdpr.org_erasure"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "org"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"keysDestroyed",
+							"purgeErrors"
+						],
+						"properties": {
+							"keysDestroyed": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"purgeErrors": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"failedSurfaces": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"enum": [
+										"collect",
+										"reports_bucket",
+										"proof_bucket",
+										"posthog",
+										"kv"
+									]
+								},
+								"maxItems": 5
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "finding.dismissed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "finding"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"runId"
+						],
+						"properties": {
+							"runId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "verification.created"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "verification"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"source"
+						],
+						"properties": {
+							"source": {
+								"type": "string",
+								"enum": [
+									"cli",
+									"cache",
+									"retry",
+									"run",
+									"github",
+									"slash"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "verification.updated"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "verification"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"status"
+						],
+						"properties": {
+							"status": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "installation.linked"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "installation"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"repoSelection"
+						],
+						"properties": {
+							"repoSelection": {
+								"type": "string",
+								"enum": [
+									"all",
+									"selected"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "installation.unlinked"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "installation"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [],
+						"properties": {}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "installation.repos_changed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "installation"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"added",
+							"removed"
+						],
+						"properties": {
+							"added": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"removed": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "installation.delivery"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "installation"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"event"
+						],
+						"properties": {
+							"event": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+								"examples": [
+									"claude-code"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "prompt.changed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "prompt"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"op"
+						],
+						"properties": {
+							"op": {
+								"type": "string",
+								"enum": [
+									"upsert",
+									"update",
+									"delete"
+								]
+							},
+							"contentHash": {
+								"type": "string",
+								"pattern": "^sha256:[0-9a-f]{64}$",
+								"examples": [
+									"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "feedback.recorded"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "feedback"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"source",
+							"events"
+						],
+						"properties": {
+							"source": {
+								"type": "string",
+								"enum": [
+									"cli",
+									"stats",
+									"finding"
+								]
+							},
+							"events": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "feedback.undone"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "feedback"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [],
+						"properties": {}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "episodic.recorded"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "repo"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"entries"
+						],
+						"properties": {
+							"entries": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "episodic.accessed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "repo"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"entries",
+							"decayed"
+						],
+						"properties": {
+							"entries": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"decayed": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "wiki.synced"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "wiki"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"upserted",
+							"deleted"
+						],
+						"properties": {
+							"upserted": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"deleted": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "wiki.compile.requested"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "wiki"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"jobId"
+						],
+						"properties": {
+							"jobId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "wiki.compile.updated"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "wiki"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"jobId",
+							"status"
+						],
+						"properties": {
+							"jobId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"status": {
+								"type": "string",
+								"enum": [
+									"compiling",
+									"done",
+									"failed"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "wiki.query.logged"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "wiki"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"articles"
+						],
+						"properties": {
+							"articles": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "graph.stored"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "graph"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"nodes",
+							"edges",
+							"bytes"
+						],
+						"properties": {
+							"nodes": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"edges": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"bytes": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "ledger.segment_sealed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "ledger_segment"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"day",
+							"firstSeq",
+							"lastSeq",
+							"count",
+							"root",
+							"signed"
+						],
+						"properties": {
+							"day": {
+								"type": "string",
+								"pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+								"examples": [
+									"2026-09-01"
+								]
+							},
+							"firstSeq": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"lastSeq": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"count": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 9007199254740991
+							},
+							"root": {
+								"type": "string",
+								"pattern": "^[0-9a-f]{64}$",
+								"examples": [
+									"0000000000000000000000000000000000000000000000000000000000000000"
+								]
+							},
+							"signed": {
+								"type": "boolean"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "legacy.gdpr.purge.user"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "member"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"legacyId",
+							"originalTs",
+							"failed"
+						],
+						"properties": {
+							"legacyId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"originalTs": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							},
+							"failed": {
+								"type": "boolean"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "legacy.gdpr.purge.org"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "org"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"legacyId",
+							"originalTs",
+							"failed"
+						],
+						"properties": {
+							"legacyId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"originalTs": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							},
+							"failed": {
+								"type": "boolean"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "legacy.finding.dismissed"
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"properties": {
+					"subject": {
+						"properties": {
+							"kind": {
+								"const": "finding"
+							}
+						}
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": [
+							"legacyId",
+							"originalTs"
+						],
+						"properties": {
+							"legacyId": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+								"examples": [
+									"id_0001"
+								]
+							},
+							"originalTs": {
+								"type": "string",
+								"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+								"examples": [
+									"2026-09-01T10:00:00.000Z"
+								]
+							}
+						}
+					}
+				}
+			}
+		}
+	]
+}

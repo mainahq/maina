@@ -62,6 +62,7 @@ Each file records one decision: the context, what was decided, and what it costs
 | [0048](0048-sandbox-runtime-for-worker-sandboxing.md) | sandbox-runtime for the per-worker OS sandbox | Accepted |
 | [0049](0049-warp-and-terminal-notifications.md) | Warp and terminal notifications over documented escape sequences | Accepted |
 | [0050](0050-onnx-runtime-and-tokenizer-packaging.md) | ONNX runtime and tokenizer packaging for System 1 | Accepted |
+| [0051](0051-maina-link-device-key-storage.md) | Maina Link device key storage and protocol vendoring | Accepted |
 
 ## Renumbering (mainahq/maina#295)
 

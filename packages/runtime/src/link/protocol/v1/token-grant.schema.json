@@ -1,0 +1,45 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://api.mainahq.com/link/v1/schemas/token-grant.schema.json",
+	"title": "TokenGrant",
+	"description": "A short-lived access token bound to the device key (at most 15 minutes). Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"v",
+		"deviceId",
+		"accessToken",
+		"tokenType",
+		"expiresIn"
+	],
+	"properties": {
+		"v": {
+			"const": 1
+		},
+		"deviceId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"accessToken": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9_.-]{32,1024}$",
+			"examples": [
+				"lat_9f8e7d6c5b4a39281706f5e4d3c2b1a0"
+			]
+		},
+		"tokenType": {
+			"type": "string",
+			"enum": [
+				"device-bound"
+			]
+		},
+		"expiresIn": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 900
+		}
+	}
+}

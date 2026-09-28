@@ -36,7 +36,8 @@
     "commander": "^14.0.3"
   },
   "devDependencies": {
-    "@mainahq/harness": "workspace:*"
+    "@mainahq/harness": "workspace:*",
+    "@mainahq/runtime": "workspace:*"
   },
   "publishConfig": {
     "access": "public"

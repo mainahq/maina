@@ -1,0 +1,278 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://api.mainahq.com/link/v1/schemas/policy-bundle.schema.json",
+	"title": "PolicyBundle",
+	"description": "A signed, versioned policy for one scope (GET /link/v1/policy). Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"v",
+		"orgId",
+		"scope",
+		"version",
+		"etag",
+		"policy",
+		"budgetDirectives",
+		"exceptions",
+		"issuedAt",
+		"notBefore",
+		"keyId",
+		"sig"
+	],
+	"properties": {
+		"v": {
+			"const": 1
+		},
+		"orgId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"scope": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"id"
+			],
+			"properties": {
+				"kind": {
+					"type": "string",
+					"enum": [
+						"org",
+						"team",
+						"repo"
+					]
+				},
+				"id": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+					"examples": [
+						"id_0001"
+					]
+				}
+			}
+		},
+		"version": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 9007199254740991
+		},
+		"etag": {
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$",
+			"examples": [
+				"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+			]
+		},
+		"policy": {
+			"type": "object",
+			"description": "A maina v1 policy body: mainahq/maina schemas/policy.schema.json (owned by the runtime, pinned by sha256 in the cloud). The runtime validates it against its own schema.",
+			"required": [
+				"version"
+			],
+			"properties": {
+				"version": {
+					"const": 1
+				}
+			}
+		},
+		"budgetDirectives": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"id",
+					"scopeKind",
+					"scopeId",
+					"period",
+					"limitMicroUsd",
+					"action"
+				],
+				"properties": {
+					"id": {
+						"type": "string",
+						"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+						"examples": [
+							"id_0001"
+						]
+					},
+					"scopeKind": {
+						"type": "string",
+						"enum": [
+							"org",
+							"team",
+							"repo"
+						]
+					},
+					"scopeId": {
+						"type": "string",
+						"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+						"examples": [
+							"id_0001"
+						]
+					},
+					"period": {
+						"type": "string",
+						"enum": [
+							"day",
+							"week",
+							"month"
+						]
+					},
+					"limitMicroUsd": {
+						"type": "integer",
+						"minimum": 0,
+						"maximum": 9007199254740991
+					},
+					"action": {
+						"type": "string",
+						"enum": [
+							"degrade",
+							"stop"
+						]
+					},
+					"degradeTo": {
+						"type": "string",
+						"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+						"examples": [
+							"claude-code"
+						]
+					}
+				},
+				"allOf": [
+					{
+						"if": {
+							"properties": {
+								"action": {
+									"const": "degrade"
+								}
+							},
+							"required": [
+								"action"
+							]
+						},
+						"then": {
+							"required": [
+								"degradeTo"
+							]
+						}
+					},
+					{
+						"if": {
+							"properties": {
+								"action": {
+									"const": "stop"
+								}
+							},
+							"required": [
+								"action"
+							]
+						},
+						"then": {
+							"not": {
+								"required": [
+									"degradeTo"
+								]
+							}
+						}
+					}
+				]
+			},
+			"maxItems": 256
+		},
+		"exceptions": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"id",
+					"actionClass",
+					"scopeKind",
+					"scopeId",
+					"verdict",
+					"expiresAt"
+				],
+				"properties": {
+					"id": {
+						"type": "string",
+						"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+						"examples": [
+							"id_0001"
+						]
+					},
+					"actionClass": {
+						"type": "string",
+						"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+						"examples": [
+							"claude-code"
+						]
+					},
+					"scopeKind": {
+						"type": "string",
+						"enum": [
+							"org",
+							"team",
+							"repo"
+						]
+					},
+					"scopeId": {
+						"type": "string",
+						"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+						"examples": [
+							"id_0001"
+						]
+					},
+					"verdict": {
+						"type": "string",
+						"enum": [
+							"allow",
+							"ask"
+						]
+					},
+					"expiresAt": {
+						"type": "string",
+						"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+						"examples": [
+							"2026-09-01T10:00:00.000Z"
+						]
+					}
+				}
+			},
+			"maxItems": 1024
+		},
+		"issuedAt": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+			"examples": [
+				"2026-09-01T10:00:00.000Z"
+			]
+		},
+		"notBefore": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+			"examples": [
+				"2026-09-01T10:00:00.000Z"
+			]
+		},
+		"keyId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"sig": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9_-]{85}[AQgw]$",
+			"examples": [
+				"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+			],
+			"description": "Ed25519 by the org policy-bundle key keyId over utf8(\"maina-cloud/sig/v1\\npolicy-bundle\\n\" + orgId + \"\\n\") || JCS(bundle without sig)."
+		}
+	}
+}

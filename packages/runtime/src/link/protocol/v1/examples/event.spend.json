@@ -1,0 +1,17 @@
+{
+	"eventId": "evt_01J9Z3P5",
+	"seq": 45,
+	"ts": "2026-09-28T09:16:30.450Z",
+	"type": "spend",
+	"dataClass": "metadata",
+	"runId": "run_01J9Z3N2B6WQ",
+	"data": {
+		"provider": "anthropic",
+		"model": "claude-sonnet-4.5",
+		"inputTokens": 18204,
+		"outputTokens": 1377,
+		"costMicroUsd": 75267,
+		"routedTier": "standard",
+		"savingsMicroUsd": 301068
+	}
+}

@@ -1,0 +1,68 @@
+{
+	"v": 1,
+	"deviceId": "dev_01J9Z3K4T8QX",
+	"seqFrom": 40,
+	"seqTo": 43,
+	"sentAt": "2026-09-28T09:16:12.500Z",
+	"events": [
+		{
+			"eventId": "evt_01J9Z3N2",
+			"seq": 40,
+			"ts": "2026-09-28T09:14:58.000Z",
+			"type": "run.started",
+			"dataClass": "metadata",
+			"runId": "run_01J9Z3N2B6WQ",
+			"data": {
+				"agent": "claude-code",
+				"host": "claude-code",
+				"repoHash": "sha256:d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4",
+				"branchHash": "sha256:e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5"
+			}
+		},
+		{
+			"eventId": "evt_01J9Z3P1",
+			"seq": 41,
+			"ts": "2026-09-28T09:15:02.118Z",
+			"type": "decision",
+			"dataClass": "metadata",
+			"runId": "run_01J9Z3N2B6WQ",
+			"data": {
+				"decisionType": "action.risk",
+				"inputHash": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+				"policyHash": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+				"modelHash": "sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+				"finalAction": "allow",
+				"confidenceBp": 9412,
+				"latencyMs": 7,
+				"host": "claude-code",
+				"sessionId": "sess_4f2a"
+			}
+		},
+		{
+			"eventId": "evt_01J9Z3P2",
+			"seq": 42,
+			"ts": "2026-09-28T09:15:03.004Z",
+			"type": "approval.requested",
+			"dataClass": "metadata",
+			"runId": "run_01J9Z3N2B6WQ",
+			"data": {
+				"actionClass": "git.push",
+				"policyHash": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+				"expiresAt": "2026-09-28T09:20:03.004Z"
+			}
+		},
+		{
+			"eventId": "evt_01J9Z3P3",
+			"seq": 43,
+			"ts": "2026-09-28T09:16:11.530Z",
+			"type": "approval.resolved",
+			"dataClass": "metadata",
+			"runId": "run_01J9Z3N2B6WQ",
+			"data": {
+				"resolution": "approved",
+				"latencyMs": 68526
+			}
+		}
+	],
+	"sig": "envelopexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxA"
+}

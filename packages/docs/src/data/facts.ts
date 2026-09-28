@@ -12,7 +12,7 @@ export const facts = {
 		"@mainahq/skills": "1.8.1",
 	},
 	commands: {
-		count: 28,
+		count: 29,
 		names: [
 			"brainstorm",
 			"ticket",
@@ -36,6 +36,7 @@ export const facts = {
 			"doctor",
 			"login",
 			"logout",
+			"cloud",
 			"configure",
 			"mcp",
 			"privacy",

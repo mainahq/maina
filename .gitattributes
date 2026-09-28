@@ -3,3 +3,6 @@
 packages/runtime/launcher/launch.sh text eol=lf
 packages/runtime/launcher/launch.ps1 text eol=lf
 packages/runtime/launcher/manifest.json text eol=lf
+# The vendored Maina Link protocol is pinned by sha256 (#589): its bytes must
+# never change on checkout, so no end-of-line conversion applies to it.
+packages/runtime/src/link/protocol/v1/** -text

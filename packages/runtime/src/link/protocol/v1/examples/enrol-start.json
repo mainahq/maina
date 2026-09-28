@@ -1,0 +1,8 @@
+{
+	"v": 1,
+	"kind": "workstation",
+	"os": "darwin",
+	"arch": "arm64",
+	"runtimeVersion": "1.4.0",
+	"label": "work-laptop"
+}

@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { type CloudClient, createCloudClient } from "../client";
+import { envFromRecord } from "../../ports/env";
+import {
+	type CloudClient,
+	cloudBaseUrl,
+	createCloudClient,
+	DEFAULT_CLOUD_URL,
+} from "../client";
 import type { CloudConfig } from "../types";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -933,5 +939,22 @@ describe("createCloudClient", () => {
 		if (!result.ok) {
 			expect(result.error).toBe("Forbidden");
 		}
+	});
+});
+
+// ── Shared base URL (#589) ──────────────────────────────────────────────────
+
+describe("cloudBaseUrl", () => {
+	test("is the hosted cloud unless MAINA_CLOUD_URL names another", () => {
+		expect(DEFAULT_CLOUD_URL).toBe("https://api.mainahq.com");
+		expect(cloudBaseUrl(envFromRecord({}))).toBe(DEFAULT_CLOUD_URL);
+		expect(cloudBaseUrl(envFromRecord({ MAINA_CLOUD_URL: "" }))).toBe(
+			DEFAULT_CLOUD_URL,
+		);
+		expect(
+			cloudBaseUrl(
+				envFromRecord({ MAINA_CLOUD_URL: " https://cloud.example.com/// " }),
+			),
+		).toBe("https://cloud.example.com");
 	});
 });

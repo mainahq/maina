@@ -1,0 +1,13 @@
+{
+	"eventId": "evt_01J9Z3P8",
+	"seq": 50,
+	"ts": "2026-09-28T09:31:39.120Z",
+	"type": "receipt",
+	"dataClass": "metadata",
+	"runId": "run_01J9Z3N2B6WQ",
+	"data": {
+		"receiptHash": "sha256:f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6",
+		"passed": true,
+		"commit": "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+	}
+}

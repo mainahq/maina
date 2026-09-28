@@ -1,0 +1,146 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://api.mainahq.com/link/v1/schemas/approval-resolution.schema.json",
+	"title": "ApprovalResolution",
+	"description": "The outcome of an ask, signed by the org approval-resolution key keyId: Ed25519 over utf8(\"maina-cloud/sig/v1\\napproval-resolution\\n\" + orgId + \"\\n\") || JCS(resolution without sig). A timeout carries its fallback and resolves to it, never to an allow; approved and denied carry no fallback. Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"v",
+		"orgId",
+		"askId",
+		"deviceId",
+		"resolution",
+		"resolvedAt",
+		"keyId",
+		"sig"
+	],
+	"properties": {
+		"v": {
+			"const": 1
+		},
+		"orgId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"askId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"deviceId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"resolution": {
+			"type": "string",
+			"enum": [
+				"approved",
+				"denied",
+				"timeout"
+			]
+		},
+		"fallback": {
+			"type": "string",
+			"enum": [
+				"deny",
+				"ask-local"
+			]
+		},
+		"resolvedBy": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"id"
+			],
+			"properties": {
+				"kind": {
+					"type": "string",
+					"enum": [
+						"member",
+						"policy",
+						"system"
+					]
+				},
+				"id": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+					"examples": [
+						"id_0001"
+					]
+				}
+			}
+		},
+		"resolvedAt": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+			"examples": [
+				"2026-09-01T10:00:00.000Z"
+			]
+		},
+		"keyId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"sig": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9_-]{85}[AQgw]$",
+			"examples": [
+				"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+			]
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"resolution": {
+						"const": "timeout"
+					}
+				},
+				"required": [
+					"resolution"
+				]
+			},
+			"then": {
+				"required": [
+					"fallback"
+				]
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"resolution": {
+						"enum": [
+							"approved",
+							"denied"
+						]
+					}
+				},
+				"required": [
+					"resolution"
+				]
+			},
+			"then": {
+				"not": {
+					"required": [
+						"fallback"
+					]
+				}
+			}
+		}
+	]
+}

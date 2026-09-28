@@ -1,0 +1,16 @@
+{
+	"eventId": "evt_01J9Z3N2",
+	"seq": 40,
+	"ts": "2026-09-28T09:14:58.000Z",
+	"type": "run.started",
+	"dataClass": "names",
+	"runId": "run_01J9Z3N2B6WQ",
+	"data": {
+		"agent": "claude-code",
+		"host": "claude-code",
+		"repoHash": "sha256:d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4",
+		"branchHash": "sha256:e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5",
+		"repoName": "acme/payments",
+		"branchName": "feat/refunds"
+	}
+}

@@ -1,0 +1,106 @@
+{
+	"description": "Ledger hash chain v1 (adr/0005): hash = lower-hex SHA-256(bytes(prevHash) || canonical(event)), where bytes(prevHash) is the 32 raw bytes of the previous hash (64 zero hex digits at genesis) and canonical(event) is the canonical form of every field except `hash`. Hashes were computed with xxd + shasum, independently of the implementation. Pinned by the offline ledger verifier (plan Task 13.5).",
+	"version": 1,
+	"anchor": {
+		"orgId": "org_vectors",
+		"seq": 0,
+		"hash": "0000000000000000000000000000000000000000000000000000000000000000"
+	},
+	"events": [
+		{
+			"event": {
+				"actor": {
+					"id": "mem_alice",
+					"kind": "member"
+				},
+				"data": {
+					"credentialId": "cred_0001",
+					"method": "github"
+				},
+				"id": "evt_0001",
+				"ipHash": "hmac-sha256:abababababababababababababababababababababababababababababababab",
+				"orgId": "org_vectors",
+				"prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+				"requestId": "req_0001",
+				"seq": 1,
+				"subject": {
+					"id": "mem_alice",
+					"kind": "member"
+				},
+				"ts": "2026-09-01T09:00:00.000Z",
+				"type": "auth.login",
+				"v": 1,
+				"hash": "ed064c125d10e659233f4e334335f29bad860e2ce64fec32b4289cc71f50fd8f"
+			},
+			"canonical": "{\"actor\":{\"id\":\"mem_alice\",\"kind\":\"member\"},\"data\":{\"credentialId\":\"cred_0001\",\"method\":\"github\"},\"id\":\"evt_0001\",\"ipHash\":\"hmac-sha256:abababababababababababababababababababababababababababababababab\",\"orgId\":\"org_vectors\",\"prevHash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"requestId\":\"req_0001\",\"seq\":1,\"subject\":{\"id\":\"mem_alice\",\"kind\":\"member\"},\"ts\":\"2026-09-01T09:00:00.000Z\",\"type\":\"auth.login\",\"v\":1}"
+		},
+		{
+			"event": {
+				"actor": {
+					"id": "agent_claude-code",
+					"kind": "agent"
+				},
+				"data": {
+					"confidenceBp": 9150,
+					"decisionType": "action.risk",
+					"finalAction": "allow",
+					"host": "claude-code",
+					"inputHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+					"latencyMs": 42,
+					"modelHash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+					"policyHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+					"runId": "run_0001",
+					"sessionId": "ses_0001"
+				},
+				"device": "dev_laptop-1",
+				"id": "evt_0002",
+				"onBehalfOf": {
+					"id": "mem_alice",
+					"kind": "member"
+				},
+				"orgId": "org_vectors",
+				"prevHash": "ed064c125d10e659233f4e334335f29bad860e2ce64fec32b4289cc71f50fd8f",
+				"requestId": "req_0002",
+				"seq": 2,
+				"subject": {
+					"id": "dec_0001",
+					"kind": "decision"
+				},
+				"ts": "2026-09-01T09:00:01.250Z",
+				"type": "decision",
+				"v": 1,
+				"hash": "36df922609808ffefb1045766283a52631de709ac13d767bfe2d73dbe037d623"
+			},
+			"canonical": "{\"actor\":{\"id\":\"agent_claude-code\",\"kind\":\"agent\"},\"data\":{\"confidenceBp\":9150,\"decisionType\":\"action.risk\",\"finalAction\":\"allow\",\"host\":\"claude-code\",\"inputHash\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"latencyMs\":42,\"modelHash\":\"sha256:3333333333333333333333333333333333333333333333333333333333333333\",\"policyHash\":\"sha256:2222222222222222222222222222222222222222222222222222222222222222\",\"runId\":\"run_0001\",\"sessionId\":\"ses_0001\"},\"device\":\"dev_laptop-1\",\"id\":\"evt_0002\",\"onBehalfOf\":{\"id\":\"mem_alice\",\"kind\":\"member\"},\"orgId\":\"org_vectors\",\"prevHash\":\"ed064c125d10e659233f4e334335f29bad860e2ce64fec32b4289cc71f50fd8f\",\"requestId\":\"req_0002\",\"seq\":2,\"subject\":{\"id\":\"dec_0001\",\"kind\":\"decision\"},\"ts\":\"2026-09-01T09:00:01.250Z\",\"type\":\"decision\",\"v\":1}"
+		},
+		{
+			"event": {
+				"actor": {
+					"id": "system",
+					"kind": "system"
+				},
+				"data": {
+					"costMicroUsd": 9007199254740991,
+					"inputTokens": 120000,
+					"model": "claude-opus",
+					"outputTokens": 0,
+					"provider": "anthropic"
+				},
+				"id": "evt_0003",
+				"orgId": "org_vectors",
+				"prevHash": "36df922609808ffefb1045766283a52631de709ac13d767bfe2d73dbe037d623",
+				"requestId": "req_0003",
+				"seq": 3,
+				"subject": {
+					"id": "run_0001",
+					"kind": "run"
+				},
+				"ts": "2026-09-01T23:59:59.999Z",
+				"type": "spend",
+				"v": 1,
+				"hash": "15f500c6ef791d8cf055ece6745f1db2a5cb884a556abea22dab14b83c34cb9d"
+			},
+			"canonical": "{\"actor\":{\"id\":\"system\",\"kind\":\"system\"},\"data\":{\"costMicroUsd\":9007199254740991,\"inputTokens\":120000,\"model\":\"claude-opus\",\"outputTokens\":0,\"provider\":\"anthropic\"},\"id\":\"evt_0003\",\"orgId\":\"org_vectors\",\"prevHash\":\"36df922609808ffefb1045766283a52631de709ac13d767bfe2d73dbe037d623\",\"requestId\":\"req_0003\",\"seq\":3,\"subject\":{\"id\":\"run_0001\",\"kind\":\"run\"},\"ts\":\"2026-09-01T23:59:59.999Z\",\"type\":\"spend\",\"v\":1}"
+		}
+	]
+}

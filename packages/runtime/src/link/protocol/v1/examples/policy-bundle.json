@@ -1,0 +1,39 @@
+{
+	"v": 1,
+	"orgId": "org_acme",
+	"scope": {
+		"kind": "team",
+		"id": "team_payments"
+	},
+	"version": 7,
+	"etag": "sha256:0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+	"policy": {
+		"version": 1,
+		"action_classes": {}
+	},
+	"budgetDirectives": [
+		{
+			"id": "bud_payments_month",
+			"scopeKind": "team",
+			"scopeId": "team_payments",
+			"period": "month",
+			"limitMicroUsd": 500000000,
+			"action": "degrade",
+			"degradeTo": "mechanical"
+		}
+	],
+	"exceptions": [
+		{
+			"id": "exc_19",
+			"actionClass": "db.migrate",
+			"scopeKind": "repo",
+			"scopeId": "repo_payments_api",
+			"verdict": "ask",
+			"expiresAt": "2026-10-05T00:00:00.000Z"
+		}
+	],
+	"issuedAt": "2026-09-28T08:00:00.000Z",
+	"notBefore": "2026-09-28T08:00:00.000Z",
+	"keyId": "key_policy_2026_09",
+	"sig": "bundlexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxA"
+}

@@ -1,0 +1,57 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://api.mainahq.com/link/v1/schemas/enrol-start.schema.json",
+	"title": "EnrolStart",
+	"description": "Starts device enrolment (POST /link/v1/enrol/start). Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"v",
+		"kind",
+		"os",
+		"arch",
+		"runtimeVersion"
+	],
+	"properties": {
+		"v": {
+			"const": 1
+		},
+		"kind": {
+			"type": "string",
+			"enum": [
+				"workstation",
+				"ci"
+			]
+		},
+		"os": {
+			"type": "string",
+			"enum": [
+				"darwin",
+				"linux",
+				"windows",
+				"other"
+			]
+		},
+		"arch": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+			"examples": [
+				"claude-code"
+			]
+		},
+		"runtimeVersion": {
+			"type": "string",
+			"pattern": "^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$",
+			"examples": [
+				"1.4.0"
+			]
+		},
+		"label": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+			"examples": [
+				"claude-code"
+			]
+		}
+	}
+}

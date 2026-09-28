@@ -6,6 +6,7 @@
 import { intro, log, outro, spinner, text } from "@clack/prompts";
 import {
 	clearAuthConfig,
+	cloudBaseUrl,
 	createCloudClient,
 	exchangeGitHubToken,
 	loadAuthConfig,
@@ -16,11 +17,13 @@ import {
 	startGitHubDeviceFlow,
 } from "@mainahq/core";
 import { Command } from "commander";
+import { processEnv } from "../env";
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const DEFAULT_CLOUD_URL =
-	process.env.MAINA_CLOUD_URL ?? "https://api.mainahq.com";
+// Shared with `maina cloud` (the v1 Link client); this 1.x login path stays
+// for the legacy cloud features.
+const DEFAULT_CLOUD_URL = cloudBaseUrl(processEnv);
 
 // ── Login Action ────────────────────────────────────────────────────────────
 
