@@ -74,7 +74,7 @@ The `release` job in `.github/workflows/runtime-artifacts.yml` signs the artifac
 
 ### Negative
 
-- **The real release key is not provisioned yet** (manual follow-up). Until the key pair is generated, its private half is stored as the `MAINA_RUNTIME_SIGNING_KEY` secret and its public half is committed as `launcher/release.pub.pem` and `release.pub.xml`, the committed launcher refuses to install (`no_release_key`), and `launcher/manifest.json` lists no artifacts. The tests use keys generated per run.
+- **The release key is provisioned** (mainahq/maina#424). Its private half is the `MAINA_RUNTIME_SIGNING_KEY` secret, and its public half is committed as `launcher/release.pub.pem` and `release.pub.xml`. A manual run of the release workflow with `key_check: true` (`gh workflow run release.yml --ref <branch> -f key_check=true`) proves the secret is the pinned key: it runs the release preflight, signs one runtime with the secret and verifies it the way the launcher does, and publishes nothing. Until the first signed release, `launcher/manifest.json` lists no artifacts, so the committed launcher still has nothing to install (`no_artifact`). The tests use keys generated per run.
 - Rotating the key needs a new launcher release, because the key is pinned in the launcher. A compromised key is handled the same way.
 - Each download is about 60 MB. A download made in hook mode runs inside the host's hook timeout, so the plugins should warm the cache early (for example, at session start).
 - The installers (`setup`, `mcp add`, `install.sh`) still write `bunx` or global-bin entries. Switching them to the launcher is mainahq/maina#299, so the matrix's P4 entries for those paths now point there.

@@ -811,6 +811,19 @@ describe("skills and launcher", () => {
 			expect(files.some((f) => f.path === "launcher/launch.ps1")).toBe(true);
 			expect(files.some((f) => f.path === "launcher/manifest.json")).toBe(true);
 		});
+
+		// mainahq/maina#424: without the pinned key the bundled launcher
+		// refuses to install anything (no_release_key).
+		test(`${host}: bundles the committed release key the launcher pins`, () => {
+			for (const name of ["release.pub.pem", "release.pub.xml"]) {
+				expect(fileAt(host, `launcher/${name}`).content).toBe(
+					readFileSync(
+						join(PACKAGE_DIR, "..", "runtime", "launcher", name),
+						"utf-8",
+					),
+				);
+			}
+		});
 	}
 
 	test("skill CLI references point at the launcher's cli mode", () => {

@@ -93,6 +93,8 @@ exports[`snapshots claude 1`] = `
     "launcher/launch.sh",
     "launcher/launch.ps1",
     "launcher/manifest.json",
+    "launcher/release.pub.pem",
+    "launcher/release.pub.xml",
   ],
 }
 `;
@@ -183,6 +185,8 @@ exports[`snapshots cursor 1`] = `
     "launcher/launch.sh",
     "launcher/launch.ps1",
     "launcher/manifest.json",
+    "launcher/release.pub.pem",
+    "launcher/release.pub.xml",
   ],
 }
 `;
@@ -294,6 +298,8 @@ exports[`snapshots codex 1`] = `
     "launcher/launch.sh",
     "launcher/launch.ps1",
     "launcher/manifest.json",
+    "launcher/release.pub.pem",
+    "launcher/release.pub.xml",
   ],
 }
 `;
@@ -345,6 +351,8 @@ exports[`snapshots agent-plugins 1`] = `
     "launcher/launch.sh",
     "launcher/launch.ps1",
     "launcher/manifest.json",
+    "launcher/release.pub.pem",
+    "launcher/release.pub.xml",
   ],
 }
 `;

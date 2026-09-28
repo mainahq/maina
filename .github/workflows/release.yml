@@ -13,6 +13,11 @@ name: Release
 #   and opens the marketplace bump pull request. Refuses to run without the
 #   MAINA_RUNTIME_SIGNING_KEY secret (mainahq/maina#424): launchers reject
 #   unsigned artifacts.
+# - key check (manual, `key_check: true`): proves the MAINA_RUNTIME_SIGNING_KEY
+#   secret is the key packages/runtime/launcher/release.pub.pem pins, by the
+#   release preflight and one runtime built and signed with the secret, and
+#   publishes nothing. Run it after provisioning or rotating the key:
+#   gh workflow run release.yml --ref <branch> -f key_check=true
 
 on:
   push:
@@ -27,6 +32,11 @@ on:
       - ".changeset/config.json"
       - ".github/workflows/release.yml"
   workflow_dispatch:
+    inputs:
+      key_check:
+        description: "Only check the signing secret against the pinned launcher key (signs one artifact, publishes nothing)"
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.event_name == 'push' && 'release' || format('release-dry-run-{0}', github.ref) }}
@@ -43,7 +53,7 @@ jobs:
 
   dry-run:
     name: lockstep dry run
-    if: github.event_name != 'push'
+    if: github.event_name != 'push' && !inputs.key_check
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -85,6 +95,60 @@ jobs:
             dist/release/plugins/
           if-no-files-found: error
           retention-days: 7
+
+  key-check:
+    name: signing key matches the launcher pin
+    if: github.event_name == 'workflow_dispatch' && inputs.key_check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build one runtime, sign it with the secret, check it against the pin
+        env:
+          MAINA_RUNTIME_SIGNING_KEY: ${{ secrets.MAINA_RUNTIME_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MAINA_RUNTIME_SIGNING_KEY}" ]; then
+            echo "MAINA_RUNTIME_SIGNING_KEY is not set" >&2
+            exit 1
+          fi
+          pinned=packages/runtime/launcher/release.pub.pem
+          key="$RUNNER_TEMP/key-check.key.pem"
+          trap 'rm -f "$key"' EXIT
+          umask 077
+          printf '%s\n' "$MAINA_RUNTIME_SIGNING_KEY" > "$key"
+          # The release job's preflight, as it runs before changesets publishes.
+          if ! openssl pkey -in "$key" -pubout | diff -w - "$pinned" >/dev/null; then
+            echo "MAINA_RUNTIME_SIGNING_KEY is not the key ${pinned} pins: launchers would refuse this release" >&2
+            exit 1
+          fi
+          echo "preflight: MAINA_RUNTIME_SIGNING_KEY is the key ${pinned} pins"
+          umask 022
+          bun packages/runtime/build/standalone.ts --out dist/key-check --targets linux-x64 --signing-key "$key"
+          bun scripts/release/key-check.ts --signing-key "$key" --launcher packages/runtime/launcher --dir dist/key-check
+
+      # What launch.sh runs on a download, against the committed key, then
+      # the verified executable itself.
+      - name: The launcher's own check of the signed runtime
+        run: |
+          set -euo pipefail
+          manifest=dist/key-check/manifest.json
+          version=$(jq -r '.version' "$manifest")
+          bin="dist/key-check/maina-${version}-linux-x64"
+          jq -j '.artifacts["linux-x64"].signature' "$manifest" | openssl base64 -d -A > "$RUNNER_TEMP/linux-x64.sig"
+          openssl dgst -sha256 -verify packages/runtime/launcher/release.pub.pem -signature "$RUNNER_TEMP/linux-x64.sig" "$bin"
+          chmod +x "$bin"
+          "$bin" cli --version
 
   release:
     needs: escape-suite

@@ -28,10 +28,10 @@ const LAUNCHER_FILES: readonly string[] = [
 ];
 
 /**
- * The release key the launchers pin, bundled once committed: the release's
- * marketplace bump (`scripts/release/bump-marketplaces.ts`) commits it next
- * to the signed manifest, and until the real key exists (mainahq/maina#424)
- * the launcher refuses to install (`no_release_key`).
+ * The release key the launchers pin (mainahq/maina#424), bundled when
+ * committed: the release's marketplace bump
+ * (`scripts/release/bump-marketplaces.ts`) commits it next to the signed
+ * manifest, and a launcher without it refuses to install (`no_release_key`).
  */
 const KEY_FILES: readonly string[] = ["release.pub.pem", "release.pub.xml"];
 
