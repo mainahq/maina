@@ -1,0 +1,19 @@
+{
+	"eventId": "evt_01J9Z3P1",
+	"seq": 41,
+	"ts": "2026-09-28T09:15:02.118Z",
+	"type": "decision",
+	"dataClass": "metadata",
+	"runId": "run_01J9Z3N2B6WQ",
+	"data": {
+		"decisionType": "action.risk",
+		"inputHash": "sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+		"policyHash": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+		"modelHash": "sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+		"finalAction": "allow",
+		"confidenceBp": 9412,
+		"latencyMs": 7,
+		"host": "claude-code",
+		"sessionId": "sess_4f2a"
+	}
+}

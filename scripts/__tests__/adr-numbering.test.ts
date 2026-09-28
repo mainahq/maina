@@ -80,9 +80,16 @@ describe("ADR cross-references", () => {
 	 * would break their hashes, so they are excluded from the scan. Test
 	 * fixtures use made-up ADR names on purpose. Golden decision fixtures
 	 * are recorded 1.x inputs/outputs: rewriting them would change what the
-	 * goldens replay, so historical ADR names inside them are data.
+	 * goldens replay, so historical ADR names inside them are data. The
+	 * vendored Maina Link protocol is the cloud's, pinned by sha256 (#589):
+	 * its `adr/NNNN` names are the cloud repo's ADRs, not this one's.
 	 */
-	const EXCLUDED = [/^\.maina\/receipts\//, /\/__tests__\//, /\/__golden__\//];
+	const EXCLUDED = [
+		/^\.maina\/receipts\//,
+		/\/__tests__\//,
+		/\/__golden__\//,
+		/^packages\/runtime\/src\/link\/protocol\/v1\//,
+	];
 	const TEXT = /\.(md|mdx|astro|json)$/;
 	const SLUG = String.raw`(\d{4}-[a-z0-9]+(?:-[a-z0-9]+)*)`;
 	/** `adr/0034-wiki-is-a-view` anywhere, including `/adr/...` site links. */

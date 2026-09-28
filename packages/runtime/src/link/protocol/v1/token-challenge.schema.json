@@ -1,0 +1,48 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://api.mainahq.com/link/v1/schemas/token-challenge.schema.json",
+	"title": "TokenChallenge",
+	"description": "A fresh nonce signed by the device key: Ed25519 over utf8(\"maina-link/sig/v1\\ntoken-challenge\\n\") || JCS(message without sig) (POST /link/v1/token). Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"v",
+		"deviceId",
+		"nonce",
+		"ts",
+		"sig"
+	],
+	"properties": {
+		"v": {
+			"const": 1
+		},
+		"deviceId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"nonce": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9_-]{22,86}$",
+			"examples": [
+				"bm9uY2Utbm9uY2Utbm9uY2U"
+			]
+		},
+		"ts": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+			"examples": [
+				"2026-09-01T10:00:00.000Z"
+			]
+		},
+		"sig": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9_-]{85}[AQgw]$",
+			"examples": [
+				"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+			]
+		}
+	}
+}

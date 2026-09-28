@@ -1,0 +1,14 @@
+{
+	"eventId": "evt_01J9Z3P6",
+	"seq": 46,
+	"ts": "2026-09-28T09:17:02.001Z",
+	"type": "override",
+	"dataClass": "metadata",
+	"runId": "run_01J9Z3N2B6WQ",
+	"data": {
+		"decisionType": "action.risk",
+		"fromAction": "deny",
+		"toAction": "allow",
+		"reason": "member_override"
+	}
+}

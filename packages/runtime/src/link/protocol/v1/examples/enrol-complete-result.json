@@ -1,0 +1,41 @@
+{
+	"v": 1,
+	"deviceId": "dev_01J9Z3K4T8QX",
+	"orgId": "org_acme",
+	"orgKeys": [
+		{
+			"keyId": "key_policy_2026_09",
+			"purpose": "policy-bundle",
+			"alg": "ed25519",
+			"publicKey": "Kz9mX2c4vB7nQ1wE5rT8yU0iO3pA6sD9fG2hJ5kL8zY",
+			"notBefore": "2026-09-01T00:00:00.000Z"
+		},
+		{
+			"keyId": "key_approval_2026_09",
+			"purpose": "approval-resolution",
+			"alg": "ed25519",
+			"publicKey": "Pq7wE4rT1yU8iO5pA2sD9fG6hJ3kL0zX7cV4bN1mQ8w",
+			"notBefore": "2026-09-01T00:00:00.000Z"
+		},
+		{
+			"keyId": "key_control_2026_09",
+			"purpose": "link-control",
+			"alg": "ed25519",
+			"publicKey": "Zx3cV6bN9mQ2wE5rT8yU1iO4pA7sD0fG3hJ6kL9zX2c",
+			"notBefore": "2026-09-01T00:00:00.000Z",
+			"notAfter": "2027-09-01T00:00:00.000Z"
+		}
+	],
+	"linkSalt": {
+		"id": "lsalt_2026_09",
+		"value": "example-link-salt-not-a-secret-000000000000"
+	},
+	"schemaVersion": 1,
+	"endpoints": {
+		"tokenExchange": "/link/v1/token",
+		"events": "/link/v1/events",
+		"policy": "/link/v1/policy",
+		"approvals": "/link/v1/approvals",
+		"schemas": "/link/v1/schemas"
+	}
+}

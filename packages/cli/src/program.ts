@@ -7,6 +7,7 @@ import { applyFixCommand } from "./commands/apply-fix";
 import { benchmarkCommand } from "./commands/benchmark";
 import { brainstormCommand } from "./commands/brainstorm";
 import { cacheCommand } from "./commands/cache";
+import { cloudCommand } from "./commands/cloud";
 import { commitCommand } from "./commands/commit";
 import { configureCommand } from "./commands/configure";
 import { contextCommand } from "./commands/context";
@@ -79,6 +80,7 @@ Setup & Config:
   init          Deprecated alias of setup
   doctor        Check tool and engine health
   login         Cloud authentication
+  cloud         Maina Link: enrol this device, status, logout, privacy
   configure     Edit maina config
   mcp add       Install maina MCP server in supported AI clients
   mcp remove    Uninstall maina MCP server from clients
@@ -170,6 +172,7 @@ Setup & Config:
 	program.addCommand(doctorCommand());
 	program.addCommand(loginCommand());
 	program.addCommand(logoutCommand());
+	program.addCommand(cloudCommand());
 	program.addCommand(configureCommand());
 	program.addCommand(mcpCommand());
 	program.addCommand(privacyCommand());

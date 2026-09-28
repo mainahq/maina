@@ -1,0 +1,20 @@
+{
+	"v": 1,
+	"accepted": 3,
+	"duplicates": 0,
+	"rejected": [
+		{
+			"seq": 42,
+			"eventId": "evt_01J9Z3P2",
+			"reason": "data_class_violation",
+			"field": "data.command"
+		}
+	],
+	"nextExpectedSeq": 44,
+	"gaps": [
+		{
+			"from": 37,
+			"to": 39
+		}
+	]
+}

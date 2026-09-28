@@ -1,0 +1,100 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://api.mainahq.com/link/v1/schemas/envelope-ack.schema.json",
+	"title": "EnvelopeAck",
+	"description": "The cloud's answer to a LinkEnvelope (202 from POST /link/v1/events): accepted and duplicate counts, the rejected events with their reason, the next expected seq and the open gaps, oldest first. Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"v",
+		"accepted",
+		"duplicates",
+		"rejected",
+		"nextExpectedSeq",
+		"gaps"
+	],
+	"properties": {
+		"v": {
+			"const": 1
+		},
+		"accepted": {
+			"type": "integer",
+			"minimum": 0,
+			"maximum": 9007199254740991
+		},
+		"duplicates": {
+			"type": "integer",
+			"minimum": 0,
+			"maximum": 9007199254740991
+		},
+		"rejected": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"seq",
+					"reason"
+				],
+				"properties": {
+					"seq": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 9007199254740991
+					},
+					"eventId": {
+						"type": "string",
+						"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+						"examples": [
+							"id_0001"
+						]
+					},
+					"reason": {
+						"type": "string",
+						"enum": [
+							"invalid_event",
+							"data_class_violation"
+						]
+					},
+					"field": {
+						"type": "string",
+						"pattern": "^[A-Za-z0-9_.[\\]]{1,128}$",
+						"examples": [
+							"data.command"
+						]
+					}
+				}
+			},
+			"maxItems": 1000
+		},
+		"nextExpectedSeq": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 9007199254740991
+		},
+		"gaps": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"from",
+					"to"
+				],
+				"properties": {
+					"from": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 9007199254740991
+					},
+					"to": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 9007199254740991
+					}
+				}
+			},
+			"maxItems": 100
+		}
+	}
+}

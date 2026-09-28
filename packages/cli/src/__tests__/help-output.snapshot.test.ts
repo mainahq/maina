@@ -51,6 +51,7 @@ const VISIBLE_COMMANDS = [
 	"doctor",
 	"login",
 	"logout",
+	"cloud",
 	"configure",
 	"mcp",
 	"privacy",

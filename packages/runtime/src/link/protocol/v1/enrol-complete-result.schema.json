@@ -1,0 +1,170 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://api.mainahq.com/link/v1/schemas/enrol-complete-result.schema.json",
+	"title": "EnrolCompleteResult",
+	"description": "The enrolled device: its id, its org, the org keys to pin, the org link salt that keys the repo and branch identifiers sent over Link (never uploaded back), the schema version and the endpoints. Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"v",
+		"deviceId",
+		"orgId",
+		"orgKeys",
+		"linkSalt",
+		"schemaVersion",
+		"endpoints"
+	],
+	"properties": {
+		"v": {
+			"const": 1
+		},
+		"deviceId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"orgId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"orgKeys": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"keyId",
+					"purpose",
+					"alg",
+					"publicKey",
+					"notBefore"
+				],
+				"properties": {
+					"keyId": {
+						"type": "string",
+						"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+						"examples": [
+							"id_0001"
+						]
+					},
+					"purpose": {
+						"type": "string",
+						"enum": [
+							"policy-bundle",
+							"approval-resolution",
+							"link-control"
+						]
+					},
+					"alg": {
+						"type": "string",
+						"enum": [
+							"ed25519"
+						]
+					},
+					"publicKey": {
+						"type": "string",
+						"pattern": "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+						"examples": [
+							"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
+						]
+					},
+					"notBefore": {
+						"type": "string",
+						"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+						"examples": [
+							"2026-09-01T10:00:00.000Z"
+						]
+					},
+					"notAfter": {
+						"type": "string",
+						"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+						"examples": [
+							"2026-09-01T10:00:00.000Z"
+						]
+					}
+				}
+			},
+			"maxItems": 16
+		},
+		"linkSalt": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"id",
+				"value"
+			],
+			"properties": {
+				"id": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+					"examples": [
+						"id_0001"
+					]
+				},
+				"value": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+					"examples": [
+						"example-link-salt-not-a-secret-000000000000"
+					]
+				}
+			}
+		},
+		"schemaVersion": {
+			"const": 1
+		},
+		"endpoints": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"tokenExchange",
+				"events",
+				"policy",
+				"approvals",
+				"schemas"
+			],
+			"properties": {
+				"tokenExchange": {
+					"type": "string",
+					"pattern": "^\\/link\\/v[0-9]+(\\/[a-z0-9-]+)+$",
+					"examples": [
+						"/link/v1/events"
+					]
+				},
+				"events": {
+					"type": "string",
+					"pattern": "^\\/link\\/v[0-9]+(\\/[a-z0-9-]+)+$",
+					"examples": [
+						"/link/v1/events"
+					]
+				},
+				"policy": {
+					"type": "string",
+					"pattern": "^\\/link\\/v[0-9]+(\\/[a-z0-9-]+)+$",
+					"examples": [
+						"/link/v1/events"
+					]
+				},
+				"approvals": {
+					"type": "string",
+					"pattern": "^\\/link\\/v[0-9]+(\\/[a-z0-9-]+)+$",
+					"examples": [
+						"/link/v1/events"
+					]
+				},
+				"schemas": {
+					"type": "string",
+					"pattern": "^\\/link\\/v[0-9]+(\\/[a-z0-9-]+)+$",
+					"examples": [
+						"/link/v1/events"
+					]
+				}
+			}
+		}
+	}
+}

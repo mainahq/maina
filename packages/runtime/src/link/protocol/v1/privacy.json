@@ -1,0 +1,2374 @@
+{
+	"v": 1,
+	"description": "Every field a device sends over Maina Link, per data class (FR-PRIV-1, FR-PRIV-3). Generated from src/link/protocol/**; do not edit. `maina cloud privacy` prints the org's class from this file.",
+	"dataClasses": {
+		"metadata": "The default. Labels, numbers, ids and salted hashes only: no names, paths, commands, diffs or code.",
+		"names": "Metadata plus repo and branch names, so the board shows them (org setting).",
+		"rich": "Names plus command text, paths and diffs where an event type has them (Enterprise). The cloud envelope-encrypts them per org."
+	},
+	"salts": {
+		"device": {
+			"description": "The per-clone v1 decision-log salt (.maina/private/log-salt). Keys the decision record's hashes. Never leaves the machine.",
+			"fields": [
+				"decision:data.inputHash"
+			]
+		},
+		"link": {
+			"description": "The org link salt, delivered at enrolment (EnrolCompleteResult.linkSalt). Keys the repo and branch identifiers sent over Link (the fields below; v1 sends no path identifier) so an org's devices hash a repo alike. Held by the cloud and enrolled devices; never sent back.",
+			"fields": [
+				"run.started:data.repoHash",
+				"run.started:data.branchHash"
+			]
+		}
+	},
+	"classes": {
+		"metadata": {
+			"messages": {
+				"enrol-start": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "kind",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "os",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "arch",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "runtimeVersion",
+						"kind": "version",
+						"required": true
+					},
+					{
+						"field": "label",
+						"kind": "label",
+						"required": false
+					}
+				],
+				"enrol-complete": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "deviceCode",
+						"kind": "device-code",
+						"required": true
+					},
+					{
+						"field": "alg",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "publicKey",
+						"kind": "public-key",
+						"required": true
+					},
+					{
+						"field": "proof",
+						"kind": "signature",
+						"required": true
+					}
+				],
+				"token-challenge": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "deviceId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "nonce",
+						"kind": "nonce",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "sig",
+						"kind": "signature",
+						"required": true
+					}
+				],
+				"envelope": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "deviceId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seqFrom",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "seqTo",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "sentAt",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "sig",
+						"kind": "signature",
+						"required": true
+					}
+				],
+				"approval-ask": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "askId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "deviceId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "sentAt",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "fallback",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "sig",
+						"kind": "signature",
+						"required": true
+					},
+					{
+						"field": "data.actionClass",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.policyHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.expiresAt",
+						"kind": "timestamp",
+						"required": true
+					}
+				]
+			},
+			"events": {
+				"decision": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.decisionType",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "data.inputHash",
+						"kind": "device-salted-hash",
+						"required": true
+					},
+					{
+						"field": "data.policyHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.modelHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.finalAction",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.confidenceBp",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.latencyMs",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.host",
+						"kind": "label",
+						"required": false
+					},
+					{
+						"field": "data.sessionId",
+						"kind": "id",
+						"required": false
+					}
+				],
+				"approval.requested": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.actionClass",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.policyHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.expiresAt",
+						"kind": "timestamp",
+						"required": true
+					}
+				],
+				"approval.resolved": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.resolution",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "data.latencyMs",
+						"kind": "integer",
+						"required": true
+					}
+				],
+				"run.started": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.agent",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.host",
+						"kind": "label",
+						"required": false
+					},
+					{
+						"field": "data.repoHash",
+						"kind": "link-salted-hash",
+						"required": false
+					},
+					{
+						"field": "data.branchHash",
+						"kind": "link-salted-hash",
+						"required": false
+					}
+				],
+				"run.step": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.step",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.toolClass",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.verdict",
+						"kind": "enum",
+						"required": true
+					}
+				],
+				"run.finished": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.outcome",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "data.durationMs",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.steps",
+						"kind": "integer",
+						"required": true
+					}
+				],
+				"receipt": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.receiptHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.passed",
+						"kind": "boolean",
+						"required": true
+					},
+					{
+						"field": "data.commit",
+						"kind": "token",
+						"required": false
+					}
+				],
+				"spend": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.provider",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.model",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.inputTokens",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.outputTokens",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.costMicroUsd",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.routedTier",
+						"kind": "label",
+						"required": false
+					},
+					{
+						"field": "data.savingsMicroUsd",
+						"kind": "integer",
+						"required": false
+					}
+				],
+				"inventory": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.agent",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.agentVersion",
+						"kind": "version",
+						"required": true
+					},
+					{
+						"field": "data.mcpServers",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.hooksInstalled",
+						"kind": "boolean",
+						"required": true
+					},
+					{
+						"field": "data.runtimeVersion",
+						"kind": "version",
+						"required": false
+					},
+					{
+						"field": "data.plugins",
+						"kind": "integer",
+						"required": false
+					}
+				],
+				"override": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.decisionType",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "data.fromAction",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.toAction",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.reason",
+						"kind": "label",
+						"required": true
+					}
+				]
+			}
+		},
+		"names": {
+			"messages": {
+				"enrol-start": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "kind",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "os",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "arch",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "runtimeVersion",
+						"kind": "version",
+						"required": true
+					},
+					{
+						"field": "label",
+						"kind": "label",
+						"required": false
+					}
+				],
+				"enrol-complete": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "deviceCode",
+						"kind": "device-code",
+						"required": true
+					},
+					{
+						"field": "alg",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "publicKey",
+						"kind": "public-key",
+						"required": true
+					},
+					{
+						"field": "proof",
+						"kind": "signature",
+						"required": true
+					}
+				],
+				"token-challenge": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "deviceId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "nonce",
+						"kind": "nonce",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "sig",
+						"kind": "signature",
+						"required": true
+					}
+				],
+				"envelope": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "deviceId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seqFrom",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "seqTo",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "sentAt",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "sig",
+						"kind": "signature",
+						"required": true
+					}
+				],
+				"approval-ask": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "askId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "deviceId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "sentAt",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "fallback",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "sig",
+						"kind": "signature",
+						"required": true
+					},
+					{
+						"field": "data.actionClass",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.policyHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.expiresAt",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "data.repoName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.branchName",
+						"kind": "text",
+						"required": false
+					}
+				]
+			},
+			"events": {
+				"decision": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.decisionType",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "data.inputHash",
+						"kind": "device-salted-hash",
+						"required": true
+					},
+					{
+						"field": "data.policyHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.modelHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.finalAction",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.confidenceBp",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.latencyMs",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.host",
+						"kind": "label",
+						"required": false
+					},
+					{
+						"field": "data.sessionId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.repoName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.branchName",
+						"kind": "text",
+						"required": false
+					}
+				],
+				"approval.requested": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.actionClass",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.policyHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.expiresAt",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "data.repoName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.branchName",
+						"kind": "text",
+						"required": false
+					}
+				],
+				"approval.resolved": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.resolution",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "data.latencyMs",
+						"kind": "integer",
+						"required": true
+					}
+				],
+				"run.started": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.agent",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.host",
+						"kind": "label",
+						"required": false
+					},
+					{
+						"field": "data.repoHash",
+						"kind": "link-salted-hash",
+						"required": false
+					},
+					{
+						"field": "data.branchHash",
+						"kind": "link-salted-hash",
+						"required": false
+					},
+					{
+						"field": "data.repoName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.branchName",
+						"kind": "text",
+						"required": false
+					}
+				],
+				"run.step": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.step",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.toolClass",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.verdict",
+						"kind": "enum",
+						"required": true
+					}
+				],
+				"run.finished": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.outcome",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "data.durationMs",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.steps",
+						"kind": "integer",
+						"required": true
+					}
+				],
+				"receipt": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.receiptHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.passed",
+						"kind": "boolean",
+						"required": true
+					},
+					{
+						"field": "data.commit",
+						"kind": "token",
+						"required": false
+					},
+					{
+						"field": "data.repoName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.branchName",
+						"kind": "text",
+						"required": false
+					}
+				],
+				"spend": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.provider",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.model",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.inputTokens",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.outputTokens",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.costMicroUsd",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.routedTier",
+						"kind": "label",
+						"required": false
+					},
+					{
+						"field": "data.savingsMicroUsd",
+						"kind": "integer",
+						"required": false
+					}
+				],
+				"inventory": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.agent",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.agentVersion",
+						"kind": "version",
+						"required": true
+					},
+					{
+						"field": "data.mcpServers",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.hooksInstalled",
+						"kind": "boolean",
+						"required": true
+					},
+					{
+						"field": "data.runtimeVersion",
+						"kind": "version",
+						"required": false
+					},
+					{
+						"field": "data.plugins",
+						"kind": "integer",
+						"required": false
+					}
+				],
+				"override": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.decisionType",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "data.fromAction",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.toAction",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.reason",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.repoName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.branchName",
+						"kind": "text",
+						"required": false
+					}
+				]
+			}
+		},
+		"rich": {
+			"messages": {
+				"enrol-start": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "kind",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "os",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "arch",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "runtimeVersion",
+						"kind": "version",
+						"required": true
+					},
+					{
+						"field": "label",
+						"kind": "label",
+						"required": false
+					}
+				],
+				"enrol-complete": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "deviceCode",
+						"kind": "device-code",
+						"required": true
+					},
+					{
+						"field": "alg",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "publicKey",
+						"kind": "public-key",
+						"required": true
+					},
+					{
+						"field": "proof",
+						"kind": "signature",
+						"required": true
+					}
+				],
+				"token-challenge": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "deviceId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "nonce",
+						"kind": "nonce",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "sig",
+						"kind": "signature",
+						"required": true
+					}
+				],
+				"envelope": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "deviceId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seqFrom",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "seqTo",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "sentAt",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "sig",
+						"kind": "signature",
+						"required": true
+					}
+				],
+				"approval-ask": [
+					{
+						"field": "v",
+						"kind": "constant",
+						"required": true
+					},
+					{
+						"field": "askId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "deviceId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "sentAt",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "fallback",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "sig",
+						"kind": "signature",
+						"required": true
+					},
+					{
+						"field": "data.actionClass",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.policyHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.expiresAt",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "data.repoName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.branchName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.command",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.path",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.diff",
+						"kind": "text",
+						"required": false
+					}
+				]
+			},
+			"events": {
+				"decision": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.decisionType",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "data.inputHash",
+						"kind": "device-salted-hash",
+						"required": true
+					},
+					{
+						"field": "data.policyHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.modelHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.finalAction",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.confidenceBp",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.latencyMs",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.host",
+						"kind": "label",
+						"required": false
+					},
+					{
+						"field": "data.sessionId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.repoName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.branchName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.command",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.path",
+						"kind": "text",
+						"required": false
+					}
+				],
+				"approval.requested": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.actionClass",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.policyHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.expiresAt",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "data.repoName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.branchName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.command",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.path",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.diff",
+						"kind": "text",
+						"required": false
+					}
+				],
+				"approval.resolved": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.resolution",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "data.latencyMs",
+						"kind": "integer",
+						"required": true
+					}
+				],
+				"run.started": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.agent",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.host",
+						"kind": "label",
+						"required": false
+					},
+					{
+						"field": "data.repoHash",
+						"kind": "link-salted-hash",
+						"required": false
+					},
+					{
+						"field": "data.branchHash",
+						"kind": "link-salted-hash",
+						"required": false
+					},
+					{
+						"field": "data.repoName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.branchName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.command",
+						"kind": "text",
+						"required": false
+					}
+				],
+				"run.step": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.step",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.toolClass",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.verdict",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "data.command",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.path",
+						"kind": "text",
+						"required": false
+					}
+				],
+				"run.finished": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.outcome",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "data.durationMs",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.steps",
+						"kind": "integer",
+						"required": true
+					}
+				],
+				"receipt": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.receiptHash",
+						"kind": "hash",
+						"required": true
+					},
+					{
+						"field": "data.passed",
+						"kind": "boolean",
+						"required": true
+					},
+					{
+						"field": "data.commit",
+						"kind": "token",
+						"required": false
+					},
+					{
+						"field": "data.repoName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.branchName",
+						"kind": "text",
+						"required": false
+					}
+				],
+				"spend": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.provider",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.model",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.inputTokens",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.outputTokens",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.costMicroUsd",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.routedTier",
+						"kind": "label",
+						"required": false
+					},
+					{
+						"field": "data.savingsMicroUsd",
+						"kind": "integer",
+						"required": false
+					}
+				],
+				"inventory": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.agent",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.agentVersion",
+						"kind": "version",
+						"required": true
+					},
+					{
+						"field": "data.mcpServers",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "data.hooksInstalled",
+						"kind": "boolean",
+						"required": true
+					},
+					{
+						"field": "data.runtimeVersion",
+						"kind": "version",
+						"required": false
+					},
+					{
+						"field": "data.plugins",
+						"kind": "integer",
+						"required": false
+					}
+				],
+				"override": [
+					{
+						"field": "eventId",
+						"kind": "id",
+						"required": true
+					},
+					{
+						"field": "seq",
+						"kind": "integer",
+						"required": true
+					},
+					{
+						"field": "ts",
+						"kind": "timestamp",
+						"required": true
+					},
+					{
+						"field": "type",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "dataClass",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "runId",
+						"kind": "id",
+						"required": false
+					},
+					{
+						"field": "data.decisionType",
+						"kind": "enum",
+						"required": true
+					},
+					{
+						"field": "data.fromAction",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.toAction",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.reason",
+						"kind": "label",
+						"required": true
+					},
+					{
+						"field": "data.repoName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.branchName",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.command",
+						"kind": "text",
+						"required": false
+					},
+					{
+						"field": "data.path",
+						"kind": "text",
+						"required": false
+					}
+				]
+			}
+		}
+	}
+}

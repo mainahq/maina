@@ -1,0 +1,47 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://api.mainahq.com/link/v1/schemas/enrol-complete.schema.json",
+	"title": "EnrolComplete",
+	"description": "Registers the device public key with a proof of possession: Ed25519 over utf8(\"maina-link/sig/v1\\nenrol-proof\\n\") || JCS(message without proof) (POST /link/v1/enrol/complete). Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"v",
+		"deviceCode",
+		"alg",
+		"publicKey",
+		"proof"
+	],
+	"properties": {
+		"v": {
+			"const": 1
+		},
+		"deviceCode": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9_-]{32,128}$",
+			"examples": [
+				"dc_4f1b2c3d4e5f60718293a4b5c6d7e8f9"
+			]
+		},
+		"alg": {
+			"type": "string",
+			"enum": [
+				"ed25519"
+			]
+		},
+		"publicKey": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+			"examples": [
+				"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
+			]
+		},
+		"proof": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9_-]{85}[AQgw]$",
+			"examples": [
+				"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+			]
+		}
+	}
+}

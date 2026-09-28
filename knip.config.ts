@@ -22,6 +22,7 @@ const config: KnipConfig = {
 				"scripts/*.ts!",
 				"scripts/dogfood/*.ts!",
 				"scripts/fixtures/*.ts!",
+				"scripts/link/*.ts!",
 				"scripts/release/*.ts!",
 				"scripts/release/evidence/*.ts!",
 				"scripts/**/__tests__/*.test.ts",
@@ -37,7 +38,8 @@ const config: KnipConfig = {
 		},
 		"packages/cli": {
 			// The bin entry: package.json points at the compiled dist/ (#294).
-			entry: ["src/index.ts!", TESTS],
+			// The cloud test bundles its fixture entry for Node by path.
+			entry: ["src/index.ts!", TESTS, "src/**/__tests__/fixtures/*.ts"],
 			project: ["src/**/*.ts!"],
 		},
 		"packages/core": {

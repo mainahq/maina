@@ -1,0 +1,2290 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://api.mainahq.com/link/v1/schemas/event.schema.json",
+	"title": "LinkEvent",
+	"description": "One runtime event. `data` is the schema for the event's `type` at its declared `dataClass` (see `$defs`); at `metadata` it holds only labels, numbers and salted hashes. Maina Link protocol v1. Generated from src/link/protocol/**; do not edit (adr/0008).",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"eventId",
+		"seq",
+		"ts",
+		"type",
+		"dataClass",
+		"data"
+	],
+	"properties": {
+		"eventId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"seq": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 9007199254740991
+		},
+		"ts": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+			"examples": [
+				"2026-09-01T10:00:00.000Z"
+			]
+		},
+		"type": {
+			"type": "string",
+			"enum": [
+				"decision",
+				"approval.requested",
+				"approval.resolved",
+				"run.started",
+				"run.step",
+				"run.finished",
+				"receipt",
+				"spend",
+				"inventory",
+				"override"
+			]
+		},
+		"dataClass": {
+			"type": "string",
+			"enum": [
+				"metadata",
+				"names",
+				"rich"
+			]
+		},
+		"runId": {
+			"type": "string",
+			"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+			"examples": [
+				"id_0001"
+			]
+		},
+		"data": {
+			"type": "object",
+			"description": "The event's data: `$defs[<type>.<dataClass>]`, chosen by the allOf branches."
+		}
+	},
+	"$defs": {
+		"decision.metadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"decisionType",
+				"inputHash",
+				"policyHash",
+				"modelHash",
+				"finalAction",
+				"confidenceBp",
+				"latencyMs"
+			],
+			"properties": {
+				"decisionType": {
+					"type": "string",
+					"enum": [
+						"action.risk",
+						"diff.sensitive",
+						"diff.needs_review",
+						"task.tier",
+						"finding.real",
+						"finding.severity",
+						"spec.coverage",
+						"spec.orphan",
+						"spec.contradiction",
+						"spec.impl_leak",
+						"spec.quality",
+						"review.category",
+						"review.reviewer_kind",
+						"slop",
+						"wiki.relevance",
+						"context.select"
+					]
+				},
+				"inputHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"policyHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"modelHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"finalAction": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"confidenceBp": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 10000
+				},
+				"latencyMs": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"host": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"sessionId": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+					"examples": [
+						"id_0001"
+					]
+				}
+			}
+		},
+		"decision.names": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"decisionType",
+				"inputHash",
+				"policyHash",
+				"modelHash",
+				"finalAction",
+				"confidenceBp",
+				"latencyMs"
+			],
+			"properties": {
+				"decisionType": {
+					"type": "string",
+					"enum": [
+						"action.risk",
+						"diff.sensitive",
+						"diff.needs_review",
+						"task.tier",
+						"finding.real",
+						"finding.severity",
+						"spec.coverage",
+						"spec.orphan",
+						"spec.contradiction",
+						"spec.impl_leak",
+						"spec.quality",
+						"review.category",
+						"review.reviewer_kind",
+						"slop",
+						"wiki.relevance",
+						"context.select"
+					]
+				},
+				"inputHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"policyHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"modelHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"finalAction": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"confidenceBp": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 10000
+				},
+				"latencyMs": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"host": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"sessionId": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+					"examples": [
+						"id_0001"
+					]
+				},
+				"repoName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"acme/payments"
+					]
+				},
+				"branchName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"feat/refunds"
+					]
+				}
+			}
+		},
+		"decision.rich": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"decisionType",
+				"inputHash",
+				"policyHash",
+				"modelHash",
+				"finalAction",
+				"confidenceBp",
+				"latencyMs"
+			],
+			"properties": {
+				"decisionType": {
+					"type": "string",
+					"enum": [
+						"action.risk",
+						"diff.sensitive",
+						"diff.needs_review",
+						"task.tier",
+						"finding.real",
+						"finding.severity",
+						"spec.coverage",
+						"spec.orphan",
+						"spec.contradiction",
+						"spec.impl_leak",
+						"spec.quality",
+						"review.category",
+						"review.reviewer_kind",
+						"slop",
+						"wiki.relevance",
+						"context.select"
+					]
+				},
+				"inputHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"policyHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"modelHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"finalAction": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"confidenceBp": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 10000
+				},
+				"latencyMs": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"host": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"sessionId": {
+					"type": "string",
+					"pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+					"examples": [
+						"id_0001"
+					]
+				},
+				"repoName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"acme/payments"
+					]
+				},
+				"branchName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"feat/refunds"
+					]
+				},
+				"command": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 8192,
+					"examples": [
+						"bun test src/billing"
+					]
+				},
+				"path": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"examples": [
+						"src/billing/refunds.ts"
+					]
+				}
+			}
+		},
+		"approval.requested.metadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"actionClass",
+				"policyHash",
+				"expiresAt"
+			],
+			"properties": {
+				"actionClass": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"policyHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"expiresAt": {
+					"type": "string",
+					"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+					"examples": [
+						"2026-09-01T10:00:00.000Z"
+					]
+				}
+			}
+		},
+		"approval.requested.names": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"actionClass",
+				"policyHash",
+				"expiresAt"
+			],
+			"properties": {
+				"actionClass": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"policyHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"expiresAt": {
+					"type": "string",
+					"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+					"examples": [
+						"2026-09-01T10:00:00.000Z"
+					]
+				},
+				"repoName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"acme/payments"
+					]
+				},
+				"branchName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"feat/refunds"
+					]
+				}
+			}
+		},
+		"approval.requested.rich": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"actionClass",
+				"policyHash",
+				"expiresAt"
+			],
+			"properties": {
+				"actionClass": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"policyHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"expiresAt": {
+					"type": "string",
+					"pattern": "^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-9]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]\\.[0-9]{3}Z$",
+					"examples": [
+						"2026-09-01T10:00:00.000Z"
+					]
+				},
+				"repoName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"acme/payments"
+					]
+				},
+				"branchName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"feat/refunds"
+					]
+				},
+				"command": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 8192,
+					"examples": [
+						"bun test src/billing"
+					]
+				},
+				"path": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"examples": [
+						"src/billing/refunds.ts"
+					]
+				},
+				"diff": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 65536,
+					"examples": [
+						"--- a/src/x.ts\n+++ b/src/x.ts\n@@ -1 +1 @@\n-a\n+b\n"
+					]
+				}
+			}
+		},
+		"approval.resolved.metadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"resolution",
+				"latencyMs"
+			],
+			"properties": {
+				"resolution": {
+					"type": "string",
+					"enum": [
+						"approved",
+						"denied"
+					]
+				},
+				"latencyMs": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			}
+		},
+		"approval.resolved.names": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"resolution",
+				"latencyMs"
+			],
+			"properties": {
+				"resolution": {
+					"type": "string",
+					"enum": [
+						"approved",
+						"denied"
+					]
+				},
+				"latencyMs": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			}
+		},
+		"approval.resolved.rich": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"resolution",
+				"latencyMs"
+			],
+			"properties": {
+				"resolution": {
+					"type": "string",
+					"enum": [
+						"approved",
+						"denied"
+					]
+				},
+				"latencyMs": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			}
+		},
+		"run.started.metadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"agent"
+			],
+			"properties": {
+				"agent": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"host": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"repoHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"branchHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				}
+			}
+		},
+		"run.started.names": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"agent"
+			],
+			"properties": {
+				"agent": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"host": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"repoHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"branchHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"repoName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"acme/payments"
+					]
+				},
+				"branchName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"feat/refunds"
+					]
+				}
+			}
+		},
+		"run.started.rich": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"agent"
+			],
+			"properties": {
+				"agent": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"host": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"repoHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"branchHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"repoName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"acme/payments"
+					]
+				},
+				"branchName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"feat/refunds"
+					]
+				},
+				"command": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 8192,
+					"examples": [
+						"bun test src/billing"
+					]
+				}
+			}
+		},
+		"run.step.metadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"step",
+				"toolClass",
+				"verdict"
+			],
+			"properties": {
+				"step": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"toolClass": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"verdict": {
+					"type": "string",
+					"enum": [
+						"allow",
+						"ask",
+						"deny"
+					]
+				}
+			}
+		},
+		"run.step.names": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"step",
+				"toolClass",
+				"verdict"
+			],
+			"properties": {
+				"step": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"toolClass": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"verdict": {
+					"type": "string",
+					"enum": [
+						"allow",
+						"ask",
+						"deny"
+					]
+				}
+			}
+		},
+		"run.step.rich": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"step",
+				"toolClass",
+				"verdict"
+			],
+			"properties": {
+				"step": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"toolClass": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"verdict": {
+					"type": "string",
+					"enum": [
+						"allow",
+						"ask",
+						"deny"
+					]
+				},
+				"command": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 8192,
+					"examples": [
+						"bun test src/billing"
+					]
+				},
+				"path": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"examples": [
+						"src/billing/refunds.ts"
+					]
+				}
+			}
+		},
+		"run.finished.metadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"outcome",
+				"durationMs",
+				"steps"
+			],
+			"properties": {
+				"outcome": {
+					"type": "string",
+					"enum": [
+						"succeeded",
+						"failed",
+						"cancelled",
+						"stopped"
+					]
+				},
+				"durationMs": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"steps": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			}
+		},
+		"run.finished.names": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"outcome",
+				"durationMs",
+				"steps"
+			],
+			"properties": {
+				"outcome": {
+					"type": "string",
+					"enum": [
+						"succeeded",
+						"failed",
+						"cancelled",
+						"stopped"
+					]
+				},
+				"durationMs": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"steps": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			}
+		},
+		"run.finished.rich": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"outcome",
+				"durationMs",
+				"steps"
+			],
+			"properties": {
+				"outcome": {
+					"type": "string",
+					"enum": [
+						"succeeded",
+						"failed",
+						"cancelled",
+						"stopped"
+					]
+				},
+				"durationMs": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"steps": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			}
+		},
+		"receipt.metadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"receiptHash",
+				"passed"
+			],
+			"properties": {
+				"receiptHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"passed": {
+					"type": "boolean"
+				},
+				"commit": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+					"examples": [
+						"0000000000000000000000000000000000000000"
+					]
+				}
+			}
+		},
+		"receipt.names": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"receiptHash",
+				"passed"
+			],
+			"properties": {
+				"receiptHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"passed": {
+					"type": "boolean"
+				},
+				"commit": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+					"examples": [
+						"0000000000000000000000000000000000000000"
+					]
+				},
+				"repoName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"acme/payments"
+					]
+				},
+				"branchName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"feat/refunds"
+					]
+				}
+			}
+		},
+		"receipt.rich": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"receiptHash",
+				"passed"
+			],
+			"properties": {
+				"receiptHash": {
+					"type": "string",
+					"pattern": "^sha256:[0-9a-f]{64}$",
+					"examples": [
+						"sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					]
+				},
+				"passed": {
+					"type": "boolean"
+				},
+				"commit": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$",
+					"examples": [
+						"0000000000000000000000000000000000000000"
+					]
+				},
+				"repoName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"acme/payments"
+					]
+				},
+				"branchName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"feat/refunds"
+					]
+				}
+			}
+		},
+		"spend.metadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"provider",
+				"model",
+				"inputTokens",
+				"outputTokens",
+				"costMicroUsd"
+			],
+			"properties": {
+				"provider": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"model": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"inputTokens": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"outputTokens": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"costMicroUsd": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"routedTier": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"savingsMicroUsd": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			}
+		},
+		"spend.names": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"provider",
+				"model",
+				"inputTokens",
+				"outputTokens",
+				"costMicroUsd"
+			],
+			"properties": {
+				"provider": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"model": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"inputTokens": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"outputTokens": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"costMicroUsd": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"routedTier": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"savingsMicroUsd": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			}
+		},
+		"spend.rich": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"provider",
+				"model",
+				"inputTokens",
+				"outputTokens",
+				"costMicroUsd"
+			],
+			"properties": {
+				"provider": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"model": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"inputTokens": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"outputTokens": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"costMicroUsd": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"routedTier": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"savingsMicroUsd": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			}
+		},
+		"inventory.metadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"agent",
+				"agentVersion",
+				"mcpServers",
+				"hooksInstalled"
+			],
+			"properties": {
+				"agent": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"agentVersion": {
+					"type": "string",
+					"pattern": "^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$",
+					"examples": [
+						"1.4.0"
+					]
+				},
+				"mcpServers": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"hooksInstalled": {
+					"type": "boolean"
+				},
+				"runtimeVersion": {
+					"type": "string",
+					"pattern": "^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$",
+					"examples": [
+						"1.4.0"
+					]
+				},
+				"plugins": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			}
+		},
+		"inventory.names": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"agent",
+				"agentVersion",
+				"mcpServers",
+				"hooksInstalled"
+			],
+			"properties": {
+				"agent": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"agentVersion": {
+					"type": "string",
+					"pattern": "^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$",
+					"examples": [
+						"1.4.0"
+					]
+				},
+				"mcpServers": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"hooksInstalled": {
+					"type": "boolean"
+				},
+				"runtimeVersion": {
+					"type": "string",
+					"pattern": "^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$",
+					"examples": [
+						"1.4.0"
+					]
+				},
+				"plugins": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			}
+		},
+		"inventory.rich": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"agent",
+				"agentVersion",
+				"mcpServers",
+				"hooksInstalled"
+			],
+			"properties": {
+				"agent": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"agentVersion": {
+					"type": "string",
+					"pattern": "^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$",
+					"examples": [
+						"1.4.0"
+					]
+				},
+				"mcpServers": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				},
+				"hooksInstalled": {
+					"type": "boolean"
+				},
+				"runtimeVersion": {
+					"type": "string",
+					"pattern": "^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$",
+					"examples": [
+						"1.4.0"
+					]
+				},
+				"plugins": {
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 9007199254740991
+				}
+			}
+		},
+		"override.metadata": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"decisionType",
+				"fromAction",
+				"toAction",
+				"reason"
+			],
+			"properties": {
+				"decisionType": {
+					"type": "string",
+					"enum": [
+						"action.risk",
+						"diff.sensitive",
+						"diff.needs_review",
+						"task.tier",
+						"finding.real",
+						"finding.severity",
+						"spec.coverage",
+						"spec.orphan",
+						"spec.contradiction",
+						"spec.impl_leak",
+						"spec.quality",
+						"review.category",
+						"review.reviewer_kind",
+						"slop",
+						"wiki.relevance",
+						"context.select"
+					]
+				},
+				"fromAction": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"toAction": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"reason": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				}
+			}
+		},
+		"override.names": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"decisionType",
+				"fromAction",
+				"toAction",
+				"reason"
+			],
+			"properties": {
+				"decisionType": {
+					"type": "string",
+					"enum": [
+						"action.risk",
+						"diff.sensitive",
+						"diff.needs_review",
+						"task.tier",
+						"finding.real",
+						"finding.severity",
+						"spec.coverage",
+						"spec.orphan",
+						"spec.contradiction",
+						"spec.impl_leak",
+						"spec.quality",
+						"review.category",
+						"review.reviewer_kind",
+						"slop",
+						"wiki.relevance",
+						"context.select"
+					]
+				},
+				"fromAction": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"toAction": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"reason": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"repoName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"acme/payments"
+					]
+				},
+				"branchName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"feat/refunds"
+					]
+				}
+			}
+		},
+		"override.rich": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"decisionType",
+				"fromAction",
+				"toAction",
+				"reason"
+			],
+			"properties": {
+				"decisionType": {
+					"type": "string",
+					"enum": [
+						"action.risk",
+						"diff.sensitive",
+						"diff.needs_review",
+						"task.tier",
+						"finding.real",
+						"finding.severity",
+						"spec.coverage",
+						"spec.orphan",
+						"spec.contradiction",
+						"spec.impl_leak",
+						"spec.quality",
+						"review.category",
+						"review.reviewer_kind",
+						"slop",
+						"wiki.relevance",
+						"context.select"
+					]
+				},
+				"fromAction": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"toAction": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"reason": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+					"examples": [
+						"claude-code"
+					]
+				},
+				"repoName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"acme/payments"
+					]
+				},
+				"branchName": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 255,
+					"examples": [
+						"feat/refunds"
+					]
+				},
+				"command": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 8192,
+					"examples": [
+						"bun test src/billing"
+					]
+				},
+				"path": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"examples": [
+						"src/billing/refunds.ts"
+					]
+				}
+			}
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "decision"
+					},
+					"dataClass": {
+						"const": "metadata"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/decision.metadata"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "decision"
+					},
+					"dataClass": {
+						"const": "names"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/decision.names"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "decision"
+					},
+					"dataClass": {
+						"const": "rich"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/decision.rich"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "approval.requested"
+					},
+					"dataClass": {
+						"const": "metadata"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/approval.requested.metadata"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "approval.requested"
+					},
+					"dataClass": {
+						"const": "names"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/approval.requested.names"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "approval.requested"
+					},
+					"dataClass": {
+						"const": "rich"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/approval.requested.rich"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "approval.resolved"
+					},
+					"dataClass": {
+						"const": "metadata"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/approval.resolved.metadata"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "approval.resolved"
+					},
+					"dataClass": {
+						"const": "names"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/approval.resolved.names"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "approval.resolved"
+					},
+					"dataClass": {
+						"const": "rich"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/approval.resolved.rich"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "run.started"
+					},
+					"dataClass": {
+						"const": "metadata"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/run.started.metadata"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "run.started"
+					},
+					"dataClass": {
+						"const": "names"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/run.started.names"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "run.started"
+					},
+					"dataClass": {
+						"const": "rich"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/run.started.rich"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "run.step"
+					},
+					"dataClass": {
+						"const": "metadata"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/run.step.metadata"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "run.step"
+					},
+					"dataClass": {
+						"const": "names"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/run.step.names"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "run.step"
+					},
+					"dataClass": {
+						"const": "rich"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/run.step.rich"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "run.finished"
+					},
+					"dataClass": {
+						"const": "metadata"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/run.finished.metadata"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "run.finished"
+					},
+					"dataClass": {
+						"const": "names"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/run.finished.names"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "run.finished"
+					},
+					"dataClass": {
+						"const": "rich"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/run.finished.rich"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "receipt"
+					},
+					"dataClass": {
+						"const": "metadata"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/receipt.metadata"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "receipt"
+					},
+					"dataClass": {
+						"const": "names"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/receipt.names"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "receipt"
+					},
+					"dataClass": {
+						"const": "rich"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/receipt.rich"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "spend"
+					},
+					"dataClass": {
+						"const": "metadata"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/spend.metadata"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "spend"
+					},
+					"dataClass": {
+						"const": "names"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/spend.names"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "spend"
+					},
+					"dataClass": {
+						"const": "rich"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/spend.rich"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "inventory"
+					},
+					"dataClass": {
+						"const": "metadata"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/inventory.metadata"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "inventory"
+					},
+					"dataClass": {
+						"const": "names"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/inventory.names"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "inventory"
+					},
+					"dataClass": {
+						"const": "rich"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/inventory.rich"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "override"
+					},
+					"dataClass": {
+						"const": "metadata"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/override.metadata"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "override"
+					},
+					"dataClass": {
+						"const": "names"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/override.names"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"const": "override"
+					},
+					"dataClass": {
+						"const": "rich"
+					}
+				},
+				"required": [
+					"type",
+					"dataClass"
+				]
+			},
+			"then": {
+				"properties": {
+					"data": {
+						"$ref": "#/$defs/override.rich"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"type": {
+						"enum": [
+							"run.started",
+							"run.step",
+							"run.finished",
+							"spend"
+						]
+					}
+				},
+				"required": [
+					"type"
+				]
+			},
+			"then": {
+				"required": [
+					"runId"
+				]
+			}
+		}
+	]
+}

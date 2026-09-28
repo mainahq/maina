@@ -1,0 +1,15 @@
+{
+	"eventId": "evt_01J9Z3K5",
+	"seq": 1,
+	"ts": "2026-09-28T08:00:00.000Z",
+	"type": "inventory",
+	"dataClass": "metadata",
+	"data": {
+		"agent": "claude-code",
+		"agentVersion": "2.3.1",
+		"mcpServers": 4,
+		"hooksInstalled": true,
+		"runtimeVersion": "1.4.0",
+		"plugins": 2
+	}
+}

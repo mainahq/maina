@@ -6,6 +6,7 @@
  */
 
 import type { Result } from "../db/index";
+import type { EnvPort } from "../ports/env";
 import type {
 	ApiResponse,
 	CloudConfig,
@@ -33,6 +34,21 @@ function ok<T>(value: T): Result<T, string> {
 
 function err(error: string): Result<never, string> {
 	return { ok: false, error };
+}
+
+/** The hosted Maina cloud. */
+export const DEFAULT_CLOUD_URL = "https://api.mainahq.com";
+
+/**
+ * The cloud base URL every client shares: the 1.x API client and login,
+ * and the v1 Link client (#589). `MAINA_CLOUD_URL` overrides the hosted
+ * cloud; a trailing slash is dropped so paths join cleanly.
+ */
+export function cloudBaseUrl(env: EnvPort): string {
+	const override = env.get("MAINA_CLOUD_URL")?.trim();
+	const url =
+		override === undefined || override === "" ? DEFAULT_CLOUD_URL : override;
+	return url.replace(/\/+$/, "");
 }
 
 const DEFAULT_TIMEOUT_MS = 10_000;

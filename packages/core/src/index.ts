@@ -99,7 +99,11 @@ export {
 	startDeviceFlow,
 	startGitHubDeviceFlow,
 } from "./cloud/auth";
-export { type CloudClient, createCloudClient } from "./cloud/client";
+export {
+	type CloudClient,
+	cloudBaseUrl,
+	createCloudClient,
+} from "./cloud/client";
 export type {
 	ApiResponse,
 	CloudConfig,

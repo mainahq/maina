@@ -1,0 +1,12 @@
+{
+	"eventId": "evt_01J9Z3P3",
+	"seq": 43,
+	"ts": "2026-09-28T09:16:11.530Z",
+	"type": "approval.resolved",
+	"dataClass": "metadata",
+	"runId": "run_01J9Z3N2B6WQ",
+	"data": {
+		"resolution": "approved",
+		"latencyMs": 68526
+	}
+}

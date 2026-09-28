@@ -20,10 +20,8 @@
     "@mainahq/core": "workspace:*",
     "@mainahq/mcp": "workspace:*",
     "@vscode/tree-sitter-wasm": "^0.3.1",
+    "ajv": "^8.18.0",
     "onnxruntime-common": "1.30.0",
     "onnxruntime-web": "1.30.0"
-  },
-  "devDependencies": {
-    "ajv": "^8.18.0"
   }
 }

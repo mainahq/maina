@@ -1,0 +1,13 @@
+{
+	"eventId": "evt_01J9Z3P4",
+	"seq": 44,
+	"ts": "2026-09-28T09:16:12.002Z",
+	"type": "run.step",
+	"dataClass": "metadata",
+	"runId": "run_01J9Z3N2B6WQ",
+	"data": {
+		"step": 12,
+		"toolClass": "shell.exec",
+		"verdict": "allow"
+	}
+}

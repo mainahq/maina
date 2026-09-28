@@ -1,0 +1,16 @@
+{
+	"eventId": "evt_01J9Z3P2",
+	"seq": 42,
+	"ts": "2026-09-28T09:15:03.004Z",
+	"type": "approval.requested",
+	"dataClass": "rich",
+	"runId": "run_01J9Z3N2B6WQ",
+	"data": {
+		"actionClass": "git.push",
+		"policyHash": "sha256:b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+		"expiresAt": "2026-09-28T09:20:03.004Z",
+		"repoName": "acme/payments",
+		"branchName": "feat/refunds",
+		"command": "git push origin feat/refunds"
+	}
+}

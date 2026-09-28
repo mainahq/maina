@@ -1,0 +1,13 @@
+{
+	"eventId": "evt_01J9Z3P9",
+	"seq": 51,
+	"ts": "2026-09-28T09:31:40.777Z",
+	"type": "run.finished",
+	"dataClass": "metadata",
+	"runId": "run_01J9Z3N2B6WQ",
+	"data": {
+		"outcome": "succeeded",
+		"durationMs": 1002777,
+		"steps": 37
+	}
+}

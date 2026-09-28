@@ -1,0 +1,15 @@
+{
+	"v": 1,
+	"orgId": "org_acme",
+	"messageId": "ctl_01J9Z3Q1",
+	"deviceId": "dev_01J9Z3K4T8QX",
+	"kind": "stop",
+	"issuedAt": "2026-09-28T09:20:00.000Z",
+	"expiresAt": "2026-09-28T09:25:00.000Z",
+	"body": {
+		"runId": "run_01J9Z3N2B6WQ",
+		"reason": "stopped_from_board"
+	},
+	"keyId": "key_control_2026_09",
+	"sig": "controlxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxA"
+}

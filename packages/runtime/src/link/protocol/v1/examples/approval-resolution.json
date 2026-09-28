@@ -1,0 +1,14 @@
+{
+	"v": 1,
+	"orgId": "org_acme",
+	"askId": "ask_01J9Z3P2",
+	"deviceId": "dev_01J9Z3K4T8QX",
+	"resolution": "approved",
+	"resolvedBy": {
+		"kind": "member",
+		"id": "mem_7c1d"
+	},
+	"resolvedAt": "2026-09-28T09:16:11.402Z",
+	"keyId": "key_approval_2026_09",
+	"sig": "resolutionxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxA"
+}
