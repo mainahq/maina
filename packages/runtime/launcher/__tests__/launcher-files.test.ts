@@ -201,4 +201,21 @@ describe("the committed release key", () => {
 		const xml = readFileSync(join(LAUNCHER_DIR, "release.pub.xml"), "utf-8");
 		expect(xml).toBe(publicKeyXml(pem()));
 	});
+
+	// A CRLF checkout (core.autocrlf on Windows) would change the bytes the
+	// launchers and the release preflight compare, as for launch.sh.
+	test("the key files check out with LF on every OS", () => {
+		const files = ["release.pub.pem", "release.pub.xml"].map((name) =>
+			join(LAUNCHER_DIR, name),
+		);
+		const proc = Bun.spawnSync(["git", "check-attr", "eol", "--", ...files], {
+			cwd: LAUNCHER_DIR,
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		expect(proc.exitCode).toBe(0);
+		const lines = proc.stdout.toString().trim().split("\n");
+		expect(lines).toHaveLength(2);
+		for (const line of lines) expect(line).toEndWith(": eol: lf");
+	});
 });
