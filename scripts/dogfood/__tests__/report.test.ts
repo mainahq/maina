@@ -250,9 +250,14 @@ describe("ask outcomes", () => {
 			ran("l1"),
 			"{not json",
 		].join("\n");
-		expect(askOutcomes(log, WEEK)).toEqual({ asked: 3, ran: 1, notRan: 2 });
+		expect(askOutcomes(log, WEEK)).toEqual({
+			asked: 3,
+			ran: 1,
+			denied: 0,
+			notRan: 2,
+		});
 		expect(outcomesLine(log, WEEK)).toBe(
-			"outcomes: of 3 asks with a tool use id, 1 ran (approved), 2 did not (refused or abandoned)",
+			"outcomes: of 3 asks with a tool use id, 1 ran (approved), 0 denied (auto-mode classifier), 2 did not (refused or abandoned)",
 		);
 	});
 
@@ -262,7 +267,68 @@ describe("ask outcomes", () => {
 			ran("a1", "s1", "2026-09-28T00:00:10.000Z"),
 			ask("a2", "s1", "2026-09-28T09:00:00.000Z"),
 		].join("\n");
-		expect(askOutcomes(log, WEEK)).toEqual({ asked: 1, ran: 1, notRan: 0 });
+		expect(askOutcomes(log, WEEK)).toEqual({
+			asked: 1,
+			ran: 1,
+			denied: 0,
+			notRan: 0,
+		});
+	});
+
+	// #659: a tool that fails after the user approved it still ran; the post
+	// hook logs it from PostToolUseFailure as a `ran` record marked failed.
+	test("an approved ask whose tool then failed counts as ran, not refused", () => {
+		const failed = line({
+			ts: "2026-09-23T10:00:05.000Z",
+			kind: "ran",
+			failed: true,
+			tool: "Bash",
+			action: "rm -rf dist",
+			toolUseId: "a1",
+			sessionId: "s1",
+			root: "/repo",
+			host: "claude-code",
+		});
+		const log = [ask("a1"), failed, ask("a2")].join("\n");
+		expect(askOutcomes(log, WEEK)).toEqual({
+			asked: 2,
+			ran: 1,
+			denied: 0,
+			notRan: 1,
+		});
+	});
+
+	// PermissionDenied: the auto-mode classifier denied the call. It did not
+	// run, but the user did not refuse it either, so it is counted apart.
+	test("an ask the classifier denied counts as denied, not refused", () => {
+		const deny = (id: string, session = "s1") =>
+			line({
+				ts: "2026-09-23T10:00:05.000Z",
+				kind: "denied",
+				tool: "Bash",
+				toolUseId: id,
+				sessionId: session,
+				root: "/repo",
+				host: "claude-code",
+			});
+		const log = [
+			ask("a1"),
+			deny("a1"),
+			ask("a2"),
+			// Another session's denial is not this ask's outcome.
+			deny("a2", "s2"),
+			ask("a3"),
+			ran("a3"),
+		].join("\n");
+		expect(askOutcomes(log, WEEK)).toEqual({
+			asked: 3,
+			ran: 1,
+			denied: 1,
+			notRan: 1,
+		});
+		expect(outcomesLine(log, WEEK)).toBe(
+			"outcomes: of 3 asks with a tool use id, 1 ran (approved), 1 denied (auto-mode classifier), 1 did not (refused or abandoned)",
+		);
 	});
 
 	test("an old log, with no ids, adds no outcomes line", () => {
@@ -271,7 +337,12 @@ describe("ask outcomes", () => {
 			"../../../packages/core/src/digest/__tests__/fixtures",
 		);
 		const text = readFileSync(join(fixtures, "gate-log.jsonl"), "utf-8");
-		expect(askOutcomes(text, WEEK)).toEqual({ asked: 0, ran: 0, notRan: 0 });
+		expect(askOutcomes(text, WEEK)).toEqual({
+			asked: 0,
+			ran: 0,
+			denied: 0,
+			notRan: 0,
+		});
 		expect(outcomesLine(text, WEEK)).toBeUndefined();
 		expect(outcomesLine("", WEEK)).toBeUndefined();
 	});

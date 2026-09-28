@@ -160,6 +160,16 @@ describe("parseGateLog and the post hook's ran records", () => {
 		expect(parseGateLog(text)).toEqual({ records: [PRE], malformed: 0 });
 	});
 
+	// #659: the post hook also logs PermissionDenied (the auto-mode
+	// classifier denied the call) as `kind: "denied"`, and PostToolUseFailure
+	// as a `ran` record marked failed. Neither is a verdict.
+	test("denied and failed ran records are skipped too", () => {
+		const denied = { ...RAN, kind: "denied", action: undefined };
+		const failed = { ...RAN, failed: true };
+		const text = [PRE, denied, failed].map((r) => JSON.stringify(r)).join("\n");
+		expect(parseGateLog(text)).toEqual({ records: [PRE], malformed: 0 });
+	});
+
 	test("ran records leave the fixture's digest unchanged", () => {
 		const ran = JSON.stringify(RAN);
 		const mixed = LOG.split("\n")

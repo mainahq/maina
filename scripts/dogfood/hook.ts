@@ -32,13 +32,24 @@
  * #570), which the runtime this hook asks appends its gate decisions to, as
  * hashes and labels only.
  *
- * Outcomes (FR-S1-4, FR-DOG-3): `hook.ts post`, wired as the `PostToolUse`
- * hook for the same tools, appends `{ ts, kind: "ran", tool, action,
- * toolUseId?, sessionId?, root, host }` for each gated call that ran. It
- * never blocks, prints or fails the tool, and never records the tool's
- * response. Claude Code runs PostToolUse only for a tool that ran, so an ask
- * whose `toolUseId` has a `ran` record in the same session was approved; an
- * ask without one was refused or abandoned. Set `MAINA_DOGFOOD_LOG` globally
+ * Outcomes (FR-S1-4, FR-DOG-3): `hook.ts post`, wired for the same tools as
+ * the `PostToolUse`, `PostToolUseFailure` and `PermissionDenied` hooks,
+ * appends one outcome record per gated call. It never blocks, prints or
+ * fails the tool, and never records the tool's response, its error or the
+ * classifier's reason.
+ *
+ * - PostToolUse runs only after a tool succeeds, and PostToolUseFailure only
+ *   after an allowed tool fails; Claude Code fires neither when the user
+ *   refuses the call. Both append `{ ts, kind: "ran", failed?, tool, action,
+ *   toolUseId?, sessionId?, root, host }`, with `failed: true` for a
+ *   failure. Either way the call ran, so the user approved it (#659).
+ * - PermissionDenied runs when the auto-mode classifier denies the call. It
+ *   appends `{ ts, kind: "denied", tool, toolUseId?, sessionId?, root, host }`:
+ *   the call did not run, but the user did not refuse it either.
+ *
+ * So an ask whose `toolUseId` has a `ran` record in the same session was
+ * approved, one with a `denied` record was denied by the classifier, and one
+ * with neither was refused or abandoned. Set `MAINA_DOGFOOD_LOG` globally
  * (say to `~/.maina/dogfood/log.jsonl`) so every checkout and worktree
  * appends to one file.
  */
@@ -91,11 +102,13 @@ export interface LogRecord {
 /**
  * The post hook's line: a gated call ran. Paired with the pre record by
  * `toolUseId` (within `sessionId`), it says an ask was approved. Never holds
- * the tool's response.
+ * the tool's response or error.
  */
 export interface RanRecord {
 	readonly ts: string;
 	readonly kind: "ran";
+	/** The tool ran and failed (PostToolUseFailure); it was still approved. */
+	readonly failed?: true;
 	readonly tool: string;
 	/** As on the pre record: the command, path, URL or MCP tool. */
 	readonly action: string;
@@ -106,12 +119,31 @@ export interface RanRecord {
 	readonly host: string;
 }
 
+/**
+ * The post hook's line for a call the auto-mode classifier denied
+ * (PermissionDenied): it never ran, and the user did not refuse it. Holds
+ * neither the action nor the classifier's reason, which may quote it.
+ */
+export interface DeniedRecord {
+	readonly ts: string;
+	readonly kind: "denied";
+	readonly tool: string;
+	readonly toolUseId?: string;
+	readonly sessionId?: string;
+	/** Workspace root, as on the pre record; empty when unknown. */
+	readonly root: string;
+	readonly host: string;
+}
+
+/** What became of a gated call, as the post hook logs it. */
+export type OutcomeRecord = RanRecord | DeniedRecord;
+
 export interface DogfoodPostDeps {
 	readonly now: () => string;
 	/** As `DogfoodDeps.rootOf`. */
 	readonly rootOf: (cwd: string) => string | null;
 	/** Appends one record; best-effort. */
-	readonly log: (record: RanRecord) => void;
+	readonly log: (record: OutcomeRecord) => void;
 }
 
 export interface DogfoodDeps {
@@ -250,12 +282,24 @@ export async function runDogfoodHook(
 	};
 }
 
+type PostOutcome = "ran" | "failed" | "denied";
+
+/** The hook events the post mode logs, and the outcome each one records. */
+const POST_EVENTS: ReadonlyMap<unknown, PostOutcome> = new Map([
+	["PostToolUse", "ran"],
+	["PostToolUseFailure", "failed"],
+	["PermissionDenied", "denied"],
+]);
+
 /**
- * The post mode: logs a gated call that ran (`PostToolUse`). The payload is
- * read as its PreToolUse twin would be, so the tool and action match the
- * pre record's; the tool's response is never looked at. Always silent and
- * exit 0: it never blocks or fails the tool. Tools maina does not gate and
- * payloads it cannot read are not logged.
+ * The post mode: logs what became of a gated call. `PostToolUse` (the tool
+ * succeeded) and `PostToolUseFailure` (it failed) log a `ran` record, the
+ * latter marked `failed`; `PermissionDenied` (the auto-mode classifier
+ * denied it) logs a `denied` record. The payload is read as its PreToolUse
+ * twin would be, so the tool and action match the pre record's; the tool's
+ * response, its error and the classifier's reason are never looked at.
+ * Always silent and exit 0: it never blocks or fails the tool. Tools maina
+ * does not gate and payloads it cannot read are not logged.
  */
 export function runDogfoodPostHook(
 	raw: string,
@@ -263,22 +307,36 @@ export function runDogfoodPostHook(
 ): ClaudeOutput {
 	try {
 		const payload = parseHookInput(raw);
-		if (!isRecord(payload) || payload.hook_event_name !== "PostToolUse") {
-			return SILENT;
-		}
-		const { tool_response: _response, ...call } = payload;
+		if (!isRecord(payload)) return SILENT;
+		const outcome = POST_EVENTS.get(payload.hook_event_name);
+		if (outcome === undefined) return SILENT;
+		const {
+			tool_response: _response,
+			error: _error,
+			reason: _reason,
+			...call
+		} = payload;
 		const event = fromClaude({ ...call, hook_event_name: HOOK_EVENT });
 		if (event.type !== "gate") return SILENT;
 		const { cwd, input } = event.event;
-		deps.log({
-			ts: deps.now(),
-			kind: "ran",
-			tool: event.tool,
-			action: actionOf(event),
+		const ts = deps.now();
+		const where = {
 			...idsOf(payload),
 			root: cwd === undefined ? "" : rootFor(cwd, deps.rootOf),
 			host: typeof input.host === "string" ? input.host : CLAUDE_HOST,
-		});
+		};
+		deps.log(
+			outcome === "denied"
+				? { ts, kind: "denied", tool: event.tool, ...where }
+				: {
+						ts,
+						kind: "ran",
+						...(outcome === "failed" ? { failed: true as const } : {}),
+						tool: event.tool,
+						action: actionOf(event),
+						...where,
+					},
+		);
 	} catch {
 		// Best-effort: the tool already ran; nothing here may fail it.
 	}
@@ -304,7 +362,7 @@ if (import.meta.main) {
 		const root = resolveRoot({ cwd }, gitProbe);
 		return root.ok ? root.value.path : null;
 	};
-	const append = (record: LogRecord | RanRecord): void => {
+	const append = (record: LogRecord | OutcomeRecord): void => {
 		mkdirSync(dirname(logPath), { recursive: true });
 		appendFileSync(logPath, `${JSON.stringify(record)}\n`);
 	};

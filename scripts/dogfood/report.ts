@@ -18,9 +18,11 @@
  * (which must stay what `maina digest --dogfood` writes from the decision
  * log): of the week's asks in the dogfood hook log (`MAINA_DOGFOOD_LOG`, or
  * `.maina/dogfood/log.jsonl`) that carry a tool use id, how many ran, that
- * is the user approved them, and how many did not (refused or abandoned).
- * An ask ran when the hook's post mode logged a `ran` record with its tool
- * use id in the same session. A log without ids prints nothing more.
+ * is the user approved them, how many the auto-mode classifier denied, and
+ * how many did not run (refused or abandoned). An ask ran when the hook's
+ * post mode logged a `ran` record with its tool use id in the same session
+ * (the tool succeeded or failed), and was denied when it logged a `denied`
+ * record. A log without ids prints nothing more.
  *
  * Usage:
  *   bun run dogfood:report                 # the week that just ended
@@ -33,6 +35,7 @@ import {
 } from "../../packages/cli/src/commands/digest";
 import {
 	buildDigest,
+	DENIED_KIND,
 	type DigestEvent,
 	isoWeek,
 	isWeekKey,
@@ -78,49 +81,66 @@ export function decisionLog(root: string): ReportDeps["readEvents"] {
 /** What became of a week's asks that carry a tool use id. */
 export interface AskOutcomes {
 	readonly asked: number;
-	/** A `ran` record followed: the user approved the call. */
+	/**
+	 * A `ran` record followed, from PostToolUse or PostToolUseFailure: the
+	 * user approved the call, whether the tool then succeeded or failed.
+	 */
 	readonly ran: number;
-	/** No `ran` record: the user refused or abandoned the call. */
+	/** A `denied` record followed (PermissionDenied): the auto-mode classifier denied it. */
+	readonly denied: number;
+	/** Neither: the user refused or abandoned the call. */
 	readonly notRan: number;
 }
 
 const pairKey = (toolUseId: string, sessionId: unknown): string =>
 	`${typeof sessionId === "string" ? sessionId : ""}\u0000${toolUseId}`;
 
-/** The `ran` records' pairing keys; malformed lines are skipped. */
-function ranKeys(logText: string): ReadonlySet<string> {
-	const keys = new Set<string>();
+interface OutcomeKeys {
+	readonly ran: ReadonlySet<string>;
+	readonly denied: ReadonlySet<string>;
+}
+
+/** The outcome records' pairing keys, by kind; malformed lines are skipped. */
+function outcomeKeys(logText: string): OutcomeKeys {
+	const ran = new Set<string>();
+	const denied = new Set<string>();
 	for (const line of logText.split("\n")) {
 		if (line.trim() === "") continue;
 		try {
 			const r = JSON.parse(line) as Record<string, unknown> | null;
-			if (r?.kind === RAN_KIND && typeof r.toolUseId === "string") {
-				keys.add(pairKey(r.toolUseId, r.sessionId));
-			}
+			if (typeof r?.toolUseId !== "string") continue;
+			const key = pairKey(r.toolUseId, r.sessionId);
+			if (r.kind === RAN_KIND) ran.add(key);
+			else if (r.kind === DENIED_KIND) denied.add(key);
 		} catch {
 			// Not a record.
 		}
 	}
-	return keys;
+	return { ran, denied };
 }
 
 /**
- * Pairs `week`'s asks in the dogfood hook log with the post hook's `ran`
- * records by tool use id, within a session. Asks without an id (older
- * lines) cannot be paired and are left out. A `ran` record may fall after
- * the week. Pure.
+ * Pairs `week`'s asks in the dogfood hook log with the post hook's outcome
+ * records by tool use id, within a session: a `ran` record (the tool
+ * succeeded or failed) means approved, a `denied` one denied by the
+ * classifier; a call that ran counts as ran even if a denial was logged too.
+ * Asks without an id (older lines) cannot be paired and are left out. An
+ * outcome record may fall after the week. Pure.
  */
 export function askOutcomes(logText: string, week: string): AskOutcomes {
-	const ran = ranKeys(logText);
+	const keys = outcomeKeys(logText);
 	let asked = 0;
-	let approved = 0;
+	let ran = 0;
+	let denied = 0;
 	for (const r of parseGateLog(logText).records) {
 		if (r.verdict !== "ask" || r.toolUseId === undefined) continue;
 		if (isoWeek(r.ts) !== week) continue;
 		asked++;
-		if (ran.has(pairKey(r.toolUseId, r.sessionId))) approved++;
+		const key = pairKey(r.toolUseId, r.sessionId);
+		if (keys.ran.has(key)) ran++;
+		else if (keys.denied.has(key)) denied++;
 	}
-	return { asked, ran: approved, notRan: asked - approved };
+	return { asked, ran, denied, notRan: asked - ran - denied };
 }
 
 /** The outcomes line the CLI prints, or undefined when no ask has an id. */
@@ -130,7 +150,7 @@ export function outcomesLine(
 ): string | undefined {
 	const o = askOutcomes(logText, week);
 	if (o.asked === 0) return undefined;
-	return `outcomes: of ${o.asked} asks with a tool use id, ${o.ran} ran (approved), ${o.notRan} did not (refused or abandoned)`;
+	return `outcomes: of ${o.asked} asks with a tool use id, ${o.ran} ran (approved), ${o.denied} denied (auto-mode classifier), ${o.notRan} did not (refused or abandoned)`;
 }
 
 // ── CLI (imperative shell) ────────────────────────────────────────────────

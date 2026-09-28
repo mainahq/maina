@@ -22,10 +22,11 @@ import type { ClaudeHookPorts } from "../../../packages/runtime/src/claude-hook"
 import { systemGates } from "../../../packages/runtime/src/gate-system";
 import {
 	type LogRecord,
-	type RanRecord,
+	type OutcomeRecord,
 	runDogfoodHook,
 	runDogfoodPostHook,
 } from "../hook";
+import { askOutcomes } from "../report";
 
 const ROOT = resolve(import.meta.dir, "../../..");
 const NOW = "2026-09-25T10:00:00.000Z";
@@ -324,8 +325,8 @@ const post = (
 function runPost(
 	raw: string,
 	rootOf: (cwd: string) => string | null = workRoot,
-): { out: ReturnType<typeof runDogfoodPostHook>; logged: RanRecord[] } {
-	const logged: RanRecord[] = [];
+): { out: ReturnType<typeof runDogfoodPostHook>; logged: OutcomeRecord[] } {
+	const logged: OutcomeRecord[] = [];
 	const out = runDogfoodPostHook(raw, {
 		now: () => NOW,
 		rootOf,
@@ -335,6 +336,58 @@ function runPost(
 }
 
 const SILENT_OUT = { exitCode: 0, stdout: "", stderr: "" };
+
+/** The logged action; a denied record has none. */
+const actionIn = (r: OutcomeRecord | undefined): string | undefined =>
+	r !== undefined && "action" in r ? r.action : undefined;
+
+/**
+ * A PostToolUseFailure payload (Claude Code 2.1.283+: `tool_name`,
+ * `tool_input`, `tool_use_id`, `error`, `error_type`, `is_interrupt`,
+ * `is_timeout`): the user approved the call and the tool then failed.
+ */
+const failure = (
+	toolName: string,
+	toolInput: Record<string, unknown>,
+	extra: Record<string, unknown> = {},
+): string =>
+	JSON.stringify({
+		session_id: "s1",
+		transcript_path: "/dev/null",
+		cwd: "/work/maina",
+		permission_mode: "default",
+		hook_event_name: "PostToolUseFailure",
+		tool_name: toolName,
+		tool_input: toolInput,
+		tool_use_id: "t1",
+		error: `Exit code 1: ${SECRET}`,
+		error_type: "tool_error",
+		is_interrupt: false,
+		is_timeout: false,
+		...extra,
+	});
+
+/**
+ * A PermissionDenied payload (`tool_name`, `tool_input`, `tool_use_id`,
+ * `reason`): the auto-mode classifier denied the call, so it never ran.
+ */
+const denied = (
+	toolName: string,
+	toolInput: Record<string, unknown>,
+	extra: Record<string, unknown> = {},
+): string =>
+	JSON.stringify({
+		session_id: "s1",
+		transcript_path: "/dev/null",
+		cwd: "/work/maina",
+		permission_mode: "auto",
+		hook_event_name: "PermissionDenied",
+		tool_name: toolName,
+		tool_input: toolInput,
+		tool_use_id: "t1",
+		reason: `classifier: ${SECRET}`,
+		...extra,
+	});
 
 describe("runDogfoodPostHook", () => {
 	test("a gated tool that ran is logged as ran, silently", () => {
@@ -387,8 +440,8 @@ describe("runDogfoodPostHook", () => {
 				gate("allow"),
 			);
 			const { logged } = runPost(post(tool, input));
-			expect(logged[0]?.action).toBe(action);
-			expect(logged[0]?.action).toBe(pre.logged[0]?.action ?? "");
+			expect(actionIn(logged[0])).toBe(action);
+			expect(actionIn(logged[0])).toBe(pre.logged[0]?.action ?? "");
 		}
 	});
 
@@ -396,8 +449,8 @@ describe("runDogfoodPostHook", () => {
 		const { logged } = runPost(
 			post("Bash", { command: `echo ${"x".repeat(300)}` }),
 		);
-		expect(logged[0]?.action.length).toBe(200);
-		expect(logged[0]?.action.endsWith("...")).toBe(true);
+		expect(actionIn(logged[0])?.length).toBe(200);
+		expect(actionIn(logged[0])?.endsWith("...")).toBe(true);
 	});
 
 	test("never records the tool response or file contents", () => {
@@ -436,6 +489,9 @@ describe("runDogfoodPostHook", () => {
 			JSON.stringify({ hook_event_name: "PostToolUse", tool_name: "Bash" }),
 			post("Bash", {}),
 			post("Bash", { command: "ls" }, { hook_event_name: "PreToolUse" }),
+			post("Bash", { command: "ls" }, { hook_event_name: "Stop" }),
+			failure("Bash", {}),
+			denied("Bash", {}),
 		]) {
 			const { out, logged } = runPost(raw);
 			expect(out).toEqual(SILENT_OUT);
@@ -455,6 +511,94 @@ describe("runDogfoodPostHook", () => {
 		});
 		expect(out).toEqual(SILENT_OUT);
 	});
+
+	// #659: PostToolUse runs only after a tool succeeds. An ask the user
+	// approved whose tool then failed (an Edit whose old_string does not
+	// match, a Read of a missing path, a Bash exiting non-zero, an MCP error)
+	// still ran: it must pair as approved, not count as refused.
+	test("an approved call whose tool then failed is logged as ran, silently", () => {
+		const { out, logged } = runPost(failure("Bash", { command: "false" }));
+		expect(out).toEqual(SILENT_OUT);
+		expect(logged).toEqual([
+			{
+				ts: NOW,
+				kind: "ran",
+				failed: true,
+				tool: "Bash",
+				action: "false",
+				toolUseId: "t1",
+				sessionId: "s1",
+				root: "/work/maina",
+				host: "claude-code",
+			},
+		]);
+	});
+
+	test("a failed call's error text is never recorded", () => {
+		const { logged } = runPost(
+			failure("Edit", { file_path: "/work/maina/a.ts", old_string: "x" }),
+		);
+		expect(logged).toHaveLength(1);
+		expect(JSON.stringify(logged)).not.toContain("secret");
+	});
+
+	test("an ask whose tool then failed pairs as approved in the report", async () => {
+		const pre = await run(bash("rm -rf dist"), gate("ask"));
+		const after = runPost(failure("Bash", { command: "rm -rf dist" }));
+		const log = [...pre.logged, ...after.logged]
+			.map((r) => JSON.stringify(r))
+			.join("\n");
+		expect(askOutcomes(log, "2026-39")).toMatchObject({
+			asked: 1,
+			ran: 1,
+			notRan: 0,
+		});
+	});
+
+	// Claude Code's PermissionDenied fires when the auto-mode classifier
+	// denies a call: a positive "did not run" label, kept apart from a user's
+	// refusal. The classifier's reason is not recorded (it may quote the call).
+	test("an auto-mode classifier denial is logged as denied, silently", () => {
+		const { out, logged } = runPost(denied("Bash", { command: "rm -rf /" }));
+		expect(out).toEqual(SILENT_OUT);
+		expect(logged).toEqual([
+			{
+				ts: NOW,
+				kind: "denied",
+				tool: "Bash",
+				toolUseId: "t1",
+				sessionId: "s1",
+				root: "/work/maina",
+				host: "claude-code",
+			},
+		]);
+		expect(JSON.stringify(logged)).not.toContain("secret");
+	});
+
+	test("an ask the classifier denied pairs as denied in the report", async () => {
+		const pre = await run(bash("rm -rf dist"), gate("ask"));
+		const after = runPost(denied("Bash", { command: "rm -rf dist" }));
+		const log = [...pre.logged, ...after.logged]
+			.map((r) => JSON.stringify(r))
+			.join("\n");
+		expect(askOutcomes(log, "2026-39")).toEqual({
+			asked: 1,
+			ran: 0,
+			denied: 1,
+			notRan: 0,
+		});
+	});
+
+	test("failure and denial payloads for ungated tools are not logged", () => {
+		for (const raw of [
+			failure("TodoWrite", { todos: [] }),
+			denied("TodoWrite", { todos: [] }),
+		]) {
+			const { out, logged } = runPost(raw);
+			expect(out).toEqual(SILENT_OUT);
+			expect(logged).toEqual([]);
+		}
+	});
 });
 
 // ── The settings.json wiring, end to end ──────────────────────────────────
@@ -462,8 +606,14 @@ describe("runDogfoodPostHook", () => {
 const GATED_MATCHER =
 	"Bash|Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|WebFetch|mcp__.*";
 
+type WiredEvent =
+	| "PreToolUse"
+	| "PostToolUse"
+	| "PostToolUseFailure"
+	| "PermissionDenied";
+
 function settingsHooks(
-	event: "PreToolUse" | "PostToolUse",
+	event: WiredEvent,
 ): Array<{ matcher: string; hooks: Array<Record<string, unknown>> }> {
 	const settings = JSON.parse(
 		readFileSync(join(ROOT, ".claude/settings.json"), "utf-8"),
@@ -471,9 +621,7 @@ function settingsHooks(
 	return settings.hooks[event] ?? [];
 }
 
-function hookCommand(
-	event: "PreToolUse" | "PostToolUse" = "PreToolUse",
-): string {
+function hookCommand(event: WiredEvent = "PreToolUse"): string {
 	const cmd = settingsHooks(event)[0]?.hooks[0]?.command;
 	expect(typeof cmd).toBe("string");
 	return cmd as string;
@@ -482,7 +630,7 @@ function hookCommand(
 async function runShell(
 	stdin: string,
 	env: Record<string, string>,
-	event: "PreToolUse" | "PostToolUse" = "PreToolUse",
+	event: WiredEvent = "PreToolUse",
 ): Promise<{ code: number; stdout: string; stderr: string }> {
 	const proc = Bun.spawn(["sh", "-c", hookCommand(event)], {
 		stdin: new Blob([stdin]),
@@ -557,6 +705,35 @@ describe("repo wiring", () => {
 				timeout: 10,
 			},
 		]);
+	});
+
+	// #659: a tool that fails after it was approved, and a call the auto-mode
+	// classifier denies, reach the post mode too.
+	test.each([
+		"PostToolUseFailure",
+		"PermissionDenied",
+	] as const)("%s runs the post mode for the gated tools, never failing the tool", (event) => {
+		expect(settingsHooks(event)).toEqual(settingsHooks("PostToolUse"));
+	});
+
+	test("the failure hook logs a ran record and prints nothing", async () => {
+		const log = join(scratch, "failure-log.jsonl");
+		const out = await runShell(
+			failure("Bash", { command: "false" }, { cwd: ROOT }),
+			{ CLAUDE_PROJECT_DIR: ROOT, MAINA_DOGFOOD_LOG: log },
+			"PostToolUseFailure",
+		);
+		expect(out).toEqual({ code: 0, stdout: "", stderr: "" });
+		const text = readFileSync(log, "utf-8");
+		expect(text).not.toContain("secret");
+		expect(JSON.parse(text.trim())).toMatchObject({
+			kind: "ran",
+			failed: true,
+			tool: "Bash",
+			toolUseId: "t1",
+			sessionId: "s1",
+			root: ROOT,
+		});
 	});
 
 	test("the post hook logs a ran record and prints nothing", async () => {

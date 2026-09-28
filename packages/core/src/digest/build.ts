@@ -6,8 +6,8 @@
  *
  * - The gate log: the dogfood hook's `log.jsonl`, one JSON record per gated
  *   tool call (`parseGateLog`, then `gateLogEvents`). The hook's post mode
- *   appends `kind: "ran"` records to the same file; they are not decisions
- *   and are skipped.
+ *   appends `kind: "ran"` and `kind: "denied"` records to the same file;
+ *   they are not decisions and are skipped.
  * - The decision log: the repository's `action.risk` decisions with their
  *   gate subjects and override outcomes (`decisionLogEvents`).
  *
@@ -49,8 +49,16 @@ export type GateLogRecord = Readonly<{
 	sessionId?: string;
 }>;
 
-/** The kind of the post hook's records: the gated call ran. */
+/**
+ * The kind of the post hook's records: the gated call ran (after
+ * `PostToolUse`, or `PostToolUseFailure` with `failed: true`).
+ */
 export const RAN_KIND = "ran";
+
+/** The kind of the post hook's `PermissionDenied` records: the auto-mode classifier denied the call. */
+export const DENIED_KIND = "denied";
+
+const OUTCOME_KINDS: ReadonlySet<unknown> = new Set([RAN_KIND, DENIED_KIND]);
 
 /** One gated action, whichever log it came from. */
 export type DigestEvent = Readonly<{
@@ -171,14 +179,14 @@ function asRecord(v: unknown): GateLogRecord | undefined {
 	return r as unknown as GateLogRecord;
 }
 
-const isRan = (v: unknown): boolean =>
+const isOutcome = (v: unknown): boolean =>
 	typeof v === "object" &&
 	v !== null &&
-	(v as Record<string, unknown>).kind === RAN_KIND;
+	OUTCOME_KINDS.has((v as Record<string, unknown>).kind);
 
 /**
  * The gate log's valid records, and how many lines were not one. The post
- * hook's `ran` records are neither: they are skipped.
+ * hook's outcome records (`ran`, `denied`) are neither: they are skipped.
  */
 export function parseGateLog(text: string): Readonly<{
 	records: readonly GateLogRecord[];
@@ -190,7 +198,7 @@ export function parseGateLog(text: string): Readonly<{
 		if (line.trim() === "") continue;
 		try {
 			const value: unknown = JSON.parse(line);
-			if (isRan(value)) continue;
+			if (isOutcome(value)) continue;
 			const rec = asRecord(value);
 			if (rec) records.push(rec);
 			else malformed++;
