@@ -229,8 +229,11 @@ export async function runAction(
 		{ task: options.task, context, budgets },
 		opened === undefined ? ports : { ...ports, control: opened.control },
 	).finally(async () => {
-		await release?.();
-		await opened?.close();
+		try {
+			await release?.();
+		} finally {
+			await opened?.close();
+		}
 	});
 	const receiptPath = join(root.value, ".maina", "runs", `${runId}.json`);
 	const written = await deps.writeFile(

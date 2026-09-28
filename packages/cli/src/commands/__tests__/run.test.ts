@@ -387,6 +387,39 @@ describe("runAction on the run board (#594)", () => {
 		expect(JSON.parse(written[0] ?? "{}").source).toBe("maina-run");
 	});
 
+	test("a release that fails still closes the run's control and hands over its events", async () => {
+		const closed: string[] = [];
+		const base = deps();
+		const prepare = base.deps.prepare;
+		const d: RunActionDeps = {
+			...base.deps,
+			prepare: async (input) => {
+				const prepared = await prepare(input);
+				if (!prepared.ok) return prepared;
+				return {
+					ok: true,
+					value: {
+						...prepared.value,
+						release: async () => {
+							throw new Error("sandbox dispose failed");
+						},
+					},
+				};
+			},
+			openControl: (input) => {
+				const { control } = createRunControl({ ...input, emit: () => {} });
+				return {
+					control,
+					close: async () => {
+						closed.push(input.runId);
+					},
+				};
+			},
+		};
+		await runAction(options, d).catch(() => undefined);
+		expect(closed).toEqual(["run-1"]);
+	});
+
 	test("a run under CI has source ci", async () => {
 		const sources: string[] = [];
 		const base = deps({ env: envOf({ CI: "true" }) });

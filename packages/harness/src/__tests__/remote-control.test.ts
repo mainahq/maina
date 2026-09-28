@@ -389,4 +389,28 @@ describe("remote revision grant", () => {
 		expect(s.attempts()).toBe(2);
 		expect(receipt.status).toBe("passed");
 	});
+
+	test("waiting for the board never spends the wall clock the local-rule revision needs", async () => {
+		// A board that never answers: the wait takes at most half of what is
+		// left, so the revision still runs (it used to wait it all away and
+		// end the run over budget).
+		const c = control(60_000);
+		let attempts = 0;
+		let reviewed = 0;
+		const reviews = [fail("lint"), pass];
+		const receipt = await runWithRevision(
+			{ ...input, budgets: { wallClockMs: 400 } },
+			{
+				attempt: async () => {
+					attempts++;
+					return { end: completed, toolCalls: 0 };
+				},
+				review: async () => reviews[reviewed++] ?? fail("still failing"),
+				now: () => Date.now(),
+				control: c.control,
+			},
+		);
+		expect(attempts).toBe(2);
+		expect(receipt.status).toBe("passed");
+	});
 });

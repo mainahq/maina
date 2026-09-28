@@ -18,11 +18,12 @@
  *
  * - A stop halts the worker (the attempt's `signal`) and ends the run
  *   `stopped` with a report (`remote_stop`), whenever it arrives.
- * - After a failed first review the run waits a bounded time for the
- *   board's answer to its revision question: a revision grant starts the
- *   one revision, a stop (the board's "stopped with report") ends the run.
- *   With no answer in time the local rule stands and the revision runs, so
- *   a board that never answers never blocks a run. Either way the run
+ * - After a failed first review the run waits a bounded time (at most
+ *   half the wall clock left) for the board's answer to its revision
+ *   question: a revision grant starts the one revision, a stop (the board's
+ *   "stopped with report") ends the run. With no answer in time the local
+ *   rule stands and the revision runs, so a board that never answers never
+ *   blocks a run. Either way the run
  *   takes one revision at most: a second grant is refused.
  */
 
@@ -392,9 +393,15 @@ async function revise(
 				: stopped(progress, "pr_failed", { error: opened.error });
 		}
 		if (control !== undefined && revision < MAX_REVIEWS - 1) {
-			// The revision question goes to the board, within the wall clock left.
+			// The revision question goes to the board, for at most half the
+			// wall clock left: a board that never answers leaves the local-rule
+			// revision the other half, instead of waiting the run over budget.
 			const left = remainingBudgets(input.budgets, progress.usage).wallClockMs;
-			const answer = await settle(() => control.awaitRevision(left));
+			const answer = await settle(() =>
+				control.awaitRevision(
+					left === undefined ? undefined : Math.floor(left / 2),
+				),
+			);
 			progress = { ...progress, usage: measure(0) };
 			if (halted() || (answer.ok && answer.value.kind === "stop")) {
 				return remoteStopped(progress, control);
