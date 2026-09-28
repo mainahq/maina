@@ -203,12 +203,12 @@ describe("a remote approval's message", () => {
 			...result({ verdict: "allow" }),
 			approval: {
 				status: "approved",
-				by: "member‮ mem\nx",
-				link: "https://a.test/x​ y",
+				by: "member\u202e mem\nx",
+				link: "https://a.test/x\u200b y",
 			},
 		});
 		expect(message).toContain("approved by member mem x");
-		expect(message).not.toMatch(/[​-‏‪-‮\n]/);
+		expect(message).not.toMatch(/[\u200b-\u200f\u202a-\u202e\n]/);
 	});
 
 	test("every other status has its own line", () => {
