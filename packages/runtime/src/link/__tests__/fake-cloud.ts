@@ -81,9 +81,10 @@ type FakeCloudOptions = {
 	/**
 	 * The org's data class, sent in the enrolment result only to a device
 	 * that lists `dataClass` in `accepts` (cloud #265); null is a cloud from
-	 * before the field, which never sends it. Defaults to `metadata`.
+	 * before the field, which never sends it. Defaults to `metadata`. Any
+	 * other string is a cloud answering outside the protocol.
 	 */
-	orgDataClass?: "metadata" | "names" | "rich" | null;
+	orgDataClass?: string | null;
 };
 
 type IngestedEvent = Readonly<{

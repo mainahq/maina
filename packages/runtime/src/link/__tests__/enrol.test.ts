@@ -213,6 +213,18 @@ describe("enrolDevice", () => {
 		if (enrolled.ok) expect(enrolled.value.dataClass).toBe("metadata");
 	});
 
+	// Fail closed: a class the protocol doesn't name must not widen what the
+	// outbox lets through, so the enrolment is refused and nothing is kept.
+	test("a data class the protocol doesn't name refuses the enrolment", async () => {
+		const cloud = fakeCloud({ orgDataClass: "everything" });
+		const { ports } = portsFor(cloud);
+		const enrolled = await enrolDevice(ports, options(cloud));
+		expect(enrolled.ok).toBe(false);
+		if (!enrolled.ok) expect(enrolled.error.kind).toBe("invalid_response");
+		expect(existsSync(join(linkDir(), "device.key"))).toBe(false);
+		expect(existsSync(join(linkDir(), "device.json"))).toBe(false);
+	});
+
 	test("a refused completion leaves nothing behind", async () => {
 		const cloud = fakeCloud({ refuseCompleteWith: "expired_code" });
 		const { ports } = portsFor(cloud);
