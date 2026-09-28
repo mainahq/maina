@@ -8,7 +8,8 @@
  *       with the scoped API token in MAINA_LINK_CI_TOKEN (never argv).
  *   maina cloud status [--json] [--check]
  *       enrolled, revoked or not; `--check` also buys a token, which is how
- *       a revocation shows up before any other Link call
+ *       a revocation shows up before any other Link call, and exits 1
+ *       unless the device got one
  *   maina cloud logout            (alias: unenrol)
  *       forget the device key and enrolment on this machine
  *   maina cloud privacy [--class metadata|names|rich] [--json]
@@ -18,7 +19,8 @@
  * The Link client lives in the runtime (`packages/runtime/src/link`); this
  * module parses arguments and formats. The cloud is MAINA_CLOUD_URL, else
  * the hosted cloud (shared with the 1.x client, `cloudBaseUrl`). Exit codes:
- * 0 done, 1 failed, 64 bad arguments. The 1.x `maina login` stays for the
+ * 0 done, 1 failed (including a `status --check` that did not pass),
+ * 64 bad arguments. The 1.x `maina login` stays for the
  * legacy cloud features.
  */
 
@@ -129,6 +131,8 @@ function failureMessage(e: EnrolError): string {
 			return `this device was revoked at ${e.revokedAt}`;
 		case "insecure_url":
 			return `refusing ${e.url}: the cloud must be https (http only to localhost)`;
+		case "invalid_path":
+			return `refusing ${e.path}: not a Link endpoint path`;
 		case "network":
 			return `cannot reach the cloud: ${e.message}`;
 		case "refused":
@@ -235,13 +239,19 @@ async function status(
 		ports.stderr(USAGE);
 		return 64;
 	}
+	// `--check` is a health check: it passes only when the device can buy a
+	// token now, and a check that did not pass exits 1 (never fail-open).
 	let check: string | undefined;
-	if (
-		flags.bools.has("--check") &&
-		deviceStatus(ports.link.store).kind === "enrolled"
-	) {
-		const token = await linkToken(ports.link);
-		check = token.ok ? "token exchange ok" : failureMessage(token.error);
+	let checkPassed = true;
+	if (flags.bools.has("--check")) {
+		const before = deviceStatus(ports.link.store);
+		if (before.kind === "enrolled") {
+			const token = await linkToken(ports.link);
+			checkPassed = token.ok;
+			check = token.ok ? "token exchange ok" : failureMessage(token.error);
+		} else {
+			checkPassed = false;
+		}
 	}
 	// Read after the check: a `device_revoked` answer has marked the state.
 	const current = deviceStatus(ports.link.store);
@@ -257,7 +267,7 @@ async function status(
 		ports.stdout(renderStatus(current));
 		if (check !== undefined) ports.stdout(`  check:      ${check}\n`);
 	}
-	return current.kind === "unreadable" ? 1 : 0;
+	return current.kind === "unreadable" || !checkPassed ? 1 : 0;
 }
 
 function logout(args: readonly string[], ports: CloudPorts): number {

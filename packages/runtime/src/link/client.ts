@@ -48,6 +48,14 @@ type LinkClient = Readonly<{
 /** A token this close to expiry is renewed before use. */
 const RENEW_MARGIN_MS = 30_000;
 
+/**
+ * A Link endpoint path: `/link/v<n>` then plain segments. Anything else
+ * (no leading slash, `//host`, `@host`, `..`, a query or a full URL) could
+ * send the bearer token somewhere other than the enrolled cloud, so it is
+ * refused before a token is bought or attached.
+ */
+const LINK_PATH = /^\/link\/v[0-9]+(\/[A-Za-z0-9][A-Za-z0-9_.:-]*)+$/;
+
 const STALE_TOKEN: ReadonlySet<string> = new Set([
 	LINK_CODES.tokenExpired,
 	LINK_CODES.invalidToken,
@@ -100,6 +108,12 @@ export function createLinkClient(ports: LinkPorts): LinkClient {
 	return {
 		send: async (request) => {
 			if (stopped !== null) return { ok: false, error: stopped };
+			if (!LINK_PATH.test(request.path)) {
+				return {
+					ok: false,
+					error: { kind: "invalid_path", path: request.path },
+				};
+			}
 			const read = ports.store.readState();
 			if (!read.ok) return read;
 			if (read.value === null) {

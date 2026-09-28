@@ -176,8 +176,36 @@ describe("maina cloud status", () => {
 		expect(text(live.out)).toContain("token exchange ok");
 		cloud.state.revoked = true;
 		const s = harness(cloud);
-		expect(await runCloud(["status", "--check"], s.ports)).toBe(0);
+		expect(await runCloud(["status", "--check"], s.ports)).toBe(1);
 		expect(text(s.out)).toContain("revoked");
+		// Plain status stays informational: it reports, it does not fail.
+		const plain = harness(cloud);
+		expect(await runCloud(["status"], plain.ports)).toBe(0);
+	});
+
+	test("--check exits 1 when the device cannot get a token", async () => {
+		const cloud = fakeCloud();
+		// Not enrolled: nothing to check with.
+		const none = harness(cloud);
+		expect(await runCloud(["status", "--check"], none.ports)).toBe(1);
+		expect(await runCloud(["status", "--check", "--json"], none.ports)).toBe(1);
+		// Enrolled, but the cloud is unreachable.
+		await runCloud(["enrol"], harness(cloud).ports);
+		const down = harness(cloud);
+		const offline: CloudPorts = {
+			...down.ports,
+			link: {
+				...down.ports.link,
+				http: {
+					request: async () => ({
+						ok: false,
+						error: { kind: "network", url: cloud.baseUrl, message: "down" },
+					}),
+				},
+			},
+		};
+		expect(await runCloud(["status", "--check"], offline)).toBe(1);
+		expect(text(down.out)).toContain("cannot reach the cloud");
 	});
 });
 

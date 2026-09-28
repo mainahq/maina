@@ -109,6 +109,24 @@ describe("createLinkClient", () => {
 		expect(cloud.state.eventCalls).toBe(2);
 	});
 
+	test("a path that is not a Link endpoint path never carries the token", async () => {
+		const cloud = fakeCloud();
+		const client = createLinkClient(await enrolled(cloud));
+		for (const path of [
+			"@evil.example/steal",
+			"//evil.example/link/v1/events",
+			"link/v1/events",
+			"/link/v1/../../admin",
+			"/link/v1/events?x=1",
+			"https://evil.example/link/v1/events",
+		]) {
+			const sent = await client.send({ method: "POST", path, body: {} });
+			expect(sent.ok).toBe(false);
+			if (!sent.ok) expect(sent.error.kind).toBe("invalid_path");
+		}
+		expect(cloud.requests).toEqual([]);
+	});
+
 	test("a 401 triggers exactly one token refresh, then the call is retried", async () => {
 		const cloud = fakeCloud();
 		const client = createLinkClient(await enrolled(cloud));

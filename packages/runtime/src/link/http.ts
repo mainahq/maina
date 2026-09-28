@@ -14,6 +14,7 @@ export type LinkFailure =
 	| Readonly<{ kind: "not_enrolled" }>
 	| Readonly<{ kind: "revoked"; revokedAt: string }>
 	| Readonly<{ kind: "insecure_url"; url: string }>
+	| Readonly<{ kind: "invalid_path"; path: string }>
 	| Readonly<{ kind: "network"; message: string }>
 	| Readonly<{
 			kind: "refused";
