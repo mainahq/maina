@@ -630,9 +630,11 @@ export type {
 export { DEFAULT_PROTECTED_BRANCHES } from "./gate/events";
 // Gate messages and recorded overrides (FR-GATE-8, FR-DEC-4)
 export {
+	APPROVAL_STATUSES,
 	type ConfidenceBand,
 	confidenceBand,
 	formatGateMessage,
+	type GateApprovalNote,
 } from "./gate/messages";
 export {
 	findGateSubject,

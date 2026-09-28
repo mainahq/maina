@@ -49,7 +49,8 @@ const RANK: Readonly<Record<GateDecision["verdict"], number>> = {
  * override, never a laxer file's: #497; each event was logged when it was
  * evaluated), and degraded when any part was. The confidence is the lowest
  * behind the verdict, absent when one of those has an id but reported none,
- * which the gate message bands as `low`.
+ * which the gate message bands as `low`. The first remote approval note
+ * behind the verdict is kept.
  */
 function strictest(decisions: readonly GateDecision[]): GateDecision {
 	const top = decisions.reduce<GateDecision["verdict"]>(
@@ -62,11 +63,14 @@ function strictest(decisions: readonly GateDecision[]): GateDecision {
 	const confidences = logged.flatMap((d) =>
 		d.confidence === undefined ? [] : [d.confidence],
 	);
+	// A remote approval's note (#593) behind the verdict: its link or approver.
+	const approval = behind.find((d) => d.approval !== undefined)?.approval;
 	const decision: GateDecision = {
 		verdict: top,
 		reason: reasons.join("; "),
 		decisionIds: behind.flatMap((d) => d.decisionIds),
 		degraded: decisions.some((d) => d.degraded),
+		...(approval === undefined ? {} : { approval }),
 	};
 	return confidences.length > 0 && confidences.length === logged.length
 		? { ...decision, confidence: Math.min(...confidences) }

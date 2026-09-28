@@ -88,6 +88,7 @@ export async function linkCall(
 	url: string,
 	body: unknown,
 	headers: Readonly<Record<string, string>> = {},
+	timeoutMs: number = TIMEOUT_MS,
 ): Promise<Result<LinkAnswer, LinkFailure>> {
 	let json: string | undefined;
 	try {
@@ -111,7 +112,7 @@ export async function linkCall(
 			...headers,
 		},
 		...(json === undefined ? {} : { body: json }),
-		timeoutMs: TIMEOUT_MS,
+		timeoutMs,
 	});
 	if (!sent.ok) {
 		const e = sent.error;
@@ -119,7 +120,7 @@ export async function linkCall(
 			e.kind === "network"
 				? e.message
 				: e.kind === "timeout"
-					? `no answer from ${e.url} in ${TIMEOUT_MS / 1000}s`
+					? `no answer from ${e.url} in ${timeoutMs / 1000}s`
 					: `HTTP ${e.status} from ${e.url}`;
 		return { ok: false, error: { kind: "network", message } };
 	}

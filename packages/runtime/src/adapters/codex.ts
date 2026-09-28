@@ -353,8 +353,13 @@ const denied = (value: unknown, reason: string): CodexOutput => ({
  * logged decision it leads with the gate message, which names the override;
  * without one there is none to name (and the gate message's "approve it at
  * the prompt" is wrong where no prompt shows), so it gives the reason alone.
+ * An ask waiting on the org's approvers links to it and says to retry.
  */
 function askAsDeny(decision: GateDecision): string {
+	// An ask the org's approvers still hold (#593): the line links to it.
+	if (decision.approval?.status === "waiting") {
+		return `${gateMessage(decision)}. Codex hooks cannot wait for the approver, so maina blocked it; retry once the ask is approved.`;
+	}
 	const asked =
 		overrideId(decision) === undefined
 			? `maina needs the user to confirm this action (${decision.reason})`

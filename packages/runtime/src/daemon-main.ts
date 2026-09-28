@@ -115,7 +115,13 @@ export async function runDaemon(argv: readonly string[]): Promise<number> {
 	};
 	const started = startRuntime(
 		{
-			gate: systemGates({ model, shadow, onDecision }).runtime,
+			// A remote approval's events (#593) queue on the uplink too.
+			gate: systemGates({
+				model,
+				shadow,
+				onDecision,
+				approvalEvents: uplink,
+			}).runtime,
 			observe: (event) => {
 				stops.observe(event);
 				return graph.observe(event);

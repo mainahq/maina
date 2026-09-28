@@ -11,7 +11,13 @@
  * open gaps. `GET /link/v1/policy` serves `state.policy` the way cloud Task
  * 6.2 does (adr/0012): an HTTP `ETag` of `"<version>.<content hex>"`, 304 on
  * a matching `If-None-Match`, 404 `no_policy` when nothing is published and
- * `meta.signature: "dark"` on a bundle marked unsigned. The crypto here is
+ * `meta.signature: "dark"` on a bundle marked unsigned. The approvals
+ * channel is cloud Task 7.2's (adr/0014): `POST /link/v1/approvals` takes an
+ * `ApprovalAsk` signed by the device key and answers `{ askId, requestId,
+ * created, status, expiresAt, resolution? }`, and `GET
+ * /link/v1/approvals/<askId>/wait` answers `pending` or the resolution a
+ * test set with `resolveApproval`, signed with the org's approval-resolution
+ * key or marked unsigned the way the dark signer marks it. The crypto here is
  * written against `node:crypto` directly, not the client's helpers, so a
  * client that signs the wrong bytes fails.
  */
@@ -87,6 +93,25 @@ type FakeCloudOptions = {
 	orgDataClass?: string | null;
 };
 
+type Resolution = "approved" | "denied" | "timeout";
+
+type ResolveOptions = Readonly<{
+	/** false: marked unsigned, as while the cloud's signer is dark. */
+	signed?: boolean;
+	/** The org key that signs it (default the approval-resolution key). */
+	keyId?: string;
+	fallback?: "deny" | "ask-local";
+	resolvedBy?: Readonly<{ kind: "member" | "policy" | "system"; id: string }>;
+	/** Changes a signed field after signing. */
+	tamper?: boolean;
+}>;
+
+type StoredAsk = {
+	ask: Record<string, unknown>;
+	requestId: string;
+	resolution: Record<string, unknown> | null;
+};
+
 type IngestedEvent = Readonly<{
 	eventId: string;
 	seq: number;
@@ -136,7 +161,21 @@ export type FakeCloud = Readonly<{
 		policy: Record<string, unknown> | null;
 		/** The `If-None-Match` of each policy pull, in order. */
 		policyPulls: (string | undefined)[];
+		/** Every ask taken, by ask id. */
+		asks: Map<string, StoredAsk>;
+		/** `POST /link/v1/approvals` calls. */
+		askCalls: number;
+		/** The `waitMs` of each long poll, in order. */
+		waits: (string | null)[];
+		/** Answers every approvals call with this refusal (a hub outage). */
+		approvalsRefuse: string | null;
 	};
+	/** Resolves a taken ask; the next wait (or re-ask) answers it. */
+	resolveApproval: (
+		askId: string,
+		resolution: Resolution,
+		options?: ResolveOptions,
+	) => Record<string, unknown>;
 	/**
 	 * A bundle as the cloud builds it: its content ETag computed, then signed
 	 * with the org's policy-bundle key (or `keyId`), or marked unsigned the way
@@ -293,6 +332,10 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		gaps: [],
 		policy: null,
 		policyPulls: [],
+		asks: new Map(),
+		askCalls: 0,
+		waits: [],
+		approvalsRefuse: null,
 	};
 	const seenEvents = new Set<string>();
 	const seenSeqs = new Set<number>();
@@ -449,6 +492,137 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		};
 	}
 
+	/** The bearer check every device route makes; null when it passes. */
+	function authorize(req: FakeRequest): FakeResponse | null {
+		const bearer = req.headers.Authorization ?? req.headers.authorization;
+		if (bearer === undefined) return refuse(401, "missing_token");
+		const t = tokens.get(bearer.replace(/^Bearer /, ""));
+		if (t === undefined) return refuse(401, "invalid_token");
+		if (state.revoked) return refuse(401, "device_revoked");
+		if (t.expired) return refuse(401, "token_expired");
+		return null;
+	}
+
+	function askReply(stored: StoredAsk, created: boolean): unknown {
+		const data = stored.ask.data as { expiresAt: string };
+		return {
+			askId: stored.ask.askId,
+			requestId: stored.requestId,
+			created,
+			status:
+				stored.resolution === null
+					? "pending"
+					: String(stored.resolution.resolution),
+			expiresAt: data.expiresAt,
+			...(stored.resolution === null ? {} : { resolution: stored.resolution }),
+		};
+	}
+
+	function approvals(req: FakeRequest): FakeResponse {
+		state.askCalls++;
+		const denied = authorize(req);
+		if (denied !== null) return denied;
+		if (state.approvalsRefuse !== null) {
+			return refuse(500, state.approvalsRefuse);
+		}
+		const body = parse(req.body);
+		if (!valid("approval-ask", body)) return refuse(400, "invalid_request");
+		const ask = body as Record<string, unknown> & {
+			askId: string;
+			deviceId: string;
+		};
+		if (
+			ask.deviceId !== state.deviceId ||
+			state.devicePublicKey === null ||
+			!deviceSigned("approval-ask", ask, "sig", state.devicePublicKey)
+		) {
+			return refuse(401, "invalid_signature");
+		}
+		const known = state.asks.get(ask.askId);
+		if (known !== undefined) return ok(askReply(known, false));
+		const stored: StoredAsk = {
+			ask,
+			requestId: `apr_${state.asks.size + 1}`,
+			resolution: null,
+		};
+		state.asks.set(ask.askId, stored);
+		return ok(askReply(stored, true), 201);
+	}
+
+	function wait(req: FakeRequest, askId: string): FakeResponse {
+		const denied = authorize(req);
+		if (denied !== null) return denied;
+		state.waits.push(new URL(req.url).searchParams.get("waitMs"));
+		if (state.approvalsRefuse !== null) {
+			return refuse(500, state.approvalsRefuse);
+		}
+		const stored = state.asks.get(askId);
+		if (stored === undefined) return refuse(404, "not_found");
+		return ok(
+			stored.resolution === null
+				? { status: "pending" }
+				: { status: "resolved", resolution: stored.resolution },
+		);
+	}
+
+	function signResolution(
+		unsigned: Record<string, unknown>,
+		keyId: string,
+	): Record<string, unknown> {
+		const key = keys.get(keyId);
+		if (key === undefined) throw new Error(`no key ${keyId}`);
+		const message = { ...unsigned, keyId };
+		const data = Buffer.concat([
+			Buffer.from(
+				`maina-cloud/sig/v1\napproval-resolution\n${String(unsigned.orgId)}\n`,
+				"utf-8",
+			),
+			Buffer.from(jcs(message), "utf-8"),
+		]);
+		return { ...message, sig: b64url(sign(null, data, key)) };
+	}
+
+	function resolveApproval(
+		askId: string,
+		resolution: Resolution,
+		opts: ResolveOptions = {},
+	): Record<string, unknown> {
+		const stored = state.asks.get(askId);
+		if (stored === undefined) throw new Error(`no ask ${askId}`);
+		const unsigned: Record<string, unknown> = {
+			v: 1,
+			orgId,
+			askId,
+			deviceId: stored.ask.deviceId,
+			resolution,
+			...(resolution === "timeout"
+				? { fallback: opts.fallback ?? stored.ask.fallback }
+				: {}),
+			...(resolution === "timeout"
+				? {}
+				: {
+						resolvedBy: opts.resolvedBy ?? { kind: "member", id: "mem_7c1d" },
+					}),
+			resolvedAt: "2026-09-28T09:16:11.402Z",
+		};
+		let signed =
+			opts.signed === false
+				? { ...unsigned, keyId: "unsigned", sig: "A".repeat(86) }
+				: signResolution(unsigned, opts.keyId ?? "key_approval_1");
+		if (opts.tamper === true) {
+			signed = {
+				...signed,
+				resolution: resolution === "approved" ? "denied" : "approved",
+			};
+			if (signed.resolution === "approved") delete signed.fallback;
+		}
+		if (!valid("approval-resolution", signed)) {
+			throw new Error("fake resolution is invalid");
+		}
+		stored.resolution = signed;
+		return signed;
+	}
+
 	/** The open gaps below the highest seq seen, oldest first. */
 	function openGaps(max: number): { from: number; to: number }[] {
 		const gaps: { from: number; to: number }[] = [];
@@ -533,6 +707,10 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		requests.push(req);
 		const path = new URL(req.url).pathname;
 		if (req.method === "GET" && path === "/link/v1/policy") return policy(req);
+		const waiting = /^\/link\/v1\/approvals\/([^/]+)\/wait$/.exec(path);
+		if (req.method === "GET" && waiting?.[1] !== undefined) {
+			return wait(req, decodeURIComponent(waiting[1]));
+		}
 		if (req.method !== "POST") return refuse(404, "not_found");
 		switch (path) {
 			case "/link/v1/enrol/start":
@@ -543,6 +721,8 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 				return token(req);
 			case "/link/v1/events":
 				return events(req);
+			case "/link/v1/approvals":
+				return approvals(req);
 			default:
 				return refuse(404, "not_found");
 		}
@@ -610,6 +790,7 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		controlKeyId,
 		policyBundle,
 		signPolicy,
+		resolveApproval,
 		requests,
 		state,
 		handle,
