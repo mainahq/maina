@@ -10,6 +10,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { verifySignature } from "../../../packages/runtime/build/standalone";
 import {
 	CLI_PACKAGES,
 	checkRelease,
@@ -20,7 +21,7 @@ import {
 	type ReleaseArtifact,
 	renderRelease,
 } from "../lockstep";
-import { signArtifacts, signBytes, verifySignature } from "../sign";
+import { signArtifacts, signBytes } from "../sign";
 import { testKeys } from "./support";
 
 const keys = testKeys();

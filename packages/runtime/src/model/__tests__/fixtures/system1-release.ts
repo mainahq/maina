@@ -2,7 +2,7 @@
  * A loadable System 1 release for the loader, inference and bench tests
  * (#338). No real model artifact exists yet, so this is the contract of
  * system1-artifact.md at toy scale: every file a release carries, signed
- * with a dev key (the release key, #574, is manual), with a graph that has
+ * with a dev key (the release key, #574, signs only in CI), with a graph that has
  * the real inputs and outputs:
  *
  *   inputs   input_ids, attention_mask, segment_ids  int64 [W, L]

@@ -16,8 +16,11 @@ import {
 	CODEX_MARKETPLACE_PATH,
 	CURSOR_MARKETPLACE_PATH,
 } from "../../packages/plugins/src/generate/marketplace";
-import { sha256Hex, TARGETS } from "../../packages/runtime/build/standalone";
-import { verifySignature } from "./sign";
+import {
+	sha256Hex,
+	TARGETS,
+	verifySignature,
+} from "../../packages/runtime/build/standalone";
 
 type Result<T, E> =
 	| Readonly<{ ok: true; value: T }>

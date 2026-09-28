@@ -25,9 +25,8 @@
  *
  * The lockstep `verifyReleaseDir` (`scripts/release/sign.ts`) cannot be
  * reused: it is tied to the lockstep `ArtifactKind`s. The signature check
- * is a port. The release key (#424) is not provisioned yet; #574 pins its
- * public half in the runtime binary and supplies the production check, and
- * tests pass one over a dev key.
+ * is a port: the runtime passes one over the release key pinned in its
+ * binary (`release-key.ts`, #574), and tests pass one over a dev key.
  */
 
 import { createHash } from "node:crypto";

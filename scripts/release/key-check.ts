@@ -29,8 +29,9 @@ import {
 	sha256Hex,
 	TARGETS,
 	type Target,
+	verifySignature,
 } from "../../packages/runtime/build/standalone";
-import { publicKeyOf, verifySignature } from "./sign";
+import { publicKeyOf } from "./sign";
 
 type Result<T, E> =
 	| Readonly<{ ok: true; value: T }>

@@ -22,6 +22,7 @@ import { loadSources } from "../../../packages/plugins/src/sources";
 import {
 	artifactName,
 	TARGETS,
+	verifySignature,
 } from "../../../packages/runtime/build/standalone";
 import { type BuildPorts, buildAll } from "../build-all";
 import {
@@ -34,12 +35,7 @@ import {
 	renderRelease,
 } from "../lockstep";
 import { preparePublish } from "../publish-artifacts";
-import {
-	readFrom,
-	signBytes,
-	verifyReleaseDir,
-	verifySignature,
-} from "../sign";
+import { readFrom, signBytes, verifyReleaseDir } from "../sign";
 import { untarGz } from "../tar";
 import { testKeys } from "./support";
 

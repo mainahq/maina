@@ -26,6 +26,7 @@ import {
 	createPrivateKey,
 	createPublicKey,
 	sign,
+	verify,
 } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -141,6 +142,29 @@ export function signArtifact(bytes: Uint8Array, privateKeyPem: string): string {
 	return sign("sha256", bytes, createPrivateKey(privateKeyPem)).toString(
 		"base64",
 	);
+}
+
+/**
+ * Whether `signature` is `bytes` signed by the key `publicKeyPem` pairs.
+ * The one check behind the release scripts (`scripts/release`) and the
+ * runtime's model verifier (`src/model/release-key.ts`, #574). Never throws.
+ */
+export function verifySignature(
+	bytes: Uint8Array,
+	signature: string,
+	publicKeyPem: string,
+): boolean {
+	if (signature === "") return false;
+	try {
+		return verify(
+			"sha256",
+			bytes,
+			createPublicKey(publicKeyPem),
+			Buffer.from(signature, "base64"),
+		);
+	} catch {
+		return false;
+	}
 }
 
 /** The public key as .NET `RSAKeyValue` XML, for `launch.ps1`. */
