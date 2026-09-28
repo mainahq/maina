@@ -18,12 +18,14 @@
  */
 
 import type { Result } from "../db/index";
+import { isDecisionType } from "../decide/log/schema";
 import { linkOutcome } from "../decide/outcomes/link";
 import type {
 	OutcomeError,
 	OutcomePorts,
 	OutcomeRecord,
 } from "../decide/outcomes/types";
+import type { DecisionType } from "../decide/types";
 import { DEFAULT_POLICY } from "../policy/defaults";
 import { readUserPolicy, userPolicyFile } from "../policy/load";
 import {
@@ -37,6 +39,7 @@ import {
 } from "../policy/schema";
 import type { DbPort, DbRow } from "../ports/db";
 import type { FsError, FsPort } from "../ports/fs";
+import { notify, type ObserverPort } from "../ports/observer";
 import { analyzeAction } from "./classify";
 import { withPolicyBranches } from "./evaluate";
 import type { GateContext, GateEvent, GateEventKind } from "./events";
@@ -66,20 +69,73 @@ export type OverrideError =
 /** The observer label on override outcomes. */
 const SOURCE = "gate";
 
+/**
+ * What an override changed, as the Link `override` event reports it
+ * (#591): the decision's type and the action the user overrode, never the
+ * command, path or URL behind it.
+ */
+export type OverrideFact = Readonly<{
+	decisionId: string;
+	decisionType: DecisionType;
+	/** What the host was told (the logged decision's `finalAction`). */
+	fromAction: string;
+	/** `maina allow` lets the action through. */
+	toAction: "allow";
+	reason: "member_override";
+}>;
+
+/** `recordOverride`'s ports; `onOverride` sees each new override (#591). */
+type OverridePorts = OutcomePorts &
+	Readonly<{ onOverride?: ObserverPort<OverrideFact> }>;
+
 // ── Outcome ─────────────────────────────────────────────────────────────────
 
-/** Links an `override` outcome to `decisionId`. Idempotent. */
+/** The logged decision's type and final action, when both read cleanly. */
+function overriddenDecision(
+	db: DbPort,
+	decisionId: string,
+): OverrideFact | undefined {
+	const rows = db.all(
+		"SELECT type, final_action FROM decision_log WHERE id = ?",
+		[decisionId],
+	);
+	const row = rows.ok ? rows.value[0] : undefined;
+	if (
+		row === undefined ||
+		!isDecisionType(row.type) ||
+		typeof row.final_action !== "string"
+	) {
+		return undefined;
+	}
+	return {
+		decisionId,
+		decisionType: row.type,
+		fromAction: row.final_action,
+		toAction: "allow",
+		reason: "member_override",
+	};
+}
+
+/**
+ * Links an `override` outcome to `decisionId`. Idempotent: `onOverride`
+ * hears of an override the first time it is recorded, and only then.
+ */
 export function recordOverride(
-	ports: OutcomePorts,
+	ports: OverridePorts,
 	decisionId: string,
 ): Result<OutcomeRecord, OverrideError> {
 	const linked = linkOutcome(ports, decisionId, {
 		kind: "override",
 		source: SOURCE,
 	});
-	return linked.ok
-		? { ok: true, value: linked.value.record }
-		: { ok: false, error: { kind: "outcome", error: linked.error } };
+	if (!linked.ok) {
+		return { ok: false, error: { kind: "outcome", error: linked.error } };
+	}
+	if (linked.value.created && ports.onOverride !== undefined) {
+		const fact = overriddenDecision(ports.db, decisionId);
+		if (fact !== undefined) notify(ports.onOverride, fact);
+	}
+	return { ok: true, value: linked.value.record };
 }
 
 // ── Subjects ────────────────────────────────────────────────────────────────

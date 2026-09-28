@@ -11,15 +11,24 @@
  */
 
 import { parseArgs } from "node:util";
+import type { DecisionRecord } from "@mainahq/core";
 import { systemGates } from "./gate-system";
 import { createGraphSync, systemGraphSyncPorts } from "./graph-hooks";
 import { startLoop } from "./lifecycle";
-import { systemUplink } from "./link-system";
+import { emitDecision } from "./link/producers/decision";
+import {
+	collectInventory,
+	createInventoryReporter,
+} from "./link/producers/inventory";
+import { systemInventoryPorts, systemUplink } from "./link-system";
 import { createSystem1Port } from "./model/infer";
 import { startRuntime } from "./server";
 import { createShadowRunner } from "./shadow";
 import { createStopVerify } from "./stop-verify";
 import { systemStopVerifyPorts } from "./stop-verify-system";
+
+/** How often the inventory is looked at again; only a change is sent. */
+const INVENTORY_INTERVAL_MS = 15 * 60_000;
 
 type Args = Readonly<{
 	address: string;
@@ -85,9 +94,24 @@ export async function runDaemon(argv: readonly string[]): Promise<number> {
 		model,
 		clock: { now: () => performance.now() },
 	});
+	// Maina Link (#590, #591): events queue in the device's outbox while it is
+	// enrolled (nothing otherwise) and go to the cloud in the background.
+	const uplink = systemUplink();
+	const linkFailed = (what: string) => (error: unknown) =>
+		process.stderr.write(
+			`maina runtime: link ${what} failed: ${error instanceof Error ? error.message : JSON.stringify(error)}\n`,
+		);
+	// Each logged gate decision becomes a `decision` event, queued after the
+	// host has its answer: the outbox write is never on the gate path.
+	const onDecision = (record: DecisionRecord): void => {
+		setImmediate(() => {
+			const emitted = emitDecision(uplink, record);
+			if (!emitted.ok) linkFailed("decision event")(emitted.error);
+		});
+	};
 	const started = startRuntime(
 		{
-			gate: systemGates({ model, shadow }).runtime,
+			gate: systemGates({ model, shadow, onDecision }).runtime,
 			observe: (event) => {
 				stops.observe(event);
 				return graph.observe(event);
@@ -107,18 +131,24 @@ export async function runDaemon(argv: readonly string[]): Promise<number> {
 	if (!started.ok) return started.error.kind === "already_running" ? 0 : 1;
 
 	const runtime = started.value;
-	// Maina Link (#590): the outbox goes to the cloud in the background, off
-	// the gate path; an unenrolled device only reads its state each tick.
-	const uplink = systemUplink();
-	const loop = startLoop(uplink.tick, {
-		onError: (error) =>
-			process.stderr.write(
-				`maina runtime: link uplink failed: ${error instanceof Error ? error.message : String(error)}\n`,
-			),
-	});
+	// The outbox goes to the cloud in the background, off the gate path; an
+	// unenrolled device only reads its state each tick.
+	const loop = startLoop(uplink.tick, { onError: linkFailed("uplink") });
+	// The inventory on start, then again whenever it changes (FR-INV-1).
+	const inventory = createInventoryReporter(uplink);
+	const inventoryLoop = startLoop(
+		async () => {
+			const facts = await collectInventory(systemInventoryPorts(args.version));
+			const reported = inventory.report(facts);
+			if (!reported.ok) linkFailed("inventory")(reported.error);
+			return INVENTORY_INTERVAL_MS;
+		},
+		{ onError: linkFailed("inventory") },
+	);
 	process.on("SIGTERM", () => runtime.stop());
 	process.on("SIGINT", () => runtime.stop());
 	await runtime.closed;
 	loop.stop();
+	inventoryLoop.stop();
 	return 0;
 }

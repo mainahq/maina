@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import type { WorkerProbe } from "../probe";
+import type { InventoryProbe, WorkerProbe } from "../probe";
 import {
+	agentInventory,
 	detectInstalled,
 	resolveWorker,
 	WORKER_NAMES,
@@ -228,5 +229,35 @@ describe("detectInstalled", () => {
 
 	test("finds nothing on an empty PATH, without throwing", () => {
 		expect(detectInstalled(probe({}))).toEqual([]);
+	});
+});
+
+describe("agentInventory (#591)", () => {
+	/** The same fake PATH, with `--version` read asynchronously. */
+	function inventoryProbe(
+		binaries: Readonly<Record<string, string | null>>,
+	): InventoryProbe {
+		const sync = probe(binaries);
+		return { which: sync.which, version: async (path) => sync.version(path) };
+	}
+
+	test("lists each agent CLI on PATH with the version it reports", async () => {
+		const found = await agentInventory(
+			inventoryProbe({
+				claude: "2.3.1 (Claude Code)",
+				codex: "codex-cli 0.44.0",
+				"cursor-agent": null,
+				"claude-agent-acp": "0.81.2",
+			}),
+		);
+		expect(found).toEqual([
+			{ name: "claude", version: "2.3.1" },
+			{ name: "codex", version: "0.44.0" },
+			{ name: "cursor" },
+		]);
+	});
+
+	test("an empty PATH lists no agent", async () => {
+		expect(await agentInventory(inventoryProbe({}))).toEqual([]);
 	});
 });

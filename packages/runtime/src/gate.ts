@@ -22,6 +22,7 @@ import {
 	DEFAULT_GATE_BUDGET_MS,
 	DEFAULT_REGISTRY,
 	type DecisionLogPorts,
+	type DecisionRecord,
 	evaluateGate,
 	type GateContext,
 	type GateEvaluation,
@@ -220,6 +221,12 @@ export type GateEvaluatorDeps = Readonly<{
 	 * no log. Absent: nothing is logged. A failure only skips the logging.
 	 */
 	logFor?: (root: string) => Promise<Result<GateLog | null, unknown>>;
+	/**
+	 * Handed each gate decision once it is in the log (core's post-append
+	 * port), for the Link `decision` event (#591). Shadow records are not
+	 * decisions and never reach it; a port that throws changes nothing.
+	 */
+	onDecision?: (record: DecisionRecord) => void;
 }>;
 
 /** A root's decision log (FR-DEC-3, FR-DEC-5). */
@@ -454,7 +461,18 @@ async function logDecisions(
 				},
 				privacy,
 			);
-			if (record.ok) appendDecision({ db, privacy }, record.value);
+			if (record.ok) {
+				appendDecision(
+					{
+						db,
+						privacy,
+						...(deps.onDecision === undefined
+							? {}
+							: { onAppended: deps.onDecision }),
+					},
+					record.value,
+				);
+			}
 		}
 		// The hook client's fallback tightens every allow to an ask, so there
 		// each id may reach a gate message.

@@ -17,7 +17,12 @@ import { cursor } from "./cursor";
 import { gemini } from "./gemini";
 import { HEADLESS_PREFIX, headlessSpec } from "./headless";
 import { opencode } from "./opencode";
-import { systemProbe, type WorkerProbe } from "./probe";
+import {
+	type InventoryProbe,
+	systemInventoryProbe,
+	systemProbe,
+	type WorkerProbe,
+} from "./probe";
 import type {
 	LaunchMode,
 	WorkerDefinition,
@@ -146,6 +151,31 @@ export function resolveWorker(
 	return headless
 		? resolveHeadless(definition, probe)
 		: resolveAcp(definition, probe);
+}
+
+/** One agent CLI on this machine, as the Link inventory reports it (#591). */
+type InstalledAgent = Readonly<{ name: WorkerName; version?: string }>;
+
+/**
+ * The agent CLIs on PATH (each agent's own binary, not its ACP adapter),
+ * in `WORKER_NAMES` order, with the version each reports when it tells.
+ * No pin is checked: this is what is installed, not what `maina run` takes.
+ */
+export async function agentInventory(
+	probe: InventoryProbe = systemInventoryProbe,
+): Promise<readonly InstalledAgent[]> {
+	const found = WORKER_NAMES.flatMap((name) => {
+		const path = DEFINITIONS[name].headless.binaries
+			.map((binary) => probe.which(binary))
+			.find((p) => p !== null);
+		return path === undefined || path === null ? [] : [{ name, path }];
+	});
+	return Promise.all(
+		found.map(async ({ name, path }) => {
+			const version = parseVersion(await probe.version(path));
+			return version === undefined ? { name } : { name, version };
+		}),
+	);
 }
 
 /**

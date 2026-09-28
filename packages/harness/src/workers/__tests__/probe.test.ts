@@ -1,5 +1,19 @@
 import { describe, expect, test } from "bun:test";
-import { systemProbe } from "../probe";
+import { systemInventoryProbe, systemProbe } from "../probe";
+
+describe("systemInventoryProbe (#591)", () => {
+	test("version reads --version output without blocking", async () => {
+		const pending = systemInventoryProbe.version(process.execPath);
+		expect(pending).toBeInstanceOf(Promise);
+		expect(await pending).toContain(Bun.version);
+	});
+
+	test("version answers null when the binary cannot run", async () => {
+		expect(
+			await systemInventoryProbe.version("/nonexistent/maina-agent-591"),
+		).toBeNull();
+	});
+});
 
 describe("systemProbe", () => {
 	test("which finds a binary on PATH", () => {

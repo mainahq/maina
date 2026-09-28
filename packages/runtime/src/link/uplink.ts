@@ -56,12 +56,12 @@ export type UplinkOptions = Readonly<{
 	bounds?: Partial<OutboxBounds>;
 }>;
 
-type UplinkError =
+export type UplinkError =
 	| OutboxError
 	| LinkFailure
 	| Readonly<{ kind: "no_progress"; nextExpectedSeq: number }>;
 
-type EnqueueResult =
+export type EnqueueResult =
 	| Readonly<{ queued: false; reason: "not_enrolled" | "revoked" }>
 	| Readonly<{ queued: true; eventId: string; seq: number }>;
 

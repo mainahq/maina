@@ -98,6 +98,61 @@ describe("the decision log is append-only", () => {
 	});
 });
 
+describe("the post-append port (#591)", () => {
+	test("hands each stored record to `onAppended`, after the insert", () => {
+		const db = migratedDb();
+		const seen: DecisionRecord[] = [];
+		const stored: number[] = [];
+		const record = recordFor(SLOP_REQUEST, { id: "p-1" });
+		unwrap(
+			appendDecision(
+				{
+					db,
+					onAppended: (r) => {
+						// The record is already in the log when the port sees it.
+						stored.push(unwrap(queryDecisions({ db }, {})).length);
+						seen.push(r);
+					},
+				},
+				record,
+			),
+		);
+		expect(seen).toEqual([record]);
+		expect(stored).toEqual([1]);
+	});
+
+	test("a refused or failed append reaches no port", () => {
+		const db = migratedDb();
+		const seen: DecisionRecord[] = [];
+		const onAppended = (r: DecisionRecord) => {
+			seen.push(r);
+		};
+		const record = recordFor(SLOP_REQUEST, { id: "dup" });
+		unwrap(appendDecision({ db, onAppended }, record));
+		expect(appendDecision({ db, onAppended }, record).ok).toBe(false);
+		expect(
+			appendDecision({ db, onAppended }, { ...record, id: "bad id!" }).ok,
+		).toBe(false);
+		expect(seen).toHaveLength(1);
+	});
+
+	test("a port that throws never undoes or fails the append", () => {
+		const db = migratedDb();
+		const record = recordFor(SLOP_REQUEST, { id: "p-2" });
+		const appended = appendDecision(
+			{
+				db,
+				onAppended: () => {
+					throw new Error("uplink down");
+				},
+			},
+			record,
+		);
+		expect(appended).toEqual({ ok: true, value: record });
+		expect(unwrap(queryDecisions({ db }, {}))).toEqual([record]);
+	});
+});
+
 describe("buildDecisionRecord", () => {
 	test("carries the decision's answer, distribution and option order", () => {
 		const decision = decideOne(TIER_REQUEST);
