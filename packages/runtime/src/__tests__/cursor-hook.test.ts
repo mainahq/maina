@@ -5,14 +5,14 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { CURSOR_ALLOW_LIST_WARNING } from "../adapters/cursor";
 import type { ClaudeHookPorts } from "../claude-hook";
 import { runCursorHook } from "../cursor-hook";
 import type { GateDecision, GateEvent } from "../gate";
 import { systemGates } from "../gate-system";
+import { testTmpDir } from "./test-tmp";
 
 const DIR = join(import.meta.dir, "..", "adapters", "__fixtures__", "cursor");
 const raw = (name: string): string => readFileSync(join(DIR, name), "utf8");
@@ -286,7 +286,7 @@ describe("runCursorHook over the real rules-only gate", () => {
 	};
 
 	beforeAll(() => {
-		repo = mkdtempSync(join(tmpdir(), "maina-cursor-hook-"));
+		repo = testTmpDir("maina-cursor-hook-");
 		Bun.spawnSync(["git", "init", "-q", repo]);
 	});
 	afterAll(() => rmSync(repo, { recursive: true, force: true }));

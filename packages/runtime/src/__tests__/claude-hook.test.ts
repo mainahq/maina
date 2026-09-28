@@ -5,8 +5,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
 	type ClaudeHookPorts,
@@ -16,6 +15,7 @@ import {
 } from "../claude-hook";
 import type { GateDecision, GateEvent } from "../gate";
 import { systemGates } from "../gate-system";
+import { testTmpDir } from "./test-tmp";
 
 const DIR = join(
 	import.meta.dir,
@@ -374,7 +374,7 @@ describe("runClaudeHook over the real rules-only gate", () => {
 	};
 
 	beforeAll(() => {
-		repo = mkdtempSync(join(tmpdir(), "maina-claude-hook-"));
+		repo = testTmpDir("maina-claude-hook-");
 		Bun.spawnSync(["git", "init", "-q", repo]);
 	});
 	afterAll(() => rmSync(repo, { recursive: true, force: true }));

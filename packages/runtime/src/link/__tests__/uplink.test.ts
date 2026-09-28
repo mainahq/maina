@@ -8,10 +8,10 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import type { HttpPort } from "@mainahq/core";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { enrolDevice } from "../enrol";
 import { nodeLinkCrypto } from "../keys";
 import type { EventInput } from "../outbox";
@@ -22,7 +22,7 @@ import { type FakeCloud, fakeCloud } from "./fake-cloud";
 let dir: string;
 
 beforeEach(() => {
-	dir = mkdtempSync(join(tmpdir(), "maina-link-uplink-"));
+	dir = testTmpDir("maina-link-uplink-");
 });
 
 afterEach(() => {

@@ -16,13 +16,15 @@ import {
 	chmodSync,
 	lstatSync,
 	mkdirSync,
+	readdirSync,
 	readFileSync,
+	rmdirSync,
 	rmSync,
 	statSync,
 	writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir, uptime, userInfo } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { Result } from "@mainahq/core";
 
 export type Endpoint = Readonly<{
@@ -50,6 +52,9 @@ const MAX_SOCKET_PATH_BYTES = 103;
 /** Keep only characters that are safe in a file or pipe name. */
 const safeName = (value: string): string =>
 	value.replace(/[^A-Za-z0-9._-]/g, "_") || "_";
+
+/** The name of a fallback socket dir: `maina-<12 hex digest>`. */
+const SOCKET_DIR_NAME = /^maina-[0-9a-f]{12}$/;
 
 export function resolveEndpoint(inputs: EndpointInputs): Endpoint {
 	const { platform, dir, tmpDir } = inputs;
@@ -371,4 +376,133 @@ export function acquireSpawnLock(
 
 export function releaseSpawnLock(endpoint: Endpoint, pid: number): void {
 	releaseExclusive(endpoint.spawnLock, pid);
+}
+
+/*
+ * Fallback socket dirs (#641). A socket too long for `sun_path` lives in a
+ * `maina-<digest>` dir under tmp, shared by every version of one runtime
+ * dir. Each runtime serving from one marks its socket with an owner file
+ * (`<socket>.owner`, `{ pid, at }` like the pid file). On a clean exit the
+ * runtime removes its marker, and the dir once empty; a start sweeps the
+ * dirs whose runtimes are gone (a crash, a SIGKILL).
+ */
+
+/** How old an empty socket dir must be before a sweep removes it. */
+const EMPTY_SOCKET_DIR_GRACE_MS = 10_000;
+
+const OWNER_SUFFIX = ".owner";
+
+const ownerFile = (endpoint: Endpoint): string =>
+	`${endpoint.address}${OWNER_SUFFIX}`;
+
+/** The endpoint's fallback socket dir under tmp, or null when it has none. */
+function fallbackSocketDir(endpoint: Endpoint): string | null {
+	if (process.platform === "win32") return null;
+	const dir = dirname(endpoint.address);
+	if (dir === dirname(endpoint.pidFile)) return null;
+	return SOCKET_DIR_NAME.test(basename(dir)) ? dir : null;
+}
+
+/** Removes `dir` when it is empty; anything else leaves it. */
+function removeEmptyDir(dir: string): void {
+	try {
+		rmdirSync(dir);
+	} catch {
+		// Not empty (another runtime's socket) or already gone.
+	}
+}
+
+/** How many times a mark remakes a socket dir removed under it. */
+const MARK_ATTEMPTS = 3;
+
+/**
+ * Marks the endpoint's fallback socket dir as served by `pid`, which holds
+ * the endpoint's pid file, so the marker is its own to overwrite. The dir is
+ * made again first, and again when it vanishes before the marker lands: a
+ * sweep, or another version's runtime exiting, removes it while it is empty.
+ */
+export function markSocketOwner(
+	endpoint: Endpoint,
+	pid: number,
+	now: number,
+): Result<void, RegistryError> {
+	if (fallbackSocketDir(endpoint) === null) {
+		return { ok: true, value: undefined };
+	}
+	let failure: RegistryError = { kind: "io_error", message: "not marked" };
+	for (let attempt = 0; attempt < MARK_ATTEMPTS; attempt++) {
+		const dirs = ensureEndpointDirs(endpoint, process.platform);
+		if (!dirs.ok) return dirs;
+		try {
+			writeFileSync(ownerFile(endpoint), JSON.stringify({ pid, at: now }), {
+				mode: 0o600,
+			});
+			return { ok: true, value: undefined };
+		} catch (err) {
+			failure = { kind: "io_error", message: message(err) };
+			if (errorCode(err) !== "ENOENT") break;
+		}
+	}
+	return { ok: false, error: failure };
+}
+
+/**
+ * Removes `pid`'s owner marker, then the fallback socket dir if nothing else
+ * is left in it. Best effort: never throws.
+ */
+export function releaseSocketDir(endpoint: Endpoint, pid: number): void {
+	const dir = fallbackSocketDir(endpoint);
+	if (dir === null) return;
+	releaseExclusive(ownerFile(endpoint), pid);
+	removeEmptyDir(dir);
+}
+
+/**
+ * Sweeps one socket dir: each socket whose owner is gone goes with its
+ * marker, and the dir goes once empty. An empty dir younger than the grace
+ * is kept, since a runtime that is starting has just made it.
+ */
+function sweepSocketDir(dir: string, now: number): void {
+	const stat = lstatSync(dir);
+	if (!stat.isDirectory()) return;
+	const uid = process.getuid?.();
+	if (uid !== undefined && stat.uid !== uid) return;
+	const settled = now - stat.mtimeMs >= EMPTY_SOCKET_DIR_GRACE_MS;
+	let swept = false;
+	for (const name of readdirSync(dir)) {
+		if (!name.endsWith(OWNER_SUFFIX)) continue;
+		const marker = join(dir, name);
+		if (inspectClaim(marker, now, pidFileHeld).state === "held") continue;
+		rmSync(marker.slice(0, -OWNER_SUFFIX.length), { force: true });
+		rmSync(marker, { force: true });
+		swept = true;
+	}
+	if ((swept || settled) && readdirSync(dir).length === 0) {
+		removeEmptyDir(dir);
+	}
+}
+
+/**
+ * Removes the fallback socket dirs beside the endpoint's whose runtimes are
+ * gone. A socket without an owner marker is left alone. Best effort: never
+ * throws.
+ */
+export function sweepStaleSocketDirs(endpoint: Endpoint, now: number): void {
+	const own = fallbackSocketDir(endpoint);
+	if (own === null) return;
+	const parent = dirname(own);
+	let names: string[];
+	try {
+		names = readdirSync(parent);
+	} catch {
+		return;
+	}
+	for (const name of names) {
+		if (!SOCKET_DIR_NAME.test(name)) continue;
+		try {
+			sweepSocketDir(join(parent, name), now);
+		} catch {
+			// Gone meanwhile, or not ours to read: the next start looks again.
+		}
+	}
 }

@@ -9,9 +9,9 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { loadModel } from "../load";
 import { checkerFor, devKey, pinOn, sha256 } from "./fixtures/model-release";
 import {
@@ -28,7 +28,7 @@ let scratch: string;
 
 beforeAll(() => {
 	key = devKey();
-	scratch = mkdtempSync(join(tmpdir(), "maina-338-load-"));
+	scratch = testTmpDir("maina-338-load-");
 });
 
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));

@@ -10,14 +10,13 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
 	chmodSync,
 	existsSync,
-	mkdtempSync,
 	readFileSync,
 	rmSync,
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { type EnrolOptions, enrolDevice } from "../enrol";
 import { nodeLinkCrypto } from "../keys";
 import { fileLinkStore } from "../store";
@@ -26,7 +25,7 @@ import { type FakeCloud, fakeCloud } from "./fake-cloud";
 let dir: string;
 
 beforeEach(() => {
-	dir = mkdtempSync(join(tmpdir(), "maina-link-enrol-"));
+	dir = testTmpDir("maina-link-enrol-");
 });
 
 afterEach(() => {

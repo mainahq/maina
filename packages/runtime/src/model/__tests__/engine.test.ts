@@ -13,9 +13,9 @@
 
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TARGETS } from "../../../build/standalone";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import {
 	BINDING_FILE,
 	engineSupport,
@@ -155,7 +155,7 @@ describe("WASM engine", () => {
 describe("native engine", () => {
 	test("a missing addon is an error, not a throw", async () => {
 		const opened = await openNativeSession(
-			join(tmpdir(), "maina-587-no-such-dir"),
+			join(testTmpDir("maina-587-"), "no-such-dir"),
 			tinyModelBytes(),
 		);
 		expect(opened.ok).toBe(false);
@@ -196,7 +196,7 @@ describe("native engine", () => {
 			const first = await openNativeSession(dir ?? "", tinyModelBytes());
 			expect(first.ok).toBe(true);
 			const other = await openNativeSession(
-				join(tmpdir(), "maina-587-other"),
+				join(testTmpDir("maina-587-"), "other"),
 				tinyModelBytes(),
 			);
 			expect(other.ok).toBe(false);

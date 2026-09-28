@@ -4,11 +4,11 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import cliPackage from "@mainahq/cli/package.json" with { type: "json" };
 import { fixedGate } from "../../__tests__/support";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { userEndpoint } from "../../registry";
 import { type Runtime, startRuntime } from "../../server";
 import { statuslineHostCommand } from "../system";
@@ -27,7 +27,7 @@ afterEach(() => {
 
 function tempDir(): string {
 	// Short: a Unix socket path under it must stay within the OS limit.
-	const dir = mkdtempSync(join(tmpdir(), "msl-"));
+	const dir = testTmpDir("msl-");
 	dirs.push(dir);
 	return dir;
 }

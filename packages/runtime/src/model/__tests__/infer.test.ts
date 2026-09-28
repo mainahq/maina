@@ -15,8 +15,7 @@
 
 import { Database } from "bun:sqlite";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
 	type BackendInput,
@@ -39,6 +38,7 @@ import {
 	toDbPort,
 	withBackend,
 } from "@mainahq/core";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import {
 	createGateEvaluator,
 	type GateEvaluatorDeps,
@@ -478,7 +478,7 @@ beforeAll(async () => {
 	if (!shell.ok) throw new Error(shell.error.message);
 	ctx = { shell: shell.value, home: "/home/dev" };
 	key = devKey();
-	scratch = mkdtempSync(join(tmpdir(), "maina-338-infer-"));
+	scratch = testTmpDir("maina-338-infer-");
 });
 
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));

@@ -14,13 +14,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import {
 	mkdirSync,
-	mkdtempSync,
 	readdirSync,
 	realpathSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Result } from "@mainahq/core";
@@ -37,6 +35,7 @@ import {
 	resolveRoot,
 	resolveRootAsync,
 } from "../root";
+import { testTmpDir } from "./test-tmp";
 
 type Resolved = Result<Root, NoRepo>;
 
@@ -335,7 +334,7 @@ describe("resolveRoot with real repositories", () => {
 	let home = "";
 
 	beforeAll(() => {
-		base = realpathSync(mkdtempSync(join(tmpdir(), "maina-root-")));
+		base = realpathSync(testTmpDir("maina-root-"));
 		outer = join(base, "outer");
 		inner = join(outer, "vendor", "inner");
 		worktree = join(base, "outer-wt");
@@ -528,7 +527,7 @@ describe("resolveRoot with real repositories", () => {
 describe("checkedOutBranch (#459)", () => {
 	let base = "";
 	beforeAll(() => {
-		base = realpathSync(mkdtempSync(join(tmpdir(), "maina-branch-")));
+		base = realpathSync(testTmpDir("maina-branch-"));
 	});
 	afterAll(() => {
 		if (base) rmSync(base, { recursive: true, force: true });

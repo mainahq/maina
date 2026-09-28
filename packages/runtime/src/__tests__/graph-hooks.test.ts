@@ -7,8 +7,7 @@
  */
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { openCodeGraph, readCodeGraph } from "@mainahq/core";
 import type { GateEvent } from "../gate";
@@ -22,6 +21,7 @@ import {
 import { createRequest, sendRequest } from "../ipc";
 import { type Runtime, startRuntime } from "../server";
 import { fixedGate, type TempEndpoint, tempEndpoint, waitFor } from "./support";
+import { testTmpDir } from "./test-tmp";
 
 const cleanups: (() => void)[] = [];
 
@@ -485,7 +485,7 @@ const fixtureGitEnv = (): Record<string, string> => {
 };
 
 function tempRepo(): string {
-	const dir = mkdtempSync(join(tmpdir(), "maina-graph-hooks-"));
+	const dir = testTmpDir("maina-graph-hooks-");
 	cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
 	const proc = Bun.spawnSync(["git", "init", "-q"], {
 		cwd: dir,

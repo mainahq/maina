@@ -7,10 +7,10 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { DecisionRecord } from "@mainahq/core";
+import { testTmpDir } from "../../../__tests__/test-tmp";
 import { fakeCloud } from "../../__tests__/fake-cloud";
 import { enrolDevice } from "../../enrol";
 import { nodeLinkCrypto } from "../../keys";
@@ -26,7 +26,7 @@ import { HASH_A, HASH_B, HASH_C } from "./helpers";
 let dir: string;
 
 beforeEach(() => {
-	dir = mkdtempSync(join(tmpdir(), "maina-link-producers-"));
+	dir = testTmpDir("maina-link-producers-");
 });
 
 afterEach(() => {

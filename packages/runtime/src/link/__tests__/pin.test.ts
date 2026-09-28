@@ -14,16 +14,15 @@ import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
 	cpSync,
-	mkdtempSync,
 	readdirSync,
 	readFileSync,
 	rmSync,
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { Glob } from "bun";
+import { testTmpDir } from "../../__tests__/test-tmp";
 import { checkManifest, verifyProtocolDir } from "../protocol/manifest";
 import { LINK_V1_MANIFEST_SHA256 } from "../protocol/pin";
 
@@ -89,7 +88,7 @@ describe("vendored protocol v1", () => {
 	});
 
 	test("a vendored file that drifts from the manifest fails the check", () => {
-		const dir = mkdtempSync(join(tmpdir(), "maina-link-pin-"));
+		const dir = testTmpDir("maina-link-pin-");
 		try {
 			cpSync(V1, dir, { recursive: true });
 			const target = join(dir, "privacy.json");
