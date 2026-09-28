@@ -7,10 +7,11 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import { createPublicKey } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import Ajv from "ajv";
-import { renderManifest } from "../../build/standalone";
+import { publicKeyXml, renderManifest } from "../../build/standalone";
 import { failClosedHook } from "../../src/standalone/hook-fallback";
 import { LAUNCHER_DIR } from "./fixture";
 
@@ -168,5 +169,53 @@ describe("launcher files", () => {
 		for (const name of ["release.key", "release.pem", "private.pem"]) {
 			expect(existsSync(join(LAUNCHER_DIR, name))).toBe(false);
 		}
+		for (const name of ["release.pub.pem", "release.pub.xml"]) {
+			const content = readFileSync(join(LAUNCHER_DIR, name), "utf-8");
+			expect(content).not.toMatch(/PRIVATE KEY|<D>|<P>|<Q>|<InverseQ>/);
+		}
+	});
+});
+
+// mainahq/maina#424: the real release key is provisioned, so the committed
+// launcher verifies real artifacts instead of refusing with no_release_key.
+describe("the committed release key", () => {
+	const pem = (): string =>
+		readFileSync(join(LAUNCHER_DIR, "release.pub.pem"), "utf-8");
+
+	test("release.pub.pem is a 4096-bit RSA public key", () => {
+		const key = createPublicKey(pem());
+		expect(key.type).toBe("public");
+		expect(key.asymmetricKeyType).toBe("rsa");
+		expect(key.asymmetricKeyDetails?.modulusLength).toBe(4096);
+	});
+
+	test("release.pub.pem is in the SPKI PEM form the release preflight compares", () => {
+		const canonical = createPublicKey(pem()).export({
+			type: "spki",
+			format: "pem",
+		}) as string;
+		expect(pem().replace(/\s+/g, "")).toBe(canonical.replace(/\s+/g, ""));
+	});
+
+	test("release.pub.xml is the same key, for launch.ps1", () => {
+		const xml = readFileSync(join(LAUNCHER_DIR, "release.pub.xml"), "utf-8");
+		expect(xml).toBe(publicKeyXml(pem()));
+	});
+
+	// A CRLF checkout (core.autocrlf on Windows) would change the bytes the
+	// launchers and the release preflight compare, as for launch.sh.
+	test("the key files check out with LF on every OS", () => {
+		const files = ["release.pub.pem", "release.pub.xml"].map((name) =>
+			join(LAUNCHER_DIR, name),
+		);
+		const proc = Bun.spawnSync(["git", "check-attr", "eol", "--", ...files], {
+			cwd: LAUNCHER_DIR,
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		expect(proc.exitCode).toBe(0);
+		const lines = proc.stdout.toString().trim().split("\n");
+		expect(lines).toHaveLength(2);
+		for (const line of lines) expect(line).toEndWith(": eol: lf");
 	});
 });

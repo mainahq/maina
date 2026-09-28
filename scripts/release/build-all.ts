@@ -423,7 +423,7 @@ async function main(argv: readonly string[]): Promise<number> {
 				"utf-8",
 			);
 		} catch {
-			// No committed launcher key yet (mainahq/maina#424).
+			// No committed launcher key: refused below, as any other mismatch.
 		}
 		if (!sameKey(pinned, publicKeyOf(key))) {
 			process.stderr.write(
