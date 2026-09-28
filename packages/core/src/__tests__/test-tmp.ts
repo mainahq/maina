@@ -56,10 +56,14 @@ for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
 /** Removes `dir` once this process is gone, unless its marker went first. */
 function reapAfterExit(dir: string): void {
 	const script = `while kill -0 "$1" 2>/dev/null; do sleep 0.2; done; [ -f "$2/${MARKER}" ] && rm -rf "$2"`;
-	Bun.spawn(
-		["/bin/sh", "-c", script, "maina-tmp-reaper", String(process.pid), dir],
-		{ stdio: ["ignore", "ignore", "ignore"], detached: true },
-	).unref();
+	try {
+		Bun.spawn(
+			["/bin/sh", "-c", script, "maina-tmp-reaper", String(process.pid), dir],
+			{ stdio: ["ignore", "ignore", "ignore"], detached: true },
+		).unref();
+	} catch {
+		// No sh: the exit hooks, or harness's stale sweep, collect it.
+	}
 }
 
 function testRoot(): string {

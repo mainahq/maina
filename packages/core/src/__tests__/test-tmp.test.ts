@@ -73,4 +73,28 @@ describe("core verify fixtures: none left in TMPDIR (#637)", () => {
 		expect(text).not.toMatch(/\btmpdir\(\)/);
 		expect(text).toContain('testTmpDir("maina-scope-")');
 	});
+
+	test("a `bun test` run of scope.test leaves nothing in TMPDIR", async () => {
+		const parent = testTmpDir("maina-tt-parent-");
+		const file = join(
+			import.meta.dir,
+			"..",
+			"verify",
+			"__tests__",
+			"scope.test.ts",
+		);
+		const proc = Bun.spawn(["bun", "test", file], {
+			cwd: join(import.meta.dir, "..", ".."),
+			env: { ...process.env, TMPDIR: parent },
+			stdout: "ignore",
+			stderr: "pipe",
+		});
+		const [err, code] = await Promise.all([
+			new Response(proc.stderr).text(),
+			proc.exited,
+		]);
+		// Only a passing run proves the fixtures were made and then cleaned.
+		expect({ code, err: code === 0 ? "" : err }).toEqual({ code: 0, err: "" });
+		expect(await emptied(parent)).toEqual([]);
+	}, 60_000);
 });

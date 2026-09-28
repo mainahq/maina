@@ -183,10 +183,16 @@ describe("harness test fixtures: none left in TMPDIR (#637)", () => {
 				cwd: join(src, ".."),
 				env: { ...process.env, TMPDIR: parent },
 				stdout: "ignore",
-				stderr: "ignore",
+				stderr: "pipe",
 			},
 		);
-		await proc.exited;
+		const [err, code] = await Promise.all([
+			new Response(proc.stderr).text(),
+			proc.exited,
+		]);
+		// A run that never started (a moved or renamed file) also leaves an
+		// empty TMPDIR: only a passing run proves the fixtures were cleaned.
+		expect({ code, err: code === 0 ? "" : err }).toEqual({ code: 0, err: "" });
 		expect(await emptied(parent)).toEqual([]);
 	}, 60_000);
 });
