@@ -16,17 +16,27 @@ import { fetchHttp } from "@mainahq/cli/src/ports";
 import { systemInventoryProbe } from "@mainahq/harness/src/workers/probe";
 import { agentInventory } from "@mainahq/harness/src/workers/registry";
 import { nodeLinkCrypto } from "./link/keys";
+import { createPolicySync } from "./link/policy-sync";
 import type { InventoryPorts } from "./link/producers/inventory";
 import { fileLinkStore, linkDir } from "./link/store";
 import { createUplink } from "./link/uplink";
 
-export function systemUplink(): ReturnType<typeof createUplink> {
-	return createUplink({
+function systemLinkPorts() {
+	return {
 		http: fetchHttp,
 		store: fileLinkStore(linkDir(processEnv, homedir())),
 		crypto: nodeLinkCrypto,
 		clock: () => new Date(),
-	});
+	};
+}
+
+export function systemUplink(): ReturnType<typeof createUplink> {
+	return createUplink(systemLinkPorts());
+}
+
+/** The policy pull (#592): keeps the org's verified bundle for the gate. */
+export function systemPolicySync(): ReturnType<typeof createPolicySync> {
+	return createPolicySync(systemLinkPorts());
 }
 
 function readText(path: string): string | null {

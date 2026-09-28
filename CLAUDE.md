@@ -63,7 +63,7 @@ packages/
 │       ├── ports/     # CorePorts (fs, git, db, clock, logger, model, env, process) + fakes
 │       ├── decide/    # decide(), backends (rules, heuristic), decision log, outcomes, promotion, drift
 │       ├── gate/      # evaluateGate: trust → rules → decide("action.risk"); shell/SQL parsers
-│       ├── policy/    # Policy schema, defaults, layered load (defaults < user < repo)
+│       ├── policy/    # Policy schema, defaults, layered load (defaults < managed < user < repo)
 │       ├── graph/     # Code graph: tree-sitter parse, store, impact/context queries
 │       ├── verify/    # Verify pipeline: syntax guard → tools → diff filter → triage → review
 │       ├── receipt/   # Receipt build, canonical JSON hash, offline verification
@@ -86,7 +86,7 @@ packages/
 
 Layers, from the inside out (dependencies point inward only):
 
-- **core** decides. Pure functions over explicit inputs and `CorePorts`. `decide(type, state, questions)` is the one entry point for every judgement: a backend (`rules`, `heuristic`, later the local `system1` model) returns a probability distribution per question, and every gate decision is appended to the local decision log (`.maina/decisions.db`, append-only, hashes and labels only). The gate runs trust → rules → `decide("action.risk")`, which may tighten a rule verdict but never loosen it; every error asks. Policy merges defaults < user (`~/.maina/policy.json`) < repo (`.maina/policy.json`); rule lists accumulate and irreversible classes only loosen through `explicitly_allow`.
+- **core** decides. Pure functions over explicit inputs and `CorePorts`. `decide(type, state, questions)` is the one entry point for every judgement: a backend (`rules`, `heuristic`, later the local `system1` model) returns a probability distribution per question, and every gate decision is appended to the local decision log (`.maina/decisions.db`, append-only, hashes and labels only). The gate runs trust → rules → `decide("action.risk")`, which may tighten a rule verdict but never loosen it; every error asks. Policy merges defaults < managed (the org's verified Link bundle on an enrolled machine, a floor the later layers may only tighten) < user (`~/.maina/policy.json`) < repo (`.maina/policy.json`); rule lists accumulate and irreversible classes only loosen through `explicitly_allow`.
 - **runtime** owns process concerns: finding the repo root, loading config and policy, the daemon and its IPC, the MCP root, retention. It builds the real ports and calls core.
 - **adapters** (`runtime/src/adapters`) normalise each host's hook events into gate events and map verdicts back. They never decide. Hook mappings are defined once (`hook-map.ts`) and generated into docs and plugins.
 - **harness** drives agents over ACP. `maina run` gives each run its own worktree, wraps the agent in the OS sandbox (sandbox-runtime: Seatbelt on macOS, bubblewrap on Linux; a floor under the gate, never a copy), gates permission requests by the run context (interactive or unattended), enforces budgets and allows one revision after a failed review. `maina acp` proxies an editor's agent and gates its permission requests, without a sandbox.

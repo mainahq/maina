@@ -8,12 +8,16 @@
  * `POST /link/v1/events` is the cloud's ingest (cloud Task 4.3): it verifies
  * the envelope signature and schema, dedupes by `eventId`, tracks the
  * device's `seq` and answers an `EnvelopeAck` with `nextExpectedSeq` and the
- * open gaps. The crypto here is
+ * open gaps. `GET /link/v1/policy` serves `state.policy` the way cloud Task
+ * 6.2 does (adr/0012): an HTTP `ETag` of `"<version>.<content hex>"`, 304 on
+ * a matching `If-None-Match`, 404 `no_policy` when nothing is published and
+ * `meta.signature: "dark"` on a bundle marked unsigned. The crypto here is
  * written against `node:crypto` directly, not the client's helpers, so a
  * client that signs the wrong bytes fails.
  */
 
 import {
+	createHash,
 	createPublicKey,
 	generateKeyPairSync,
 	type KeyObject,
@@ -121,7 +125,32 @@ export type FakeCloud = Readonly<{
 		duplicates: number;
 		/** The last ack's open gaps. */
 		gaps: readonly Readonly<{ from: number; to: number }>[];
+		/** The bundle `GET /link/v1/policy` serves; null answers `no_policy`. */
+		policy: Record<string, unknown> | null;
+		/** The `If-None-Match` of each policy pull, in order. */
+		policyPulls: (string | undefined)[];
 	};
+	/**
+	 * A bundle as the cloud builds it: its content ETag computed, then signed
+	 * with the org's policy-bundle key (or `keyId`), or marked unsigned the way
+	 * the dark production signer marks it (`signed: false`).
+	 */
+	policyBundle: (
+		version: number,
+		policy: Record<string, unknown>,
+		options?: Readonly<{
+			keyId?: string;
+			signed?: boolean;
+			budgetDirectives?: readonly Record<string, unknown>[];
+			notBefore?: string;
+			orgId?: string;
+		}>,
+	) => Record<string, unknown>;
+	/** Signs a bundle (without `sig`) with the org's policy-bundle key `keyId`. */
+	signPolicy: (
+		bundle: Record<string, unknown>,
+		keyId?: string,
+	) => Record<string, unknown>;
 	/** Every token issued so far is answered `token_expired` from now on. */
 	expireIssuedTokens: () => void;
 	/** Signs a control message with the org's link-control key. */
@@ -253,6 +282,8 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		envelopes: [],
 		duplicates: 0,
 		gaps: [],
+		policy: null,
+		policyPulls: [],
 	};
 	const seenEvents = new Set<string>();
 	const seenSeqs = new Set<number>();
@@ -381,6 +412,30 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		return ingest(req);
 	}
 
+	function policy(req: FakeRequest): FakeResponse {
+		const bearer = req.headers.Authorization ?? req.headers.authorization;
+		if (bearer === undefined) return refuse(401, "missing_token");
+		const t = tokens.get(bearer.replace(/^Bearer /, ""));
+		if (t === undefined) return refuse(401, "invalid_token");
+		if (state.revoked) return refuse(401, "device_revoked");
+		if (t.expired) return refuse(401, "token_expired");
+		const held = req.headers["If-None-Match"] ?? req.headers["if-none-match"];
+		state.policyPulls.push(held);
+		const bundle = state.policy;
+		if (bundle === null) return refuse(404, "no_policy");
+		const hex = String(bundle.etag).replace(/^sha256:/, "");
+		const etag = `"${String(bundle.version)}.${hex}"`;
+		if (held === etag) return { status: 304, body: "" };
+		return {
+			status: 200,
+			body: JSON.stringify({
+				data: bundle,
+				error: null,
+				meta: { signature: bundle.keyId === "unsigned" ? "dark" : "signed" },
+			}),
+		};
+	}
+
 	/** The open gaps below the highest seq seen, oldest first. */
 	function openGaps(max: number): { from: number; to: number }[] {
 		const gaps: { from: number; to: number }[] = [];
@@ -464,6 +519,7 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 	function handle(req: FakeRequest): FakeResponse {
 		requests.push(req);
 		const path = new URL(req.url).pathname;
+		if (req.method === "GET" && path === "/link/v1/policy") return policy(req);
 		if (req.method !== "POST") return refuse(404, "not_found");
 		switch (path) {
 			case "/link/v1/enrol/start":
@@ -490,10 +546,57 @@ export function fakeCloud(options: FakeCloudOptions = {}): FakeCloud {
 		return { ...message, sig: b64url(sign(null, data, privateKey)) };
 	}
 
+	function signPolicy(
+		bundle: Record<string, unknown>,
+		keyId = "key_policy_1",
+	): Record<string, unknown> {
+		const key = keys.get(keyId);
+		if (key === undefined) throw new Error(`no key ${keyId}`);
+		const unsigned: Record<string, unknown> = {
+			...withoutField(bundle, "sig"),
+			keyId,
+		};
+		const data = Buffer.concat([
+			Buffer.from(
+				`maina-cloud/sig/v1\npolicy-bundle\n${String(unsigned.orgId)}\n`,
+				"utf-8",
+			),
+			Buffer.from(jcs(unsigned), "utf-8"),
+		]);
+		return { ...unsigned, sig: b64url(sign(null, data, key)) };
+	}
+
+	function policyBundle(
+		version: number,
+		body: Record<string, unknown>,
+		opts: Parameters<FakeCloud["policyBundle"]>[2] = {},
+	): Record<string, unknown> {
+		const budgetDirectives = opts.budgetDirectives ?? [];
+		const content = { policy: body, budgetDirectives, exceptions: [] };
+		const etag = `sha256:${createHash("sha256").update(jcs(content)).digest("hex")}`;
+		const bundle = {
+			v: 1,
+			orgId: opts.orgId ?? orgId,
+			scope: { kind: "org", id: opts.orgId ?? orgId },
+			version,
+			etag,
+			...content,
+			issuedAt: "2026-09-28T08:00:00.000Z",
+			notBefore: opts.notBefore ?? "2026-09-28T08:00:00.000Z",
+		};
+		if (opts.signed === false) {
+			// The dark signer (cloud adr/0012 §6): keyId "unsigned", all-zero sig.
+			return { ...bundle, keyId: "unsigned", sig: "A".repeat(86) };
+		}
+		return signPolicy(bundle, opts.keyId);
+	}
+
 	return {
 		baseUrl,
 		orgId,
 		controlKeyId,
+		policyBundle,
+		signPolicy,
 		requests,
 		state,
 		handle,

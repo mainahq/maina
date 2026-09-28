@@ -1,5 +1,6 @@
 /**
- * Policy loading: validate every layer, then merge defaults < user < repo.
+ * Policy loading: validate every layer, then merge
+ * defaults < managed < user < repo.
  *
  * Merge rules (FR-GATE-9):
  * - Scalars and nested objects merge key by key; the later layer wins.
@@ -15,6 +16,14 @@
  * - Telemetry opt-ins can only be turned on by the user layer.
  * - Run contexts: deny lists accumulate like rules; budgets merge key by
  *   key, but a repo layer can only lower one.
+ * - The managed layer (the org's bundle on an enrolled machine, #592) is a
+ *   floor: for every action class and run budget it sets, a user or repo
+ *   layer may tighten but never loosen. A loosening there is not an error
+ *   (the gate must keep answering): the managed value wins and the attempt
+ *   is recorded in `Policy.managed.overridden` for `maina doctor`. An
+ *   unsigned managed layer (the cloud's signer is dark) only tightens: its
+ *   `explicitly_allow` is dropped and it cannot raise a run budget. Without
+ *   a managed layer the policy is exactly the v1 one.
  */
 
 import { join } from "node:path";
@@ -22,10 +31,12 @@ import { defined, readJsonFile } from "../config/schema";
 import type { Result } from "../db/index";
 import type { CorePorts } from "../ports/index";
 import { DEFAULT_POLICY } from "./defaults";
+import type { ManagedLayer } from "./managed";
 import {
 	type ActionClassPolicy,
 	type DecisionPolicy,
 	type DecisionType,
+	type FloorOverride,
 	isLockedClass,
 	type Loosening,
 	type Policy,
@@ -46,6 +57,11 @@ type Layer = Readonly<{
 	source: PolicySource;
 	file: string | undefined;
 	value: PolicyLayer;
+	/**
+	 * An unsigned managed layer: like a repo layer, it cannot raise a run
+	 * budget (and it carries no `explicitly_allow`).
+	 */
+	unsigned?: boolean;
 }>;
 
 type Merged = Readonly<{ policy: Policy; errors: readonly PolicyError[] }>;
@@ -167,13 +183,15 @@ function mergeBudgets(
 		const value = added?.[key];
 		if (value === undefined) continue;
 		const limit = base[key];
-		if (layer.source === "repo" && limit !== undefined && value > limit) {
+		const lowerOnly = layer.source === "repo" || layer.unsigned === true;
+		if (lowerOnly && limit !== undefined && value > limit) {
+			const who = layer.unsigned === true ? "An unsigned managed" : "A repo";
 			errors.push({
 				kind: "invalid",
 				source: layer.source,
 				file: layer.file,
 				path: `run.${context}.budgets.${key}`,
-				message: `A repo policy can only lower a run budget: ${value} is above ${limit}`,
+				message: `${who} policy can only lower a run budget: ${value} is above ${limit}`,
 			});
 			continue;
 		}
@@ -273,6 +291,162 @@ function mergeLayer(acc: Merged, layer: Layer): Merged {
 	};
 }
 
+// ── The managed floor (#592) ───────────────────────────────────────────────
+
+/**
+ * The managed layer as merged (an unsigned one without `explicitly_allow`)
+ * and the policy right after it. Every later layer is held to `policy`'s
+ * value for each action class and run budget `layer` names.
+ */
+type Floor = Readonly<{
+	layer: PolicyLayer;
+	policy: Policy;
+	errors: readonly PolicyError[];
+}>;
+
+type Clamped = Readonly<{
+	policy: Policy;
+	overridden: readonly FloorOverride[];
+}>;
+
+function managedFloor(
+	value: PolicyLayer,
+	unsigned: boolean,
+	info: Policy["managed"],
+): Floor {
+	const { explicitly_allow: _dropped, ...tightenOnly } = value;
+	const layer: Layer = {
+		source: "managed",
+		file: undefined,
+		value: unsigned ? tightenOnly : value,
+		unsigned,
+	};
+	const merged = mergeLayer({ policy: DEFAULT_POLICY, errors: [] }, layer);
+	return {
+		layer: layer.value,
+		errors: merged.errors,
+		policy:
+			info === undefined ? merged.policy : { ...merged.policy, managed: info },
+	};
+}
+
+/**
+ * The errors a managed layer has on its own: a signed one is held to the
+ * rules of any layer; an unsigned one also loosens no irreversible class
+ * (its `explicitly_allow` is dropped) and raises no run budget.
+ */
+export function managedLayerErrors(
+	value: PolicyLayer,
+	unsigned: boolean,
+): readonly PolicyError[] {
+	return managedFloor(value, unsigned, undefined).errors;
+}
+
+function clampClasses(policy: Policy, floor: Floor, layer: Layer): Clamped {
+	const overridden: FloorOverride[] = [];
+	const classes: Record<string, ActionClassPolicy> = {
+		...policy.action_classes,
+	};
+	const clamped = new Set<string>();
+	const note = (
+		id: string,
+		field: string,
+		managed: FloorOverride["managed"],
+		attempted: FloorOverride["attempted"],
+	) =>
+		overridden.push({
+			source: layer.source,
+			file: layer.file,
+			path: `action_classes.${id}.${field}`,
+			managed,
+			attempted,
+		});
+	for (const id of Object.keys(floor.layer.action_classes ?? {})) {
+		const min = floor.policy.action_classes[id];
+		const now = classes[id];
+		if (min === undefined || now === undefined) continue;
+		let next = now;
+		if (strictness(now.verdict) < strictness(min.verdict)) {
+			note(id, "verdict", min.verdict, now.verdict);
+			next = { ...next, verdict: min.verdict };
+		}
+		if (min.irreversible && !now.irreversible) {
+			note(id, "irreversible", true, false);
+			next = { ...next, irreversible: true };
+		}
+		if (next !== now) {
+			classes[id] = next;
+			clamped.add(id);
+		}
+	}
+	return {
+		policy: {
+			...policy,
+			action_classes: classes,
+			// A loosening the floor undid did not happen.
+			loosened: policy.loosened.filter(
+				(l) => !(l.source === layer.source && clamped.has(l.actionClass)),
+			),
+		},
+		overridden,
+	};
+}
+
+function clampBudgets(policy: Policy, floor: Floor, layer: Layer): Clamped {
+	const overridden: FloorOverride[] = [];
+	const run = Object.fromEntries(
+		RUN_CONTEXTS.map((context) => {
+			const set = floor.layer.run?.[context]?.budgets ?? {};
+			const budgets: Partial<Record<RunBudgetKey, number>> = {
+				...policy.run[context].budgets,
+			};
+			for (const key of RUN_BUDGET_KEYS) {
+				const max = floor.policy.run[context].budgets[key];
+				const now = budgets[key];
+				if (set[key] === undefined || max === undefined) continue;
+				if (now !== undefined && now > max) {
+					overridden.push({
+						source: layer.source,
+						file: layer.file,
+						path: `run.${context}.budgets.${key}`,
+						managed: max,
+						attempted: now,
+					});
+				}
+				if (now === undefined || now > max) budgets[key] = max;
+			}
+			return [context, { ...policy.run[context], budgets }];
+		}),
+	) as Policy["run"];
+	return { policy: { ...policy, run }, overridden };
+}
+
+/** Merges a layer, then holds it to the managed floor when there is one. */
+function mergeAboveFloor(floor: Floor | undefined) {
+	return (acc: Merged, layer: Layer): Merged => {
+		const merged = mergeLayer(acc, layer);
+		if (floor === undefined) return merged;
+		const classes = clampClasses(merged.policy, floor, layer);
+		const budgets = clampBudgets(classes.policy, floor, layer);
+		const info = budgets.policy.managed;
+		if (info === undefined) return { ...merged, policy: budgets.policy };
+		return {
+			errors: merged.errors,
+			policy: {
+				...budgets.policy,
+				managed: {
+					...info,
+					overridden: [
+						...info.overridden,
+						...classes.overridden,
+						...budgets.overridden,
+					],
+				},
+			},
+		};
+	};
+}
+
 async function readRepoLayer(
 	ports: Pick<CorePorts, "fs">,
 	file: string,
@@ -332,14 +506,17 @@ export async function readUserPolicy(
 
 /**
  * Loads the effective policy for `root`: the built-in defaults, then the
- * caller-supplied user default (already read by the runtime; `undefined`
- * when there is none), then `<root>/.maina/policy.json`. Returns every
- * validation and loosening error from every layer at once.
+ * managed layer (the org's verified bundle on an enrolled machine, read by
+ * the runtime; `undefined` otherwise), then the caller-supplied user default
+ * (already read by the runtime; `undefined` when there is none), then
+ * `<root>/.maina/policy.json`. Returns every validation and loosening error
+ * from every layer at once.
  */
 export async function loadPolicy(
 	ports: Pick<CorePorts, "fs">,
 	root: string,
 	userDefault: unknown,
+	managed?: ManagedLayer,
 ): Promise<Result<Policy, readonly PolicyError[]>> {
 	const user =
 		userDefault === undefined
@@ -358,9 +535,21 @@ export async function loadPolicy(
 		...(repo.ok && repo.value ? [repo.value] : []),
 	];
 
-	const merged = layers.reduce(mergeLayer, {
-		policy: DEFAULT_POLICY,
-		errors: invalid,
+	const floor =
+		managed === undefined
+			? undefined
+			: managedFloor(managed.value, managed.signature === "unsigned", {
+					version: managed.version,
+					etag: managed.etag,
+					signature: managed.signature,
+					keyId: managed.keyId,
+					issuedAt: managed.issuedAt,
+					budgetDirectives: managed.budgetDirectives,
+					overridden: [],
+				});
+	const merged = layers.reduce(mergeAboveFloor(floor), {
+		policy: floor?.policy ?? DEFAULT_POLICY,
+		errors: [...invalid, ...(floor?.errors ?? [])],
 	});
 	return merged.errors.length > 0
 		? { ok: false, error: merged.errors }

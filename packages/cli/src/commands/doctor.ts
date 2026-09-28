@@ -6,14 +6,16 @@ import {
 	realpathSync,
 	rmSync,
 } from "node:fs";
-import { platform, tmpdir } from "node:os";
+import { homedir, platform, tmpdir } from "node:os";
 import { join } from "node:path";
 import { confirm, intro, log, outro, spinner } from "@clack/prompts";
 import type {
 	CacheStats,
 	ConfigError,
 	DetectedTool,
+	FloorOverride,
 	FsPort,
+	ManagedBudgetDirective,
 } from "@mainahq/core";
 import {
 	createCacheManager,
@@ -24,9 +26,16 @@ import {
 	loadConfigModule,
 	loadPolicy,
 	openFeedbackStore,
+	readUserPolicy,
 	systemProcess,
 	VERSION,
 } from "@mainahq/core";
+import { nodeLinkCrypto } from "@mainahq/runtime/src/link/keys";
+import {
+	managedPolicyStatus,
+	readManagedLayer,
+} from "@mainahq/runtime/src/link/policy-sync";
+import { fileLinkStore, linkDir } from "@mainahq/runtime/src/link/store";
 import { Command } from "commander";
 import { formatConfigWarnings } from "../config-warnings";
 import { processEnv } from "../env";
@@ -47,6 +56,7 @@ import { readEntry } from "../hosts/merge";
 import { type Probe, probeMcp } from "../hosts/probe";
 import { type TargetFile, targetsFor } from "../hosts/targets";
 import { EXIT_FINDINGS, EXIT_PASSED, outputJson } from "../json";
+import { describeManagedPolicy } from "./cloud";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -125,6 +135,8 @@ interface DoctorActionResult {
 	hostHealth: HostHealth;
 	/** Fields dropped from `maina.config.{ts,js}`, each with its path (#393). */
 	configErrors: readonly ConfigError[];
+	/** The org's managed policy on an enrolled machine (#592). */
+	managedPolicy: ManagedPolicyReport;
 }
 
 // ── Formatting Helpers ───────────────────────────────────────────────────────
@@ -535,6 +547,143 @@ function formatHostHealth(health: HostHealth): string {
 	return lines.join("\n");
 }
 
+// ── Managed policy (#592) ──────────────────────────────────────────────────
+
+/** The managed policy this machine holds, and what it overrides. */
+type ManagedPolicyReport = Readonly<{
+	status: "not_enrolled" | "none" | "signed" | "unsigned" | "unreadable";
+	version: number | null;
+	keyId: string | null;
+	/** One line: version and signature state. */
+	summary: string;
+	warnings: readonly string[];
+	/** User or repo settings that tried to loosen a managed rule. */
+	overridden: readonly FloorOverride[];
+}>;
+
+const usd = (micro: number): string => `$${(micro / 1_000_000).toFixed(2)}`;
+
+function directiveWarning(d: ManagedBudgetDirective): string {
+	const effect =
+		d.action === "stop"
+			? "maina run refuses to start runs"
+			: `runs degrade to ${d.degradeTo ?? "a cheaper tier"} (not applied by this runtime yet)`;
+	return `org budget ${d.id} was reached (${d.scopeKind} ${d.scopeId}, ${usd(d.limitMicroUsd)} per ${d.period}), action ${d.action}: ${effect}`;
+}
+
+/**
+ * The managed policy under `linkDir`: its version and signature state, the
+ * last bundle the device refused, the budget directives in force, and every
+ * user or repo setting that tries to loosen a managed rule (the managed rule
+ * wins). Read-only; never touches the network.
+ */
+export async function checkManagedPolicy(
+	input: Readonly<{
+		root: string;
+		home: string;
+		linkDir: string;
+		clock?: () => Date;
+	}>,
+): Promise<ManagedPolicyReport> {
+	const ports = {
+		store: fileLinkStore(input.linkDir),
+		crypto: nodeLinkCrypto,
+		clock: input.clock ?? (() => new Date()),
+	};
+	const status = managedPolicyStatus(ports);
+	const summary = describeManagedPolicy(status);
+	const base = { summary, overridden: [] as readonly FloorOverride[] };
+	switch (status.kind) {
+		case "not_enrolled":
+			return {
+				...base,
+				status: "not_enrolled",
+				version: null,
+				keyId: null,
+				warnings: [],
+			};
+		case "unreadable":
+			return {
+				...base,
+				status: "unreadable",
+				version: null,
+				keyId: null,
+				warnings: [summary],
+			};
+		case "none":
+			return {
+				...base,
+				status: "none",
+				version: null,
+				keyId: null,
+				warnings: status.lastRefusal === null ? [] : [summary],
+			};
+		case "held":
+			break;
+		default: {
+			const unreachable: never = status;
+			return unreachable;
+		}
+	}
+	const warnings: string[] = [];
+	if (status.signature === "unsigned") {
+		warnings.push(
+			`UNSIGNED managed policy v${status.version}: the cloud's signer is dark, so no org key signed it; it is applied only to tighten`,
+		);
+	}
+	if (status.lastRefusal !== null) {
+		const r = status.lastRefusal;
+		warnings.push(
+			`the last bundle from the cloud${r.version === undefined ? "" : ` (v${r.version})`} was refused (${r.kind}); v${status.version} stays in force`,
+		);
+	}
+	warnings.push(...status.budgetDirectives.map(directiveWarning));
+
+	const managed = readManagedLayer(ports);
+	const user = await readUserPolicy({ fs: readOnlyFs }, input.home);
+	const policy =
+		managed.ok && user.ok
+			? await loadPolicy(
+					{ fs: readOnlyFs },
+					input.root,
+					user.value,
+					managed.value,
+				)
+			: undefined;
+	if (policy !== undefined && !policy.ok) {
+		warnings.push(
+			...policy.error.map(
+				(e) => `${e.source} policy${e.path ? ` ${e.path}` : ""}: ${e.message}`,
+			),
+		);
+	}
+	if (!user.ok) {
+		warnings.push(...user.error.map((e) => `user policy: ${e.message}`));
+	}
+	const overridden = policy?.ok ? (policy.value.managed?.overridden ?? []) : [];
+	warnings.push(
+		...overridden.map(
+			(o) =>
+				`${o.source} policy ${o.path}: ${String(o.attempted)} loosens the managed ${String(o.managed)}; the managed rule wins`,
+		),
+	);
+	return {
+		summary,
+		status: status.signature,
+		version: status.version,
+		keyId: status.keyId,
+		warnings,
+		overridden,
+	};
+}
+
+function formatManagedPolicy(report: ManagedPolicyReport): string {
+	return [
+		`  managed policy  ${report.summary}`,
+		...report.warnings.map((w) => `  ! ${w}`),
+	].join("\n");
+}
+
 // ── Wiki Health Check ──────────────────────────────────────────────────────
 
 function countMdFiles(dir: string): number {
@@ -768,6 +917,20 @@ export async function doctorAction(
 		}
 	}
 
+	// ── Step 8c: managed policy (#592) ──────────────────────────────────
+	const home = options.home ?? homedir();
+	const managedPolicy = await checkManagedPolicy({
+		root: (await getRepoRoot(cwd)) || cwd,
+		home,
+		linkDir: linkDir(processEnv, home),
+	});
+	if (!jsonMode) {
+		log.step("Managed Policy:");
+		const text = formatManagedPolicy(managedPolicy);
+		if (managedPolicy.warnings.length > 0) log.warning(text);
+		else log.message(text);
+	}
+
 	// ── Step 9: --fix flow (optional) ────────────────────────────────
 	let finalMcpHealth = mcpHealth;
 	let finalHostHealth = hostHealth;
@@ -809,6 +972,7 @@ export async function doctorAction(
 		mcpHealth: finalMcpHealth,
 		hostHealth: finalHostHealth,
 		configErrors,
+		managedPolicy,
 	};
 }
 

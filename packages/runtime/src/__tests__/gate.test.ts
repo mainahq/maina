@@ -39,6 +39,7 @@ import {
 	migrateDecisionLog,
 	migrateGateSubjects,
 	type Policy,
+	parseManagedLayer,
 	queryDecisions,
 	recordOverride,
 	scopedAllowRules,
@@ -1001,6 +1002,65 @@ describe("systemGates", () => {
 		expect((await gates.runtime(shell("git status", repo))).verdict).toBe(
 			"deny",
 		);
+	});
+
+	// #592: the cloud's managed layer reaches the gate; a machine that was
+	// never enrolled evaluates exactly as before, and a managed layer that
+	// cannot be read makes the event ask instead of dropping the floor.
+	describe("the managed policy layer", () => {
+		let home = "";
+		beforeAll(() => {
+			home = mkdtempSync(join(tmpdir(), "maina-gate-home-"));
+		});
+		afterAll(() => rmSync(home, { recursive: true, force: true }));
+
+		test("a machine that was never enrolled has no managed layer", async () => {
+			const gates = systemGates({ home });
+			expect((await gates.runtime(shell("ls -la", repo))).verdict).toBe(
+				"allow",
+			);
+		});
+
+		test("the managed layer applies to every event", async () => {
+			const layer = parseManagedLayer({
+				policy: { version: 1, rules: { deny: [{ match: "ls -la" }] } },
+				version: 2,
+				etag: `sha256:${"d".repeat(64)}`,
+				signature: "signed",
+				keyId: "key_policy_1",
+				issuedAt: "2026-09-28T08:00:00.000Z",
+				budgetDirectives: [],
+			});
+			if (!layer.ok) throw new Error(JSON.stringify(layer.error));
+			const managed = layer.value;
+			const gates = systemGates({
+				home,
+				managed: () => ({ ok: true, value: managed }),
+			});
+			expect((await gates.runtime(shell("ls -la", repo))).verdict).toBe("deny");
+			expect((await gates.fallback(shell("ls -la", repo))).verdict).toBe(
+				"deny",
+			);
+		});
+
+		test("an unreadable managed layer makes the event ask", async () => {
+			const gates = systemGates({
+				home,
+				managed: () => ({
+					ok: false,
+					error: [
+						{
+							kind: "invalid",
+							source: "managed",
+							file: undefined,
+							path: "",
+							message: "the held bundle does not verify",
+						},
+					],
+				}),
+			});
+			expect((await gates.runtime(shell("ls -la", repo))).verdict).toBe("ask");
+		});
 	});
 
 	// #459: the repo's protected branches and its checked-out branch reach

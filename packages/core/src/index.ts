@@ -807,7 +807,17 @@ export {
 } from "./policy/defaults";
 export { loadPolicy, readUserPolicy, userPolicyFile } from "./policy/load";
 export {
+	activeBudgetDirectives,
+	type ManagedLayer,
+	type ManagedLayerInput,
+	parseManagedLayer,
+} from "./policy/managed";
+export {
 	type ActionClassPolicy,
+	type FloorOverride,
+	type ManagedBudgetDirective,
+	type ManagedPolicyInfo,
+	type ManagedSignature,
 	type Policy,
 	type PolicyError,
 	type PolicyLayer,

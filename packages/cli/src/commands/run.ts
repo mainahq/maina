@@ -56,6 +56,9 @@ import {
 	type Worktree,
 } from "@mainahq/harness/src/sessions/worktree";
 import { resolveWorker } from "@mainahq/harness/src/workers/registry";
+import { nodeLinkCrypto } from "@mainahq/runtime/src/link/keys";
+import { readManagedLayer } from "@mainahq/runtime/src/link/policy-sync";
+import { fileLinkStore, linkDir } from "@mainahq/runtime/src/link/store";
 import { Command } from "commander";
 import { processEnv } from "../env";
 import { nodeFs } from "../ports";
@@ -93,7 +96,7 @@ export type PreparedRun = Readonly<{
 type Failure = Readonly<{ message: string; hint?: string }>;
 
 type RunError = Readonly<{
-	kind: "root" | "policy" | "prepare" | "io";
+	kind: "root" | "policy" | "budget" | "prepare" | "io";
 	message: string;
 	hint?: string;
 }>;
@@ -128,6 +131,26 @@ const describePolicyErrors = (errors: readonly PolicyError[]): string =>
 		)
 		.join("\n");
 
+const usd = (micro: number): string => `$${(micro / 1_000_000).toFixed(2)}`;
+
+/**
+ * A `stop` budget directive from the org's managed policy (#592, cloud Task
+ * 9.2): an org or team budget for the period was reached, so no run starts.
+ * The directives on the policy are the ones still in force. `degrade`
+ * directives do not stop a run; `maina doctor` reports them.
+ */
+function stoppedByBudget(policy: Policy): RunError | undefined {
+	const stop = policy.managed?.budgetDirectives.find(
+		(d) => d.action === "stop",
+	);
+	if (stop === undefined) return undefined;
+	return {
+		kind: "budget",
+		message: `the org policy stops runs: budget ${stop.id} (${stop.scopeKind} ${stop.scopeId}, ${usd(stop.limitMicroUsd)} per ${stop.period}) was reached`,
+		hint: `it lifts when the budget resets at the start of the next ${stop.period}, or when an admin raises it`,
+	};
+}
+
 export async function runAction(
 	options: RunActionOptions,
 	deps: RunActionDeps,
@@ -141,6 +164,8 @@ export async function runAction(
 			error: { kind: "policy", message: describePolicyErrors(policy.error) },
 		};
 	}
+	const stopped = stoppedByBudget(policy.value);
+	if (stopped !== undefined) return { ok: false, error: stopped };
 
 	const context = resolveRunContext({
 		requested: options.context,
@@ -425,13 +450,23 @@ async function prepareRun(
 	};
 }
 
-/** The repo's policy, layered over the user's. */
+/**
+ * The repo's policy, layered over the user's, over the org's managed policy
+ * on an enrolled machine (#592).
+ */
 export async function loadRunPolicy(
 	root: string,
 ): Promise<Result<Policy, readonly PolicyError[]>> {
-	const user = await readUserPolicy({ fs: nodeFs }, homedir());
+	const home = homedir();
+	const managed = readManagedLayer({
+		store: fileLinkStore(linkDir(processEnv, home)),
+		crypto: nodeLinkCrypto,
+		clock: () => new Date(),
+	});
+	if (!managed.ok) return managed;
+	const user = await readUserPolicy({ fs: nodeFs }, home);
 	if (!user.ok) return user;
-	return loadPolicy({ fs: nodeFs }, root, user.value);
+	return loadPolicy({ fs: nodeFs }, root, user.value, managed.value);
 }
 
 /** Built when the command runs: reading `process.stdin` has side effects. */
