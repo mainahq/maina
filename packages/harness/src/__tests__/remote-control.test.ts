@@ -375,6 +375,8 @@ describe("remote revision grant", () => {
 		expect(receipt.report).toContain("stopped with report");
 		expect(receipt.report).toContain("lint");
 		expect(c.events.at(-1)).toMatchObject({ outcome: "stopped" });
+		// A stopped run takes no grant.
+		expect(c.handle.grantRevision("grant_late")).toBe(false);
 	});
 
 	test("with no answer from the board in time, the local rule gives the revision", async () => {

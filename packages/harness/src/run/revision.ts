@@ -518,7 +518,10 @@ export function createRunControl(input: RunControlInput): Readonly<{
 			wake?.({ kind: "stop" });
 		},
 		grantRevision: (grantId) => {
-			if (grant !== undefined || answered) return false;
+			// A stopped run, or one that had its revision, takes no grant.
+			if (grant !== undefined || answered || controller.signal.aborted) {
+				return false;
+			}
 			grant = grantId;
 			wake?.({ kind: "grant", grantId });
 			return true;
