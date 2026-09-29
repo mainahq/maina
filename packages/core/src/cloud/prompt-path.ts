@@ -36,7 +36,8 @@ export function promptFileName(path: unknown): Result<string, string> {
 	) {
 		return {
 			ok: false,
-			error: `unsafe prompt path ${JSON.stringify(typeof path === "string" ? path : String(path))}`,
+			// Never stringify a non-string: `String()` throws on a null-prototype object.
+			error: `unsafe prompt path ${typeof path === "string" ? JSON.stringify(path) : `(${typeof path})`}`,
 		};
 	}
 	return { ok: true, value: path };

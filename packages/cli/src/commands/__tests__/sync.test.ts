@@ -265,4 +265,18 @@ describe("syncPullAction", () => {
 		expect(result.reason).toContain("outside");
 		expect(readdirSync(outside)).toEqual([]);
 	});
+
+	test("creates nothing through a .maina symlinked outside the repo", async () => {
+		const root = makeTempRoot();
+		const outside = makeTempRoot();
+		tempRoots.push(root, outside);
+		symlinkSync(outside, join(root, ".maina"));
+		mockPrompts = [{ id: "review", path: "review.md", content: "pwned" }];
+
+		const result = await syncPullAction(root);
+
+		expect(result.synced).toBe(false);
+		expect(result.reason).toContain("outside");
+		expect(readdirSync(outside)).toEqual([]);
+	});
 });

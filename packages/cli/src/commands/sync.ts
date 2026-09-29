@@ -18,7 +18,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
-import type { PromptRecord } from "@mainahq/core";
+import type { PromptRecord, Result } from "@mainahq/core";
 import {
 	createCloudClient,
 	isPathWithin,
@@ -78,6 +78,45 @@ function writePromptFile(
 	} finally {
 		if (fd !== undefined) closeSync(fd);
 	}
+}
+
+/**
+ * Creates each directory in turn (parent first) and checks it resolves
+ * strictly inside `root`, so nothing is created through a symlink that
+ * points out of the repository. Returns the last directory's real path.
+ */
+function ensureDirsInside(
+	root: string,
+	dirs: readonly string[],
+): Result<string, string> {
+	let realRoot: string;
+	try {
+		realRoot = realpathSync(root);
+	} catch (e) {
+		return {
+			ok: false,
+			error: `Could not resolve ${root}: ${errorMessage(e)}`,
+		};
+	}
+	let real = realRoot;
+	for (const dir of dirs) {
+		try {
+			mkdirSync(dir, { recursive: true });
+			real = realpathSync(dir);
+		} catch (e) {
+			return {
+				ok: false,
+				error: `Could not create ${dir}: ${errorMessage(e)}`,
+			};
+		}
+		if (!isPathWithin(realRoot, real)) {
+			return {
+				ok: false,
+				error: `${dir} resolves outside the repository (${real}); refusing to write prompts there.`,
+			};
+		}
+	}
+	return { ok: true, value: real };
 }
 
 function hashContent(content: string): string {
@@ -181,35 +220,14 @@ export async function syncPullAction(cwd?: string): Promise<SyncActionResult> {
 		};
 	}
 
-	try {
-		mkdirSync(promptsDir, { recursive: true });
-	} catch (e) {
-		return {
-			synced: false,
-			count: 0,
-			reason: `Could not create ${promptsDir}: ${errorMessage(e)}`,
-		};
+	// A symlinked `.maina` or `.maina/prompts` (e.g. checked into a hostile
+	// repo) would send every write elsewhere: each level must resolve inside
+	// the repo before anything is created in it or written to it (#662).
+	const dirs = ensureDirsInside(root, [join(root, ".maina"), promptsDir]);
+	if (!dirs.ok) {
+		return { synced: false, count: 0, reason: dirs.error };
 	}
-
-	// A symlinked `.maina/prompts` (e.g. checked into a hostile repo) would
-	// send every write elsewhere; the directory must resolve inside the repo.
-	let realPromptsDir: string;
-	try {
-		realPromptsDir = realpathSync(promptsDir);
-		if (!isPathWithin(realpathSync(root), realPromptsDir)) {
-			return {
-				synced: false,
-				count: 0,
-				reason: `${promptsDir} resolves outside the repository (${realPromptsDir}); refusing to write prompts there.`,
-			};
-		}
-	} catch (e) {
-		return {
-			synced: false,
-			count: 0,
-			reason: `Could not resolve ${promptsDir}: ${errorMessage(e)}`,
-		};
-	}
+	const realPromptsDir = dirs.value;
 
 	let written = 0;
 	const skipped: string[] = [];

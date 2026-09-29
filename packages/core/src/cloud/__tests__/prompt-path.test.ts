@@ -56,6 +56,7 @@ describe("promptFileName", () => {
 		[42],
 		[["review.md"]],
 		[{ toString: () => "review.md" }],
+		[Object.create(null)],
 	])("rejects the non-string %p", (path) => {
 		expect(promptFileName(path).ok).toBe(false);
 	});
