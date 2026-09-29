@@ -52,7 +52,17 @@ export type OutcomeSharePayload = Readonly<{
 export type OutcomeShareError =
 	| Readonly<{ kind: "mismatch"; message: string }>
 	| Readonly<{ kind: "invalid_payload"; field: string; message: string }>
-	| Readonly<{ kind: "network"; error: NetworkError }>;
+	/**
+	 * A request failed and the share stopped there. `sent` counts the
+	 * outcomes the earlier requests delivered; none after it were sent.
+	 * `payload_too_large` is a 413 (over the item or byte cap) and
+	 * `rate_limited` a 429.
+	 */
+	| Readonly<{
+			kind: "network" | "payload_too_large" | "rate_limited";
+			error: NetworkError;
+			sent: number;
+	  }>;
 
 export type ShareResult = Readonly<
 	{ sent: 0; skipped: "not_opted_in" } | { sent: number }
@@ -231,6 +241,68 @@ export function buildOutcomeSharePayload(
 
 const DEFAULT_TIMEOUT_MS = 2_000;
 
+/** The cloud's per-request caps on `POST /v1/outcomes` (maina-cloud#219). */
+export const OUTCOME_SHARE_MAX_PER_REQUEST = 100;
+export const OUTCOME_SHARE_MAX_BYTES = 65_536;
+
+export type OutcomeShareCaps = Readonly<{ maxItems: number; maxBytes: number }>;
+
+const encoder = new TextEncoder();
+const byteLength = (text: string): number => encoder.encode(text).length;
+/** `{"outcomes":[` + `]}`; each payload after the first adds one comma. */
+const ENVELOPE_BYTES = byteLength(JSON.stringify({ outcomes: [] }));
+
+/**
+ * Splits `payloads`, in order, into request bodies `{ outcomes: chunk }` of
+ * at most `maxItems` payloads and `maxBytes` UTF-8 bytes each. A payload too
+ * large to fit a request on its own is an error, since the server would
+ * refuse it whatever the batch.
+ */
+export function chunkOutcomePayloads(
+	payloads: readonly OutcomeSharePayload[],
+	caps: OutcomeShareCaps,
+): Result<OutcomeSharePayload[][], OutcomeShareError> {
+	const chunks: OutcomeSharePayload[][] = [];
+	let current: OutcomeSharePayload[] = [];
+	let bytes = ENVELOPE_BYTES;
+	for (const payload of payloads) {
+		const size = byteLength(JSON.stringify(payload));
+		if (ENVELOPE_BYTES + size > caps.maxBytes) {
+			return invalid(
+				"payload",
+				`one payload is ${size} bytes; a request holds at most ${caps.maxBytes}`,
+			);
+		}
+		// A payload after the first adds its comma separator.
+		if (
+			current.length > 0 &&
+			(current.length >= caps.maxItems || bytes + size + 1 > caps.maxBytes)
+		) {
+			chunks.push(current);
+			current = [];
+			bytes = ENVELOPE_BYTES;
+		}
+		bytes += current.length === 0 ? size : size + 1;
+		current.push(payload);
+	}
+	if (current.length > 0) chunks.push(current);
+	return { ok: true, value: chunks };
+}
+
+function sendError(
+	error: NetworkError,
+	sent: number,
+): Result<never, OutcomeShareError> {
+	const status = error.kind === "http" ? error.status : undefined;
+	const kind =
+		status === 413
+			? "payload_too_large"
+			: status === 429
+				? "rate_limited"
+				: "network";
+	return { ok: false, error: { kind, error, sent } };
+}
+
 /**
  * Shares `items` when, and only when, the effective config opts in to
  * `outcome_sharing`. Otherwise (including any consent read error) nothing
@@ -253,14 +325,27 @@ export async function shareOutcomes(
 		if (!payload.ok) return payload;
 		payloads.push(payload.value);
 	}
-	if (payloads.length === 0) return { ok: true, value: { sent: 0 } };
-	const posted = await ports.network.post({
-		url: `${options.baseUrl.replace(/\/+$/, "")}/v1/outcomes`,
-		body: JSON.stringify({ outcomes: payloads }),
-		headers: { "Content-Type": "application/json" },
-		timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+	const chunks = chunkOutcomePayloads(payloads, {
+		maxItems: OUTCOME_SHARE_MAX_PER_REQUEST,
+		maxBytes: OUTCOME_SHARE_MAX_BYTES,
 	});
-	return posted.ok
-		? { ok: true, value: { sent: payloads.length } }
-		: { ok: false, error: { kind: "network", error: posted.error } };
+	if (!chunks.ok) return chunks;
+	const url = `${options.baseUrl.replace(/\/+$/, "")}/v1/outcomes`;
+	let sent = 0;
+	// One request per chunk, in order; each counts against the server's
+	// per-IP daily request limit. The server stores each batch whole or not
+	// at all, so a failure stops here and `sent` counts only the accepted
+	// chunks: they are the first `sent` items, which a caller retrying later
+	// should drop to avoid duplicates. 413/429 are not retried.
+	for (const chunk of chunks.value) {
+		const posted = await ports.network.post({
+			url,
+			body: JSON.stringify({ outcomes: chunk }),
+			headers: { "Content-Type": "application/json" },
+			timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+		});
+		if (!posted.ok) return sendError(posted.error, sent);
+		sent += chunk.length;
+	}
+	return { ok: true, value: { sent } };
 }
