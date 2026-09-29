@@ -764,10 +764,16 @@ describe("parseGateArgs", () => {
 });
 
 describe("pickEvidenceRun", () => {
-	const run = (databaseId: number, status: string, conclusion: string) => ({
+	const run = (
+		databaseId: number,
+		status: string,
+		conclusion: string,
+		event = "workflow_dispatch",
+	) => ({
 		databaseId,
 		status,
 		conclusion,
+		event,
 		url: `https://github.com/mainahq/maina/actions/runs/${databaseId}`,
 	});
 
@@ -785,5 +791,30 @@ describe("pickEvidenceRun", () => {
 	test("no finished run is an error", () => {
 		expect(pickEvidenceRun([run(9, "queued", "")]).ok).toBe(false);
 		expect(pickEvidenceRun([]).ok).toBe(false);
+	});
+
+	// A pull_request run proves a collector change with one repetition (72
+	// e2e runs) on an unmerged head: never release evidence (#652).
+	test("a pull_request run is skipped for the newest nightly or dispatch", () => {
+		expect(
+			pickEvidenceRun([
+				run(9, "completed", "success", "pull_request"),
+				run(8, "completed", "success", "schedule"),
+				run(7, "completed", "success", "workflow_dispatch"),
+			]),
+		).toEqual({ ok: true, value: run(8, "completed", "success", "schedule") });
+		expect(
+			pickEvidenceRun([
+				run(9, "completed", "success", "pull_request"),
+				run(7, "completed", "success", "workflow_dispatch"),
+			]),
+		).toEqual({ ok: true, value: run(7, "completed", "success") });
+	});
+
+	test("only pull_request runs is an error", () => {
+		const picked = pickEvidenceRun([
+			run(9, "completed", "success", "pull_request"),
+		]);
+		expect(picked.ok).toBe(false);
 	});
 });
