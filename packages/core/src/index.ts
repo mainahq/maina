@@ -1032,7 +1032,11 @@ export {
 // Opt-in outcome sharing (FR-DEC-7)
 export {
 	buildOutcomeSharePayload,
+	chunkOutcomePayloads,
+	OUTCOME_SHARE_MAX_BYTES,
+	OUTCOME_SHARE_MAX_PER_REQUEST,
 	OUTCOME_SHARE_VERSION,
+	type OutcomeShareCaps,
 	type OutcomeShareError,
 	type OutcomeSharePayload,
 	type OutcomeSharePorts,
