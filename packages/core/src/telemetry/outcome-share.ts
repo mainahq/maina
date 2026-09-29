@@ -54,9 +54,11 @@ export type OutcomeShareError =
 	| Readonly<{ kind: "invalid_payload"; field: string; message: string }>
 	/**
 	 * A request failed and the share stopped there. `sent` counts the
-	 * outcomes the earlier requests delivered; none after it were sent.
-	 * `payload_too_large` is a 413 (over the item or byte cap) and
-	 * `rate_limited` a 429.
+	 * outcomes of the earlier requests the server acknowledged; none after
+	 * the failed one were sent. An HTTP error means the failed request
+	 * stored nothing; a timeout or transport error leaves it unknown, so
+	 * `sent` is then a lower bound. `payload_too_large` is a 413 (over the
+	 * item or byte cap) and `rate_limited` a 429.
 	 */
 	| Readonly<{
 			kind: "network" | "payload_too_large" | "rate_limited";
@@ -247,6 +249,9 @@ export const OUTCOME_SHARE_MAX_BYTES = 65_536;
 
 export type OutcomeShareCaps = Readonly<{ maxItems: number; maxBytes: number }>;
 
+const isPositiveInteger = (n: number): boolean =>
+	Number.isSafeInteger(n) && n > 0;
+
 const encoder = new TextEncoder();
 const byteLength = (text: string): number => encoder.encode(text).length;
 /** `{"outcomes":[` + `]}`; each payload after the first adds one comma. */
@@ -256,12 +261,16 @@ const ENVELOPE_BYTES = byteLength(JSON.stringify({ outcomes: [] }));
  * Splits `payloads`, in order, into request bodies `{ outcomes: chunk }` of
  * at most `maxItems` payloads and `maxBytes` UTF-8 bytes each. A payload too
  * large to fit a request on its own is an error, since the server would
- * refuse it whatever the batch.
+ * refuse it whatever the batch. So are caps that are not positive whole
+ * numbers, which would otherwise yield over-cap chunks.
  */
 export function chunkOutcomePayloads(
 	payloads: readonly OutcomeSharePayload[],
 	caps: OutcomeShareCaps,
 ): Result<OutcomeSharePayload[][], OutcomeShareError> {
+	if (!isPositiveInteger(caps.maxItems) || !isPositiveInteger(caps.maxBytes)) {
+		return invalid("caps", "maxItems and maxBytes must be positive integers");
+	}
 	const chunks: OutcomeSharePayload[][] = [];
 	let current: OutcomeSharePayload[] = [];
 	let bytes = ENVELOPE_BYTES;
@@ -334,9 +343,10 @@ export async function shareOutcomes(
 	let sent = 0;
 	// One request per chunk, in order; each counts against the server's
 	// per-IP daily request limit. The server stores each batch whole or not
-	// at all, so a failure stops here and `sent` counts only the accepted
+	// at all, so a failure stops here and `sent` counts only the acknowledged
 	// chunks: they are the first `sent` items, which a caller retrying later
-	// should drop to avoid duplicates. 413/429 are not retried.
+	// should drop to avoid duplicates. After a timeout or transport error the
+	// failed chunk may still have been stored. Nothing is retried here.
 	for (const chunk of chunks.value) {
 		const posted = await ports.network.post({
 			url,

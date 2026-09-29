@@ -17,6 +17,7 @@ import {
 	chunkOutcomePayloads,
 	OUTCOME_SHARE_MAX_BYTES,
 	OUTCOME_SHARE_MAX_PER_REQUEST,
+	type OutcomeShareCaps,
 	type OutcomeSharePayload,
 	shareOutcomes,
 	validateOutcomeSharePayload,
@@ -310,8 +311,11 @@ function pairs(
 	}));
 }
 
-/** Answers each POST with the next status in `statuses` (202 once they run out). */
-function scriptedNetwork(statuses: readonly number[] = []) {
+/**
+ * Answers each POST with the next entry in `statuses` (202 once they run
+ * out); `"timeout"` answers as the adapter does when the round trip overruns.
+ */
+function scriptedNetwork(statuses: readonly (number | "timeout")[] = []) {
 	const calls: NetworkRequest[] = [];
 	return {
 		post: async (
@@ -319,6 +323,9 @@ function scriptedNetwork(statuses: readonly number[] = []) {
 		): Promise<Result<{ status: number }, NetworkError>> => {
 			const status = statuses[calls.length] ?? 202;
 			calls.push(request);
+			if (status === "timeout") {
+				return { ok: false, error: { kind: "timeout", url: request.url } };
+			}
 			return status >= 200 && status < 300
 				? { ok: true, value: { status } }
 				: { ok: false, error: { kind: "http", url: request.url, status } };
@@ -327,7 +334,7 @@ function scriptedNetwork(statuses: readonly number[] = []) {
 	};
 }
 
-function optedInPorts(statuses: readonly number[] = []) {
+function optedInPorts(statuses: readonly (number | "timeout")[] = []) {
 	return {
 		fs: createMemoryFs({
 			[`${HOME}/.maina/policy.json`]: JSON.stringify({
@@ -379,6 +386,13 @@ describe("shareOutcomes — chunked to the server caps", () => {
 		const result = await shareOutcomes(ports, pairs(101), BASE);
 		expect(result).toEqual({ ok: true, value: { sent: 101 } });
 		expect(sizes(ports.network.calls())).toEqual([100, 1]);
+	});
+
+	test("an opted-in share of nothing posts nothing (the server refuses an empty batch)", async () => {
+		const ports = optedInPorts();
+		const result = await shareOutcomes(ports, [], BASE);
+		expect(result).toEqual({ ok: true, value: { sent: 0 } });
+		expect(ports.network.calls()).toEqual([]);
 	});
 
 	test("an invalid item anywhere sends nothing at all", async () => {
@@ -434,6 +448,20 @@ describe("shareOutcomes — chunked to the server caps", () => {
 		});
 		expect(ports.network.calls()).toHaveLength(3);
 	});
+
+	test("a timeout mid-share stops as a network error, counting only acknowledged posts", async () => {
+		const ports = optedInPorts([202, "timeout"]);
+		const result = await shareOutcomes(ports, pairs(250), BASE);
+		expect(result).toEqual({
+			ok: false,
+			error: {
+				kind: "network",
+				sent: 100,
+				error: { kind: "timeout", url: URL_ },
+			},
+		});
+		expect(ports.network.calls()).toHaveLength(2);
+	});
 });
 
 describe("chunkOutcomePayloads", () => {
@@ -472,6 +500,31 @@ describe("chunkOutcomePayloads", () => {
 				expect(bodyBytes([...chunk, next])).toBeGreaterThan(maxBytes);
 			}
 		});
+	});
+
+	test("caps that are not positive whole numbers are an error, even with no payloads", () => {
+		const bad: OutcomeShareCaps[] = [
+			{ maxItems: 0, maxBytes: 65_536 },
+			{ maxItems: -1, maxBytes: 65_536 },
+			{ maxItems: 1.5, maxBytes: 65_536 },
+			{ maxItems: Number.NaN, maxBytes: 65_536 },
+			{ maxItems: Number.POSITIVE_INFINITY, maxBytes: 65_536 },
+			{ maxItems: 100, maxBytes: 0 },
+			{ maxItems: 100, maxBytes: Number.NaN },
+			{ maxItems: 100, maxBytes: 100.5 },
+		];
+		for (const caps of bad) {
+			for (const input of [payloads, []]) {
+				const result = chunkOutcomePayloads(input, caps);
+				expect(result.ok).toBe(false);
+				if (!result.ok) {
+					expect(result.error).toMatchObject({
+						kind: "invalid_payload",
+						field: "caps",
+					});
+				}
+			}
+		}
 	});
 
 	test("a payload that alone exceeds the byte cap is an error", () => {
