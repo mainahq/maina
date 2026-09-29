@@ -279,4 +279,51 @@ describe("syncPullAction", () => {
 		expect(result.reason).toContain("outside");
 		expect(readdirSync(outside)).toEqual([]);
 	});
+	test("refuses a dangling .maina/prompts symlink and creates nothing at its target", async () => {
+		const root = makeTempRoot();
+		const outside = makeTempRoot();
+		tempRoots.push(root, outside);
+		mkdirSync(join(root, ".maina"), { recursive: true });
+		symlinkSync(join(outside, "planted"), join(root, ".maina", "prompts"));
+		mockPrompts = [{ id: "review", path: "review.md", content: "pwned" }];
+
+		const result = await syncPullAction(root);
+
+		expect(result.synced).toBe(false);
+		expect(readdirSync(outside)).toEqual([]);
+	});
+
+	// A hostile server's strings reach the terminal through the pull summary:
+	// no raw control character (an ANSI escape could rewrite the screen) may
+	// be echoed, whichever branch refuses the record.
+	test("never echoes control characters from an unsafe path with no content", async () => {
+		const root = makeTempRoot();
+		tempRoots.push(root);
+		mockPrompts = [{ id: "evil", path: "\u001b]0;pwned\u0007x.md" }];
+
+		const result = await syncPullAction(root);
+
+		expect(result.synced).toBe(false);
+		expect(result.reason).toContain(
+			'unsafe prompt path "\\u001b]0;pwned\\u0007x.md"',
+		);
+		// biome-ignore lint/suspicious/noControlCharactersInRegex: asserting their absence
+		expect(result.reason).not.toMatch(/[\u0000-\u001f\u007f]/);
+	});
+
+	test("never echoes control characters from the id of a record without a path", async () => {
+		const root = makeTempRoot();
+		tempRoots.push(root);
+		mockPrompts = [
+			{ id: "\u001b[2Jwiped", content: "x" },
+			{ id: Object.create(null) as unknown as string, content: "x" },
+		];
+
+		const result = await syncPullAction(root);
+
+		expect(result.synced).toBe(false);
+		expect(result.reason).toMatch(/All 2 prompt\(s\) skipped/);
+		// biome-ignore lint/suspicious/noControlCharactersInRegex: asserting their absence
+		expect(result.reason).not.toMatch(/[\u0000-\u001f\u007f]/);
+	});
 });

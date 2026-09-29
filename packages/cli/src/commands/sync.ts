@@ -18,7 +18,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
-import type { PromptRecord, Result } from "@mainahq/core";
+import type { PromptPathError, PromptRecord, Result } from "@mainahq/core";
 import {
 	createCloudClient,
 	isPathWithin,
@@ -44,6 +44,31 @@ const WRITE_NO_FOLLOW =
 	constants.O_CREAT |
 	constants.O_TRUNC |
 	(constants.O_NOFOLLOW ?? 0);
+
+/**
+ * A printable label for a record's untrusted `id`: JSON-escaped when it is
+ * a string (no raw control characters reach the terminal), else its type.
+ * Never `String()` it: that throws on a null-prototype object (#662).
+ */
+function recordLabel(id: unknown): string {
+	if (typeof id === "string") return JSON.stringify(id);
+	if (typeof id === "number") return String(id);
+	return id === undefined || id === null ? "?" : `(${typeof id})`;
+}
+
+/** The pull summary's line for a refused path; the path is JSON-escaped. */
+function describePromptPathError(error: PromptPathError): string {
+	switch (error.kind) {
+		case "not-a-string":
+			return `unsafe prompt path (${error.type})`;
+		case "unsafe-name":
+			return `unsafe prompt path ${JSON.stringify(error.path)}`;
+		default: {
+			const unreachable: never = error;
+			return unreachable;
+		}
+	}
+}
 
 function errorMessage(e: unknown): string {
 	return e instanceof Error ? e.message : String(e);
@@ -237,18 +262,20 @@ export async function syncPullAction(cwd?: string): Promise<SyncActionResult> {
 		// throw out of the loop and leave `@clack/prompts`' spinner monitor to
 		// print a generic "Something went wrong" (see #196).
 		if (typeof prompt?.path !== "string" || prompt.path.length === 0) {
-			skipped.push(`<unknown id=${String(prompt?.id ?? "?")}>`);
-			continue;
-		}
-		if (typeof prompt.content !== "string") {
-			skipped.push(prompt.path);
+			skipped.push(`<unknown id=${recordLabel(prompt?.id)}>`);
 			continue;
 		}
 
 		// The path is untrusted cloud input: only a flat `*.md` name (#662).
+		// Checked before anything echoes it, so the summary never carries a
+		// raw control character from the server.
 		const fileName = promptFileName(prompt.path);
 		if (!fileName.ok) {
-			skipped.push(fileName.error);
+			skipped.push(describePromptPathError(fileName.error));
+			continue;
+		}
+		if (typeof prompt.content !== "string") {
+			skipped.push(fileName.value);
 			continue;
 		}
 

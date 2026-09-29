@@ -45,9 +45,43 @@ describe("promptFileName", () => {
 		["empty", ""],
 		["whitespace padded", " review.md"],
 	])("rejects %s (%p)", (_label, path) => {
-		const result = promptFileName(path);
-		expect(result.ok).toBe(false);
-		if (!result.ok) expect(result.error).toContain("unsafe prompt path");
+		expect(promptFileName(path)).toEqual({
+			ok: false,
+			error: { kind: "unsafe-name", path },
+		});
+	});
+
+	// Windows opens a device, not a file, for these base names whatever the
+	// extension: `CON.md` is the console, `COM1.md` a serial port.
+	test.each([
+		"CON.md",
+		"con.md",
+		"PRN.md",
+		"aux.md",
+		"NUL.md",
+		"com1.md",
+		"COM9.md",
+		"lpt1.md",
+		"LPT9.md",
+		"com\u00b9.md",
+		"con.backup.md",
+		"nul .md",
+	])("rejects the Windows reserved device name %p", (path) => {
+		expect(promptFileName(path)).toEqual({
+			ok: false,
+			error: { kind: "unsafe-name", path },
+		});
+	});
+
+	test.each([
+		"console.md",
+		"context.md",
+		"auxiliary.md",
+		"com10.md",
+		"nullable.md",
+		"my-con.md",
+	])("accepts %p, which only starts like a device name", (path) => {
+		expect(promptFileName(path)).toEqual({ ok: true, value: path });
 	});
 
 	test.each<[unknown]>([
@@ -58,14 +92,17 @@ describe("promptFileName", () => {
 		[{ toString: () => "review.md" }],
 		[Object.create(null)],
 	])("rejects the non-string %p", (path) => {
-		expect(promptFileName(path).ok).toBe(false);
+		expect(promptFileName(path)).toEqual({
+			ok: false,
+			error: { kind: "not-a-string", type: typeof path },
+		});
 	});
 
-	test("error names the offending path, JSON-escaped", () => {
+	test("the error is typed data, not presentation text", () => {
 		const result = promptFileName("../x\u0000.md");
 		expect(result).toEqual({
 			ok: false,
-			error: 'unsafe prompt path "../x\\u0000.md"',
+			error: { kind: "unsafe-name", path: "../x\u0000.md" },
 		});
 	});
 });
