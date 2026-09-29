@@ -27,7 +27,13 @@ import {
 	dogfoodWeeksEvidence,
 	parseDogfoodReport,
 } from "../../release/evidence/dogfood-weeks";
-import { decisionLog, isoWeek, report } from "../report";
+import {
+	askOutcomes,
+	decisionLog,
+	isoWeek,
+	outcomesLine,
+	report,
+} from "../report";
 
 const SOURCE = DOGFOOD_REPORT.source;
 
@@ -145,6 +151,194 @@ describe("report", () => {
 			SOURCE,
 		);
 		expect(writes).toEqual([golden]);
+	});
+
+	// The outcome hook appends `ran` records to the same log.jsonl: they are not
+	// gate decisions, so the counts and the report stay as they were.
+	test("ran records in the hook log leave the golden report unchanged", () => {
+		const fixtures = join(
+			import.meta.dir,
+			"../../../packages/core/src/digest/__tests__/fixtures",
+		);
+		const text = readFileSync(join(fixtures, "gate-log.jsonl"), "utf-8");
+		const ran = JSON.stringify({
+			ts: "2026-09-23T10:00:00.000Z",
+			kind: "ran",
+			tool: "Bash",
+			toolUseId: "t1",
+			sessionId: "s1",
+			host: "claude-code",
+		});
+		const mixed = text
+			.split("\n")
+			.flatMap((l) => [l, ran])
+			.join("\n");
+		const render = (log: string): string[] => {
+			const writes: string[] = [];
+			report("2026-39", {
+				root: "/repo",
+				readEvents: () => ({
+					ok: true,
+					value: gateLogEvents(parseGateLog(log).records),
+				}),
+				writeFile: (_path, content) => {
+					writes.push(content);
+				},
+			});
+			return writes;
+		};
+		expect(render(mixed)).toEqual(render(text));
+		expect(parseGateLog(mixed).malformed).toBe(parseGateLog(text).malformed);
+	});
+});
+
+// FR-S1-4, FR-DOG-3: an ask's outcome, from the hook log. A `ran` record
+// with the ask's tool use id (in the same session) means the user approved
+// it; none means they refused or abandoned it.
+describe("ask outcomes", () => {
+	const WEEK = "2026-39";
+	const line = (o: Record<string, unknown>): string => JSON.stringify(o);
+	const ask = (
+		id: string | undefined,
+		session = "s1",
+		ts = "2026-09-23T10:00:00.000Z",
+	) =>
+		line({
+			ts,
+			tool: "Bash",
+			action: "rm -rf dist",
+			verdict: "ask",
+			reason: "irreversible",
+			...(id === undefined ? {} : { toolUseId: id, sessionId: session }),
+		});
+	const ran = (id: string, session = "s1", ts = "2026-09-23T10:00:05.000Z") =>
+		line({
+			ts,
+			kind: "ran",
+			tool: "Bash",
+			toolUseId: id,
+			sessionId: session,
+			host: "claude-code",
+		});
+	const allow = (id: string) =>
+		line({
+			ts: "2026-09-23T10:00:00.000Z",
+			tool: "Bash",
+			action: "ls",
+			verdict: "allow",
+			reason: "ok",
+			toolUseId: id,
+			sessionId: "s1",
+		});
+
+	test("pairs asks with ran records by tool use id within a session", () => {
+		const log = [
+			ask("a1"),
+			ran("a1"),
+			ask("a2"),
+			ask("a3"),
+			// Same tool use id, another session: not this ask's outcome.
+			ran("a3", "s2"),
+			// Asks without ids cannot be paired and are left out.
+			ask(undefined),
+			// Allows are not asks, whether or not they ran.
+			allow("l1"),
+			ran("l1"),
+			"{not json",
+		].join("\n");
+		expect(askOutcomes(log, WEEK)).toEqual({
+			asked: 3,
+			ran: 1,
+			denied: 0,
+			notRan: 2,
+		});
+		expect(outcomesLine(log, WEEK)).toBe(
+			"outcomes: of 3 asks with a tool use id, 1 ran (approved), 0 denied (auto-mode classifier), 2 did not (refused or abandoned)",
+		);
+	});
+
+	test("only asks in the week count; their ran record may come later", () => {
+		const log = [
+			ask("a1", "s1", "2026-09-27T23:59:59.000Z"),
+			ran("a1", "s1", "2026-09-28T00:00:10.000Z"),
+			ask("a2", "s1", "2026-09-28T09:00:00.000Z"),
+		].join("\n");
+		expect(askOutcomes(log, WEEK)).toEqual({
+			asked: 1,
+			ran: 1,
+			denied: 0,
+			notRan: 0,
+		});
+	});
+
+	// #659: a tool that fails after the user approved it still ran; the post
+	// hook logs it from PostToolUseFailure as a `ran` record marked failed.
+	test("an approved ask whose tool then failed counts as ran, not refused", () => {
+		const failed = line({
+			ts: "2026-09-23T10:00:05.000Z",
+			kind: "ran",
+			failed: true,
+			tool: "Bash",
+			toolUseId: "a1",
+			sessionId: "s1",
+			host: "claude-code",
+		});
+		const log = [ask("a1"), failed, ask("a2")].join("\n");
+		expect(askOutcomes(log, WEEK)).toEqual({
+			asked: 2,
+			ran: 1,
+			denied: 0,
+			notRan: 1,
+		});
+	});
+
+	// PermissionDenied: the auto-mode classifier denied the call. It did not
+	// run, but the user did not refuse it either, so it is counted apart.
+	test("an ask the classifier denied counts as denied, not refused", () => {
+		const deny = (id: string, session = "s1") =>
+			line({
+				ts: "2026-09-23T10:00:05.000Z",
+				kind: "denied",
+				tool: "Bash",
+				toolUseId: id,
+				sessionId: session,
+				root: "/repo",
+				host: "claude-code",
+			});
+		const log = [
+			ask("a1"),
+			deny("a1"),
+			ask("a2"),
+			// Another session's denial is not this ask's outcome.
+			deny("a2", "s2"),
+			ask("a3"),
+			ran("a3"),
+		].join("\n");
+		expect(askOutcomes(log, WEEK)).toEqual({
+			asked: 3,
+			ran: 1,
+			denied: 1,
+			notRan: 1,
+		});
+		expect(outcomesLine(log, WEEK)).toBe(
+			"outcomes: of 3 asks with a tool use id, 1 ran (approved), 1 denied (auto-mode classifier), 1 did not (refused or abandoned)",
+		);
+	});
+
+	test("an old log, with no ids, adds no outcomes line", () => {
+		const fixtures = join(
+			import.meta.dir,
+			"../../../packages/core/src/digest/__tests__/fixtures",
+		);
+		const text = readFileSync(join(fixtures, "gate-log.jsonl"), "utf-8");
+		expect(askOutcomes(text, WEEK)).toEqual({
+			asked: 0,
+			ran: 0,
+			denied: 0,
+			notRan: 0,
+		});
+		expect(outcomesLine(text, WEEK)).toBeUndefined();
+		expect(outcomesLine("", WEEK)).toBeUndefined();
 	});
 });
 

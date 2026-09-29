@@ -116,12 +116,64 @@ describe("parseGateLog", () => {
 		["permissionMode", { permissionMode: "yolo" }],
 		["decisionIds (not a list)", { decisionIds: "d-1" }],
 		["decisionIds (not strings)", { decisionIds: ["d-1", 2] }],
+		["toolUseId", { toolUseId: 1 }],
+		["sessionId", { sessionId: {} }],
 	])("a line with a bad %s is malformed (#584)", (_name, bad) => {
 		const { records, malformed } = parseGateLog(
 			line({ ...BASE, ...CONTEXT, ...bad }),
 		);
 		expect(records).toEqual([]);
 		expect(malformed).toBe(1);
+	});
+});
+
+describe("parseGateLog and the outcome hook's ran records", () => {
+	const PRE: GateLogRecord = {
+		ts: "2026-09-25T10:00:00.000Z",
+		tool: "Bash",
+		action: "rm -rf dist",
+		verdict: "ask",
+		reason: "irreversible",
+		toolUseId: "t1",
+		sessionId: "s1",
+	};
+	const RAN = {
+		ts: "2026-09-25T10:00:05.000Z",
+		kind: "ran",
+		tool: "Bash",
+		toolUseId: "t1",
+		sessionId: "s1",
+		host: "claude-code",
+	};
+
+	test("reads a pre record's tool use and session ids", () => {
+		expect(parseGateLog(JSON.stringify(PRE))).toEqual({
+			records: [PRE],
+			malformed: 0,
+		});
+	});
+
+	test("ran records are skipped: neither a verdict nor malformed", () => {
+		const text = [PRE, RAN].map((r) => JSON.stringify(r)).join("\n");
+		expect(parseGateLog(text)).toEqual({ records: [PRE], malformed: 0 });
+	});
+
+	// #659: the outcome hook also logs PermissionDenied (the auto-mode
+	// classifier denied the call) as `kind: "denied"`, and PostToolUseFailure
+	// as a `ran` record marked failed. Neither is a verdict.
+	test("denied and failed ran records are skipped too", () => {
+		const denied = { ...RAN, kind: "denied", action: undefined };
+		const failed = { ...RAN, failed: true };
+		const text = [PRE, denied, failed].map((r) => JSON.stringify(r)).join("\n");
+		expect(parseGateLog(text)).toEqual({ records: [PRE], malformed: 0 });
+	});
+
+	test("ran records leave the fixture's digest unchanged", () => {
+		const ran = JSON.stringify(RAN);
+		const mixed = LOG.split("\n")
+			.flatMap((l) => [l, ran])
+			.join("\n");
+		expect(parseGateLog(mixed)).toEqual(parseGateLog(LOG));
 	});
 });
 

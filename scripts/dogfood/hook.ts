@@ -24,12 +24,20 @@
  * Every gated decision is appended to `.maina/dogfood/log.jsonl`
  * (gitignored; `MAINA_DOGFOOD_LOG` overrides the path) as
  * `{ ts, tool, action, verdict, reason, override?, root, host,
- * permissionMode, decisionIds }`: a local trail with the command text, for
- * friction reports. `root`, `host`, `permissionMode` and `decisionIds`
- * (#584) let an exporter rebuild the gate event under its workspace root and
- * join the record to the decision log's outcomes. The weekly report reads
- * the decision log instead (`.maina/decisions.db`, #570), which the runtime
- * this hook asks appends its gate decisions to, as hashes and labels only.
+ * permissionMode, decisionIds, toolUseId?, sessionId? }`: a local trail with
+ * the command text, for friction reports. `root`, `host`, `permissionMode`
+ * and `decisionIds` (#584) let an exporter rebuild the gate event under its
+ * workspace root and join the record to the decision log's outcomes. The
+ * weekly report reads the decision log instead (`.maina/decisions.db`,
+ * #570), which the runtime this hook asks appends its gate decisions to, as
+ * hashes and labels only.
+ *
+ * Outcomes (FR-S1-4, FR-DOG-3): `outcome.ts`, wired as the `PostToolUse`,
+ * `PostToolUseFailure` and `PermissionDenied` hooks for the same tools,
+ * appends a `ran` or `denied` record per gated call to the same log, keyed
+ * by `toolUseId` and `sessionId` only. Set `MAINA_DOGFOOD_LOG` globally (say
+ * to `~/.maina/dogfood/log.jsonl`) so every checkout and worktree appends to
+ * one file.
  */
 
 import {
@@ -38,13 +46,16 @@ import {
 } from "../../packages/core/src/gate/events";
 import {
 	CLAUDE_HOST,
+	type ClaudeEvent,
 	type ClaudeOutput,
 } from "../../packages/runtime/src/adapters/claude-code";
 import {
 	type ClaudeHookPorts,
 	type ClaudeHookRun,
+	parseHookInput,
 	runClaudeHook,
 } from "../../packages/runtime/src/claude-hook";
+import { idsOf } from "./outcome";
 
 export type Verdict = "allow" | "ask" | "deny";
 
@@ -68,6 +79,10 @@ export interface LogRecord {
 	readonly permissionMode: PermissionMode;
 	/** Ids of the `action.risk` decisions behind the verdict. */
 	readonly decisionIds: readonly string[];
+	/** Claude Code's `tool_use_id`, when the payload had one. */
+	readonly toolUseId?: string;
+	/** Claude Code's `session_id`, when the payload had one. */
+	readonly sessionId?: string;
 }
 
 export interface DogfoodDeps {
@@ -91,9 +106,9 @@ const MAX_ACTION = 200;
 const SILENT: ClaudeOutput = { exitCode: 0, stdout: "", stderr: "" };
 
 /** What the tool call does, for the log: its command, path, tool or URL. */
-function actionOf(run: ClaudeHookRun): string {
-	if (run.event.type !== "gate") return "";
-	const { input } = run.event.event;
+function actionOf(event: ClaudeEvent): string {
+	if (event.type !== "gate") return "";
+	const { input } = event.event;
 	const pick = [input.command, input.path, input.url].find(
 		(v): v is string => typeof v === "string",
 	);
@@ -164,12 +179,13 @@ export async function runDogfoodHook(
 		deps.log({
 			ts: deps.now(),
 			tool: run.event.type === "gate" ? run.event.tool : "unknown",
-			action: actionOf(run),
+			action: actionOf(run.event),
 			verdict: final.verdict,
 			reason: malformed ? `hook crash: ${final.reason}` : final.reason,
 			...(overridden ? { override: true as const } : {}),
 			...contextOf(run, deps.rootOf),
 			decisionIds: decision.decisionIds,
+			...(malformed ? {} : idsOf(parseHookInput(raw))),
 		});
 	} catch {
 		// Logging is best-effort; it never changes the decision.
@@ -204,18 +220,20 @@ if (import.meta.main) {
 	const logPath =
 		process.env.MAINA_DOGFOOD_LOG ??
 		resolve(repoRoot, ".maina/dogfood/log.jsonl");
+	const rootOf = (cwd: string): string | null => {
+		const root = resolveRoot({ cwd }, gitProbe);
+		return root.ok ? root.value.path : null;
+	};
+	const append = (record: LogRecord): void => {
+		mkdirSync(dirname(logPath), { recursive: true });
+		appendFileSync(logPath, `${JSON.stringify(record)}\n`);
+	};
 	const out = await runDogfoodHook(await Bun.stdin.text(), {
 		ports: systemClaudeHookPorts(),
 		override: process.env.MAINA_DOGFOOD_OVERRIDE === "1",
 		now: () => new Date().toISOString(),
-		rootOf: (cwd) => {
-			const root = resolveRoot({ cwd }, gitProbe);
-			return root.ok ? root.value.path : null;
-		},
-		log: (record) => {
-			mkdirSync(dirname(logPath), { recursive: true });
-			appendFileSync(logPath, `${JSON.stringify(record)}\n`);
-		},
+		rootOf,
+		log: append,
 	});
 	process.stdout.write(out.stdout);
 	process.stderr.write(out.stderr);

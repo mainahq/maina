@@ -14,6 +14,16 @@
  * `maina digest --dogfood --commit`, and the weekly workflow keeps a
  * committed report rather than overwriting it.
  *
+ * It also prints an outcomes line to stdout, not into the committed report
+ * (which must stay what `maina digest --dogfood` writes from the decision
+ * log): of the week's asks in the dogfood hook log (`MAINA_DOGFOOD_LOG`, or
+ * `.maina/dogfood/log.jsonl`) that carry a tool use id, how many ran, that
+ * is the user approved them, how many the auto-mode classifier denied, and
+ * how many did not run (refused or abandoned). An ask ran when the outcome
+ * hook (`outcome.ts`) logged a `ran` record with its tool use id in the
+ * same session (the tool succeeded or failed), and was denied when it
+ * logged a `denied` record. A log without ids prints nothing more.
+ *
  * Usage:
  *   bun run dogfood:report                 # the week that just ended
  *   bun run dogfood:report --week 2026-39  # a specific week
@@ -25,9 +35,12 @@ import {
 } from "../../packages/cli/src/commands/digest";
 import {
 	buildDigest,
+	DENIED_KIND,
 	type DigestEvent,
 	isoWeek,
 	isWeekKey,
+	parseGateLog,
+	RAN_KIND,
 	type WeekBounds,
 	weekBounds,
 } from "../../packages/core/src/digest/build";
@@ -65,10 +78,87 @@ export function decisionLog(root: string): ReportDeps["readEvents"] {
 	return (bounds) => readDecisionEvents(`${root}/.maina`, bounds);
 }
 
+/** What became of a week's asks that carry a tool use id. */
+export interface AskOutcomes {
+	readonly asked: number;
+	/**
+	 * A `ran` record followed, from PostToolUse or PostToolUseFailure: the
+	 * user approved the call, whether the tool then succeeded or failed.
+	 */
+	readonly ran: number;
+	/** A `denied` record followed (PermissionDenied): the auto-mode classifier denied it. */
+	readonly denied: number;
+	/** Neither: the user refused or abandoned the call. */
+	readonly notRan: number;
+}
+
+const pairKey = (toolUseId: string, sessionId: unknown): string =>
+	`${typeof sessionId === "string" ? sessionId : ""}\u0000${toolUseId}`;
+
+interface OutcomeKeys {
+	readonly ran: ReadonlySet<string>;
+	readonly denied: ReadonlySet<string>;
+}
+
+/** The outcome records' pairing keys, by kind; malformed lines are skipped. */
+function outcomeKeys(logText: string): OutcomeKeys {
+	const ran = new Set<string>();
+	const denied = new Set<string>();
+	for (const line of logText.split("\n")) {
+		if (line.trim() === "") continue;
+		try {
+			const r = JSON.parse(line) as Record<string, unknown> | null;
+			if (typeof r?.toolUseId !== "string") continue;
+			const key = pairKey(r.toolUseId, r.sessionId);
+			if (r.kind === RAN_KIND) ran.add(key);
+			else if (r.kind === DENIED_KIND) denied.add(key);
+		} catch {
+			// Not a record.
+		}
+	}
+	return { ran, denied };
+}
+
+/**
+ * Pairs `week`'s asks in the dogfood hook log with the outcome hook's
+ * records by tool use id, within a session: a `ran` record (the tool
+ * succeeded or failed) means approved, a `denied` one denied by the
+ * classifier; a call that ran counts as ran even if a denial was logged too.
+ * Asks without an id (older lines) cannot be paired and are left out. An
+ * outcome record may fall after the week. Pure.
+ */
+export function askOutcomes(logText: string, week: string): AskOutcomes {
+	const keys = outcomeKeys(logText);
+	let asked = 0;
+	let ran = 0;
+	let denied = 0;
+	for (const r of parseGateLog(logText).records) {
+		if (r.verdict !== "ask" || r.toolUseId === undefined) continue;
+		if (isoWeek(r.ts) !== week) continue;
+		asked++;
+		const key = pairKey(r.toolUseId, r.sessionId);
+		if (keys.ran.has(key)) ran++;
+		else if (keys.denied.has(key)) denied++;
+	}
+	return { asked, ran, denied, notRan: asked - ran - denied };
+}
+
+/** The outcomes line the CLI prints, or undefined when no ask has an id. */
+export function outcomesLine(
+	logText: string,
+	week: string,
+): string | undefined {
+	const o = askOutcomes(logText, week);
+	if (o.asked === 0) return undefined;
+	return `outcomes: of ${o.asked} asks with a tool use id, ${o.ran} ran (approved), ${o.denied} denied (auto-mode classifier), ${o.notRan} did not (refused or abandoned)`;
+}
+
 // ── CLI (imperative shell) ────────────────────────────────────────────────
 
 if (import.meta.main) {
-	const { mkdirSync, writeFileSync } = await import("node:fs");
+	const { existsSync, mkdirSync, readFileSync, writeFileSync } = await import(
+		"node:fs"
+	);
 	const { dirname, resolve } = await import("node:path");
 	const root = resolve(import.meta.dir, "../..");
 	const argv = process.argv.slice(2);
@@ -86,6 +176,17 @@ if (import.meta.main) {
 	});
 	if (r.ok) {
 		process.stdout.write(`Wrote ${r.value}\n`);
+		const logPath =
+			process.env.MAINA_DOGFOOD_LOG ??
+			resolve(root, ".maina/dogfood/log.jsonl");
+		try {
+			const line = existsSync(logPath)
+				? outcomesLine(readFileSync(logPath, "utf-8"), week)
+				: undefined;
+			if (line !== undefined) process.stdout.write(`${line}\n`);
+		} catch {
+			// The hook log is a local extra; the report stands without it.
+		}
 	} else {
 		process.stderr.write(`dogfood report: ${r.error}\n`);
 		process.exitCode = 1;
