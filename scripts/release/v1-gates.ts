@@ -9,7 +9,7 @@
  *
  *   bun run release:gates                          # evidence from release/v1-evidence
  *   bun run release:gates --evidence <dir>         # another evidence directory
- *   bun run release:gates --run latest             # the latest release-evidence run
+ *   bun run release:gates --run latest             # the latest nightly/on-demand evidence run
  *   bun run release:gates --run <id>               # that run [--branch <b> with latest]
  *   bun run release:gates --summary <file>         # also append the report as markdown
  *
@@ -943,13 +943,17 @@ export type WorkflowRun = Readonly<{
 	databaseId: number;
 	status: string;
 	conclusion: string;
+	/** The triggering event (`schedule`, `workflow_dispatch`, `pull_request`). */
+	event: string;
 	url: string;
 }>;
 
 /**
- * The newest finished run (newest first, as `gh run list` gives them).
- * Its jobs may have failed: the evidence job runs regardless and records
- * the failures as evidence. A cancelled run has none.
+ * The newest finished nightly or on-demand run (newest first, as `gh run
+ * list` gives them). Its jobs may have failed: the evidence job runs
+ * regardless and records the failures as evidence. A cancelled run has
+ * none. A pull_request run only proves a collector change, with one e2e
+ * repetition on an unmerged head, so it is never release evidence (#652).
  */
 export function pickEvidenceRun(
 	runs: readonly WorkflowRun[],
@@ -958,10 +962,14 @@ export function pickEvidenceRun(
 		(r) =>
 			r.status === "completed" &&
 			r.conclusion !== "cancelled" &&
-			r.conclusion !== "skipped",
+			r.conclusion !== "skipped" &&
+			r.event !== "pull_request",
 	);
 	return run === undefined
-		? { ok: false, error: `no finished ${EVIDENCE_WORKFLOW} run` }
+		? {
+				ok: false,
+				error: `no finished nightly or on-demand ${EVIDENCE_WORKFLOW} run`,
+			}
 		: { ok: true, value: run };
 }
 
@@ -1031,9 +1039,9 @@ if (import.meta.main) {
 				EVIDENCE_WORKFLOW,
 				...(source.branch ? ["--branch", source.branch] : []),
 				"--limit",
-				"20",
+				"100",
 				"--json",
-				"databaseId,status,conclusion,url",
+				"databaseId,status,conclusion,event,url",
 			]);
 			const picked = list.ok
 				? pickEvidenceRun(JSON.parse(list.value) as WorkflowRun[])
