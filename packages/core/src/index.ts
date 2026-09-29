@@ -109,6 +109,7 @@ export {
 	cloudBaseUrl,
 	createCloudClient,
 } from "./cloud/client";
+export { isPathWithin, promptFileName } from "./cloud/prompt-path";
 export type {
 	ApiResponse,
 	CloudConfig,

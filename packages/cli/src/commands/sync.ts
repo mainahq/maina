@@ -5,16 +5,26 @@
 
 import { createHash } from "node:crypto";
 import {
+	closeSync,
+	constants,
 	existsSync,
+	lstatSync,
 	mkdirSync,
+	openSync,
 	readdirSync,
 	readFileSync,
+	realpathSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import { intro, log, outro, spinner } from "@clack/prompts";
 import type { PromptRecord } from "@mainahq/core";
-import { createCloudClient, loadAuthConfig } from "@mainahq/core";
+import {
+	createCloudClient,
+	isPathWithin,
+	loadAuthConfig,
+	promptFileName,
+} from "@mainahq/core";
 import { Command } from "commander";
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -23,6 +33,52 @@ const DEFAULT_CLOUD_URL =
 	process.env.MAINA_CLOUD_URL ?? "https://api.mainahq.com";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Create a new file or truncate an existing one, but never follow a
+ * symlink at the final component (#662). `O_NOFOLLOW` is POSIX-only; on
+ * Windows the `lstat` check in `writePromptFile` is the guard.
+ */
+const WRITE_NO_FOLLOW =
+	constants.O_WRONLY |
+	constants.O_CREAT |
+	constants.O_TRUNC |
+	(constants.O_NOFOLLOW ?? 0);
+
+function errorMessage(e: unknown): string {
+	return e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * Writes a pulled prompt to `<promptsDir>/<fileName>`. `fileName` has
+ * already passed `promptFileName`; this refuses what only the file system
+ * can reveal: an existing symlink (or directory) at that name, which a
+ * checked-in repo could plant to redirect the write (#662).
+ */
+function writePromptFile(
+	promptsDir: string,
+	fileName: string,
+	content: string,
+): string | null {
+	const filePath = join(promptsDir, fileName);
+	try {
+		if (!lstatSync(filePath).isFile()) {
+			return `${fileName} (not a regular file; refusing to write through it)`;
+		}
+	} catch {
+		// Does not exist yet: the no-follow write below creates it.
+	}
+	let fd: number | undefined;
+	try {
+		fd = openSync(filePath, WRITE_NO_FOLLOW, 0o644);
+		writeFileSync(fd, content, "utf-8");
+		return null;
+	} catch (e) {
+		return `${fileName} (${errorMessage(e)})`;
+	} finally {
+		if (fd !== undefined) closeSync(fd);
+	}
+}
 
 function hashContent(content: string): string {
 	return createHash("sha256").update(content).digest("hex");
@@ -131,7 +187,27 @@ export async function syncPullAction(cwd?: string): Promise<SyncActionResult> {
 		return {
 			synced: false,
 			count: 0,
-			reason: `Could not create ${promptsDir}: ${e instanceof Error ? e.message : String(e)}`,
+			reason: `Could not create ${promptsDir}: ${errorMessage(e)}`,
+		};
+	}
+
+	// A symlinked `.maina/prompts` (e.g. checked into a hostile repo) would
+	// send every write elsewhere; the directory must resolve inside the repo.
+	let realPromptsDir: string;
+	try {
+		realPromptsDir = realpathSync(promptsDir);
+		if (!isPathWithin(realpathSync(root), realPromptsDir)) {
+			return {
+				synced: false,
+				count: 0,
+				reason: `${promptsDir} resolves outside the repository (${realPromptsDir}); refusing to write prompts there.`,
+			};
+		}
+	} catch (e) {
+		return {
+			synced: false,
+			count: 0,
+			reason: `Could not resolve ${promptsDir}: ${errorMessage(e)}`,
 		};
 	}
 
@@ -151,14 +227,22 @@ export async function syncPullAction(cwd?: string): Promise<SyncActionResult> {
 			continue;
 		}
 
-		try {
-			const filePath = join(promptsDir, prompt.path);
-			writeFileSync(filePath, prompt.content, "utf-8");
+		// The path is untrusted cloud input: only a flat `*.md` name (#662).
+		const fileName = promptFileName(prompt.path);
+		if (!fileName.ok) {
+			skipped.push(fileName.error);
+			continue;
+		}
+
+		const failure = writePromptFile(
+			realPromptsDir,
+			fileName.value,
+			prompt.content,
+		);
+		if (failure === null) {
 			written++;
-		} catch (e) {
-			skipped.push(
-				`${prompt.path} (${e instanceof Error ? e.message : String(e)})`,
-			);
+		} else {
+			skipped.push(failure);
 		}
 	}
 
