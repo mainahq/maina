@@ -53,8 +53,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Nightly: 2 repetitions (144 runs); a PR: 1; on demand: the input.
-  E2E_REPETITIONS: ${{ inputs.e2e_repetitions || (github.event_name == 'schedule' && '2') || '1' }}
+  # Nightly: 14 repetitions (1,008 runs), so every nightly run meets the
+  # e2e-matrix gate (≥ 1,000 runs) on its own (#652); a PR: 1; on demand:
+  # the input. 14 repetitions take a few minutes per cell.
+  E2E_REPETITIONS: ${{ inputs.e2e_repetitions || (github.event_name == 'schedule' && '14') || '1' }}
 
 jobs:
   latency:
